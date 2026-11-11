@@ -69,12 +69,10 @@ from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._bridge._approval import MAX_CONSECUTIVE_REJECTIONS
 from inspect_ai.agent._bridge._sentinel import (
-    BridgedRequest,
     SentinelCheck,
     _call_key,
     _Handouts,
     _SavedHandouts,
-    bridged_request,
 )
 from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
 from inspect_ai.agent._bridge.bridge import agent_bridge
@@ -154,7 +152,7 @@ from inspect_ai.tool._tool_call import (
     ToolCallView,
     ToolCallViewError,
 )
-from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
+from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
@@ -6995,7 +6993,8 @@ async def test_no_host_result_gets_another_conversations_context(
     - `timeout answer while checking`: the sentinel is still checking main's
       result when main answers the call with its client's timeout error;
     - `first answer sent twice`: main's first answer is sent twice, and the
-      call is handed to main again from the model cache and run;
+      call is handed to main again from the model cache and run: the cache
+      hit hands the call out twice, so that execution gets no context;
     - `second retry`: main's call still runs while two sub-agents are each
       handed the call and main retries twice;
     - `retry after a denied retry`: main's first retry is denied.
@@ -7090,7 +7089,7 @@ async def test_no_host_result_gets_another_conversations_context(
             await run("host", "read_file", {"path": "p"})
             expected = {
                 "contents 1": ["MAIN read p."],
-                "contents 2": ["MAIN read p."],
+                "contents 2": None,
                 "contents 3": None,
             }
         elif shape == "second retry":
@@ -7132,7 +7131,8 @@ async def test_one_conversations_repeated_host_call_keeps_its_context(
       grant: its result is checked with the second turn's input, a later
       point of the same conversation (a documented limit);
     - `cache hit`: the scaffold sends its request again and the model cache
-      hands the same reply over again; its execution keeps the context.
+      hands the same reply over again: its call was handed out twice, which
+      may be to two conversations, so its execution gets no context.
     """
     monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
     calls = [
@@ -7166,6 +7166,10 @@ async def test_one_conversations_repeated_host_call_keeps_its_context(
                 output = await run("host", "read_file", {"path": "p"})
 
     executed = _executed(seen)
+    if shape == "cache hit":
+        [after] = executed
+        assert after.input is None and after.tools is None
+        return
     assert all(after.input is not None and after.message_id for after in executed)
     assert all(
         [m.text for m in after.input or []][0] == "MAIN read p." for after in executed
@@ -7615,17 +7619,17 @@ def terminate_on_a_secret_report(
 @pytest.mark.parametrize("first_target", ["read_file", "status"])
 @pytest.mark.parametrize("host", [False, True])
 @pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
-async def test_a_request_with_the_same_messages_and_other_declarations_is_no_retry(
+async def test_a_call_repeated_in_a_second_request_is_ambiguous(
     dialect: HostDialect, host: bool, first_target: str, second: str
 ) -> None:
-    """A second request declares `summarize` as the other bridged tool; the model repeats the first's call, id and reply.
+    """A second request repeats the first's messages with `summarize` declared as the other bridged tool, or another prompt, or nothing changed; the model repeats the first's call, id and reply.
 
-    With the same messages (`declarations`) or another prompt (`prompt`), the
-    call is ambiguous: the first conversation's report is checked as both
-    targets, with no proposal's context, and its secret is caught as the
-    first's target. An unchanged request (`retry`) is a retry: the report is
-    checked as the one target, with its proposal's context. With `host`, the
-    first target runs on the host before the second request.
+    The call is handed out twice, so it is ambiguous in each case, an
+    unchanged request (`retry`) too: the first conversation's report is
+    checked as every target its handouts resolved to (both, unless `retry`),
+    with no proposal's context, and its secret is caught as the first's
+    target. With `host`, the first target runs on the host before the second
+    request.
     """
     call = ToolCall(id="same", function="summarize", arguments={"path": "p"})
     proposal = tool_calls_output(call)
@@ -7656,49 +7660,28 @@ async def test_a_request_with_the_same_messages_and_other_declarations_is_no_ret
         )
         later_calls = await later.request(bridge)
         assert later_calls[0][0] == first_calls[0][0]
-        assert bridge._handouts.handed["same"].ambiguous is (second != "retry")
+        assert bridge._handouts.handed["same"].ambiguous
         first.results(first_calls, ["secret"])
         with pytest.raises(TerminateSampleError, match=f"secret {first_target} report"):
             await first.request(bridge)
+    assert reports and all(not has_input for _, has_input in reports)
     if second == "retry":
-        assert reports == [(first_target, True)]
+        assert {target for target, _ in reports} == {first_target}
     else:
-        assert reports and all(not has_input for _, has_input in reports)
         assert {target for target, _ in reports} <= {first_target, other_target}
-
-
-def test_a_request_is_identified_by_its_declarations_and_tool_choice() -> None:
-    """The same messages with another declared name, description, schema or tool choice are another request; unchanged, the same."""
-    request = bridged_request([ChatMessageUser(content="Same prompt")])
-    [info] = declare("summarize")
-    key = request.declaring([info], "auto").key
-    assert request.declaring([info], "auto").key == key
-    assert request.declaring([info.model_copy()], "auto").key == key
-    changed = [
-        request.declaring([info], "any"),
-        request.declaring([info], ToolFunction(name="summarize")),
-        request.declaring([info], None),
-        request.declaring(declare("other"), "auto"),
-        request.declaring(declare("summarize", description=STATUS), "auto"),
-        request.declaring(declare("summarize", parameters=("file",)), "auto"),
-        request.declaring([info, *declare("other")], "auto"),
-        request.declaring([], "auto"),
-    ]
-    assert len({key, *(other.key for other in changed)}) == len(changed) + 1
 
 
 @pytest.mark.usefixtures("fake_sentinel")
 @pytest.mark.parametrize("retry", [False, True])
 @pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
-async def test_a_reply_handed_again_for_other_declarations_is_another_conversations(
+async def test_a_reply_handed_again_may_be_another_conversations(
     dialect: HostDialect, retry: bool
 ) -> None:
-    """A cached reply is handed out again for a request with the same messages and another declared tool.
+    """A cached reply is handed out again for a request with the same messages and another declared tool, or the same request (`retry`).
 
-    The second request is another conversation's, so the host call it hands
-    over is shared and its execution is checked with no proposal's context.
-    The same request again (`retry`) is the same conversation: the execution
-    keeps its proposal's context.
+    The reply was handed out twice, which may be to two conversations, so
+    the host call it hands over is shared and its execution is checked with
+    no proposal's context, after a retry too.
     """
     call = ToolCall(id="same", function="read_file", arguments={"path": "p"})
     proposal = tool_calls_output(call)
@@ -7717,7 +7700,251 @@ async def test_a_reply_handed_again_for_other_declarations_is_another_conversati
         await call_host_tool(bridge)("host", "read_file", {"path": "p"})
     [step] = seen
     assert step.truncated is not None
-    assert (step.input is not None) is retry
+    assert step.input is None
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("changed", [False, True])
+@pytest.mark.parametrize("host", [False, True])
+@pytest.mark.parametrize("filtered", ["input", "config"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_call_handed_out_twice_for_the_same_request_gets_no_producer_context(
+    dialect: HostDialect, filtered: str, host: bool, changed: bool
+) -> None:
+    """Two conversations send the same request and declarations; a filter generates the second from other input (`changed`) or the same.
+
+    The model repeats the call and its id, so the call is handed out twice
+    and its results get no producer context, whether or not the filter
+    changed what the second generation was sent: the first conversation's
+    report of `secret` is checked with no input, and terminates. The filter
+    changes the input itself (`input`) or the system message the
+    configuration adds (`config`). With `host`, the call runs on the host
+    after its first handout, with that handout's context.
+    """
+    call = ToolCall(id="same", function="read_file", arguments={"path": "p"})
+    proposal = tool_calls_output(call)
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model("mockllm/model", custom_outputs=[proposal, proposal, done])
+    bridge = _counted_host_bridge(model)
+    attempts = 0
+
+    async def rewrite(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> GenerateInput:
+        nonlocal attempts
+        attempts += 1
+        text = "public context" if changed and attempts == 2 else "restricted context"
+        if filtered == "config":
+            return GenerateInput(
+                input,
+                tools,
+                tool_choice,
+                config.model_copy(update={"system_message": text}),
+            )
+        return GenerateInput(
+            [ChatMessageUser(content=text)], tools, tool_choice, config
+        )
+
+    bridge.filter = rewrite
+    seen: list[AfterToolCall] = []
+
+    @protocol
+    def restricted() -> Protocol:
+        async def after(
+            context: Context, step: AfterToolCall, escalations: Escalations
+        ) -> Decision | None:
+            seen.append(step)
+            if step.truncated is None and "secret" in step.result.text:
+                if step.input is None or step.input[0].text == "restricted context":
+                    return Decision.terminate("restricted report")
+            return None
+
+        return after
+
+    with active_test_sentinel(restricted()):
+        first = _HostConversation(dialect, "Same prompt", declare("read_file")[0])
+        calls = await first.request(bridge)
+        if host:
+            await call_host_tool(bridge)("host", "read_file", {"path": "p"})
+        await _HostConversation(
+            dialect, "Same prompt", declare("read_file")[0]
+        ).request(bridge)
+        assert bridge._handouts.handed["same"].ambiguous
+        first.results(calls, ["secret"])
+        with pytest.raises(TerminateSampleError, match="restricted report"):
+            await first.request(bridge)
+    [report] = [step for step in seen if step.truncated is None]
+    assert report.input is None
+    assert report.tools is None and report.tool_choice is None
+    if host:
+        [executed] = _executed(seen)
+        assert executed.input is not None
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("changed", [False, True])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_call_a_response_filter_regenerates_twice_gets_no_producer_tools(
+    dialect: HostDialect, changed: bool
+) -> None:
+    """A response filter regenerates two conversations' same request, the second with an extra tool (`changed`) or not.
+
+    The call repeated under its id is handed out twice, so the first
+    conversation's report is checked with no producer tools, whichever
+    generation's tools the filter sent, and terminates.
+    """
+    call = ToolCall(id="same", function="read_file", arguments={"path": "p"})
+    proposal = tool_calls_output(call)
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model(
+        "mockllm/model", custom_outputs=[done, proposal, done, proposal, done, done]
+    )
+    bridge = _counted_host_bridge(model)
+    attempts = 0
+
+    async def regenerate(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput:
+        nonlocal attempts
+        attempts += 1
+        tools = list(generate_input.tools)
+        if changed and attempts == 2:
+            tools.extend(declare("public_permission", description="Public context."))
+        return await model.generate(
+            input=generate_input.input,
+            tools=tools,
+            tool_choice=generate_input.tool_choice,
+            config=generate_input.config,
+        )
+
+    bridge.response_filter = regenerate
+    seen: list[list[str] | None] = []
+
+    @protocol
+    def restricted() -> Protocol:
+        async def after(
+            context: Context, step: AfterToolCall, escalations: Escalations
+        ) -> Decision | None:
+            names = [t.name for t in step.tools] if step.tools is not None else None
+            seen.append(names)
+            if "secret" in step.result.text and (
+                names is None or "public_permission" not in names
+            ):
+                return Decision.terminate("restricted report")
+            return None
+
+        return after
+
+    with active_test_sentinel(restricted()):
+        first = _HostConversation(dialect, "Same prompt", declare("read_file")[0])
+        calls = await first.request(bridge)
+        await _HostConversation(
+            dialect, "Same prompt", declare("read_file")[0]
+        ).request(bridge)
+        first.results(calls, ["secret"])
+        with pytest.raises(TerminateSampleError, match="restricted report"):
+            await first.request(bridge)
+    assert seen == [None]
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("other", ["read_file", "status", "local"])
+@pytest.mark.parametrize("same_reply", [False, True])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_turn_continuing_a_reply_handed_out_twice_is_another_conversations(
+    dialect: HostDialect, same_reply: bool, other: str
+) -> None:
+    """A second conversation is handed the first's reply again, with `summarize` declared as `other`; its next turn continues that reply.
+
+    The reply was handed out twice (the same message, or a new one with the
+    same content, `same_reply`), whatever its call resolved to the second
+    time: another bridged tool, the same one, or a tool of the scaffold's
+    own (`local`). So the turn can't continue the first conversation: the
+    `read_file` call it hands over is shared, and the execution, which takes
+    the first conversation's grant, is checked with no proposal's context.
+    """
+    call = ToolCall(id="same", function="summarize", arguments={"path": "p"})
+    proposal = tool_calls_output(call)
+    later = tool_calls_output(
+        ToolCall(id="later", function="summarize", arguments={"path": "p"})
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            proposal,
+            proposal if same_reply else tool_calls_output(call),
+            later,
+        ],
+    )
+    bridge = _status_and_read_file_bridge(model)
+    descriptions = {
+        "read_file": READ_FILE,
+        "status": STATUS,
+        "local": "A tool of the scaffold's own.",
+    }
+    seen: list[AfterToolCall] = []
+    with active_test_sentinel(record_tool_results(seen)):
+        await _HostConversation(
+            dialect, "Same prompt", declare("summarize")[0]
+        ).request(bridge)
+        second = _HostConversation(
+            dialect,
+            "Same prompt",
+            declare("summarize", description=descriptions[other])[0],
+        )
+        calls = await second.request(bridge)
+        assert bridge._handouts.handed["same"].ambiguous
+        second.results(calls, ["public"])
+        second.infos = declare("summarize")
+        await second.request(bridge)
+        await call_host_tool(bridge)("host", "read_file", {"path": "p"})
+    [executed] = _executed(seen)
+    assert executed.input is None
+    assert bridge._handouts.shared(
+        bridge.host_call_keys("host", "read_file", {"path": "p"})
+    )
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_conversation_changing_its_declarations_between_turns_keeps_its_context(
+    dialect: HostDialect,
+) -> None:
+    """One conversation declares `summarize` as `read_file`, then `status`, then `read_file` again, its calls under new ids.
+
+    Each reply is handed out once, so each turn continues the last: the host
+    execution of `read_file` keeps its proposal's context.
+    """
+    calls = [
+        ToolCall(id=f"call{i}", function="summarize", arguments={"path": "p"})
+        for i in range(3)
+    ]
+    model = get_model(
+        "mockllm/model", custom_outputs=[tool_calls_output(c) for c in calls]
+    )
+    bridge = _status_and_read_file_bridge(model)
+    seen: list[AfterToolCall] = []
+    with active_test_sentinel(record_tool_results(seen)):
+        conversation = _HostConversation(
+            dialect, "Same prompt", declare("summarize")[0]
+        )
+        proposed = await conversation.request(bridge)
+        conversation.results(proposed, ["public"])
+        conversation.infos = declare("summarize", description=STATUS)
+        proposed = await conversation.request(bridge)
+        conversation.results(proposed, ["public"])
+        conversation.infos = declare("summarize")
+        await conversation.request(bridge)
+        await call_host_tool(bridge)("host", "read_file", {"path": "p"})
+    [executed] = _executed(seen)
+    assert executed.input is not None
+    assert not bridge._handouts.shared(
+        bridge.host_call_keys("host", "read_file", {"path": "p"})
+    )
 
 
 @protocol
@@ -8253,7 +8480,6 @@ async def test_a_replay_after_its_proposal_is_gone_is_checked_once_more(
             with monkeypatch.context() as patch:
                 patch.setattr(sentinel_module, "_MAX_PROPOSALS", 1)
                 bridge._handouts.hand_over(
-                    BridgedRequest("filler", frozenset()),
                     [filler],
                     [filler],
                     [SentinelCheck(filler, filler, None, "", "")],
@@ -8578,7 +8804,6 @@ def test_repeated_answers_to_one_call_take_linear_work(
         )
         handouts = _Handouts(_SavedHandouts(reserved_ids=[], handed={}, checked=[]))
         handouts.hand_over(
-            BridgedRequest("request", frozenset()),
             [call],
             [call],
             [
@@ -9010,13 +9235,13 @@ async def test_sub_agents_starting_alike_get_no_context_from_each_other(
     gives them the same ids). With `distinct replies` each is handed the
     call in a reply of its own, answering the same request: the call is
     shared, and neither result gets a proposal's context. With `cached
-    reply`, the second gets the first's reply from the model cache: the
-    first execution is checked with that reply's input, which both have.
-    Then the second runs ahead: it answers, is handed the call again and
-    runs it, so the first's own execution takes the second's later grant.
-    The cached reply may have gone to two conversations, so no later handout
-    continues it: no result after it gets a proposal's context, and the
-    first's never gets the second's tool result.
+    reply`, the second gets the first's reply from the model cache, so its
+    call was handed out twice and no execution of it gets a proposal's
+    context. Then the second runs ahead: it answers, is handed the call
+    again and runs it, so the first's own execution takes the second's
+    later grant. The cached reply may have gone to two conversations, so no
+    later handout continues it: no result after it gets a proposal's
+    context, and the first's never gets the second's tool result.
     """
     monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
     first = ToolCall(id="first", function="read_file", arguments={"path": "p"})
@@ -9050,7 +9275,7 @@ async def test_sub_agents_starting_alike_get_no_context_from_each_other(
 
     if cached:
         assert _inputs(seen) == {
-            "contents 1": ["Read p."],
+            "contents 1": None,
             "contents 2": None,
             "contents 3": None,
         }
@@ -9141,9 +9366,7 @@ def test_recording_host_call_conversations_is_linear(
             id=f"reply_{index}", content="On it.", tool_calls=[call]
         )
         checks = [SentinelCheck(call, call, None, "", "", target=target)]
-        bridge._handouts.hand_over(
-            BridgedRequest(f"request_{index}", frozenset()), [call], [call], checks
-        )
+        bridge._handouts.hand_over([call], [call], checks)
         bridge._proposing_request = request
         bridge._proposing_reply_id = reply.id
         bridge._record_form(reply.id or "", content_hash(reply))

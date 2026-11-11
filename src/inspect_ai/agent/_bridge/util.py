@@ -8,6 +8,7 @@ from dataclasses import replace
 from logging import getLogger
 from typing import (
     TYPE_CHECKING,
+    AbstractSet,
     Any,
     Callable,
     Collection,
@@ -51,9 +52,8 @@ from inspect_ai.agent._bridge._approval import (
 )
 from inspect_ai.agent._bridge._errors import BridgePolicyError, ResponseFilterError
 from inspect_ai.agent._bridge._sentinel import (
-    BridgedRequest,
     Produced,
-    bridged_request,
+    history_ids,
     sentinel_tool_results,
 )
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
@@ -1448,8 +1448,8 @@ async def _bridge_generate_impl(
     # before compaction/recording so the restored source persists in both the
     # ModelEvent input and state.messages (and thus the eval log).
     _restore_operator_message_source(bridge, input)
-    request = bridged_request(input)
-    bridge._handouts.reserve(request.ids)
+    request_ids = history_ids(input)
+    bridge._handouts.reserve(request_ids)
 
     _check_limits_before_dispatch()
     await sentinel_tool_results(bridge, input)
@@ -1660,9 +1660,8 @@ async def _bridge_generate_impl(
             declarations.extend(declared_in_input(input_messages))
         producer = generations.producer(produced)
         model_ids = [call.id for call in output.message.tool_calls or []]
-        attempt = request.declaring(declarations, tool_choice)
-        output = _fresh_call_ids(bridge, output, attempt)
-        bridge._handouts.propose(attempt, output.message.tool_calls or [])
+        output = _fresh_call_ids(bridge, output, request_ids)
+        bridge._handouts.propose(output.message.tool_calls or [])
         with agent_bridge_context_scope(_UTILITY_CONTEXT):
             reviewed = await apply_bridge_tool_approval(
                 bridge, output, input_messages, declarations, producer=producer
@@ -1671,7 +1670,7 @@ async def _bridge_generate_impl(
             handed = reviewed.output.message.tool_calls or []
             _hold_replay_state(reviewed.output, generations.outputs())
             bridge._handouts.hand_over(
-                attempt, output.message.tool_calls or [], handed, reviewed.sentinel
+                output.message.tool_calls or [], handed, reviewed.sentinel
             )
             # executions are placed in the proposing ModelEvent's span; only one
             # a sink chose is stored, so a rotating checkpoint span is followed
@@ -1697,7 +1696,6 @@ async def _bridge_generate_impl(
             }
             bridge._proposing_reply_id = reviewed.output.message.id
             bridge._proposing_request = input
-            bridge._proposing_declarations = attempt.declarations
             bridge._proposing_call_verified = verified_calls
             try:
                 bridge._register_tool_execution_grants(
@@ -1710,7 +1708,6 @@ async def _bridge_generate_impl(
                 bridge._proposing_message_ids = {}
                 bridge._proposing_reply_id = None
                 bridge._proposing_request = []
-                bridge._proposing_declarations = ""
                 bridge._proposing_call_verified = None
             return reviewed.output, c_message
 
@@ -1726,13 +1723,13 @@ async def _bridge_generate_impl(
 
 
 def _fresh_call_ids(
-    bridge: AgentBridge, output: ModelOutput, request: BridgedRequest
+    bridge: AgentBridge, output: ModelOutput, history: AbstractSet[str]
 ) -> ModelOutput:
     """`output` with a fresh id for each call whose model id names another call.
 
     The model's id names another call when it is empty, or the bridge has
-    seen it in a request or the conversation it started with, or handed it
-    over or rejected it for another call or in another request
+    seen it in a request (`history`, the ids in this one) or the conversation
+    it started with, or handed it over or rejected it for another call
     (`_Handouts.reused`). Inspect's providers don't reuse ids, but
     OpenAI-compatible servers can, and Claude Code drops a call under a
     repeated id, and its result. The provider state recorded under the id is
@@ -1749,7 +1746,7 @@ def _fresh_call_ids(
     kept: set[str] = set()
     reused: set[str] = set()
     for call_id, under_id in calls.items():
-        if bridge._handouts.reused(call_id, under_id, request, kept):
+        if bridge._handouts.reused(call_id, under_id, history, kept):
             reused.add(call_id)
         else:
             kept.add(call_id)

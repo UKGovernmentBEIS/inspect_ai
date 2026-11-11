@@ -306,7 +306,6 @@ class SandboxAgentBridge(AgentBridge):
             # a reply without an id is no other reply, nor handed out again
             self._proposing_reply_id or uuid(),
             holds,
-            self._proposing_declarations,
         )
 
     def _warn_eviction(self, evicted: "_ToolExecutionGrant") -> None:
@@ -450,8 +449,15 @@ class SandboxAgentBridge(AgentBridge):
         }
 
     def handed_to_several(self, grant: "_ToolExecutionGrant") -> bool:
-        """Whether the host call `grant` is for was handed to more than one conversation (`_Handouts.shared`)."""
-        return self._handouts.shared(
+        """Whether the host call `grant` is for may have been handed to more than one conversation.
+
+        So it was when the call that minted the grant was handed out more
+        than once (`_Handed.ambiguous`), or another handout denoted the host
+        call outside the grant's conversation (`_Handouts.shared`).
+        """
+        return not self._handouts.handed_once(
+            [grant.proposal.call.id]
+        ) or self._handouts.shared(
             self.host_call_keys(grant.server, grant.tool, grant.arguments)
         )
 

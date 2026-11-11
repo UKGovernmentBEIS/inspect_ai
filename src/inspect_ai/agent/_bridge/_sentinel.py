@@ -40,12 +40,10 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge, BridgedToolId
 from inspect_ai.model._call_tools import (
     decisive_sentinel_exception,
-    get_tools_info,
     repeated_call_ids,
 )
 from inspect_ai.model._chat_message import (
@@ -65,9 +63,7 @@ from inspect_ai.tool._tool_call import (
     ToolCallViewError,
     resolve_tool_call_view,
 )
-from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._span import in_agent_span
 
@@ -163,49 +159,6 @@ class SentinelCheck(NamedTuple):
     """The bridged tool the check is for, or None for a call no bridged tool serves."""
 
 
-class BridgedRequest(NamedTuple):
-    """A scaffold request, as the bridge tells calls apart by it."""
-
-    key: str
-    """Its digest (`bridged_request`, `declaring`): a retry of the request
-    has the same."""
-
-    ids: frozenset[str]
-    """The call ids in its conversation (`history_ids`)."""
-
-    declarations: str = ""
-    """The digest of what its calls resolve against (`declaring`)."""
-
-    def declaring(
-        self, declarations: Sequence[ToolInfo | Tool], tool_choice: ToolChoice | None
-    ) -> "BridgedRequest":
-        """The request as generated with `declarations` and `tool_choice`.
-
-        The bridge resolves a call's targets against its declarations, and a
-        result's step shows them and the tool choice, so a request with the
-        same messages and other declarations or tool choice is another
-        request: a call the model repeats in both is ambiguous, not retried.
-        """
-        digest = _parts_digest(
-            _serialized(get_tools_info(declarations)), _serialized(tool_choice)
-        )
-        return self._replace(key=_parts_digest(self.key, digest), declarations=digest)
-
-
-def bridged_request(input: Sequence[ChatMessage]) -> BridgedRequest:
-    # message ids are the bridge's, assigned from the messages' content; the
-    # agent controls its messages, so the digest must be collision-resistant
-    return BridgedRequest(
-        _digest(
-            [
-                to_json_str_safe(message.model_copy(update={"id": None}))
-                for message in input
-            ]
-        ),
-        history_ids(input),
-    )
-
-
 class _Handed(NamedTuple):
     """What the bridge keeps for each call id it has handed to the scaffold."""
 
@@ -222,16 +175,13 @@ class _Handed(NamedTuple):
     execution_id: str | None
     """The call's latest handout, or None for a call only in a rejected turn."""
 
-    request: str
-    """The request it was handed over or rejected in (`BridgedRequest.key`)."""
-
     ambiguous: bool = False
-    """Whether the call was handed over in two requests, neither a retry of
-    the other: which handout a result the scaffold reports answers can't be
-    told, then or after any later handout, so none keeps its proposal's
-    context; each is still checked as the targets its handouts resolved to. A
-    host call's result is attributed by its conversation instead
-    (`_Handouts.shared`)."""
+    """Whether the call was handed out more than once, in any requests: a
+    retry, a cache hit and another conversation alike. Which handout a
+    result answers can't be told, then or after any later handout, so none
+    of its results keeps a proposal's context, reported (`_Handouts`) or
+    executed on the host (`SandboxAgentBridge.handed_to_several`); each is
+    still checked as the targets its handouts resolved to."""
 
     read_back: tuple[tuple[str, str], ...] = ()
     """The forms its dialect reads handed calls back in (`read_back`), where
@@ -258,15 +208,12 @@ class _Conversation(NamedTuple):
     request: str = ""
     """Their digest (`HandoutPoint`)."""
 
-    declarations: str = ""
-    """What the reply's calls resolved against (`BridgedRequest.declarations`)."""
-
     reply: str = ""
     """The reply's id."""
 
-    handed: int = 0
-    """How many times the reply was handed out: a cached generation hands it
-    out again, to the same conversation or to another one starting alike."""
+    calls: tuple[str, ...] = ()
+    """The ids of the reply's calls denoting host calls: the reply was handed
+    out more than once if any of them was (`_Handed.ambiguous`)."""
 
     shared: bool = False
     """Whether another conversation may have been handed the call. Sticky; the
@@ -286,9 +233,7 @@ class HandoutPoint:
     computed once and only when a call is recorded. Each message's digest
     also covers what a provider can send the model of it that its content
     leaves out (`unhashed_model_input`), so a request whose model input
-    differs is another conversation. A reply handed out again for the same
-    messages with other declarations (`BridgedRequest.declarations`) is
-    another conversation's too.
+    differs is another conversation.
     """
 
     def __init__(
@@ -297,14 +242,11 @@ class HandoutPoint:
         contents: Callable[[ChatMessage], str],
         reply: str,
         holds: Callable[[int, str, str], bool],
-        declarations: str = "",
     ) -> None:
         self._messages = messages
         self._content = contents
         self.reply = reply
         """The reply's id."""
-        self.declarations = declarations
-        """What the reply's calls resolved against (`BridgedRequest.declarations`)."""
         self._holds = holds
         """Whether the request's message at an index, with a content, is the reply with an id."""
 
@@ -327,26 +269,14 @@ class HandoutPoint:
     def messages(self) -> int:
         return len(self.digests) - 1
 
-    def repeats(self, conversation: _Conversation) -> bool:
-        """Whether this is `conversation`'s latest reply handed out again, in answer to the same request."""
-        return (
-            self.reply == conversation.reply
-            and self.messages == conversation.messages
-            and self.digests[-1] == conversation.request
-            and self.declarations == conversation.declarations
-        )
-
     def continues(self, conversation: _Conversation) -> bool:
-        """Whether this request continues `conversation` past its latest reply.
+        """Whether this request holds `conversation`'s latest reply after that reply's request.
 
         It holds that reply's request and then the reply (`holds`): as handed,
         in a form its dialect sends it back in, or as the scaffold edited it.
-        A reply handed out more than once may have been handed to two
-        conversations starting alike, so no request continues it.
         """
         return (
-            conversation.handed == 1
-            and self.messages > conversation.messages
+            self.messages > conversation.messages
             and self.digests[conversation.messages] == conversation.request
             and self._holds(
                 conversation.messages,
@@ -458,12 +388,15 @@ class _Handouts:
     arguments, gets no proposal's context and is checked as the call it
     answers in its request. So is a result under an id the bridge never
     handed out, or one several calls of a response shared (a scaffold that
-    rewrites ids, or one answering no call). A call handed over in two
-    requests, neither a retry of the other, is ambiguous: its results get no
-    proposal's context from then on, after any retry or resume too. Context
-    is the generation and the proposing message; a result without it is still
-    checked as the handout's targets (a dispatched or renamed call's bridged
-    tool, with its viewer) while its proposal is kept.
+    rewrites ids, or one answering no call). A call handed out more than once
+    is ambiguous, whether a retry or cache hit handed it out again or another
+    conversation: the bridge can't tell those apart, as an identical request
+    may be generated from other input (a filter's) or answer another
+    conversation. Its results get no proposal's context from then on, after
+    any resume too. Context is the generation and the proposing message; a
+    result without it is still checked as the handout's targets (a
+    dispatched or renamed call's bridged tool, with its viewer) while its
+    proposal is kept.
 
     A call gets a fresh id instead (`reused`) when the model's id can't name
     it: an empty id, or one that already names another call (Claude Code
@@ -550,7 +483,7 @@ class _Handouts:
         self,
         call_id: str,
         calls: Sequence[ToolCall],
-        request: BridgedRequest,
+        history: AbstractSet[str],
         siblings: AbstractSet[str] = frozenset(),
     ) -> bool:
         """Whether the model's id for `calls` (those of a response under it) names another call.
@@ -561,8 +494,9 @@ class _Handouts:
         its request (served from the model cache, or after a rejection), or
         the call again in a later turn or another conversation, whose results
         then get no proposal's context (`hand_over`). Any other id names
-        another call when it is empty, in the request's conversation or
-        reserved: the bridge can't tell which call it was. So
+        another call when it is empty, in the request's conversation
+        (`history`, `history_ids`) or reserved: the bridge can't tell which
+        call it was. So
         does an id a Gemini CLI echo (`name__id`) can't tell apart from a
         reserved or handed one, or one of the response's other calls
         (`siblings`), in either direction: an echo of one of `calls`
@@ -581,7 +515,7 @@ class _Handouts:
             return True
         handed = self.handed.get(call_id)
         if handed is None:
-            return call_id in request.ids or call_id in self.reserved_ids
+            return call_id in history or call_id in self.reserved_ids
         return (
             handed.proposed is None
             or len(calls) > 1
@@ -590,23 +524,23 @@ class _Handouts:
 
     def hand_over(
         self,
-        request: BridgedRequest,
         proposed: Sequence[ToolCall],
         handed: Sequence[ToolCall],
         checks: Sequence[SentinelCheck] | None,
     ) -> None:
-        """Record a response's calls as handed over in `request`, each a new execution.
+        """Record a response's calls as handed over, each a new execution.
 
         `proposed` are the calls as the model proposed them, `handed` as
         approval gave them, and `checks` their `tool_result` checks, in order
-        (None without a sentinel).
+        (None without a sentinel). A call whose id was handed out before is
+        ambiguous (`_Handed.ambiguous`), and its proposal checks every target
+        its handouts resolved to.
         """
         shared = repeated_call_ids(handed)
         for index, (model_call, call) in enumerate(zip(proposed, handed, strict=True)):
             earlier = self.handed.get(call.id)
             ambiguous = earlier is not None and (
-                earlier.ambiguous
-                or (earlier.execution_id is not None and earlier.request != request.key)
+                earlier.ambiguous or earlier.execution_id is not None
             )
             execution_id = uuid()
             key = _call_key(call)
@@ -621,7 +555,6 @@ class _Handouts:
                 None if call.id in shared else _call_key(model_call),
                 (*handouts, key) if key not in handouts else handouts,
                 execution_id,
-                request.key,
                 ambiguous,
                 previous.read_back if previous is not None else (),
                 previous.host if previous is not None else (),
@@ -648,7 +581,7 @@ class _Handouts:
                     "that carries its result, and no model input.",
                 )
 
-    def propose(self, request: BridgedRequest, calls: Sequence[ToolCall]) -> None:
+    def propose(self, calls: Sequence[ToolCall]) -> None:
         """Record a response's calls under the ids they keep, before approval and the sentinel review them.
 
         So a concurrent request's call under one of the ids is another call's
@@ -664,7 +597,6 @@ class _Handouts:
                     None if call.id in shared else key,
                     (key,),
                     None,
-                    request.key,
                 )
 
     def read_back(self, handed: Sequence[ToolCall], read: Sequence[ToolCall]) -> None:
@@ -709,14 +641,16 @@ class _Handouts:
 
         Per host call, the bridge keeps the conversation the call was first
         handed to, as the latest reply in it that handed the call. A later
-        reply handing the call keeps that conversation when it is that reply
-        handed out again in answer to the same request (a cached generation),
-        or when its request continues that reply (`HandoutPoint.continues`).
-        Any other is another conversation's, or may be: one that started
-        alike, a retry of a request answered by another reply, or an earlier
-        point. The call is then shared for the rest of the sample (`shared`).
-        A reply is recorded once per host call, however many of its calls
-        denote it.
+        reply handing the call keeps that conversation only when its request
+        continues that reply (`HandoutPoint.continues`) and that reply was
+        handed out once: none of its calls denoting a host call was handed out
+        again, whatever it resolved to then (`_Handed.ambiguous`). A reply
+        handed out again, as a retry, a cache hit or to a conversation that
+        started alike, may be in two conversations, so it certifies neither.
+        Any other reply is another conversation's, or may be: one that started
+        alike, a retry, or an earlier point. The call is then shared for the
+        rest of the sample (`shared`). A reply is recorded once per host call,
+        however many of its calls denote it.
         """
         for call, keys in calls:
             handed = self.handed.get(call.id)
@@ -727,32 +661,27 @@ class _Handouts:
                 self.handed[call.id] = handed._replace(
                     host=(*handed.host, *sorted(pairs))
                 )
+        reply = tuple(dict.fromkeys(call.id for call, keys in calls if keys))
         for key in {key for _, keys in calls for key in keys}:
             conversation = self.conversations.get(key)
-            if conversation is None:
-                self.conversations[key] = _Conversation(
-                    point.messages,
-                    point.digests[-1],
-                    point.declarations,
-                    point.reply,
-                    1,
-                )
-            elif conversation.shared:
+            if conversation is not None and conversation.shared:
                 continue
-            elif point.repeats(conversation):
-                self.conversations[key] = conversation._replace(
-                    handed=conversation.handed + 1
-                )
-            elif point.continues(conversation):
+            if conversation is None or (
+                self.handed_once(conversation.calls) and point.continues(conversation)
+            ):
                 self.conversations[key] = _Conversation(
-                    point.messages,
-                    point.digests[-1],
-                    point.declarations,
-                    point.reply,
-                    1,
+                    point.messages, point.digests[-1], point.reply, reply
                 )
             else:
                 self.conversations[key] = _SHARED
+
+    def handed_once(self, call_ids: Iterable[str]) -> bool:
+        """Whether each call under `call_ids` was handed out once (`_Handed.ambiguous`)."""
+        for call_id in call_ids:
+            handed = self.handed.get(call_id)
+            if handed is None or handed.ambiguous:
+                return False
+        return True
 
     def shared(self, keys: Iterable[str]) -> bool:
         """Whether a host call with any of these keys (`host_call_key`) was handed to more than one conversation (`hand_over_calls`).

@@ -1755,15 +1755,14 @@ def test_dropping_old_proposals_warns_once(
     monkeypatch.setattr(_sentinel, "_MAX_PROPOSALS", 2)
     monkeypatch.setattr(inspect_logger, "_warned", [])
     bridge = in_process_bridge([])
-    request = _sentinel.bridged_request([])
     calls = [replace(READ, id=f"read_{i}") for i in range(4)]
     checks = [
         _sentinel.SentinelCheck(call, call, None, "", "message_1") for call in calls
     ]
 
     with caplog.at_level("WARNING"):
-        bridge._handouts.hand_over(request, calls[:3], calls[:3], checks[:3])
-        bridge._handouts.hand_over(request, calls[3:], calls[3:], checks[3:])
+        bridge._handouts.hand_over(calls[:3], calls[:3], checks[:3])
+        bridge._handouts.hand_over(calls[3:], calls[3:], checks[3:])
 
     warnings = [
         r for r in caplog.records if "the oldest proposal was dropped" in r.message
@@ -1791,7 +1790,6 @@ def test_a_result_steps_digest_covers_or_names_every_field_of_the_step() -> None
 def test_a_step_that_cannot_be_serialized_is_never_exempt() -> None:
     """A step with a value its digest can't serialize gets a digest no other step has: its result is checked every time it is reported."""
     from inspect_ai.agent._bridge._sentinel import (
-        BridgedRequest,
         SentinelCheck,
         _Handouts,
     )
@@ -1799,7 +1797,6 @@ def test_a_step_that_cannot_be_serialized_is_never_exempt() -> None:
     call = ToolCall(id="odd", function="f", arguments={"value": object()})
     handouts = _Handouts(_SavedHandouts(reserved_ids=[], handed={}, checked=[]))
     handouts.hand_over(
-        BridgedRequest("request", frozenset()),
         [call],
         [call],
         [SentinelCheck(call, call, None, "", "message")],
@@ -4057,12 +4054,15 @@ async def test_result_only_id_in_initial_history_cannot_be_issued() -> None:
     assert handed.id != READ.id
 
 
-async def test_a_call_handed_over_twice_keeps_its_id_and_its_latest_handout() -> None:
+async def test_a_call_handed_over_twice_keeps_its_id_and_its_result_gets_no_context() -> (
+    None
+):
     """Two generations give one call (a scaffold retry served from the cache).
 
-    Both handouts keep the model's id, and the result, which the scaffold
-    reports for each conversation, is checked once, with the latest handout's
-    context.
+    Both handouts keep the model's id. The call was handed out twice, which
+    may be to two conversations, so the result the scaffold reports for each
+    is checked with no proposal's context, once per report: each step shows
+    the message its own request carries the call in.
     """
     seen: Steps = []
     model = Scripted(calls_output(READ), calls_output(READ), calls_output())
@@ -4089,7 +4089,8 @@ async def test_a_call_handed_over_twice_keeps_its_id_and_its_latest_handout() ->
     model_events = [e for e in transcript().events if isinstance(e, ModelEvent)]
     assert [e.output.message.tool_calls for e in model_events[:2]] == [[READ]] * 2
     afters = [s for s in seen if isinstance(s, AfterToolCall)]
-    assert [(s.call.id, s.input) for s in afters] == [(READ.id, model.inputs[1])]
+    assert [(s.call.id, s.input) for s in afters] == [(READ.id, None)] * 2
+    assert len({s.message_id for s in afters}) == 2
 
 
 @protocol
@@ -4117,7 +4118,8 @@ async def test_handouts_with_other_handed_arguments_check_the_call_that_ran(
     """A call modified once, then handed over unchanged on a retry, under one id.
 
     The modified handout's result is checked with its own arguments, not the
-    later handout's.
+    later handout's, and with no proposal's context: the id was handed out
+    twice.
     """
     seen: Steps = []
     call = replace(READ, function="mcp__host__read_file") if host else READ
@@ -4157,7 +4159,7 @@ async def test_handouts_with_other_handed_arguments_check_the_call_that_ran(
 
     [after] = [s for s in seen if isinstance(s, AfterToolCall)]
     assert after.call.arguments == ran.arguments
-    assert after.input == model.inputs[0]
+    assert after.input is None
 
 
 async def test_identical_results_of_other_handed_arguments_are_each_checked() -> None:
@@ -4229,7 +4231,6 @@ async def test_a_result_that_can_be_either_handouts_gets_no_proposal(
 def test_handed_calls_are_paired_with_their_read_back_form_by_id() -> None:
     """Anthropic places a renamed call after those with recorded positions."""
     from inspect_ai.agent._bridge._sentinel import (
-        BridgedRequest,
         _call_key,
         _Handouts,
     )
@@ -4237,9 +4238,7 @@ def test_handed_calls_are_paired_with_their_read_back_form_by_id() -> None:
     handouts = _Handouts(_SavedHandouts(reserved_ids=[], handed={}, checked=[]))
     first = replace(READ, id="renamed")
     second = replace(READ, id="kept", arguments={"path": "other.txt"})
-    handouts.hand_over(
-        BridgedRequest("request", frozenset()), [first, second], [first, second], None
-    )
+    handouts.hand_over([first, second], [first, second], None)
     read = [
         replace(second, arguments={"path": "other.txt", "read": "back"}),
         replace(first, arguments={"path": "notes.txt", "read": "back"}),
@@ -4261,7 +4260,6 @@ def test_an_ambiguous_calls_result_is_checked_as_every_target_its_handouts_resol
     with neither proposal's context.
     """
     from inspect_ai.agent._bridge._sentinel import (
-        BridgedRequest,
         SentinelCheck,
         _Handouts,
     )
@@ -4272,7 +4270,6 @@ def test_an_ambiguous_calls_result_is_checked_as_every_target_its_handouts_resol
     for request, name in [("one", "read_file"), ("two", "delete_file")]:
         target = replace(call, function=name)
         handouts.hand_over(
-            BridgedRequest(request, frozenset()),
             [call],
             [call],
             [
