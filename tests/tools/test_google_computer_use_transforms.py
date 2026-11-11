@@ -708,3 +708,71 @@ async def test_gemini_alias_call_under_the_models_id_replays_as_sent(
     assert part.function_call.id == call.id
     assert part.thought_signature == b"signature"
     assert response.name == name
+
+
+@pytest.mark.parametrize("signed", [False, True])
+async def test_gemini_computer_results_under_a_shared_id_name_their_own_calls(
+    signed: bool,
+) -> None:
+    """Two computer actions of one response share an id; each result is named as its own call.
+
+    Results under an id pair with that id's calls by occurrence, in
+    generation and in token counting (`computer_result_actions`).
+    """
+    from google.genai.types import Candidate, Content, FinishReason, Part
+
+    from inspect_ai.model._providers.google import (
+        as_chat_messages,
+        completion_choice_from_candidate,
+        computer_result_actions,
+    )
+
+    candidate = Candidate(
+        content=Content(
+            role="model",
+            parts=[
+                Part(
+                    function_call=FunctionCall(
+                        id="shared", name="click_at", args={"x": 500, "y": 500}
+                    ),
+                    thought_signature=b"signature" if signed else None,
+                ),
+                Part(
+                    function_call=FunctionCall(
+                        id="shared",
+                        name="type_text_at",
+                        args={"x": 100, "y": 100, "text": "hi"},
+                    )
+                ),
+            ],
+        ),
+        finish_reason=FinishReason.STOP,
+    )
+    message = completion_choice_from_candidate(
+        "gemini-3-flash-preview", candidate, computer_use=True
+    ).message
+    assert [call.id for call in message.tool_calls or []] == ["shared", "shared"]
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Click, then type."),
+        message,
+        *(
+            ChatMessageTool(content=text, tool_call_id="shared", function="computer")
+            for text in ("clicked", "typed")
+        ),
+    ]
+
+    assert computer_result_actions(messages) == [
+        None,
+        None,
+        "click_at",
+        "type_text_at",
+    ]
+    contents = await as_chat_messages(MagicMock(), messages)
+    calls = [p.function_call.name for p in contents[1].parts or [] if p.function_call]
+    responses = [
+        (p.function_response.name, (p.function_response.response or {})["content"])
+        for p in contents[2].parts or []
+        if p.function_response
+    ]
+    assert calls == ["click_at", "type_text_at"]
+    assert responses == [("click_at", "clicked"), ("type_text_at", "typed")]

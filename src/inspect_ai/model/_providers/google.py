@@ -1768,26 +1768,37 @@ def computer_result_actions(messages: Sequence[ChatMessage]) -> list[str | None]
     """For each message, the action of the computer call it is the result of.
 
     A result's response is named as its call replays
-    (`gemini_replay_action_name`): the latest earlier call under its id.
-    None for other messages.
+    (`gemini_replay_action_name`): a call of the latest earlier message with
+    calls under its id. Calls sharing the id pair with its results by
+    occurrence: the nth result answers the nth computer call. A result past
+    the last of several such calls can't be told apart and gets None, as
+    do other messages.
     """
-    actions: dict[str, str] = {}
+    actions: dict[str, list[str]] = {}
+    answered: dict[str, int] = {}
     results: list[str | None] = []
     for message in messages:
         if isinstance(message, ChatMessageAssistant):
             sent = gemini_computer_actions(message)
-            for call in message.tool_calls or []:
+            calls = message.tool_calls or []
+            for call in calls:
+                actions[call.id] = []
+                answered[call.id] = 0
+            for call in calls:
                 if call.function == "computer":
-                    actions[call.id] = gemini_replay_action_name(
-                        call, sent.get(call.id)
+                    actions[call.id].append(
+                        gemini_replay_action_name(call, sent.get(call.id))
                     )
-                else:
-                    actions.pop(call.id, None)
-        results.append(
-            actions.get(message.tool_call_id or "")
-            if isinstance(message, ChatMessageTool) and message.function == "computer"
-            else None
-        )
+        action: str | None = None
+        if isinstance(message, ChatMessageTool) and message.function == "computer":
+            call_id = message.tool_call_id or ""
+            called = actions.get(call_id, [])
+            if len(called) == 1:
+                action = called[0]
+            elif answered.get(call_id, 0) < len(called):
+                action = called[answered[call_id]]
+                answered[call_id] += 1
+        results.append(action)
     return results
 
 
