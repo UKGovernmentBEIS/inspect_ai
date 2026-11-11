@@ -139,12 +139,6 @@ TOTAL_MESSAGES_META_KEY = "inspect.total_messages"
 # cancelable.
 TOOL_CALL_CANCELABLE_META_KEY = "inspect.tool_call_cancelable"
 
-# ``_meta`` key on a ``tool_call_update`` whose card another execution under the
-# same call id takes over (a provider repeating a call id). The update replaces
-# the card's title, kind, input and content; a client also resets state it keeps
-# per execution (timing, cancel and approval markers).
-TOOL_CALL_NEW_EXECUTION_META_KEY = "inspect.tool_call_new_execution"
-
 
 # ---------------------------------------------------------------------------
 # inspect/* JSON-RPC methods (non-standard)

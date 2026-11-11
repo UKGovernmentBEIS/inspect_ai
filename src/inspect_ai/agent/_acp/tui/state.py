@@ -58,7 +58,6 @@ from inspect_ai.agent._acp.inspect_ext import (
     PICKER_META_KEY,
     REPLAY_META_KEY,
     TOOL_CALL_CANCELABLE_META_KEY,
-    TOOL_CALL_NEW_EXECUTION_META_KEY,
     TOTAL_MESSAGES_META_KEY,
     USER_SOURCE_META_KEY,
 )
@@ -2140,13 +2139,13 @@ class SessionState:
             tc = self._tool_call_state_from_request(pending.request)
             self._tool_calls_by_id[tool_call_id] = tc
             self.items.append(tc)
-        elif tc.is_terminal:
-            # approval precedes execution, so this is another execution under a
-            # repeated call id: the card shows the call the request is for
+        elif tc.raw_input != pending.request.tool_call.raw_input:
+            # another execution under a repeated call id: the card shows the
+            # call the request is for, not the earlier execution
             fresh = self._tool_call_state_from_request(pending.request)
-            self._reset_execution(tc)
             tc.title, tc.kind, tc.status = fresh.title, fresh.kind, fresh.status
             tc.content, tc.raw_input = fresh.content, fresh.raw_input
+            tc.raw_output, tc.start_time, tc.end_time = None, fresh.start_time, None
         tc.pending_approval = pending
         self._notify()
 
@@ -2774,11 +2773,6 @@ class SessionState:
         update: ToolCallStart | ToolCallProgress,
     ) -> None:
         """ACP semantics: any non-None field on the update replaces in-state."""
-        meta = getattr(update, "field_meta", None) or {}
-        # a "pending" card was already taken for this execution by its approval
-        # request (`consume_approval_request`) and holds its decision
-        if meta.get(TOOL_CALL_NEW_EXECUTION_META_KEY) and tc.status != "pending":
-            self._reset_execution(tc)
         if update.status is not None:
             tc.status = update.status
             if tc.status in ("completed", "failed") and tc.end_time is None:
@@ -2797,17 +2791,9 @@ class SessionState:
             tc.raw_input = update.raw_input
         if update.raw_output is not None:
             tc.raw_output = update.raw_output
+        meta = getattr(update, "field_meta", None) or {}
         if TOOL_CALL_CANCELABLE_META_KEY in meta:
             tc.cancelable = bool(meta[TOOL_CALL_CANCELABLE_META_KEY])
-
-    def _reset_execution(self, tc: ToolCallState) -> None:
-        """Clear what a card keeps per execution, for another execution under its id."""
-        tc.start_time = self._now()
-        tc.end_time = None
-        tc.raw_output = None
-        tc.last_approval_decision = None
-        tc.cancel_requested = False
-        tc.parallel_batch_id = None
 
     def _consume_usage(self, update: UsageUpdate, outer_meta: dict[str, Any]) -> bool:
         # ``totalMessages`` rides on the outer ``field_meta`` (the inspect-
