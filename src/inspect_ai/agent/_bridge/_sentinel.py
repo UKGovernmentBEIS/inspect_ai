@@ -118,22 +118,6 @@ class SentinelCheck(NamedTuple):
     """The bridged tool the check is for, or None for a call no bridged tool serves."""
 
 
-class Handout(NamedTuple):
-    """A call as handed to the scaffold, an execution of its own (`_Handouts.handout`).
-
-    Ids and a hash only, so a record of executions can keep it.
-    """
-
-    id: str
-    """The call's id."""
-
-    call: str
-    """The call as handed (`_call_key`)."""
-
-    function: str
-    """The function it was handed under."""
-
-
 class BridgedRequest(NamedTuple):
     """A scaffold request, as the bridge tells calls apart by it."""
 
@@ -180,20 +164,124 @@ class _Handed(NamedTuple):
 
     ambiguous: bool = False
     """Whether the call was handed over in two requests, neither a retry of
-    the other, or a host execution may be its or another handout's
-    (`contest`): which handout a result answers can't be told, then or after
-    any later handout, so none keeps a proposal."""
+    the other: which handout a result the scaffold reports answers can't be
+    told, then or after any later handout, so none keeps a proposal. A host
+    call's result is attributed by its conversation instead
+    (`_Handouts.shared`)."""
 
     read_back: tuple[tuple[str, str], ...] = ()
     """The forms its dialect reads handed calls back in (`read_back`), where
     those differ from the calls: each the read-back call's key and the
     handed call's (`_call_key`)."""
 
+    host: tuple[tuple[str, str], ...] = ()
+    """The host calls its handouts denote (`hand_over_calls`): each a handed
+    call's key (`_call_key`) and a host call's (`host_call_key`). A result
+    reported for a handout denoting a host call handed to several
+    conversations (`shared`) gets no proposal's context, as the host call's
+    own result doesn't."""
+
+
+class _Conversation(NamedTuple):
+    """The conversation a host call was handed to, by the latest reply that handed it (`_Handouts.hand_over_calls`).
+
+    Ids, counts and a digest only, so one is kept per call for the sample.
+    """
+
+    messages: int = 0
+    """How many messages the request the reply answered had."""
+
+    request: str = ""
+    """Their digest (`HandoutPoint`)."""
+
+    reply: str = ""
+    """The reply's id."""
+
+    handed: int = 0
+    """How many times the reply was handed out: a cached generation hands it
+    out again, to the same conversation or to another one starting alike."""
+
+    shared: bool = False
+    """Whether another conversation may have been handed the call. Sticky; the
+    fields above are then dropped."""
+
+
+_SHARED = _Conversation(shared=True)
+
+
+class HandoutPoint:
+    """Where in its conversation a reply is handed to the scaffold: the request it answers, and the reply.
+
+    The request is identified by its messages' contents (`content_hash`), as
+    the scaffold sends them, rather than by the ids placement gives them: a
+    request placement can't place (a concurrent sub-agent's) gets a reply it
+    was handed under a new id. Contents are compared through prefix digests,
+    computed once and only when a call is recorded.
+    """
+
+    def __init__(
+        self,
+        contents: Callable[[], list[str]],
+        reply: str,
+        holds: Callable[[int, str, str], bool],
+    ) -> None:
+        self._contents = contents
+        self.reply = reply
+        """The reply's id."""
+        self._holds = holds
+        """Whether the request's message at an index, with a content, is the reply with an id."""
+
+    @cached_property
+    def contents(self) -> list[str]:
+        """The contents of the request's messages."""
+        return self._contents()
+
+    @cached_property
+    def digests(self) -> list[str]:
+        """The digest of each prefix of the request's contents, the empty one first."""
+        digests = [_digest([])]
+        for content in self.contents:
+            digests.append(_digest([digests[-1], content]))
+        return digests
+
+    @property
+    def messages(self) -> int:
+        return len(self.digests) - 1
+
+    def repeats(self, conversation: _Conversation) -> bool:
+        """Whether this is `conversation`'s latest reply handed out again, in answer to the same request."""
+        return (
+            self.reply == conversation.reply
+            and self.messages == conversation.messages
+            and self.digests[-1] == conversation.request
+        )
+
+    def continues(self, conversation: _Conversation) -> bool:
+        """Whether this request continues `conversation` past its latest reply.
+
+        It holds that reply's request and then the reply (`holds`): as handed,
+        in a form its dialect sends it back in, or as the scaffold edited it.
+        A reply handed out more than once may have been handed to two
+        conversations starting alike, so no request continues it.
+        """
+        return (
+            conversation.handed == 1
+            and self.messages > conversation.messages
+            and self.digests[conversation.messages] == conversation.request
+            and self._holds(
+                conversation.messages,
+                self.contents[conversation.messages],
+                conversation.reply,
+            )
+        )
+
 
 class _SavedHandouts(BaseModel):
     reserved_ids: list[str]
     handed: dict[str, _Handed]
     checked: list[str]
+    conversations: dict[str, _Conversation] = {}
+    """Per host call (`host_call_key`); empty in a checkpoint written before they were kept."""
 
 
 class _Result(NamedTuple):
@@ -204,6 +292,11 @@ class _Result(NamedTuple):
     """The possible targets to check; a host execution has only its actual target."""
 
     message: ChatMessageTool
+
+    executed: tuple[str, ...] = ()
+    """Keys under which a host execution records this result as checked
+    (`sentinel_host_tool_result`): a host call carries no call id, so the
+    execution may have consumed another handout's grant."""
 
 
 class _Claim(NamedTuple):
@@ -274,7 +367,12 @@ class _Handouts:
 
     A host call's result is checked when the call executes, and that result,
     as delivered, is recorded as checked for its call; other content the
-    scaffold reports for the call is checked like a scaffold-run call's.
+    scaffold reports for the call is checked like a scaffold-run call's. A
+    host call carries no call id, so its result gets the context of the
+    proposal whose grant it consumed only while the call (its server, tool and
+    arguments) was handed to one conversation (`hand_over_calls`). Its
+    result is also recorded under the host call, so a report of it under
+    another handout's id is not checked again (`_Result.executed`).
 
     The results in the state the bridge starts with were in the agent's
     conversation before the bridge ran, and are not checked again, as a native
@@ -294,6 +392,7 @@ class _Handouts:
         # by call id and handed call (`_call_key`)
         self.proposals: OrderedDict[tuple[str, str], SentinelCheck] = OrderedDict()
         self.checked: set[str] = set(saved.checked)
+        self.conversations: dict[str, _Conversation] = dict(saved.conversations)
         self.running: dict[str, anyio.Event] = {}
         self.failed: dict[str, Exception] = {}
 
@@ -308,6 +407,7 @@ class _Handouts:
             reserved_ids=sorted(self.reserved_ids),
             handed=dict(self.handed),
             checked=sorted(self.checked),
+            conversations=dict(self.conversations),
         )
 
     def reserve(self, ids: Iterable[str]) -> None:
@@ -393,6 +493,7 @@ class _Handouts:
                 request.key,
                 ambiguous,
                 previous.read_back if previous is not None else (),
+                previous.host if previous is not None else (),
             )
             if checks is None:
                 continue
@@ -470,65 +571,74 @@ class _Handouts:
                 read_back=(*record.read_back, (back_key, key))
             )
 
-    def contest(self, handouts: Iterable[Handout]) -> None:
-        """Make the calls of `handouts` ambiguous: a host execution may be any of them.
+    def hand_over_calls(
+        self,
+        calls: Sequence[tuple[ToolCall, AbstractSet[str]]],
+        point: HandoutPoint,
+    ) -> None:
+        """Record the host calls a reply handed to the scaffold at `point` denote.
 
-        A host call carries no call id, so this is how an execution matching
-        proposals of several handouts is recorded. As for a call handed over
-        in two requests, none of the calls' results gets a proposal's context
-        from then on, whether the host executor checks it (`latest`) or the
-        scaffold reports it (`claim`). The proposals are scanned once for
-        the calls made ambiguous, if any.
+        `calls` are the reply's handed calls that denote host calls, each with
+        their keys (`host_call_key`): a host call's server, tool and
+        arguments, also projected onto a closed schema, so a call a scaffold
+        sends without a proposal's bookkeeping field is the same call.
+
+        Per host call, the bridge keeps the conversation the call was first
+        handed to, as the latest reply in it that handed the call. A later
+        reply handing the call keeps that conversation when it is that reply
+        handed out again in answer to the same request (a cached generation),
+        or when its request continues that reply (`HandoutPoint.continues`).
+        Any other is another conversation's, or may be: one that started
+        alike, a retry of a request answered by another reply, or an earlier
+        point. The call is then shared for the rest of the sample (`shared`).
+        A reply is recorded once per host call, however many of its calls
+        denote it.
         """
-        contested: set[str] = set()
-        for call_id in {handout.id for handout in handouts}:
-            handed = self.handed.get(call_id)
-            if handed is None or handed.ambiguous:
+        for call, keys in calls:
+            handed = self.handed.get(call.id)
+            if handed is None:
                 continue
-            self.handed[call_id] = handed._replace(ambiguous=True)
-            contested.add(call_id)
-        if contested:
-            for stale in [k for k in self.proposals if k[0] in contested]:
-                del self.proposals[stale]
+            pairs = {(_call_key(call), key) for key in keys} - set(handed.host)
+            if pairs:
+                self.handed[call.id] = handed._replace(
+                    host=(*handed.host, *sorted(pairs))
+                )
+        for key in {key for _, keys in calls for key in keys}:
+            conversation = self.conversations.get(key)
+            if conversation is None:
+                self.conversations[key] = _Conversation(
+                    point.messages, point.digests[-1], point.reply, 1
+                )
+            elif conversation.shared:
+                continue
+            elif point.repeats(conversation):
+                self.conversations[key] = conversation._replace(
+                    handed=conversation.handed + 1
+                )
+            elif point.continues(conversation):
+                self.conversations[key] = _Conversation(
+                    point.messages, point.digests[-1], point.reply, 1
+                )
+            else:
+                self.conversations[key] = _SHARED
 
-    def handout(self, call: ToolCall) -> Handout:
-        """The handout a handed `call` is of: its id and the call as handed (`_call_key`)."""
-        return Handout(call.id, _call_key(call), call.function)
+    def shared(self, keys: Iterable[str]) -> bool:
+        """Whether a host call with any of these keys (`host_call_key`) was handed to more than one conversation (`hand_over_calls`).
 
-    def latest(self, check: SentinelCheck) -> SentinelCheck | None:
-        """The check for the latest handout of `check`'s call, with its handed arguments, and target.
-
-        The target is matched by its bridged tool (`SentinelCheck.target`):
-        servers may serve tools of the same name and description, which a
-        handout's checks then have as alternatives with their own viewers.
-        None for an ambiguous call (`_Handed.ambiguous`): which handout ran
-        can't be told, so its result is checked with no proposal's context.
+        A host call carries no call id, so an execution may consume a grant
+        of any handout of its call. Its result gets the context of the
+        proposal whose grant it consumed only while every handout was in one
+        conversation: at worst a later point of that conversation.
         """
-        if check.execution_id is None:
-            return check
-        handed = self.handed.get(check.handed.id)
-        if handed is not None and handed.ambiguous:
-            return None
-        proposal = self.proposals.get((check.handed.id, _call_key(check.handed)))
-        if proposal is None:
-            return check
-        return next(
-            (
-                target
-                for target in (proposal, *proposal.alternatives)
-                if target.target == check.target
-                and target.call.function == check.call.function
-            ),
-            check,
-        )
+        return any(self.conversations.get(key, _SHARED).shared for key in keys)
 
-    def result_keys(self, handout: Handout, content_key: str) -> list[str]:
-        """The keys a result of `handout` with `content_key` is checked under."""
-        key = handout.call
+    def result_keys(self, call: ToolCall, content_key: str) -> list[str]:
+        """The keys a result of the handed `call` with `content_key` is checked under."""
+        key = _call_key(call)
         keys = [_digest(["call", key, content_key])]
-        handed = self.handed.get(handout.id)
+        handed = self.handed.get(call.id)
         if handed is not None and handed.proposed is not None:
-            keys.insert(0, _handout_key(handout.id, handed.proposed, key, content_key))
+            keys.insert(0, _handout_key(call.id, handed.proposed, key, content_key))
         return keys
 
     def claim(self, input: list[ChatMessage]) -> _Claimed:
@@ -537,12 +647,24 @@ class _Handouts:
         for message, found in _answers(input):
             result = self._result(input, message, found)
             key = result.keys[0]
-            if key in keys or key in self.checked:
+            if (
+                key in keys
+                or key in self.checked
+                or not self.checked.isdisjoint(result.executed)
+            ):
                 continue
             if key in self.failed:
                 raise self.failed[key]
-            if key in self.running:
-                claimed.waiting.append(self.running[key])
+            running = next(
+                (
+                    self.running[running]
+                    for running in (key, *result.executed)
+                    if running in self.running
+                ),
+                None,
+            )
+            if running is not None:
+                claimed.waiting.append(running)
                 continue
             # a result whose identity another of the request's results also
             # answers for is checked by that result
@@ -565,6 +687,7 @@ class _Handouts:
         call_id = message.tool_call_id or ""
         handed = self.handed.get(call_id)
         handout = _handout(handed, found) if handed is not None else None
+        executed: tuple[str, ...] = ()
         if handed is not None and handed.proposed is not None and handout is None:
             # keyed by its id too, so it can't exempt another execution's result
             call, key = _unissued(message, found)
@@ -577,11 +700,19 @@ class _Handouts:
                 _handout_key(call_id, handed.proposed, handout, content),
                 _digest(["call", handout, content]),
             ]
+            hosts = [
+                host for handed_call, host in handed.host if handed_call == handout
+            ]
+            executed = tuple(executed_key(host, content) for host in hosts)
             proposal = (
-                self.proposals.get((call_id, handout)) if not handed.ambiguous else None
+                self.proposals.get((call_id, handout))
+                if not handed.ambiguous and not (hosts and self.shared(hosts))
+                else None
             )
             if proposal is not None:
-                return _Result(keys, (proposal, *proposal.alternatives), message)
+                return _Result(
+                    keys, (proposal, *proposal.alternatives), message, executed
+                )
             call = (
                 found.call
                 if found is not None
@@ -597,7 +728,7 @@ class _Handouts:
             found.text if found is not None else "",
             input[found.position].id if found is not None else _NO_MESSAGE_ID,
         )
-        return _Result(keys, (check,), message)
+        return _Result(keys, (check,), message, executed)
 
     async def check(
         self,
@@ -659,6 +790,16 @@ def _handout(handed: _Handed, found: _Call | None) -> str | None:
     matches = {key for key in handed.handed if key == found.key}
     matches |= {key for back, key in handed.read_back if back == found.key}
     return matches.pop() if len(matches) == 1 else None
+
+
+def host_call_key(server: str, tool: str, arguments: str) -> str:
+    """A host call's identity: its bridged server, tool and argument key."""
+    return _digest(["host", server, tool, arguments])
+
+
+def executed_key(host_call: str, content_key: str) -> str:
+    """The key a host call's result with `content_key` is recorded as checked under (`_Result.executed`)."""
+    return _digest(["executed", host_call, content_key])
 
 
 def _handout_key(call_id: str, proposed: str, handed: str, content_key: str) -> str:
@@ -877,15 +1018,20 @@ async def sentinel_host_tool_result(
     output: ToolResult,
     error: ToolCallError | None = None,
     truncated: tuple[int, int] | Literal[False] = False,
-    candidates: Sequence[Handout] = (),
+    candidates: Sequence[SentinelCheck] = (),
+    host_calls: Sequence[str] = (),
 ) -> None:
     """Check a host call's result as delivered, recording it for its executions.
 
-    The result is recorded as checked for the call, or, for a call that
-    matched proposals of several calls (`candidates`, when the service can't
-    tell which execution it is), for each of them, so the scaffold reporting
-    it is not checked again. A host call no proposal accounts for was handed over
-    as no call, so no result the scaffold reports can match it.
+    The result is recorded as checked for the call, or, when `check` has no
+    proposal's context, for each of `candidates` (the check of the grant the
+    call consumed), so the scaffold reporting it is not checked again. A host
+    call no proposal accounts for was handed over as no call, so no result the
+    scaffold reports can match it.
+
+    It is also recorded under each of `host_calls`, the call's keys
+    (`host_call_key`), so a report of it under the id of another handout of
+    the call is not checked again either.
 
     The call is the bridged scaffold's, so the check does not see the enclosing
     agent's messages, as the stages of a bridge request don't
@@ -897,21 +1043,18 @@ async def sentinel_host_tool_result(
         function=check.call.function,
         error=error,
     )
-    executions = candidates or (
-        [bridge._handouts.handout(check.handed)]
-        if check.execution_id is not None
-        else []
-    )
+    executions = candidates or ([check] if check.execution_id is not None else [])
     keys: list[str] = []
     content_keys: dict[str, str] = {}
     for execution in executions:
         # as the scaffold reports it: under the function it was handed
-        function = execution.function
+        function = execution.handed.function
         if function not in content_keys:
             content_keys[function] = _content_key(
                 result.model_copy(update={"function": function})
             )
-        keys += bridge._handouts.result_keys(execution, content_keys[function])
+        keys += bridge._handouts.result_keys(execution.handed, content_keys[function])
+        keys += [executed_key(host, content_keys[function]) for host in host_calls]
     keys = keys or [f"unproposed:{uuid()}"]
     with bridge_request():
         await bridge._handouts.check_running(

@@ -13,6 +13,7 @@ from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import json_equal
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
+from inspect_ai.agent._bridge._sentinel import HandoutPoint, host_call_key
 from inspect_ai.agent._bridge.bridge import resolve_forward_client_headers
 from inspect_ai.agent._bridge.types import (
     AgentBridge,
@@ -24,7 +25,7 @@ from inspect_ai.agent._bridge.types import (
 )
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._compaction.types import CompactionStrategy
-from inspect_ai.model._message_ids import canonical_tool_arguments
+from inspect_ai.model._message_ids import canonical_tool_arguments, content_hash
 from inspect_ai.model._model import (
     GenerateFilter,
     Model,
@@ -46,7 +47,7 @@ if TYPE_CHECKING:
     # initializing. Same reason `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
 
-    from .._sentinel import Handout, SentinelCheck
+    from .._sentinel import SentinelCheck
 
 
 logger = getLogger(__name__)
@@ -108,7 +109,7 @@ class SandboxAgentBridge(AgentBridge):
         self._tool_execution_grants: deque[_ToolExecutionGrant] = deque(
             maxlen=_MAX_TOOL_EXECUTION_GRANTS
         )
-        self._executed_calls: dict[tuple[str, str, str], list[_Executed]] = {}
+        self._executed_calls: dict[tuple[str, str, str], list[_HandedCall]] = {}
         """Per (server, tool, argument key), the calls an execution consumed a grant of, unless settled since (`_record_execution`)."""
         self._executed_tools: dict[tuple[str, str], _ExecutedTool] = {}
         """Per (server, tool), the calls an execution consumed a grant of, settled ones pruned (`_record_execution`)."""
@@ -210,6 +211,7 @@ class SandboxAgentBridge(AgentBridge):
             if self._proposing_reply_id is not None
             else None
         )
+        host_calls: list[tuple[ToolCall, set[str]]] = []
         for index, call in enumerate(calls):
             verified = self._proposing_call_verified
             retained = verified is None or verified[index]
@@ -250,6 +252,20 @@ class SandboxAgentBridge(AgentBridge):
                 self._proposing_message_ids.get(call.id) if retained else None,
                 handed[index] if handed is not None else None,
             )
+            granted = to_jsonable_python(arguments, fallback=str)
+            if check is not None and targets:
+                host_calls.append(
+                    (
+                        call,
+                        {
+                            key
+                            for target in targets
+                            for key in self.host_call_keys(
+                                target.server, target.tool, granted
+                            )
+                        },
+                    )
+                )
             for target_index, target in enumerate(targets):
                 target_check = (
                     target_checks[target_index] if check is not None else None
@@ -266,11 +282,30 @@ class SandboxAgentBridge(AgentBridge):
                     _ToolExecutionGrant(
                         server=target.server,
                         tool=target.tool,
-                        arguments=to_jsonable_python(arguments, fallback=str),
+                        arguments=granted,
                         proposal=proposal,
                         check=target_check,
                     )
                 )
+        if host_calls:
+            self._handouts.hand_over_calls(host_calls, self._handout_point())
+
+    def _handout_point(self) -> HandoutPoint:
+        """Where the reply whose calls are being registered was handed: its request (`_proposing_request`) and its id."""
+        request = self._proposing_request
+
+        def holds(index: int, content: str, reply: str) -> bool:
+            message = request[index]
+            return self._matches(content, reply) or (
+                message.id is not None and self._edit_root(message.id) == reply
+            )
+
+        return HandoutPoint(
+            lambda: [content_hash(message) for message in request],
+            # a reply without an id is no other reply, nor handed out again
+            self._proposing_reply_id or uuid(),
+            holds,
+        )
 
     def _warn_eviction(self, evicted: "_ToolExecutionGrant") -> None:
         """Warn, once per kind, that the store is full and its oldest grant goes.
@@ -326,9 +361,8 @@ class SandboxAgentBridge(AgentBridge):
         When grants of more than one proposal match, the execution may belong
         to any of them, so each of those proposals is marked `ambiguous` and
         its reply unlinked (`_unlink`): no execution under them links its
-        result message, including one that completed before this one. When
-        they are of more than one handout, no result of an execution of them
-        gets a proposal's context either (`_contest`). A grant that matches
+        result message, including one that completed before this one. A grant
+        that matches
         only once undeclared keys are dropped (below) counts as matching here
         even when another grant matches exactly: exact matching decides which
         grant is consumed, not which proposal made the call.
@@ -360,24 +394,15 @@ class SandboxAgentBridge(AgentBridge):
         matches = exact or projected
         if not matches:
             return None
-        matched = [
-            self._tool_execution_grants[index]
+        proposals = [
+            self._tool_execution_grants[index].proposal
             for index in sorted(set(exact) | set(projected))
         ]
-        proposals = [grant.proposal for grant in matched]
         if any(proposal is not proposals[0] for proposal in proposals):
             for proposal in proposals:
                 proposal.ambiguous = True
                 if proposal.reply is not None:
                     self._unlink(proposal.reply.reply.id)
-        self._contest(
-            {
-                self._handouts.handout(candidate.check.handed)
-                for candidate in matched
-                if candidate.check is not None
-            },
-            proposals,
-        )
         grant = self._tool_execution_grants[matches[0]]
         del self._tool_execution_grants[matches[0]]
         self._record_execution(grant)
@@ -413,66 +438,20 @@ class SandboxAgentBridge(AgentBridge):
         )
         return exact, projected
 
-    def _contest(
-        self, handouts: set["Handout"], proposals: Sequence["_Proposal"]
-    ) -> None:
-        """Record that an execution of a grant of `proposals` may be any of `handouts`.
+    def host_call_keys(
+        self, server: str, tool: str, arguments: dict[str, Any]
+    ) -> set[str]:
+        """The keys of a host call (`host_call_key`): its arguments as `_call_keys` hashes them."""
+        return {
+            host_call_key(server, tool, key)
+            for key in self._call_keys(server, tool, arguments)
+        }
 
-        A host call carries no call id, so when the grants an execution
-        matched are of more than one handout (`_Handouts.handout`: a call's id
-        and the call as handed), whether matched exactly or once projected
-        onto a closed schema, the execution may be any of them. Each of those
-        calls is then ambiguous (`_Handouts.contest`): none of its results,
-        executed or reported by the scaffold, gets a proposal's context from
-        then on. The matched proposals also share one record of the handouts
-        (`_Contest`), so a result of any of their executions checked from
-        then on, including one still running, is recorded as checked for each
-        of them: another conversation's scaffold may report it.
-
-        The work is linear in the handouts and proposals: the record is
-        shared, not copied into each proposal, and an execution matching only
-        handouts all of its proposals' latest record holds (each draining a
-        batch of identical calls, say) records none. Records are not merged
-        across executions, which would grow them with every identical call of
-        a chain (each leaving a grant pending for the next); a report under a
-        handout reached only through such a chain is checked again, with no
-        proposal's context.
-
-        Grants of one handout (a scaffold retry served from the model cache
-        hands the same call over again) are one candidate: its latest
-        handout's check gives the result its context (`_Handouts.latest`).
-        """
-        if len(handouts) < 2:
-            return
-        self._handouts.contest(handouts)
-        members = list({id(proposal): proposal for proposal in proposals}.values())
-        latest = members[0].contests[-1] if members[0].contests else None
-        if (
-            latest is not None
-            and all(
-                member.contests and member.contests[-1] is latest for member in members
-            )
-            and handouts <= latest.handouts
-        ):
-            return
-        contest = _Contest(handouts)
-        for member in members:
-            member.contests.append(contest)
-
-    def result_executions(self, grant: "_ToolExecutionGrant") -> list["Handout"]:
-        """The handouts a result of the host call that consumed `grant` is recorded as checked for.
-
-        Each handout its proposal was contested with (`_contest`), or else the
-        grant's own.
-        """
-        contests = grant.proposal.contests
-        if not contests:
-            return (
-                [self._handouts.handout(grant.check.handed)]
-                if grant.check is not None
-                else []
-            )
-        return list(set().union(*(contest.handouts for contest in contests)))
+    def handed_to_several(self, grant: "_ToolExecutionGrant") -> bool:
+        """Whether the host call `grant` is for was handed to more than one conversation (`_Handouts.shared`)."""
+        return self._handouts.shared(
+            self.host_call_keys(grant.server, grant.tool, grant.arguments)
+        )
 
     def unlink_denied_call(
         self, server: str, tool: str, arguments: dict[str, Any] | None
@@ -501,9 +480,9 @@ class SandboxAgentBridge(AgentBridge):
             self._executed_tools.pop((server, tool), _ExecutedTool()).calls
             if keys is None
             else [
-                execution.handed
+                handed
                 for key in keys
-                for execution in self._executed_calls.pop((server, tool, key), [])
+                for handed in self._executed_calls.pop((server, tool, key), [])
             ]
         )
         for handed in executed:
@@ -536,18 +515,15 @@ class SandboxAgentBridge(AgentBridge):
           running, unlinks its reply and this one's: this execution may be
           a client's retry of that call (after losing its response), taking
           a later proposal's identical grant, so either answer may hold
-          either result. For the same reason its handout and this one's are
-          contested (`_contest`), so that neither result gets a proposal's
-          context and this one's is recorded as checked for either. An
-          earlier execution already settled (its answer linked, or left
-          unlinked) is final and is dropped from the record.
+          either result. An earlier execution already settled (its answer
+          linked, or left unlinked) is final and is dropped from the record.
         - The call is recorded for `unlink_denied_call`.
 
         Each recorded call is dropped once scanned or unlinked, and the
         per-tool record drops settled calls each time it doubles, so it stays
         within twice the calls of the tool still running or awaiting answers
         and the work is amortized constant per execution. Reply ids,
-        positions, handouts and argument hashes only, like the message pool.
+        positions and argument hashes only, like the message pool.
         """
         reply = grant.proposal.reply
         if reply is None:
@@ -555,30 +531,18 @@ class SandboxAgentBridge(AgentBridge):
         if grant.proposal.executions > 0:
             self._unlink(reply.reply.id)
         keys = self._call_keys(grant.server, grant.tool, grant.arguments)
-        handout = (
-            self._handouts.handout(grant.check.handed)
-            if grant.check is not None
-            else None
-        )
-        doubted: set[Handout] = set()
         doubt = False
         for key in keys:
             for earlier in self._executed_calls.pop(
                 (grant.server, grant.tool, key), []
             ):
-                if self._unsettled(earlier.handed):
-                    self._unlink(earlier.handed.reply.id)
+                if self._unsettled(earlier):
+                    self._unlink(earlier.reply.id)
                     doubt = True
-                    if earlier.handout is not None:
-                        doubted.add(earlier.handout)
         if doubt:
             self._unlink(reply.reply.id)
-            if handout is not None:
-                self._contest(doubted | {handout}, [grant.proposal])
         for key in keys:
-            self._executed_calls[(grant.server, grant.tool, key)] = [
-                _Executed(reply, handout)
-            ]
+            self._executed_calls[(grant.server, grant.tool, key)] = [reply]
         executed = self._executed_tools.setdefault(
             (grant.server, grant.tool), _ExecutedTool()
         )
@@ -704,15 +668,7 @@ class _Proposal:
     and no pairing state outlives the bounded grant store.
     """
 
-    __slots__ = (
-        "call",
-        "span_id",
-        "message_id",
-        "reply",
-        "executions",
-        "ambiguous",
-        "contests",
-    )
+    __slots__ = ("call", "span_id", "message_id", "reply", "executions", "ambiguous")
 
     def __init__(
         self,
@@ -739,9 +695,6 @@ class _Proposal:
         self.ambiguous = False
         """Whether an execution matched this proposal's grants and another proposal's alike, so which call it ran is unknown."""
 
-        self.contests: list[_Contest] = []
-        """The records of the handouts executions of this proposal's grants may be, when several (`SandboxAgentBridge._contest`), oldest first."""
-
     def take_id(self) -> str:
         """The `ToolEvent` id for the next execution of this proposal.
 
@@ -762,26 +715,6 @@ class _Proposal:
         as any of its grants can still execute.
         """
         return self.executions == 1 and not self.ambiguous
-
-
-class _Contest:
-    """The handouts an execution may be (`SandboxAgentBridge._contest`), shared by the proposals it matched."""
-
-    __slots__ = ("handouts",)
-
-    def __init__(self, handouts: set["Handout"]) -> None:
-        self.handouts = handouts
-        """The handouts (`_Handouts.handout`)."""
-
-
-class _Executed(NamedTuple):
-    """An execution `_record_execution` recorded."""
-
-    handed: _HandedCall
-    """The call in the reply it executed a grant of."""
-
-    handout: "Handout | None"
-    """The handout of that call it executed, with a sentinel."""
 
 
 _MIN_EXECUTED_TOOL_FLOOR = 8

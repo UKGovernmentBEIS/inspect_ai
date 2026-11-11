@@ -37,7 +37,6 @@ from inspect_ai.util._sandbox.service import _method_error, find_control_flow
 from inspect_ai.util._span import parent_span, span
 
 from .._sentinel import (
-    Handout,
     SentinelCheck,
     checks_bridged_results,
     sentinel_host_tool_result,
@@ -437,12 +436,12 @@ async def _execute_granted(
 
     assert outcome is not None
     if has_check and _checked(outcome):
-        # attributed again: the call's id may have become ambiguous while it
-        # ran
+        # attributed again: another conversation may have been handed the
+        # call while it ran
         attribution = _attribution(bridge, tool, tool_fn, call_arguments, grant)
         if attribution.check is not None:
             await _check_result(
-                bridge, attribution.check, outcome, attribution.executions
+                bridge, attribution.check, outcome, attribution.executions, grant
             )
     if outcome.raised is not None:
         raise outcome.raised
@@ -455,7 +454,7 @@ class _Attribution(NamedTuple):
     check: SentinelCheck | None
     """The result's check, or None without a sentinel."""
 
-    executions: list[Handout]
+    executions: list[SentinelCheck]
     """The executions the result is recorded as checked for, when the check
     has no proposal's context (`sentinel_host_tool_result` `candidates`);
     empty for `check`'s own."""
@@ -470,25 +469,24 @@ def _attribution(
 ) -> _Attribution:
     """Which proposal's context checks the result of the host call that consumed `grant`.
 
-    That of the latest handout of the grant's call, for the grant's target
-    (`_Handouts.latest`). There is none when the call had no proposal, or
-    when its id is ambiguous: handed over in two requests, or an execution
-    matched proposals of several handouts (`_contest`). The result is then
-    checked with no proposal's context and recorded for each execution it
-    could be (`result_executions`). Ambiguity does not end, but a request may
-    make the id ambiguous while the call runs, so this is decided again for
-    the result.
+    That of the grant's own proposal, for the grant's target, unless the
+    call (its server, tool and arguments) was handed to more than one
+    conversation (`handed_to_several`): a host call carries no call id, so
+    the execution may be another conversation's. The result is then checked
+    with no proposal's context and recorded as checked for the grant's
+    handout. There is none either when the call had no proposal. A request
+    may hand the call to another conversation while it runs, so this is
+    decided again for the result.
     """
-    check = (
-        bridge._handouts.latest(grant.check)
-        if grant is not None and grant.check is not None
-        else None
-    )
-    if check is not None:
-        return _Attribution(check, [])
+    if grant is None or grant.check is None:
+        return _Attribution(
+            sentinel_unproposed_host_check(bridge, tool, arguments, tool_fn), []
+        )
+    if not bridge.handed_to_several(grant):
+        return _Attribution(grant.check, [])
     return _Attribution(
         sentinel_unproposed_host_check(bridge, tool, arguments, tool_fn),
-        bridge.result_executions(grant) if grant is not None else [],
+        [grant.check],
     )
 
 
@@ -529,7 +527,8 @@ async def _check_result(
     bridge: SandboxAgentBridge,
     check: SentinelCheck,
     outcome: _Outcome,
-    candidates: list[Handout],
+    candidates: list[SentinelCheck],
+    grant: _ToolExecutionGrant | None,
 ) -> None:
     content: str | list[Content]
     error: ToolCallError | None = None
@@ -554,6 +553,9 @@ async def _check_result(
         error,
         outcome.truncated or False,
         candidates,
+        sorted(bridge.host_call_keys(grant.server, grant.tool, grant.arguments))
+        if grant is not None
+        else [],
     )
 
 

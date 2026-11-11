@@ -10,7 +10,7 @@ import inspect
 import json
 import logging
 import re
-from collections import OrderedDict, deque
+from collections import deque
 from contextlib import contextmanager
 from dataclasses import replace
 from functools import partial
@@ -66,7 +66,7 @@ from inspect_ai.agent._acp.transport import AcpUpdate
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._bridge._approval import MAX_CONSECUTIVE_REJECTIONS
-from inspect_ai.agent._bridge._sentinel import BridgedRequest, Handout, SentinelCheck
+from inspect_ai.agent._bridge._sentinel import BridgedRequest, SentinelCheck
 from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
 from inspect_ai.agent._bridge.bridge import agent_bridge
 from inspect_ai.agent._bridge.completions import inspect_completions_api_request
@@ -123,7 +123,7 @@ from inspect_ai.model._generate_config import (
     GenerateConfig,
     active_generate_config_context_var,
 )
-from inspect_ai.model._message_ids import canonical_tool_arguments
+from inspect_ai.model._message_ids import canonical_tool_arguments, content_hash
 from inspect_ai.model._model import (
     GenerateInput,
     Model,
@@ -6782,17 +6782,17 @@ async def test_a_retry_taking_a_later_conversations_identical_grant_gets_no_prop
 ) -> None:
     """A main conversation's retry consumes a sub-agent's sole identical grant.
 
-    The main call executes; before its answer arrives, a sub-agent is handed
-    the same call under another id (with `summary`, carrying a `toolSummary`
-    its scaffold drops), and the main client retries, still running or after
-    losing the response. The retry takes the sub-agent's grant, and the same
-    host calls are what the sub-agent running its own call would send, so
-    the retry's result, and a result completing after it started, is checked
-    with no proposal's context, and main's report of the retry's result is
-    not checked again (a Google result is a JSON object, so its report is a
-    changed result, checked with no proposal's context). With no retry, or
-    the main answer arriving before the identical call executes, each result
-    gets its own proposal's context.
+    The main call executes; a sub-agent is then handed the same call under
+    another id (with `summary`, carrying a `toolSummary` its scaffold drops),
+    and the main client retries, still running or after losing the response.
+    The retry takes the sub-agent's grant, and the same host calls are what
+    the sub-agent running its own call would send. Once a second
+    conversation is handed the call, no result of it gets a proposal's
+    context: the retry's, one completing after the handout, the sub-agent's
+    own (its main answer arrived first), and Google's reports (a Google
+    result is a JSON object, so its report is a changed result). Main's
+    report of the retry's result is not checked again. A result completing
+    before the handout keeps main's context.
     """
     main_call = ToolCall(id="main", function="read_file", arguments={"path": "p"})
     sub_call = ToolCall(
@@ -6894,10 +6894,8 @@ async def test_a_retry_taking_a_later_conversations_identical_grant_gets_no_prop
         assert inputs == [["MAIN read p."]]
     elif answered_first:
         # Google's changed report of main's result is checked before the
-        # sub-agent's call runs
-        assert inputs == [["MAIN read p."]] * (1 + (dialect == "google")) + [
-            ["SUB read p."]
-        ]
+        # sub-agent is handed the call
+        assert inputs == [["MAIN read p."]] * (1 + (dialect == "google")) + [None]
     else:
         assert len(executed) == 2
         by_result = {after.result.text: after for after in executed}
@@ -6917,81 +6915,515 @@ async def test_a_retry_taking_a_later_conversations_identical_grant_gets_no_prop
     else:
         assert len(reported) == 1
         [after] = reported
-        if shape.startswith("retry"):
-            assert after.input is None
-            assert after.tools is None and after.tool_choice is None
+        assert after.input is None
+        assert after.tools is None and after.tool_choice is None
+
+
+def _counted_host_bridge(
+    model: Model,
+    read: Callable[..., Awaitable[str]] | None = None,
+    checkpointer: RecordingCheckpointer | None = None,
+) -> SandboxAgentBridge:
+    """A bridge serving `read_file`, whose results are `contents 1`, `contents 2`, ... unless `read` is given."""
+    count = 0
+
+    async def numbered(path: str) -> str:
+        nonlocal count
+        count += 1
+        return f"contents {count}"
+
+    return SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={
+            "host": {"read_file": read_file(AsyncMock(side_effect=read or numbered))}
+        },
+        checkpointer=checkpointer,
+    )
+
+
+def _executed(seen: list[AfterToolCall]) -> list[AfterToolCall]:
+    """The checks of host results (`contents N`), not of results a scaffold reports (Google's are JSON)."""
+    return [after for after in seen if re.fullmatch(r"contents \d+", after.result.text)]
+
+
+def _inputs(seen: list[AfterToolCall]) -> dict[str, list[str] | None]:
+    """Per checked host result, the texts of its proposal's input (None without one)."""
+    return {
+        after.result.text: [m.text for m in after.input]
+        if after.input is not None
+        else None
+        for after in _executed(seen)
+    }
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize(
+    "shape",
+    [
+        "timeout answer while checking",
+        "first answer sent twice",
+        "second retry",
+        "retry after a denied retry",
+    ],
+)
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_no_host_result_gets_another_conversations_context(
+    dialect: HostDialect, shape: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Main's client runs a call again after a sub-agent is handed the same call, taking its grant.
+
+    The shapes of the pre-push review of `a4caf76f7` and of the residual
+    repros of `943678ef8`:
+
+    - `timeout answer while checking`: the sentinel is still checking main's
+      result when main answers the call with its client's timeout error;
+    - `first answer sent twice`: main's first answer is sent twice, and the
+      call is handed to main again from the model cache and run;
+    - `second retry`: main's call still runs while two sub-agents are each
+      handed the call and main retries twice;
+    - `retry after a denied retry`: main's first retry is denied.
+
+    Once the sub-agent is handed the call, no result of it gets a proposal's
+    context, and none gets the sub-agent's. A result completing before then
+    keeps main's.
+    """
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
+    main_call = ToolCall(id="main", function="read_file", arguments={"path": "p"})
+    sub_calls = [
+        ToolCall(id=f"sub{i}", function="read_file", arguments={"path": "p"})
+        for i in (1, 2)
+    ]
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    cached = shape == "first answer sent twice"
+    model = get_model(
+        "mockllm/model",
+        config=GenerateConfig(cache=cached),
+        custom_outputs=[
+            tool_calls_output(main_call),
+            *(
+                [done]
+                if shape in ("timeout answer while checking", "first answer sent twice")
+                else []
+            ),
+            *(tool_calls_output(call) for call in sub_calls),
+            done,
+            done,
+        ],
+    )
+    started, release = anyio.Event(), anyio.Event()
+    count = 0
+
+    async def read(path: str) -> str:
+        nonlocal count
+        count += 1
+        number = count
+        if number == 1 and shape == "second retry":
+            started.set()
+            await release.wait()
+        return f"contents {number}"
+
+    bridge = _counted_host_bridge(model, read)
+    [info] = declare("read_file")
+    main = _HostConversation(dialect, "MAIN read p.", info)
+    subs = [_HostConversation(dialect, f"SUB{i} read p.", info) for i in (1, 2)]
+    seen: list[AfterToolCall] = []
+    checking, checked = anyio.Event(), anyio.Event()
+
+    @protocol
+    def recording() -> Protocol:
+        async def after(
+            context: Context, step: AfterToolCall, escalations: Escalations
+        ) -> Decision | None:
+            seen.append(step)
+            if shape == "timeout answer while checking" and len(seen) == 1:
+                checking.set()
+                await checked.wait()
+            return None
+
+        return after
+
+    run = call_host_tool(bridge)
+
+    async def execute() -> None:
+        await run("host", "read_file", {"path": "p"})
+
+    with active_test_sentinel(recording()):
+        calls = await main.request(bridge)
+        if shape == "timeout answer while checking":
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(execute)
+                await checking.wait()
+                main.results(calls, ["Client timed out waiting for the host call."])
+                await main.request(bridge)
+                await subs[0].request(bridge)
+                try:
+                    await run("host", "read_file", {"path": "p"})
+                finally:
+                    checked.set()
+            expected = {"contents 1": ["MAIN read p."], "contents 2": None}
+        elif shape == "first answer sent twice":
+            one = await run("host", "read_file", {"path": "p"})
+            main.results(calls, [one])
+            main.history.append(dict(main.history[-1]))
+            await main.request(bridge)
+            # the model cache hands main's first reply over again
+            await _HostConversation(dialect, "MAIN read p.", info).request(bridge)
+            await run("host", "read_file", {"path": "p"})
+            await subs[0].request(bridge)
+            await run("host", "read_file", {"path": "p"})
+            expected = {
+                "contents 1": ["MAIN read p."],
+                "contents 2": ["MAIN read p."],
+                "contents 3": None,
+            }
+        elif shape == "second retry":
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(execute)
+                await started.wait()
+                for sub in subs:
+                    await sub.request(bridge)
+                    await run("host", "read_file", {"path": "p"})
+                release.set()
+            expected = dict.fromkeys(["contents 1", "contents 2", "contents 3"])
         else:
-            assert after.input is not None
+            await run("host", "read_file", {"path": "p"})
+            with pytest.raises(PermissionError):
+                await run("host", "read_file", {"path": "p"})
+            await subs[0].request(bridge)
+            await run("host", "read_file", {"path": "p"})
+            expected = {"contents 1": ["MAIN read p."], "contents 2": None}
+
+    assert _inputs(seen) == expected
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize(
+    "shape", ["three times", "retry", "retry after the call again", "cache hit"]
+)
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_one_conversations_repeated_host_call_keeps_its_context(
+    dialect: HostDialect, shape: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A host call handed to one conversation only keeps its proposal's context.
+
+    - `three times`: the conversation makes the call in three turns, each
+      checked with its own turn's input;
+    - `retry`: the client runs the call again (after losing the response),
+      denied for want of a grant, and the first result keeps its context;
+    - `retry after the call again`: the client runs the first turn's call
+      again after the second turn made the same call, taking that turn's
+      grant: its result is checked with the second turn's input, a later
+      point of the same conversation (a documented limit);
+    - `cache hit`: the scaffold sends its request again and the model cache
+      hands the same reply over again; its execution keeps the context.
+    """
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
+    calls = [
+        ToolCall(id=f"call{i}", function="read_file", arguments={"path": "p"})
+        for i in range(3)
+    ]
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model(
+        "mockllm/model",
+        config=GenerateConfig(cache=shape == "cache hit"),
+        custom_outputs=[*(tool_calls_output(call) for call in calls), done],
+    )
+    bridge = _counted_host_bridge(model)
+    [info] = declare("read_file")
+    main = _HostConversation(dialect, "MAIN read p.", info)
+    seen: list[AfterToolCall] = []
+    run = call_host_tool(bridge)
+
+    with active_test_sentinel(record_tool_results(seen)):
+        proposed = await main.request(bridge)
+        if shape == "cache hit":
+            await _HostConversation(dialect, "MAIN read p.", info).request(bridge)
+        output = await run("host", "read_file", {"path": "p"})
+        if shape == "retry":
+            with pytest.raises(PermissionError):
+                await run("host", "read_file", {"path": "p"})
+        if shape in ("three times", "retry after the call again"):
+            for _ in range(2 if shape == "three times" else 1):
+                main.results(proposed, [output])
+                proposed = await main.request(bridge)
+                output = await run("host", "read_file", {"path": "p"})
+
+    executed = _executed(seen)
+    assert all(after.input is not None and after.message_id for after in executed)
+    assert all(
+        [m.text for m in after.input or []][0] == "MAIN read p." for after in executed
+    )
+    if shape == "three times":
+        assert [len(after.input or []) for after in executed] == [1, 3, 5]
+    elif shape == "retry after the call again":
+        assert [len(after.input or []) for after in executed] == [1, 3]
+    else:
+        assert len(executed) == 1 and len(executed[0].input or []) == 1
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_repeated_host_call_keeps_its_context_between_another_agents_requests(
+    dialect: HostDialect,
+) -> None:
+    """A sub-agent makes a call twice while the agent the bridge tracks generates between its turns.
+
+    Placement can't place the sub-agent's second request (it continues no
+    thread placement follows), so the reply it holds gets an id other than
+    the one it was handed under. The bridge tells that the request continues
+    the reply by its content, so the second result keeps its context.
+    """
+    main_call = ToolCall(id="main", function="read_file", arguments={"path": "q"})
+    calls = [
+        ToolCall(id=f"sub{i}", function="read_file", arguments={"path": "p"})
+        for i in (1, 2)
+    ]
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(main_call),
+            tool_calls_output(calls[0]),
+            done,
+            tool_calls_output(calls[1]),
+        ],
+    )
+    bridge = _counted_host_bridge(model)
+    [info] = declare("read_file")
+    main = _HostConversation(dialect, "MAIN read q.", info)
+    sub = _HostConversation(dialect, "SUB read p.", info)
+    seen: list[AfterToolCall] = []
+    run = call_host_tool(bridge)
+
+    with active_test_sentinel(record_tool_results(seen)):
+        main_calls = await main.request(bridge)
+        sub_calls = await sub.request(bridge)
+        main.results(main_calls, [await run("host", "read_file", {"path": "q"})])
+        sub.results(sub_calls, [await run("host", "read_file", {"path": "p"})])
+        await main.request(bridge)
+        await sub.request(bridge)
+        await run("host", "read_file", {"path": "p"})
+
+    assert _inputs(seen) == {
+        "contents 1": ["MAIN read q."],
+        "contents 2": ["SUB read p."],
+        "contents 3": ["SUB read p.", "On it.", "contents 2"]
+        if dialect != "google"
+        else ["SUB read p.", "On it.", '{"output": "contents 2"}'],
+    }
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("shape", ["distinct replies", "cached reply, then diverged"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_sub_agents_starting_alike_get_no_context_from_each_other(
+    dialect: HostDialect, shape: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two sub-agents start from the same prompt and make the same host call.
+
+    Their requests are alike, so the bridge can't tell them apart (placement
+    gives them the same ids). With `distinct replies` each is handed the
+    call in a reply of its own, answering the same request: the call is
+    shared, and neither result gets a proposal's context. With `cached
+    reply`, the second gets the first's reply from the model cache: the
+    first execution is checked with that reply's input, which both have.
+    Then the second runs ahead: it answers, is handed the call again and
+    runs it, so the first's own execution takes the second's later grant.
+    The cached reply may have gone to two conversations, so no later handout
+    continues it: no result after it gets a proposal's context, and the
+    first's never gets the second's tool result.
+    """
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
+    first = ToolCall(id="first", function="read_file", arguments={"path": "p"})
+    second = ToolCall(id="second", function="read_file", arguments={"path": "p"})
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    cached = shape != "distinct replies"
+    model = get_model(
+        "mockllm/model",
+        config=GenerateConfig(cache=cached),
+        custom_outputs=[tool_calls_output(first), tool_calls_output(second), done],
+    )
+    bridge = _counted_host_bridge(model)
+    [info] = declare("read_file")
+    a = _HostConversation(dialect, "Read p.", info)
+    b = _HostConversation(dialect, "Read p.", info)
+    seen: list[AfterToolCall] = []
+    run = call_host_tool(bridge)
+
+    with active_test_sentinel(record_tool_results(seen)):
+        await a.request(bridge)
+        b_calls = await b.request(bridge)
+        if cached:
+            output = await run("host", "read_file", {"path": "p"})
+            b.results(b_calls, [output])
+            await b.request(bridge)
+            await run("host", "read_file", {"path": "p"})
+            await run("host", "read_file", {"path": "p"})
+        else:
+            await run("host", "read_file", {"path": "p"})
+            await run("host", "read_file", {"path": "p"})
+
+    if cached:
+        assert _inputs(seen) == {
+            "contents 1": ["Read p."],
+            "contents 2": None,
+            "contents 3": None,
+        }
+    else:
+        assert _inputs(seen) == {"contents 1": None, "contents 2": None}
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("state", ["kept", "resumed", "resumed, written before"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_host_call_two_conversations_were_handed_stays_shared(
+    dialect: HostDialect, state: str
+) -> None:
+    """Main runs a call, a sub-agent is handed it, and main is handed it again later.
+
+    The call stays shared for the rest of the sample, across a resume too
+    (`resumed`): main's later result gets no proposal's context. A checkpoint
+    written before the bridge kept conversations (`resumed, written before`)
+    holds none, so the resumed bridge records main's later handout as the
+    call's first.
+    """
+    main_call = ToolCall(id="main", function="read_file", arguments={"path": "p"})
+    sub_call = ToolCall(id="sub", function="read_file", arguments={"path": "p"})
+    again = ToolCall(id="again", function="read_file", arguments={"path": "p"})
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[tool_calls_output(c) for c in (main_call, sub_call, again)],
+    )
+    checkpointer = RecordingCheckpointer()
+    bridge = _counted_host_bridge(model, checkpointer=checkpointer)
+    [info] = declare("read_file")
+    main = _HostConversation(dialect, "MAIN read p.", info)
+    seen: list[AfterToolCall] = []
+
+    with active_test_sentinel(record_tool_results(seen)):
+        calls = await main.request(bridge)
+        output = await call_host_tool(bridge)("host", "read_file", {"path": "p"})
+        await _HostConversation(dialect, "SUB read p.", info).request(bridge)
+        if state != "kept":
+            snapshot = checkpointer.snapshot()
+            if state == "resumed, written before":
+                del snapshot["bridge_handouts"]["conversations"]
+            bridge = _counted_host_bridge(
+                model,
+                checkpointer=RecordingCheckpointer(restored=snapshot, serialized=True),
+            )
+        main.results(calls, [output])
+        await main.request(bridge)
+        await call_host_tool(bridge)("host", "read_file", {"path": "p"})
+
+    first, later = _executed(seen)
+    assert first.input is not None
+    assert [m.text for m in first.input] == ["MAIN read p."]
+    if state == "resumed, written before":
+        assert later.input is not None
+        assert [m.text for m in later.input][0] == "MAIN read p."
+    else:
+        assert later.input is None and later.message_id == ""
 
 
 @pytest.mark.parametrize("calls", [16, 32, 64, 128])
-def test_contesting_identical_pending_calls_is_linear_in_their_grants(
+def test_recording_host_call_conversations_is_linear(
     calls: int, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An execution matching identical pending calls records one contest of them.
+    """Handing a host call over records one entry for it, hashing each request's messages once.
 
-    The contest is shared by the proposals it matched, not copied into each,
-    and the executions draining the other calls, matching only calls already
-    in it, record none. The proposals the sentinel keeps are scanned once, not
-    once per call made ambiguous. Each result is still recorded for every
-    call it could be.
+    One conversation hands the call over in each of `calls` turns, then as
+    many other conversations do: the first of them shares the call, and
+    later handouts of a shared call hash nothing. An execution looks up only
+    its call's keys.
     """
+    hashed = 0
+
+    def counting(message: ChatMessage) -> str:
+        nonlocal hashed
+        hashed += 1
+        return content_hash(message)
+
+    monkeypatch.setattr(sandbox_types, "content_hash", counting)
     bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
-    handed = [
-        ToolCall(id=f"call_{i}", function="read_file", arguments={"path": "p"})
-        for i in range(calls)
-    ]
-    checks = bridge._handouts.hand_over(
-        BridgedRequest("request", frozenset()),
-        handed,
-        handed,
-        [
-            SentinelCheck(
-                call,
-                call,
-                None,
-                "",
-                "",
-                target=BridgedToolId(server="host", tool="read_file"),
-            )
-            for call in handed
-        ],
-    )
-    bridge._register_tool_execution_grants(handed, declare("read_file"), checks)
-    grants = list(bridge._tool_execution_grants)
+    target = BridgedToolId(server="host", tool="read_file")
 
-    written = 0
+    def hand_over(request: list[ChatMessage], index: int) -> None:
+        call = ToolCall(
+            id=f"call_{index}", function="read_file", arguments={"path": "p"}
+        )
+        reply = ChatMessageAssistant(
+            id=f"reply_{index}", content="On it.", tool_calls=[call]
+        )
+        checks = bridge._handouts.hand_over(
+            BridgedRequest(f"request_{index}", frozenset()),
+            [call],
+            [call],
+            [SentinelCheck(call, call, None, "", "", target=target)],
+        )
+        bridge._proposing_request = request
+        bridge._proposing_reply_id = reply.id
+        bridge._record_form(reply.id or "", content_hash(reply))
+        bridge._register_tool_execution_grants([call], declare("read_file"), checks)
+        request.extend(
+            [reply, ChatMessageTool(content="contents", tool_call_id=call.id)]
+        )
 
-    class CountingContest(sandbox_types._Contest):
-        def __init__(self, handouts: set[Handout]) -> None:
-            nonlocal written
-            written += len(handouts)
-            super().__init__(handouts)
+    conversation: list[ChatMessage] = [ChatMessageUser(content="Read p.")]
+    lengths = 0
+    for index in range(calls):
+        lengths += len(conversation)
+        hand_over(conversation, index)
+    assert hashed == lengths
+    [entry] = bridge._handouts.conversations.values()
+    assert not entry.shared
 
-    scans = 0
+    hashed = 0
+    for index in range(calls):
+        hand_over([ChatMessageUser(content=f"Read p, {index}.")], calls + index)
+    # once shared, a handout of the call hashes nothing
+    assert hashed == 1
+    [entry] = bridge._handouts.conversations.values()
+    assert entry.shared
 
-    class CountingProposals(OrderedDict[tuple[str, str], SentinelCheck]):
-        def __iter__(self) -> Iterator[tuple[str, str]]:
-            nonlocal scans
-            scans += 1
-            return super().__iter__()
+    grant = bridge.consume_tool_execution_grant("host", "read_file", {"path": "p"})
+    assert grant is not None and bridge.handed_to_several(grant)
 
-    monkeypatch.setattr(sandbox_types, "_Contest", CountingContest)
-    bridge._handouts.proposals = CountingProposals(bridge._handouts.proposals)
 
-    def memberships() -> int:
-        return sum(len(grant.proposal.contests) for grant in grants)
+@pytest.mark.parametrize("calls", [512, 1024, 2048])
+def test_tracking_many_host_results_is_linear(calls: int) -> None:
+    """Each host result tracked for its message visits at most the tracked replies (the overflow shape of the pre-push review of `a4caf76f7`)."""
+    bridge = _recording_bridge()
 
-    bridge.consume_tool_execution_grant("host", "read_file", {"path": "p"})
-    assert (written, memberships(), scans) == (calls, calls, 1)
-    while bridge._tool_execution_grants:
-        bridge.consume_tool_execution_grant("host", "read_file", {"path": "p"})
-    assert (written, memberships(), scans) == (calls, calls, 1)
-    assert all(
-        {handout.id for handout in bridge.result_executions(grant)}
-        == {call.id for call in handed}
-        for grant in grants
-    )
+    class Counting(dict[str, Any]):
+        visits = 0
+
+        def values(self) -> Any:
+            for value in super().values():
+                Counting.visits += 1
+                yield value
+
+    bridge._awaited_results = Counting()
+    for index in range(calls):
+        _execute(
+            bridge,
+            f"reply_{index}",
+            [
+                ToolCall(
+                    id=f"call_{index}",
+                    function="read_file",
+                    arguments={"path": str(index)},
+                )
+            ],
+        )
+    assert len(bridge._awaited_results) <= bridge_types._MAX_AWAITED_RESULTS
+    assert Counting.visits <= (bridge_types._MAX_AWAITED_RESULTS + 1) * calls
 
 
 @agent

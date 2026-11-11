@@ -1695,6 +1695,7 @@ async def _bridge_generate_impl(
                 if model_id in proposing
             }
             bridge._proposing_reply_id = reviewed.output.message.id
+            bridge._proposing_request = input
             bridge._proposing_call_verified = verified_calls
             try:
                 bridge._register_tool_execution_grants(
@@ -1706,6 +1707,7 @@ async def _bridge_generate_impl(
             finally:
                 bridge._proposing_message_ids = {}
                 bridge._proposing_reply_id = None
+                bridge._proposing_request = []
                 bridge._proposing_call_verified = None
             return reviewed.output, c_message
 

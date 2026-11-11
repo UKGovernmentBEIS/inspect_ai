@@ -1967,14 +1967,15 @@ async def test_a_host_result_for_several_executions_is_keyed_once(
 
     monkeypatch.setattr(_sentinel, "_content_key", counting_content_key)
     bridge = in_process_bridge([])
-    check = _sentinel.SentinelCheck(READ, READ, None, "", "message_1", execution_id="t")
     candidates = [
-        bridge._handouts.handout(replace(READ, id=f"call_{index}"))
+        _sentinel.SentinelCheck(
+            READ, READ, None, "", "message_1", execution_id=f"t{index}"
+        )
         for index in range(50)
     ]
 
     await _sentinel.sentinel_host_tool_result(
-        bridge, check, "contents", "contents", candidates=candidates
+        bridge, candidates[0], "contents", "contents", candidates=candidates
     )
 
     assert len(keyed) == 1
