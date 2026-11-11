@@ -1787,7 +1787,7 @@ async def test_compaction_after_re_derived_ids_keeps_the_latest_replys_id(
         kept = [ChatMessageUser(content="Summary: listed the files once.")]
         await scaffold.request([task, first_back, old_result], second)
     bridge._record_transported_reply(second, [second_back])
-    [event] = _awaiting(bridge, second)
+    [event] = _awaiting(bridge, second, result="NEW")
 
     with recording_placements() as placements:
         ids = await scaffold.request(
@@ -2719,7 +2719,7 @@ def _awaiting(
     reply: ChatMessageAssistant,
     executions: int = 1,
     index: int = 0,
-    result: str = "",
+    result: str = "a.txt",
 ) -> list[ToolEvent]:
     """Host tool events for call `index` of `reply`, as executing a granted call records them."""
     assert reply.id is not None and reply.tool_calls is not None
@@ -2893,8 +2893,8 @@ async def test_host_results_sent_late_still_link(delay: str) -> None:
     )
     scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
     await scaffold.request([task], reply)
-    [event_a] = _awaiting(scaffold.bridge, reply, index=0)
-    [event_b] = _awaiting(scaffold.bridge, reply, index=1)
+    [event_a] = _awaiting(scaffold.bridge, reply, index=0, result="A")
+    [event_b] = _awaiting(scaffold.bridge, reply, index=1, result="B")
 
     if delay == "split-parallel":
         first = await scaffold.request([task, reply, _result("call_a", "A")])
@@ -2989,13 +2989,25 @@ def _link_copy(
     return [event.message_id for event in events]
 
 
-def test_host_result_links_to_the_answer_whatever_its_content() -> None:
-    """`message_id` names the answer to the call, not a message holding `result`."""
+@pytest.mark.parametrize(
+    "answer,linked",
+    [
+        ("contents of file a", True),
+        ("Output:\ncontents of file a\n", True),
+        ("MCP error -32001: Request timed out", False),
+    ],
+    ids=["result", "result within other text", "client timeout"],
+)
+def test_host_result_links_only_an_answer_holding_it(answer: str, linked: bool) -> None:
+    """`message_id` names the call's answer only when the answer holds its result.
+
+    A scaffold whose client gave up on the call answers it without the result.
+    """
     handed = [_read("a", "a")]
 
-    ids = _link_copy(handed, [(0, "A")], handed, [(handed[0], "edited")])
+    ids = _link_copy(handed, [(0, "contents of file a")], handed, [(handed[0], answer)])
 
-    assert ids == ["result-0"]
+    assert ids == ["result-0" if linked else None]
 
 
 # validates as `internal` (pydantic's limit is ~255) but is too deep to serialize

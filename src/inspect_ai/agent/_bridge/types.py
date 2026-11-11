@@ -1,4 +1,5 @@
 import json
+import re
 from collections import Counter, deque
 from dataclasses import dataclass, field
 from enum import IntEnum
@@ -15,6 +16,7 @@ from typing import (
 from pydantic import BaseModel
 from shortuuid import uuid
 
+from inspect_ai._util.content import ContentBase, ContentText
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import jsonable_python
@@ -65,6 +67,12 @@ if TYPE_CHECKING:
 
 _MAX_AWAITED_RESULTS = 256
 """Host tool calls tracked for their result message, beyond which the oldest replies' are dropped."""
+
+_RESULT_EVIDENCE = 256
+"""How much of the start of a host tool's result text its linked answer must hold (scaffolds truncate long results)."""
+
+_MIN_CONTAINED_RESULT = 16
+"""Shortest host tool result text a linked answer may hold among other text; a shorter one must be a whole text of the answer (`_answer_texts`)."""
 
 _MAX_RECENT_THREADS = 16
 """Recent requests and generations kept, each in place of the kept ones it extends, whose replies can contest a thread's placement (see `_contested`)."""
@@ -571,7 +579,10 @@ class AgentBridge:
         its content (`sent_in`, per tool message the latest earlier request
         that did), so it was first sent after the execution completed: a
         message sent before, or equal to one sent before, may hold another
-        result. Any other result settles
+        result. The execution is awaited only once its result was handed to
+        the scaffold, but a scaffold that gave up on the call (its own client
+        timeout) answers it without the result, so the message must also hold
+        the result (`_holds_result`). Any other result settles
         the call unlinked, as does a result whose call id the dialect inferred
         from order (`inferred`). A call with no result yet keeps waiting.
         """
@@ -613,13 +624,16 @@ class AgentBridge:
                 if not answers:
                     continue
                 reply.events[position] = None
+                answer = messages[answers[0]]
                 if (
                     len(answers) == 1
                     and answers[0] in fresh
                     and answers[0] not in inferred
                     and sent_in.get(answers[0], 0) <= reply.handed_at
+                    and isinstance(answer, ChatMessageTool)
+                    and _holds_result(answer, event)
                 ):
-                    event.message_id = messages[answers[0]].id
+                    event.message_id = answer.id
                     transcript()._event_updated(event)
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
@@ -1366,6 +1380,106 @@ def _named_result_key(message: ChatMessageTool, call: ToolCall | None) -> str:
     """
     answered = json.dumps(_call_key(call)) if call else f"function:{message.function}"
     return content_hash(message.model_copy(update={"tool_call_id": answered}))
+
+
+def _holds_result(answer: ChatMessageTool, event: "ToolEvent") -> bool:
+    """Whether `answer` holds the result the scaffold received for `event`.
+
+    Evidence that the scaffold received the execution's result before it sent
+    `answer`: a scaffold that gave up on the call (its own client timeout)
+    answers it without the result, after the execution completed. Scaffolds
+    reformat, wrap and truncate results, so the evidence is the start of the
+    result's first text (`_RESULT_EVIDENCE`; for an error, its message) within
+    the answer or within a string of JSON the answer holds. A text shorter than
+    `_MIN_CONTAINED_RESULT` may appear in any message by chance, so it must be
+    a whole text of the answer (`_answer_texts`). A result with no text needs
+    an answer that is empty or, for media, holds media. Linear in the answer's
+    size: one text of the result is compared.
+    """
+    if event.error is not None:
+        expected, media = event.error.message.strip(), False
+    else:
+        expected, media = _result_evidence(event.result)
+    expected = _escape_surrogates(expected)
+    texts = _answer_texts(answer)
+    if expected:
+        if len(expected) < _MIN_CONTAINED_RESULT:
+            return expected in texts
+        evidence = expected[:_RESULT_EVIDENCE]
+        return any(evidence in text for text in texts)
+    if media:
+        return not isinstance(answer.content, str) and any(
+            content.type != "text" for content in answer.content
+        )
+    return "" in texts
+
+
+def _result_evidence(result: Any) -> tuple[str, bool]:
+    """The first non-empty text of a host tool's recorded result, stripped, and whether it holds media."""
+    if isinstance(result, str):
+        return result.strip(), False
+    contents = result if isinstance(result, list) else [result]
+    media = False
+    for content in contents:
+        if isinstance(content, ContentText):
+            if content.text.strip():
+                return content.text.strip(), media
+        elif isinstance(content, ContentBase):
+            media = True
+        else:
+            text = str(content).strip()
+            if text:
+                return text, media
+    return "", media
+
+
+def _answer_texts(answer: ChatMessageTool) -> set[str]:
+    """The texts a result may appear as in `answer`, stripped.
+
+    Its text, each text part, and every string in JSON they hold (other than
+    a `"type"` tag) are each a text; JSON holding no string counts as empty.
+    Scaffolds wrap results in JSON (a list of MCP content blocks, a Google
+    `functionResponse`), escaping them. A lone surrogate is compared in its
+    escaped form, as a JSON round trip may leave it (`_escape_surrogates`).
+    """
+    parts = (
+        [answer.content]
+        if isinstance(answer.content, str)
+        else [content.text for content in answer.content if content.type == "text"]
+    )
+    texts = {answer.text.strip()}
+    for part in parts:
+        part = part.strip()
+        texts.add(part)
+        if not part.startswith(("{", "[")):
+            continue
+        try:
+            value = json.loads(part)
+        except (ValueError, RecursionError):
+            continue
+        strings = 0
+        pending: list[tuple[Any, str | None]] = [(value, None)]
+        while pending:
+            item, key = pending.pop()
+            if isinstance(item, str):
+                if key != "type":
+                    texts.add(item.strip())
+                    strings += 1
+            elif isinstance(item, dict):
+                pending.extend((v, k) for k, v in item.items())
+            elif isinstance(item, list):
+                pending.extend((v, None) for v in item)
+        if strings == 0:
+            texts.add("")
+    return {_escape_surrogates(text) for text in texts}
+
+
+_SURROGATE = re.compile("[\ud800-\udfff]")
+
+
+def _escape_surrogates(text: str) -> str:
+    """`text` with each surrogate code point written as its JSON escape."""
+    return _SURROGATE.sub(lambda match: f"\\u{ord(match.group()):04x}", text)
 
 
 def _unplaced_key(message: ChatMessage) -> str:

@@ -399,7 +399,10 @@ finalised. The bridge waits for it (`_await_result_message()`) and sets
 the completed event through the transcript's event-update path
 (`_event_updated()`), as for a pending event. Transcript subscribers see the
 event completed with `message_id=None` and then updated; a log read back has
-it set.
+it set. Waiting starts once the RPC's response is written to the sandbox
+(`on_response_written()` in the sandbox service), since a message the agent
+sent before then cannot hold the result. A call whose response is never
+written (the write fails, or the service is cancelled first) is not linked.
 
 The link is exact when all of these hold:
 
@@ -456,6 +459,18 @@ The link is exact when all of these hold:
 - Exactly one tool message answers it, by call id, before the next assistant
   message with tool calls, and that message is new in the request: one sent
   before, or equal to one sent before, may hold another result.
+- That message holds the result (`_holds_result()`). The response's delivery
+  to the agent can't be seen: the in-sandbox proxy reads the response file
+  even after the agent's MCP client gave up on the call (its own timeout),
+  and the agent then answers with its timeout error, sent after the response
+  was written. A message holds the result when it contains the first 256
+  characters of the result's first text (for an error, its message), or a
+  JSON string inside it does (Codex sends a list of MCP content blocks,
+  Google a `functionResponse` object). A text shorter than 16 characters
+  must be a whole text of the message, a text part or a JSON string. A result
+  with no text needs an empty answer or, for media, one holding media. An
+  agent that truncates the start of a result or rewrites it leaves the call
+  unlinked.
 
 Otherwise `message_id` stays `None`. This includes a Google result whose call
 id the dialect inferred from order (a call sharing its function with another),

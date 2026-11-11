@@ -33,7 +33,7 @@ from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError
-from inspect_ai.util._sandbox.service import find_control_flow
+from inspect_ai.util._sandbox.service import find_control_flow, on_response_written
 from inspect_ai.util._span import parent_span, span
 
 from .types import SandboxAgentBridge, _ToolExecutionGrant
@@ -246,17 +246,31 @@ def _await_result_message(
 ) -> None:
     """Await the result message of the execution that consumed `grant`.
 
+    Awaiting starts once the RPC's response is written to the sandbox
+    (`on_response_written`), as a message the scaffold sent before then
+    cannot hold the result; a call whose response is never written settles
+    unlinked. Called outside a sandbox service request, the caller receives
+    the result as the call returns, so awaiting starts then.
+
     An execution on a server registered with `require_proposal=False` never
     links: an unproposed call there takes a pending proposal's grant
     (`consume_tool_execution_grant`), so the grant doesn't show which call ran.
     """
-    if grant is not None and grant.proposal.reply is not None:
+    if grant is None or grant.proposal.reply is None:
+        return
+    handed = grant.proposal.reply
+
+    def answered(written: bool) -> None:
         bridge._await_result_message(
-            grant.proposal.reply,
+            handed,
             event,
-            linkable=grant.proposal.linkable
+            linkable=written
+            and grant.proposal.linkable
             and grant.server not in bridge.proposal_exempt_servers,
         )
+
+    if not on_response_written(answered):
+        answered(True)
 
 
 async def _execute_granted(

@@ -92,16 +92,21 @@ class ToolEvent(BaseEvent):
     unchanged and the bridge places it under the id it handed it with, the call
     ran once, no other call of the reply has its id or its function and
     arguments, and exactly one tool message answers it (by call id, before the
-    next assistant message with tool calls) and is new in that request. Its
-    content may differ from `result`: scaffolds edit results and dialects
+    next assistant message with tool calls), is new in that request, and holds
+    the result: the start of its text (for an error, its message), also within
+    JSON the scaffold wraps it in, or all of a short text. Its content may
+    otherwise differ from `result`: scaffolds edit results and dialects
     reshape them.
 
     Otherwise it stays `None`: the scaffold never sends the result, edits the
     reply, or sends it where the bridge can't place it (another conversation
     may hold an equal reply); a message the bridge couldn't place took the
     reply's id; the call executed more than once; more than one tool
-    message answers it; the answer equals a message sent before or was sent
-    before the call completed; Google names only the result's function and
+    message answers it; the answer equals a message sent before, was sent
+    before the call's response was written, or doesn't hold its result (a
+    scaffold's client gave up on the call and answered it with a timeout,
+    say); the call's response was never written; Google names only the
+    result's function and
     several calls of the reply share it; the sample resumed from a checkpoint
     first; or 256 later host calls are tracked before its result arrives.
     """

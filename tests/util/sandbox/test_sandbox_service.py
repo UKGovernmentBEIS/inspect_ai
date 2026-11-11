@@ -42,6 +42,7 @@ from inspect_ai.util._sandbox.service import (
     SERVICE_REQUEST_READ_OUTPUT_LIMIT,
     SERVICES_DIR,
     SandboxService,
+    on_response_written,
     sandbox_service,
 )
 from inspect_ai.util._subprocess import ExecResult
@@ -696,6 +697,79 @@ async def test_handle_request_bridged_tool_limit_replies_as_a_tool_error(
     )
     assert not bridge._failure_requested.is_set()
     assert active.limit_exceeded.call_count == 0
+
+
+@dataclass
+class _FailingWriteSandbox(_RequestReadSandbox):
+    """`_RequestReadSandbox` whose file writes fail."""
+
+    async def exec(
+        self,
+        cmd: list[str],
+        *,
+        user: str | None = None,
+        input: str | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        call = framework_directory_call(_argv(cmd))
+        if call is not None and _write_target(call) is not None:
+            return ExecResult[str](
+                success=False, returncode=1, stdout="", stderr="disk full"
+            )
+        return await super().exec(cmd, user=user, input=input)
+
+
+@pytest.mark.parametrize("outcome", ["result", "error", "failed write", "cancelled"])
+async def test_response_written_callbacks_report_whether_the_response_was_written(
+    outcome: str,
+) -> None:
+    """A service method's `on_response_written` callbacks run once its request ends.
+
+    With `True` once a result or error response was written and the request
+    dequeued, and with `False` when the write fails or the service is
+    cancelled before writing one.
+    """
+    request_id = "req-1"
+    request = json.dumps({"id": request_id, "method": "call", "params": {}})
+    fake = (
+        _FailingWriteSandbox(cat_stdout=request)
+        if outcome == "failed write"
+        else _RequestReadSandbox(cat_stdout=request)
+    )
+    service = _service_with_dirs(fake)
+    request_file = f"{service._requests_dir}/{request_id}.json"
+    response_file = f"{service._responses_dir}/{request_id}.json"
+    seen: list[tuple[bool, bool, bool]] = []
+    running = anyio.Event()
+
+    def answered(written: bool) -> None:
+        seen.append(
+            (written, response_file in fake.writes, request_file in fake.removed)
+        )
+
+    async def call() -> str:
+        assert on_response_written(answered)
+        running.set()
+        if outcome == "error":
+            raise ValueError("failed")
+        if outcome == "cancelled":
+            await anyio.sleep_forever()
+        return "ok"
+
+    service.add_method("call", call)
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(service._handle_request_tracked, request_file, request_id)
+        if outcome == "cancelled":
+            await running.wait()
+            tg.cancel_scope.cancel()
+
+    written = outcome in ("result", "error")
+    assert seen == [(written, written, written)]
+    assert not on_response_written(answered)
 
 
 async def test_write_response_goes_through_the_verified_responses_dir() -> None:
