@@ -12,7 +12,7 @@ Inspect also includes a collection of over 200 pre-built evaluations ready to ru
 
 ***
 
-To work on development of Inspect, install [uv](https://docs.astral.sh/uv/) (0.11.8 or later), clone the repository, and sync the development environment from the checked-in lockfile:
+To work on development of Inspect, install [uv](https://docs.astral.sh/uv/) (0.13.4 or later), clone the repository, and sync the development environment from the checked-in lockfile:
 
 ```bash
 git clone https://github.com/UKGovernmentBEIS/inspect_ai.git

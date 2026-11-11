@@ -422,6 +422,32 @@ def isolated_hooks_registry() -> Iterator[None]:
 
 
 @pytest.fixture
+def fresh_display(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Start with no display, display type or Rich console settings, as a new process does.
+
+    Earlier tests leave these set (a quiet console, a cached display), which
+    would hide or redirect the output a test captures; restoring them keeps
+    this test's display from leaking into later ones. The console is reset in
+    place, as `rich.reconfigure()` does, so a logging handler bound to it by an
+    earlier test still writes to it. It is wide enough not to wrap long
+    temporary paths in that output.
+    """
+    import rich
+    from rich.console import Console
+
+    from inspect_ai._display.core import active
+    from inspect_ai._display.core import rich as display_rich
+    from inspect_ai.util import _display
+
+    monkeypatch.setattr(active, "_active_display", None)
+    monkeypatch.setattr(_display, "_display_type", None)
+    monkeypatch.setattr(display_rich, "_console_settings", None)
+    monkeypatch.setattr(display_rich, "_reconfigure_in_place", False)
+    monkeypatch.setenv("COLUMNS", "1000")
+    monkeypatch.setattr(rich.get_console(), "__dict__", Console().__dict__)
+
+
+@pytest.fixture
 def no_model_copyreg_reducer():
     """Suspend any copyreg reducer registered for Model for the test's duration.
 

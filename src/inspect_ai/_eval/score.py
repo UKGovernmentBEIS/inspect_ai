@@ -82,6 +82,7 @@ from inspect_ai.scorer._scorer import ScorerSpec, as_scorer_spec, unique_scorer_
 from inspect_ai.solver import TaskState
 from inspect_ai.util._display import (
     DisplayType,
+    display_type,
     display_type_initialized,
     init_display_type,
 )
@@ -138,8 +139,8 @@ def score(
     # standard platform init for top level entry points
     platform_init()
 
-    # initialize display type
-    init_display_type(display)
+    # initialize display type (keeping the current one by default, as eval does)
+    init_display_type(display or display_type())
 
     # resolve scorers into a list
     scorers = [scorers] if isinstance(scorers, Scorer) else scorers
