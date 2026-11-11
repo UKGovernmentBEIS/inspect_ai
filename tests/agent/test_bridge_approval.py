@@ -9230,11 +9230,12 @@ def _answer(
     reply_id: str,
     calls: list[ToolCall],
     answered: list[int],
+    suffix: str = "",
 ) -> None:
-    """Send the reply back with fresh answers to the calls at `answered`."""
+    """Send the reply back with fresh answers to the calls at `answered` (ids ending in `suffix`)."""
     answers = [
         ChatMessageTool(
-            id=f"{reply_id}-result-{n}",
+            id=f"{reply_id}-result-{n}{suffix}",
             content="ok",
             tool_call_id=calls[n].id,
             function=calls[n].function,
@@ -9274,9 +9275,11 @@ def test_an_identical_execution_is_doubted_until_the_earlier_answer_arrives(
     The earlier reply is unlinked by a denied retry, by `_unlink` (as an
     evicted grant, an ambiguous proposal, an unplaced message taking its id,
     or a reply handed out again do), or by being handed out again and its
-    call running again. While its answer is awaited, a later reply's
-    identical execution may be its client's retry, so that one doesn't link
-    either; once the answer arrived, it links.
+    call, already answered, running again. While its answer is awaited, a
+    later reply's identical execution may be its client's retry, so that one
+    doesn't link either; once the answer arrived, it links. The first
+    execution's answer sent again (a conversation holding the reply goes on)
+    doesn't answer the call's second execution: that takes another answer.
     """
     bridge = _recording_bridge()
     call = ToolCall(id="call_1", function="read_file", arguments={"path": "a"})
@@ -9285,11 +9288,13 @@ def test_an_identical_execution_is_doubted_until_the_earlier_answer_arrives(
         bridge.unlink_denied_call("host", "read_file", {"path": "a"})
     elif unlinked_by is not None:
         bridge._unlink("reply-1")
-        if unlinked_by == "handed out again":
-            if answered:
-                _answer(bridge, "reply-1", [call], [0])
-            [earlier] = _execute(bridge, "reply-1", [call])
-    if answered:
+    if unlinked_by == "handed out again":
+        _answer(bridge, "reply-1", [call], [0])
+        [earlier] = _execute(bridge, "reply-1", [call])
+        _answer(bridge, "reply-1", [call], [0])
+        if answered:
+            _answer(bridge, "reply-1", [call], [0], suffix="-again")
+    elif answered:
         _answer(bridge, "reply-1", [call], [0])
 
     later_call = replace(call, id="call_2")
