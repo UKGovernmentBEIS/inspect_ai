@@ -75,6 +75,10 @@ _MAX_PROPOSALS = 1000
 # proposal does, has no message that made the call
 _NO_MESSAGE_ID = ""
 
+# the prefix of the key a host call no proposal accounts for is checked under:
+# a fresh one per execution, which no result the scaffold reports can match
+_UNPROPOSED = "unproposed:"
+
 
 class Produced(NamedTuple):
     """The generation that produced a bridged call, and the agent span it ran in."""
@@ -395,7 +399,11 @@ class _Handouts:
         self.reserved_ids: set[str] = set(saved.reserved_ids)
         # by call id and handed call (`_call_key`)
         self.proposals: OrderedDict[tuple[str, str], SentinelCheck] = OrderedDict()
-        self.checked: set[str] = set(saved.checked)
+        # an unproposed key in a checkpoint written before they were dropped
+        # once checked matches nothing
+        self.checked: set[str] = {
+            key for key in saved.checked if not key.startswith(_UNPROPOSED)
+        }
         self.conversations: dict[str, _Conversation] = dict(saved.conversations)
         self.running: dict[str, anyio.Event] = {}
         self.failed: dict[str, Exception] = {}
@@ -756,7 +764,9 @@ class _Handouts:
             for key in result.keys:
                 self.failed.setdefault(key, ex)
             raise
-        self.checked.update(result.keys)
+        self.checked.update(
+            key for key in result.keys if not key.startswith(_UNPROPOSED)
+        )
 
     async def check_running(
         self,
@@ -1104,7 +1114,8 @@ async def sentinel_host_tool_result(
             )
         keys += bridge._handouts.result_keys(execution.handed, content_keys[function])
         keys += [executed_key(host, content_keys[function]) for host in host_calls]
-    keys = keys or [f"unproposed:{uuid()}"]
+    # kept while it runs or once it fails, not once checked (`_Handouts.check`)
+    keys = keys or [f"{_UNPROPOSED}{uuid()}"]
     with bridge_request():
         await bridge._handouts.check_running(
             bridge, _Result(keys, (check,), result), output, truncated

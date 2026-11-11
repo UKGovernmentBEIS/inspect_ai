@@ -6491,6 +6491,41 @@ async def test_an_exempt_host_result_is_checked(proposed: bool) -> None:
     assert after.result.text == "secret"
 
 
+async def test_unproposed_host_results_leave_no_checked_keys() -> None:
+    """An exempt server's unproposed calls get keys no later result can match: none is kept once checked.
+
+    A failed check's keys are kept while the sample fails, and a checkpoint
+    written with such keys restores without them.
+    """
+    from inspect_ai.agent._bridge._sentinel import _Handouts
+
+    seen: Steps = []
+    bridge = sandbox_bridge(AsyncMock(return_value="public"))
+    bridge.proposal_exempt_servers.add("host")
+    with active(recording_terminate_on_secret(seen)):
+        for _ in range(3):
+            await call_host_tool(bridge)("host", "read_file", READ.arguments)
+    assert len(seen) == 3
+    assert not bridge._handouts.running
+    assert not bridge._handouts.checked
+    assert not bridge._handouts.saved().checked
+
+    failing = sandbox_bridge(AsyncMock(return_value="secret"))
+    failing.proposal_exempt_servers.add("host")
+    with active(recording_terminate_on_secret(seen)):
+        with pytest.raises(TerminateSampleError, match="blocked secret"):
+            await call_host_tool(failing)("host", "read_file", READ.arguments)
+    assert not failing._handouts.running
+    assert not failing._handouts.checked
+    [failed] = failing._handouts.failed
+    assert failed.startswith("unproposed:")
+
+    restored = _Handouts(
+        _SavedHandouts(reserved_ids=[], handed={}, checked=["unproposed:old", "kept"])
+    )
+    assert restored.checked == {"kept"}
+
+
 async def test_serialized_host_content_terminates_on_what_is_delivered() -> None:
     call = replace(READ, function="mcp__host__read_file")
     model = Scripted(calls_output(call))
