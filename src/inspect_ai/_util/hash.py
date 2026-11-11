@@ -14,6 +14,15 @@ def mm3_hash(message: str) -> str:
     return f"{h1 & 0xFFFFFFFFFFFFFFFF:016x}{h2 & 0xFFFFFFFFFFFFFFFF:016x}"
 
 
+def sha256_hash(message: str) -> str:
+    """Hex SHA-256 of `message`, for keys whose input an agent controls.
+
+    Such a key must be collision-resistant: Murmur3 collisions can be
+    constructed. `surrogatepass` encodes a lone surrogate losslessly.
+    """
+    return hashlib.sha256(message.encode("utf-8", "surrogatepass")).hexdigest()
+
+
 def base57_id_hash(content: str) -> str:
     """Generate base67 hash for content.
 

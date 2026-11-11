@@ -10,7 +10,7 @@ import mmh3
 from shortuuid import uuid as shortuuid
 
 from inspect_ai._util.content import Content, ContentReasoning, ContentText
-from inspect_ai._util.hash import mm3_hash
+from inspect_ai._util.hash import sha256_hash
 from inspect_ai._util.json import json_normalize_numbers, jsonable_python
 from inspect_ai.model._assistant_internal import copy_assistant_internal
 
@@ -175,7 +175,7 @@ def content_hash(message: ChatMessage) -> str:
     equals the same text as a content list. Empty text shows nothing, so an
     empty string, an empty list and a list with an empty text part are equal.
     """
-    return mm3_hash(json.dumps(_shown(message), default=str))
+    return sha256_hash(json.dumps(_shown(message), default=str))
 
 
 def same_content(a: ChatMessage, b: ChatMessage) -> bool:

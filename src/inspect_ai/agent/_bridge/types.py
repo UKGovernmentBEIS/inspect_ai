@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from shortuuid import uuid
 
 from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai._util.hash import mm3_hash
+from inspect_ai._util.hash import mm3_hash, sha256_hash
 from inspect_ai._util.json import jsonable_python
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
@@ -1434,7 +1434,7 @@ class AgentBridge:
 
 @lru_cache(maxsize=100)
 def message_json_hash(message_json: str) -> str:
-    return mm3_hash(message_json)
+    return sha256_hash(message_json)
 
 
 def _call_key(call: ToolCall) -> tuple[str, str]:

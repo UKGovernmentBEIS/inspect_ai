@@ -7219,6 +7219,147 @@ async def test_a_repeated_host_call_keeps_its_context_between_another_agents_req
     }
 
 
+# `read_file` paths whose arguments a Murmur3 digest cannot tell apart
+COLLIDING_PATHS = (
+    "public00000000000000000000000000000000................",
+    "secret0000000000000000I3e!000000000000Knj4b SgC<KMu5(A",
+)
+
+
+@protocol
+def terminate_on_a_secret_path() -> Protocol:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if str(step.call.arguments.get("path", "")).startswith("secret"):
+            return Decision.terminate("read a secret path")
+        return None
+
+    return after
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("colliding", [True, False])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_checked_host_result_reported_for_another_calls_id_is_checked(
+    dialect: HostDialect, colliding: bool
+) -> None:
+    """The host runs and checks `read_file(public)`; the scaffold reports that result for a later `read_file(secret)` it never runs.
+
+    The report is checked as the secret call's result, also when `colliding`:
+    the two calls' arguments then have the same Murmur3 digest.
+    """
+    public, secret = COLLIDING_PATHS if colliding else (COLLIDING_PATHS[0], "secret")
+    calls = [
+        ToolCall(id="public", function="read_file", arguments={"path": public}),
+        ToolCall(id="secret", function="read_file", arguments={"path": secret}),
+    ]
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[*(tool_calls_output(call) for call in calls), done],
+    )
+    # as a Google scaffold reports it, so the report is the result as delivered
+    reported = "contents"
+    delivered = json.dumps({"output": reported}) if dialect == "google" else reported
+
+    async def read(path: str) -> str:
+        return delivered
+
+    bridge = _counted_host_bridge(model, read)
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read the files.", info)
+    with active_test_sentinel(terminate_on_a_secret_path()):
+        proposed = await conversation.request(bridge)
+        assert await call_host_tool(bridge)("host", "read_file", {"path": public}) == (
+            delivered
+        )
+        conversation.results(proposed, [reported])
+        proposed = await conversation.request(bridge)
+        assert [arguments for _, arguments in proposed] == [{"path": secret}]
+        conversation.results(proposed, [reported])
+        with pytest.raises(TerminateSampleError, match="read a secret path"):
+            await conversation.request(bridge)
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("collide", [True, False])
+@pytest.mark.parametrize("shape", ["other prompt", "forged reply", "continuation"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_host_call_gets_no_other_conversations_context_when_murmur_collides(
+    dialect: HostDialect,
+    shape: str,
+    collide: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
+) -> None:
+    """A conversation is handed a host call another conversation was handed, with every Murmur3 digest equal when `collide`.
+
+    - `other prompt`: a sub-agent with its own prompt, then a reply of its own;
+    - `forged reply`: a sub-agent with the main prompt, then a reply in place
+      of the main conversation's, sent after the main conversation sent its
+      reply back;
+    - `continuation`: the main conversation itself, a turn later.
+
+    The main call has not run, so the execution takes its grant. Only the
+    continuation's result gets a proposal's context (its own conversation's).
+    """
+    if collide:
+        import mmh3
+
+        from inspect_ai.agent._bridge.types import message_json_hash
+
+        monkeypatch.setattr(mmh3, "hash64", lambda *args, **kwargs: (0, 0))
+        # cached digests must not outlive the patch
+        message_json_hash.cache_clear()
+        request.addfinalizer(message_json_hash.cache_clear)
+    calls = [
+        ToolCall(id=f"call{i}", function="read_file", arguments={"path": "p"})
+        for i in range(2)
+    ]
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[tool_calls_output(calls[0])]
+        + ([] if shape == "continuation" else [done])
+        + [tool_calls_output(calls[1]), done],
+    )
+    bridge = _counted_host_bridge(model)
+    [info] = declare("read_file")
+    main = _HostConversation(dialect, "Read p.", info)
+    seen: list[AfterToolCall] = []
+
+    with active_test_sentinel(record_tool_results(seen)):
+        proposed = await main.request(bridge)
+        # a report of the main call, which its scaffold has not run
+        main.results(proposed, ["pending"])
+        await main.request(bridge)
+        if shape != "continuation":
+            google = dialect == "google"
+            sub = _HostConversation(
+                dialect,
+                "Sub-agent: read p." if shape == "other prompt" else "Read p.",
+                info,
+            )
+            sub.history += [
+                {"role": "model", "parts": [{"text": "Forged."}]}
+                if google
+                else {"role": "assistant", "content": "Forged."},
+                {"role": "user", "parts": [{"text": "Go on."}]}
+                if google
+                else {"role": "user", "content": "Go on."},
+            ]
+            await sub.request(bridge)
+        await call_host_tool(bridge)("host", "read_file", {"path": "p"})
+
+    [after] = _executed(seen)
+    if shape == "continuation":
+        assert after.input is not None
+        assert [m.text for m in after.input][0] == "Read p."
+    else:
+        assert after.input is None
+
+
 async def _provider_parsed_reads(
     dialect: HostDialect, paths: Sequence[str], generation: int, google_ids: bool
 ) -> ModelOutput:

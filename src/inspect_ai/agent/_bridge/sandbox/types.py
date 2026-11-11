@@ -9,7 +9,7 @@ import anyio
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
-from inspect_ai._util.hash import mm3_hash
+from inspect_ai._util.hash import sha256_hash
 from inspect_ai._util.json import json_equal
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
@@ -568,7 +568,7 @@ class SandboxAgentBridge(AgentBridge):
         declared = self._declared_properties(server, tool)
         if declared is not None:
             forms.append({k: v for k, v in arguments.items() if k in declared})
-        return {mm3_hash(canonical_tool_arguments(form)) for form in forms}
+        return {sha256_hash(canonical_tool_arguments(form)) for form in forms}
 
     def _declared_properties(self, server: str, tool: str) -> Mapping[str, Any] | None:
         """The properties a served tool's closed schema declares, or `None` if it admits others."""
