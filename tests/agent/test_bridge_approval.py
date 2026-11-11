@@ -8902,7 +8902,7 @@ async def test_a_failed_host_check_fails_its_unchanged_report(
         conversation.results(calls, ["contents!" if changed else "contents"])
         with pytest.raises(RuntimeError, match="host check failed"):
             await conversation.request(bridge)
-    assert checked == ["contents", "contents!"] if changed else ["contents"]
+    assert checked == (["contents", "contents!"] if changed else ["contents"])
 
 
 @pytest.mark.usefixtures("fake_sentinel")
