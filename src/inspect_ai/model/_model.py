@@ -113,6 +113,7 @@ from inspect_ai.util._limit import (
     record_model_cost,
     record_model_usage,
     record_turn,
+    token_limit_tree,
     token_limit_usage,
     turn_count,
 )
@@ -1115,7 +1116,9 @@ class Model:
             # generate
             with (
                 receiving_call(
-                    through_sidecar.sidecar, through_sidecar.registered_beforehand
+                    through_sidecar.sidecar,
+                    through_sidecar.registered_beforehand,
+                    through_sidecar.mode,
                 )
                 if through_sidecar is not None
                 else contextlib.nullcontext()
@@ -1463,7 +1466,9 @@ class Model:
         """Compact messages using provider-native compaction.
 
         Delegates to the model provider's native compaction API when available.
-        Automatically tracks token usage and enforces token limits.
+        Automatically tracks token usage and enforces token and cost limits.
+        Once one of these limits has been reached, the call is refused before
+        it reaches the provider.
 
         Args:
           input: Chat message input (if a `str` is passed it is converted to a `ChatUserMessage`).
@@ -1522,6 +1527,9 @@ class Model:
                 messages: list[ChatMessage],
             ) -> tuple[list[ChatMessage], ModelUsage | None]:
                 await wait_generate_dispatch(self, slot)
+                # a concurrent call can reach a limit while this one waits for
+                # its slot, the pause gate, a retry or a caller's lock
+                _check_limits_before_dispatch()
                 with attempts.attempt():
                     return await self.api.compact(messages, tools, config, instructions)
 
@@ -3650,15 +3658,39 @@ def init_sample_role_usage() -> None:
     sample_role_usage_context_var.set({})
 
 
+_dispatch_guard: ContextVar[Callable[[], None] | None] = ContextVar(
+    "_dispatch_guard", default=None
+)
+
+
+@contextlib.contextmanager
+def dispatch_guard(check: Callable[[], None]) -> Iterator[None]:
+    """Run `check` before each provider dispatch made in this context.
+
+    `check` raises to refuse the dispatch. It is skipped while token limits
+    are suspended: approvers, reviewers and sentinels make their model calls
+    there, and those calls are not the guarded caller's own.
+    """
+    token = _dispatch_guard.set(check)
+    try:
+        yield
+    finally:
+        _dispatch_guard.reset(token)
+
+
 def _check_limits_before_dispatch() -> None:
     """Refuse a provider dispatch once a token or cost limit has been reached.
 
     A further call could only exceed a reached limit. Called on every attempt
     (a concurrent call can reach a limit while a retry waits), after the
-    cache lookup (a cache hit sends nothing, so it is never refused).
+    cache lookup (a cache hit sends nothing, so it is never refused). Then
+    runs the `dispatch_guard()` check, if any.
     """
     check_token_limit(raise_for_equal=True)
     check_cost_limit(raise_for_equal=True)
+    guard = _dispatch_guard.get()
+    if guard is not None and not token_limit_tree.is_suspended():
+        guard()
 
 
 def record_and_check_model_usage(

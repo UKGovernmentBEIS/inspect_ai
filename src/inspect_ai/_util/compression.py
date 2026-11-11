@@ -1,6 +1,6 @@
 import zlib
-from collections.abc import AsyncIterator
-from typing import Protocol
+from collections.abc import AsyncIterator, Callable
+from typing import IO, Protocol, cast
 
 import zstandard
 
@@ -106,6 +106,81 @@ class DeflateDecompressor(Decompressor):
                 if final:
                     return final
                 raise
+
+
+class PieceDecompressor:
+    """Decompress a ZIP member's data, pushed in chunks, into bounded pieces.
+
+    Passes the decompressed bytes to `sink` in pieces of at most `piece_size`
+    bytes, however far the data expands, so a caller that handles each piece
+    as it arrives holds only one at a time. Multi-frame zstd data is read
+    across its frames. Data after the end of a deflate stream is ignored, as
+    `zlib.decompress` ignores it. Blocking (CPU-bound): run it in a worker
+    thread from async code. `sink` must not refer back to the decompressor:
+    garbage collection cannot see into the native zstd writer.
+    """
+
+    def __init__(
+        self,
+        method: ZipCompressionMethod,
+        sink: Callable[[bytes], None],
+        piece_size: int = 1024 * 1024,
+    ) -> None:
+        self._method = method
+        self._sink = sink
+        self._piece_size = piece_size
+        self._deflate: zlib._Decompress | None = None
+        self._zstd: zstandard.ZstdDecompressionWriter | None = None
+        if method == ZipCompressionMethod.DEFLATE:
+            self._deflate = zlib.decompressobj(-15)  # Raw DEFLATE
+        elif method == ZipCompressionMethod.ZSTD:
+            self._zstd = zstandard.ZstdDecompressor().stream_writer(
+                cast(IO[bytes], _SinkWriter(sink)),
+                write_size=piece_size,
+                closefd=False,
+            )
+        elif method != ZipCompressionMethod.STORED:
+            raise NotImplementedError(f"Unsupported compression method: {method}")
+
+    def write(self, data: bytes) -> None:
+        """Decompress the next chunk of the member's data."""
+        if self._zstd is not None:
+            self._zstd.write(data)
+        elif self._deflate is not None:
+            while not self._deflate.eof:
+                piece = self._deflate.decompress(data, self._piece_size)
+                if piece:
+                    self._sink(piece)
+                data = self._deflate.unconsumed_tail
+                # a full piece may leave more output pending
+                if not data and len(piece) < self._piece_size:
+                    break
+        else:
+            for start in range(0, len(data), self._piece_size):
+                self._sink(data[start : start + self._piece_size])
+
+    def finish(self) -> None:
+        """Check that the data held a complete stream.
+
+        Raises:
+            zlib.error: A deflate stream ended before its final block, as
+                `zlib.decompress` raises.
+        """
+        if self._deflate is not None and not self._deflate.eof:
+            raise zlib.error(
+                "Error -5 while decompressing data: incomplete or truncated stream"
+            )
+
+
+class _SinkWriter:
+    """The file-like writer `zstandard`'s stream writer passes its output to."""
+
+    def __init__(self, sink: Callable[[bytes], None]) -> None:
+        self._sink = sink
+
+    def write(self, data: bytes) -> int:
+        self._sink(data)
+        return len(data)
 
 
 def decompress_bytes(data: bytes, method: ZipCompressionMethod) -> bytes:
