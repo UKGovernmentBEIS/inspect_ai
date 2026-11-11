@@ -610,7 +610,7 @@ class SandboxAgentBridge(AgentBridge):
                 *kept[key],
                 execution,
             ]
-        self._execution_started(reply)
+        self._await_answer(reply)
         executed = self._executed_tools.setdefault(
             (grant.server, grant.tool), _ExecutedTool()
         )
@@ -619,12 +619,36 @@ class SandboxAgentBridge(AgentBridge):
             executed.calls = [h for h in executed.calls if self._answer(h) == "awaited"]
             executed.floor = max(len(executed.calls), _MIN_EXECUTED_TOOL_FLOOR)
 
+    def _await_answer(self, handed: _HandedCall) -> None:
+        """Record that `handed` runs again, so its answer is awaited anew.
+
+        A call runs again when its reply is handed out again, or when it is
+        granted for several tools. An earlier execution's answer that already
+        arrived doesn't answer this one, so the position's state is dropped:
+        it reads as running until the execution completes and awaits its
+        answer (`_await_result_message`).
+        """
+        awaited = self._awaited_results.get(self._edit_root(handed.reply.id))
+        if awaited is not None and awaited.events.get(handed.position, 0) is None:
+            del awaited.events[handed.position]
+            awaited.unlinkable.add(handed.position)
+
     def _answer(self, handed: _HandedCall) -> Literal["awaited", "arrived", "unknown"]:
-        """Whether the answer to the latest execution of `handed` is awaited, arrived, or unknown (`_answer_outstanding`)."""
-        outstanding = self._answer_outstanding(handed)
-        if outstanding is None:
-            return "unknown"
-        return "awaited" if outstanding else "arrived"
+        """Whether the answer to an execution of `handed` is awaited, arrived, or unknown.
+
+        Awaited while the execution is queued or running, and once it has
+        completed until a request carries the call's answer
+        (`_link_result_messages`), whether or not the reply can still link.
+        Unknown once the reply's result tracking was dropped
+        (`_untracked_replies`).
+        """
+        root = self._edit_root(handed.reply.id)
+        awaited = self._awaited_results.get(root)
+        if awaited is not None and handed.position in awaited.events:
+            return (
+                "awaited" if awaited.events[handed.position] is not None else "arrived"
+            )
+        return "unknown" if root in self._untracked_replies else "awaited"
 
     def _call_keys(self, server: str, tool: str, arguments: dict[str, Any]) -> set[str]:
         """Hashes of `arguments` as `json_equal` compares them, also projected onto a closed schema's declared keys."""
