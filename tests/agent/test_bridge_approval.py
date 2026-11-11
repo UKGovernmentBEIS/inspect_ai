@@ -7668,6 +7668,84 @@ async def test_a_changed_call_of_an_id_handed_out_as_two_tools_is_checked_as_bot
         assert {target for target, _ in reports} == {"read_file", "status"}
 
 
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("resumed", [False, True])
+@pytest.mark.parametrize("echo", ["prefixed", "unchanged"])
+@pytest.mark.parametrize("last", ["status", "mcp__host__read_file"])
+async def test_gemini_cli_echoes_of_calls_sharing_an_id_are_each_read_as_the_id(
+    last: str, echo: str, resumed: bool
+) -> None:
+    """One reply makes a host `read_file` call and a scaffold `status` call under one id; Gemini CLI sends each back under the id `prefixed` with its own function's name.
+
+    Each prefixed id is read as the shared id, whichever function was handed
+    over `last` under it, so the `read_file` result is checked as the
+    bridged tool and a secret one is stopped, as with the ids `unchanged`.
+    The functions handed over under the id are kept in the bridge's
+    checkpoint, so a `resumed` bridge reads the echoes alike.
+    """
+    functions = ["mcp__host__read_file", "status"]
+    if last == "mcp__host__read_file":
+        functions.reverse()
+    calls = [
+        ToolCall(id="shared", function=function, arguments={"path": "p"})
+        for function in functions
+    ]
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model("mockllm/model", custom_outputs=[tool_calls_output(*calls), done])
+    bridge = _counted_host_bridge(model)
+    conversation = _HostConversation(
+        "google",
+        "Read p and report status.",
+        declare("mcp__host__read_file")[0],
+        others=declare("status", description="Report the scaffold's status."),
+    )
+    seen: list[AfterToolCall] = []
+    with active_test_sentinel(stop_a_secret_read_file_result(seen)):
+        await conversation.request(bridge)
+        handed = [
+            part["functionCall"]
+            for part in conversation.history[-1]["parts"]
+            if "functionCall" in part
+        ]
+        assert [(call["name"], call["id"]) for call in handed] == [
+            (function, "shared") for function in functions
+        ]
+        if resumed:
+            bridge._handouts = _Handouts(
+                _SavedHandouts.model_validate_json(
+                    bridge._handouts.saved().model_dump_json()
+                ),
+                viewer=bridge._bridged_tool_viewer,
+            )
+        if echo == "prefixed":
+            for call in handed:
+                call["id"] = f"{call['name']}__{call['id']}"
+        conversation.history.append(
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "functionResponse": {
+                            "id": call["id"],
+                            "name": call["name"],
+                            "response": {
+                                "output": "secret"
+                                if call["name"] == "mcp__host__read_file"
+                                else "ready"
+                            },
+                        }
+                    }
+                    for call in handed
+                ],
+            }
+        )
+        with pytest.raises(TerminateSampleError, match="secret read_file result"):
+            await conversation.request(bridge)
+    [stopped] = [step for step in seen if step.call.function == "read_file"]
+    assert "secret" in stopped.result.text
+    assert {step.call.id for step in seen} == {"shared"}
+
+
 # `read_file` paths whose arguments a Murmur3 digest cannot tell apart
 COLLIDING_PATHS = (
     "public00000000000000000000000000000000................",

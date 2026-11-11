@@ -53,7 +53,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
 )
 from inspect_ai.model._providers._google_computer_use_name import (
-    gemini_computer_action_names,
+    GEMINI_COMPUTER_ACTIONS,
 )
 from inspect_ai.tool._tool import Tool, ToolResult
 from inspect_ai.tool._tool_call import (
@@ -229,6 +229,12 @@ class _Handed(NamedTuple):
     sharing the id; otherwise empty. A result whose call is none of the id's
     handouts is paired with them by position (`_HandoutIndex.of`)."""
 
+    functions: tuple[str, ...] = ()
+    """Every function handed over under the id, where they are several (calls
+    of a response sharing it); otherwise empty: it is `function`. Gemini CLI
+    may echo the id prefixed with any of their names
+    (`_Handouts.wire_names`)."""
+
 
 class _SavedHandouts(BaseModel):
     reserved_ids: list[str]
@@ -380,6 +386,8 @@ class _Handouts:
         """The viewer of a bridged tool the bridge serves, if any."""
         self.handed: dict[str, _Handed] = dict(saved.handed)
         self.reserved_ids: set[str] = set(saved.reserved_ids)
+        # by call id (`wire_names`)
+        self._wire_names: dict[str, frozenset[str]] = {}
         # by call id and handed call (`_call_key`)
         self.proposals: OrderedDict[tuple[str, str], SentinelCheck] = OrderedDict()
         # step digests (`_Steps`)
@@ -405,10 +413,22 @@ class _Handouts:
     def reserve(self, ids: Iterable[str]) -> None:
         self.reserved_ids.update(ids)
 
-    def function(self, call_id: str) -> str | None:
-        """The function of the call handed over under `call_id`, if any."""
+    def wire_names(self, call_id: str) -> frozenset[str] | None:
+        """The names a Gemini scaffold can send the calls handed over under `call_id` as; None for an id not handed over.
+
+        Those of every function handed over under it (`_Handed.functions`):
+        calls of a response sharing an id may be to several. Kept per id, so
+        reading many calls sharing one is linear in them.
+        """
         handed = self.handed.get(call_id)
-        return handed.function if handed is not None else None
+        if handed is None:
+            return None
+        names = self._wire_names.get(call_id)
+        if names is None:
+            functions = handed.functions or (handed.function,)
+            names = frozenset().union(*map(wire_names, functions))
+            self._wire_names[call_id] = names
+        return names
 
     def reused(
         self,
@@ -432,7 +452,9 @@ class _Handouts:
         reserved or handed one, or one of the response's other calls
         (`siblings`), in either direction: an echo of one of `calls`
         (`_echoes`) that is such an id, or an id of `calls` that may be an
-        echo of one (`_echoed`). So does an id longer than
+        echo of one (`_echoed`). An echo is taken under every name its call
+        can be handed over under, as approval and the sentinel review the
+        call after its id is chosen. So does an id longer than
         `MAX_CALL_ID_LENGTH`, which bounds that work.
         """
         if not call_id or len(call_id) > MAX_CALL_ID_LENGTH:
@@ -491,6 +513,7 @@ class _Handouts:
                 and (earlier.ambiguous or earlier.execution_id is not None)
             )
             handouts = dict.fromkeys(previous.handed if previous is not None else ())
+            functions = dict.fromkeys(handed[index].function for index in indexes)
             targets = _Targets(previous.targets if previous is not None else ())
             keys = [_call_key(handed[index]) for index in indexes]
             for index, key in zip(indexes, keys):
@@ -512,7 +535,9 @@ class _Handouts:
                 tuple(positions[key] for key in keys)
                 if shared and len(handouts) > 1
                 else (),
+                tuple(functions) if len(functions) > 1 else (),
             )
+            self._wire_names.pop(call_id, None)
             if checks is None:
                 continue
             if shared:
@@ -1011,9 +1036,11 @@ def _echoes(call: ToolCall) -> set[str]:
     Gemini CLI may send an id back prefixed with its call's wire name
     (`name__id`), which the Google dialect strips for a call handed over to
     that function (`_function_part_id`): the prefixed id, and the id with such
-    a prefix stripped.
+    a prefix stripped. Under each of the function's names (`wire_names`), not
+    only the one its arguments give: approval or the sentinel may change
+    them after the id is chosen.
     """
-    names = wire_names(call.function, call.arguments)
+    names = wire_names(call.function)
     echoes = {f"{name}__{call.id}" for name in names}
     echoes |= {
         call.id.removeprefix(f"{name}__")
@@ -1035,12 +1062,20 @@ def _echoed(call_id: str) -> Iterator[str]:
         index = call_id.find("__", index + 1)
 
 
-def wire_names(function: str, arguments: dict[str, Any]) -> set[str]:
-    """The names a Gemini scaffold can send a call to `function` under."""
-    names = {function.strip() or "generic_tool"}
+_COMPUTER_WIRE_NAMES = frozenset({"computer"}) | GEMINI_COMPUTER_ACTIONS
+
+
+def wire_names(function: str) -> frozenset[str]:
+    """The names a Gemini scaffold can send a call to `function` under.
+
+    A `computer` call is sent as the Gemini action its arguments give, so
+    any action's name: the arguments a call is handed over with are those
+    approval and the sentinel leave it, which may be another action's. A
+    `modify` can't change a call's function.
+    """
     if function == "computer":
-        names |= gemini_computer_action_names(arguments)
-    return names
+        return _COMPUTER_WIRE_NAMES
+    return frozenset({function.strip() or "generic_tool"})
 
 
 class _Answer(NamedTuple):

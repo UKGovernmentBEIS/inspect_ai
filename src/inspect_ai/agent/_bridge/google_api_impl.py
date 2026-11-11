@@ -5,7 +5,7 @@ import hashlib
 import json
 from collections import Counter, deque
 from logging import getLogger
-from typing import Any, Callable, Literal, NamedTuple
+from typing import AbstractSet, Any, Callable, Literal, NamedTuple
 
 from shortuuid import uuid
 
@@ -16,7 +16,6 @@ from inspect_ai._util.content import (
     ContentReasoning,
     ContentText,
 )
-from inspect_ai.agent._bridge._sentinel import wire_names
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -30,9 +29,6 @@ from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import ModelOutput, ModelUsage, StopReason
 from inspect_ai.model._providers._google_computer_use import (
     gemini_action_from_tool_call,
-)
-from inspect_ai.model._providers._google_computer_use_name import (
-    GEMINI_COMPUTER_ACTIONS,
 )
 from inspect_ai.model._reasoning import (
     ReasoningCapsule,
@@ -149,7 +145,7 @@ async def inspect_google_api_request_impl(
         contents,
         system_instruction,
         inferred_results,
-        handed=bridge._handouts.function if call_ids else None,
+        handed=bridge._handouts.wire_names if call_ids else None,
     )
     await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
@@ -196,7 +192,7 @@ async def inspect_google_api_request_impl(
     transported = messages_from_google_contents(
         [wire_content],
         None,
-        handed=bridge._handouts.function if call_ids else None,
+        handed=bridge._handouts.wire_names if call_ids else None,
     )
 
     # update state if we have more messages than the last generation
@@ -396,7 +392,7 @@ def messages_from_google_contents(
     system_instruction: dict[str, Any] | list[Any] | None,
     inferred_results: list[ChatMessageTool] | None = None,
     *,
-    handed: Callable[[str], str | None] | None = None,
+    handed: Callable[[str], AbstractSet[str] | None] | None = None,
 ) -> list[ChatMessage]:
     """Inspect messages for Google contents.
 
@@ -581,14 +577,16 @@ def _strip_system_prompt_prefix(
 def _function_part_id(
     part: dict[str, Any],
     name: str,
-    handed: Callable[[str], str | None] | None = None,
+    handed: Callable[[str], AbstractSet[str] | None] | None = None,
 ) -> str | None:
     """The id a functionCall or functionResponse carries, as the bridge handed it over.
 
     Gemini CLI may prefix an id with the call's name (`name__id`). With
-    `handed` (the function of the call handed over under an id), a handed id
-    is taken as it is, and a prefix is stripped only from the id of a call
-    handed over to that function; otherwise any prefix is stripped.
+    `handed` (the names Gemini can send the calls handed over under an id
+    as, `_Handouts.wire_names`), a handed id is taken as it is, and a prefix
+    is stripped only from the id of a call handed over to a function of that
+    name, which for calls sharing an id is any of theirs; otherwise any
+    prefix is stripped.
     """
     part_id = part.get("id")
     if not isinstance(part_id, str) or not part_id:
@@ -599,10 +597,8 @@ def _function_part_id(
     if handed(part_id) is not None:
         return part_id
     stripped = part_id.removeprefix(prefix)
-    function = handed(stripped) if stripped != part_id else None
-    if function is not None and name in wire_names(function, {}):
-        return stripped
-    if function == "computer" and name in GEMINI_COMPUTER_ACTIONS:
+    names = handed(stripped) if stripped != part_id else None
+    if names is not None and name in names:
         return stripped
     return part_id
 
@@ -670,7 +666,7 @@ class _PendingCalls(NamedTuple):
 def _extract_user_parts(
     parts: list[dict[str, Any]],
     pending_tool_calls: dict[str, _PendingCalls],
-    handed: Callable[[str], str | None] | None = None,
+    handed: Callable[[str], AbstractSet[str] | None] | None = None,
 ) -> tuple[list[Content] | str | None, list[ChatMessageTool]]:
     # pending_tool_calls maps function_name -> call_ids from the previous
     # model message, used to match functionResponse with the correct tool_use_id.
@@ -793,7 +789,7 @@ def _capsule_signature_reasoning(
 
 def _extract_model_parts(
     parts: list[dict[str, Any]],
-    handed: Callable[[str], str | None] | None = None,
+    handed: Callable[[str], AbstractSet[str] | None] | None = None,
 ) -> tuple[list[Content] | None, list[ToolCall]]:
     """Extract assistant content and function calls from model parts.
 

@@ -6484,6 +6484,21 @@ def bridge_modify_action(arguments: dict[str, Any]) -> Protocol:
     return rewrite
 
 
+@protocol
+def bridge_modify_computer(arguments: dict[str, Any]) -> Protocol:
+    """Changes the arguments of `computer` calls only."""
+
+    async def rewrite(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if step.call.function != "computer":
+            return None
+        modified = replace(step.call, arguments=arguments)
+        return Decision(action="modify", modified=modified, explanation="changed")
+
+    return rewrite
+
+
 CLICK: dict[str, Any] = {"action": "left_click", "coordinate": [100, 200]}
 WAIT: dict[str, Any] = {"action": "wait"}
 NAVIGATE: dict[str, Any] = {"action": "navigate", "text": "https://example.com"}
@@ -6698,6 +6713,128 @@ async def test_a_modified_gemini_computer_action_continues_as_the_modified_actio
     ]
     results = [part.function_response.name for part in parts if part.function_response]
     assert (calls, results) == ([(expected, expected_args)], [expected])
+
+
+@approver(name="bridge_change_arguments")
+def changing_approver(arguments: dict[str, Any]) -> Approver:
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        return Approval(decision="modify", modified=replace(call, arguments=arguments))
+
+    return approve
+
+
+@pytest.mark.parametrize("responses", ["separate", "together", "reversed"])
+@pytest.mark.parametrize("by", ["sentinel", "approval", None])
+@pytest.mark.parametrize(
+    ("name", "changed"),
+    [
+        ("click_at", CLICK),
+        ("navigate", NAVIGATE),
+        ("scroll_at", SCROLL_AT),
+        ("scroll_document", SCROLL_DOCUMENT),
+    ],
+)
+async def test_a_computer_call_changed_to_another_action_has_no_other_calls_gemini_echo(
+    name: str, changed: dict[str, Any], by: str | None, responses: str
+) -> None:
+    """A `status` call's id is `name__r`, `name` a Gemini action's. A `computer` call under the model's id `r` is a `wait`, which the sentinel or approval changes into the action Gemini sends as `name`.
+
+    Gemini CLI sends a call's id back prefixed with the name it was handed
+    over under, which for a `computer` call is its action's, and its action
+    is the one its arguments have after review. Were both calls handed over
+    under the model's ids, the `computer` call's echo would be the `status`
+    call's id, and its result would be checked as `status`'s. So `r` is
+    taken to collide under every action's name before the call is reviewed:
+    one of the two gets a fresh id, the `computer` call changed or not, and
+    each result is checked as its own call's. The `status` call is made in
+    an earlier response (`separate`), or in the same one, first (`together`)
+    or second (`reversed`).
+    """
+    from inspect_ai.agent._bridge.google_api import inspect_google_api_request
+
+    status = ToolCall(id=f"{name}__r", function="status", arguments={"path": "s"})
+    computer = ToolCall(id="r", function="computer", arguments=WAIT)
+    outputs = {
+        "separate": [calls_output(status), calls_output(computer)],
+        "together": [calls_output(status, computer)],
+        "reversed": [calls_output(computer, status)],
+    }[responses]
+    model = Scripted(*outputs, calls_output())
+    bridge = AgentBridge(
+        AgentState(messages=[]), model_aliases={"inspect": model.model}
+    )
+    seen: Steps = []
+    protocols: list[Any] = [bridge_recording(seen)]
+    if by == "sentinel":
+        protocols.insert(0, bridge_modify_computer(changed))
+    elif by == "approval":
+        bridge.approval = [
+            ApprovalPolicy(changing_approver(changed), "computer"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ]
+    tools: Any = [
+        {
+            "functionDeclarations": [
+                {"name": "status", "parameters": PATH_SCHEMA},
+                {"name": "computer", "description": "Use the computer."},
+            ]
+        }
+    ]
+    contents: list[Any] = [{"role": "user", "parts": [{"text": TASK}]}]
+    handed: dict[str, str] = {}
+
+    async def request() -> Any:
+        return await inspect_google_api_request(
+            {"model": "inspect", "contents": contents, "tools": tools},
+            None,
+            None,
+            bridge,
+        )
+
+    with active(protocols):
+        for _ in outputs:
+            # answer as Gemini CLI does: each id prefixed with its call's name
+            parts = (await request())["candidates"][0]["content"]["parts"]
+            calls = [part["functionCall"] for part in parts if "functionCall" in part]
+            for call in calls:
+                handed[call["name"]] = call["id"]
+                call["id"] = f"{call['name']}__{call['id']}"
+            results = [
+                {
+                    "functionResponse": {
+                        "id": call["id"],
+                        "name": call["name"],
+                        "response": {
+                            "out": "ready" if call["name"] == "status" else "secret"
+                        },
+                    }
+                }
+                for call in calls
+            ]
+            contents.extend(
+                [{"role": "model", "parts": parts}, {"role": "user", "parts": results}]
+            )
+        await request()
+
+    action = name if by else "wait_5_seconds"
+    assert handed.keys() == {"status", action}
+    afters = [step for step in seen if isinstance(step, AfterToolCall)]
+    assert sorted(
+        (
+            (step.call.id, step.call.function, step.call.arguments, step.output)
+            for step in afters
+        ),
+        key=lambda checked: checked[1],
+    ) == [
+        (handed[action], "computer", changed if by else WAIT, '{"out": "secret"}'),
+        (handed["status"], "status", status.arguments, '{"out": "ready"}'),
+    ]
+    assert handed["status"] != f"{name}__{handed[action]}"
 
 
 @pytest.mark.parametrize(("action", "args"), GEMINI_ACTIONS)

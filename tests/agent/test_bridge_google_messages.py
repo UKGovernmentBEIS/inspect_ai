@@ -246,7 +246,7 @@ def test_google_ids_the_scaffold_echoes_are_kept(prefixed: bool) -> None:
     contents = echoed_contents(echoed)
 
     messages = messages_from_google_contents(
-        contents, None, handed={"tok_1": "read_file"}.get
+        contents, None, handed={"tok_1": frozenset({"read_file"})}.get
     )
 
     assistant = next(m for m in messages if isinstance(m, ChatMessageAssistant))
@@ -344,7 +344,7 @@ def test_google_results_pair_by_explicit_id_then_in_call_order(
     messages = messages_from_google_contents(
         _read_contents(["a", "a", "b"], result_ids),
         None,
-        handed=lambda _: "read_file",
+        handed=lambda _: frozenset({"read_file"}),
     )
 
     paired = _result_ids(messages)
@@ -388,7 +388,7 @@ def test_explicit_google_result_ids_pair_with_linear_queue_work(reverse: bool) -
         comparisons = 0
         with patch.object(google_api_impl, "_CallQueue", CountedQueue):
             messages = messages_from_google_contents(
-                contents, None, handed=lambda _: "read_file"
+                contents, None, handed=lambda _: frozenset({"read_file"})
             )
         assert _result_ids(messages) == (ids[::-1] if reverse else ids)
         return comparisons
