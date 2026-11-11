@@ -277,6 +277,14 @@ class _Claimed(NamedTuple):
     waiting: list[anyio.Event]
 
 
+class _ReadBack(NamedTuple):
+    """An id's record as a reply's read-back forms are added to it (`_Handouts.read_back`)."""
+
+    handed: frozenset[str]
+    known: set[tuple[str, str]]
+    added: list[tuple[str, str]]
+
+
 @dataclass
 class _Call:
     call: ToolCall
@@ -593,19 +601,32 @@ class _Handouts:
         by_id = {back.id: back for back in read}
         if len(set(ids)) == len(ids) == len(by_id) and by_id.keys() == set(ids):
             read = [by_id[id] for id in ids]
+        # one pass over each id's record, so calls sharing an id cost work
+        # linear in them
+        adding: dict[str, _ReadBack | None] = {}
         for call, back in zip(handed, read, strict=True):
-            record = self.handed.get(call.id)
             key, back_key = _call_key(call), _call_key(back)
-            if (
-                record is None
-                or back_key == key
-                or key not in record.handed
-                or (back_key, key) in record.read_back
-            ):
+            if back_key == key:
                 continue
-            self.handed[call.id] = record._replace(
-                read_back=(*record.read_back, (back_key, key))
-            )
+            if call.id not in adding:
+                record = self.handed.get(call.id)
+                adding[call.id] = (
+                    _ReadBack(frozenset(record.handed), set(record.read_back), [])
+                    if record is not None
+                    else None
+                )
+            forms = adding[call.id]
+            pair = (back_key, key)
+            if forms is None or key not in forms.handed or pair in forms.known:
+                continue
+            forms.known.add(pair)
+            forms.added.append(pair)
+        for call_id, forms in adding.items():
+            if forms is not None and forms.added:
+                record = self.handed[call_id]
+                self.handed[call_id] = record._replace(
+                    read_back=(*record.read_back, *forms.added)
+                )
 
     def claim(self, input: list[ChatMessage]) -> _Claimed:
         claimed = _Claimed([], [])

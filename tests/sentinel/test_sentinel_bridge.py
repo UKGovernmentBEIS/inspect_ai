@@ -4381,6 +4381,67 @@ def test_pairing_results_with_repeated_call_ids_is_linear(pairing: str) -> None:
     assert large <= 12 * small, (small, large)
 
 
+@pytest.mark.parametrize("ids", ["shared", "distinct"])
+def test_recording_the_forms_many_calls_are_read_back_in_is_linear(ids: str) -> None:
+    """Recording the forms a reply's calls are read back in is linear in them, however many share an id.
+
+    Counts every comparison and hash of a call's key, including those made in
+    C by a container's membership test, which a line tracer does not see.
+    """
+    from inspect_ai.agent._bridge import _sentinel
+    from inspect_ai.agent._bridge._sentinel import _Handouts
+
+    counted = 0
+
+    class CountedKey(str):
+        def __eq__(self, other: object) -> bool:
+            nonlocal counted
+            counted += 1
+            return super().__eq__(other)
+
+        def __hash__(self) -> int:
+            nonlocal counted
+            counted += 1
+            return super().__hash__()
+
+    call_key = _sentinel._call_key
+
+    def work(n: int) -> int:
+        nonlocal counted
+        # computer calls, which Google hands over and reads back as actions
+        handed = [
+            ToolCall(
+                id="shared" if ids == "shared" else f"call_{i}",
+                function="computer",
+                arguments={"action": "wait", "duration": i},
+            )
+            for i in range(n)
+        ]
+        read = [replace(call, function="wait_5_seconds") for call in handed]
+        handouts = _Handouts(_SavedHandouts(reserved_ids=[], handed={}, checked=[]))
+        with patch.object(
+            _sentinel, "_call_key", lambda call: CountedKey(call_key(call))
+        ):
+            handouts.hand_over(handed, handed, None)
+            counted = 0
+            handouts.read_back(handed, read)
+            first = counted
+            recorded = [record.read_back for record in handouts.handed.values()]
+            # the same forms again add nothing
+            handouts.read_back(handed, read)
+        pairs = [(call_key(back), call_key(call)) for call, back in zip(handed, read)]
+        assert recorded == (
+            [tuple(pairs)] if ids == "shared" else [(pair,) for pair in pairs]
+        )
+        assert [record.read_back for record in handouts.handed.values()] == recorded
+        return first
+
+    small, large = work(100), work(800)
+    assert small > 0
+    # linear is 8x; scanning an id's handouts and forms for each call is 64x
+    assert large <= 12 * small, (small, large)
+
+
 def test_renaming_reasoning_anchors_of_a_repeated_call_id_is_linear() -> None:
     """A reply's calls sharing an id get fresh ids; its anchors take them in order, in linear work."""
     from inspect_ai._util.content import ContentReasoning
