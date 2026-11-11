@@ -28,11 +28,17 @@ def test_terminal_size_override_requires_dumb_term(monkeypatch):
 def test_rich_initialise_keeps_a_render_hook_the_caller_registered(monkeypatch):
     """A host that registered a render hook can still pop it after the eval."""
     import rich
-    from rich.console import Console
+    from rich.console import Console, ConsoleRenderable, RenderHook
+
+    class _Hook(RenderHook):
+        def process_renderables(
+            self, renderables: list[ConsoleRenderable]
+        ) -> list[ConsoleRenderable]:
+            return renderables
 
     console = Console(force_terminal=False)
     monkeypatch.setattr(rich, "_console", console)
-    hook = lambda renderable, options: iter(())  # noqa: E731
+    hook = _Hook()
     console.push_render_hook(hook)
 
     rich_initialise(display="none", plain=True)
