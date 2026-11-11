@@ -101,9 +101,18 @@ def test_sample_sandbox_reads_legacy_list_form() -> None:
     assert sample.sandbox == SandboxEnvironmentSpec("docker", "compose.yaml")
 
 
-def test_sample_sandbox_unresolvable_value_raises() -> None:
+@pytest.mark.parametrize(
+    "sandbox",
+    [
+        1,
+        ["docker"],
+        ["docker", "compose.yaml", {"unexpected": "value"}],
+        ("docker", "compose.yaml", "extra"),
+    ],
+)
+def test_sample_sandbox_unresolvable_value_raises(sandbox: object) -> None:
     with pytest.raises(ValidationError):
-        Sample.model_validate({"input": "x", "sandbox": 1})
+        Sample.model_validate({"input": "x", "sandbox": sandbox})
 
 
 def test_field_spec_positional_metadata_compatibility() -> None:

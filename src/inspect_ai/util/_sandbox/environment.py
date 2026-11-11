@@ -709,7 +709,7 @@ def resolve_sandbox_environment(
         return SandboxEnvironmentSpec(type=sandbox)
     elif isinstance(sandbox, SandboxEnvironmentSpec):
         return sandbox
-    elif isinstance(sandbox, (tuple, list)):
+    elif isinstance(sandbox, (tuple, list)) and len(sandbox) == 2:
         return SandboxEnvironmentSpec(sandbox[0], sandbox[1])
     elif isinstance(sandbox, dict):
         return SandboxEnvironmentSpec.model_validate(sandbox)
