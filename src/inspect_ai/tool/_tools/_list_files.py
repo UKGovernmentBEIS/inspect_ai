@@ -36,7 +36,11 @@ def list_files(
             depth: Maximum depth for recursive listing. 1 lists only the
                 immediate directory. None lists all files recursively.
         """
-        cmd = ["find", "--", path, "-mindepth", "1"]
+        # find reads an argument starting with -, (, ), ! or , as the start of
+        # its expression (even after --), so a path like "-delete" would run as
+        # an action. Prefix such paths with ./ so they are always a start point.
+        safe_path = f"./{path}" if path.startswith(("-", "(", ")", "!", ",")) else path
+        cmd = ["find", safe_path, "-mindepth", "1"]
         if depth is not None:
             cmd.extend(["-maxdepth", str(depth)])
         cmd.append("-print")
