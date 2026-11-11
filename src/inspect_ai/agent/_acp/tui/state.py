@@ -2139,13 +2139,6 @@ class SessionState:
             tc = self._tool_call_state_from_request(pending.request)
             self._tool_calls_by_id[tool_call_id] = tc
             self.items.append(tc)
-        elif tc.raw_input != pending.request.tool_call.raw_input:
-            # another execution under a repeated call id: the card shows the
-            # call the request is for, not the earlier execution
-            fresh = self._tool_call_state_from_request(pending.request)
-            tc.title, tc.kind, tc.status = fresh.title, fresh.kind, fresh.status
-            tc.content, tc.raw_input = fresh.content, fresh.raw_input
-            tc.raw_output, tc.start_time, tc.end_time = None, fresh.start_time, None
         tc.pending_approval = pending
         self._notify()
 

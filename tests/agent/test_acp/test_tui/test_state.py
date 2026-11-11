@@ -6,7 +6,6 @@ derived signals. No event loop, no pilot.
 
 from __future__ import annotations
 
-import pytest
 from acp.schema import (
     AgentMessageChunk,
     AgentThoughtChunk,
@@ -1501,46 +1500,6 @@ def test_consume_approval_request_synthesizes_card_when_none_exists() -> None:
     assert tc.pending_approval.request is req
     # Card appended to display order.
     assert state.items[-1] is tc
-
-
-@pytest.mark.parametrize("same_call", [False, True])
-def test_approval_for_another_execution_under_a_card_id_takes_the_card(
-    same_call: bool,
-) -> None:
-    """A request for a later execution under a repeated call id shows its own call.
-
-    The earlier execution's title, input and result don't stay on the card the
-    prompt is attached to. A request for the card's own call leaves it as is.
-    """
-    state = SessionState()
-    state.consume(
-        _tool_start("shared", title="computer left_click", raw_input={"a": 1})
-    )
-    state.consume(_tool_progress("shared", raw_output="clicked"))
-    req = _permission_request("shared", title="computer type")
-    if same_call:
-        req.tool_call.title = "computer left_click"
-        req.tool_call.raw_input = {"a": 1}
-
-    state.consume_approval_request(_pending(req))
-
-    tc = state._tool_calls_by_id["shared"]
-    assert tc.pending_approval is not None
-    if same_call:
-        assert (tc.title, tc.raw_input, tc.raw_output, tc.status) == (
-            "computer left_click",
-            {"a": 1},
-            "clicked",
-            "completed",
-        )
-    else:
-        assert (tc.title, tc.raw_input, tc.raw_output, tc.status) == (
-            "computer type",
-            {"command": "ls"},
-            None,
-            "pending",
-        )
-        assert tc.content is None and tc.end_time is None
 
 
 def test_mark_interrupted_notifies_once_no_idle_flicker() -> None:
