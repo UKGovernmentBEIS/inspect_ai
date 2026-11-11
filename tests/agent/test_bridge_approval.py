@@ -6668,6 +6668,101 @@ async def test_a_host_call_handed_over_again_while_running_gets_no_proposal(
         assert after.tools is not None
 
 
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize(
+    "competitor, first",
+    [
+        (None, "main"),
+        ("exact", "main"),
+        ("exact", "sub"),
+        ("summary", "main"),
+        ("summary", "sub"),
+    ],
+)
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_host_results_two_conversations_could_have_run_get_no_proposal(
+    dialect: HostDialect, competitor: str | None, first: str
+) -> None:
+    """A main and a sub-agent conversation propose the same host call under distinct ids.
+
+    With `summary`, the sub-agent's call also carries a `toolSummary` its
+    scaffold drops when it executes the call, so that grant matches only once
+    projected onto the tool's schema. A host call carries no call id, so
+    neither execution can be told to be either conversation's: each result is
+    checked with no proposal's context, whichever conversation's scaffold runs
+    first, and neither conversation's report of its result is checked again
+    (a Google result is a JSON object, so its report is a changed result,
+    checked with no proposal's context). With no competitor, the result gets
+    its proposal's context.
+    """
+    main_call = ToolCall(id="main", function="read_file", arguments={"path": "p"})
+    sub_call = ToolCall(
+        id="sub",
+        function="read_file",
+        arguments={"path": "p", "toolSummary": "Read p"}
+        if competitor == "summary"
+        else {"path": "p"},
+    )
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[tool_calls_output(main_call)]
+        + ([tool_calls_output(sub_call)] if competitor is not None else [])
+        + [done, done],
+    )
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={"host": {"read_file": read_file(_numbered_results())}},
+    )
+    [info] = declare("read_file")
+    seen: list[AfterToolCall] = []
+    with active_test_sentinel(record_tool_results(seen)):
+        conversations = [_HostConversation(dialect, "Read p.", info)]
+        if competitor is not None:
+            conversations.append(_HostConversation(dialect, "Sub-agent: read p.", info))
+        proposed = [
+            await conversation.request(bridge) for conversation in conversations
+        ]
+        runs = list(zip(conversations, proposed, strict=True))
+        if first == "sub":
+            runs.reverse()
+        # each scaffold executes its call without the `toolSummary`
+        outputs = [
+            await call_host_tool(bridge)("host", "read_file", {"path": "p"})
+            for _ in runs
+        ]
+        assert len(seen) == len(runs)
+        for (conversation, calls), output in zip(runs, outputs, strict=True):
+            conversation.results(calls, [output])
+            await conversation.request(bridge)
+
+    executed, reported = seen[: len(runs)], seen[len(runs) :]
+    if competitor is None:
+        [after] = executed
+        assert after.input is not None
+        assert [m.text for m in after.input] == ["Read p."]
+        assert after.message_id != ""
+        assert after.tools is not None
+    else:
+        for after in executed:
+            assert after.input is None
+            assert after.message_id == ""
+            assert after.tools is None and after.tool_choice is None
+    if dialect != "google":
+        assert reported == []
+    elif competitor is not None:
+        assert len(reported) == len(runs)
+        for after in reported:
+            assert after.input is None
+            assert after.tools is None and after.tool_choice is None
+
+
 @agent
 def host_scaffold(mode: HostMode, dialect: HostDialect = "completions") -> Agent:
     """A scaffold running every call it gets as a bridged host tool, in parallel."""

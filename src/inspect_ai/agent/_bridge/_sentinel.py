@@ -164,7 +164,8 @@ class _Handed(NamedTuple):
 
     ambiguous: bool = False
     """Whether the call was handed over in two requests, neither a retry of
-    the other: which handout a result answers can't be told, then or after
+    the other, or a host execution may be its or another handout's
+    (`contest`): which handout a result answers can't be told, then or after
     any later handout, so none keeps a proposal."""
 
     read_back: tuple[tuple[str, str], ...] = ()
@@ -452,6 +453,23 @@ class _Handouts:
             self.handed[call.id] = record._replace(
                 read_back=(*record.read_back, (back_key, key))
             )
+
+    def contest(self, checks: Iterable[SentinelCheck]) -> None:
+        """Make the calls of `checks` ambiguous: a host execution may be any of their handouts.
+
+        A host call carries no call id, so this is how an execution matching
+        proposals of several handouts is recorded. As for a call handed over
+        in two requests, none of the calls' results gets a proposal's context
+        from then on, whether the host executor checks it (`latest`) or the
+        scaffold reports it (`claim`).
+        """
+        for call_id in {check.handed.id for check in checks}:
+            handed = self.handed.get(call_id)
+            if handed is None or handed.ambiguous:
+                continue
+            self.handed[call_id] = handed._replace(ambiguous=True)
+            for stale in [k for k in self.proposals if k[0] == call_id]:
+                del self.proposals[stale]
 
     def handout(self, check: SentinelCheck) -> tuple[str, str]:
         """The handout `check` is of: its call's id and the call as handed (`_call_key`)."""

@@ -326,8 +326,9 @@ class SandboxAgentBridge(AgentBridge):
         When grants of more than one proposal match, the execution may belong
         to any of them, so each of those proposals is marked `ambiguous` and
         its reply unlinked (`_unlink`): no execution under them links its
-        result message, including one that completed before this one. A grant
-        that matches
+        result message, including one that completed before this one. When
+        they are of more than one handout, no result of an execution of them
+        gets a proposal's context either (`_contest`). A grant that matches
         only once undeclared keys are dropped (below) counts as matching here
         even when another grant matches exactly: exact matching decides which
         grant is consumed, not which proposal made the call.
@@ -359,15 +360,17 @@ class SandboxAgentBridge(AgentBridge):
         matches = exact or projected
         if not matches:
             return None
-        proposals = [
-            self._tool_execution_grants[index].proposal
+        matched = [
+            self._tool_execution_grants[index]
             for index in sorted(set(exact) | set(projected))
         ]
+        proposals = [grant.proposal for grant in matched]
         if any(proposal is not proposals[0] for proposal in proposals):
             for proposal in proposals:
                 proposal.ambiguous = True
                 if proposal.reply is not None:
                     self._unlink(proposal.reply.reply.id)
+        self._contest(matched)
         grant = self._tool_execution_grants[matches[0]]
         del self._tool_execution_grants[matches[0]]
         self._record_execution(grant)
@@ -403,26 +406,45 @@ class SandboxAgentBridge(AgentBridge):
         )
         return exact, projected
 
-    def _candidate_checks(
-        self, server: str, tool: str, arguments: dict[str, Any]
-    ) -> list["SentinelCheck"]:
-        """The sentinel checks of the distinct calls a host call could execute.
+    def _contest(self, matched: list["_ToolExecutionGrant"]) -> None:
+        """Record that an execution matched these grants, which may be of several handouts.
 
-        Handouts of one call with the same handed arguments are one
-        candidate: their latest handout's check, or for an ambiguous call any
-        of its checks, which the result is recorded under (`_execute_granted`
-        checks it with no proposal).
+        A host call carries no call id, so when the matched grants are of
+        more than one handout (`_Handouts.handout`: a call's id and the call
+        as handed), whether matched exactly or once projected onto a closed
+        schema, the execution may be any of them. Each of those calls is then
+        ambiguous (`_Handouts.contest`): none of its results, executed or
+        reported by the scaffold, gets a proposal's context from then on.
+        Each matched proposal also keeps the handouts it was matched with
+        (`_Proposal.contested`), so a result of any of its executions checked
+        from then on, including one still running, is recorded as checked for
+        each handout it could be: another conversation's scaffold may report
+        it.
+
+        Grants of one handout (a scaffold retry served from the model cache
+        hands the same call over again) are one candidate: its latest
+        handout's check gives the result its context (`_Handouts.latest`).
         """
-        exact, projected = self._matching_grants(server, tool, arguments)
-        checks: dict[tuple[str, str], "SentinelCheck"] = {}
-        for index in exact or projected:
-            check = self._tool_execution_grants[index].check
-            if check is None:
-                continue
-            handout = self._handouts.handout(check)
-            if handout not in checks:
-                checks[handout] = self._handouts.latest(check) or check
-        return list(checks.values())
+        handouts: dict[tuple[str, str], "SentinelCheck"] = {}
+        for grant in matched:
+            if grant.check is not None:
+                handouts.setdefault(self._handouts.handout(grant.check), grant.check)
+        if len(handouts) < 2:
+            return
+        self._handouts.contest(handouts.values())
+        for grant in matched:
+            for handout, check in handouts.items():
+                grant.proposal.contested.setdefault(handout, check)
+
+    def result_executions(self, grant: "_ToolExecutionGrant") -> list["SentinelCheck"]:
+        """The executions a result of the host call that consumed `grant` is recorded as checked for.
+
+        Each handout its proposal was matched with (`_contest`), or else the
+        grant's own.
+        """
+        if grant.proposal.contested:
+            return list(grant.proposal.contested.values())
+        return [grant.check] if grant.check is not None else []
 
     def unlink_denied_call(
         self, server: str, tool: str, arguments: dict[str, Any] | None
@@ -639,7 +661,15 @@ class _Proposal:
     and no pairing state outlives the bounded grant store.
     """
 
-    __slots__ = ("call", "span_id", "message_id", "reply", "executions", "ambiguous")
+    __slots__ = (
+        "call",
+        "span_id",
+        "message_id",
+        "reply",
+        "executions",
+        "ambiguous",
+        "contested",
+    )
 
     def __init__(
         self,
@@ -665,6 +695,9 @@ class _Proposal:
 
         self.ambiguous = False
         """Whether an execution matched this proposal's grants and another proposal's alike, so which call it ran is unknown."""
+
+        self.contested: dict[tuple[str, str], "SentinelCheck"] = {}
+        """The handouts an execution matched this proposal's grants with, when they were several (`_contest`), each with its check."""
 
     def take_id(self) -> str:
         """The `ToolEvent` id for the next execution of this proposal.

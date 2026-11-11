@@ -156,13 +156,6 @@ async def execute_host_tool(
         )
         raise ToolParsingError(message)
 
-    # an MCP call carries no call id, so when proposals of several calls
-    # match it, which execution it is can't be told
-    candidates = (
-        bridge._candidate_checks(server, tool, arguments)
-        if isinstance(arguments, dict)
-        else []
-    )
     grant = (
         bridge.consume_tool_execution_grant(server, tool, arguments)
         if isinstance(arguments, dict)
@@ -198,7 +191,7 @@ async def execute_host_tool(
 
     with parent_span(grant.proposal.span_id if grant is not None else None):
         return await _execute_granted(
-            bridge, tool, server_tools[tool], arguments, grant, candidates, metadata
+            bridge, tool, server_tools[tool], arguments, grant, metadata
         )
 
 
@@ -297,7 +290,6 @@ async def _execute_granted(
     tool_fn: Tool,
     arguments: JsonValue,
     grant: _ToolExecutionGrant | None,
-    candidates: list[SentinelCheck],
     metadata: _BridgeMetadata,
 ) -> JsonValue:
     if grant is not None:
@@ -350,8 +342,7 @@ async def _execute_granted(
         raise ToolParsingError(validation_errors)
     call_arguments = cast(dict[str, JsonValue], arguments)
     has_check = (
-        _attribution(bridge, tool, tool_fn, call_arguments, grant, candidates).check
-        is not None
+        _attribution(bridge, tool, tool_fn, call_arguments, grant).check is not None
     )
     trim = has_check and checks_bridged_results()
 
@@ -445,11 +436,9 @@ async def _execute_granted(
 
     assert outcome is not None
     if has_check and _checked(outcome):
-        # attributed again: another request may have handed the call over
-        # while it ran
-        attribution = _attribution(
-            bridge, tool, tool_fn, call_arguments, grant, candidates
-        )
+        # attributed again: the call's id may have become ambiguous while it
+        # ran
+        attribution = _attribution(bridge, tool, tool_fn, call_arguments, grant)
         if attribution.check is not None:
             await _check_result(
                 bridge, attribution.check, outcome, attribution.executions
@@ -477,26 +466,28 @@ def _attribution(
     tool_fn: Tool,
     arguments: dict[str, Any],
     grant: _ToolExecutionGrant | None,
-    candidates: list[SentinelCheck],
 ) -> _Attribution:
     """Which proposal's context checks the result of the host call that consumed `grant`.
 
     That of the latest handout of the grant's call, for the grant's target
-    (`_Handouts.latest`). With none, because the call matched proposals of
-    several calls (`candidates`), its id is ambiguous, or it had no proposal,
-    the result is checked with no proposal's context and recorded for each
-    execution it could be. A request may hand the call over again while it
-    runs, so this is decided again for the result.
+    (`_Handouts.latest`). There is none when the call had no proposal, or
+    when its id is ambiguous: handed over in two requests, or an execution
+    matched proposals of several handouts (`_contest`). The result is then
+    checked with no proposal's context and recorded for each execution it
+    could be (`result_executions`). Ambiguity does not end, but a request may
+    make the id ambiguous while the call runs, so this is decided again for
+    the result.
     """
     check = (
         bridge._handouts.latest(grant.check)
-        if grant is not None and grant.check is not None and len(candidates) <= 1
+        if grant is not None and grant.check is not None
         else None
     )
     if check is not None:
         return _Attribution(check, [])
     return _Attribution(
-        sentinel_unproposed_host_check(bridge, tool, arguments, tool_fn), candidates
+        sentinel_unproposed_host_check(bridge, tool, arguments, tool_fn),
+        bridge.result_executions(grant) if grant is not None else [],
     )
 
 
