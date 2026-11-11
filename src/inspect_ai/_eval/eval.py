@@ -7,7 +7,7 @@ from contextlib import nullcontext
 from contextvars import Token, copy_context
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal, Sequence, cast
 
 import anyio
 import anyio.lowlevel
@@ -46,11 +46,16 @@ from inspect_ai._display.core.active import active_display as active_task_displa
 from inspect_ai._display.core.active import display as task_display
 from inspect_ai._eval.task.scan import Scanners, scan_context
 from inspect_ai._sentinel._config import (
+    SentinelProxy,
     SentinelSpec,
     resolve_sentinel_spec,
     sentinel_config,
 )
-from inspect_ai._util._async import current_async_backend, unwrap_exception_group
+from inspect_ai._util._async import (
+    current_async_backend,
+    raise_unwrapped,
+    unwrap_exception_group,
+)
 from inspect_ai._util.asyncfiles import with_async_fs
 from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.constants import (
@@ -96,7 +101,7 @@ from inspect_ai.review._policy import (
     review_policies_from_config,
 )
 from inspect_ai.scorer._reducer import reducer_log_names
-from inspect_ai.solver._chain import chain
+from inspect_ai.solver._chain import chain, is_solver_sequence
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentType
 from inspect_ai.util._checkpoint import CheckpointConfig, normalize_checkpoint
@@ -140,7 +145,7 @@ def eval(
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
@@ -190,6 +195,7 @@ def eval(
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
     sentinel: SentinelSpec | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model.
@@ -333,6 +339,7 @@ def eval(
         sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
             A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
             Overrides the task's sentinel. Defaults to no sentinel.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, which then judges the agent's model calls. Off unless set: `off` (the default) never looks, `auto` uses a sidecar it finds, and `required` fails a task unless one is found. Only an Anthropic, OpenAI or OpenAI-compatible model whose base URL was set is probed. Experimental: not yet a stable API; may change without notice.
         **kwargs: Model generation options.
 
     Returns:
@@ -367,6 +374,7 @@ def eval(
                 approval=approval,
                 review=review,
                 sentinel=sentinel,
+                sentinel_proxy=sentinel_proxy,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -446,7 +454,7 @@ async def eval_async(
     checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
@@ -494,6 +502,7 @@ async def eval_async(
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
     sentinel: SentinelSpec | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model (async).
@@ -607,6 +616,7 @@ async def eval_async(
         sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
             A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
             Overrides the task's sentinel. Defaults to no sentinel.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, which then judges the agent's model calls. Off unless set: `off` (the default) never looks, `auto` uses a sidecar it finds, and `required` fails a task unless one is found. Only an Anthropic, OpenAI or OpenAI-compatible model whose base URL was set is probed. Experimental: not yet a stable API; may change without notice.
         **kwargs: Model generation options.
 
     Returns:
@@ -654,6 +664,7 @@ async def eval_async(
                 approval=approval,
                 review=review,
                 sentinel=sentinel,
+                sentinel_proxy=sentinel_proxy,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -706,7 +717,7 @@ async def eval_async(
         async with anyio.create_task_group() as tg:
             tg.start_soon(run, tg)
     except Exception as ex:
-        raise inner_exception(ex)
+        raise_unwrapped(ex, inner_exception(ex))
     except anyio.get_cancelled_exc_class():
         # Cancelled exceptions are expected and handled by _eval_async_inner
         if result is None:
@@ -731,13 +742,14 @@ async def _eval_async_inner(
     checkpoint: CheckpointConfig | None = None,
     acp_server: bool | int | str | None = None,
     ctl_server: bool | str | None = None,
-    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    solver: Solver | SolverSpec | Agent | Sequence[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
     sentinel: SentinelSpec | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
     notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -917,10 +929,10 @@ async def _eval_async_inner(
             )
 
         # resolve solver
-        if isinstance(solver, list):
-            solver = chain(solver)
-        elif is_agent(solver):
+        if is_agent(solver):
             solver = as_solver(solver)
+        elif is_solver_sequence(solver):
+            solver = chain(solver)
         else:
             solver = cast(Solver | SolverSpec | None, solver)
 
@@ -1131,6 +1143,7 @@ async def _eval_async_inner(
                         approval=approval,
                         review=review,
                         sentinel=eval_sentinel,
+                        sentinel_proxy=sentinel_proxy,
                         solver=solver,
                         scanner=scanner,
                         scan_id=scan_id,
@@ -1181,8 +1194,8 @@ async def _eval_async_inner(
                             break
 
                         # (a TaskSource observes results via sample_complete /
-                        # task_complete, fired from task_run as each sample/task
-                        # finishes — so its next_tasks() decision can use them)
+                        # task_complete, fired as each sample/task finishes —
+                        # so its next_tasks() decision can use them)
 
                         # next batch under this run_id: imperative additions
                         # (enqueue_task) first, else the TaskSource's next_tasks()
@@ -1380,6 +1393,8 @@ def eval_retry(
     checkpoint: CheckpointConfig | bool | None = None,
     incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
+    model_cost_config: str | dict[str, ModelCost] | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1482,12 +1497,15 @@ def eval_retry(
             returned without retrying. A finalized log lives at
             `<name>-recovered.eval` alongside the crashed log rather than in
             `log_dir`, so read its location from `EvalLog.location`.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, as `eval()` takes it. The log doesn't record it, so a retry is told again. Experimental: not yet a stable API; may change without notice.
         incomplete_max: Safety threshold for `incomplete_action="error"`
             (count if >= 1, or proportion of expected samples if strictly
             less than 1, so `1.0` means one sample, not 100%): when more
             than this many samples are in progress, fall back to the default
             recover-and-retry behavior. Has no effect (a warning is logged)
             with `incomplete_action="retry"`.
+        model_cost_config: YAML or JSON file with model prices for cost tracking
+            (or dictionary of model names to ModelCost instances).
 
     Returns:
         List of EvalLog (one for each task)
@@ -1537,6 +1555,8 @@ def eval_retry(
             checkpoint=checkpoint,
             incomplete_action=incomplete_action,
             incomplete_max=incomplete_max,
+            model_cost_config=model_cost_config,
+            sentinel_proxy=sentinel_proxy,
         )
 
     result = task_display().run_task_app(with_async_fs(run_task_app))
@@ -1571,6 +1591,23 @@ def _requalify_sample_ids(
         return f"{task}:{sample_id}"
     else:
         return sample_id
+
+
+def _check_merged_log_retry(eval_log: EvalLog) -> None:
+    """Refuse a retry of a merged shard log whose selection a retry cannot express.
+
+    A merged log leaves `config.sample_id` unset, so a retry runs the whole
+    dataset. That is right only for a merge with no selection; an id or count
+    selection would run samples outside it.
+    """
+    shards = eval_log.eval.shards
+    if shards is not None and shards.selection != "none":
+        form = "ids" if shards.selection == "ids" else "count"
+        raise ValueError(
+            f"Cannot retry {eval_log.location or 'the log'}: it was merged from "
+            f"shards with a selection by sample {form}, which a retry cannot "
+            "reproduce. Re-run the incomplete shards and merge them again."
+        )
 
 
 async def eval_retry_async(
@@ -1611,6 +1648,8 @@ async def eval_retry_async(
     checkpoint: CheckpointConfig | bool | None = None,
     incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
+    model_cost_config: str | dict[str, ModelCost] | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1688,12 +1727,15 @@ async def eval_retry_async(
             returned without retrying. A finalized log lives at
             `<name>-recovered.eval` alongside the crashed log rather than in
             `log_dir`, so read its location from `EvalLog.location`.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, as `eval()` takes it. The log doesn't record it, so a retry is told again. Experimental: not yet a stable API; may change without notice.
         incomplete_max: Safety threshold for `incomplete_action="error"`
             (count if >= 1, or proportion of expected samples if strictly
             less than 1, so `1.0` means one sample, not 100%): when more
             than this many samples are in progress, fall back to the default
             recover-and-retry behavior. Has no effect (a warning is logged)
             with `incomplete_action="retry"`.
+        model_cost_config: YAML or JSON file with model prices for cost tracking
+            (or dictionary of model names to ModelCost instances).
 
     Returns:
         List of EvalLog (one for each task)
@@ -1717,6 +1759,8 @@ async def eval_retry_async(
         )
         for task in tasks
     ]
+    for eval_log in retry_eval_logs:
+        _check_merged_log_retry(eval_log)
     # opportunistically recover crashed logs before retrying
     from inspect_ai.log._recover import (
         RecoveryNotAvailable,
@@ -1739,6 +1783,8 @@ async def eval_retry_async(
                         cleanup="finalized",
                         incomplete_action=incomplete_action,
                         incomplete_max=incomplete_max,
+                        # the retry imports the task file and runs it next
+                        trust_log=True,
                     )
                 except RecoveryThresholdExceeded as ex:
                     log.warning(
@@ -1746,7 +1792,7 @@ async def eval_retry_async(
                         f"incomplete_max; falling back to recover-and-retry: {ex}"
                     )
                     recovered = await recover_eval_log_async(
-                        eval_log.location, cleanup=False
+                        eval_log.location, cleanup=False, trust_log=True
                     )
                 retry_eval_logs[i] = recovered
                 if recovered.status == "success":
@@ -1857,6 +1903,8 @@ async def eval_retry_async(
         turn_limit = eval_log.eval.config.turn_limit
         time_limit = eval_log.eval.config.time_limit
         working_limit = eval_log.eval.config.working_limit
+        cost_limit = eval_log.eval.config.cost_limit
+        max_dataset_memory = eval_log.eval.config.max_dataset_memory
         max_samples = max_samples or eval_log.eval.config.max_samples
         max_tasks = max_tasks or eval_log.eval.config.max_tasks
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
@@ -1990,6 +2038,7 @@ async def eval_retry_async(
                 approval=approval,
                 review=review,
                 sentinel=sentinel,
+                sentinel_proxy=sentinel_proxy,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -2009,7 +2058,10 @@ async def eval_retry_async(
                 turn_limit=turn_limit,
                 time_limit=time_limit,
                 working_limit=working_limit,
+                cost_limit=cost_limit,
+                model_cost_config=model_cost_config,
                 max_samples=max_samples,
+                max_dataset_memory=max_dataset_memory,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
                 max_sandboxes=max_sandboxes,

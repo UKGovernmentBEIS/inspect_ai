@@ -196,6 +196,17 @@
             "title": "Event",
             "type": "string"
           },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Id"
+          },
           "explanation": {
             "anyOf": [
               {
@@ -315,8 +326,22 @@
       },
       "ApproverPolicyConfig": {
         "additionalProperties": true,
-        "description": "Configuration format for approver policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\napprovers:\n  - name: human\n    tools: web_browser*, bash, pyhton\n    choices: [approve, reject]\n\n  - name: auto\n    tools: *\n    decision: approve\n```",
+        "description": "Configuration format for approver policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\napprovers:\n  - name: human\n    tools: bash*, python, text_editor\n    choices: [approve, reject]\n\n  - name: human\n    tools: computer\n    arguments: {action: key}\n\n  - name: auto\n    tools: *\n    decision: approve\n```",
         "properties": {
+          "arguments": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arguments"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -1394,6 +1419,359 @@
         ],
         "title": "Citation"
       },
+      "CommunicationDelivery": {
+        "description": "For `delivered`, whom a record reached and in what order.",
+        "properties": {
+          "recipients": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recipients",
+            "type": "array"
+          },
+          "seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seq"
+          }
+        },
+        "required": [
+          "recipients"
+        ],
+        "title": "CommunicationDelivery",
+        "type": "object"
+      },
+      "CommunicationEvent": {
+        "description": "Communication between agents: a record sent or delivered, a read of what others communicated, or a wait for others.\n\nExperimental: not yet a stable API.",
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "string"
+          },
+          "agent_span_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Span Id"
+          },
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          },
+          "data": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Data",
+            "type": "object"
+          },
+          "delivery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommunicationDelivery"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "event": {
+            "const": "communication",
+            "default": "communication",
+            "title": "Event",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "sent",
+              "delivered",
+              "read",
+              "waited"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "loop_span_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loop Span Id"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "nested": {
+            "default": false,
+            "title": "Nested",
+            "type": "boolean"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending"
+          },
+          "record_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Record Ids",
+            "type": "array"
+          },
+          "send": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommunicationSend"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "span_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Span Id"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uuid"
+          },
+          "wait": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommunicationWait"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "working_start": {
+            "title": "Working Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "timestamp",
+          "working_start",
+          "event",
+          "kind",
+          "source",
+          "agent",
+          "nested",
+          "record_ids",
+          "data"
+        ],
+        "title": "CommunicationEvent",
+        "type": "object"
+      },
+      "CommunicationRecord": {
+        "description": "For `sent`, what one agent communicated: a message, or a change to state other agents read.",
+        "properties": {
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "recipients": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recipients",
+            "type": "array"
+          },
+          "reply_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply To"
+          },
+          "sender": {
+            "title": "Sender",
+            "type": "string"
+          },
+          "to": {
+            "items": {
+              "type": "string"
+            },
+            "title": "To",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "sender",
+          "to",
+          "recipients"
+        ],
+        "title": "CommunicationRecord",
+        "type": "object"
+      },
+      "CommunicationRejection": {
+        "description": "For `sent`, why a record that was sent was not delivered.",
+        "properties": {
+          "control": {
+            "title": "Control",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "control",
+          "reason"
+        ],
+        "title": "CommunicationRejection",
+        "type": "object"
+      },
+      "CommunicationSend": {
+        "description": "For `sent`, the record an agent sent, and why it was refused if it was.",
+        "properties": {
+          "record": {
+            "$ref": "#/components/schemas/CommunicationRecord"
+          },
+          "rejected": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommunicationRejection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "record"
+        ],
+        "title": "CommunicationSend",
+        "type": "object"
+      },
+      "CommunicationWait": {
+        "description": "For `waited`, an agent waiting for other agents.",
+        "properties": {
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Channels",
+            "type": "array"
+          },
+          "duration": {
+            "title": "Duration",
+            "type": "number"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channels",
+          "outcome",
+          "duration"
+        ],
+        "title": "CommunicationWait",
+        "type": "object"
+      },
       "CompactionEvent": {
         "description": "Compaction of conversation history.",
         "properties": {
@@ -1889,7 +2267,7 @@
         "type": "object"
       },
       "ContentReasoning": {
-        "description": "Reasoning content.\n\nSee the specification for [thinking blocks](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#understanding-thinking-blocks) for Claude models.",
+        "description": "Reasoning content.\n\nSee the specification for [thinking blocks](https://platform.claude.com/docs/en/build-with-claude/extended-thinking) for Claude models.",
         "properties": {
           "internal": {
             "anyOf": [
@@ -3342,6 +3720,7 @@
                       "approval": "#/components/schemas/ApprovalEvent",
                       "branch": "#/components/schemas/BranchEvent",
                       "checkpoint": "#/components/schemas/CheckpointEvent",
+                      "communication": "#/components/schemas/CommunicationEvent",
                       "compaction": "#/components/schemas/CompactionEvent",
                       "error": "#/components/schemas/ErrorEvent",
                       "info": "#/components/schemas/InfoEvent",
@@ -3362,6 +3741,7 @@
                       "step": "#/components/schemas/StepEvent",
                       "store": "#/components/schemas/StoreEvent",
                       "subtask": "#/components/schemas/SubtaskEvent",
+                      "swarm": "#/components/schemas/SwarmEvent",
                       "tool": "#/components/schemas/ToolEvent"
                     },
                     "propertyName": "event"
@@ -3399,6 +3779,12 @@
                     },
                     {
                       "$ref": "#/components/schemas/SentinelEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommunicationEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SwarmEvent"
                     },
                     {
                       "$ref": "#/components/schemas/BranchEvent"
@@ -3591,6 +3977,7 @@
                   "approval": "#/components/schemas/ApprovalEvent",
                   "branch": "#/components/schemas/BranchEvent",
                   "checkpoint": "#/components/schemas/CheckpointEvent",
+                  "communication": "#/components/schemas/CommunicationEvent",
                   "compaction": "#/components/schemas/CompactionEvent",
                   "error": "#/components/schemas/ErrorEvent",
                   "info": "#/components/schemas/InfoEvent",
@@ -3611,6 +3998,7 @@
                   "step": "#/components/schemas/StepEvent",
                   "store": "#/components/schemas/StoreEvent",
                   "subtask": "#/components/schemas/SubtaskEvent",
+                  "swarm": "#/components/schemas/SwarmEvent",
                   "tool": "#/components/schemas/ToolEvent"
                 },
                 "propertyName": "event"
@@ -3648,6 +4036,12 @@
                 },
                 {
                   "$ref": "#/components/schemas/SentinelEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/CommunicationEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/SwarmEvent"
                 },
                 {
                   "$ref": "#/components/schemas/BranchEvent"
@@ -5431,6 +5825,12 @@
           },
           {
             "$ref": "#/components/schemas/SentinelEvent"
+          },
+          {
+            "$ref": "#/components/schemas/CommunicationEvent"
+          },
+          {
+            "$ref": "#/components/schemas/SwarmEvent"
           },
           {
             "$ref": "#/components/schemas/BranchEvent"
@@ -7832,6 +8232,17 @@
             "title": "Model",
             "type": "string"
           },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
+          },
           "output": {
             "$ref": "#/components/schemas/ModelOutput"
           },
@@ -8636,8 +9047,22 @@
       },
       "ReviewerPolicyConfig": {
         "additionalProperties": true,
-        "description": "Configuration format for reviewer policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\nreviewers:\n  - name: mypackage/output_monitor\n    tools: bash, python\n\n  - name: human\n    tools: \"*\"\n```",
+        "description": "Configuration format for reviewer policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\nreviewers:\n  - name: mypackage/output_monitor\n    tools: bash, python\n\n  - name: mypackage/click_monitor\n    tools: computer\n    arguments: {action: \"*_click\"}\n\n  - name: human\n    tools: \"*\"\n```",
         "properties": {
+          "arguments": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arguments"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -10220,6 +10645,17 @@
             "title": "Event",
             "type": "string"
           },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Id"
+          },
           "explanation": {
             "anyOf": [
               {
@@ -11083,6 +11519,101 @@
         "title": "SubtaskEvent",
         "type": "object"
       },
+      "SwarmEvent": {
+        "description": "Evidence from an agent swarm (inspect_swarm) other than communication: a member's result, the final answer's selection, the swarm's ledger or its metrics.\n\nThe swarm defines `kind` and the format of `data`. Experimental: not yet a stable API.",
+        "properties": {
+          "data": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Data",
+            "type": "object"
+          },
+          "event": {
+            "const": "swarm",
+            "default": "swarm",
+            "title": "Event",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "member": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending"
+          },
+          "span_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Span Id"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uuid"
+          },
+          "working_start": {
+            "title": "Working Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "timestamp",
+          "working_start",
+          "event",
+          "kind",
+          "data"
+        ],
+        "title": "SwarmEvent",
+        "type": "object"
+      },
       "TagsEdit": {
         "description": "Edit action for tags.",
         "properties": {
@@ -11756,7 +12287,7 @@
         "title": "ToolChoice"
       },
       "ToolEvent": {
-        "description": "Call to a tool.",
+        "description": "Call to a tool.\n\nA host tool that `sandbox_agent_bridge(bridged_tools=...)` runs for a\nsandboxed agent is recorded with `metadata[\"bridge\"]`: `server` and `tool`\n(the bridged server and the tool name within it, also the event's\n`function`), `function` (the name the model called it by, or `None`),\n`proposal_id` (the id of the model's proposing tool call, or `None`) and\n`grant` (`\"consumed\"` when a proposal matched, `\"denied\"` when the call\nwas refused for lack of one, `\"exempt\"` when a server registered with\n`require_proposal=False` ran it without one, or `None` when the request\nwas rejected before that check).",
         "properties": {
           "agent": {
             "anyOf": [
@@ -11786,6 +12317,17 @@
             },
             "title": "Arguments",
             "type": "object"
+          },
+          "call_message_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Message Id"
           },
           "completed": {
             "anyOf": [

@@ -25,26 +25,25 @@ permissions:
 jobs:
   suppressions:
     runs-on: ubuntu-latest
+    # No Actions cache use, so the Actions cache refuses any write a malicious
+    # package could attempt with the Actions cache token.
+    cache-mode: none
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # setup-python rather than the runner's system python: Ubuntu 24.04
-      # marks system python externally-managed, so `pip install` there fails.
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      # python-version pins the interpreter `uv run` uses (downloading it if
+      # the runner lacks it) rather than the runner image's, which changes
+      # with image updates. actions-cache none: this job installs no packages,
+      # and saving its near-empty cache would take the key build.yml's 3.11
+      # jobs restore.
+      - name: Install uv
+        uses: meridianlabs-ai/actions/setup-uv@330f3df6492418d6b25dc2631fc31143489f4674 # main, 2026-11-02
         with:
           python-version: "3.11"
+          actions-cache: none
 
-      # The gate is stdlib-only by design: no dependency install needed.
+      # The gate is stdlib-only by design: --no-project runs it without the
+      # project, so no packages are resolved or installed. Its tests
+      # (tests/test_check_suppressions.py) run in build.yml's test job.
       - name: Check suppressions ledger
-        run: python3 .github/scripts/check_suppressions.py
-
-      # --noconftest / addopts="": the gate test is self-contained; skip
-      # tests/conftest.py (imports boto3/moto) and the xdist addopts so
-      # pytest plus markdown-it-py (which the delta-comment tests render
-      # with) suffices, with no project install.
-      - name: Test the gate script
-        run: |
-          python3 -m pip install --quiet pytest "markdown-it-py>=2.2.0"
-          python3 -m pytest --noconftest -o addopts="" -q tests/test_check_suppressions.py
-
+        run: uv run --no-project .github/scripts/check_suppressions.py

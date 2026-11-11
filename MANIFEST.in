@@ -1,6 +1,6 @@
-# Exclude specific subdirectories
+# Exclude from the sdist (packages.find in pyproject.toml keeps the modules out
+# of the wheel)
 recursive-exclude src/inspect_ai/tool/_tools/_computer/_resources *
-recursive-exclude src/inspect_ai/tool/_tools/_web_browser/_resources *
 
 # Trim the sdist: none of these are needed to build or install from it
 # (the JS viewer ships prebuilt as src/inspect_ai/_view/dist). See #4588.
@@ -9,4 +9,9 @@ prune src/inspect_sandbox_tools/tests
 prune docs
 prune src/inspect_ai/_view/ts-mono
 exclude uv.lock
-exclude yarn.lock
+exclude src/inspect_ai/model/_model_data/sync_models.py.lock
+
+# Keep the sandbox tools binaries out of the sdist. The wheel is built from the
+# checkout (`python -m build --sdist --wheel`), not from the sdist, so
+# package-data still puts them in the wheel. See #4588.
+recursive-exclude src/inspect_ai/binaries *

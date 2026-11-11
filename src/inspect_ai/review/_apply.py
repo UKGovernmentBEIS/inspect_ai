@@ -2,7 +2,7 @@ import contextlib
 from collections.abc import Iterator
 from contextvars import ContextVar
 
-from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
+from inspect_ai._sentinel._scope import sentinel_scope
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import (
@@ -47,7 +47,7 @@ async def apply_tool_review(
         suspend_token_limit(),
         suspend_turn_limit(),
         suspend_working_limit(),
-        sentinel_scope(AgentScope.OFF, final=True),
+        sentinel_scope("review", final=True),
     ):
         return await reviewer(message, call, result, output, view, history)
 

@@ -16,7 +16,7 @@ To use the [OpenAI](https://platform.openai.com/) provider, install the `openai`
 ``` bash
 pip install openai
 export OPENAI_API_KEY=your-openai-api-key
-inspect eval arc.py --model openai/gpt-4o-mini
+inspect eval arc.py --model openai/gpt-6-luna
 ```
 
 The following environment variables are supported by the OpenAI provider
@@ -39,7 +39,7 @@ The `openai` provider supports the following custom model args (other model args
 | `responses_store` | Pass `store=True` to the Responses API (defaults to `True`). |
 | `responses_phase` | Synthesize missing assistant message `phase` values when replaying Responses API histories. |
 | `service_tier` | Processing type used for serving the request ("auto", "default", or "flex"). |
-| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` models and for requests with `reasoning_mode="pro"`, and `False` otherwise. |
+| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `-pro` models such as `gpt-5.5-pro`, for `deep-research` models, and for requests with `reasoning_mode="pro"`, and `False` otherwise. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
 | `streaming` | Whether to use streaming responses. The default ("auto") streams when the caller passes an `on_stream` callback to `generate()` — except Azure chat-completions requests, which never auto-stream (accumulated streamed responses would lose content-filter stop details); pass `true` or `false` to override. If the server rejects the streaming request itself (a 400 naming the `stream` param — e.g. reasoning models on organizations that haven't completed verification), auto mode retries the request non-streamed. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
@@ -51,8 +51,8 @@ The `openai` provider supports the following custom model args (other model args
 For example:
 
 ``` bash
-inspect eval arc.py --model openai/gpt-4o-mini \ 
-   -M responses_api=true
+inspect eval arc.py --model openai/gpt-6-luna \
+   -M service_tier=flex
 ```
 
 Or from Python:
@@ -61,22 +61,22 @@ Or from Python:
 from inspect_ai import eval
 
 eval(
-    "arc.py", model=" openai/gpt-4o-mini", 
-    model_args= { "responses_api": True }
+    "arc.py", model="openai/gpt-6-luna",
+    model_args= { "service_tier": "flex" }
 )
 ```
 
 ### Responses API
 
-By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new [Responses API](https://platform.openai.com/docs/api-reference/responses) for GPT-5 and later (including GPT-6), o-series models, and the `computer_use_preview` model.
+By default, Inspect uses the standard OpenAI Chat Completions API for GPT-4 models and the new [Responses API](https://platform.openai.com/docs/api-reference/responses) for GPT-5 and later (including GPT-6) and o-series models.
 
 If you want to manually enable or disable the Responses API you can use the `responses_api` model argument. For example:
 
 ``` bash
-inspect eval math.py --model openai/gpt-4o -M responses_api=true
+inspect eval math.py --model openai/gpt-6-luna -M responses_api=false
 ```
 
-Note that certain models including `o1-pro` and `computer_use_preview` *require* the use of the Responses API. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
+Note that certain models including `gpt-5.5-pro` *require* the use of the Responses API. On Chat Completions, GPT-6 Luna supports function calling only with reasoning off, so set `reasoning_effort="none"` when using tools with `responses_api=false`. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
 
 ### Responses Phase
 
@@ -93,7 +93,7 @@ When enabled, assistant messages with tool calls are labeled `commentary`; other
 By default, Inspect's implementation of the Responses API does not store messages on the server. Reasoning content (which is intended to be opaque to clients) is handled using encrypted payloads (via the "reasoning.encrypted_content" include option). To control this behavior explicitly use the `responses_store` model argument. For example:
 
 ``` bash
-inspect eval math.py --model openai/o4-mini -M responses_store=True
+inspect eval math.py --model openai/gpt-6-luna -M responses_store=True
 ```
 
 ### Responses Metadata
@@ -111,18 +111,18 @@ The `metadata` returned on responses (the echoed request metadata, which some mo
 
 [Flex processing](https://platform.openai.com/docs/guides/flex-processing) provides significantly lower costs for requests in exchange for slower response times and occasional resource unavailability (input and output tokens are priced using [batch API rates](https://platform.openai.com/docs/guides/batch) for flex requests).
 
-Note that flex processing is in beta, and currently **only available for o3 and o4-mini models**.
+Note that flex processing is in beta with limited model availability. The OpenAI [pricing page](https://platform.openai.com/docs/pricing) lists the supported models.
 
 To enable flex processing, use the `service_tier` model argument, setting it to "flex". For example:
 
 ``` bash
-inspect eval math.py --model openai/o4-mini -M service_tier=flex
+inspect eval math.py --model openai/gpt-6-luna -M service_tier=flex
 ```
 
 OpenAI recommends using a [higher client timeout](https://platform.openai.com/docs/guides/flex-processing#api-request-timeouts) when making flex requests (15 minutes rather than the standard 10). Inspect automatically increases the client timeout to 15 minutes (900 seconds) for flex requests. To specify another value, use the `client_timeout` model argument. For example:
 
 ``` bash
-inspect eval math.py --model openai/o4-mini \
+inspect eval math.py --model openai/gpt-6-luna \
     -M service_tier=flex -M client_timeout=1200
 ```
 
@@ -138,13 +138,13 @@ The `openai` provider supports OpenAI models deployed on the [Azure AI Foundry](
 | `AZUREAI_OPENAI_API_VERSION` | OpenAI API version (optional) |
 | `AZUREAI_AUDIENCE` | Azure resource URI that the access token is intended for when using managed identity (optional, defaults to `https://cognitiveservices.azure.com/.default`) |
 
-You can then use the normal `openai` provider with the `azure` qualifier and the name of your model deployment (e.g. `gpt-4o-mini`). For example:
+You can then use the normal `openai` provider with the `azure` qualifier and the name of your model deployment (e.g. `gpt-6-luna`). For example:
 
 ``` bash
 export AZUREAI_OPENAI_API_KEY=your-api-key
 export AZUREAI_OPENAI_BASE_URL=https://your-url-at.azure.com
 export AZUREAI_OPENAI_API_VERSION=2025-03-01-preview
-inspect eval math.py --model openai/azure/gpt-4o-mini
+inspect eval math.py --model openai/azure/gpt-6-luna
 ```
 
 If using managed identity for authentication, install the `azure-identity` package and do not specify `AZUREAI_API_KEY`.
@@ -154,7 +154,7 @@ pip install azure-identity
 export AZUREAI_OPENAI_BASE_URL=https://your-url-at.azure.com
 export AZUREAI_AUDIENCE=https://cognitiveservices.azure.com/.default
 export AZUREAI_OPENAI_API_VERSION=2025-03-01-preview
-inspect eval math.py --model openai/azure/gpt-4o-mini
+inspect eval math.py --model openai/azure/gpt-6-luna
 ```
 
 Note that if the `AZUREAI_OPENAI_API_VERSION` is not specified, Inspect will generally default to the latest deployed version, which as of this writing is `2025-03-01-preview`. When using managed identity for authentication, install the `azure-identity` package and leave `AZUREAI_OPENAI_API_KEY` undefined.
@@ -287,11 +287,11 @@ inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
 
 ### Computer Use {#anthropic-computer-use}
 
-When the [`computer()`](tools-standard.qmd#sec-computer) tool is used with a Claude model, Inspect binds it to Anthropic's native computer use support. On the Claude API and Vertex, Claude Opus 5.5, Sonnet 5.5, and Haiku 5.5 (which reject the earlier tool there), Fable 5/5.1, and Mythos 5/5.1 use Anthropic's [computer toolset](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) (`computer_toolset_20260801`). Other models, including Opus 5, Sonnet 5, and Opus 4.8, keep the legacy `computer_20251124` tool. Anthropic offers the toolset only on the Claude API and Vertex, so on Bedrock and Foundry every model (Opus 5.5, Sonnet 5.5, Haiku 5.5, and Fable/Mythos included) uses the legacy tool.
+When the [`computer()`](tools-standard.qmd#sec-computer) tool is used with a Claude model, Inspect binds it to Anthropic's native computer use support. On the Claude API and Vertex, Claude Opus 5.5, Sonnet 5.5, and Haiku 5.5 (which reject the earlier tool there), and Fable/Mythos 5.x use Anthropic's [computer toolset](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) (`computer_toolset_20260801`). Other models, including Opus 5, Sonnet 5, and Opus 4.8, keep the legacy `computer_20251124` tool. Anthropic offers the toolset only on the Claude API and Vertex, with one exception: Fable 5.2 rejects the earlier tool everywhere except Bedrock, so it uses the toolset on Foundry too. Otherwise, on Bedrock and Foundry every model (Opus 5.5, Sonnet 5.5, Haiku 5.5, and Fable/Mythos included) uses the legacy tool.
 
 With the toolset, each computer action arrives as its own tool call. Inspect executes the actions in one assistant turn in order and stops at the first failure, reporting the remaining actions to the model as not executed. Logs record each action as a `computer` tool call with an `action` argument, exactly as with the legacy tool.
 
-Use the `computer_toolset` model arg (`-M`) to force either mode where the platform supports it (`false` is rejected only for Opus 5.5, Sonnet 5.5, and Haiku 5.5 on the Claude API or Vertex, where the legacy tool returns an error). The toolset requires Claude Opus 4.8, Sonnet 5, Opus 5 or later on the Claude API or Vertex; for example, to use it with Opus 5:
+Use the `computer_toolset` model arg (`-M`) to force either mode where the platform supports it (`false` is rejected for Opus 5.5, Sonnet 5.5, and Haiku 5.5 on the Claude API or Vertex, and for Fable 5.2 everywhere except Bedrock, where the legacy tool returns an error). The toolset requires Claude Opus 4.8, Sonnet 5, Opus 5 or later on the Claude API or Vertex; for example, to use it with Opus 5:
 
 ``` bash
 inspect eval computer.py --model anthropic/claude-opus-5 -M computer_toolset=true
@@ -361,6 +361,7 @@ The following environment variables are supported by the Google provider
 | `GOOGLE_BASE_URL` | Base URL for requests (optional) |
 | `GOOGLE_USE_ADC` | Set to `true` to authenticate Gemini Developer API models with OAuth/ADC by default (optional). |
 | `GOOGLE_CLOUD_QUOTA_PROJECT` | Quota/billing project sent as `x-goog-user-project` when using OAuth/ADC (optional). |
+| `GOOGLE_GENAI_API_VERSION` | API version (optional; `-M api_version` takes precedence). Defaults to `v1beta` for the Gemini Developer API and to the SDK default (`v1beta1`) on Vertex. |
 
 ### Gemini Developer API with OAuth / ADC {#gemini-oauth}
 
@@ -571,7 +572,7 @@ The following environment variables are supported by the Moonshot AI provider
 
 ## Meta {#meta}
 
-To use the [Meta](https://dev.meta.ai/docs) provider (Muse Spark models on the Meta Model API), install the `openai` package (which the Meta Model API provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
+To use the [Meta](https://dev.meta.ai/docs) provider (Muse models on the Meta Model API), install the `openai` package (which the Meta Model API provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install openai
@@ -581,7 +582,7 @@ inspect eval arc.py --model meta/muse-spark-1.3
 
 The provider uses the [Responses API](https://dev.meta.ai/docs/protocols/responses), which is the only Meta endpoint that preserves the model's reasoning across turns (as encrypted reasoning items that are replayed automatically). Pass `-M responses_api=false` to use Chat Completions instead.
 
-Muse Spark always reasons. Use `--reasoning-effort` (`minimal` through `max`) to control how much. `none` is not supported and is ignored with a warning. `max` is available on standard-tier `muse-spark-1.3` only; for the `-contributor` tier and older versions it is submitted as `xhigh`. The API only accepts `tool_choice="auto"`, so forced tool choices are submitted as `"auto"`. Log probabilities, stop sequences, and logit bias are not supported and are dropped with a warning.
+Muse models always reason. Use `--reasoning-effort` (`minimal` through `max`) to control how much. `none` is not supported and is ignored with a warning. `max` is available on `muse-wonder-1.0`, `muse-ember-1.0`, and standard-tier `muse-spark-1.3`; for the `-contributor` tier and older Muse Spark versions it is submitted as `xhigh`. Muse Wonder and Muse Ember default to `max` and Muse Spark to `high`. The API only accepts `tool_choice="auto"`, so forced tool choices are submitted as `"auto"`. Log probabilities, stop sequences, and logit bias are not supported and are dropped with a warning.
 
 Prompts blocked by Meta's content policy are reported as `stop_reason="content_filter"` with `stop_details`. The API signals such a block three different ways depending on protocol and streaming (an HTTP 400 with a `content_policy_violation` code, a `content_filter` finish reason, or a `refusal` content part), and the provider normalizes all of them. Note that a refusal the model writes itself, rather than one the policy layer blocks, carries no signal at all and arrives as an ordinary completion. Score those from the completion text. Meta also restricts API keys after repeated policy violations (HTTP 403 with code `user_blocked`); while a key is restricted, streamed requests return a refusal for every prompt, so an eval where every sample stops with `content_filter` is more likely hitting that restriction than the content policy.
 
@@ -852,7 +853,7 @@ To use the [Together AI](https://www.together.ai/) provider, install the `openai
 ``` bash
 pip install openai
 export TOGETHER_API_KEY=your-together-api-key
-inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7
+inspect eval arc.py --model together/MiniMaxAI/MiniMax-M3.1-Flash
 ```
 
 For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
@@ -860,7 +861,7 @@ For the `together` provider, you can enable [Tool Emulation](#tool-emulation-ope
 The `together` provider supports a `stream` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") uses streaming when the caller passes an `on_stream` callback to `generate()`. Pass `true` to always stream (or `false` to never stream):
 
 ``` bash
-inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7 -M stream=true
+inspect eval arc.py --model together/MiniMaxAI/MiniMax-M3.1-Flash -M stream=true
 ```
 
 The following environment variables are supported by the Together AI provider

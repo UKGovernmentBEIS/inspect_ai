@@ -23,6 +23,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from acp.connection import StreamDirection, StreamEvent
 from acp.exceptions import RequestError
 from test_helpers.utils import skip_if_trio
 
@@ -30,6 +31,7 @@ from inspect_ai.agent._acp import picker
 from inspect_ai.agent._acp.connection import (
     Bound,
     ConnectionHandler,
+    _request_id_key,
 )
 from inspect_ai.agent._acp.inspect_ext import INTERACTIVE_META_KEY, PICKER_META_KEY
 from inspect_ai.agent._acp.picker import PickerTarget, SampleListing
@@ -163,6 +165,9 @@ class _RpcClient:
         self._next_id = 1
         self._pending: dict[int, asyncio.Future[dict[str, Any]]] = {}
         self._notifications: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        # Responses whose id matches no pending ``request`` (e.g. replies
+        # to raw frames a test wrote with a non-integer id).
+        self.unmatched_responses: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         # Append-only record of every frame in the order it was read off
         # the wire. Entries are ``("response", id)`` or
         # ``("notification", method)``. Tests that need to assert wire
@@ -182,8 +187,15 @@ class _RpcClient:
                     continue
                 if "id" in msg and ("result" in msg or "error" in msg):
                     self.arrival_log.append(("response", msg["id"]))
-                    fut = self._pending.pop(msg["id"], None)
-                    if fut is not None and not fut.done():
+                    req_id = msg["id"]
+                    fut = (
+                        self._pending.pop(req_id, None)
+                        if isinstance(req_id, int)
+                        else None
+                    )
+                    if fut is None:
+                        await self.unmatched_responses.put(msg)
+                    elif not fut.done():
                         fut.set_result(msg)
                 elif "method" in msg:
                     self.arrival_log.append(("notification", msg["method"]))
@@ -459,7 +471,7 @@ async def test_auto_bind_stops_old_forwarders_before_changing_binding(
     monkeypatch.setattr(handler, "_stop_forwarders", _spy_stop)
     monkeypatch.setattr(handler, "_schedule_after_response", MagicMock())
 
-    await handler._auto_bind(target)
+    await handler._auto_bind(target, method="session/new")
 
     assert binding_at_stop == old_bound, (
         "_stop_forwarders must run BEFORE state.binding is mutated; "
@@ -468,6 +480,304 @@ async def test_auto_bind_stops_old_forwarders_before_changing_binding(
     assert handler.state.binding == Bound(
         wire_session_id="new-uuid", target_session_id="new-uuid"
     )
+
+
+@skip_if_trio
+async def test_schedule_after_response_waits_for_response_write() -> None:
+    """Deferred work runs only after the response to its request is written.
+
+    Drives ``observe_stream`` with the events ``acp.Connection`` emits,
+    so the check does not depend on how the framework schedules the
+    handler and the response write.
+    """
+    handler = ConnectionHandler()
+    ran: list[str] = []
+
+    async def _work() -> None:
+        ran.append("work")
+
+    def _event(direction: StreamDirection, message: dict[str, Any]) -> None:
+        handler.observe_stream(StreamEvent(direction, message))
+
+    _event(StreamDirection.INCOMING, {"id": 7, "method": "session/new"})
+    _event(StreamDirection.INCOMING, {"id": 8, "method": "session/prompt"})
+    handler._schedule_after_response("session/new", _work)
+
+    _event(StreamDirection.OUTGOING, {"method": "session/update"})
+    _event(StreamDirection.OUTGOING, {"id": 8, "result": {}})
+    for _ in range(5):
+        await asyncio.sleep(0)
+    assert ran == []
+
+    _event(StreamDirection.OUTGOING, {"id": 7, "result": {}})
+    await asyncio.gather(*handler._pending_after_response)
+    assert ran == ["work"]
+
+
+@skip_if_trio
+async def test_schedule_after_response_ignores_error_response() -> None:
+    """An error response to one request does not release another's work.
+
+    Request A of a method fails without scheduling; request B of the
+    same method schedules work before A's error response is written.
+    The work must wait for B's success response.
+    """
+    handler = ConnectionHandler()
+    ran: list[str] = []
+
+    async def _work() -> None:
+        ran.append("work")
+
+    def _event(direction: StreamDirection, message: dict[str, Any]) -> None:
+        handler.observe_stream(StreamEvent(direction, message))
+
+    _event(StreamDirection.INCOMING, {"id": 1, "method": "session/load"})
+    _event(StreamDirection.INCOMING, {"id": 2, "method": "session/load"})
+    handler._schedule_after_response("session/load", _work)
+
+    _event(
+        StreamDirection.OUTGOING,
+        {"id": 1, "error": {"code": -32602, "message": "Invalid params"}},
+    )
+    for _ in range(5):
+        await asyncio.sleep(0)
+    assert ran == []
+    assert handler._request_methods == {_request_id_key(2): ["session/load"]}
+
+    _event(StreamDirection.OUTGOING, {"id": 2, "result": {}})
+    await asyncio.gather(*handler._pending_after_response)
+    assert ran == ["work"]
+
+
+def _observe_like_connection(
+    handler: ConnectionHandler, direction: StreamDirection, message: dict[str, Any]
+) -> None:
+    """Call ``observe_stream`` the way ``acp.Connection`` does.
+
+    The connection logs and ignores an observer's exception, then still
+    dispatches the request.
+    """
+    try:
+        handler.observe_stream(StreamEvent(direction, message))
+    except Exception:
+        pass
+
+
+@skip_if_trio
+@pytest.mark.parametrize("request_id", [[], {}, {"a": [1, {"b": None}]}])
+async def test_schedule_after_response_with_unhashable_request_id(
+    request_id: Any,
+) -> None:
+    """A request id that is a JSON array or object still releases its work."""
+    handler = ConnectionHandler()
+    ran: list[str] = []
+
+    async def _work() -> None:
+        ran.append("work")
+
+    _observe_like_connection(
+        handler, StreamDirection.INCOMING, {"id": request_id, "method": "session/new"}
+    )
+    handler._schedule_after_response("session/new", _work)
+    _observe_like_connection(
+        handler, StreamDirection.OUTGOING, {"id": request_id, "result": {}}
+    )
+
+    await asyncio.wait_for(
+        asyncio.gather(*handler._pending_after_response), timeout=1.0
+    )
+    assert ran == ["work"]
+    assert handler._request_methods == {}
+
+
+@skip_if_trio
+async def test_schedule_after_response_with_duplicate_in_flight_ids() -> None:
+    """Same-method in-flight requests sharing an id each release one waiter.
+
+    Requests that share an id but differ in method are unsupported.
+    """
+    handler = ConnectionHandler()
+    ran: list[str] = []
+
+    async def _work(name: str) -> None:
+        ran.append(name)
+
+    def _event(direction: StreamDirection, message: dict[str, Any]) -> None:
+        handler.observe_stream(StreamEvent(direction, message))
+
+    _event(StreamDirection.INCOMING, {"id": 5, "method": "session/load"})
+    _event(StreamDirection.INCOMING, {"id": 5, "method": "session/load"})
+    handler._schedule_after_response("session/load", lambda: _work("first"))
+    handler._schedule_after_response("session/load", lambda: _work("second"))
+
+    _event(StreamDirection.OUTGOING, {"id": 5, "result": {}})
+    _event(StreamDirection.OUTGOING, {"id": 5, "result": {}})
+
+    await asyncio.wait_for(
+        asyncio.gather(*handler._pending_after_response), timeout=1.0
+    )
+    assert ran == ["first", "second"]
+    assert handler._request_methods == {}
+
+
+@skip_if_trio
+async def test_schedule_after_response_ignores_null_method_frame() -> None:
+    """A frame with ``"method": null`` is not recorded as a request.
+
+    ACP treats it as an unsolicited response. A following request with
+    the same id must still release its own waiter.
+    """
+    handler = ConnectionHandler()
+    ran: list[str] = []
+
+    async def _work() -> None:
+        ran.append("work")
+
+    _observe_like_connection(
+        handler, StreamDirection.INCOMING, {"id": 1, "method": None, "result": None}
+    )
+    assert handler._request_methods == {}
+
+    _observe_like_connection(
+        handler, StreamDirection.INCOMING, {"id": 1, "method": "session/new"}
+    )
+    handler._schedule_after_response("session/new", _work)
+    _observe_like_connection(handler, StreamDirection.OUTGOING, {"id": 1, "result": {}})
+
+    await asyncio.wait_for(
+        asyncio.gather(*handler._pending_after_response), timeout=1.0
+    )
+    assert ran == ["work"]
+    assert handler._request_methods == {}
+
+
+_ONE_TARGET = [("solo", "s1", 0, "uuid-only")]
+_TWO_TARGETS = [("t1", "s1", 0, "uuid-a"), ("t2", "s2", 1, "uuid-b")]
+
+
+@skip_if_trio
+@unix_only
+@pytest.mark.parametrize(
+    ("targets", "method", "params"),
+    [
+        pytest.param(
+            _TWO_TARGETS,
+            "session/new",
+            {"cwd": "/tmp", "mcpServers": []},
+            id="session-new-picker",
+        ),
+        pytest.param(
+            _ONE_TARGET,
+            "session/new",
+            {"cwd": "/tmp", "mcpServers": []},
+            id="session-new-auto-bind",
+        ),
+        pytest.param(
+            _ONE_TARGET,
+            "session/load",
+            {"cwd": "/tmp", "mcpServers": [], "sessionId": "uuid-only"},
+            id="session-load",
+        ),
+        pytest.param(
+            _TWO_TARGETS,
+            "inspect/attach",
+            {"cwd": "/tmp", "mcpServers": [], "target": "t2/s2/1"},
+            id="inspect-attach",
+        ),
+    ],
+)
+async def test_bind_after_null_method_frames_sends_notifications(
+    short_data_dir: Path,
+    stub_targets,
+    targets: list[tuple[str, str, int, str]],
+    method: str,
+    params: dict[str, Any],
+) -> None:
+    """Null-method frames do not take the waiters of later binds with the same id.
+
+    Each frame reuses the id of an upcoming binding request. Each binding
+    request must still get a notification after its response.
+    """
+    stub_targets(
+        [
+            _make_sample(task=task, sample_id=sample_id, epoch=epoch, session_id=sid)
+            for task, sample_id, epoch, sid in targets
+        ]
+    )
+    async with acp_server(eval_id="evt-null-method", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            for request_id in range(1, 4):
+                frame = {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "method": None,
+                    "result": None,
+                }
+                client._writer.write((json.dumps(frame) + "\n").encode("utf-8"))
+            await client._writer.drain()
+
+            for _ in range(3):
+                resp = await client.request(method, params)
+                assert "result" in resp, resp
+                response_index = client.arrival_log.index(("response", resp["id"]))
+                while not any(
+                    kind == "notification"
+                    for kind, _ in client.arrival_log[response_index + 1 :]
+                ):
+                    await client.next_notification(timeout=2.0)
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+@pytest.mark.parametrize("request_id", [[], {}])
+async def test_session_new_after_unhashable_id_requests_sends_notifications(
+    short_data_dir: Path, stub_targets, request_id: Any
+) -> None:
+    """Requests with an array or object id do not consume a later request's waiter.
+
+    Auto-bind ``session/new`` requests with such ids are handled and
+    answered. A following valid ``session/new`` must still get its
+    binding notifications after its response.
+    """
+    stub_targets(
+        [_make_sample(task="solo", sample_id="s1", epoch=0, session_id="uuid-only")]
+    )
+    async with acp_server(eval_id="evt-bad-id", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            payload = {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": "session/new",
+                "params": {"cwd": "/tmp", "mcpServers": []},
+            }
+            for _ in range(3):
+                client._writer.write((json.dumps(payload) + "\n").encode("utf-8"))
+            await client._writer.drain()
+            for _ in range(3):
+                bad = await asyncio.wait_for(
+                    client.unmatched_responses.get(), timeout=5.0
+                )
+                assert bad["id"] == request_id
+                assert "result" in bad
+
+            resp = await client.request(
+                "session/new", {"cwd": "/tmp", "mcpServers": []}
+            )
+            assert "result" in resp
+            response_index = client.arrival_log.index(("response", resp["id"]))
+            while not any(
+                kind == "notification"
+                for kind, _ in client.arrival_log[response_index + 1 :]
+            ):
+                await client.next_notification(timeout=2.0)
+        finally:
+            await client.close()
 
 
 async def test_load_session_observe_only_records_non_interactive(

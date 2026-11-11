@@ -1,19 +1,29 @@
 import inspect
 from collections import deque
+from dataclasses import dataclass, field, replace
 from logging import getLogger
 from os.path import commonprefix
-from typing import TYPE_CHECKING, Any, Mapping, NamedTuple, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Mapping, NamedTuple, Sequence
 
 import anyio
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
+from inspect_ai._util.hash import mm3_hash
+from inspect_ai._util.json import json_equal
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.bridge import resolve_forward_client_headers
-from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
+from inspect_ai.agent._bridge.types import (
+    AgentBridge,
+    DispatchedCall,
+    ReviewedCalls,
+    _HandedCall,
+    _unchanged,
+)
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._compaction.types import CompactionStrategy
+from inspect_ai.model._message_ids import canonical_tool_arguments
 from inspect_ai.model._model import (
     GenerateFilter,
     Model,
@@ -26,6 +36,7 @@ from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
+from inspect_ai.util._limit import LimitExceededError
 
 if TYPE_CHECKING:
     # deferred: importing `inspect_ai.approval` at module scope here cycles
@@ -93,8 +104,14 @@ class SandboxAgentBridge(AgentBridge):
         self._tool_execution_grants: deque[_ToolExecutionGrant] = deque(
             maxlen=_MAX_TOOL_EXECUTION_GRANTS
         )
+        self._executed_calls: dict[tuple[str, str], dict[str, list[_HandedCall]]] = {}
+        """Per (server, tool), then argument key, the calls an execution consumed a grant of, unless settled since (`_record_execution`). A (server, tool) with no keys left is removed."""
+        self._executed_tools: dict[tuple[str, str], _ExecutedTool] = {}
+        """Per (server, tool), the calls an execution consumed a grant of, settled ones pruned (`_record_execution`)."""
         self._failure_requested = anyio.Event()
         self._failure: Exception | None = None
+        self.generation_limit: LimitExceededError | None = None
+        """The limit reached in a bridged generation that `sandbox_agent_bridge` raises: the first, unless a later one encloses it."""
 
     port: int
     """Model proxy server port."""
@@ -168,14 +185,20 @@ class SandboxAgentBridge(AgentBridge):
         `_warn_eviction`, once `_MAX_TOOL_EXECUTION_GRANTS` unconsumed grants
         accumulate, counting those for exempt servers), including when
         the response never reached the scaffold, but only ever authorizes the
-        exact proposed action.
+        exact proposed action. An evicted grant's reply is unlinked
+        (`_unlink`): on an exempt server its call still executes, untracked,
+        and another grant of the call may then execute it again.
         """
-        declared: dict[str, list[ToolInfo]] = {}
-        for tool in tools:
-            if isinstance(tool, ToolInfo):
-                declared.setdefault(tool.name, []).append(tool)
-        for call in calls:
-            targets, arguments = _proposed_call(
+        declared = _declarations_by_name(tools)
+        handed = (
+            self._handed_calls(self._proposing_reply_id, calls)
+            if self._proposing_reply_id is not None
+            else None
+        )
+        for index, call in enumerate(calls):
+            verified = self._proposing_call_verified
+            retained = verified is None or verified[index]
+            targets, arguments, _ = _proposed_call(
                 self.bridged_tools, self.served_tools, call, declared
             )
             if len(targets) > 1:
@@ -186,13 +209,21 @@ class SandboxAgentBridge(AgentBridge):
                     + ", ".join(f"{t.server}/{t.tool}" for t in targets)
                     + "); an execution grant was registered for each of them.",
                 )
-            proposal = _Proposal(call, span_id)
+            proposal = _Proposal(
+                call,
+                span_id if retained else None,
+                self._proposing_message_ids.get(call.id) if retained else None,
+                handed[index] if handed is not None else None,
+            )
             for target in targets:
                 if (
                     len(self._tool_execution_grants)
                     == self._tool_execution_grants.maxlen
                 ):
-                    self._warn_eviction(self._tool_execution_grants[0])
+                    evicted = self._tool_execution_grants[0]
+                    self._warn_eviction(evicted)
+                    if evicted.proposal.reply is not None:
+                        self._unlink(evicted.proposal.reply.reply.id)
                 self._tool_execution_grants.append(
                     _ToolExecutionGrant(
                         server=target.server,
@@ -253,7 +284,16 @@ class SandboxAgentBridge(AgentBridge):
     ) -> "_ToolExecutionGrant | None":
         """Consume and return the oldest grant binding this exact (server, tool), if any.
 
-        Arguments match by JSON semantics (`_json_equal`): key order and
+        When grants of more than one proposal match, the execution may belong
+        to any of them, so each of those proposals is marked `ambiguous` and
+        its reply unlinked (`_unlink`): no execution under them links its
+        result message, including one that completed before this one. A grant
+        that matches
+        only once undeclared keys are dropped (below) counts as matching here
+        even when another grant matches exactly: exact matching decides which
+        grant is consumed, not which proposal made the call.
+
+        Arguments match by JSON semantics (`json_equal`): key order and
         int/float numeric equality (`5 == 5.0`) don't matter, so a scaffold's
         JSON round-trip cannot turn a proposed call into a denial; any other
         difference (including bool vs number) is denied -- except that, when
@@ -276,47 +316,235 @@ class SandboxAgentBridge(AgentBridge):
         keeps exact matching, since an undeclared key there can be a real
         argument.
         """
-        schema = self.served_tools.get(_BridgedToolId(server=server, tool=tool))
-        declared_properties = (
-            schema.parameters.properties
-            if schema is not None and schema.parameters.additionalProperties is False
-            else None
-        )
+        declared_properties = self._declared_properties(server, tool)
         pending = [
             (index, grant.arguments)
             for index, grant in enumerate(self._tool_execution_grants)
             if grant.server == server and grant.tool == tool
         ]
-        matched = next(
-            (index for index, granted in pending if _json_equal(granted, arguments)),
-            None,
+        exact = [index for index, granted in pending if json_equal(granted, arguments)]
+        projected = (
+            [
+                index
+                for index, granted in pending
+                if isinstance(granted, dict)
+                and json_equal(
+                    {
+                        key: value
+                        for key, value in granted.items()
+                        if key in declared_properties
+                    },
+                    arguments,
+                )
+            ]
+            if declared_properties is not None
+            else []
         )
-        if matched is None and declared_properties is not None:
-            matched = next(
-                (
-                    index
-                    for index, granted in pending
-                    if isinstance(granted, dict)
-                    and _json_equal(
-                        {
-                            key: value
-                            for key, value in granted.items()
-                            if key in declared_properties
-                        },
-                        arguments,
-                    )
-                ),
-                None,
-            )
-        if matched is None:
+        matches = exact or projected
+        if not matches:
             return None
-        grant = self._tool_execution_grants[matched]
-        del self._tool_execution_grants[matched]
+        proposals = [
+            self._tool_execution_grants[index].proposal
+            for index in sorted(set(exact) | set(projected))
+        ]
+        if any(proposal is not proposals[0] for proposal in proposals):
+            for proposal in proposals:
+                proposal.ambiguous = True
+                if proposal.reply is not None:
+                    self._unlink(proposal.reply.reply.id)
+        grant = self._tool_execution_grants[matches[0]]
+        del self._tool_execution_grants[matches[0]]
+        self._record_execution(grant)
         return grant
+
+    def unlink_denied_call(
+        self, server: str, tool: str, arguments: dict[str, Any] | None
+    ) -> None:
+        """Unlink every reply whose call a denied or unreadable host call may retry.
+
+        A grant is one-shot, so a client sending a call again (after losing
+        the first response, say) is denied, and the scaffold may send that
+        denial as the call's answer: the reply of each call it may repeat is
+        unlinked (`_unlink`) while that call's execution awaits its answer
+        or still runs (`_unsettled`; one already settled is final, so its
+        reply, and any pending sibling call in it, keeps its link), and so is
+        the reply of each pending grant it may repeat.
+        Calls are compared as `consume_tool_execution_grant` compares them,
+        on the argument keys of `_call_keys` (both sides also projected onto
+        a closed schema's declared keys, so this errs towards unlinking).
+        With `arguments` `None` (not an object, or nested too deep to read),
+        the call may repeat any call of the tool. A request naming no bridged
+        tool repeats no proposal, since none can denote it.
+
+        The argument keys are computed only when a recorded call or pending
+        grant of the tool exists: hashing serializes the whole arguments, and
+        a large denied call that can repeat nothing shouldn't pay for that.
+        """
+        if not self._has_recorded_calls(server, tool):
+            return
+        keys = (
+            self._call_keys(server, tool, arguments) if arguments is not None else None
+        )
+        # unlinked for good, so each recorded call is unlinked here once
+        executed = (
+            self._executed_tools.pop((server, tool), _ExecutedTool()).calls
+            if keys is None
+            else [
+                handed
+                for key in keys
+                for handed in self._pop_executed_calls(server, tool, key)
+            ]
+        )
+        for handed in executed:
+            if self._unsettled(handed):
+                self._unlink(handed.reply.id)
+        for grant in self._tool_execution_grants:
+            if (
+                grant.server == server
+                and grant.tool == tool
+                and grant.proposal.reply is not None
+                and (
+                    keys is None
+                    or not keys.isdisjoint(
+                        self._call_keys(server, tool, grant.arguments)
+                    )
+                )
+            ):
+                self._unlink(grant.proposal.reply.reply.id)
+
+    def _has_recorded_calls(self, server: str, tool: str) -> bool:
+        """Whether any executed call or pending grant of (server, tool) is recorded for `unlink_denied_call`."""
+        return (
+            (server, tool) in self._executed_tools
+            or (server, tool) in self._executed_calls
+            or any(
+                grant.server == server
+                and grant.tool == tool
+                and grant.proposal.reply is not None
+                for grant in self._tool_execution_grants
+            )
+        )
+
+    def _pop_executed_calls(
+        self, server: str, tool: str, key: str
+    ) -> list[_HandedCall]:
+        """Remove and return the executed calls of (server, tool) recorded under argument `key`."""
+        by_key = self._executed_calls.get((server, tool))
+        if by_key is None:
+            return []
+        calls = by_key.pop(key, [])
+        if not by_key:
+            del self._executed_calls[(server, tool)]
+        return calls
+
+    def _record_execution(self, grant: "_ToolExecutionGrant") -> None:
+        """Check and record the evidence an execution consuming `grant` gives.
+
+        Run as the grant is consumed, before the execution starts, so a
+        request arriving while it runs already sees it.
+
+        - A proposal's second execution (one call granted for several tools)
+          unlinks its reply (`_unlink`): an answer may hold either result.
+        - An earlier execution of the same (server, tool) and arguments
+          (`_call_keys`) whose answer hasn't been settled, still queued or
+          running, unlinks its reply and this one's: this execution may be
+          a client's retry of that call (after losing its response), taking
+          a later proposal's identical grant, so either answer may hold
+          either result. An earlier execution already settled (its answer
+          linked, or left unlinked) is final and is dropped from the record.
+        - The call is recorded for `unlink_denied_call`.
+
+        Each recorded call is dropped once scanned or unlinked, and the
+        per-tool record drops settled calls each time it doubles, so it stays
+        within twice the calls of the tool still running or awaiting answers
+        and the work is amortized constant per execution. Reply ids,
+        positions and argument hashes only, like the message pool.
+        """
+        reply = grant.proposal.reply
+        if reply is None:
+            return
+        if grant.proposal.executions > 0:
+            self._unlink(reply.reply.id)
+        keys = self._call_keys(grant.server, grant.tool, grant.arguments)
+        doubt = False
+        for key in keys:
+            for earlier in self._pop_executed_calls(grant.server, grant.tool, key):
+                if self._unsettled(earlier):
+                    self._unlink(earlier.reply.id)
+                    doubt = True
+        if doubt:
+            self._unlink(reply.reply.id)
+        by_key = self._executed_calls.setdefault((grant.server, grant.tool), {})
+        for key in keys:
+            by_key[key] = [reply]
+        executed = self._executed_tools.setdefault(
+            (grant.server, grant.tool), _ExecutedTool()
+        )
+        executed.calls.append(reply)
+        if len(executed.calls) >= 2 * executed.floor:
+            executed.calls = [h for h in executed.calls if self._unsettled(h)]
+            executed.floor = max(len(executed.calls), _MIN_EXECUTED_TOOL_FLOOR)
+
+    def _unsettled(self, handed: _HandedCall) -> bool:
+        """Whether an execution of `handed` may still link: running, or awaiting its answer."""
+        if self._edit_root(handed.reply.id) in self._unlinked_replies:
+            return False
+        awaited = self._awaited_results.get(handed.reply.id)
+        return (
+            awaited is None
+            or handed.position not in awaited.events
+            or awaited.events[handed.position] is not None
+        )
+
+    def _call_keys(self, server: str, tool: str, arguments: dict[str, Any]) -> set[str]:
+        """Hashes of `arguments` as `json_equal` compares them, also projected onto a closed schema's declared keys."""
+        forms = [arguments]
+        declared = self._declared_properties(server, tool)
+        if declared is not None:
+            forms.append({k: v for k, v in arguments.items() if k in declared})
+        return {mm3_hash(canonical_tool_arguments(form)) for form in forms}
+
+    def _declared_properties(self, server: str, tool: str) -> Mapping[str, Any] | None:
+        """The properties a served tool's closed schema declares, or `None` if it admits others."""
+        schema = self.served_tools.get(_BridgedToolId(server=server, tool=tool))
+        return (
+            schema.parameters.properties
+            if schema is not None and schema.parameters.additionalProperties is False
+            else None
+        )
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call `call` makes through a dispatcher (`_dispatched_call`)."""
         return _dispatched_call(self.bridged_tools, call)
+
+    def reviewed_calls(
+        self, call: ToolCall, tools: Sequence[ToolInfo | Tool]
+    ) -> ReviewedCalls:
+        """The calls approval reviews `call` as: one per bridged tool it would run.
+
+        Resolved by `_proposed_call`, as `register_tool_execution_grants`
+        resolves the grants, so approval and grants agree on what a call runs.
+        Scaffolds rename bridged tools, so a call is reviewed under the bridged
+        tool's own name whatever the scaffold declared it as; a call that
+        denotes several bridged tools (a shared description) is reviewed as
+        each of them. A call that denotes none is reviewed as `AgentBridge`
+        reviews it.
+        """
+        proposed = _proposed_call(
+            self.bridged_tools,
+            self.served_tools,
+            call,
+            _declarations_by_name(tools),
+        )
+        if not proposed.targets:
+            return super().reviewed_calls(call, tools)
+        return ReviewedCalls(
+            [
+                replace(call, function=target.tool, arguments=proposed.arguments)
+                for target in proposed.targets
+            ],
+            proposed.dispatch,
+        )
 
     def request_fail(self, error: Exception) -> None:
         """Fail the sample with `error` from a bridged generation or tool call.
@@ -349,17 +577,32 @@ class _Proposal:
     and no pairing state outlives the bounded grant store.
     """
 
-    __slots__ = ("call", "span_id", "paired")
+    __slots__ = ("call", "span_id", "message_id", "reply", "executions", "ambiguous")
 
-    def __init__(self, call: ToolCall, span_id: str | None) -> None:
+    def __init__(
+        self,
+        call: ToolCall,
+        span_id: str | None,
+        message_id: str | None,
+        reply: _HandedCall | None,
+    ) -> None:
         self.call = call
         """The proposing call, with the function name as the model saw it."""
 
         self.span_id = span_id
         """Span to record executions under, or `None` for the span current then."""
 
-        self.paired = False
-        """Whether an execution has already taken `call.id`."""
+        self.message_id = message_id
+        """Id of the assistant message the call is in, or `None` if unknown."""
+
+        self.reply = reply
+        """The call in the reply handed to the scaffold, or `None` if unknown."""
+
+        self.executions = 0
+        """How many executions have consumed one of the proposal's grants (`take_id`)."""
+
+        self.ambiguous = False
+        """Whether an execution matched this proposal's grants and another proposal's alike, so which call it ran is unknown."""
 
     def take_id(self) -> str:
         """The `ToolEvent` id for the next execution of this proposal.
@@ -368,10 +611,33 @@ class _Proposal:
         granted for several indistinguishable tools can execute more than once
         and consumers key on the event id.
         """
-        if self.paired:
-            return uuid()
-        self.paired = True
-        return self.call.id
+        self.executions += 1
+        return self.call.id if self.executions == 1 else uuid()
+
+    @property
+    def linkable(self) -> bool:
+        """Whether an execution of this proposal may link its result message.
+
+        Only while the proposal has executed once and matched no other
+        proposal's grants. Kept here rather than read from the bridge's
+        result tracking, which drops old replies: the proposal lives as long
+        as any of its grants can still execute.
+        """
+        return self.executions == 1 and not self.ambiguous
+
+
+_MIN_EXECUTED_TOOL_FLOOR = 8
+
+
+@dataclass
+class _ExecutedTool:
+    """The calls of one bridged tool an execution consumed a grant of."""
+
+    calls: list[_HandedCall] = field(default_factory=list)
+    """The calls, oldest first; settled ones are pruned (`_record_execution`)."""
+
+    floor: int = _MIN_EXECUTED_TOOL_FLOOR
+    """`calls` are pruned when they reach twice this: their count after the last prune, at least `_MIN_EXECUTED_TOOL_FLOOR`."""
 
 
 class _ToolExecutionGrant(NamedTuple):
@@ -384,7 +650,7 @@ class _ToolExecutionGrant(NamedTuple):
     """Tool name within the bridged server."""
 
     arguments: dict[str, Any]
-    """The arguments handed to the scaffold, JSON-normalized and matched via `_json_equal`."""
+    """The arguments handed to the scaffold, JSON-normalized and matched via `json_equal`."""
 
     proposal: _Proposal
     """The proposing call, shared with the other grants it minted."""
@@ -402,9 +668,22 @@ class _ProposedCall(NamedTuple):
 
     targets: list[_BridgedToolId]
     arguments: dict[str, Any]
+    dispatch: Callable[[dict[str, Any]], dict[str, Any]]
+    """Arguments for the proposed call that run the targets with the given ones."""
 
 
-_NO_PROPOSAL = _ProposedCall([], {})
+_NO_PROPOSAL = _ProposedCall([], {}, _unchanged)
+
+
+def _declarations_by_name(
+    tools: Sequence[ToolInfo | Tool],
+) -> dict[str, list[ToolInfo]]:
+    """The declarations the scaffold made to the model, by name."""
+    declared: dict[str, list[ToolInfo]] = {}
+    for tool in tools:
+        if isinstance(tool, ToolInfo):
+            declared.setdefault(tool.name, []).append(tool)
+    return declared
 
 
 def _proposed_call(
@@ -429,13 +708,14 @@ def _proposed_call(
         return _NO_PROPOSAL
     targets = _resolve_by_served_content(served, declarations)
     if targets:
-        return _ProposedCall(targets, dict(call.arguments))
+        return _ProposedCall(targets, dict(call.arguments), _unchanged)
     dispatched = _dispatched_call(bridged_tools, call)
     if dispatched is None:
         return _NO_PROPOSAL
     return _ProposedCall(
         [_BridgedToolId(server=dispatched.server, tool=dispatched.target.function)],
         dispatched.target.arguments,
+        dispatched.dispatch,
     )
 
 
@@ -584,7 +864,7 @@ def _dispatched_call(
     ordinary call whose own arguments happen to carry these fields (the function
     name is checked first, so no other tool's call can borrow a bridged tool's
     policy, or mint an execution grant for it, by naming it in its arguments).
-    Both approval (`SandboxAgentBridge.dispatched_call`) and grant resolution
+    Both approval (`SandboxAgentBridge.reviewed_calls`) and grant resolution
     (`_proposed_call`) recognise a dispatcher call through this one function, so
     they cannot disagree about what is one.
     """
@@ -601,20 +881,7 @@ def _dispatched_call(
     ):
         return DispatchedCall(
             server=server,
-            target=ToolCall(id=call.id, function=tool, arguments=arguments),
+            target=replace(call, function=tool, arguments=arguments),
             dispatch=lambda modified: {**call.arguments, "Arguments": modified},
         )
     return None
-
-
-def _json_equal(a: Any, b: Any) -> bool:
-    """Equality by JSON semantics: 5 == 5.0, but True != 1 (unlike Python `==`)."""
-    if isinstance(a, bool) or isinstance(b, bool):
-        return isinstance(a, bool) and isinstance(b, bool) and a == b
-    if isinstance(a, int | float) and isinstance(b, int | float):
-        return a == b
-    if isinstance(a, dict) and isinstance(b, dict):
-        return a.keys() == b.keys() and all(_json_equal(v, b[k]) for k, v in a.items())
-    if isinstance(a, list) and isinstance(b, list):
-        return len(a) == len(b) and all(_json_equal(x, y) for x, y in zip(a, b))
-    return type(a) is type(b) and bool(a == b)

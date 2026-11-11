@@ -1,11 +1,12 @@
 from contextvars import ContextVar
 from copy import copy
 
-from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
+from inspect_ai._sentinel._scope import sentinel_scope
 from inspect_ai._util.registry import has_registry_params, registry_params
 from inspect_ai.model._conversation import ModelConversation
 from inspect_ai.model._model import sample_model_usage, sample_role_usage
 from inspect_ai.solver._task_state import TaskState, sample_state
+from inspect_ai.util._sandbox._framework_operation import framework_sandbox_operation
 
 from ._metric import Score
 from ._scorer import Scorer, unique_scorer_name
@@ -31,6 +32,7 @@ async def score(conversation: ModelConversation) -> list[Score]:
         a task that does not have a scorer.
 
     """
+    from inspect_ai._sentinel._sidecar._state import copy_sidecar_monitor_state
     from inspect_ai.event._score import ScoreEvent
     from inspect_ai.log._transcript import transcript
 
@@ -56,12 +58,14 @@ async def score(conversation: ModelConversation) -> list[Score]:
             "The score() function can only be called while executing a task with a scorer."
         )
 
+    await copy_sidecar_monitor_state(state)
+
     scores: list[Score] = []
     used_names: list[str] = []
     for scorer in scorers:
         scorer_name = unique_scorer_name(scorer, used_names)
         used_names.append(scorer_name)
-        with sentinel_scope(AgentScope.OFF, final=True):
+        with sentinel_scope("scorer", final=True), framework_sandbox_operation():
             score = await scorer(state, target)
         if score is not None:
             scores.append(score)

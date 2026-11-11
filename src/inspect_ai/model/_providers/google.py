@@ -6,6 +6,7 @@ import json
 import os
 import ssl
 from copy import copy
+from dataclasses import dataclass, field
 from io import BytesIO
 from logging import getLogger
 from typing import Any, Literal, NamedTuple, cast
@@ -14,6 +15,10 @@ from typing import Any, Literal, NamedTuple, cast
 import aiohttp
 import anyio
 from google.genai import Client
+from google.genai._extra_utils import (
+    StreamContinuation,
+    merge_continuation_responses,
+)
 from google.genai.errors import APIError, ClientError
 from google.genai.types import (
     Candidate,
@@ -112,7 +117,7 @@ from inspect_ai.model._providers._google_citations import (
 )
 from inspect_ai.model._providers._google_computer_use import (
     computer_tool_result_parts,
-    gemini_action_from_tool_call,
+    gemini_replay_args,
     maybe_computer_use_tool,
     tool_call_from_gemini_computer_action,
 )
@@ -224,6 +229,309 @@ DEFAULT_SAFETY_SETTINGS: list[SafetySettingDict] = [
 ]
 
 
+@dataclass
+class _ContinuationChain:
+    """The requests sent so far for one generate call (continuations and retries)."""
+
+    responses: list[GenerateContentResponse] = field(default_factory=list)
+    """Response of each request that returned one, in order."""
+
+    usage: ModelUsage | None = None
+    """Usage summed over those requests (each one is billed)."""
+
+    input_context_tokens: int | None = None
+    """Input size of the first request, the one built from the generate input."""
+
+    http_hooks: HttpHooks | None = None
+    """Hooks tracking the requests under `request_id`."""
+
+    request_id: str | None = None
+    """Request id the requests are sent with."""
+
+    time: float = 0
+    """Time spent on the requests that returned responses."""
+
+    def add(self, response: GenerateContentResponse) -> None:
+        """Add a request's response."""
+        self.responses.append(response)
+        usage = usage_metadata_to_model_usage(response.usage_metadata)
+        self.usage = sum_usage(self.usage, usage)
+        if len(self.responses) == 1:
+            self.input_context_tokens = usage_input_tokens(usage)
+        # the next request (a continuation or a malformed function call retry)
+        # is a new one, not an HTTP retry of this one
+        if self.http_hooks is not None and self.request_id is not None:
+            self.time += self.http_hooks.restart_request(self.request_id)
+
+    def end_request(self) -> float:
+        """End the request id, returning the time spent on all its requests.
+
+        Each request counts from its last attempt, so the SDK's failed
+        attempts and retry waits are left out.
+        """
+        if self.http_hooks is None or self.request_id is None:
+            return self.time
+        return self.time + self.http_hooks.end_request(self.request_id)
+
+    def model_call_response(self) -> Any:
+        """The model call's response: the one response, or all of them.
+
+        A continuation's request is the request before it plus that response's
+        `continuation_token`; a malformed function call retry's request adds
+        the retry messages to the contents.
+        """
+        return (
+            self.responses[0]
+            if len(self.responses) == 1
+            else {"responses": self.responses}
+        )
+
+
+class _StreamedLeg:
+    """The chunks of one streamed request, accumulated into one response."""
+
+    def __init__(self) -> None:
+        self.parts: dict[int, list[Part]] = {}
+        self.candidates: dict[int, Candidate] = {}
+        self.finish_reasons: dict[int, FinishReason] = {}
+        # the latest checkpoint token of each candidate and how many of its
+        # parts it covers
+        self.checkpoints: dict[int, tuple[bytes, int]] = {}
+        self.usage: GenerateContentResponseUsageMetadata | None = None
+        self.checkpoint_usage: GenerateContentResponseUsageMetadata | None = None
+        self.prompt_feedback: GenerateContentResponsePromptFeedback | None = None
+        self.last_chunk: GenerateContentResponse | None = None
+
+    @property
+    def finished(self) -> bool:
+        """Whether the stream ended with a finish reason or prompt feedback."""
+        return 0 in self.finish_reasons or self.prompt_feedback is not None
+
+    @property
+    def discarded(self) -> bool:
+        """Whether parts after the last checkpoint were reported to observers."""
+        checkpoint = self.checkpoints.get(0)
+        return len(self.parts.get(0, [])) > (checkpoint[1] if checkpoint else 0)
+
+    async def add(self, chunk: GenerateContentResponse) -> None:
+        """Add a chunk, reporting its progress and content to stream observers."""
+        self.last_chunk = chunk
+        if chunk.usage_metadata is not None:
+            self.usage = chunk.usage_metadata
+        if chunk.prompt_feedback is not None:
+            self.prompt_feedback = chunk.prompt_feedback
+
+        # report cumulative output tokens when the chunk carries usage
+        # (candidates + thoughts, matching usage_metadata_to_model_usage's
+        # output_tokens convention), else a bare heartbeat
+        output_tokens: int | None = None
+        if chunk.usage_metadata is not None:
+            output_tokens = _output_token_count(chunk.usage_metadata) or None
+        report_model_stream_progress(output_tokens)
+
+        for candidate in chunk.candidates or []:
+            if candidate.index is None:
+                continue
+            idx = candidate.index
+            parts = self.parts.setdefault(idx, [])
+            self.candidates[idx] = candidate
+            if candidate.finish_reason is not None:
+                self.finish_reasons[idx] = candidate.finish_reason
+            if candidate.content and candidate.content.parts:
+                parts.extend(candidate.content.parts)
+                # report content deltas for the first candidate only —
+                # interleaving multiple candidates' fragments into the
+                # single delta stream would corrupt accumulating
+                # consumers
+                if idx == 0:
+                    for part in candidate.content.parts:
+                        await _report_stream_part_delta(part)
+            if candidate.continuation_token:
+                self.checkpoints[idx] = (candidate.continuation_token, len(parts))
+                self.checkpoint_usage = self.usage
+
+        # usage that arrives before any part after the checkpoint (on the
+        # checkpoint's chunk or a later metadata-only one) is the checkpoint's
+        if (
+            chunk.usage_metadata is not None
+            and 0 in self.checkpoints
+            and not self.discarded
+        ):
+            self.checkpoint_usage = self.usage
+
+    def response(
+        self, cut_off: bool, continued: bool
+    ) -> GenerateContentResponse | None:
+        """The response streamed so far, or None if no chunk arrived.
+
+        The response of a request in a continued turn (`continued`) keeps a
+        thought signature with no output text before it in the request as its
+        own part, as the continuation's merge keeps parts.
+
+        A cut-off response keeps only the parts up to the last checkpoint (the
+        next request resumes from there). Its usage and metadata are
+        approximate, as an interrupted stream is rare: see `_cut_off_usage`,
+        and a trimmed candidate drops its grounding and citation metadata, as
+        it may cite the discarded text.
+        """
+        if self.last_chunk is None:
+            return None
+        candidates: list[Candidate] = []
+        for idx in sorted(self.parts):
+            parts = self.parts[idx]
+            checkpoint = self.checkpoints.get(idx)
+            kept = parts[: checkpoint[1] if checkpoint else 0] if cut_off else parts
+            trimmed = len(kept) < len(parts)
+            last = self.candidates[idx]
+            candidates.append(
+                Candidate(
+                    content=Content(
+                        parts=_merge_streamed_parts(kept, continued), role="model"
+                    ),
+                    finish_reason=None if cut_off else self.finish_reasons.get(idx),
+                    safety_ratings=last.safety_ratings,
+                    citation_metadata=None if trimmed else last.citation_metadata,
+                    token_count=last.token_count,
+                    grounding_metadata=None if trimmed else last.grounding_metadata,
+                    avg_logprobs=last.avg_logprobs,
+                    continuation_token=checkpoint[0] if checkpoint else None,
+                    index=idx,
+                )
+            )
+        return GenerateContentResponse(
+            candidates=candidates,
+            usage_metadata=self._cut_off_usage() if cut_off else self.usage,
+            prompt_feedback=self.prompt_feedback,
+            model_version=self.last_chunk.model_version,
+            response_id=self.last_chunk.response_id,
+        )
+
+    def _cut_off_usage(self) -> GenerateContentResponseUsageMetadata | None:
+        """Usage of a cut-off request, approximate when it discarded output.
+
+        The request is billed the usage it reported, with its prompt wherever
+        that report arrived. When it discarded output, its output tokens are
+        those reported at the checkpoint, or none if no usage came by then.
+        """
+        if self.usage is None or not self.discarded:
+            return self.usage
+        if self.checkpoint_usage is not None:
+            return self.checkpoint_usage
+        return self.usage.model_copy(
+            update={
+                "candidates_token_count": None,
+                "candidates_tokens_details": None,
+                "thoughts_token_count": None,
+                "total_token_count": (self.usage.total_token_count or 0)
+                - _output_token_count(self.usage),
+            }
+        )
+
+
+def _output_token_count(usage: GenerateContentResponseUsageMetadata | None) -> int:
+    """Output tokens of a usage report: candidates and thoughts."""
+    if usage is None:
+        return 0
+    return (usage.candidates_token_count or 0) + (usage.thoughts_token_count or 0)
+
+
+def _merge_streamed_parts(
+    accumulated_parts: list[Part], keep_unattached_signatures: bool = False
+) -> list[Part]:
+    """Join a streamed candidate's text and thought fragments into whole parts.
+
+    A signed image, code execution result or server tool call or response is
+    kept as it came. Any other signed part without text is taken as a bare
+    signature (metadata such as `part_metadata` is not content): it goes on
+    the output text before it; with no such text it is dropped, unless
+    `keep_unattached_signatures`, which keeps its part as it came.
+    """
+    merged_parts: list[Part] = []
+    thinking_texts: list[str] = []
+    output_texts: list[str] = []
+
+    for part in accumulated_parts:
+        if part.thought_signature:
+            if thinking_texts:
+                merged_parts.append(Part(thought=True, text="".join(thinking_texts)))
+                thinking_texts = []
+
+            if part.text:
+                combined_text = "".join(output_texts) + part.text
+                merged_parts.append(
+                    Part(
+                        thought_signature=part.thought_signature,
+                        text=combined_text,
+                    )
+                )
+                output_texts = []
+            elif part.function_call or part.executable_code:
+                if output_texts:
+                    merged_parts.append(Part(text="".join(output_texts)))
+                    output_texts = []
+
+                if part.function_call:
+                    merged_parts.append(
+                        Part(
+                            thought_signature=part.thought_signature,
+                            function_call=part.function_call,
+                        )
+                    )
+                elif part.executable_code:
+                    merged_parts.append(
+                        Part(
+                            thought_signature=part.thought_signature,
+                            executable_code=part.executable_code,
+                        )
+                    )
+            elif (
+                part.inline_data
+                or part.code_execution_result
+                or part.tool_call
+                or part.tool_response
+            ):
+                if output_texts:
+                    merged_parts.append(Part(text="".join(output_texts)))
+                    output_texts = []
+                merged_parts.append(part)
+            else:
+                if output_texts:
+                    merged_parts.append(
+                        Part(
+                            thought_signature=part.thought_signature,
+                            text="".join(output_texts),
+                        )
+                    )
+                    output_texts = []
+                elif keep_unattached_signatures:
+                    merged_parts.append(part)
+
+        elif part.thought is True and part.text:
+            if output_texts:
+                merged_parts.append(Part(text="".join(output_texts)))
+                output_texts = []
+            thinking_texts.append(part.text)
+        elif part.text:
+            if thinking_texts:
+                merged_parts.append(Part(thought=True, text="".join(thinking_texts)))
+                thinking_texts = []
+            output_texts.append(part.text)
+        else:
+            if thinking_texts:
+                merged_parts.append(Part(thought=True, text="".join(thinking_texts)))
+                thinking_texts = []
+            if output_texts:
+                merged_parts.append(Part(text="".join(output_texts)))
+                output_texts = []
+            merged_parts.append(part)
+
+    if thinking_texts:
+        merged_parts.append(Part(thought=True, text="".join(thinking_texts)))
+    if output_texts:
+        merged_parts.append(Part(text="".join(output_texts)))
+    return merged_parts
+
+
 class CategorizedTools(NamedTuple):
     google_search: GoogleSearch | None
     code_execution: ToolCodeExecution | None
@@ -255,6 +563,9 @@ class GoogleGenAIAPI(ModelAPI):
 
         # record api version
         self.api_version = api_version
+
+        # the endpoint a client of this model resolves (`_client_endpoint`)
+        self._resolved_endpoint: str | None = None
 
         # set when the countTokens endpoint returns 404 (no route for this
         # configuration); later counts use the local estimate
@@ -421,10 +732,23 @@ class GoogleGenAIAPI(ModelAPI):
     def is_vertex(self) -> bool:
         return self.service == "vertex"
 
+    def _effective_api_version(self) -> str | None:
+        """API version to pass to the SDK.
+
+        Default the Gemini Developer API to `v1beta` (the SDK defaults to `v1`).
+        Return `None` for Vertex or when `GOOGLE_GENAI_API_VERSION` is set so the
+        SDK resolves the version itself.
+        """
+        if self.api_version is not None:
+            return self.api_version
+        if self.is_vertex() or os.environ.get("GOOGLE_GENAI_API_VERSION"):
+            return None
+        return "v1beta"
+
     def _http_options(self, config: GenerateConfig | None = None) -> HttpOptions:
         http_options = HttpOptions(
             base_url=self.base_url,
-            api_version=self.api_version,
+            api_version=self._effective_api_version(),
         )
 
         if config is not None and config.timeout is not None:
@@ -508,6 +832,9 @@ class GoogleGenAIAPI(ModelAPI):
                     system_instruction=system_instruction,  # type: ignore[arg-type]
                     thinking_config=self.chat_thinking_config(config),
                     response_modalities=response_modalities,
+                    # continuations are sent by `_generate_with_continuations`
+                    # so that every leg is billed and logged
+                    automatic_continuation=False,
                 )
                 if config.response_schema is not None:
                     parameters.response_mime_type = "application/json"
@@ -525,41 +852,27 @@ class GoogleGenAIAPI(ModelAPI):
                 )
 
                 response: GenerateContentResponse | None = None
-                # every attempt of the retry loop below is billed; the first one
-                # is the request built from the input
-                usage: ModelUsage | None = None
-                input_context_tokens: int | None = None
+                legs: list[GenerateContentResponse] = []
+                # every request of the retry loop below (and every continuation
+                # of each) is billed; the first one is the request built from
+                # the input
+                chain = _ContinuationChain(http_hooks=http_hooks, request_id=request_id)
+                # usage of the retry loop's completed attempts: as in the SDK, a
+                # continued attempt that fails partway fails like one request
+                attempts_usage: ModelUsage | None = None
+                attempts_input_context_tokens: int | None = None
 
                 try:
                     # google sometimes requires retries for malformed function calls
                     # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
                     tool_calling_attempts = 0
                     while tool_calling_attempts < MAX_TOOL_CALLING_ATTEMPTS:
-                        if self._batcher:
-                            response = await self._batcher.generate_for_request(
-                                batch_request_dict(parameters, gemini_contents)
-                            )
-                        elif self.streaming is True or (
-                            self.streaming is None and model_stream_requested()
-                        ):
-                            response = await self._stream_generate_content(
-                                client=client,
-                                model=self.service_model_name(),
-                                contents=gemini_contents,  # type: ignore[arg-type]
-                                config=parameters,
-                            )
-                        else:
-                            response = await client.aio.models.generate_content(
-                                model=self.service_model_name(),
-                                contents=gemini_contents,  # type: ignore[arg-type]
-                                config=parameters,
-                            )
-                        attempt_usage = usage_metadata_to_model_usage(
-                            response.usage_metadata
+                        legs = await self._generate_with_continuations(
+                            client, gemini_contents, parameters, chain
                         )
-                        if tool_calling_attempts == 0:
-                            input_context_tokens = usage_input_tokens(attempt_usage)
-                        usage = sum_usage(usage, attempt_usage)
+                        attempts_usage = chain.usage
+                        attempts_input_context_tokens = chain.input_context_tokens
+                        response = _merge_continuation_legs(legs)
                         # retry for MALFORMED_FUNCTION_CALL
                         if (
                             response.candidates
@@ -592,208 +905,206 @@ class GoogleGenAIAPI(ModelAPI):
                 except ClientError as ex:
                     model_call.set_error(
                         {"error": {"message": str(ex.message), "code": ex.code}},
-                        http_hooks.end_request(request_id),
+                        chain.end_request(),
                     )
                     handled = self.handle_client_error(ex)
                     if isinstance(handled, ModelOutput):
-                        handled.usage = usage
-                        handled.input_context_tokens = input_context_tokens
+                        handled.usage = attempts_usage
+                        handled.input_context_tokens = attempts_input_context_tokens
                     return handled, model_call
 
                 assert response is not None  # mypy confused by retry loop
 
-                model_call.set_response(response, http_hooks.end_request(request_id))
+                model_call.set_response(
+                    chain.model_call_response(), chain.end_request()
+                )
 
                 model_name = response.model_version or self.service_model_name()
                 has_computer_use = gemini_tools is not None and any(
                     isinstance(tool, Tool) and tool.computer_use is not None
                     for tool in gemini_tools
                 )
+                choices = completion_choices_from_candidates(
+                    model_name, response, has_computer_use
+                )
+                # a continuation blocked with no candidate: keep the earlier
+                # legs' content, but report the block
+                if (
+                    len(legs) > 1
+                    and not legs[-1].candidates
+                    and (prompt_feedback := legs[-1].prompt_feedback) is not None
+                ):
+                    for choice in choices:
+                        choice.stop_reason = "content_filter"
+                        choice.stop_details = collect_stop_details(
+                            "google",
+                            logger,
+                            lambda: prompt_feedback_stop_details(prompt_feedback),
+                        )
                 output = ModelOutput(
                     model=model_name,
-                    choices=completion_choices_from_candidates(
-                        model_name, response, has_computer_use
-                    ),
-                    usage=usage,
-                    input_context_tokens=input_context_tokens,
+                    choices=choices,
+                    usage=chain.usage,
+                    input_context_tokens=chain.input_context_tokens,
                     response_id=response.response_id,
                 )
+                # a leg boundary can split a text (or JSON) anywhere, so a
+                # continued turn's text is not its text parts joined by lines
+                if len(legs) > 1 and (text := _output_text(response)):
+                    output.completion = text
 
                 return output, model_call
 
-    async def _stream_generate_content(
+    async def _generate_with_continuations(
         self,
         client: Client,
-        model: str,
-        contents: list[ContentUnion],
-        config: GenerateContentConfig,
-    ) -> GenerateContentResponse:
-        """Stream content generation and accumulate response.
+        contents: list[Content],
+        parameters: GenerateContentConfig,
+        chain: _ContinuationChain,
+    ) -> list[GenerateContentResponse]:
+        """Send a request, then a continuation for as long as Gemini asks for one.
 
-        Accumulates parts from streaming chunks and constructs a response
-        that matches non-streaming structure, allowing existing parsing logic
-        to handle the conversion to Inspect format.
+        A response that stops with finish reason `CONTINUATION` carries a
+        `continuation_token`; the next leg resends the same contents and config
+        with that token (https://ai.google.dev/api/generate-content). Each leg
+        is added to `chain` as it completes. As in the SDK, an error in a later
+        leg propagates.
 
-        Raises:
-            RuntimeError: If no chunks received from stream
+        Returns:
+            The response of every leg, in order.
         """
-        candidates_parts: dict[int, list[Part]] = {}
-        last_chunk: GenerateContentResponse | None = None
-
-        stream = await client.aio.models.generate_content_stream(
-            model=model,
-            contents=contents,
-            config=config,
-        )
-
-        report_model_stream_start()
-
-        async for chunk in stream:
-            last_chunk = chunk
-
-            # report cumulative output tokens when the chunk carries usage
-            # (candidates + thoughts, matching usage_metadata_to_model_usage's
-            # output_tokens convention), else a bare heartbeat
-            output_tokens: int | None = None
-            if chunk.usage_metadata is not None:
-                output_tokens = (chunk.usage_metadata.candidates_token_count or 0) + (
-                    chunk.usage_metadata.thoughts_token_count or 0
-                ) or None
-            report_model_stream_progress(output_tokens)
-
-            if chunk.candidates:
-                for candidate in chunk.candidates:
-                    if candidate.index is None:
-                        continue
-
-                    idx = candidate.index
-                    if idx not in candidates_parts:
-                        candidates_parts[idx] = []
-
-                    if candidate.content and candidate.content.parts:
-                        candidates_parts[idx].extend(candidate.content.parts)
-                        # report content deltas for the first candidate only —
-                        # interleaving multiple candidates' fragments into the
-                        # single delta stream would corrupt accumulating
-                        # consumers
-                        if idx == 0:
-                            for part in candidate.content.parts:
-                                await _report_stream_part_delta(part)
-
-        if last_chunk is None:
-            raise NoStreamDataError(
-                f"No response chunks received from streaming API for model {model}"
+        if not self._batcher and (
+            self.streaming is True
+            or (self.streaming is None and model_stream_requested())
+        ):
+            return await self._stream_with_continuations(
+                client, contents, parameters, chain
             )
 
-        final_candidates = []
-        for idx in sorted(candidates_parts.keys()):
-            accumulated_parts = candidates_parts[idx]
-
-            merged_parts: list[Part] = []
-            thinking_texts: list[str] = []
-            output_texts: list[str] = []
-
-            for part in accumulated_parts:
-                if part.thought_signature:
-                    if thinking_texts:
-                        merged_parts.append(
-                            Part(thought=True, text="".join(thinking_texts))
-                        )
-                        thinking_texts = []
-
-                    if part.text:
-                        combined_text = "".join(output_texts) + part.text
-                        merged_parts.append(
-                            Part(
-                                thought_signature=part.thought_signature,
-                                text=combined_text,
-                            )
-                        )
-                        output_texts = []
-                    elif part.function_call or part.executable_code:
-                        if output_texts:
-                            merged_parts.append(Part(text="".join(output_texts)))
-                            output_texts = []
-
-                        if part.function_call:
-                            merged_parts.append(
-                                Part(
-                                    thought_signature=part.thought_signature,
-                                    function_call=part.function_call,
-                                )
-                            )
-                        elif part.executable_code:
-                            merged_parts.append(
-                                Part(
-                                    thought_signature=part.thought_signature,
-                                    executable_code=part.executable_code,
-                                )
-                            )
-                    else:
-                        if output_texts:
-                            merged_parts.append(
-                                Part(
-                                    thought_signature=part.thought_signature,
-                                    text="".join(output_texts),
-                                )
-                            )
-                            output_texts = []
-
-                elif part.thought is True and part.text:
-                    if output_texts:
-                        merged_parts.append(Part(text="".join(output_texts)))
-                        output_texts = []
-                    thinking_texts.append(part.text)
-                elif part.text:
-                    if thinking_texts:
-                        merged_parts.append(
-                            Part(thought=True, text="".join(thinking_texts))
-                        )
-                        thinking_texts = []
-                    output_texts.append(part.text)
-                else:
-                    if thinking_texts:
-                        merged_parts.append(
-                            Part(thought=True, text="".join(thinking_texts))
-                        )
-                        thinking_texts = []
-                    if output_texts:
-                        merged_parts.append(Part(text="".join(output_texts)))
-                        output_texts = []
-                    merged_parts.append(part)
-
-            if thinking_texts:
-                merged_parts.append(Part(thought=True, text="".join(thinking_texts)))
-            if output_texts:
-                merged_parts.append(Part(text="".join(output_texts)))
-
-            last_candidate_for_idx = None
-            if last_chunk.candidates:
-                for c in last_chunk.candidates:
-                    if c.index == idx:
-                        last_candidate_for_idx = c
-                        break
-
-            if last_candidate_for_idx:
-                final_candidates.append(
-                    Candidate(
-                        content=Content(parts=merged_parts, role="model"),
-                        finish_reason=last_candidate_for_idx.finish_reason,
-                        safety_ratings=last_candidate_for_idx.safety_ratings,
-                        citation_metadata=last_candidate_for_idx.citation_metadata,
-                        token_count=last_candidate_for_idx.token_count,
-                        grounding_metadata=last_candidate_for_idx.grounding_metadata,
-                        avg_logprobs=last_candidate_for_idx.avg_logprobs,
-                        index=idx,
-                    )
+        legs: list[GenerateContentResponse] = []
+        leg_parameters = parameters
+        while True:
+            if self._batcher:
+                response = await self._batcher.generate_for_request(
+                    batch_request_dict(leg_parameters, contents)
                 )
+            else:
+                response = await client.aio.models.generate_content(
+                    model=self.service_model_name(),
+                    contents=contents,  # type: ignore[arg-type]
+                    config=leg_parameters,
+                )
+            legs.append(response)
+            chain.add(response)
+            continuation_token = _continuation_token(response, parameters)
+            # the batch API has no continuations: it rejects max_output_tokens
+            # above one request's cap
+            if continuation_token is None or self._batcher:
+                return legs
+            leg_parameters = parameters.model_copy(
+                update={"continuation_token": continuation_token}
+            )
 
-        return GenerateContentResponse(
-            candidates=final_candidates,
-            usage_metadata=last_chunk.usage_metadata,
-            model_version=last_chunk.model_version,
-            response_id=last_chunk.response_id,
+    async def _stream_with_continuations(
+        self,
+        client: Client,
+        contents: list[Content],
+        parameters: GenerateContentConfig,
+        chain: _ContinuationChain,
+    ) -> list[GenerateContentResponse]:
+        """Stream a request and its continuations, one leg per streamed request.
+
+        The SDK's own `StreamContinuation` decides whether to send another
+        request and with which token: after `CONTINUATION`, and after a stream
+        that ended or dropped without a finish reason once it passed a
+        checkpoint. A leg cut off that way keeps only its parts up to the
+        checkpoint (the next leg resumes from there), and stream observers are
+        reset to the kept output.
+
+        Returns:
+            The response of every leg, in order.
+        """
+        # the state continues on its own (automatic_continuation unset), while
+        # each request turns it off so that the SDK does not continue it too
+        state = StreamContinuation(
+            parameters.model_copy(update={"automatic_continuation": None})
         )
+        legs: list[GenerateContentResponse] = []
+        while True:
+            request_config = state.start_hop()
+            assert isinstance(request_config, GenerateContentConfig)
+            leg = _StreamedLeg()
+            error = await self._stream_leg(
+                client,
+                contents,
+                request_config.model_copy(update={"automatic_continuation": False}),
+                state,
+                leg,
+            )
+            # several candidates are never continued (see `_continuation_token`),
+            # so a stream that drops or ends early is not resumed either
+            if len(leg.parts) > 1 or (parameters.candidate_count or 1) > 1:
+                if error is not None:
+                    raise error
+                resume = False
+            else:
+                resume = state.end_hop(error)
+            cut_off = resume and not leg.finished
+            response = leg.response(cut_off=cut_off, continued=resume or bool(legs))
+            if response is None:
+                if resume:
+                    continue
+                raise NoStreamDataError(
+                    "No response chunks received from streaming API for model "
+                    f"{self.service_model_name()}"
+                )
+            legs.append(response)
+            chain.add(response)
+            if not resume:
+                _continuation_token(response, parameters)
+                return legs
+            if cut_off and leg.discarded:
+                await report_model_stream_restart()
+                for kept in legs:
+                    if kept.candidates and kept.candidates[0].content:
+                        for part in kept.candidates[0].content.parts or []:
+                            await _report_stream_part_delta(part)
+                # restore the kept output's token count, when every leg has one
+                if all(kept.usage_metadata for kept in legs):
+                    report_model_stream_start()
+                    report_model_stream_progress(
+                        sum(_output_token_count(kept.usage_metadata) for kept in legs)
+                    )
+
+    async def _stream_leg(
+        self,
+        client: Client,
+        contents: list[Content],
+        config: GenerateContentConfig,
+        state: StreamContinuation,
+        leg: _StreamedLeg,
+    ) -> Exception | None:
+        """Stream one request into `leg`, returning the error that ended it (if any)."""
+        try:
+            stream = await client.aio.models.generate_content_stream(
+                model=self.service_model_name(),
+                contents=contents,  # type: ignore[arg-type]
+                config=config,
+            )
+            iterator = aiter(stream)
+        except Exception as ex:
+            return ex
+
+        report_model_stream_start()
+        while True:
+            try:
+                chunk = await anext(iterator)
+            except StopAsyncIteration:
+                return None
+            except Exception as ex:
+                return ex
+            state.observe(chunk)
+            await leg.add(chunk)
 
     @override
     async def count_tokens(
@@ -980,6 +1291,16 @@ class GoogleGenAIAPI(ModelAPI):
         return RetryDecision.no()
 
     @override
+    def _client_endpoint(self) -> str | None:
+        # a client is constructed per call; one constructed here only reads
+        # the endpoint it resolves, and sends nothing
+        if self._resolved_endpoint is None:
+            client = self.model_client()
+            self._resolved_endpoint = client._api_client._http_options.base_url
+            client.close()
+        return self._resolved_endpoint
+
+    @override
     def connection_key(self) -> str:
         """Scope adaptive concurrency per (key, model).
 
@@ -1049,7 +1370,7 @@ class GoogleGenAIAPI(ModelAPI):
 
         http_options = http_options or HttpOptions(
             base_url=self.base_url,
-            api_version=self.api_version,
+            api_version=self._effective_api_version(),
         )
         # Seed both `client_args` and `async_client_args`: genai's SSL-context
         # resolution reads only the sync dict when it is non-empty, ignoring the
@@ -1504,19 +1825,17 @@ async def content(
     elif isinstance(message, ChatMessageAssistant):
         content_parts: list[Part] = []
         emitted_tool_call_ids: set[str] = set()
-        server_tool_signature: bytes | None = None
 
         def part_from_tool_call(tool_call: ToolCall) -> Part:
             if tool_call.function == "computer":
                 action_name = (
                     tool_call.id.rsplit("_", 1)[0] if tool_call.id else "computer"
                 )
-                _, action_args = gemini_action_from_tool_call(tool_call)
                 return Part(
                     function_call=FunctionCall(
                         id=tool_call.id,
                         name=action_name,
-                        args=action_args,
+                        args=gemini_replay_args(action_name, tool_call),
                     )
                 )
             else:
@@ -1532,8 +1851,7 @@ async def content(
             part: Part, reasoning_block: ContentReasoning
         ) -> None:
             # Position-only anchors carry empty reasoning — they mark a function_call's
-            # original position without a signature. Caller borrows a signature
-            # from elsewhere if the verifier requires one.
+            # original position without a signature.
             if not reasoning_block.reasoning:
                 return
             if reasoning_block.redacted:
@@ -1548,6 +1866,15 @@ async def content(
         if isinstance(message.content, str):
             content_parts.append(Part(text=message.content or NO_CONTENT))
         else:
+            # function calls anchored in place carry their own signatures, so a
+            # signature before other content is that content's; without anchors
+            # (older logs) it goes on the first tool call
+            signatures_in_place = message.tool_calls is None or any(
+                isinstance(c, ContentReasoning)
+                and isinstance(c.internal, dict)
+                and _GEMINI_FUNCTION_CALL_ID_KEY in c.internal
+                for c in message.content
+            )
             for i, content in enumerate(message.content):
                 if isinstance(content, ContentReasoning):
                     if emulate_reasoning:
@@ -1586,38 +1913,14 @@ async def content(
                                 if tool_call is not None:
                                     part = part_from_tool_call(tool_call)
                                     if content.reasoning:
-                                        # Signed anchor — apply its signature.
-                                        # Clear any in-flight server_tool_signature
-                                        # so a later unsigned anchor doesn't
-                                        # borrow it across an intervening signed
-                                        # function_call. The borrow is only
-                                        # valid for a lone unsigned function_call
-                                        # IMMEDIATELY following a signed server
-                                        # tool — once another signed Part
-                                        # intervenes, the signature is no longer
-                                        # context-adjacent.
                                         apply_reasoning_signature(part, content)
-                                        server_tool_signature = None
-                                    elif server_tool_signature is not None:
-                                        # Position-only anchor with no signature.
-                                        # Borrow the in-flight server-tool sig
-                                        # (works when the server tool was
-                                        # processed IMMEDIATELY before this
-                                        # anchor in iteration order, with no
-                                        # intervening signed function_calls).
-                                        part.thought_signature = server_tool_signature
-                                        server_tool_signature = None
-                                    # else: leave the function_call unsigned. An
-                                    # empty anchor with no in-flight signature
-                                    # corresponds to a parallel sibling at its
-                                    # original position; the verifier accepts
-                                    # unsigned siblings in their original
-                                    # positions per Google's "first parallel
-                                    # call only" rule. Borrowing an unrelated
-                                    # signature here has been observed to
-                                    # produce "Corrupted thought signature"
-                                    # 400s — the safe path is to leave it
-                                    # unsigned.
+                                    # else: an unsigned call is a parallel
+                                    # sibling of the step's first (signed) call.
+                                    # Gemini accepts it unsigned at its original
+                                    # position and rejects any borrowed
+                                    # signature ("Corrupted thought signature",
+                                    # "Tool type of function_call part does not
+                                    # match with tool call context").
                                     content_parts.append(part)
                                     emitted_tool_call_ids.add(tool_call.id)
                                     working_reasoning_block = None
@@ -1633,18 +1936,17 @@ async def content(
                     # server side tool use
                     if isinstance(content, ContentToolUse):
                         parts_to_append = parts_from_server_tool_use(content)
-                        if (
-                            message.tool_calls is not None
-                            and server_tool_signature is None
-                        ):
-                            server_tool_signature = next(
-                                (
-                                    part.thought_signature
-                                    for part in parts_to_append
-                                    if part.thought_signature is not None
-                                ),
-                                None,
-                            )
+
+                    # an empty text that carries a signature (as Gemini sends
+                    # one) is replayed as it came, not as placeholder text
+                    elif (
+                        isinstance(content, ContentText)
+                        and not content.text
+                        and working_reasoning_block is not None
+                        and working_reasoning_block.redacted
+                        and signatures_in_place
+                    ):
+                        parts_to_append = [Part(text="")]
 
                     # other content
                     else:
@@ -1655,13 +1957,10 @@ async def content(
 
                     # If previously there was a reasoning block, we need to set the "thought_signature"
                     # using the reasoning from that block.
-                    # However, if there are tool calls in this message, the signature should go on
-                    # the first tool call instead, not on text or server tool use parts
-                    # (per Gemini API docs).
-                    if (
-                        working_reasoning_block is not None
-                        and message.tool_calls is None
-                    ):
+                    # However, if there are unanchored tool calls in this message, the signature
+                    # should go on the first tool call instead, not on text or server tool use
+                    # parts (per Gemini API docs).
+                    if working_reasoning_block is not None and signatures_in_place:
                         if (
                             working_reasoning_block.reasoning is not None
                             and working_reasoning_block.redacted
@@ -1676,6 +1975,9 @@ async def content(
                         # Now, reset the previous reasoning block.
                         working_reasoning_block = None
                     content_parts.extend(parts_to_append)
+            content_parts = _replay_server_tool_responses_after_unsigned_calls(
+                content_parts
+            )
 
         # Now handle tool calls
         if message.tool_calls is not None:
@@ -1684,19 +1986,9 @@ async def content(
             # an anchor — typically legacy eval logs from before
             # anchors-for-all, or any captured function_call without a name.
             #
-            # Signature handling:
-            #   - If a working_reasoning_block is in flight (visible
-            #     thought-text consolidation), apply its signature.
-            #   - Else, if the in-flight server_tool_signature is available
-            #     (a ContentToolUse was processed earlier in iteration),
-            #     borrow it. This handles legacy logs where an unsigned
-            #     function_call followed a signed server tool in the original
-            #     response. We do NOT borrow when the server tool would come
-            #     LATER in iteration: borrowing across mismatched contexts
-            #     produces "Corrupted thought signature" 400s.
-            #   - Else, leave the function_call unsigned. The verifier
-            #     accepts unsigned parallel siblings at their original
-            #     positions per Google's "first parallel call only" rule.
+            # If a working_reasoning_block is in flight (visible thought-text
+            # consolidation), its signature goes on the first call; the rest
+            # stay unsigned, as Gemini sends parallel calls.
             for tool_call in message.tool_calls:
                 if tool_call.id in emitted_tool_call_ids:
                     continue
@@ -1705,27 +1997,8 @@ async def content(
 
                 # handle reasoning block if available
                 if working_reasoning_block is not None:
-                    # Apply the in-flight working signature. Also clear
-                    # server_tool_signature so a later unsigned tool_call in
-                    # this loop doesn't borrow a stale server-tool sig across
-                    # this now-signed function_call.
                     apply_reasoning_signature(part, working_reasoning_block)
                     working_reasoning_block = None
-                    server_tool_signature = None
-                elif server_tool_signature is not None:
-                    # Borrow the in-flight server-tool signature for an
-                    # unanchored unsigned function_call — empirically observed
-                    # to satisfy the verifier when the unsigned function_call
-                    # follows a signed server tool with no intervening signed
-                    # function_call. Cross-context borrows (intervening signed
-                    # parts, or server tool processed AFTER this point) have
-                    # been observed to produce "Corrupted thought signature"
-                    # 400s; both the anchor-replay path above and the
-                    # working_reasoning_block branch clear server_tool_signature
-                    # whenever a signed signature is consumed, keeping the
-                    # borrow scoped to the immediately-adjacent case.
-                    part.thought_signature = server_tool_signature
-                    server_tool_signature = None
 
                 content_parts.append(part)
         return Content(role="model", parts=content_parts)
@@ -1986,10 +2259,9 @@ def completion_choice_from_candidate(
                 # different position produces a 400 "missing thought_signature".
                 # That is what anchor-all guards against — the anchor pins the
                 # position so the unsigned sibling is replayed where the model
-                # emitted it. The replay path will only borrow a signature
-                # from an immediately-adjacent signed server-side tool, never
-                # across positions, since cross-context borrows trigger
-                # "Corrupted thought signature" 400s.
+                # emitted it, never with a borrowed signature, which Gemini
+                # rejects. A server tool's response comes after the unsigned
+                # calls of its step; replay restores that order.
                 if part.function_call.name:
                     function_call_id = part.function_call.id or (
                         f"{part.function_call.name}_{uuid()}"
@@ -2025,6 +2297,7 @@ def completion_choice_from_candidate(
                 )
                 if server_tool_use is not None:
                     content.append(server_tool_use)
+                    working_reasoning_block = None
                 continue
 
             if part.text is None and part.executable_code is None:
@@ -2107,6 +2380,8 @@ def completion_choice_from_candidate(
 
                 if part.text is not None:
                     content.append(ContentText(text=part.text))
+                    # a signature after this text is not the earlier reasoning's
+                    working_reasoning_block = None
 
     # distribute citations to individual ContentText parts with adjusted indexes
     citations = get_candidate_citations(candidate)
@@ -2428,6 +2703,37 @@ def server_tool_use_from_tool_call(
     )
 
 
+def _replay_server_tool_responses_after_unsigned_calls(parts: list[Part]) -> list[Part]:
+    """Move each server tool response after the unsigned function calls that follow it.
+
+    Gemini sends a step that runs a server tool (such as search) and calls
+    functions in parallel as `[tool_call (signed), function_call (unsigned),
+    ..., tool_response (signed)]`. Inspect stores the server tool's call and
+    response together in one `ContentToolUse`, so they are rebuilt next to each
+    other. Gemini rejects an unsigned function_call placed after the response
+    ("Function call is missing a thought_signature") and one given the server
+    tool's signature ("Tool type of function_call part does not match with tool
+    call context"). This restores the order Gemini sent.
+
+    A run ends at any part other than an unsigned function_call: a signed
+    function_call starts a new step, and text, thoughts and other tool parts
+    came after the response.
+    """
+    replayed: list[Part] = []
+    held_responses: list[Part] = []
+    for part in parts:
+        if part.function_call is not None and part.thought_signature is None:
+            replayed.append(part)
+        elif part.tool_response is not None:
+            held_responses.append(part)
+        else:
+            replayed.extend(held_responses)
+            held_responses.clear()
+            replayed.append(part)
+    replayed.extend(held_responses)
+    return replayed
+
+
 def parts_from_server_tool_use(tool: ContentToolUse) -> list[Part]:
     """Reconstruct Gemini request parts from server-side tool use."""
     if tool.tool_type == "web_search":
@@ -2483,7 +2789,9 @@ def finish_reason_to_stop_reason(finish_reason: FinishReason) -> StopReason:
     match finish_reason:
         case FinishReason.STOP:
             return "stop"
-        case FinishReason.MAX_TOKENS:
+        case FinishReason.MAX_TOKENS | FinishReason.CONTINUATION:
+            # CONTINUATION reaches an output only when it cannot be continued
+            # (see `_continuation_token`), which leaves it cut at a token limit
             return "max_tokens"
         case (
             FinishReason.SAFETY
@@ -2742,3 +3050,152 @@ def _malformed_function_message(candidate: Candidate | GenerateContentResponse) 
         return candidate.finish_message
     else:
         return DEFAULT_MALFORMED_FUNCTION_MESSAGE
+
+
+def _continuation_token(
+    response: GenerateContentResponse, parameters: GenerateContentConfig
+) -> bytes | None:
+    """The token to continue a response with, or None if it is complete.
+
+    Only a request for a single candidate is continued: a continuation
+    resumes the request, not one candidate of several. Otherwise the
+    `CONTINUATION` candidates are returned as they are, with stop reason
+    `max_tokens`.
+    """
+    candidates = response.candidates or []
+    if not any(c.finish_reason == FinishReason.CONTINUATION for c in candidates):
+        return None
+    if len(candidates) != 1 or (parameters.candidate_count or 1) > 1:
+        warn_once(
+            logger,
+            "Gemini returned a CONTINUATION response with several candidates, "
+            "which Inspect does not continue. The truncated candidates are "
+            "returned with stop reason 'max_tokens'.",
+        )
+        return None
+    if not candidates[0].continuation_token:
+        warn_once(
+            logger,
+            "Gemini returned a CONTINUATION response without a continuation "
+            "token. The truncated response is returned with stop reason "
+            "'max_tokens'.",
+        )
+        return None
+    return candidates[0].continuation_token
+
+
+def _merge_continuation_legs(
+    legs: list[GenerateContentResponse],
+) -> GenerateContentResponse:
+    """Merge the legs of a continued response into one response.
+
+    `merge_continuation_responses` keeps each leg's parts apart, signatures
+    included, and shifts grounding chunk and part indices. Two more things are
+    needed for the merged response to convert like a single one:
+
+    - Grounding segment offsets are read as offsets into the response's
+      output text (see `get_candidate_citations`), so a later leg's segments
+      are moved past the output text of the legs before it.
+    - A part with only a thought signature becomes signed empty text, so that
+      it converts and replays in its place, and an empty part without one is
+      dropped (it has nothing to replay).
+    """
+    if len(legs) == 1:
+        return legs[0]
+
+    shifted_legs: list[GenerateContentResponse] = []
+    text_length = 0
+    for leg in legs:
+        candidate = leg.candidates[0] if leg.candidates else None
+        if candidate is not None and text_length > 0:
+            leg = leg.model_copy(
+                update={
+                    "candidates": [_shift_grounding_segments(candidate, text_length)]
+                }
+            )
+        shifted_legs.append(leg)
+        text_length += len(_output_text(leg))
+
+    merged = merge_continuation_responses(shifted_legs)
+    if not merged.candidates:
+        return merged
+    candidate = merged.candidates[0]
+    if candidate.content is None or not candidate.content.parts:
+        return merged
+
+    parts = [
+        continued
+        for part in candidate.content.parts
+        if (continued := _continued_part(part)) is not None
+    ]
+    return merged.model_copy(
+        update={
+            "candidates": [
+                candidate.model_copy(
+                    update={
+                        "content": candidate.content.model_copy(update={"parts": parts})
+                    }
+                ),
+                *merged.candidates[1:],
+            ]
+        }
+    )
+
+
+def _continued_part(part: Part) -> Part | None:
+    """A part of a continued response as it converts (see `_merge_continuation_legs`)."""
+    if part.text or _part_fields(part) - {"text", "thought_signature"}:
+        return part
+    if part.thought_signature:
+        return Part(text="", thought_signature=part.thought_signature)
+    return None
+
+
+def _part_fields(part: Part) -> set[str]:
+    """The fields a part sets, counting `thought=False` as unset."""
+    return {
+        name
+        for name, value in part.model_dump(exclude_none=True).items()
+        if not (name == "thought" and value is False)
+    }
+
+
+def _output_text(response: GenerateContentResponse) -> str:
+    """The first candidate's output text, as the SDK's `response.text` reads it.
+
+    Its text parts other than thoughts, with nothing between them.
+    """
+    candidate = response.candidates[0] if response.candidates else None
+    parts = (candidate.content.parts if candidate and candidate.content else None) or []
+    return "".join(part.text or "" for part in parts if not part.thought)
+
+
+def _shift_grounding_segments(candidate: Candidate, offset: int) -> Candidate:
+    """Move a candidate's grounding segment offsets later by `offset`."""
+    metadata = candidate.grounding_metadata
+    if metadata is None or not metadata.grounding_supports:
+        return candidate
+    supports = [
+        support.model_copy(
+            update={
+                "segment": support.segment.model_copy(
+                    update={
+                        "start_index": (support.segment.start_index or 0) + offset,
+                        "end_index": support.segment.end_index + offset
+                        if support.segment.end_index is not None
+                        else None,
+                    }
+                )
+            }
+        )
+        if support.segment is not None
+        else support
+        for support in metadata.grounding_supports
+    ]
+    return candidate.model_copy(
+        update={
+            "grounding_metadata": metadata.model_copy(
+                update={"grounding_supports": supports}
+            )
+        }
+    )

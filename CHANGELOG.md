@@ -1,5 +1,236 @@
 # Changelog
 
+## [0.3.289](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.288...0.3.289) (2026-11-10)
+
+
+### Features
+
+* **anthropic:** support Claude Fable 5.2 ([#6443](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6443)) ([cd2d730](https://github.com/UKGovernmentBEIS/inspect_ai/commit/cd2d730ec0fd59180094cec0dbfbd434d233890a))
+* **sentinel:** act on a sentinel sidecar's decisions when model calls go through a proxy ([#6303](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6303)) ([a0ce5ab](https://github.com/UKGovernmentBEIS/inspect_ai/commit/a0ce5ab59f538252a635753afef0ba06d7c99cde))
+
+
+### Bug Fixes
+
+* ACP code no longer imports acp.helpers, which agent-client-protocol 1.0 removed ([#6422](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6422)) ([73db901](https://github.com/UKGovernmentBEIS/inspect_ai/commit/73db901191f357d5ed651fbcd7580fe2e613611d))
+* **anthropic:** estimate tokens locally for Bedrock models ([#6175](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6175)) ([a5639be](https://github.com/UKGovernmentBEIS/inspect_ai/commit/a5639be80de28e9711b83fa4870a4a61c73060c9))
+* **bedrock:** include cache tokens in streamed usage ([#5942](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5942)) ([3e9fc57](https://github.com/UKGovernmentBEIS/inspect_ai/commit/3e9fc574826ff0b71b340ab71d7fa282dff40334))
+* checkpoint restore time is linear (not quadratic) in the number of restored events ([#6401](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6401)) ([319a319](https://github.com/UKGovernmentBEIS/inspect_ai/commit/319a319fc063388aa8ea8851383d724d80cc2c99))
+* eval_set no longer re-runs or double-returns a task logged by separate runs ([#6428](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6428)) ([0fae2fe](https://github.com/UKGovernmentBEIS/inspect_ai/commit/0fae2fee49506f4522fdc55334731dd33b7634a4))
+* evaluate missing samples when eval_set selection changes ([#6427](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6427)) ([2e0eff3](https://github.com/UKGovernmentBEIS/inspect_ai/commit/2e0eff396f7b62032b24953b3d4db1526a4803f3))
+* f1 stop words not removed when separated by a newline or tab ([#5940](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5940)) ([e253d18](https://github.com/UKGovernmentBEIS/inspect_ai/commit/e253d18ea2c0a3ea1c7030c354aa442ab7268e8d))
+* Gemini go_back, go_forward and search computer calls are replayed with the wrong arguments ([#6373](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6373)) ([63a724c](https://github.com/UKGovernmentBEIS/inspect_ai/commit/63a724c5895686f2b6dbacc9742b57d5998ea04f))
+* **google:** computer use doesn't clear field before typing text ([#6145](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6145)) ([6088d4b](https://github.com/UKGovernmentBEIS/inspect_ai/commit/6088d4b3c2d1bd16afe81c9cbfa5f64892183053))
+* inspect score --stream replacing its input log with a partial log ([#6174](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6174)) ([18982e3](https://github.com/UKGovernmentBEIS/inspect_ai/commit/18982e35a68d4aebfff7f351e2c029067014ed8c))
+* **openrouter:** preserve max reasoning effort ([#6185](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6185)) ([4a7d219](https://github.com/UKGovernmentBEIS/inspect_ai/commit/4a7d219c642fa20c07fdd8c19b5fa3f9d19478cb))
+* preserve eval samples containing lone surrogate messages ([#6386](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6386)) ([3113633](https://github.com/UKGovernmentBEIS/inspect_ai/commit/31136331885d1b84b4962eaac05138be2ddd49c9))
+* preserve retry cost and dataset memory limits and accept model cost config ([#6429](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6429)) ([3643181](https://github.com/UKGovernmentBEIS/inspect_ai/commit/36431815fc0d1dcd5dbece3edc19347a964b730a))
+* reject duplicate column names in csv_dataset ([#6057](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6057)) ([9838aeb](https://github.com/UKGovernmentBEIS/inspect_ai/commit/9838aeb9cb821e378773ba2ecee286ca89f70261))
+* samples_df, messages_df and events_df raise on unreadable eval columns despite strict=False ([#6186](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6186)) ([395fa3f](https://github.com/UKGovernmentBEIS/inspect_ai/commit/395fa3fda324b378a0e8fd577ea5d213af5ff2ae))
+* score compound Chinese large units such as 一万亿 correctly ([#6179](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6179)) ([d92ad2e](https://github.com/UKGovernmentBEIS/inspect_ai/commit/d92ad2edbba7565814fd433f760b6e14c773074d))
+* tag blank completions with reason no_response in model_graded_qa and choice ([#5987](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5987)) ([7a168f5](https://github.com/UKGovernmentBEIS/inspect_ai/commit/7a168f5ff95496bcd8bb237247f56cbf9d366437))
+* task listing and evaluation with absolute paths ([#5268](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5268)) ([da64cc6](https://github.com/UKGovernmentBEIS/inspect_ai/commit/da64cc6475734b3b4873de6c1957d727c86ba192))
+* task retries no longer reuse one dynamic sample's result for another sample without an id ([#6314](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6314)) ([d7c0122](https://github.com/UKGovernmentBEIS/inspect_ai/commit/d7c01220c17947f53078141f1f2d299e837436e8))
+* the sdist no longer includes the sandbox tools binaries; an install built from it downloads them at first use ([#6306](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6306)) ([033726e](https://github.com/UKGovernmentBEIS/inspect_ai/commit/033726e73482aa87fd65139fcc61c3a2fea0ce6d))
+* Type sandboxenv and hooks so decorated classes keep their own type ([#6009](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6009)) ([b30ad16](https://github.com/UKGovernmentBEIS/inspect_ai/commit/b30ad16c2eaa7d6c7051759bd5ec253d2b0d09d5))
+
+## [0.3.288](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.287...0.3.288) (2026-11-06)
+
+
+### Breaking Changes
+
+* environments with `google-genai` `2.x` fail the `validate_google_client` version check. Install `google-genai>=3.0.0`.
+* Evaluations using the automatically generated Docker sandbox must provide an explicit image if they need the `nonroot` account, `pipx`, or Playwright browser dependencies.
+* Replace calls to `web_browser()` or its `web_browser_tools()` alias with `web_search()` for retrieval, or `computer()` / sandbox MCP tools for browser interaction; see #5497 for migration options.
+
+### Features
+
+* a runtime can keep a react() or deepagent() loop going after it answers ([#6212](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6212)) ([cea079d](https://github.com/UKGovernmentBEIS/inspect_ai/commit/cea079d229b82a5c3b784abcb32d3e26a3391738))
+* custom tools inside a sandbox identity scope run as the scope's user ([#6316](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6316)) ([572e288](https://github.com/UKGovernmentBEIS/inspect_ai/commit/572e288078027db90ce3c776774f2e1ee3e6c756))
+* experimental transcript events for agent communication and agent swarm evidence ([#6164](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6164)) ([cba2b16](https://github.com/UKGovernmentBEIS/inspect_ai/commit/cba2b16fb411863ab381bc856567f635d0a29107))
+* inspect ctl sample agent lists a sample's named agents and messages, pauses, resumes or stops them ([#6297](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6297)) ([0a56f69](https://github.com/UKGovernmentBEIS/inspect_ai/commit/0a56f693ba9132c43a1347180542376101f716d7))
+* remove deprecated web browser tools ([#6264](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6264)) ([de4b309](https://github.com/UKGovernmentBEIS/inspect_ai/commit/de4b309791b2d4d49d3064f3c2760f37ba86cc92))
+* run each agent's sandbox tools as its own user ([#6190](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6190)) ([f59945e](https://github.com/UKGovernmentBEIS/inspect_ai/commit/f59945e549850a88825ba0368b14ca3d9a699b32))
+* **sentinel:** replay logs that do not record model-call origins, with turns inferred from the timeline ([#6098](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6098)) ([7cf09c9](https://github.com/UKGovernmentBEIS/inspect_ai/commit/7cf09c929b3ea9138762ca9e4d8d23f119554ee6))
+* use the official Python image for default Docker sandboxes ([#6238](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6238)) ([cb7645f](https://github.com/UKGovernmentBEIS/inspect_ai/commit/cb7645ffe83bf6fee7778832f03610f50a5cd2e3))
+
+
+### Bug Fixes
+
+* `inspect view` no longer terminates an unrelated process that reused a crashed server's pid ([#6247](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6247)) ([689a92e](https://github.com/UKGovernmentBEIS/inspect_ai/commit/689a92e1ed94e35ed75a750808686d928d4f2f94))
+* a bridged agent's retries after a limit no longer pay for a compaction each ([#6304](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6304)) ([3c75374](https://github.com/UKGovernmentBEIS/inspect_ai/commit/3c75374903e48d2d8e49eea9dcf01c1bf351867f))
+* a sample limit reached by overlapping bridged generations ends the sample after an inner limit ([#6263](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6263)) ([642ee4b](https://github.com/UKGovernmentBEIS/inspect_ai/commit/642ee4bd00bf24a2b1f77e7237cebb75a8ad5ee2))
+* aborting one task while a sample fails no longer stops the whole run ([#6272](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6272)) ([1ddc34d](https://github.com/UKGovernmentBEIS/inspect_ai/commit/1ddc34d5bc96f79c387459ddd046b6072a17b384))
+* **agent-bridge:** Gemini tool calls through the chat completions bridge keep their thought signatures ([#5892](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5892)) ([00d9882](https://github.com/UKGovernmentBEIS/inspect_ai/commit/00d9882b6c1081071100ab448b4bfaa4606b1afa))
+* an interrupted agent turn no longer breaks the conversation on Bedrock or Google, or leaves its tool calls pending in the log ([#6296](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6296)) ([c0f2e42](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c0f2e4275dcdbd2ca145616e473a8f70a82c0508))
+* avoid tenacity 9.2.1 'initial' DeprecationWarning in retry backoff ([#6196](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6196)) ([9498a0a](https://github.com/UKGovernmentBEIS/inspect_ai/commit/9498a0aa426c24e9e02e05b6dab30b8103f21129)), closes [#5989](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5989)
+* batch result send failure no longer crashes the eval ([#6233](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6233)) ([ae3af35](https://github.com/UKGovernmentBEIS/inspect_ai/commit/ae3af3549d20a2aa0244ec169529db5cfee0b113))
+* **bedrock:** enable adaptive thinking on Claude 5 ([#5941](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5941)) ([bfc7c72](https://github.com/UKGovernmentBEIS/inspect_ai/commit/bfc7c72f11d009e62189c411d9a019a4f3923ae4))
+* closing the task cancel dialog no longer clears a pending drain or cancel ([#6250](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6250)) ([242da5f](https://github.com/UKGovernmentBEIS/inspect_ai/commit/242da5feb0dd14ef1d3b9fa110719502bbf5b9eb))
+* computer() keeps its latest screenshots when other tools have also run ([#6180](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6180)) ([3d31a1d](https://github.com/UKGovernmentBEIS/inspect_ai/commit/3d31a1ddbffa03da5b7d8ca92e4d4cca570f1415))
+* cost limits now count calls that trip a token limit ([#6349](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6349)) ([829f1b9](https://github.com/UKGovernmentBEIS/inspect_ai/commit/829f1b93ad7eac13da659c50b6bf99d4d18ad7b6))
+* dataframe column paths with [*] rejected under jsonpath-ng 1.16.0 ([#6318](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6318)) ([1a04094](https://github.com/UKGovernmentBEIS/inspect_ai/commit/1a0409407acaa5c421156f1e4eaddcfd90672585))
+* Docker exec with a timeout returns a command's own exit 124 instead of raising TimeoutError ([#6183](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6183)) ([706b4c5](https://github.com/UKGovernmentBEIS/inspect_ai/commit/706b4c5d6a3af83150ae3fc66ddf84b6bc37f50f))
+* don't score an earlier grade when the final verdict line can't be parsed ([#6198](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6198)) ([c7fa0d2](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c7fa0d25cdd5c6477cc25e7c5cc26eafab2296b6))
+* evals_df() model_args column shows the model args instead of the ([7e0c5a0](https://github.com/UKGovernmentBEIS/inspect_ai/commit/7e0c5a0edfc6f72830bc82724d602103cf9a0a5a))
+* evals_df() model_args column shows the model args instead of the base URL ([#6172](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6172)) ([7e0c5a0](https://github.com/UKGovernmentBEIS/inspect_ai/commit/7e0c5a0edfc6f72830bc82724d602103cf9a0a5a))
+* exec_remote returns fast commands without a fixed 5 s poll wait ([#6313](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6313)) ([7b62abc](https://github.com/UKGovernmentBEIS/inspect_ai/commit/7b62abc5059f8bc50de4bf0d336f29fdfbce7e59))
+* **google:** batch requests with thought signatures or inline media serialize to JSON ([#6242](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6242)) ([e08662f](https://github.com/UKGovernmentBEIS/inspect_ai/commit/e08662fde87fb18cb207902156165e6abad803a5)), closes [#6214](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6214)
+* **google:** failed, cancelled or expired batch jobs no longer hang their samples ([#6234](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6234)) ([4499e04](https://github.com/UKGovernmentBEIS/inspect_ai/commit/4499e044d5e24e37759b8baa0c0a581e6e2b8f33))
+* **google:** Gemini 3 400 error when replaying a web search and a parallel function call ([#6289](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6289)) ([e84896e](https://github.com/UKGovernmentBEIS/inspect_ai/commit/e84896ece8c78f4654ecb67daeb4c0aefbeb2324))
+* **google:** streamed responses drop signed generated images ([#6241](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6241)) ([6ba3296](https://github.com/UKGovernmentBEIS/inspect_ai/commit/6ba32968711b1a7437ad6e9e71064a33b2de49a8))
+* harden model-graded scorer prompts against fake data markers in the graded answer ([#6282](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6282)) ([e016fe2](https://github.com/UKGovernmentBEIS/inspect_ai/commit/e016fe2bd75d503da4ade67ebe77feda64174bfb))
+* human approval cancelled as it is answered no longer fails with KeyError ([#6266](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6266)) ([87f5016](https://github.com/UKGovernmentBEIS/inspect_ai/commit/87f50167f72d031b382eb2fc1edb3a6afeb340ce))
+* keep cached responses separate when model arguments change ([#6271](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6271)) ([d30b973](https://github.com/UKGovernmentBEIS/inspect_ai/commit/d30b97302b30379c45dcea2964134cf73adf5d7f))
+* old logs read back with different message ids and working_start on every read ([#6103](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6103)) ([75692ec](https://github.com/UKGovernmentBEIS/inspect_ai/commit/75692ec4d555ff8d481b2cc44c76fa63d0e2801f))
+* on_task_end hook not called when a task is cancelled or fails ([#6273](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6273)) ([c678272](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c6782725a79d9cd7e9be595b7c7a7ae47aaf4fb3))
+* **openai:** cancelled or expired batches no longer hang their samples ([#6249](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6249)) ([bc4dda0](https://github.com/UKGovernmentBEIS/inspect_ai/commit/bc4dda083c39ca285b001591350f6fb1f77784e7))
+* read ctl --file stdin with click.open_file ([#6336](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6336)) ([5f6910e](https://github.com/UKGovernmentBEIS/inspect_ai/commit/5f6910e7395db17bd6d3bdbe957ba1910628ad12))
+* read_eval_log(exclude_fields={"events"}) no longer fails on samples ([8e0ae3e](https://github.com/UKGovernmentBEIS/inspect_ai/commit/8e0ae3e43323f812a897d5308ee62cc3d99e7b07))
+* read_eval_log(exclude_fields={"events"}) no longer fails on samples with timelines ([#6173](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6173)) ([8e0ae3e](https://github.com/UKGovernmentBEIS/inspect_ai/commit/8e0ae3e43323f812a897d5308ee62cc3d99e7b07))
+* report closed exec_remote stdin consistently ([#6343](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6343)) ([1a9fb3d](https://github.com/UKGovernmentBEIS/inspect_ai/commit/1a9fb3db0302499af394afabd10c754431a3a4a3))
+* require google-genai&gt;=3.0.0, accept Gemini /v1/ on sandbox proxy, default Developer API to v1beta ([#6352](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6352)) ([39d40bc](https://github.com/UKGovernmentBEIS/inspect_ai/commit/39d40bc3b829ec6b11d1ef1235f648e7e8c8d095))
+* retry sample buffer connect when a sibling removes its directory during mkdir ([#6305](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6305)) ([27f18ff](https://github.com/UKGovernmentBEIS/inspect_ai/commit/27f18ff7d5bd4b8d7752912c1e0cd28e2e912e88))
+* sample event stream ownership and cancellation cleanup ([#5737](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5737)) ([cb9eae3](https://github.com/UKGovernmentBEIS/inspect_ai/commit/cb9eae36635a2ea2a3d6a0459b5667c712e6ebd2))
+* sandbox exec_remote returns the command's exit code when it exits just before a kill ([#6251](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6251)) ([9619c27](https://github.com/UKGovernmentBEIS/inspect_ai/commit/9619c27d069f8b3625c26df58ee5911c958ada19))
+* sandbox tools installed by another Inspect release are no longer reused ([#6302](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6302)) ([09f1ba3](https://github.com/UKGovernmentBEIS/inspect_ai/commit/09f1ba3bd8c7a9e6ccb9dcff25f8f9e220723b1f))
+* show prerequisite errors when the display is disabled ([#6229](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6229)) ([14fd618](https://github.com/UKGovernmentBEIS/inspect_ai/commit/14fd61845184c432927dd87799b1085516c8826c))
+* show the import error when a required hook's package fails to load, and keep checking on later calls ([#6257](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6257)) ([15c780b](https://github.com/UKGovernmentBEIS/inspect_ai/commit/15c780b8922232e93c4aab0915d2421d6e87b91d))
+* throttled display updates stop firing after an error or a cancelled eval ([#6248](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6248)) ([a156049](https://github.com/UKGovernmentBEIS/inspect_ai/commit/a156049422bb4319aaf86c0b0c7f678338c6b26e))
+* tool_with() keeps a tool's current name and descriptions unless they are passed, so renaming an MCP tool works ([#6181](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6181)) ([ae224b7](https://github.com/UKGovernmentBEIS/inspect_ai/commit/ae224b7ce37a05d1d3cb932b14bbd58ecc8e4955))
+* tools in a sandbox identity scope get the scope user's HOME, not one the image sets ([#6276](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6276)) ([325942c](https://github.com/UKGovernmentBEIS/inspect_ai/commit/325942c556beeb7d57ece4f89632727a6a5d348f))
+* verify every non-dev sandbox-tools binary before inject ([#6342](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6342)) ([2d902ba](https://github.com/UKGovernmentBEIS/inspect_ai/commit/2d902baee4edd72afcba524447dc7f2ac5bb4923))
+
+
+### Performance Improvements
+
+* share logged model-call messages across calls ([#6047](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6047)) ([c3360ce](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c3360cea51762b3b2411f0d471da33de418724ba))
+
+## [0.3.287](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.286...0.3.287) (2026-10-31)
+
+
+### Features
+
+* a runtime can hold and rewrite a react() conversation at turn boundaries, and compaction handlers gain reset() ([#6201](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6201)) ([7340817](https://github.com/UKGovernmentBEIS/inspect_ai/commit/7340817a6fb5eb20c14520d13ce8c146d2d893c8))
+* reserve the range_goal registry type for inspect_ranges goal types ([#6224](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6224)) ([3dcbf00](https://github.com/UKGovernmentBEIS/inspect_ai/commit/3dcbf005c0763cd91ea5e2da87551e57c04c61c1))
+* **sentinel:** the sentinel host gives the input budget and the token count of a monitor model ([#6132](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6132)) ([f1074f9](https://github.com/UKGovernmentBEIS/inspect_ai/commit/f1074f913b1f9adf31482271b7eaa91545652f9c))
+
+
+### Bug Fixes
+
+* an agent limit reached by a sandbox-bridged agent ends that agent, not the sample ([#6123](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6123)) ([c0b94c3](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c0b94c3a4403ab59232f53ae3736f4decafe560e))
+* **anthropic:** unrecognised Claude models fail with "Invalid signature in thinking block" when an agent's tools change ([#6206](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6206)) ([18216c3](https://github.com/UKGovernmentBEIS/inspect_ai/commit/18216c31acfeb6c56cdb35bb61f6328c6c75665b))
+* **bridge:** a limit raised in a bridged host tool no longer ends the sample ([#6129](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6129)) ([3896cba](https://github.com/UKGovernmentBEIS/inspect_ai/commit/3896cba0840703f5500800dc022a96f143842149))
+* **bridge:** approval policies now see a bridged tool call under the tool it runs, whatever name the agent declared ([#6192](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6192)) ([7937b03](https://github.com/UKGovernmentBEIS/inspect_ai/commit/7937b03919bf45515651fbe4cc5e735a02fbef70))
+* Docker file operations report unknown users as unsupported on Docker Engine 28 ([#6152](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6152)) ([c300b90](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c300b90fa0d043a4e720bc2255be3e673a5a3e03))
+* exclude dataclass non-init fields from tool parameters ([#5283](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5283)) ([f862a6c](https://github.com/UKGovernmentBEIS/inspect_ai/commit/f862a6c176ac93509a861e4c4dfddb3521f01453))
+* exec_remote keeps all command output, and a change to any sandbox-tools build input needs a version bump (v37) ([#6157](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6157)) ([19a1177](https://github.com/UKGovernmentBEIS/inspect_ai/commit/19a11770f1557246402df69cb7cac253f4036848))
+* **google:** Gemini long decode responses no longer stop at the per-request output cap ([#6205](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6205)) ([aee6aaa](https://github.com/UKGovernmentBEIS/inspect_ai/commit/aee6aaae3b915f48e9227007eb3a6c27824982ba))
+* inspect score no longer imports a file a log names as a scorer, and prints what it loads from the log ([#6085](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6085)) ([c07fcbf](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c07fcbf01fbd83e5b61c90c0e3b6288b98a8c303))
+* model_info() no longer constructs a model provider for a model named in a log ([#6084](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6084)) ([96fc9a4](https://github.com/UKGovernmentBEIS/inspect_ai/commit/96fc9a4bd03ebfba5aa62731b6f351efb7789f9c))
+* parse HTTP(S) URL path when selecting reader in precomputed_scores ([#6078](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6078)) ([19d120f](https://github.com/UKGovernmentBEIS/inspect_ai/commit/19d120f4219e4efc99548d99c2d39eaec9079f5e))
+* reject blank choices that shift answer letters ([#5766](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5766)) ([2f78dcb](https://github.com/UKGovernmentBEIS/inspect_ai/commit/2f78dcb29eb02830b4536050f61fd1a0f7665523))
+* restic checkpoint resume breaking on large repos in the k8s sandbox ([#6040](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6040)) ([6cccb6e](https://github.com/UKGovernmentBEIS/inspect_ai/commit/6cccb6ef7aa7f0e5b47ad4cfc7150b7c11e9a4a7))
+* resume sample error retries from the latest checkpoint ([#5963](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5963)) ([45f55a0](https://github.com/UKGovernmentBEIS/inspect_ai/commit/45f55a050103a8053acf7d556e02a52c337c61c2))
+* strict pyright reports eval's sentinel parameter as partially unknown without inspect_sentinel ([#6151](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6151)) ([c7138a6](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c7138a6089c7a294a78c40716aaa5c805190077f))
+* viewer log list receives NaN and Infinity in eval metadata and dict scores as null ([#6167](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6167)) ([4580ef1](https://github.com/UKGovernmentBEIS/inspect_ai/commit/4580ef1a788c9aedab983f5c6703850766f36e53))
+
+## [0.3.286](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.285...0.3.286) (2026-10-28)
+
+
+### Breaking Changes
+
+* Docker read_file() now uses the container's default execution user instead of Docker's privileged copy API. Callers needing privileged reads must request user="root"; callers acting for a different sandbox user must pass that user. Docker reads require tar with --no-recursion, /bin/sh and /usr/bin/timeout, and no longer retry the former compose-cp host-timeout path. Sandbox providers must update read_file()/write_file() override signatures; explicit-user calls are rejected until supported. In particular, human_cli(user=...) cannot collect terminal recordings on older providers, including Kubernetes: collection warns and omits those logs. Set record_session=False until support is added, or use the sandbox's default identity if appropriate. This is deliberate security tightening: dropping an explicit user could read a protected file through a sandbox-controlled log symlink with the reader's greater privileges.
+* recomputing, editing or recovering a log no longer imports files or builds models it names ([#6007](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6007))
+
+### Features
+
+* **openai:** support GPT-6.1 Terra ([#6100](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6100)) ([f7f3681](https://github.com/UKGovernmentBEIS/inspect_ai/commit/f7f36818b2340d0fd3e9386d1fa48fbddfd451b9))
+* **sentinel:** a live sentinel follows the span a bridged agent's event sink gives each generate ([#6004](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6004)) ([1692fd8](https://github.com/UKGovernmentBEIS/inspect_ai/commit/1692fd8d736449ed17494d6e202a16f9a2be28d7))
+* **sentinel:** rebuild a sample's sentinel steps from its log, with one step builder for live and replay ([#5991](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5991)) ([5d8cc44](https://github.com/UKGovernmentBEIS/inspect_ai/commit/5d8cc4404c6017e1573dd6ebea50b03b324985f2))
+* **sentinel:** the log records where each model call was made, and generate steps keep their ids in replay ([#5990](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5990)) ([397d6b8](https://github.com/UKGovernmentBEIS/inspect_ai/commit/397d6b87e405b7fdd6873b1607c6fcfaf2424154))
+* Terminals tab shows all of a sample's terminals together on one shared clock ([#6149](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6149)) ([89d8bba](https://github.com/UKGovernmentBEIS/inspect_ai/commit/89d8bba35fc152b9209b1ab2c9e59947f88924c6))
+
+
+### Bug Fixes
+
+* caches set never to expire no longer read back from logs as expiring after a week ([#6088](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6088)) ([05fc2c6](https://github.com/UKGovernmentBEIS/inspect_ai/commit/05fc2c610c560509105bba3b59d81f70985bcaa9))
+* enforce user permissions for sandbox file reads and writes ([#6107](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6107)) ([c136d29](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c136d291f423b88ba944fb8dbda4ed7b2a71398c))
+* eval-set cache overrides set never to expire no longer run with a one-week expiry ([#6097](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6097)) ([eaeeab4](https://github.com/UKGovernmentBEIS/inspect_ai/commit/eaeeab4dd71044cab6f3388fb7a1b6c8f2e2ed8f))
+* prevent agent commands from bypassing transcript recording and output checks ([#6148](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6148)) ([ba0748f](https://github.com/UKGovernmentBEIS/inspect_ai/commit/ba0748fdc76a6485c9a0ba9942fc1908b566b75e))
+* read_eval_log_samples() missing samples added at runtime by a SampleSource ([#6076](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6076)) ([71e00d2](https://github.com/UKGovernmentBEIS/inspect_ai/commit/71e00d28fc675a752891f559081926aaed4b0c80))
+* recomputing, editing or recovering a log no longer imports files or builds models it names ([#6007](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6007)) ([eabac22](https://github.com/UKGovernmentBEIS/inspect_ai/commit/eabac22136d8d06dca10eb423c624bc565ce38ab))
+* reject relative host paths in a Docker ComposeConfig instead of resolving them into Inspect's config directory ([#6110](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6110)) ([0e0593e](https://github.com/UKGovernmentBEIS/inspect_ai/commit/0e0593e375c17afdb7dc4983184bde55ff1d45da))
+* Responses streaming through the sandbox model proxy fails with openai-python 3.31+ ([#6058](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6058)) ([b0b294b](https://github.com/UKGovernmentBEIS/inspect_ai/commit/b0b294b62c258ef561b8a64f7b4e57329a4b5dc3))
+* samples_df and evals_df keep integers beyond int64 as exact strings instead of raising OverflowError ([#6090](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6090)) ([8a9dc46](https://github.com/UKGovernmentBEIS/inspect_ai/commit/8a9dc46d39c398a8683ce88bbd563715e75aa751))
+* sandbox events from other tasks no longer dropped while one task suppresses its own ([#6044](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6044)) ([3e3994f](https://github.com/UKGovernmentBEIS/inspect_ai/commit/3e3994f055bc6194c78c3517e506e5e473189c35))
+* score CLI test uses a scorer name no other test registers ([#6125](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6125)) ([758cc7c](https://github.com/UKGovernmentBEIS/inspect_ai/commit/758cc7c36dd0636df4c1760ebe6aa8c582fd9ec6))
+* score edits that clear a field to None no longer read back as "UNCHANGED" ([#6063](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6063)) ([c91bc27](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c91bc27d550bdd4980892e763aa16f55f70ade87))
+* **sentinel:** require inspect_sentinel 0.3.0, checked when a sentinel is configured ([#5886](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5886)) ([f0d0971](https://github.com/UKGovernmentBEIS/inspect_ai/commit/f0d0971d886e2c4de91b62a5d1229cac467a8d34))
+* streamed log convert and score drop reductions from .json logs ([#6075](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6075)) ([571fc47](https://github.com/UKGovernmentBEIS/inspect_ai/commit/571fc4724a489054f3a6f8091449ae6c694bc8b9))
+* task and sample errors lose the exception they were raised while handling ([#6023](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6023)) ([c2d5566](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c2d55669484a4e6b1debfaae44fa1a4eb9e91972))
+* tool approval seeing unvalidated or differently converted arguments ([#5652](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5652)) ([4f00890](https://github.com/UKGovernmentBEIS/inspect_ai/commit/4f008905c9a203ef1dfab0ce99c7beb77ec07e7b))
+* **tools:** an exception group can't hide a fatal tool error or limit ([#5901](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5901)) ([c371147](https://github.com/UKGovernmentBEIS/inspect_ai/commit/c3711474774d8fed6e869fe9fa607cdd455d1573))
+* truncated logs that read as empty now raise an error ([#6086](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6086)) ([ace82fe](https://github.com/UKGovernmentBEIS/inspect_ai/commit/ace82fe881919f61797b4068ea921ddd60a45caa))
+
+
+### Performance Improvements
+
+* log flushes to S3 upload only the samples written since the last flush, not the whole `.eval` file ([#6025](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6025)) ([6e61a68](https://github.com/UKGovernmentBEIS/inspect_ai/commit/6e61a683d31373a3ecaecd52eefc059681f4d14e))
+* reduce memory spikes and stalls when finalizing long samples ([#4879](https://github.com/UKGovernmentBEIS/inspect_ai/issues/4879)) ([9c68f8f](https://github.com/UKGovernmentBEIS/inspect_ai/commit/9c68f8fb493d93ac9c77b22c4829c4e393fef185))
+
+## [0.3.285](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.284...0.3.285) (2026-10-25)
+
+
+### Features
+
+* viewer Terminals tab for recorded terminal sessions and a merged Info tab ([#6079](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6079)) ([e37ce2f](https://github.com/UKGovernmentBEIS/inspect_ai/commit/e37ce2fd3533ba53221d751e4e4eced74d4869b3))
+
+
+### Bug Fixes
+
+* .eval reads with exclude_fields failing on large float literals ([#6045](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6045)) ([641b871](https://github.com/UKGovernmentBEIS/inspect_ai/commit/641b8712f7d4e18c4813c261068e2a88022fb553))
+* agent bridge returns non-beta Anthropic usage to beta.messages calls with anthropic 2.3 ([#6061](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6061)) ([3dcd2de](https://github.com/UKGovernmentBEIS/inspect_ai/commit/3dcd2ded36085d7c068d966a8d3118563296916e))
+
+## [0.3.284](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.283...0.3.284) (2026-10-25)
+
+
+### Features
+
+* **moonshot:** support Kimi K3.1 Pro and K3.1 Pro Highspeed ([#6072](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6072)) ([eade928](https://github.com/UKGovernmentBEIS/inspect_ai/commit/eade928ea4119e0f0eddfe58617d9993ba9d710a))
+* **sentinel:** step.agent_messages is the running agent's own message list at every stage ([#5986](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5986)) ([4744d5f](https://github.com/UKGovernmentBEIS/inspect_ai/commit/4744d5fdd8077ec28231d0a0f0a7289628a9b2b6))
+* update fireworks and together model info ([d6bbd08](https://github.com/UKGovernmentBEIS/inspect_ai/commit/d6bbd08ef68093da291e78a80b4e0893d4f9d595))
+* viewer plays asciicasts stored in the sample store under asciinema:* keys ([#6069](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6069)) ([473fac0](https://github.com/UKGovernmentBEIS/inspect_ai/commit/473fac0ad0e65ef5a558c977203b401e9fe2c319))
+
+
+### Bug Fixes
+
+* collect() drops the cause of a task's error ([#6000](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6000)) ([2521656](https://github.com/UKGovernmentBEIS/inspect_ai/commit/2521656e345f995e37b1bea09d3f212e4819bd18))
+* **computer:** reject out-of-bounds click coordinates instead of clicking at the screen edge ([#5927](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5927)) ([1529d0d](https://github.com/UKGovernmentBEIS/inspect_ai/commit/1529d0dc3c3937770b036a646f78bc59ea96c994))
+* concurrent download() calls for the same file no longer fail ([#5825](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5825)) ([db24cde](https://github.com/UKGovernmentBEIS/inspect_ai/commit/db24cde1562706c4501c0ebd2cdd579fdf4a83f4))
+* content_only no longer modifies the messages it filters ([#6024](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6024)) ([ef3bc31](https://github.com/UKGovernmentBEIS/inspect_ai/commit/ef3bc31473c346bdb2c113080a6dc1c50563f04b))
+* dataclass tool parameters losing their types under `from __future__ import annotations` ([#5746](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5746)) ([7c2dccc](https://github.com/UKGovernmentBEIS/inspect_ai/commit/7c2dcccbebc6747f310a70eeba1fa4063fe060db))
+* duplicated task prompt when using CompactionAuto with native compaction ([#4804](https://github.com/UKGovernmentBEIS/inspect_ai/issues/4804)) ([1de26ac](https://github.com/UKGovernmentBEIS/inspect_ai/commit/1de26acfcbaa8e2c8258cec8b92bd774ffc309a8))
+* fail samples on unexpected background subagent errors ([#5962](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5962)) ([13cfcad](https://github.com/UKGovernmentBEIS/inspect_ai/commit/13cfcad88ab2039d365933e503ceaf6e510049c0))
+* floats in .json log headers saved as strings after tag edits or streaming convert and score ([#6034](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6034)) ([b6f7af7](https://github.com/UKGovernmentBEIS/inspect_ai/commit/b6f7af751ca62961fce68cf636eb00c071dd4318))
+* keep timezone-less dataframe timestamps on the UTC clock ([#5767](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5767)) ([d7c8e2a](https://github.com/UKGovernmentBEIS/inspect_ai/commit/d7c8e2ad66b67f49c7ca81ce4831d16de87ee5e4))
+* legacy bridge filters with postponed annotations ([#5734](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5734)) ([35565c3](https://github.com/UKGovernmentBEIS/inspect_ai/commit/35565c32d3e4d60ee2c36e16fb560bd36a262cbe))
+* local_path no longer drops the Windows drive from file:// URIs ([#6035](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6035)) ([901bc92](https://github.com/UKGovernmentBEIS/inspect_ai/commit/901bc92554d59dde00b6c1d9b9a13203c7a999ef))
+* logged model inputs and outputs no longer change when an agent later edits a message in place ([#5883](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5883)) ([ae59272](https://github.com/UKGovernmentBEIS/inspect_ai/commit/ae59272ed3d66499e2d25b6e31b9d59f5b325217))
+* **memory:** refuse rename onto an existing destination ([#5975](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5975)) ([5253ae5](https://github.com/UKGovernmentBEIS/inspect_ai/commit/5253ae533dd2d52ebe1e9afaba9d7a427885a042))
+* preserve model role attribution in scout workers ([#5684](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5684)) ([116340a](https://github.com/UKGovernmentBEIS/inspect_ai/commit/116340aa5cd29546ca4137edbb260d2757883d86))
+* recovered samples keep full input, target and scores ([#6032](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6032)) ([b8d81ea](https://github.com/UKGovernmentBEIS/inspect_ai/commit/b8d81eafb9448e269e82fba32289333a104092ce))
+* recovered samples keep output and message text inline instead of attachment refs ([#6043](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6043)) ([2845d9c](https://github.com/UKGovernmentBEIS/inspect_ai/commit/2845d9ce43748fc327f488683905cf267d71c6ff))
+* score_to_float() returns double[pyarrow] with pd.NA instead of float64 on pandas 3.1 ([#6027](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6027)) ([a8f5015](https://github.com/UKGovernmentBEIS/inspect_ai/commit/a8f5015d4d8cbde4d5a14a1d6ecc5fd685f7a45c))
+* skills read on Windows install subdirectory files at nested sandbox paths ([#5909](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5909)) ([39f0b44](https://github.com/UKGovernmentBEIS/inspect_ai/commit/39f0b447b83d7c764f2c3296f449b4ec61d64e36)), closes [#5786](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5786)
+* **solver:** accept any sequence of solvers consistently ([#5090](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5090)) ([02b8697](https://github.com/UKGovernmentBEIS/inspect_ai/commit/02b8697852343da02ac74eba539f4efd2db48f03))
+* some valid .eval logs fail to open with struct.error or "Corrupt ZIP64 structure" ([#6033](https://github.com/UKGovernmentBEIS/inspect_ai/issues/6033)) ([7f4e424](https://github.com/UKGovernmentBEIS/inspect_ai/commit/7f4e4246a706f2fa71e0b4a655c463286b603423))
+* **tests:** make test_deployment_name_normalization able to fail ([#5908](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5908)) ([48c53eb](https://github.com/UKGovernmentBEIS/inspect_ai/commit/48c53ebd3aab232e4fcc75730818b18593b4a38f)), closes [#5615](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5615)
+
+
+### Performance Improvements
+
+* retrying an eval whose logs are on S3 no longer re-uploads the prior attempt's log before the retry starts ([#5899](https://github.com/UKGovernmentBEIS/inspect_ai/issues/5899)) ([1031b57](https://github.com/UKGovernmentBEIS/inspect_ai/commit/1031b575f9dad158860faa0f9dba0025864b0e68))
+
 ## [0.3.283](https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.282...0.3.283) (2026-10-21)
 
 

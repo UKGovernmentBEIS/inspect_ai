@@ -23,7 +23,7 @@ from inspect_ai._eval.handoff import (
     set_ctl_pointer_armed,
     set_launch_handoff_listener,
 )
-from inspect_ai._sentinel._config import sentinel_with_args
+from inspect_ai._sentinel._config import SentinelProxy, sentinel_with_args
 from inspect_ai._util.config import parse_cli_args, resolve_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
@@ -52,6 +52,7 @@ from inspect_ai.log._log import EvalConfig, EvalLog
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs, Model
 from inspect_ai.model._generate_config import (  # noqa: F811
     ResponseSchema,
+    generate_config_dict,
 )
 from inspect_ai.model._model_config import ModelConfig, model_config_to_model
 from inspect_ai.scorer._reducer import create_reducers
@@ -308,7 +309,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         multiple=True,
         type=str,
         envvar="INSPECT_EVAL_MODEL_SPEC",
-        help='Model to evaluate along with its own generate config, model args, and base url, as inline YAML or JSON, e.g. --model-spec "{model: openai/gpt-4o, temperature: 0}" (same fields as --model-role, plus base_url). Repeat the option to evaluate several models, each with its own options. Cannot be combined with --model, --model-base-url, --model-config, or -M.',
+        help='Model to evaluate along with its own generate config, model args, and base url, as inline YAML or JSON, e.g. --model-spec "{model: openai/gpt-6-luna, reasoning_effort: low}" (same fields as --model-role, plus base_url). Repeat the option to evaluate several models, each with its own options. Cannot be combined with --model, --model-base-url, --model-config, or -M.',
     )
     @click.option(
         "--run-config",
@@ -321,7 +322,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         multiple=True,
         type=str,
         envvar="INSPECT_EVAL_MODEL_ROLE",
-        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs, e.g. --model-role grader=openai/gpt-4o,google/gemini-2.0-flash',
+        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-6-luna or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs, e.g. --model-role grader=openai/gpt-6-luna,google/gemini-2.0-flash',
     )
     @click.option(
         "-T",
@@ -404,6 +405,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_SENTINEL_ARGS",
         hidden=True,
         help="One or more arguments for the registered monitor or protocol named by --sentinel (e.g. --sentinel-arg key=value).",
+    )
+    @click.option(
+        "--sentinel-proxy",
+        type=click.Choice(["auto", "required", "off"]),
+        envvar="INSPECT_EVAL_SENTINEL_PROXY",
+        hidden=True,
+        help="Whether to look for a sentinel sidecar behind each model's proxy: off (the default) never looks, auto uses one it finds, and required fails a task unless one is found. Only an Anthropic, OpenAI or OpenAI-compatible model whose base URL was set is probed.",
     )
     @click.option(
         "--notification",
@@ -1161,6 +1169,7 @@ def _eval_command_impl(
     review: str | None,
     sentinel: str | None,
     sentinel_arg: tuple[str, ...] | None,
+    sentinel_proxy: SentinelProxy | None,
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
@@ -1300,6 +1309,7 @@ def _eval_command_impl(
         review=review,
         sentinel=sentinel,
         sentinel_arg=sentinel_arg,
+        sentinel_proxy=sentinel_proxy,
         notification=notification,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
@@ -1462,6 +1472,7 @@ def eval_set_command(
     review: str | None,
     sentinel: str | None,
     sentinel_arg: tuple[str, ...] | None,
+    sentinel_proxy: SentinelProxy | None,
     notification: bool | str | None,
     model: str | None,
     model_base_url: str | None,
@@ -1647,6 +1658,7 @@ def eval_set_command(
             review=review,
             sentinel=sentinel,
             sentinel_arg=sentinel_arg,
+            sentinel_proxy=sentinel_proxy,
             notification=notification,
             sandbox=sandbox,
             no_sandbox_cleanup=no_sandbox_cleanup,
@@ -1773,12 +1785,12 @@ class RunConfigInput(BaseModel):
                     params["model_base_url"] = self.model.base_url
                 if self.model.args:
                     params["model_args"] = self.model.args
-                model_gc = self.model.config.model_dump(exclude_none=True)
+                model_gc = generate_config_dict(self.model.config)
                 if model_gc:
                     params.update(model_gc)
 
         # Top-level generate_config overrides any model-level config
-        top_gc = self.generate_config.model_dump(exclude_none=True)
+        top_gc = generate_config_dict(self.generate_config)
         if top_gc:
             params.update(top_gc)
 
@@ -1986,6 +1998,7 @@ def eval_exec(
     review: str | None,
     sentinel: str | None,
     sentinel_arg: tuple[str, ...] | None,
+    sentinel_proxy: SentinelProxy | None,
     notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
@@ -2171,6 +2184,7 @@ def eval_exec(
             approval=approval,
             review=review,
             sentinel=eval_sentinel,
+            sentinel_proxy=sentinel_proxy,
             notification=notification,
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,
@@ -2667,6 +2681,19 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     help=INCOMPLETE_MAX_HELP,
     envvar="INSPECT_EVAL_INCOMPLETE_MAX",
 )
+@click.option(
+    "--model-cost-config",
+    type=str,
+    help="YAML or JSON file with model prices for cost tracking.",
+    envvar="INSPECT_EVAL_MODEL_COST_CONFIG",
+)
+@click.option(
+    "--sentinel-proxy",
+    type=click.Choice(["auto", "required", "off"]),
+    envvar="INSPECT_EVAL_SENTINEL_PROXY",
+    hidden=True,
+    help="Whether to look for a sentinel sidecar behind each model's proxy, as for eval. The log doesn't record it, so a retry is told again.",
+)
 @scanner_options
 @common_options
 def eval_retry_command(
@@ -2706,6 +2733,8 @@ def eval_retry_command(
     checkpoint: str | None,
     incomplete_action: IncompleteAction,
     incomplete_max: float | None,
+    model_cost_config: str | None,
+    sentinel_proxy: SentinelProxy | None,
     scanner: str | None,
     scanner_arg: tuple[str, ...] | None,
     scans: str | None,
@@ -2722,6 +2751,11 @@ def eval_retry_command(
     **common: Unpack[CommonOptions],
 ) -> None:
     """Retry failed evaluation(s).
+
+    This runs code named by the log (its task file, scorers and solver, or for
+    an `hf/` task the Hugging Face repo it names, whose `eval.yaml` chooses the
+    dataset and the solver and scorer arguments) and uses the model endpoint,
+    sandbox and other settings recorded in it. Only run it on logs you trust.
 
     Monitor a running eval from another shell with `inspect ctl`
     (see `inspect ctl --help`).
@@ -2856,6 +2890,8 @@ def eval_retry_command(
                 checkpoint=parse_checkpoint(checkpoint),
                 incomplete_action=incomplete_action,
                 incomplete_max=incomplete_max,
+                model_cost_config=model_cost_config,
+                sentinel_proxy=sentinel_proxy,
             )
 
         if json_output:

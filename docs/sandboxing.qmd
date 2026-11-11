@@ -163,6 +163,8 @@ def my_task(cpus: float = 1.0):
 
 The `ComposeConfig` and `ComposeService` classes mirror the structure of Docker Compose files, supporting fields like `image`, `build`, `command`, `environment`, `volumes`, `ports`, `mem_limit`, `cpus`, and more. Extension fields (prefixed with `x-`) are also supported.
 
+Bind-mount sources and `env_file` paths in a `ComposeConfig` must be absolute (or start with `~/`). The generated Compose file is stored outside the task directory, so Inspect rejects a relative bind-mount source or `env_file` rather than let Compose resolve it there. Build such paths from the task file, for example `Path(__file__).parent / "data"`.
+
 ## Sandbox Limits {#sec-sandbox-limits}
 
 By default, sandboxes limit the size of file reads to 100MB and execution output to 10MB. These limits exist to prevent boundary cases of outputs or executions that don't terminate and result in OOM or hung evaluations (i.e. they usually indicate an error by the model).
@@ -208,6 +210,17 @@ Inspect's prerequisite checks confirm that Docker supports the features Inspect 
 
 If you plan on running evaluations with large numbers of concurrent containers (\> 30) you should also configure Docker's [default address pools](https://straz.to/2021-09-08-docker-address-pools/) to accommodate this.
 
+### File Access
+
+File reads require a running Linux container with `/bin/sh`, `/usr/bin/timeout`
+and `tar` supporting `--no-recursion`. Reads enforce the requested user's
+filesystem permissions, including for symlink targets. Pass `user="root"`
+when privileged access is intended.
+
+Reads follow kernel permissions, so root can normally read files with no read
+bits (mode `000`). Reads of concurrently modified files return best-effort
+contents or fail, including when a file shrinks during the read.
+
 ### Task Configuration
 
 You can use the Docker sandbox environment without any special configuration, however most commonly you’ll provide explicit configuration via either a `Dockerfile` or a [Docker Compose](https://docs.docker.com/compose/compose-file/) configuration file (`compose.yaml`).
@@ -216,9 +229,11 @@ Here is how Docker sandbox environments are created based on the presence of `Do
 
 | Config Files | Behavior |
 |---------------------------|---------------------------------------------|
-| None | Creates a sandbox environment based on the standard [inspect-tool-support](https://hub.docker.com/r/aisiuk/inspect-tool-support) image. |
+| None | Creates a sandbox environment based on the official [`python:3.12-bookworm`](https://hub.docker.com/_/python) image. |
 | `Dockerfile` | Creates a sandbox environment by building the image. |
 | `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`. |
+
+The default Docker sandbox and several examples use mutable image tags. A tag such as `python:3.12-bookworm` can refer to a different image when the publisher releases updates. To control when you adopt updates, pin an image digest in your own `compose.yaml`, for example `image: python:3.12-bookworm@sha256:<digest>`. You'll then need to update that digest to receive newer image versions. See Docker's [guidance on pinning images](https://docs.docker.com/build/building/best-practices/#pin-base-image-versions).
 
 Providing a `compose.yaml` is not strictly required, as Inspect will automatically generate one as needed. The generated Compose configuration sets `network_mode: none`, which prevents network access at container runtime.
 
@@ -292,6 +307,8 @@ eval("ctf.py", sandbox_prebuilt=True)
 ```
 
 With this option set, task startup verifies images instead of building them. Every service with a `build` section or `x-local: true` must name an `image` that already exists locally, and Inspect's internal images (e.g. for the computer tool) must also be present. Other services use their local image when present, and a failed pull of a missing one is also an error. A missing image results in an error before any samples run. The option can also be set via the `INSPECT_EVAL_SANDBOX_PREBUILT` environment variable.
+
+Inspect injects sandbox tools binaries into sandboxes for some tools. An install built from the sdist (e.g. conda-forge or `pip install --no-binary inspect-ai`) does not bundle them and downloads them at first use. For offline / air-gapped use, run `inspect download sandbox-tools` while online to fetch them ahead of time. The download writes into the `inspect_ai` package directory. For a read-only shared install, a user who can write to that directory should run `inspect download sandbox-tools` once.
 
 ### Multiple Environments
 

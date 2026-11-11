@@ -2,6 +2,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
+from typing import Any, Generator, Literal
 
 import pytest
 from test_helpers.utils import (
@@ -17,10 +18,12 @@ from inspect_ai.log import (
     invalidate_samples,
     list_eval_logs,
     read_eval_log,
+    read_eval_log_samples,
     retryable_eval_logs,
     write_eval_log,
 )
 from inspect_ai.model import GenerateConfig, get_model
+from inspect_ai.model._model_info import clear_model_info_cache
 from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.scorer import exact
 from inspect_ai.solver import TaskState, generate, solver
@@ -816,3 +819,184 @@ def test_eval_retry_keeps_untrusted_content_and_task_viewer() -> None:
     assert log2.eval.viewer is not None
     assert log2.eval.viewer.trust_content is False
     assert log2.eval.viewer.task_samples_view == TaskSamplesView(name="Custom")
+
+
+def test_eval_retry_help_says_trusted_logs_only() -> None:
+    from click.testing import CliRunner
+
+    from inspect_ai._cli.eval import eval_retry_command
+
+    result = CliRunner().invoke(eval_retry_command, ["--help"])
+    help_text = " ".join(result.output.split())
+    assert "Only run it on logs you trust." in help_text
+    assert "Hugging Face repo" in help_text
+
+
+@task
+def retry_sample_id_task() -> Task:
+    sample_id: int | str = os.environ.get("RETRY_SAMPLE_ID", 1)
+    return Task(dataset=[Sample(id=sample_id, input="hi")])
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_read_eval_log_samples_after_retry_changes_id_type(
+    log_format: Literal["eval", "json"],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the retried log's header records the new "1" while the reused sample
+    # keeps its stored 1; reading it back must yield that sample once
+    log = eval(
+        retry_sample_id_task(),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        log_format=log_format,
+    )[0]
+    monkeypatch.setenv("RETRY_SAMPLE_ID", "1")
+    retried = eval_retry(log, log_dir=str(tmp_path), log_format=log_format)[0]
+    assert retried.status == "success"
+    assert retried.eval.dataset.sample_ids == ["1"]
+    assert [sample.id for sample in retried.samples or []] == [1]
+
+    samples = list(read_eval_log_samples(retried.location))
+    assert [(sample.id, sample.epoch) for sample in samples] == [(1, 1)]
+
+
+@pytest.fixture
+def clear_model_info() -> Generator[None, None, None]:
+    clear_model_info_cache()
+    yield
+    clear_model_info_cache()
+
+
+@pytest.mark.usefixtures("clear_model_info")
+def test_eval_retry_preserves_cost_limit_and_max_dataset_memory(
+    tmp_path: Path,
+) -> None:
+    from inspect_ai.model import ModelCost, ModelInfo, set_model_info
+
+    set_model_info(
+        "mockllm/model",
+        ModelInfo(
+            cost=ModelCost(
+                input=1000.0,
+                output=1000.0,
+                input_cache_read=0.0,
+                input_cache_write=0.0,
+            )
+        ),
+    )
+
+    fail_file = tmp_path / "fail"
+
+    @solver
+    def fail_once():
+        async def solve(state: TaskState, generate: Any) -> TaskState:
+            if fail_file.exists():
+                raise RuntimeError("transient failure")
+            return state
+
+        return solve
+
+    @task
+    def retry_task() -> Task:
+        return Task(dataset=[Sample(input="x")], solver=[fail_once(), generate()])
+
+    fail_file.touch()
+    log = eval(
+        retry_task(),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        display="none",
+        cost_limit=0.01,
+        max_dataset_memory=64,
+    )[0]
+    assert log.status == "error"
+    assert log.eval.config.cost_limit == 0.01
+    assert log.eval.config.max_dataset_memory == 64
+
+    fail_file.unlink()
+    retried = eval_retry(log, log_dir=str(tmp_path), display="none")[0]
+    assert retried.status == "success"
+    assert retried.eval.config.cost_limit == 0.01
+    assert retried.eval.config.max_dataset_memory == 64
+    assert retried.samples is not None
+    assert len(retried.samples) == 1
+    assert retried.samples[0].limit is not None
+    assert retried.samples[0].limit.type == "cost"
+
+
+@pytest.mark.usefixtures("clear_model_info")
+def test_eval_retry_model_cost_config(tmp_path: Path) -> None:
+    from click.testing import CliRunner
+
+    from inspect_ai._cli.eval import eval_retry_command
+    from inspect_ai.model import ModelInfo, set_model_info
+
+    def register_unpriced_model() -> None:
+        # Drop every pricing entry, as in a fresh process. set_model_cost()
+        # only prices a known model, and mockllm's is not in the database.
+        clear_model_info_cache()
+        set_model_info("model", ModelInfo())
+
+    pricing_file = tmp_path / "pricing.yaml"
+    pricing_file.write_text(
+        "model:\n"
+        "  input: 1000.0\n"
+        "  output: 1000.0\n"
+        "  input_cache_read: 0.0\n"
+        "  input_cache_write: 0.0\n"
+    )
+
+    fail_file = tmp_path / "fail"
+
+    @solver
+    def fail_once():
+        async def solve(state: TaskState, generate: Any) -> TaskState:
+            if fail_file.exists():
+                raise RuntimeError("transient failure")
+            return state
+
+        return solve
+
+    @task
+    def retry_cost_config_task() -> Task:
+        return Task(dataset=[Sample(input="x")], solver=[fail_once(), generate()])
+
+    register_unpriced_model()
+    fail_file.touch()
+    log = eval(
+        retry_cost_config_task(),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        display="none",
+        cost_limit=0.01,
+        model_cost_config=str(pricing_file),
+    )[0]
+    assert log.status == "error"
+
+    fail_file.unlink()
+
+    register_unpriced_model()
+
+    # Retrying via Python API with model_cost_config
+    retried = eval_retry(
+        log,
+        model_cost_config=str(pricing_file),
+        log_dir=str(tmp_path),
+        display="none",
+    )[0]
+    assert retried.status == "success"
+    assert retried.eval.config.cost_limit == 0.01
+    assert retried.samples is not None
+    assert retried.samples[0].limit is not None
+    assert retried.samples[0].limit.type == "cost"
+
+    # Retrying via CLI with --model-cost-config
+    register_unpriced_model()
+    runner = CliRunner()
+    res = runner.invoke(
+        eval_retry_command,
+        [log.location, "--model-cost-config", str(pricing_file), "--display", "none"],
+    )
+    assert res.exit_code == 0, f"CLI retry failed: {res.output}\n{res.exception}"

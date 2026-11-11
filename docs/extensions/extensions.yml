@@ -184,6 +184,12 @@
   categories: ["Sandboxes"]
 
 
+- name: "[Lizard Sandboxes](https://github.com/lizard-build/integrations/tree/main/packages/inspect-lizard)"
+  description: |
+    Run Inspect tasks in Firecracker microVMs on Lizard (lizard.build).
+  author: "[Lizard](https://github.com/lizard-build)"
+  categories: ["Sandboxes"]
+
 - name: "[EC2 Sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox)"
   description: |
     Python package that provides a EC2 virtual machine sandbox environment for Inspect.
@@ -222,6 +228,18 @@
   author: "[Arnab Mitra](https://github.com/Dedulus)"
   categories: ["Sandboxes"]
 
+- name: "[Runtime Sandbox](https://withruntime.com/docs/inspect)"
+  description: |
+    Runs each sample in a Firecracker microVM on Runtime Cloud, from the same Dockerfile or single-service compose file as the Docker sandbox.
+  author: "[Runtime](https://github.com/withruntime/runtime)"
+  categories: ["Sandboxes"]
+
+- name: "[briq Sandbox](https://github.com/briq-cloud/inspect-briq)"
+  description: |
+    Runs each sample in its own briq microVM, destroyed when the sample ends.
+  author: "[briq](https://github.com/briq-cloud/inspect-briq)"
+  categories: ["Sandboxes"]
+
 
 - name: "[Inspect Costs Plugin](https://github.com/jasongwartz/inspect_costs_plugin/)"
   description: |
@@ -253,4 +271,11 @@
     Steers a model's sampling towards any target behaviour, surfacing on-policy
     examples in fewer samples, accessing only the model's logits.
   author: "[Adrians Skapars](https://scholar.google.com/citations?user=9Vf0mWkAAAAJ&hl=en)"
+  categories: ["Tooling"]
+
+- name: "[inspect-drex](https://github.com/nace-ai/inspect-drex)"
+  description: |
+    Scorer that asks Drex decision models whether a sample meets your criteria and
+    returns probabilities, so the pass threshold can be chosen after the run.
+  author: "[Nace](https://github.com/nace-ai)"
   categories: ["Tooling"]

@@ -13,21 +13,50 @@ updates:
       github-actions:
         patterns:
           - "*"
-  - package-ecosystem: pip
+  # Bumps uv.lock. The cooldown matches `exclude-newer` in pyproject.toml,
+  # and its exclude list matches `exclude-newer-package` there: Dependabot's
+  # cooldown counts whole days, so those packages' 6-hour cooldown is left to
+  # uv. They get their own group, so a new SDK release is proposed the next day
+  # and a broken update elsewhere can't hold it up. It comes first: a package
+  # in both groups goes to the first match (and to the more specific pattern).
+  - package-ecosystem: uv
     versioning-strategy: lockfile-only
     directory: "/"
     schedule:
       interval: daily
       time: "13:00"
+    cooldown:
+      default-days: 7
+      exclude:
+        - "anthropic"
+        - "azure-ai-inference"
+        - "google-genai"
+        - "groq"
+        - "inspect-scout"
+        - "mistralai"
+        - "openai"
+        - "together"
+        - "xai-sdk"
     groups:
+      provider-sdks:
+        patterns:
+          - "anthropic"
+          - "azure-ai-inference"
+          - "google-genai"
+          - "groq"
+          - "inspect-scout"
+          - "mistralai"
+          - "openai"
+          - "together"
+          - "xai-sdk"
       python-packages:
         patterns:
           - "*"
     ignore:
       - dependency-name: "quarto-cli"
         versions: [">=1.6.0"]
+      # Bumped by hand: a new ruff can reformat files across the repo.
       - dependency-name: "ruff"
-        versions: [">=0.9.5"]
       - dependency-name: "textual"
         versions: [">=2.0.0"]
       - dependency-name: "rich"
@@ -38,3 +67,15 @@ updates:
         versions: [">=8.2.0"]
       - dependency-name: "griffe"
         versions: [">=1.15.0"]
+  # Bumps the release build toolchain pinned in
+  # scripts/build-dist/requirements.txt.
+  - package-ecosystem: uv
+    directory: "/scripts/build-dist"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      build-toolchain:
+        patterns:
+          - "*"

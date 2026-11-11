@@ -44,7 +44,7 @@ async def test_groq_stop_reason() -> None:
 @skip_if_no_openai
 @skip_if_trio
 async def test_openai_stop_reason() -> None:
-    await check_stop_reason("openai/gpt-3.5-turbo")
+    await check_stop_reason("openai/gpt-4o-mini")
 
 
 @skip_if_no_openai
@@ -69,7 +69,7 @@ async def test_grok_stop_reason() -> None:
 @skip_if_no_together
 @skip_if_trio
 async def test_together_stop_reason() -> None:
-    await check_stop_reason("together/MiniMaxAI/MiniMax-M2.7")
+    await check_stop_reason("together/MiniMaxAI/MiniMax-M3.1-Flash")
 
 
 @skip_if_no_moonshot

@@ -5,8 +5,10 @@ This file provides guidance to AI coding agents when working with code in this r
 ## Contribution policy — required checks before opening a PR
 
 These rules are mandatory for AI coding agents (Claude Code, Codex, Cursor,
-Devin, and similar) preparing contributions. Human contributors: see
-[CONTRIBUTING.md](CONTRIBUTING.md). A deterministic gate enforces them.
+Devin, and similar) preparing contributions. Read and follow
+[CONTRIBUTING.md](CONTRIBUTING.md) first: its rules apply to agents and human
+contributors alike, and this section adds agent-specific rules on top. A
+deterministic gate enforces the checks below.
 
 1. **Accepted-issue check.** Is the account you are operating for on the
    qualified roster (recorded by account id in `.github/qualified.yml`)? If
@@ -92,6 +94,7 @@ Example:
 ```
 
 ## Build/Lint/Test Commands
+- Set up the environment: `uv sync` (installs from `uv.lock`; don't `pip install` the project). See CONTRIBUTING.md for the 7-day dependency cooldown and how to adopt a newer release
 - Run all tests: `pytest`
 - Run a single test: `pytest tests/path/to/test_file.py::test_function_name -v`
 - Format code: `ruff format`
@@ -136,11 +139,12 @@ limitations, and validation.
 
 ## Suppression gate
 
-- Do NOT suppress lint or type errors (`# noqa`, `# type: ignore`,
-  `# pyright: ignore`, or the file-wide `# ruff: noqa` /
-  `# mypy: ignore-errors`). Fix the code. A deterministic gate enforces
-  this (`make suppressions-check` against `suppressions.json`); maintainers
-  reject suppressions that just make an error go away.
+- Do NOT suppress lint or type errors (`# noqa`, `# ruff: ignore[...]`,
+  `# type: ignore`, `# pyright: ignore`, the range `# ruff: disable[...]`,
+  or the file-wide `# ruff: noqa` / `# mypy: ignore-errors`). Fix the
+  code. A deterministic gate enforces this (`make suppressions-check`
+  against `suppressions.json`); maintainers reject suppressions that just
+  make an error go away.
 - In the rare case a suppression is correct, it requires both: a reason in
   a trailing hash comment segment on the same line, the only style mypy
   accepts (e.g. `x = f()  # type: ignore[assignment]  # stub is wrong
@@ -195,6 +199,26 @@ providers, sandbox or tool code, agents, or async plumbing must run the gated
 tests that cover the change locally, and the PR description must report the
 run. The `slow-tests` skill (`.agents/skills/slow-tests/SKILL.md`) says which
 flags and directories go with which change and what each class needs.
+
+This table lists common cases. The skill has the full list and takes precedence.
+
+| You changed | Run | Needs |
+|---|---|---|
+| A model provider | `pytest --runapi --runslow tests/model/providers/test_<provider>*.py` | That provider's credentials |
+| Tool code (`src/inspect_ai/tool/`) | `pytest --runslow -m slow tests/tools/ -x` | Docker running |
+| Sandbox tools build inputs (`src/inspect_sandbox_tools/`, other paths in `injectable_paths.txt`) | Build the `-dev` binaries with `build_within_container.py --arch <arch>`, then again with `--musl`. Then run `pytest --runslow -m slow tests/tools/ -x` | Docker running |
+| Agent code | `pytest --runslow --runapi tests/agent/` | Some tests need Docker or an OpenAI or Anthropic key |
+
+`build_within_container.py` and `injectable_paths.txt` are in
+`src/inspect_ai/tool/_sandbox_tools_utils/`. Use the architecture of your
+Docker host for `<arch>`; CI uses `amd64`. The tests reuse the existing `-dev`
+binaries. Rebuild both after each change.
+
+A gated test that is not enabled shows as skipped, and pytest still exits
+successfully. `--runslow` alone does not run the live provider tests marked
+`api`; they also need `--runapi` and the provider's credentials. Check the
+skip summary at the end of the run to confirm the tests you meant to run
+actually ran.
 
 Report the run in a `### Slow tests` section after `### Validation`. Use one
 short bullet per run: test class/provider, version when relevant, exact

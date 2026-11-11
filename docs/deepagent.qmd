@@ -307,8 +307,10 @@ The system prompt teaches the model the dispatch discipline: do useful independe
 
 Two automatic signals keep the parent aware of its background agents without forcing it to poll:
 
-- Completion notifications: The turn a background agent finishes (or fails), a one-line user message is injected (it is notification-only: the result itself is still fetched on demand).
+- Completion notifications: The turn a background agent finishes, a one-line user message is injected (it is notification-only: the result itself is still fetched on demand).
 - Forgetting backstop:  If the agent goes several turns without touching its background agents, a passive reminder is injected — listing what is still running, plus any finished agents whose results are still worth collecting.
+
+Unexpected errors in a background subagent fail the sample, just as foreground subagent errors do. The sample's `fail_on_error` and `retry_on_error` settings apply. Recoverable tool errors remain tool results, and a subagent's own limits stop only that subagent.
 
 ### Fork Mode {#sec-fork-mode}
 

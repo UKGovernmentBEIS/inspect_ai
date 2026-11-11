@@ -98,21 +98,30 @@ If there’s something you’d like to work on but no GitHub issue for it, start
 Note that `good first issue` implies `accepted` — you can open a PR for one directly.
 
 ## Working on your issue
-After you’ve claimed an issue, you can start working on it. If this is your first contribution, you’ll need to clone the repository and install the development dependencies:
+After you’ve claimed an issue, you can start working on it. If this is your first contribution, install [uv](https://docs.astral.sh/uv/) 0.13.4 or later (`required-version` in `pyproject.toml` enforces this; upgrade with `uv self update`, or `brew upgrade uv` if you installed it with Homebrew), clone the repository, and sync the development environment from the lockfile:
 
 ```
 git clone https://github.com/UKGovernmentBEIS/inspect_ai.git
 cd inspect_ai
-pip install -e ".[dev]"
+uv sync
 ```
 
-If you prefer [uv](https://docs.astral.sh/uv/), you can instead sync the development environment from the lockfile:
+`uv sync` installs Inspect in editable mode with its development dependencies (the `dev` dependency group, which uv installs by default) at the versions recorded in `uv.lock`. Inspect's dependencies are declared in `pyproject.toml`, in `dependencies` and the `optional-dependencies` extras. If you are changing dependencies, edit them there and run `uv lock`.
 
-```
-uv sync --extra dev
-```
+uv only resolves releases that have been on PyPI for at least seven days (`exclude-newer` in `pyproject.toml`). This cooldown gives time to find and yank a compromised or broken release before it gets to `uv.lock`, CI, or your machine. To adopt a specific new release, run `uv lock --upgrade-package <package>`.
 
-The uv workflow is optional. Inspect's dependencies are declared in the `requirements*.txt` files and exposed through `pyproject.toml`; `uv.lock` captures a reproducible development resolution. If you are changing dependencies, update the relevant requirements file and refresh the lockfile rather than using `uv add` as the source of truth.
+A package can have a six-hour cooldown instead (`"6 hours"` under `[tool.uv.exclude-newer-package]`). Then Inspect can support a new release on the day that it ships. Only a direct dependency gets this exception: a package in the `pyproject.toml` `dependencies` or the `dev` extra. The package must also be a model provider SDK or one of Inspect's own packages. All other packages keep the seven-day cooldown. This includes provider infrastructure such as `torch`, `accelerate`, the AWS SDKs, and the CA bundle (`certifi`). When you add a `"6 hours"` entry, also add the package to `cooldown.exclude` and to the `provider-sdks` group in `.github/dependabot.yml`.
+
+In an emergency, for example a security fix, you can adopt a release that is less than seven days old. Use a one-time dated entry:
+
+1. Under `[tool.uv.exclude-newer-package]` in `pyproject.toml`, add `<package> = "<timestamp>"`. The package must be a direct dependency. Use an RFC 3339 timestamp just after the upload time of the fixed release. Do not add a dated entry to `.github/dependabot.yml`.
+2. Run `uv lock --upgrade-package <package>`.
+3. If `src/inspect_ai/model/_model_data/sync_models.py` locks the package, add the same entry to its inline script metadata. Then run `uv lock --script src/inspect_ai/model/_model_data/sync_models.py --no-config --upgrade-package <package>`. Its workflow runs uv with `--no-config`, so it does not read `pyproject.toml`.
+4. Within seven days, when the normal cooldown includes the release, delete the entry and run `uv lock --upgrade-package <package>`. A plain `uv lock` doesn't reliably remove the entry from `uv.lock`, and CI then fails. If you added the entry to `sync_models.py`, delete it there too and run its `uv lock --script` command from step 3 again. A test fails when a dated entry is seven days old or older.
+
+When a major or breaking model provider SDK release breaks Inspect, raise the minimum supported version instead of adding compatibility code for both versions. Users install provider SDKs themselves, so the floor they get, where one exists, is the provider's runtime minimum check (`MIN_VERSION`, usually in `src/inspect_ai/model/_providers/providers.py`): always raise it when it exists. Some providers have no runtime version check yet. `azureai()`, `nnterp()` and `transformer_lens()` only try the import and raise `pip_dependency_error`. When you first raise a floor for one of these providers, add a `verify_required_version` check with a `MIN_VERSION`. Many provider SDKs are also dev dependencies, listed in the `pyproject.toml` `dev` extra. For those, set or raise the floor there to match the runtime minimum and update `uv.lock` in the same PR. Some provider SDKs (for example `nnterp` and `transformer_lens`) aren't in `pyproject.toml` at all, so that new runtime check is then their only floor.
+
+uv is the supported way to set up Inspect. Installing with pip (`pip install -e ".[dev]"`) gets neither `uv.lock` nor the repository's cooldown.
 
 Create a branch with a short, descriptive name, then start working on the issue. You may find it helpful to install the pre-commit hooks:
 
@@ -127,9 +136,11 @@ make check    # Run linter (ruff) and formatter
 make test     # Run pytest suite
 ```
 
-In a uv-managed environment, run these as `uv run make check` and `uv run make test`.
+Run these as `uv run make check` and `uv run make test`, or activate the environment in `.venv` first.
 
 If any tests are failing, fix the code and run both commands again to verify. Once all the tests are passing, push your branch to GitHub.
+
+`make test` skips the gated tests: slow Docker tests, most live model-provider tests, flaky tests, and trio variants. PR CI runs only some of the slow tests and none of the live provider tests. If you change model providers, sandbox or tool code, agents, or async plumbing, run the gated tests that cover your change locally. Report the commands and results in the "Slow tests" section of the PR description. Name any relevant tests you could not run, and say why. This applies to human contributors and AI agents alike. See [Gated tests](AGENTS.md#gated-tests-slow-api-flaky-trio) in AGENTS.md for common commands and the [slow-tests skill](.agents/skills/slow-tests/SKILL.md) for the full list of flags, directories, and requirements.
 
 ## Creating a pull request
 

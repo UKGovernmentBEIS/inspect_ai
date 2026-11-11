@@ -87,7 +87,7 @@ async def test_openai_compact_propagates_other_endpoint_errors() -> None:
 @skip_if_no_openai
 async def test_openai_api() -> None:
     model = get_model(
-        "openai/gpt-3.5-turbo",
+        "openai/gpt-4o-mini",
         config=GenerateConfig(
             frequency_penalty=0.0,
             stop_seqs=None,
@@ -162,7 +162,7 @@ async def test_openai_o_series_developer_messages() -> None:
             ]
         )
 
-    await check_developer_messages("openai/o3-mini")
+    await check_developer_messages("openai/o3")
 
 
 @skip_if_no_openai
@@ -176,7 +176,7 @@ async def test_openai_o_series_reasoning_effort() -> None:
         response = await model.generate(input=[message])
         assert len(response.completion) >= 1
 
-    await check_reasoning_effort("openai/o3-mini")
+    await check_reasoning_effort("openai/o3")
     await check_reasoning_effort("openai/gpt-5-mini", "minimal")
 
 
@@ -191,14 +191,14 @@ async def test_openai_o_series_max_tokens() -> None:
         response = await model.generate(input=[message])
         assert len(response.completion) >= 1
 
-    await check_max_tokens("openai/o3-mini")
+    await check_max_tokens("openai/o3")
 
 
 @skip_if_no_openai
 def test_openai_flex_requests():
     log = eval(
         Task(),
-        model="openai/o4-mini",
+        model="openai/gpt-5-mini",
         model_args=dict(service_tier="flex", client_timeout=1200),
     )[0]
     assert log.status == "success"
@@ -258,20 +258,63 @@ invalid_utf8_b64 = base64.b64encode(invalid_utf8_bytes).decode("utf-8")
 
 
 @pytest.mark.parametrize(
-    "s,expected_exception",
+    "s",
     [
         # Valid base64 that decodes to invalid UTF-8 (e.g., bytes that are not valid UTF-8)
-        ("<internal>" + invalid_utf8_b64 + "</internal>content", UnicodeDecodeError),
+        "<internal>" + invalid_utf8_b64 + "</internal>content",
         # Invalid JSON after base64 decoding
-        (
-            f"<internal>{base64.b64encode(b'invalid json').decode('utf-8')}</internal>content",
-            json.JSONDecodeError,
-        ),
+        f"<internal>{base64.b64encode(b'invalid json').decode('utf-8')}</internal>content",
+        # Not base64 (a quoted example of the marker)
+        "The marker is <internal>example</internal>.",
     ],
 )
-def test_parse_content_with_internal_invalid_encoding(s, expected_exception):
-    with pytest.raises(expected_exception):
-        parse_content_with_internal(s, "internal")
+def test_parse_content_with_internal_undecodable_is_literal(s):
+    assert parse_content_with_internal(s, "internal") == (s, None)
+
+
+def test_parse_content_with_internal_deeply_nested_body_is_literal():
+    s = f"<internal>{base64.b64encode(b'[' * 200_000).decode('utf-8')}</internal>"
+    assert parse_content_with_internal(s, "internal") == (s, None)
+
+
+@pytest.mark.parametrize("depth", [101, 250, 300])
+def test_parse_content_with_internal_body_that_cannot_be_content_is_literal(depth):
+    """A body that decodes but nests deeper than `internal` may stays text."""
+    deep = base64.b64encode(("[" * depth + "]" * depth).encode()).decode("utf-8")
+    s = f"see <internal>{deep}</internal>\n<internal>{encode_internal({'a': 1})}</internal>"
+    assert parse_content_with_internal(s, "internal") == (
+        f"see <internal>{deep}</internal>",
+        {"a": 1},
+    )
+
+
+def test_parse_content_with_internal_body_at_the_depth_limit_is_internal():
+    value = json.loads("[" * 100 + "]" * 100)
+    assert parse_content_with_internal(
+        f"text <internal>{encode_internal(value)}</internal>", "internal"
+    ) == ("text", value)
+
+
+def test_parse_content_with_internal_quoted_opening_marker_keeps_encoded():
+    s = f"Use the <internal> marker.\n<internal>{encode_internal({'a': 1})}</internal>"
+    assert parse_content_with_internal(s, "internal") == (
+        "Use the <internal> marker.",
+        {"a": 1},
+    )
+
+
+def test_parse_content_with_internal_body_wrapped_across_lines():
+    encoded = encode_internal({"a": 1})
+    s = f"text\n<internal>{encoded[:4]}\n{encoded[4:]}</internal>"
+    assert parse_content_with_internal(s, "internal") == ("text", {"a": 1})
+
+
+def test_parse_content_with_internal_keeps_literal_beside_encoded():
+    s = f"see <internal>example</internal>\n<internal>{encode_internal({'a': 1})}</internal>\n"
+    assert parse_content_with_internal(s, "internal") == (
+        "see <internal>example</internal>",
+        {"a": 1},
+    )
 
 
 async def test_chat_completions_forwards_config_extra_headers():
@@ -908,6 +951,29 @@ async def test_openai_gpt_6_1_sol_low_effort_with_temperature() -> None:
 @skip_if_no_openai_model("gpt-6.1-sol")
 async def test_openai_gpt_6_1_sol_max_reasoning_effort() -> None:
     await _gpt_6_max_effort("gpt-6.1-sol")
+
+
+# -- GPT-6.1 Terra (live) --
+#
+# Unlike GPT-6.1 Sol, Terra accepts `none` like GPT-6 Sol and Luna.
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.1-terra")
+async def test_openai_gpt_6_1_terra_generate() -> None:
+    await _gpt_6_generate("gpt-6.1-terra")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.1-terra")
+async def test_openai_gpt_6_1_terra_none_effort_with_temperature() -> None:
+    await _gpt_6_none_effort_with_temperature("gpt-6.1-terra")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.1-terra")
+async def test_openai_gpt_6_1_terra_max_reasoning_effort() -> None:
+    await _gpt_6_max_effort("gpt-6.1-terra")
 
 
 # -- skip_if_no_openai_model gate (no network) --

@@ -5,6 +5,8 @@ from ._controller import Controller
 from .tool_types import (
     CloseStdinParams,
     CloseStdinResult,
+    KillKeyParams,
+    KillKeyResult,
     KillParams,
     KillResult,
     PollParams,
@@ -30,6 +32,7 @@ async def exec_remote_start(params: SubmitParams) -> SubmitResult:
         cwd=params.cwd,
         user=params.user,
         can_switch_user=_can_switch_user,
+        job_key=params.job_key,
     )
     return SubmitResult(pid=pid)
 
@@ -37,13 +40,19 @@ async def exec_remote_start(params: SubmitParams) -> SubmitResult:
 @validated_json_rpc_method(PollParams)
 async def exec_remote_poll(params: PollParams) -> PollResult:
     """Poll job state and get incremental output."""
-    return await controller.poll(params.pid, params.ack_seq)
+    return await controller.poll(params.pid, params.ack_seq, params.wait)
 
 
 @validated_json_rpc_method(KillParams)
 async def exec_remote_kill(params: KillParams) -> KillResult:
     """Kill a running job."""
     return await controller.kill(params.pid, params.ack_seq)
+
+
+@validated_json_rpc_method(KillKeyParams)
+async def exec_remote_kill_key(params: KillKeyParams) -> KillKeyResult:
+    """Kill the job started with a key, or refuse its start if it has not arrived."""
+    return await controller.kill_key(params.job_key)
 
 
 @validated_json_rpc_method(WriteStdinParams)

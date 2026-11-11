@@ -25,7 +25,7 @@ from inspect_ai.tool._tool_choice import ToolChoice
 
 @skip_if_no_together
 async def test_reasoning_content_together():
-    await check_reasoning_content("together/openai/gpt-oss-20b")
+    await check_reasoning_content("together/Qwen/Qwen3.5-9B")
 
 
 @skip_if_no_groq
@@ -41,7 +41,7 @@ async def test_reasoning_content_openai():
 @skip_if_no_openai
 @skip_if_no_openrouter
 async def test_reasoning_content_openrouter_openai():
-    await check_reasoning_content("openrouter/openai/o4-mini")
+    await check_reasoning_content("openrouter/openai/gpt-5-mini")
 
 
 def check_reasoning_round_trip(model: str) -> None:
@@ -174,7 +174,7 @@ def check_reasoning_history(
 
     log = eval(
         task,
-        model="together/deepseek-ai/DeepSeek-R1",
+        model="together/deepseek-ai/DeepSeek-V4.1-Flash",
         reasoning_history=reasoning_history,
     )[0]
     assert log.samples

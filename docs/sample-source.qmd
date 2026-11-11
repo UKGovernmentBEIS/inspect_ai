@@ -49,12 +49,12 @@ Pass an instance as the task's `dataset`:
 from inspect_ai import Task, eval
 
 eval(Task(dataset=MySource(), solver=my_solver(), scorer=my_scorer()),
-     model="openai/gpt-4o")
+     model="openai/gpt-6-luna")
 ```
 
 `initial_samples()` is synchronous and returns the seed, so it must return immediately rather than `await`. It may be empty, in which case the task starts by calling `next_samples()`. `next_samples()` is async, called whenever no samples remain in flight, and may block (for example, awaiting external input); return `None` to end the task.
 
-All generated samples run within the task (one log file and one set of results), and each runs for the task's configured number of [epochs](metrics.qmd#reducing-epochs). Samples without an `id` are assigned one automatically, continuing the seed's numbering.
+All generated samples run within the task (one log file and one set of results), and each runs for the task's configured number of [epochs](metrics.qmd#reducing-epochs). Seed samples without an `id` are numbered by position, as in any dataset. Generated samples without an `id` get a generated id such as `dyn-t4ab9c-0003`, which never repeats in a later retry attempt. Generated ids sort in the order they were added, up to 9,999 per attempt; beyond that, and past a change in the token's width (in 2039), they stay unique but no longer sort in order. A generated id skips any id an explicit sample already holds. Avoid explicit ids of the form `dyn-<token>-<counter>`: a later retry can generate the same id and reuse that sample's result for its own sample (see [Retries](#retries)).
 
 ## Returning follow-up samples
 
@@ -81,7 +81,7 @@ Note that with `epochs > 1`, `sample_complete` fires once per *epoch*, and each 
 
 A sample the operator cancels while it is running (`inspect ctl sample cancel`) is still logged, and `sample_complete` fires for it with `sample.error` set to the cancellation and no scores. A sample cancelled before anything was logged — cancelled while still waiting in the queue, or cancelled in the moment between an attempt erroring and its `retry_on_error` re-run — has no `EvalSample` to deliver, so the source is told via `sample_abandoned(sample, epoch)` instead, with the `Sample` as it was added to the task. Like `sample_complete`, it may return follow-up samples. A queued sample abandoned by a graceful task cancel (`inspect ctl task cancel --action drain|score|error`) is reported the same way. Neither hook fires when the whole task is cancelled (`--action cancel`, or Ctrl+C): no follow-up could run.
 
-A source that awaits a sample's outcome — for example a sample that enqueues a rollout and waits for its result — should therefore treat `sample_abandoned` as that outcome, or it will wait forever when the rollout is cancelled before it starts.
+A source that awaits a sample's outcome — for example a sample that enqueues a rollout and waits for its result — should therefore treat `sample_abandoned` as that outcome, or it will wait forever when the rollout is cancelled before it starts. To match an enqueued sample to these callbacks by id, give it an explicit `id`; a generated id is not written back to the submitted `Sample`.
 
 ## Sources from callbacks
 
@@ -124,7 +124,7 @@ Enqueued samples share a buffer with samples returned from `sample_complete`. `e
 
 ### Running a sample again as a new epoch
 
-Pass `epoch` to `enqueue_sample()` to run a sample once, as that epoch, rather than for the task's configured epochs. This lets a source run the same sample repeatedly under its own id:
+Pass `epoch` to `enqueue_sample()` to run a sample once, as that epoch, rather than for the task's configured epochs. This lets a source run the same sample repeatedly under its own id, so the sample must have an explicit `id`:
 
 ```python
 class Rollouts(SampleSource):
@@ -172,7 +172,11 @@ A *fractional* `fail_on_error` threshold (e.g. `0.5`) is evaluated at the end of
 
 ## Retries
 
-On a task retry (`eval_set` / task retry attempts), completed samples from the prior attempt are reused, and the source's `sample_complete` is called for each reused sample — so a source that derives its follow-ups from `sample_complete` (the patterns above) regenerates them naturally, and regenerated samples whose ids (and explicit epochs) match the prior attempt are themselves reused rather than re-run. Note that the retry re-drives the *same source instance*: a source that instead holds internal `next_samples()` state resumes where it left off, so such sources should be written to be resumable if used with retries.
+On a task retry (`eval_set` / task retry attempts), completed samples from the prior attempt are reused, and the source's `sample_complete` is called for each reused sample — so a source that derives its follow-ups from `sample_complete` (the patterns above) regenerates them naturally.
+
+A generated sample is reused on retry only if its explicit `id` (and explicit epoch, if any) matches the prior attempt. Each time a sample without an `id` is added, it receives a new generated id that no other attempt uses; the source's `Sample` stays unchanged. So adding the same object twice runs two separate samples, and on a retry it runs again. Give follow-ups explicit stable ids to reuse their results on retry.
+
+Note that the retry re-drives the *same source instance*: a source that instead holds internal `next_samples()` state resumes where it left off, so such sources should be written to be resumable if used with retries.
 
 ## Logs
 

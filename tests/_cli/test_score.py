@@ -25,7 +25,7 @@ from inspect_ai.log._log import (
     EvalSpec,
     EvalStats,
 )
-from inspect_ai.log._recorders import create_recorder_for_location
+from inspect_ai.log._recorders import Recorder, create_recorder_for_location
 from inspect_ai.util._early_stopping import EarlyStop, EarlyStoppingSummary
 
 LOGS_DIR = pathlib.Path(__file__).parents[1] / "scorer/logs"
@@ -155,7 +155,16 @@ async def test_score_stream_preserves_log_updates(
     )
 
     async def fake_score_async(
-        *, log, scorers, metrics, model, model_roles, action, copy, samples
+        *,
+        log,
+        scorers,
+        metrics,
+        model,
+        model_roles,
+        action,
+        copy,
+        samples,
+        _log_scorers,
     ):
         assert samples is not None
         return log
@@ -179,6 +188,50 @@ async def test_score_stream_preserves_log_updates(
     assert rescored_log.log_updates == log.log_updates
     assert rescored_log.tags == log.tags
     assert rescored_log.metadata == log.metadata
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("stream", [True, False], ids=["stream", "no-stream"])
+@pytest.mark.parametrize("source", ["eval", "json"])
+async def test_score_append_preserves_reductions(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    stream: bool,
+    source: str,
+) -> None:
+    input_file = tmp_path / LOG_SCORED.with_suffix(f".{source}").name
+    output_file = tmp_path / f"rescored.{source}"
+
+    log = await read_eval_log_async(str(LOG_SCORED))
+    assert log.reductions
+    await write_eval_log_async(log, str(input_file))
+
+    monkeypatch.setattr(score_cli, "init_eval_context", lambda *args, **kwargs: None)
+    monkeypatch.setattr(score_cli, "print_results", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        score_cli, "resolve_scorers", lambda *args, **kwargs: [object()]
+    )
+
+    async def fake_score_async(*, log, **kwargs):
+        return log
+
+    monkeypatch.setattr(score_cli, "score_async", fake_score_async)
+
+    await score(
+        log_dir="",
+        log_file=str(input_file),
+        action="append",
+        log_level=None,
+        output_file=str(output_file),
+        overwrite=True,
+        scorer="match",
+        s=(),
+        metric=None,
+        stream=stream,
+    )
+
+    rescored_log = await read_eval_log_async(output_file)
+    assert rescored_log.reductions == log.reductions
 
 
 @pytest.mark.anyio
@@ -217,7 +270,16 @@ async def test_score_stream_flushes_periodically(
     )
 
     async def fake_score_async(
-        *, log, scorers, metrics, model, model_roles, action, copy, samples
+        *,
+        log,
+        scorers,
+        metrics,
+        model,
+        model_roles,
+        action,
+        copy,
+        samples,
+        _log_scorers,
     ):
         assert samples is not None
         for idx in range(10):
@@ -241,6 +303,53 @@ async def test_score_stream_flushes_periodically(
     )
 
     assert flush_counts == [1, 2, 3]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+async def test_score_stream_in_place_failure_leaves_the_log_unchanged(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, log_format: str
+) -> None:
+    log = await read_eval_log_async(str(LOG_SCORED))
+    # the space makes as_uri() below a percent-encoded alias of the input
+    input_file = tmp_path / f"scored log.{log_format}"
+    await write_eval_log_async(log, str(input_file))
+    original = input_file.read_bytes()
+    recorders: list[Recorder] = []
+
+    def create_recorder(location: str, log_dir: str) -> Recorder:
+        recorder = create_recorder_for_location(location, log_dir)
+        recorders.append(recorder)
+        return recorder
+
+    async def failing_score_async(*, samples, **kwargs):
+        for idx in range(len(log.samples or [])):
+            async with samples(idx):
+                pass
+        raise RuntimeError("scoring failed")
+
+    monkeypatch.setattr(score_cli, "create_recorder_for_location", create_recorder)
+    monkeypatch.setattr(score_cli, "score_async", failing_score_async)
+
+    try:
+        with pytest.raises(RuntimeError, match="scoring failed"):
+            await score(
+                log_dir="",
+                log_file=str(input_file),
+                action="overwrite",
+                log_level=None,
+                output_file=input_file.as_uri(),
+                overwrite=True,
+                scorer="match",
+                s=(),
+                metric=None,
+                stream=3,
+            )
+
+        assert input_file.read_bytes() == original
+    finally:
+        # score() does not discard the write recorder when scoring fails
+        await recorders[-1].log_discard(log.eval, keep_destination=True)
 
 
 def early_stops(count: int) -> EarlyStoppingSummary:

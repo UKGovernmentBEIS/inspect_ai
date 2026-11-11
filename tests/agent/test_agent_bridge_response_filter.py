@@ -1,12 +1,24 @@
 import json
 import re
+import traceback
+from datetime import date
 from pathlib import Path
-from typing import Any, Literal, NamedTuple, cast, get_args
+from typing import (
+    Any,
+    Callable,
+    Literal,
+    NamedTuple,
+    NoReturn,
+    Sequence,
+    cast,
+    get_args,
+)
 from unittest.mock import AsyncMock
 
 import anyio
 import pytest
 from pydantic import JsonValue
+from test_helpers.message_ids import edited_id
 from test_helpers.service_dispatch import (
     REQUEST_FILE,
     REQUEST_ID,
@@ -20,6 +32,7 @@ from test_helpers.utils import (
 )
 from typing_extensions import assert_never
 
+from inspect_ai._util._async import unwrap_exception_group
 from inspect_ai._util.content import (
     Content,
     ContentReasoning,
@@ -29,7 +42,9 @@ from inspect_ai._util.content import (
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import AgentState
 from inspect_ai.agent._bridge._errors import PROVIDER_ERROR_KEY, ResponseFilterError
+from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
 from inspect_ai.agent._bridge.bridge import agent_bridge
+from inspect_ai.agent._bridge.responses import inspect_responses_api_request
 from inspect_ai.agent._bridge.sandbox import bridge as sandbox_bridge_module
 from inspect_ai.agent._bridge.sandbox.bridge import (
     _monitor_failure,
@@ -42,7 +57,16 @@ from inspect_ai.agent._bridge.sandbox.service import (
 )
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.agent._bridge.types import AgentBridge
-from inspect_ai.agent._bridge.util import bridge_generate
+from inspect_ai.agent._bridge.util import (
+    _CLIENT_NEUTRAL_CONFIG_FIELDS,
+    _apply_response_filter,
+    _is_unchanged,
+    _settle_message_ids,
+    apply_message_ids,
+    bridge_generate,
+    default_code_execution_providers,
+    internal_web_search_providers,
+)
 from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
 from inspect_ai.event import ModelEvent
 from inspect_ai.log import EvalLog
@@ -53,6 +77,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._message_ids import edited_message
 from inspect_ai.model._model import (
     GenerateFilter,
     GenerateInput,
@@ -60,6 +85,7 @@ from inspect_ai.model._model import (
     ModelRefusalError,
     ModelResponseFilter,
     get_model,
+    use_model_event_sink,
 )
 from inspect_ai.model._model_output import (
     ChatCompletionChoice,
@@ -71,6 +97,7 @@ from inspect_ai.model._providers.anthropic import (
     init_sample_anthropic_assistant_internal,
 )
 from inspect_ai.model._providers.mockllm import MockLLM
+from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
@@ -685,6 +712,9 @@ class _RecordingCompact:
     ) -> None:
         self.recorded.append((input, output))
 
+    async def reset(self, prefix: list[ChatMessage]) -> None:
+        pass
+
 
 async def test_response_filter_runs_after_compaction_baseline_update() -> None:
     """A replacing filter must not blind compaction to the real generate usage.
@@ -994,6 +1024,166 @@ async def test_response_filter_error_keeps_the_filter_exception_as_cause() -> No
     assert isinstance(exc_info.value.__cause__, ValueError)
 
 
+def _raise(error: Exception) -> NoReturn:
+    raise error
+
+
+@pytest.mark.parametrize(
+    "make_error",
+    [
+        lambda: LimitExceededError("token", value=2, limit=1),
+        lambda: TerminateSampleError("stop"),
+        lambda: ModelRefusalError(
+            ModelOutput.from_content("mockllm/model", "no"), "mockllm/model"
+        ),
+    ],
+    ids=["limit", "terminate", "refusal"],
+)
+async def test_response_filter_control_flow_keeps_its_context(
+    make_error: Callable[[], Exception],
+) -> None:
+    """Control flow raised from a filter's task group keeps its own context."""
+    error = make_error()
+
+    async def fail() -> None:
+        try:
+            raise ValueError("context")
+        except ValueError:
+            _raise(error)
+
+    async def grouped_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(collect, fail())
+        return None
+
+    model = get_model("mockllm/model")
+    with pytest.raises(type(error)) as exc_info:
+        await _apply_response_filter(
+            grouped_filter,
+            model,
+            ModelOutput.from_content("mockllm/model", "hi"),
+            GenerateInput([], [], "auto", GenerateConfig()),
+        )
+    assert exc_info.value is error
+    assert repr(error.__context__) == "ValueError('context')"
+    assert not error.__suppress_context__
+    text = "".join(traceback.format_exception(error))
+    assert "Exception Group Traceback" not in text
+    assert text.count(f"{type(error).__name__}: ") == 1
+
+
+@pytest.mark.parametrize("changed", [False, True], ids=["unchanged", "changed"])
+async def test_response_filter_keeps_the_completion_of_an_unchanged_message(
+    changed: bool,
+) -> None:
+    """A replacement with the message unchanged keeps the provider's completion.
+
+    A provider can set a completion that differs from the message's text (Google
+    joins text continued across requests with no separator). A changed message
+    has its completion rebuilt from its text.
+    """
+    output = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content=[
+                        ContentText(text='{"answer":"hel'),
+                        ContentText(text='lo"}'),
+                    ]
+                ),
+                stop_reason="stop",
+            )
+        ],
+        completion='{"answer":"hello"}',
+    )
+
+    async def replacing_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        if changed:
+            output.message.content = [ContentText(text="replaced")]
+        return output
+
+    filtered = await _apply_response_filter(
+        replacing_filter,
+        get_model("mockllm/model"),
+        output,
+        GenerateInput([], [], "auto", GenerateConfig()),
+    )
+    assert filtered.completion == ("replaced" if changed else '{"answer":"hello"}')
+
+
+async def test_response_filter_termination_on_a_wrapper_ends_the_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A termination the filter's group was raised while handling stays sticky."""
+
+    async def grouped_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        try:
+            raise TerminateSampleError("stop now")
+        except TerminateSampleError:
+            _raise(
+                ExceptionGroup(
+                    "cleanup", [LimitExceededError("token", value=2, limit=1)]
+                )
+            )
+
+    async def generate() -> JsonValue:
+        await _apply_response_filter(
+            grouped_filter,
+            get_model("mockllm/model"),
+            ModelOutput.from_content("mockllm/model", "hi"),
+            GenerateInput([], [], "auto", GenerateConfig()),
+        )
+        return None
+
+    replies: list[str | None] = []
+    service = dispatching_service(monkeypatch, "generate", generate, {}, replies)
+    with pytest.raises(TerminateSampleError, match="stop now"):
+        await service._handle_request_tracked(REQUEST_FILE, REQUEST_ID)
+    assert replies == ["Terminating: stop now"]
+
+
+@pytest.mark.parametrize("selected", ["error", "group"])
+async def test_response_filter_termination_on_the_unwrapped_error_ends_the_request(
+    monkeypatch: pytest.MonkeyPatch, selected: Literal["error", "group"]
+) -> None:
+    """A termination in the context of the error a filter unwraps stays sticky."""
+
+    async def grouped_filter(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        limit = LimitExceededError("token", value=2, limit=1)
+        error: Exception = (
+            limit if selected == "error" else ExceptionGroup("inner", [limit])
+        )
+        error.__context__ = TerminateSampleError("stop now")
+        outer = ExceptionGroup("outer", [error])
+        outer.__cause__ = ValueError("outer cause")
+        with unwrap_exception_group():
+            raise outer
+
+    async def generate() -> JsonValue:
+        await _apply_response_filter(
+            grouped_filter,
+            get_model("mockllm/model"),
+            ModelOutput.from_content("mockllm/model", "hi"),
+            GenerateInput([], [], "auto", GenerateConfig()),
+        )
+        return None
+
+    replies: list[str | None] = []
+    service = dispatching_service(monkeypatch, "generate", generate, {}, replies)
+    with pytest.raises(TerminateSampleError, match="stop now"):
+        await service._handle_request_tracked(REQUEST_FILE, REQUEST_ID)
+    assert replies == ["Terminating: stop now"]
+
+
 @skip_if_no_docker
 @pytest.mark.slow
 @pytest.mark.parametrize(
@@ -1076,12 +1266,15 @@ def _sandbox_bridge(
     )
 
 
-async def test_sandbox_identity_filter_keeps_provider_tool_arguments() -> None:
+@pytest.mark.parametrize("regenerate", [False, True], ids=["output", "regeneration"])
+async def test_sandbox_identity_filter_keeps_provider_tool_arguments(
+    regenerate: bool,
+) -> None:
     """Only arguments the filter changed must be JSON-serializable.
 
     `parse_tool_call`'s YAML fallback turns a bare `2024-01-01` into a `date`, which
-    the Anthropic dialect renders. A filter that returns the output unchanged must
-    not fail a sample that would pass without it.
+    the Anthropic dialect renders. A filter that returns the output, or its own
+    generation, unchanged must not fail a sample that would pass without it.
     """
     events_tool = ToolInfo(
         name="get_events",
@@ -1092,6 +1285,11 @@ async def test_sandbox_identity_filter_keeps_provider_tool_arguments() -> None:
     model = get_model(
         "mockllm/model",
         custom_outputs=[
+            *(
+                [ModelOutput.from_content("mockllm/model", "first")]
+                if regenerate
+                else []
+            ),
             ModelOutput(
                 model="mockllm/model",
                 choices=[
@@ -1102,14 +1300,14 @@ async def test_sandbox_identity_filter_keeps_provider_tool_arguments() -> None:
                         stop_reason="tool_calls",
                     )
                 ],
-            )
+            ),
         ],
     )
 
     async def identity_filter(
         model: Model, output: ModelOutput, generate_input: GenerateInput
     ) -> ModelOutput | None:
-        return output
+        return await model.generate(generate_input.input) if regenerate else output
 
     bridge = _sandbox_bridge(identity_filter, model)
     reply = await _forward_provider_errors(
@@ -1122,13 +1320,52 @@ async def test_sandbox_identity_filter_keeps_provider_tool_arguments() -> None:
     assert tool_use["input"] == {"date": "2024-01-01"}
 
 
+@pytest.mark.parametrize("edit_text", [False, True], ids=["arguments", "and text"])
+@pytest.mark.parametrize("regenerate", [False, True], ids=["output", "regeneration"])
+async def test_response_filter_rejects_arguments_it_makes_unserializable(
+    regenerate: bool, edit_text: bool
+) -> None:
+    """A non-JSON argument the filter puts into a call, also one of its own generation, fails it."""
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call("mockllm/model", "lookup", {"q": "x"}),
+            ModelOutput.for_tool_call("mockllm/model", "lookup", {"q": "y"}),
+        ],
+    )
+
+    async def unserializable(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        if regenerate:
+            output = await model.generate(generate_input.input)
+        assert output.message.tool_calls
+        output.message.tool_calls[0].arguments["when"] = date(2024, 1, 1)
+        if edit_text:
+            output.message.content = "Looking up"
+        return output
+
+    bridge = AgentBridge(AgentState(messages=[]))
+    bridge.response_filter = unserializable
+    with pytest.raises(ResponseFilterError, match="not JSON-serializable"):
+        await bridge_generate(
+            bridge,
+            model,
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            GenerateConfig(),
+            requested_model=None,
+        )
+
+
 async def test_sandbox_forwarding_preserves_response_filter_limit() -> None:
     """A limit hit in a response filter reaches the sandbox service unchanged.
 
     Drives the real generate_completions -> bridge_generate -> forwarder path: the
-    sandbox service ends the sample on a `LimitExceededError` from a model method,
-    whereas a wrapped one would fail the sample, and one returned as an error reply
-    would leave it running.
+    scaffold gets an error reply and the bridge records the `LimitExceededError`
+    itself, to raise on the agent's side, where the scope that applied the limit
+    handles it, whereas a wrapped one would fail the sample.
     """
     limit_error = LimitExceededError("token", value=102, limit=JUDGE_TOKEN_LIMIT)
 
@@ -1139,9 +1376,10 @@ async def test_sandbox_forwarding_preserves_response_filter_limit() -> None:
 
     bridge = _sandbox_bridge(over_limit_filter)
     generate = _forward_provider_errors(generate_completions(bridge), bridge)
-    with pytest.raises(LimitExceededError) as exc_info:
-        await generate(CHAT_REQUEST)
-    assert exc_info.value is limit_error
+    reply = await generate(CHAT_REQUEST)
+    assert PROVIDER_ERROR_KEY in reply
+    assert bridge.generation_limit is limit_error
+    assert not bridge._failure_requested.is_set()
 
 
 @pytest.mark.parametrize(
@@ -1346,7 +1584,9 @@ async def test_response_filter_limit_propagates(
 ) -> None:
     """A limit a response filter hits, also from a task group, leaves the bridge unwrapped.
 
-    Async, so it also runs under Trio, whose task groups and cancellation differ.
+    The sandbox bridge records it after answering the scaffold, to raise once
+    the agent has unwound. Async, so it also runs under Trio, whose task groups
+    and cancellation differ.
     """
     response_filter = _failing_response_filter(failure)
     with token_limit(JUDGE_TOKEN_LIMIT):
@@ -1366,9 +1606,12 @@ async def test_response_filter_limit_propagates(
                     )
                 case "sandbox":
                     sandbox_bridge = _sandbox_bridge(response_filter)
-                    await _forward_provider_errors(
+                    reply = await _forward_provider_errors(
                         generate_completions(sandbox_bridge), sandbox_bridge
                     )(CHAT_REQUEST)
+                    assert PROVIDER_ERROR_KEY in reply
+                    assert sandbox_bridge.generation_limit is not None
+                    raise sandbox_bridge.generation_limit
                 case _:
                     assert_never(path)
     assert exc_info.value.type == "token"
@@ -1748,7 +1991,11 @@ async def test_response_filter_replacement_drops_pending_server_work(
             ("text", REPLACED_SENTINEL)
         ]
         assert state_output.message.content == [ContentText(text=REPLACED_SENTINEL)]
+        assert state_output.message.id == edited_id(
+            provider_output.message.id, state_output.message
+        )
     else:
+        assert state_output.message.id == provider_output.message.id
         assert PENDING_CODE in json.dumps(blocks)
         assert [b["type"] for b in blocks] == [b["type"] for b in original_blocks]
     # the provider's output and its replay record are untouched
@@ -1760,7 +2007,7 @@ NESTED_PENDING_CE_ID = "srvtoolu_ce_pending"
 NESTED_WS_ID = "srvtoolu_ws_nested"
 
 
-async def _nested_pending_output() -> ModelOutput:
+async def _nested_pending_output(q: JsonValue = "x") -> ModelOutput:
     """A completed web search nested in a code execution that is still pending."""
     caller = {"type": "code_execution_20260120", "tool_id": NESTED_PENDING_CE_ID}
     return await _anthropic_output(
@@ -1797,7 +2044,7 @@ async def _nested_pending_output() -> ModelOutput:
                 "type": "tool_use",
                 "id": "toolu_client",
                 "name": "lookup",
-                "input": {"q": "x"},
+                "input": {"q": q},
             },
         ],
         [ToolInfo(name="lookup", description="Look something up.")],
@@ -1947,6 +2194,8 @@ async def test_response_filter_keeps_pending_work_with_its_server_items(
     replayed = next(
         m for m in reversed(retry_input) if isinstance(m, ChatMessageAssistant)
     )
+    # the work stays under the turn's id, whatever id the filter gave it
+    assert replayed.id == provider_output.message.id
     replayed_blocks = await _render_anthropic(replayed)
     assert PENDING_CODE in json.dumps(replayed_blocks)
     assert {b.get("id") for b in replayed_blocks} >= {
@@ -1958,6 +2207,1228 @@ async def test_response_filter_keeps_pending_work_with_its_server_items(
     # the provider's output and its replay record are untouched
     assert await _render_anthropic(provider_output.message) == original_blocks
     assert _pending_container_for_input([provider_output.message]) == CONTAINER_ID
+
+
+OPENAI_SERVER_ITEMS: dict[str, dict[str, Any]] = {
+    "web_search_call": {
+        "id": "ws_1",
+        "type": "web_search_call",
+        "status": "completed",
+        "action": {"type": "search", "query": "nhl scores"},
+    },
+    "code_interpreter_call": {
+        "id": "ci_1",
+        "type": "code_interpreter_call",
+        "status": "completed",
+        "code": "print(1)",
+        "container_id": "cntr_1",
+        "outputs": [{"type": "logs", "logs": "1"}],
+    },
+    "mcp_call": {
+        "id": "mcp_1",
+        "type": "mcp_call",
+        "server_label": "docs",
+        "name": "echo",
+        "arguments": '{"text": "hi"}',
+        "output": "hi",
+    },
+}
+
+ServerItemsReply = Literal[
+    "web_search_call",
+    "code_interpreter_call",
+    "mcp_call",
+    "anthropic_completed",
+    "anthropic_pending",
+]
+
+
+async def _server_items_output(reply: ServerItemsReply) -> ModelOutput:
+    """A provider's reply holding server tool items and text, parsed by its converter."""
+    from openai.types.responses import Response
+
+    from inspect_ai.model._openai_responses import openai_responses_chat_choices
+
+    match reply:
+        case "web_search_call" | "code_interpreter_call" | "mcp_call":
+            response = Response.model_validate(
+                {
+                    "id": "resp_1",
+                    "object": "response",
+                    "created_at": 0,
+                    "model": "gpt-5",
+                    "status": "completed",
+                    "parallel_tool_calls": False,
+                    "tool_choice": "auto",
+                    "tools": [],
+                    "output": [
+                        OPENAI_SERVER_ITEMS[reply],
+                        {
+                            "id": "msg_1",
+                            "type": "message",
+                            "role": "assistant",
+                            "status": "completed",
+                            "content": [
+                                {
+                                    "type": "output_text",
+                                    "text": "The Bruins won 3-2.",
+                                    "annotations": [],
+                                }
+                            ],
+                        },
+                    ],
+                }
+            )
+            output = ModelOutput(
+                model="mockllm/model",
+                choices=openai_responses_chat_choices("gpt-5", response, []),
+            )
+        case "anthropic_completed":
+            output = await _anthropic_output(
+                [b for b in NESTED_SEARCH_BLOCKS if b is not THINKING_BLOCK]
+            )
+        case "anthropic_pending":
+            output = await _nested_pending_output()
+        case _:
+            assert_never(reply)
+    # set so mockllm doesn't estimate usage (which downloads an encoding)
+    output.usage = ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2)
+    return output
+
+
+@pytest.mark.parametrize("reply", get_args(ServerItemsReply))
+async def test_text_edit_keeping_server_items_is_a_message_of_its_own(
+    reply: ServerItemsReply,
+) -> None:
+    """A response filter's text edit that keeps server tool items gets an edit id.
+
+    Analysis extraction (like the viewer) keeps one message per id, so the
+    generated output and the edited reply the scaffold sends back both survive
+    only under different ids. The exception is an Anthropic turn that ended
+    with server work running: that work replays from state keyed by the
+    generated id, so the reply keeps it. Each reply goes through its own
+    provider's dialect, which sends it back unchanged.
+    """
+    from inspect_ai.analysis._dataframe.samples.table import (
+        sample_messages_from_events,
+    )
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    init_transcript(Transcript())
+    done = ModelOutput.from_content("mockllm/model", "done")
+    done.usage = ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2)
+    model = get_model(
+        "mockllm/model",
+        memoize=False,
+        custom_outputs=[await _server_items_output(reply), done],
+    )
+    bridge = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content="go")]),
+        model_aliases={"scaffold": model},
+        response_filter=_text_edit_filter,
+    )
+    parameters: dict[str, Any] = {
+        "type": "object",
+        "properties": {"q": {"type": "string"}},
+        "required": ["q"],
+    }
+    anthropic = reply.startswith("anthropic")
+
+    async def request(input: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if anthropic:
+            message = await inspect_anthropic_api_request(
+                {
+                    "model": "scaffold",
+                    "max_tokens": 1024,
+                    "messages": input,
+                    "tools": [
+                        {
+                            "name": "lookup",
+                            "description": "Look something up.",
+                            "input_schema": parameters,
+                        }
+                    ],
+                },
+                None,
+                internal_web_search_providers(),
+                default_code_execution_providers(),
+                bridge,
+            )
+            return [
+                b.model_dump(mode="json", exclude_none=True) for b in message.content
+            ]
+        response = await inspect_responses_api_request(
+            {
+                "model": "scaffold",
+                "input": input,
+                "tools": [
+                    {
+                        "type": "function",
+                        "name": "lookup",
+                        "description": "Look something up.",
+                        "parameters": parameters,
+                    }
+                ],
+            },
+            None,
+            internal_web_search_providers(),
+            default_code_execution_providers(),
+            bridge,
+        )
+        return [item.model_dump(exclude_none=True) for item in response.output]
+
+    history: list[dict[str, Any]] = [{"role": "user", "content": "go"}]
+    items = await request(history)
+    handed = bridge.state.output.message
+    if anthropic:
+        results: list[dict[str, Any]] = [
+            {"type": "tool_result", "tool_use_id": b["id"], "content": "1"}
+            for b in items
+            if b["type"] == "tool_use"
+        ]
+        history += [
+            {"role": "assistant", "content": items},
+            {"role": "user", "content": [*results, {"type": "text", "text": "go on"}]},
+        ]
+    else:
+        results = [
+            {"type": "function_call_output", "call_id": item["call_id"], "output": "1"}
+            for item in items
+            if item["type"] == "function_call"
+        ]
+        history += [*items, *results, {"role": "user", "content": "go on"}]
+    await request(history)
+
+    model_events = [e for e in transcript().events if isinstance(e, ModelEvent)]
+    generated = model_events[0].output.message
+    assert generated.id is not None
+    [sent] = [m for m in model_events[1].input if isinstance(m, ChatMessageAssistant)]
+    assert sent.id == handed.id
+    assert REPLACED_SENTINEL in sent.text
+    assert any(isinstance(c, ContentToolUse) for c in sent.content)
+    if reply == "anthropic_pending":
+        assert sent.id == generated.id
+        assert _pending_container_for_input([sent]) == CONTAINER_ID
+    else:
+        assert sent.id == edited_id(generated.id, sent) != generated.id
+        extracted = [
+            (m.id, m.text)
+            for m in sample_messages_from_events(list(transcript().events), None)
+            if isinstance(m, ChatMessageAssistant)
+        ]
+        assert extracted[:2] == [(generated.id, generated.text), (sent.id, sent.text)]
+
+
+@approver
+def _modifying_approver() -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        return Approval(
+            decision="modify",
+            modified=ToolCall(id=call.id, function=call.function, arguments={"q": "y"}),
+        )
+
+    return approve
+
+
+async def _pending_container_output(q: JsonValue = "x") -> ModelOutput:
+    """A turn ending on a client tool call while a code execution is pending."""
+    return await _anthropic_output(
+        [
+            {"type": "text", "text": "Checking."},
+            {
+                "type": "server_tool_use",
+                "id": "srvtoolu_pending",
+                "name": "code_execution",
+                "input": {"code": PENDING_CODE},
+                "caller": {"type": "direct"},
+            },
+            {
+                "type": "tool_use",
+                "id": "toolu_client",
+                "name": "lookup",
+                "input": {"q": q},
+            },
+        ],
+        [ToolInfo(name="lookup", description="Look something up.")],
+        stop_reason="tool_use",
+        container=CONTAINER_ID,
+    )
+
+
+@pytest.mark.parametrize("path", get_args(BridgePath))
+async def test_modified_arguments_keep_pending_server_work(path: BridgePath) -> None:
+    """An approver's rewrite of a client call is an edit that keeps the turn's pending work."""
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    provider_output = await _pending_container_output()
+    original_blocks = await _render_anthropic(provider_output.message)
+    model = get_model("mockllm/model", custom_outputs=[provider_output])
+    approval = [ApprovalPolicy(_modifying_approver(), "lookup")]
+
+    match path:
+        case "in_process":
+            bridge = AgentBridge(AgentState(messages=[]), approval=approval)
+            output, _ = await bridge_generate(
+                bridge,
+                model,
+                [ChatMessageUser(content="hi")],
+                [],
+                None,
+                GenerateConfig(),
+                requested_model=None,
+            )
+            handed = output.message
+        case "sandbox":
+            sandbox_bridge = SandboxAgentBridge(
+                state=AgentState(messages=[]),
+                filter=None,
+                retry_refusals=None,
+                compaction=None,
+                port=13131,
+                model=None,
+                model_aliases={"inspect": model},
+                approval=approval,
+            )
+            reply = await _forward_provider_errors(
+                generate_anthropic(None, None, sandbox_bridge), sandbox_bridge
+            )(
+                {
+                    "model": "inspect",
+                    "max_tokens": 1024,
+                    "messages": CHAT_REQUEST["messages"],
+                }
+            )
+            assert PROVIDER_ERROR_KEY not in reply
+            content = cast(list[dict[str, Any]], reply["content"])
+            assert [b["type"] for b in content] == [b["type"] for b in original_blocks]
+            handed = sandbox_bridge.state.output.message
+        case _:
+            assert_never(path)
+
+    assert handed.id == edited_id(provider_output.message.id, handed)
+    assert handed.tool_calls and handed.tool_calls[0].arguments == {"q": "y"}
+    blocks = await _render_anthropic(handed)
+    assert [b["type"] for b in blocks] == [b["type"] for b in original_blocks]
+    assert _pending_container_for_input([handed]) == CONTAINER_ID
+    # the model's output keeps its own record
+    assert await _render_anthropic(provider_output.message) == original_blocks
+    assert _pending_container_for_input([provider_output.message]) == CONTAINER_ID
+
+
+async def test_edits_of_a_pending_turn_keep_its_work() -> None:
+    """Inspect's edit of the turn keeps its pending work."""
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    provider_output = await _pending_container_output()
+    original_blocks = await _render_anthropic(provider_output.message)
+    edited = edited_message(
+        provider_output.message, content=[ContentText(text="Checking.  ")]
+    )
+
+    assert edited.id == edited_id(provider_output.message.id, edited)
+    blocks = await _render_anthropic(edited)
+    assert [b["type"] for b in blocks] == [b["type"] for b in original_blocks]
+    assert _pending_container_for_input([edited]) == CONTAINER_ID
+
+
+async def test_unchanged_scaffold_copy_of_a_pending_turn_keeps_its_work() -> None:
+    """A scaffold's unchanged copy of the turn is placed under its id, so it keeps the pending work."""
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    provider_output = await _pending_container_output()
+    task = ChatMessageUser(content="hi")
+    bridge = AgentBridge(AgentState(messages=[task]))
+    await bridge._track_state([task], provider_output, [])
+    copy = provider_output.message.model_copy(update={"id": "wire"})
+
+    apply_message_ids(bridge, [task.model_copy(update={"id": "wire-task"}), copy])
+
+    assert copy.id == provider_output.message.id
+    assert _pending_container_for_input([copy]) == CONTAINER_ID
+
+
+class _GrantRecordingBridge(AgentBridge):
+    """Records the proposing ids and call verification of each grant registration."""
+
+    registered: list[tuple[dict[str, str], list[bool] | None]]
+
+    def register_tool_execution_grants(
+        self,
+        calls: Sequence[ToolCall],
+        tools: Sequence[ToolInfo | Tool],
+        *,
+        span_id: str | None = None,
+    ) -> None:
+        self.registered.append(
+            (dict(self._proposing_message_ids), self._proposing_call_verified)
+        )
+
+
+SCALAR_EDITS: dict[str, tuple[JsonValue, JsonValue]] = {
+    "zero_to_false": (0, False),
+    "false_to_zero": (False, 0),
+    "one_to_true": (1, True),
+    "true_to_one": (True, 1),
+    "zero_to_one": (0, 1),
+}
+
+
+@pytest.mark.parametrize("edit", ["text", "text_and_call", *SCALAR_EDITS])
+@pytest.mark.parametrize("turn", ["pending", "nested"])
+async def test_request_filter_text_edit_keeps_pending_work(
+    turn: str, edit: str
+) -> None:
+    """A request filter's edit of its generation keeps the turn's pending work.
+
+    The edit gets its own id and its calls are not verified against the
+    generation. A text edit, or an edit keeping the turn's server items, still
+    replays the pending code execution in the turn's container; an edit of the
+    calls of a turn with no server items drops it, as a response filter's does.
+    That includes an argument changed between a number and a boolean, which
+    Python equality takes as unchanged.
+    """
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    before, after = SCALAR_EDITS.get(edit, ("x", {"q": "y"}))
+    provider_output = await (
+        _pending_container_output(before)
+        if turn == "pending"
+        else _nested_pending_output(before)
+    )
+    original_blocks = await _render_anthropic(provider_output.message)
+
+    async def generate(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        output = await model.generate(
+            input=input, tools=tools, tool_choice=tool_choice, config=config
+        )
+        output = output.model_copy(deep=True)
+        if edit in SCALAR_EDITS:
+            assert output.message.tool_calls
+            output.message.tool_calls[0].arguments = {"q": after}
+            return output
+        await _text_edit_filter(
+            model, output, GenerateInput(input, tools, tool_choice, config)
+        )
+        if edit == "text_and_call":
+            assert output.message.tool_calls
+            output.message.tool_calls[0].arguments = {"q": "y"}
+        return output
+
+    bridge = _GrantRecordingBridge(AgentState(messages=[]), filter=generate)
+    bridge.registered = []
+    output, _ = await bridge_generate(
+        bridge,
+        get_model("mockllm/model", custom_outputs=[provider_output]),
+        [ChatMessageUser(content="hi")],
+        [],
+        None,
+        GenerateConfig(),
+        requested_model=None,
+    )
+
+    handed = output.message
+    if edit in SCALAR_EDITS:
+        assert handed.tool_calls and handed.tool_calls[0].arguments == {"q": after}
+        assert type(handed.tool_calls[0].arguments["q"]) is type(after)
+    else:
+        assert REPLACED_SENTINEL in handed.text
+    assert handed.id == edited_id(provider_output.message.id, handed)
+    # the calls are not verified against the generation
+    assert bridge.registered == [({}, None)]
+    blocks = await _render_anthropic(handed)
+    if edit == "text" or turn == "nested":
+        assert [b["type"] for b in blocks] == [b["type"] for b in original_blocks]
+        assert _pending_container_for_input([handed]) == CONTAINER_ID
+    else:
+        assert PENDING_CODE not in json.dumps(blocks)
+        assert _pending_container_for_input([handed]) is None
+    if edit == "text":
+        assert [b for b in blocks if b["type"] != "text"] == [
+            b for b in original_blocks if b["type"] != "text"
+        ]
+    # the model's output keeps its own record
+    assert await _render_anthropic(provider_output.message) == original_blocks
+    assert _pending_container_for_input([provider_output.message]) == CONTAINER_ID
+
+
+RegeneratedTurn = Literal[
+    "pending", "completed_and_pending", "completed", "plain", "text"
+]
+
+
+async def _regenerated_output(turn: RegeneratedTurn) -> ModelOutput:
+    match turn:
+        case "pending":
+            return await _pending_container_output()
+        case "completed_and_pending":
+            return await _nested_pending_output()
+        case "completed":
+            return await _anthropic_output(
+                [
+                    {"type": "text", "text": "Checking."},
+                    *PENDING_SPAN_BLOCKS["completed_and_pending"],
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_client",
+                        "name": "lookup",
+                        "input": {"q": "x"},
+                    },
+                ],
+                [ToolInfo(name="lookup", description="Look something up.")],
+                stop_reason="tool_use",
+            )
+        case "plain":
+            return ModelOutput.for_tool_call("mockllm/model", "lookup", {"q": "x"})
+        case "text":
+            return ModelOutput.from_content("mockllm/model", "Regenerated")
+        case _:
+            assert_never(turn)
+
+
+@pytest.mark.parametrize("annotated", [False, True], ids=["as_is", "annotated"])
+@pytest.mark.parametrize("path", get_args(BridgePath))
+@pytest.mark.parametrize("turn", get_args(RegeneratedTurn))
+async def test_response_filter_returning_its_own_generation_hands_over_that_reply(
+    turn: RegeneratedTurn, path: BridgePath, annotated: bool
+) -> None:
+    """A filter returning its own generation unchanged hands over that generation's reply.
+
+    The reply keeps the generation's id, so the generation's replay state
+    reaches the scaffold: an Anthropic code execution still pending, and the
+    container to resume it, are found by that id alone. Metadata is not
+    content, so a filter may annotate the reply.
+    """
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    regenerated = await _regenerated_output(turn)
+    regenerated_blocks = await _render_anthropic(regenerated.message)
+    pending = turn in ("pending", "completed_and_pending")
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", "first"),
+            regenerated,
+        ],
+    )
+
+    async def regenerate(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        output = await model.generate(generate_input.input)
+        if annotated:
+            output.message.metadata = {"review": "accepted"}
+        return output
+
+    match path:
+        case "in_process":
+            bridge = AgentBridge(AgentState(messages=[]))
+            bridge.response_filter = regenerate
+            output, _ = await bridge_generate(
+                bridge,
+                model,
+                [ChatMessageUser(content="hi")],
+                [],
+                None,
+                GenerateConfig(),
+                requested_model=None,
+            )
+            handed = output.message
+        case "sandbox":
+            sandbox_bridge = _sandbox_bridge(regenerate, model)
+            reply = await _forward_provider_errors(
+                generate_anthropic(None, None, sandbox_bridge), sandbox_bridge
+            )(
+                {
+                    "model": "inspect",
+                    "max_tokens": 1024,
+                    "messages": CHAT_REQUEST["messages"],
+                }
+            )
+            assert PROVIDER_ERROR_KEY not in reply
+            content = cast(list[dict[str, Any]], reply["content"])
+            assert [b["type"] for b in content] == [
+                b["type"] for b in regenerated_blocks
+            ]
+            handed = sandbox_bridge.state.output.message
+        case _:
+            assert_never(path)
+
+    assert handed.id == regenerated.message.id
+    assert await _render_anthropic(handed) == regenerated_blocks
+    if annotated:
+        assert handed.metadata == {"review": "accepted"}
+    if pending:
+        assert PENDING_CODE in json.dumps(regenerated_blocks)
+        assert _pending_container_for_input([handed]) == CONTAINER_ID
+
+
+@pytest.mark.parametrize(
+    "returned",
+    ["edited", "other_model", "same_name_endpoint", "same_name_account"],
+)
+@pytest.mark.parametrize("turn", ["pending", "plain"])
+async def test_response_filter_regeneration_edit_or_other_model_is_an_edit(
+    turn: Literal["pending", "plain"], returned: str
+) -> None:
+    """A regeneration the filter edits, or another client's output, replaces the bridge's output.
+
+    Neither is the bridged model's generation unchanged, so the reply gets an
+    edit id and keeps none of the generation's pending server work. Another
+    client is another model, whatever its name: one with the bridged model's
+    name but another endpoint or account generates under its own account.
+    """
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    regenerated = await _regenerated_output(turn)
+    first = ModelOutput.from_content("mockllm/model", "first")
+    model = get_model(
+        "mockllm/model", memoize=False, custom_outputs=[first, regenerated]
+    )
+    match returned:
+        case "same_name_endpoint":
+            judge = get_model(
+                "mockllm/model",
+                base_url="https://other.example.com/v1",
+                memoize=False,
+                custom_outputs=[regenerated],
+            )
+        case "same_name_account":
+            judge = get_model(
+                "mockllm/model",
+                api_key="other-account",
+                memoize=False,
+                custom_outputs=[regenerated],
+            )
+        case _:
+            judge = get_model("mockllm/judge", custom_outputs=[regenerated])
+    if returned.startswith("same_name"):
+        assert str(judge) == str(model)
+
+    async def regenerate(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        if returned != "edited":
+            return await judge.generate(generate_input.input)
+        output = await model.generate(generate_input.input)
+        output.message.content = REPLACED_SENTINEL
+        return output
+
+    bridge = AgentBridge(AgentState(messages=[]))
+    bridge.response_filter = regenerate
+    output, _ = await bridge_generate(
+        bridge,
+        model,
+        [ChatMessageUser(content="hi")],
+        [],
+        None,
+        GenerateConfig(),
+        requested_model=None,
+    )
+
+    handed = output.message
+    assert handed.id is not None
+    assert handed.id not in (regenerated.message.id, first.message.id)
+    assert PENDING_CODE not in json.dumps(await _render_anthropic(handed))
+    assert _pending_container_for_input([handed]) is None
+    if turn == "pending":
+        assert _pending_container_for_input([regenerated.message]) == CONTAINER_ID
+
+
+SameClientCase = Literal[
+    "bridged",
+    "config",
+    "call_temperature",
+    "default_endpoint",
+    "trailing_slash",
+    "env_endpoint",
+    "endpoint",
+    "account",
+    "model_args",
+    "model_headers",
+    "call_headers",
+    "call_extra_body",
+    "other_name",
+]
+
+
+@pytest.mark.parametrize("turn", ["pending", "completed_and_pending"])
+@pytest.mark.parametrize("client", get_args(SameClientCase))
+async def test_response_filter_regeneration_keeps_replay_state_only_from_bridged_client(
+    client: SameClientCase,
+    turn: Literal["pending", "completed_and_pending"],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only the bridged Anthropic client's own regeneration keeps its id and pending work.
+
+    A client with the bridged model's name but another endpoint, API key or
+    provider arguments ran its server work under another account, as did a
+    generation whose config adds headers or body fields (e.g. an alternate
+    `x-api-key`); its reply is an edit that carries none of that work into the
+    bridged model's next input, and its completed server items are rejected.
+    Another temperature, per model or per call, is the same client, as is a
+    base URL naming the endpoint the bridged client resolved (the default,
+    one from the environment, or the same URL with a trailing slash).
+    """
+    from unittest.mock import patch
+
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+    if client == "env_endpoint":
+        monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://alternate.example.com")
+    init_sample_anthropic_assistant_internal()
+    regenerated = await _regenerated_output(turn)
+    model_name = "anthropic/claude-sonnet-4-5"
+    model = get_model(
+        model_name,
+        api_key="primary-key",
+        base_url="https://alternate.example.com"
+        if client == "trailing_slash"
+        else None,
+        memoize=False,
+    )
+    call_config = GenerateConfig()
+    match client:
+        case "bridged":
+            judge = model
+        case "default_endpoint":
+            judge = get_model(
+                model_name,
+                api_key="primary-key",
+                base_url="https://api.anthropic.com",
+                memoize=False,
+            )
+        case "trailing_slash" | "env_endpoint":
+            judge = get_model(
+                model_name,
+                api_key="primary-key",
+                base_url="https://alternate.example.com/",
+                memoize=False,
+            )
+        case "config":
+            judge = get_model(
+                model_name,
+                api_key="primary-key",
+                config=GenerateConfig(temperature=0.9),
+                memoize=False,
+            )
+        case "call_temperature":
+            judge = model
+            call_config = GenerateConfig(temperature=0.9)
+        case "model_args":
+            judge = get_model(
+                model_name, api_key="primary-key", memoize=False, betas=["other"]
+            )
+        case "endpoint":
+            judge = get_model(
+                model_name,
+                api_key="primary-key",
+                base_url="https://alternate.example.com",
+                memoize=False,
+            )
+        case "account":
+            judge = get_model(model_name, api_key="other-key", memoize=False)
+        case "model_headers":
+            judge = get_model(
+                model_name,
+                api_key="primary-key",
+                config=GenerateConfig(extra_headers={"x-api-key": "alternate-key"}),
+                memoize=False,
+            )
+        case "call_headers":
+            judge = model
+            call_config = GenerateConfig(extra_headers={"x-api-key": "alternate-key"})
+        case "call_extra_body":
+            judge = model
+            call_config = GenerateConfig(extra_body={"service_tier": "priority"})
+        case "other_name":
+            judge = get_model(
+                "anthropic/claude-haiku-4-5", api_key="primary-key", memoize=False
+            )
+        case _:
+            assert_never(client)
+    outputs = [ModelOutput.from_content(model_name, "first"), regenerated]
+
+    async def generate(*args: Any, **kwargs: Any) -> ModelOutput:
+        return outputs.pop(0)
+
+    async def regenerate(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        return await judge.generate(generate_input.input, config=call_config)
+
+    bridge = AgentBridge(AgentState(messages=[]))
+    bridge.response_filter = regenerate
+    own = client in (
+        "bridged",
+        "config",
+        "call_temperature",
+        "default_endpoint",
+        "trailing_slash",
+        "env_endpoint",
+    )
+    with (
+        patch.object(model.api, "generate", generate),
+        patch.object(judge.api, "generate", generate),
+    ):
+        if not own and turn == "completed_and_pending":
+            with pytest.raises(ResponseFilterError, match="server tool use"):
+                await bridge_generate(
+                    bridge,
+                    model,
+                    [ChatMessageUser(content="hi")],
+                    [],
+                    None,
+                    GenerateConfig(),
+                    requested_model=None,
+                )
+            return
+        output, _ = await bridge_generate(
+            bridge,
+            model,
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            GenerateConfig(),
+            requested_model=None,
+        )
+
+    handed = output.message
+    if own:
+        assert judge is model or judge.api is not model.api
+        assert handed.id == regenerated.message.id
+        assert _pending_container_for_input([handed]) == CONTAINER_ID
+        assert await _render_anthropic(handed) == await _render_anthropic(
+            regenerated.message
+        )
+    else:
+        assert str(judge) == str(model) or client == "other_name"
+        assert handed.id != regenerated.message.id
+        assert PENDING_CODE not in json.dumps(await _render_anthropic(handed))
+        assert _pending_container_for_input([handed]) is None
+
+
+_DEFAULT_ENDPOINTS = {
+    "anthropic/claude-sonnet-4-5": "https://api.anthropic.com",
+    "openai/gpt-4.1": "https://api.openai.com/v1",
+    "google/gemini-2.5-flash": "https://generativelanguage.googleapis.com",
+}
+
+
+@pytest.mark.parametrize("model_name", list(_DEFAULT_ENDPOINTS))
+@pytest.mark.parametrize(
+    "endpoints",
+    [
+        "default_endpoint",
+        "default_endpoint_slash",
+        "trailing_slash",
+        "case_and_port",
+        "env_endpoint",
+        "endpoint",
+        "account",
+    ],
+)
+def test_same_client_compares_the_endpoint_each_client_resolved(
+    model_name: str, endpoints: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Base URLs naming the endpoint a client resolved are the same client.
+
+    An explicit default endpoint, one from the environment, or a base URL that
+    differs only by a trailing slash, letter case or the scheme's default port
+    is the endpoint the bridged client uses; another endpoint or API key is
+    another client.
+    """
+    from inspect_ai.agent._bridge.util import _same_client
+
+    env_var = {
+        "anthropic": "ANTHROPIC_BASE_URL",
+        "openai": "OPENAI_BASE_URL",
+        "google": "GOOGLE_BASE_URL",
+    }[model_name.split("/")[0]]
+    for name in ("ANTHROPIC_BASE_URL", "OPENAI_BASE_URL", "GOOGLE_BASE_URL"):
+        monkeypatch.delenv(name, raising=False)
+    default = _DEFAULT_ENDPOINTS[model_name]
+    alternate = "https://alternate.example.com/v1"
+    bridged_url: str | None = None
+    judge_key = "primary-key"
+    match endpoints:
+        case "default_endpoint":
+            judge_url = default
+        case "default_endpoint_slash":
+            judge_url = default + "/"
+        case "trailing_slash":
+            bridged_url, judge_url = alternate, alternate + "/"
+        case "case_and_port":
+            bridged_url = alternate
+            judge_url = "HTTPS://Alternate.Example.com:443/v1"
+        case "env_endpoint":
+            monkeypatch.setenv(env_var, alternate)
+            judge_url = alternate + "/"
+        case "endpoint":
+            judge_url = alternate
+        case "account":
+            judge_url, judge_key = default, "other-key"
+        case _:
+            raise AssertionError(endpoints)
+    bridged = get_model(
+        model_name, api_key="primary-key", base_url=bridged_url, memoize=False
+    )
+    judge = get_model(model_name, api_key=judge_key, base_url=judge_url, memoize=False)
+
+    assert bridged.api.base_url != judge.api.base_url
+    assert _same_client(judge, bridged) == (endpoints not in ("endpoint", "account"))
+
+
+@pytest.mark.parametrize(
+    ("a", "b", "same"),
+    [
+        ("https://api.example.com/v1", "HTTPS://API.Example.com:443/v1/", True),
+        ("http://localhost:80/v1", "http://localhost/v1", True),
+        ("https://api.example.com/v1#frag", "https://api.example.com/v1", True),
+        ("https://api.example.com/v1", "https://api.example.com/V1", False),
+        ("https://api.example.com/v1", "https://api.example.com:8443/v1", False),
+        ("https://api.example.com/v1", "http://api.example.com/v1", False),
+        ("https://u:p@api.example.com/v1", "https://api.example.com/v1", False),
+        ("https://api.example.com/v1?t=a", "https://api.example.com/v1?t=b", False),
+        ("http://[::1]:8000/v1", "http://[::1]:8000/v1/", True),
+    ],
+)
+def test_normalized_endpoint_keeps_what_can_name_another_endpoint(
+    a: str, b: str, same: bool
+) -> None:
+    from inspect_ai.agent._bridge.util import _normalized_endpoint
+
+    assert (_normalized_endpoint(a) == _normalized_endpoint(b)) == same
+
+
+def test_same_client_with_an_unresolved_lazy_vllm_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A lazy vLLM model whose server is not yet resolved has no client to read.
+
+    It is not the client of one whose server is resolved, and comparing them
+    doesn't fail.
+    """
+    from inspect_ai.agent._bridge.util import _same_client
+    from inspect_ai.model._providers.vllm import VLLMAPI
+
+    monkeypatch.setattr("inspect_ai.model._providers.vllm._vllm_servers", {})
+    monkeypatch.setenv("VLLM_BASE_URL", "http://localhost:8000/v1")
+    resolved = get_model("vllm/meta/llama", memoize=False)
+    unresolved = get_model("vllm/meta/llama", memoize=False)
+    assert isinstance(resolved.api, VLLMAPI)
+    resolved.api._resolve_server()
+
+    assert resolved.model_args == unresolved.model_args
+    assert not hasattr(unresolved.api, "client")
+    assert not _same_client(unresolved, resolved)
+    assert not _same_client(resolved, unresolved)
+
+
+RegenerationConfig = Literal[
+    "none",
+    "temperature",
+    "request",
+    "request_temperature",
+    "request_shape",
+    "request_alternate_key",
+    "request_extra_body",
+    "request_alternate_key_in_place",
+]
+
+
+@pytest.mark.parametrize("regeneration", get_args(RegenerationConfig))
+async def test_response_filter_regeneration_of_a_request_with_agent_headers(
+    regeneration: RegenerationConfig,
+) -> None:
+    """A regeneration is the bridged client's own with the request's config or none.
+
+    The bridged request carries headers the agent sent. Regenerating with no
+    config, or with the config the filter is given, with another temperature
+    or request shape (system message, parallel tool calls, logprobs) or not,
+    keeps the regeneration's completed and pending server work. Adding an API
+    key header, also by changing the given config in place, or body fields is
+    another client: its completed server items are rejected.
+    """
+    from unittest.mock import patch
+
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+
+    init_sample_anthropic_assistant_internal()
+    regenerated = await _regenerated_output("completed_and_pending")
+    model_name = "anthropic/claude-sonnet-4-5"
+    model = get_model(model_name, api_key="primary-key", memoize=False)
+    outputs = [ModelOutput.from_content(model_name, "first"), regenerated]
+
+    async def generate(*args: Any, **kwargs: Any) -> ModelOutput:
+        return outputs.pop(0)
+
+    async def regenerate(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        request = generate_input.config
+        match regeneration:
+            case "none":
+                return await model.generate(generate_input.input)
+            case "temperature":
+                config = GenerateConfig(temperature=0.9)
+            case "request":
+                config = request
+            case "request_temperature":
+                config = request.merge(GenerateConfig(temperature=0.9))
+            case "request_shape":
+                config = request.merge(
+                    GenerateConfig(
+                        system_message="Be careful.",
+                        parallel_tool_calls=False,
+                        logprobs=True,
+                        reasoning_summary="auto",
+                    )
+                )
+            case "request_alternate_key":
+                config = request.merge(
+                    GenerateConfig(
+                        extra_headers={
+                            **(request.extra_headers or {}),
+                            "x-api-key": "alternate-key",
+                        }
+                    )
+                )
+            case "request_extra_body":
+                config = request.merge(
+                    GenerateConfig(extra_body={"service_tier": "priority"})
+                )
+            case "request_alternate_key_in_place":
+                assert request.extra_headers is not None
+                request.extra_headers["x-api-key"] = "alternate-key"
+                config = request
+            case _:
+                assert_never(regeneration)
+        return await model.generate(generate_input.input, config=config)
+
+    bridge = AgentBridge(AgentState(messages=[]))
+    bridge.response_filter = regenerate
+    request_config = GenerateConfig(
+        temperature=0.2,
+        extra_headers={"anthropic-beta": "client-beta", "accept-encoding": "gzip"},
+    )
+    with patch.object(model.api, "generate", generate):
+        if regeneration not in (
+            "none",
+            "temperature",
+            "request",
+            "request_temperature",
+            "request_shape",
+        ):
+            with pytest.raises(ResponseFilterError, match="server tool use"):
+                await bridge_generate(
+                    bridge,
+                    model,
+                    [ChatMessageUser(content="hi")],
+                    [],
+                    None,
+                    request_config,
+                    requested_model=None,
+                )
+            return
+        output, _ = await bridge_generate(
+            bridge,
+            model,
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            request_config,
+            requested_model=None,
+        )
+
+    handed = output.message
+    assert handed.id == regenerated.message.id
+    assert _pending_container_for_input([handed]) == CONTAINER_ID
+    assert await _render_anthropic(handed) == await _render_anthropic(
+        regenerated.message
+    )
+
+
+@pytest.mark.parametrize("server_items", [False, True])
+@pytest.mark.parametrize("headers", ["none", "foreign"])
+async def test_response_filter_regeneration_through_a_sidecar(
+    headers: Literal["none", "foreign"],
+    server_items: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A regeneration through a sentinel sidecar is the bridged client's own.
+
+    Inspect adds `x-inspect-context` to each call through the sidecar, the
+    filter's own `model.generate(...)` included, and the bridged request's
+    config is resolved without it. The regeneration still keeps its id and
+    its completed server search. Adding another header (an alternate
+    `x-api-key`) is still another client: its reply gets an edited id and its
+    server items are rejected.
+    """
+    import httpx2
+    from test_helpers.stand_in_sidecar import StandInSidecar, Turn
+
+    from inspect_ai import Task, eval_async
+    from inspect_ai.dataset import Sample
+    from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+
+    class ServerItemsSidecar(StandInSidecar):
+        def _handle(self, request: httpx2.Request) -> httpx2.Response:
+            response = super()._handle(request)
+            if request.url.path == "/v1/messages" and len(self.model_calls) == 2:
+                payload = response.json()
+                payload["content"] += PENDING_SPAN_BLOCKS["completed_and_pending"]
+                return httpx2.Response(200, json=payload)
+            return response
+
+    proceed = {"outcome": "proceed", "steps": []}
+    stand_in = (ServerItemsSidecar if server_items else StandInSidecar)(
+        turns=[
+            Turn(text="first", judgment=proceed),
+            Turn(text="regenerated", judgment=proceed),
+        ]
+    )
+    model = get_model(
+        "anthropic/claude-haiku-4-5",
+        api_key="test-key",
+        base_url="http://proxy.test",
+        memoize=False,
+        streaming=False,
+        config=GenerateConfig(max_tokens=1024),
+        http_client=stand_in.http_client(),
+    )
+    seen: dict[str, str] = {}
+
+    async def regenerate(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        config = (
+            GenerateConfig(extra_headers={"x-api-key": "alternate-key"})
+            if headers == "foreign"
+            else GenerateConfig()
+        )
+        replacement = await model.generate(generate_input.input, config=config)
+        seen["regenerated"] = replacement.message.id or ""
+        return replacement
+
+    @solver
+    def through_bridge() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            bridge = AgentBridge(
+                AgentState(messages=state.messages), response_filter=regenerate
+            )
+            output, _ = await bridge_generate(
+                bridge,
+                model,
+                state.messages,
+                [],
+                None,
+                GenerateConfig(),
+                requested_model=None,
+            )
+            seen["handed"] = output.message.id or ""
+            state.messages.append(output.message)
+            return state
+
+        return solve
+
+    [log] = await eval_async(
+        Task(dataset=[Sample(input="Hi")], solver=through_bridge()),
+        model=model,
+        sentinel_proxy="auto",
+        log_dir=str(tmp_path),
+        fail_on_error=False,
+    )
+
+    assert log.samples is not None
+    [sample] = log.samples
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert len(model_events) == 2
+    assert all(
+        "x-inspect-context" in (e.config.extra_headers or {}) for e in model_events
+    )
+    if headers == "foreign" and server_items:
+        assert sample.error is not None
+        assert "server tool use 'srvtoolu_ws'" in sample.error.message
+        return
+    assert sample.error is None
+    if headers == "none":
+        assert seen["handed"] == seen["regenerated"]
+    else:
+        assert seen["handed"] != seen["regenerated"]
+
+
+def test_bridged_generation_config_allowlist_names_generate_config_fields() -> None:
+    """Every allowlisted field is a `GenerateConfig` field, so none is a typo."""
+    assert _CLIENT_NEUTRAL_CONFIG_FIELDS <= GenerateConfig.model_fields.keys()
+    assert not _CLIENT_NEUTRAL_CONFIG_FIELDS & {
+        "extra_headers",
+        "extra_body",
+        "fallback_models",
+        "batch",
+        "cache",
+    }
+
+
+@pytest.mark.parametrize(
+    "before,after", [(False, 0), (0, False)], ids=["False to 0", "0 to False"]
+)
+async def test_response_filter_annotated_regeneration_with_an_edit_is_an_edit(
+    before: JsonValue, after: JsonValue
+) -> None:
+    """Annotating a regeneration does not hide an edit Pydantic equality misses."""
+    regenerated = ModelOutput.for_tool_call("mockllm/model", "f", {"n": before})
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", "first"),
+            regenerated,
+        ],
+    )
+
+    async def annotate_and_edit(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        output = await model.generate(generate_input.input)
+        assert output.message.tool_calls
+        output.message.tool_calls[0].arguments["n"] = after
+        output.message.metadata = {"review": "accepted"}
+        return output
+
+    bridge = AgentBridge(AgentState(messages=[]))
+    bridge.response_filter = annotate_and_edit
+    output, _ = await bridge_generate(
+        bridge,
+        model,
+        [ChatMessageUser(content="hi")],
+        [],
+        None,
+        GenerateConfig(),
+        requested_model=None,
+    )
+
+    assert output.message.id != regenerated.message.id
+    assert output.message.tool_calls
+    assert output.message.tool_calls[0].arguments == {"n": after}
 
 
 async def test_response_filter_rejects_merging_server_items_across_choices() -> None:
@@ -2499,3 +3970,390 @@ def test_live_response_filter_anthropic_native_content(
             assert first_reply_types == []
         case _:
             assert_never(mode)
+
+
+def test_settle_message_ids_derives_a_replacement_from_what_it_replaces() -> None:
+    """A fresh replacement is an edit of the original at its index; an unchanged choice keeps its id."""
+    original = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(message=ChatMessageAssistant(content=text))
+            for text in ["one", "two"]
+        ],
+    )
+    replaced = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(message=ChatMessageAssistant(content="replacement")),
+            original.choices[1].model_copy(),
+            ChatCompletionChoice(message=ChatMessageAssistant(content="extra")),
+        ],
+    )
+
+    extra_id = replaced.choices[2].message.id
+    _settle_message_ids(original, replaced)
+
+    first = replaced.choices[0].message
+    assert first.id == edited_id(original.choices[0].message.id, first)
+    assert replaced.choices[1].message.id == original.choices[1].message.id
+    assert replaced.choices[2].message.id == extra_id
+    assert all(choice.message.metadata is None for choice in replaced.choices)
+
+
+def test_settle_message_ids_gives_the_same_edit_the_same_id() -> None:
+    """Filtering the same output the same way (e.g. a cache hit) is the same message."""
+    original = ModelOutput.from_content("mockllm/model", "before")
+
+    def edited(text: str) -> ModelOutput:
+        copy = original.model_copy(deep=True)
+        copy.message.content = text
+        _settle_message_ids(original, copy)
+        return copy
+
+    first, second, other = edited("after"), edited("after"), edited("other")
+
+    assert first.message.id == second.message.id != original.message.id
+    assert other.message.id not in {first.message.id, original.message.id}
+    assert first.message.id == edited_id(original.message.id, first.message)
+
+
+@pytest.mark.parametrize(
+    "before,after,changed",
+    [
+        (0, False, True),
+        (False, 0, True),
+        (1, True, True),
+        (True, 1, True),
+        (1, 1.0, False),
+        (1.0, 1, False),
+    ],
+    ids=["0 to False", "False to 0", "1 to True", "True to 1", "1 to 1.0", "1.0 to 1"],
+)
+def test_settle_message_ids_tells_booleans_from_numbers(
+    before: JsonValue, after: JsonValue, changed: bool
+) -> None:
+    """A filter changing a call argument between a number and a boolean edits the reply; an equal JSON number doesn't."""
+    original = ModelOutput.for_tool_call("mockllm/model", "f", {"n": before})
+    copy = original.model_copy(deep=True)
+    assert copy.message.tool_calls
+    copy.message.tool_calls[0].arguments = {"n": after}
+
+    _settle_message_ids(original, copy)
+
+    if changed:
+        assert copy.message.id == edited_id(original.message.id, copy.message)
+        assert copy.message.id != original.message.id
+    else:
+        assert copy.message.id == original.message.id
+
+
+class _FilterWork(NamedTuple):
+    events_visited: int
+    response_generations: list[int]
+    """Generations each response filter had to choose from."""
+    request_generations_found: int
+
+
+@pytest.mark.parametrize("filter_kind", ["request", "response"])
+async def test_concurrent_generating_filters_do_linear_work(
+    filter_kind: Literal["request", "response"],
+) -> None:
+    """A filter's own generations are found without visiting other requests' events.
+
+    N bridged requests share a sample and model, and each filter generates once,
+    all N generations in flight together. The events visited in total grow
+    linearly with N, and each filter finds exactly its own generation.
+    """
+    from contextvars import ContextVar
+    from unittest.mock import patch
+
+    from inspect_ai.agent._bridge import util as bridge_util
+    from inspect_ai.log._transcript import (
+        Transcript,
+        TranscriptHistory,
+        init_transcript,
+    )
+
+    config = GenerateConfig(max_connections=256)
+    in_filter: ContextVar[bool] = ContextVar("in_filter", default=False)
+
+    async def measure(n: int) -> _FilterWork:
+        init_transcript(Transcript())
+        model = get_model("mockllm/model")
+        provider_generate = model.api.generate
+        entered = 0
+        all_entered = anyio.Event()
+        visited = 0
+        generations_seen: list[int] = []
+        request_generations_found = 0
+
+        async def overlapping_generate(*args: Any, **kwargs: Any) -> Any:
+            nonlocal entered
+            if in_filter.get():
+                entered += 1
+                if entered == n:
+                    all_entered.set()
+                await all_entered.wait()
+            return await provider_generate(*args, **kwargs)
+
+        async def response_filter(
+            model: Model, output: ModelOutput, generate_input: GenerateInput
+        ) -> ModelOutput | None:
+            token = in_filter.set(True)
+            try:
+                return await model.generate(generate_input.input, config=config)
+            finally:
+                in_filter.reset(token)
+
+        async def request_filter(
+            model: Model,
+            messages: list[ChatMessage],
+            tools: list[ToolInfo],
+            tool_choice: ToolChoice | None,
+            config: GenerateConfig,
+        ) -> ModelOutput | GenerateInput | None:
+            token = in_filter.set(True)
+            try:
+                return await model.generate(messages, config=config)
+            finally:
+                in_filter.reset(token)
+
+        recent_events = TranscriptHistory.recent_events
+        settle = bridge_util._settle_message_ids
+        request_filter_edits = bridge_util._request_filter_edits
+
+        def counting_recent_events(
+            history: TranscriptHistory, count: int | None = None
+        ) -> Sequence[Any]:
+            nonlocal visited
+            events = recent_events(history, count)
+            visited += len(events)
+            return events
+
+        def recording_settle(
+            original: ModelOutput,
+            filtered: ModelOutput,
+            generations: Sequence[ChatMessageAssistant] = (),
+        ) -> None:
+            generations_seen.append(len(generations))
+            settle(original, filtered, generations)
+
+        def recording_request_filter_edits(
+            generated: ModelOutput, output: ModelOutput
+        ) -> ModelOutput:
+            nonlocal request_generations_found
+            assert generated.message.id == output.message.id
+            request_generations_found += 1
+            return request_filter_edits(generated, output)
+
+        async def request(i: int) -> None:
+            bridge = AgentBridge(AgentState(messages=[]))
+            if filter_kind == "response":
+                bridge.response_filter = response_filter
+            else:
+                bridge.filter = request_filter
+            await bridge_generate(
+                bridge,
+                model,
+                [ChatMessageUser(content=f"Question {i}")],
+                [],
+                None,
+                config,
+                requested_model=None,
+            )
+
+        with (
+            patch.object(model.api, "generate", overlapping_generate),
+            patch.object(TranscriptHistory, "recent_events", counting_recent_events),
+            patch.object(bridge_util, "_settle_message_ids", recording_settle),
+            patch.object(
+                bridge_util, "_request_filter_edits", recording_request_filter_edits
+            ),
+        ):
+            async with anyio.create_task_group() as tg:
+                for i in range(n):
+                    tg.start_soon(request, i)
+        return _FilterWork(visited, generations_seen, request_generations_found)
+
+    for n in (16, 64):
+        work = await measure(n)
+        assert work.events_visited <= 2 * n
+        if filter_kind == "response":
+            assert work.response_generations == [1] * n
+        else:
+            assert work.request_generations_found == n
+
+
+async def test_response_filter_monitor_generations_are_not_retained() -> None:
+    """A monitor the filter starts, generating after the bridge returns, leaves no event alive."""
+    import gc
+    import weakref
+
+    from inspect_ai.event import ModelEvent
+
+    completed: list[weakref.ref[ModelEvent]] = []
+
+    class WeakSink:
+        def on_pending(self, event: ModelEvent) -> None:
+            pass
+
+        def on_complete(self, event: ModelEvent) -> None:
+            completed.append(weakref.ref(event))
+
+    model = get_model("mockllm/model")
+    started, release, generated, finish = (anyio.Event() for _ in range(4))
+
+    async def monitor() -> None:
+        started.set()
+        await release.wait()
+        for n in range(8):
+            await model.generate(f"monitor {n}")
+        generated.set()
+        await finish.wait()
+
+    sink = WeakSink()
+    async with anyio.create_task_group() as tg:
+
+        async def start_monitor(
+            model: Model, output: ModelOutput, generate_input: GenerateInput
+        ) -> ModelOutput | None:
+            tg.start_soon(monitor)
+            await started.wait()
+            return output
+
+        bridge = AgentBridge(AgentState(messages=[]), response_filter=start_monitor)
+        bridge.model_event_sink = sink
+        with use_model_event_sink(sink):
+            await bridge_generate(
+                bridge,
+                model,
+                [ChatMessageUser(content="hi")],
+                [],
+                None,
+                GenerateConfig(),
+                requested_model=None,
+            )
+        release.set()
+        await generated.wait()
+        gc.collect()
+        retained = sum(ref() is not None for ref in completed)
+        finish.set()
+
+    assert len(completed) == 9
+    assert retained == 0
+
+
+@pytest.mark.parametrize("returned", ["regeneration", "output"])
+async def test_response_filter_reasoning_internal_boolean_to_number_is_an_edit(
+    returned: Literal["regeneration", "output"],
+) -> None:
+    """Changing reasoning's provider-internal `False` to `0` is rejected as a reasoning edit.
+
+    Pydantic equality takes them as equal; they serialize differently.
+    """
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(
+                reasoning="thinking", signature="sig", internal={"flag": False}
+            ),
+            ContentText(text="answer"),
+        ]
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_message(message),
+            ModelOutput.from_message(message.model_copy(deep=True)),
+        ],
+    )
+
+    async def edit_internal(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        if returned == "regeneration":
+            output = await model.generate(generate_input.input)
+        content = output.message.content
+        assert isinstance(content, list)
+        content[0].internal = {"flag": 0}
+        return output
+
+    bridge = AgentBridge(AgentState(messages=[]))
+    bridge.response_filter = edit_internal
+    with pytest.raises(ResponseFilterError, match="edited or added reasoning"):
+        await bridge_generate(
+            bridge,
+            model,
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            GenerateConfig(),
+            requested_model=None,
+        )
+
+
+@pytest.mark.parametrize(
+    "edit,unchanged",
+    [
+        ("metadata", True),
+        ("text internal", False),
+        ("reasoning internal", False),
+    ],
+)
+def test_is_unchanged_ignores_only_metadata(edit: str, unchanged: bool) -> None:
+    """A metadata annotation leaves a generation unchanged; a `False` to `0` edit elsewhere does not."""
+    generation = ChatMessageAssistant(
+        content=[
+            ContentReasoning(
+                reasoning="thinking", signature="sig", internal={"flag": False}
+            ),
+            ContentText(text="answer", internal={"flag": False}),
+        ]
+    )
+    returned = generation.model_copy(deep=True)
+    content = cast(list[Content], returned.content)
+    match edit:
+        case "metadata":
+            returned.metadata = {"review": "accepted"}
+        case "text internal":
+            content[1].internal = {"flag": 0}
+        case "reasoning internal":
+            content[0].internal = {"flag": 0}
+
+    assert _is_unchanged(returned, [generation]) is unchanged
+
+
+async def test_sandbox_text_edit_of_a_regeneration_keeps_its_tool_arguments() -> None:
+    """A regeneration's arguments the filter leaves alone are not its edit, though it edits the text."""
+    events_tool = ToolInfo(
+        name="get_events",
+        description="List events on a date.",
+        parameters=ToolParams(properties={"date": ToolParam(type="string")}),
+    )
+    provider_call = parse_tool_call("call_1", "get_events", "2024-01-01", [events_tool])
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", "first"),
+            ModelOutput.from_message(
+                ChatMessageAssistant(content="", tool_calls=[provider_call]),
+                stop_reason="tool_calls",
+            ),
+        ],
+    )
+
+    async def regenerate_and_edit_text(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        output = await model.generate(generate_input.input)
+        output.message.content = "Looking up events"
+        return output
+
+    bridge = _sandbox_bridge(regenerate_and_edit_text, model)
+    reply = await _forward_provider_errors(
+        generate_anthropic(None, None, bridge), bridge
+    )({"model": "inspect", "max_tokens": 1024, "messages": CHAT_REQUEST["messages"]})
+
+    assert PROVIDER_ERROR_KEY not in reply
+    assert not bridge._failure_requested.is_set()
+    tool_use = cast(list[dict[str, JsonValue]], reply["content"])[-1]
+    assert tool_use["input"] == {"date": "2024-01-01"}
