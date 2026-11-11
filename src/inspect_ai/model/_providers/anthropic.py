@@ -148,6 +148,8 @@ from inspect_ai._util.http import (
 )
 from inspect_ai._util.http_defaults_httpx2 import (
     DEFAULT_REQUEST_TIMEOUT,
+    REQUEST_TIMEOUT_ENV,
+    connect_timeout,
     default_async_client,
     default_timeout,
 )
@@ -250,6 +252,12 @@ from .util import (
 from .util.hooks import HttpxHooks
 
 logger = getLogger(__name__)
+
+ANTHROPIC_GENERATE_TIMEOUT = 1800.0
+"""Read deadline (seconds) for generate calls."""
+
+AUTO_STREAMING_MAX_TOKENS = 8192
+"""`max_tokens` at or above which generate streams by default."""
 
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 AZUREAI_ANTHROPIC_API_KEY = "AZUREAI_ANTHROPIC_API_KEY"
@@ -548,6 +556,43 @@ class AnthropicAPI(ModelAPI):
         )
         model_args["http_client"] = default_async_client()
         return model_args
+
+    def _generate_timeout(
+        self, request: dict[str, Any], streaming: bool
+    ) -> httpx2.Timeout | anthropic.NotGiven:
+        """Request budget for a generate call.
+
+        A non-streaming response sends nothing until the whole message is
+        ready, and a proxy that buffers server-sent events does the same to a
+        streaming one, so a very long input can outlast the SDK's 10 minute
+        read deadline. That timeout is retried, every attempt fails the same
+        way, and with Inspect's default unlimited retries the sample never
+        finishes, so the read deadline is raised.
+
+        A budget set by the caller (`timeout` model arg or
+        `INSPECT_HTTP_REQUEST_TIMEOUT`) is left alone. So is a non-streaming
+        request above the auto-streaming threshold: an explicit timeout would
+        skip the SDK's check that rejects non-streaming requests whose output
+        may take longer than 10 minutes.
+        """
+        if (
+            "timeout" in self.model_args
+            or os.environ.get(REQUEST_TIMEOUT_ENV, "").strip()
+            or self.client.timeout != anthropic.DEFAULT_TIMEOUT
+        ):
+            return anthropic.NOT_GIVEN
+        if (
+            not streaming
+            and (request.get("max_tokens") or 0) > AUTO_STREAMING_MAX_TOKENS
+        ):
+            return anthropic.NOT_GIVEN
+        sdk_timeout = anthropic.DEFAULT_TIMEOUT
+        return httpx2.Timeout(
+            connect=connect_timeout(),
+            read=ANTHROPIC_GENERATE_TIMEOUT,
+            write=sdk_timeout.write,
+            pool=sdk_timeout.pool,
+        )
 
     def _create_client(
         self,
@@ -1307,10 +1352,14 @@ class AnthropicAPI(ModelAPI):
                 )
             head_message = await self._batcher.generate_for_request(request)
         elif streaming:
-            async with self.client.messages.stream(**request) as stream:
+            async with self.client.messages.stream(
+                **request, timeout=self._generate_timeout(request, True)
+            ) as stream:
                 head_message, _ = await _capture_compaction_from_stream(stream)
         else:
-            head_message = await self.client.messages.create(**request, stream=False)
+            head_message = await self.client.messages.create(
+                **request, stream=False, timeout=self._generate_timeout(request, False)
+            )
 
         head_model_output, continuation_required = await model_output_from_message(
             self.client,
@@ -1784,7 +1833,8 @@ class AnthropicAPI(ModelAPI):
     # see https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests
     def auto_streaming(self, config: GenerateConfig) -> bool:
         return self.is_using_thinking(config) or (
-            config.max_tokens is not None and config.max_tokens >= 8192
+            config.max_tokens is not None
+            and config.max_tokens >= AUTO_STREAMING_MAX_TOKENS
         )
 
     def is_thinking_model(self) -> bool:

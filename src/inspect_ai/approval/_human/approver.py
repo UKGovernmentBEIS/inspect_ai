@@ -27,8 +27,17 @@ def human_approver(
        Approver: Interactive human approver.
 
     Raises:
-       ValueError: If "modify" is the only choice.
+       ValueError: If there are no choices other than "modify", or a choice
+          appears more than once.
     """
+    if not choices:
+        raise ValueError("The human approver needs at least one choice.")
+    for choice in choices:
+        if choices.count(choice) > 1:
+            raise ValueError(
+                f"The human approver got duplicate choice {choice!r}; "
+                "list each choice once."
+            )
     if "modify" in choices:
         choices = [choice for choice in choices if choice != "modify"]
         if not choices:
@@ -75,10 +84,10 @@ def human_approver(
             # the Phase 15 TUI, etc.) are attached to this sample, route
             # the prompt through ACP `session/request_permission` so the
             # operator can respond in the editor they're working in.
-            # Returns None when no clients are attached or when every
-            # attached client failed (disconnect, transport error) —
-            # both cases fall through to the existing in-proc panel /
-            # console flow unchanged.
+            # Returns None when the sample isn't reachable over ACP (no
+            # ACP server accepting clients) or the shim hit an internal
+            # error, and we fall through to the in-proc panel / console
+            # below. Otherwise it waits until an attached client answers.
             acp_result = await request_human_approval_via_acp(
                 message=message, call=call, view=view, choices=choices
             )
