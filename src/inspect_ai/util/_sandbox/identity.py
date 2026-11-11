@@ -1,8 +1,9 @@
 import posixpath
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Iterator, NamedTuple
+from typing import Any, Iterator, Literal, NamedTuple
 
+from ._framework_operation import in_framework_sandbox_operation
 from ._privileged import privileged_shell
 from .context import (
     default_sandbox_environment,
@@ -11,7 +12,7 @@ from .context import (
     sandbox_default_context_var,
     sandbox_environments_context_var,
 )
-from .environment import SandboxEnvironment
+from .environment import SandboxEnvironment, SandboxUserUnsupportedError
 from .events import SandboxEnvironmentProxy
 
 
@@ -57,11 +58,25 @@ def sandbox_identity(
     If code inside the block replaces the sample's sandbox environments with a
     set that does not list `sandbox`, those tools raise `SandboxIdentityError`.
     Tools given another sandbox by name keep that sandbox and its user.
-    `SandboxEnvironment.exec()`, `read_file()` and `write_file()` themselves are
-    unchanged: they run as the sandbox's default user unless given one.
+
+    `SandboxEnvironment.exec()`, `read_file()` and `write_file()` calls on the
+    sample's `sandbox` that name no user also run as `user`, so custom tools
+    and scaffold code act as `user` with no change of their own. A call that
+    names a user keeps it. Inspect's own sandbox operations (tool injection,
+    sandbox services, checkpoints, in-loop scoring) keep the sandbox's default
+    user. A provider whose `read_file()` or `write_file()` cannot take a user
+    raises `SandboxUserUnsupportedError` for such a call rather than using the
+    default user. Calls on the provider returned by `as_type()` do not take
+    the scope's user. The scope's `cwd` does not apply to these calls.
 
     The scope is held in a context variable, so tasks started inside the block
     inherit it.
+
+    A scope cannot be opened inside Inspect's own sandbox operations, which
+    include in-loop scoring: a scorer called through `score()` (for example by
+    `react(attempts=...)`) that opens a scope raises `SandboxIdentityError`.
+    Inside those operations an omitted user means the sandbox's default user,
+    so the scope would not apply.
 
     Args:
        user: User to run as: a username or a numeric uid. A `user:group`
@@ -71,7 +86,9 @@ def sandbox_identity(
        sandbox: Name of the sandbox environment the identity applies to.
 
     Raises:
-       SandboxIdentityError: If a scope is already active.
+       SandboxIdentityError: If a scope is already active, or the block is
+          opened inside one of Inspect's own sandbox operations (such as
+          in-loop scoring).
        ValueError: If `user` is empty or contains `:`, `cwd` is not absolute, or
           `sandbox` is not one of the sample's environments.
        ProcessLookupError: If there are no sandboxes available.
@@ -88,6 +105,12 @@ def sandbox_identity(
         raise SandboxIdentityError(
             f"A sandbox identity scope for user '{outer.user}' is already active; "
             "sandbox identity scopes cannot be nested."
+        )
+    if in_framework_sandbox_operation():
+        raise SandboxIdentityError(
+            f"A sandbox identity scope for user '{user}' cannot be opened inside "
+            "an Inspect framework sandbox operation such as in-loop scoring, where "
+            "sandbox operations run as the sandbox's default user."
         )
     environments = sandbox_environments_context_var.get(None)
     if not environments:
@@ -144,6 +167,65 @@ def sandbox_identity_user(
     raise SandboxIdentityError(
         f"A tool configured to run as '{user}' cannot run inside the sandbox "
         f"identity scope for '{identity.user}'."
+    )
+
+
+def sandbox_operation_user(env: SandboxEnvironment, user: str | None) -> str | None:
+    """The user a sandbox operation on `env` runs as.
+
+    Inside a `sandbox_identity()` scope for `env`, an omitted `user` becomes the
+    scope's user, unless the call is part of a `framework_sandbox_operation()`.
+    An explicit `user` is always kept.
+
+    Args:
+       env: Sandbox environment the operation runs in.
+       user: User the caller asked for, if any.
+    """
+    if user is not None or in_framework_sandbox_operation():
+        return user
+    return sandbox_identity_user(env, None, strict=False)
+
+
+def sandbox_file_user_params(
+    env: SandboxEnvironment,
+    operation: Literal["read_file", "write_file"],
+    user: str | None,
+) -> dict[str, Any]:
+    """Keyword arguments that run `operation` on `env` as its operation user.
+
+    The user is resolved with `sandbox_operation_user()`. No user gives no
+    arguments, so the provider uses its default user.
+
+    Args:
+       env: Sandbox environment the operation runs in.
+       operation: The file operation.
+       user: User the caller asked for, if any.
+
+    Raises:
+       SandboxUserUnsupportedError: If there is a user and the provider's
+          `operation` cannot take one. When the user came from the scope, the
+          message names the scope.
+    """
+    resolved = sandbox_operation_user(env, user)
+    if resolved is None:
+        return {}
+    if env._supports_file_user(operation):
+        return {"user": resolved}
+    provider = env
+    while isinstance(provider, SandboxEnvironmentProxy):
+        provider = provider._sandbox
+    method = f"{type(provider).__name__}.{operation}"
+    if user is None and (identity := sandbox_identity_scope(env)) is not None:
+        verb = "read" if operation == "read_file" else "write"
+        raise SandboxUserUnsupportedError(
+            f"{method} does not support a user, so it cannot run as "
+            f"{resolved!r} inside the sandbox identity scope for sandbox "
+            f"{identity.sandbox!r}. Update the sandbox provider to support file "
+            f"users, or {verb} the file with exec()."
+        )
+    raise SandboxUserUnsupportedError(
+        f"{method} does not support user={resolved!r}. "
+        "Update the sandbox provider to support file users."
     )
 
 

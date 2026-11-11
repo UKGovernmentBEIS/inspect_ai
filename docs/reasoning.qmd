@@ -72,7 +72,7 @@ Note that you can also pass `reasoning_tokens` explicitly for these models.
 
 #### Google Gemini 3 and later
 
-Gemini 3 Flash 3.0–3.6 and Flash-Lite 3.1–3.5 expose four thinking levels (`MINIMAL`, `LOW`, `MEDIUM`, `HIGH`). Gemini 3 Pro / Pro 3.1, Gemini 3.7 Flash and later, and Gemini 4 Argon omit `MINIMAL` (the API rejects it), so Inspect maps `minimal` to `LOW` there and logs a warning. The same fail-safe applies to names without a version (rolling aliases such as `gemini-flash-latest`, predeployment codenames) and to versions newer than those listed, until Inspect has confirmed they accept `MINIMAL`.
+Gemini 3 Flash 3.0–3.6 and Flash-Lite 3.1–3.5 expose four thinking levels (`MINIMAL`, `LOW`, `MEDIUM`, `HIGH`). Gemini 3 Pro / Pro 3.1, Gemini 3.7 Flash and later, Gemini 4 Argon, and Gemini 4 Carbon omit `MINIMAL` (the API rejects it), so Inspect maps `minimal` to `LOW` there and logs a warning. The same fail-safe applies to names without a version (rolling aliases such as `gemini-flash-latest`, predeployment codenames) and to versions newer than those listed, until Inspect has confirmed they accept `MINIMAL`.
 
 | Inspect input            | API value (Flash ≤ 3.6, Flash-Lite ≤ 3.5) | API value (other Gemini 3+)                |
 |--------------------------|-------------------------------------------|--------------------------------------------|
@@ -147,8 +147,10 @@ Passes through to the underlying model; OpenRouter itself maps `effort` to `budg
 | `low`         | `low`     | 0.2          |
 | `medium`      | `medium`  | 0.5          |
 | `high`        | `high`    | 0.8          |
-| `max` / `xhigh`       | `xhigh`   | 0.95         |
+| `xhigh`       | `xhigh`   | 0.95         |
+| `max`         | `max`     | 0.95         |
 
+Inspect forwards `max` unchanged to OpenRouter. Available effort levels vary by model; consult `reasoning.supported_efforts` in [`GET /api/v1/models`](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens#discovering-per-model-reasoning-options). A successful request alone does not establish which effort the underlying model applied.
 
 
 

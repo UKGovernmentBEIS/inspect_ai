@@ -32,7 +32,6 @@ updates:
         - "azure-ai-inference"
         - "google-genai"
         - "groq"
-        - "huggingface-hub"
         - "inspect-scout"
         - "inspect-sentinel"
         - "mistralai"
@@ -46,7 +45,6 @@ updates:
           - "azure-ai-inference"
           - "google-genai"
           - "groq"
-          - "huggingface-hub"
           - "inspect-scout"
           - "inspect-sentinel"
           - "mistralai"
@@ -57,20 +55,15 @@ updates:
         patterns:
           - "*"
     ignore:
-      - dependency-name: "quarto-cli"
-        versions: [">=1.6.0"]
       # Bumped by hand: a new ruff can reformat files across the repo.
       - dependency-name: "ruff"
-      - dependency-name: "textual"
-        versions: [">=2.0.0"]
+      # together 3.x requires rich<15, so locking rich 15 downgrades together
+      # to 2.x.
       - dependency-name: "rich"
-        versions: [">=14.0.0"]
+        versions: [">=15.0.0"]
+      # pyproject.toml caps fsspec at 2026.6.0. Raise this with the cap.
       - dependency-name: "fsspec"
-        versions: [">=2024.12.0"]
-      - dependency-name: "click"
-        versions: [">=8.2.0"]
-      - dependency-name: "griffe"
-        versions: [">=1.15.0"]
+        versions: [">2026.6.0"]
   # Bumps the release build toolchain pinned in
   # scripts/build-dist/requirements.txt.
   - package-ecosystem: uv

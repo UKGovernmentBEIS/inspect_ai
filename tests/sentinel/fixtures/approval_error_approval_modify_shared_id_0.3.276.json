@@ -1,0 +1,4215 @@
+{
+  "version": 2,
+  "status": "success",
+  "eval": {
+    "eval_id": "nk7cqEKxKK2RzPUMjfkoXn",
+    "run_id": "eBpMH5k7K5m5HqCDn7vgD4",
+    "created": "2026-11-05T00:00:26+00:00",
+    "task": "task",
+    "task_id": "QmPoTAD7ViaQ39DQ4gc8Gh",
+    "task_version": 0,
+    "task_display_name": "task",
+    "task_attribs": {},
+    "task_args": {},
+    "task_args_passed": {},
+    "solver_args_passed": {},
+    "dataset": {
+      "samples": 4,
+      "sample_ids": [
+        "same_before",
+        "same_after",
+        "distinct_before",
+        "distinct_after"
+      ],
+      "shuffled": false
+    },
+    "model": "mockllm/model",
+    "model_generate_config": {},
+    "model_args": {
+      "custom_outputs": [
+        {
+          "model": "mockllm/model",
+          "choices": [
+            {
+              "message": {
+                "id": "ibYiThtpXbLmVuLqv7JyNi",
+                "content": "Calling",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "c1",
+                    "function": "echo_path",
+                    "arguments": {
+                      "path": "before"
+                    },
+                    "type": "function"
+                  }
+                ]
+              },
+              "stop_reason": "unknown"
+            }
+          ],
+          "completion": "Calling",
+          "usage": {
+            "input_tokens": 84,
+            "output_tokens": 7,
+            "total_tokens": 91
+          },
+          "time": 0.09874970884993672
+        },
+        {
+          "model": "mockllm/model",
+          "choices": [
+            {
+              "message": {
+                "id": "ZY6dBgCVj7FXTjApBgAhcy",
+                "content": "Calling",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "c1",
+                    "function": "echo_path",
+                    "arguments": {
+                      "path": "proposed"
+                    },
+                    "type": "function"
+                  }
+                ]
+              },
+              "stop_reason": "unknown"
+            }
+          ],
+          "completion": "Calling",
+          "usage": {
+            "input_tokens": 100,
+            "output_tokens": 7,
+            "total_tokens": 107
+          },
+          "time": 0.00011783279478549957
+        },
+        {
+          "model": "mockllm/model",
+          "choices": [
+            {
+              "message": {
+                "id": "7jVRqRoN8aWNGcvzet3waK",
+                "content": "Done",
+                "source": "generate",
+                "role": "assistant",
+                "model": "mockllm/model"
+              },
+              "stop_reason": "stop"
+            }
+          ],
+          "completion": "Done",
+          "usage": {
+            "input_tokens": 115,
+            "output_tokens": 4,
+            "total_tokens": 119
+          },
+          "time": 0.00009341677650809288
+        },
+        {
+          "model": "mockllm/model",
+          "choices": [
+            {
+              "message": {
+                "id": "aeP38E9rTb3wUSw9vfLC5z",
+                "content": "Calling",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "c1",
+                    "function": "echo_path",
+                    "arguments": {
+                      "path": "proposed"
+                    },
+                    "type": "function"
+                  }
+                ]
+              },
+              "stop_reason": "unknown"
+            }
+          ],
+          "completion": "Calling",
+          "usage": {
+            "input_tokens": 84,
+            "output_tokens": 7,
+            "total_tokens": 91
+          },
+          "time": 0.00006625009700655937
+        },
+        {
+          "model": "mockllm/model",
+          "choices": [
+            {
+              "message": {
+                "id": "o43KRtAUqz8Upn6bhpuAUc",
+                "content": "Calling",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "c1",
+                    "function": "echo_path",
+                    "arguments": {
+                      "path": "after"
+                    },
+                    "type": "function"
+                  }
+                ]
+              },
+              "stop_reason": "unknown"
+            }
+          ],
+          "completion": "Calling",
+          "usage": {
+            "input_tokens": 98,
+            "output_tokens": 7,
+            "total_tokens": 105
+          },
+          "time": 0.00008150003850460052
+        },
+        {
+          "model": "mockllm/model",
+          "choices": [
+            {
+              "message": {
+                "id": "DWhEgsvL8h6xMYMCkL6Ueh",
+                "content": "Done",
+                "source": "generate",
+                "role": "assistant",
+                "model": "mockllm/model"
+              },
+              "stop_reason": "stop"
+            }
+          ],
+          "completion": "Done",
+          "usage": {
+            "input_tokens": 113,
+            "output_tokens": 4,
+            "total_tokens": 117
+          },
+          "time": 0.00007683271542191505
+        },
+        {
+          "model": "mockllm/model",
+          "choices": [
+            {
+              "message": {
+                "id": "PrcEeGC8D2RYqXYhUgaBY7",
+                "content": "Calling",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "c0",
+                    "function": "echo_path",
+                    "arguments": {
+                      "path": "before"
+                    },
+                    "type": "function"
+                  }
+                ]
+              },
+              "stop_reason": "unknown"
+            }
+          ],
+          "completion": "Calling",
+          "usage": {
+            "input_tokens": 84,
+            "output_tokens": 7,
+            "total_tokens": 91
+          },
+          "time": 0.00006287498399615288
+        },
+        {
+          "model": "mockllm/model",
+          "choices": [
+            {
+              "message": {
+                "id": "davhN2bkEXEnQwni4UP9GY",
+                "content": "Calling",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "c1",
+                    "function": "echo_path",
+                    "arguments": {
+                      "path": "proposed"
+                    },
+                    "type": "function"
+                  }
+                ]
+              },
+              "stop_reason": "unknown"
+            }
+          ],
+          "completion": "Calling",
+          "usage": {
+            "input_tokens": 100,
+            "output_tokens": 7,
+            "total_tokens": 107
+          },
+          "time": 0.0000611250288784504
+        },
+        {
+          "model": "mockllm/model",
+          "choices": [
+            {
+              "message": {
+                "id": "MWSrAjCpatJvMk7m42bfzF",
+                "content": "Done",
+                "source": "generate",
+                "role": "assistant",
+                "model": "mockllm/model"
+              },
+              "stop_reason": "stop"
+            }
+          ],
+          "completion": "Done",
+          "usage": {
+            "input_tokens": 115,
+            "output_tokens": 4,
+            "total_tokens": 119
+          },
+          "time": 0.00010820897296071053
+        },
+        {
+          "model": "mockllm/model",
+          "choices": [
+            {
+              "message": {
+                "id": "KPZKaGiXSr5cjbghDBh6t3",
+                "content": "Calling",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "c1",
+                    "function": "echo_path",
+                    "arguments": {
+                      "path": "proposed"
+                    },
+                    "type": "function"
+                  }
+                ]
+              },
+              "stop_reason": "unknown"
+            }
+          ],
+          "completion": "Calling",
+          "usage": {
+            "input_tokens": 84,
+            "output_tokens": 7,
+            "total_tokens": 91
+          },
+          "time": 0.00004987465217709541
+        },
+        {
+          "model": "mockllm/model",
+          "choices": [
+            {
+              "message": {
+                "id": "35GWLRNnLRiEJcAdjHa6H9",
+                "content": "Calling",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "c2",
+                    "function": "echo_path",
+                    "arguments": {
+                      "path": "after"
+                    },
+                    "type": "function"
+                  }
+                ]
+              },
+              "stop_reason": "unknown"
+            }
+          ],
+          "completion": "Calling",
+          "usage": {
+            "input_tokens": 98,
+            "output_tokens": 7,
+            "total_tokens": 105
+          },
+          "time": 0.00007558288052678108
+        },
+        {
+          "model": "mockllm/model",
+          "choices": [
+            {
+              "message": {
+                "id": "hsbXw3koJ4Y5cjFTLKZVbW",
+                "content": "Done",
+                "source": "generate",
+                "role": "assistant",
+                "model": "mockllm/model"
+              },
+              "stop_reason": "stop"
+            }
+          ],
+          "completion": "Done",
+          "usage": {
+            "input_tokens": 113,
+            "output_tokens": 4,
+            "total_tokens": 117
+          },
+          "time": 0.00007754238322377205
+        }
+      ]
+    },
+    "config": {
+      "epochs": 1,
+      "approval": {
+        "approvers": [
+          {
+            "name": "change_path",
+            "tools": "*",
+            "params": {}
+          }
+        ]
+      },
+      "fail_on_error": true,
+      "continue_on_fail": false,
+      "score_on_error": false,
+      "max_samples": 1,
+      "sandbox_cleanup": true,
+      "sandbox_prebuilt": false,
+      "log_samples": true,
+      "log_realtime": true,
+      "log_images": true,
+      "score_display": true
+    },
+    "packages": {
+      "inspect_ai": "0.3.276"
+    }
+  },
+  "plan": {
+    "name": "plan",
+    "steps": [
+      {
+        "solver": "use_tools",
+        "params": {
+          "tools": [
+            {
+              "type": "tool",
+              "name": "echo_path",
+              "params": {}
+            }
+          ],
+          "tool_choice": "auto",
+          "append": false
+        },
+        "params_passed": {
+          "tools": [
+            {
+              "type": "tool",
+              "name": "echo_path",
+              "params": {}
+            }
+          ]
+        }
+      },
+      {
+        "solver": "generate",
+        "params": {
+          "tool_calls": "loop"
+        },
+        "params_passed": {}
+      }
+    ],
+    "config": {}
+  },
+  "results": {
+    "total_samples": 4,
+    "completed_samples": 4,
+    "scores": []
+  },
+  "stats": {
+    "started_at": "2026-11-05T00:00:26+00:00",
+    "completed_at": "2026-11-05T00:00:26+00:00",
+    "model_usage": {
+      "mockllm/model": {
+        "input_tokens": 1188,
+        "output_tokens": 72,
+        "total_tokens": 1260
+      }
+    },
+    "role_usage": {},
+    "connection_limit_history": []
+  },
+  "invalidated": false,
+  "tags": [],
+  "metadata": {},
+  "samples": [
+    {
+      "id": "distinct_after",
+      "epoch": 1,
+      "input": "Call echo",
+      "target": "",
+      "messages": [
+        {
+          "id": "k2mcLzY7FvNdopSQm6h6r6",
+          "content": "Call echo",
+          "source": "input",
+          "role": "user"
+        },
+        {
+          "id": "KPZKaGiXSr5cjbghDBh6t3",
+          "content": "Calling",
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "function": "echo_path",
+              "arguments": {
+                "path": "proposed"
+              },
+              "type": "function"
+            }
+          ]
+        },
+        {
+          "id": "Sb47xp9ytztynjjAb69wKV",
+          "content": "",
+          "role": "tool",
+          "tool_call_id": "c1",
+          "function": "echo_path",
+          "error": {
+            "type": "approval",
+            "message": "body ran with changed"
+          }
+        },
+        {
+          "id": "35GWLRNnLRiEJcAdjHa6H9",
+          "content": "Calling",
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "c2",
+              "function": "echo_path",
+              "arguments": {
+                "path": "after"
+              },
+              "type": "function"
+            }
+          ]
+        },
+        {
+          "id": "Xotta4rAUuZf532vzk78ob",
+          "content": "ran with after",
+          "role": "tool",
+          "tool_call_id": "c2",
+          "function": "echo_path"
+        },
+        {
+          "id": "hsbXw3koJ4Y5cjFTLKZVbW",
+          "content": "Done",
+          "source": "generate",
+          "role": "assistant",
+          "model": "mockllm/model"
+        }
+      ],
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "id": "hsbXw3koJ4Y5cjFTLKZVbW",
+              "content": "Done",
+              "source": "generate",
+              "role": "assistant",
+              "model": "mockllm/model"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "completion": "Done",
+        "usage": {
+          "input_tokens": 113,
+          "output_tokens": 4,
+          "total_tokens": 117
+        },
+        "time": 0.00007754238322377205
+      },
+      "scores": {},
+      "metadata": {},
+      "store": {},
+      "events": [
+        {
+          "uuid": "GX8NJyqvvuwtskuXCxKedC",
+          "span_id": "fErRhNVLrXAWD8GUVhZRM6",
+          "timestamp": "2026-11-05T00:00:26.915981+00:00",
+          "working_start": 2326888.834736083,
+          "event": "span_begin",
+          "id": "fErRhNVLrXAWD8GUVhZRM6",
+          "type": "init",
+          "name": "init"
+        },
+        {
+          "uuid": "cKB9Hmeaecnh8YV8pkkHaW",
+          "span_id": "fErRhNVLrXAWD8GUVhZRM6",
+          "timestamp": "2026-11-05T00:00:26.916167+00:00",
+          "working_start": 2326888.834921916,
+          "event": "sample_init",
+          "sample": {
+            "input": "Call echo",
+            "target": "",
+            "id": "distinct_after"
+          },
+          "state": {
+            "messages": [
+              {
+                "id": "k2mcLzY7FvNdopSQm6h6r6",
+                "content": "Call echo",
+                "source": "input",
+                "role": "user"
+              }
+            ],
+            "tools": [],
+            "tool_choice": null,
+            "store": {},
+            "output": {
+              "model": "mockllm/model",
+              "choices": [],
+              "completion": ""
+            },
+            "completed": false,
+            "metadata": {}
+          }
+        },
+        {
+          "uuid": "GJEChXK85LvQhLT6ArstSd",
+          "span_id": "fErRhNVLrXAWD8GUVhZRM6",
+          "timestamp": "2026-11-05T00:00:26.916287+00:00",
+          "working_start": 2326888.835042708,
+          "event": "span_end",
+          "id": "fErRhNVLrXAWD8GUVhZRM6"
+        },
+        {
+          "uuid": "2HJ2fMbnpKsq9wiihVzmA8",
+          "span_id": "JumZTct9gBHpHydtrhZP64",
+          "timestamp": "2026-11-05T00:00:26.916528+00:00",
+          "working_start": 0.00015795789659023285,
+          "event": "span_begin",
+          "id": "JumZTct9gBHpHydtrhZP64",
+          "type": "solvers",
+          "name": "solvers"
+        },
+        {
+          "uuid": "4FmEUfUvhyVdZapiKwbNsr",
+          "span_id": "SZ6gDQjoTbBLe53E5XyJfo",
+          "timestamp": "2026-11-05T00:00:26.916628+00:00",
+          "working_start": 0.0002581248991191387,
+          "event": "span_begin",
+          "id": "SZ6gDQjoTbBLe53E5XyJfo",
+          "parent_id": "JumZTct9gBHpHydtrhZP64",
+          "type": "solver",
+          "name": "use_tools"
+        },
+        {
+          "uuid": "PSsxj2rYL5jtxKdsBGwWpm",
+          "span_id": "SZ6gDQjoTbBLe53E5XyJfo",
+          "timestamp": "2026-11-05T00:00:26.916837+00:00",
+          "working_start": 0.000466957688331604,
+          "event": "state",
+          "changes": [
+            {
+              "op": "add",
+              "path": "/tools/0",
+              "value": {
+                "name": "echo_path",
+                "description": "Record the path it ran with; raise for the changed path.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Literal path."
+                    }
+                  },
+                  "required": [
+                    "path"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            {
+              "op": "replace",
+              "path": "/tool_choice",
+              "value": "auto"
+            }
+          ]
+        },
+        {
+          "uuid": "ETa9LP9gPziVkCcpjE8yZz",
+          "span_id": "SZ6gDQjoTbBLe53E5XyJfo",
+          "timestamp": "2026-11-05T00:00:26.916928+00:00",
+          "working_start": 0.0005582906305789948,
+          "event": "span_end",
+          "id": "SZ6gDQjoTbBLe53E5XyJfo"
+        },
+        {
+          "uuid": "bA87BWddPJ7wFoQjp94qv9",
+          "span_id": "9qxuLdBerzppELBnfGMw4a",
+          "timestamp": "2026-11-05T00:00:26.917003+00:00",
+          "working_start": 0.000632832758128643,
+          "event": "span_begin",
+          "id": "9qxuLdBerzppELBnfGMw4a",
+          "parent_id": "JumZTct9gBHpHydtrhZP64",
+          "type": "solver",
+          "name": "generate"
+        },
+        {
+          "uuid": "9dSjTc4jdbYg5U28JE6DCG",
+          "span_id": "9qxuLdBerzppELBnfGMw4a",
+          "timestamp": "2026-11-05T00:00:26.917145+00:00",
+          "working_start": 0.0007746657356619835,
+          "event": "model",
+          "model": "mockllm/model",
+          "input": [
+            {
+              "id": "k2mcLzY7FvNdopSQm6h6r6",
+              "content": "Call echo",
+              "source": "input",
+              "role": "user"
+            }
+          ],
+          "tools": [
+            {
+              "name": "echo_path",
+              "description": "Record the path it ran with; raise for the changed path.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Literal path."
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "config": {},
+          "output": {
+            "model": "mockllm/model",
+            "choices": [
+              {
+                "message": {
+                  "id": "KPZKaGiXSr5cjbghDBh6t3",
+                  "content": "Calling",
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "function": "echo_path",
+                      "arguments": {
+                        "path": "proposed"
+                      },
+                      "type": "function"
+                    }
+                  ]
+                },
+                "stop_reason": "unknown"
+              }
+            ],
+            "completion": "Calling",
+            "usage": {
+              "input_tokens": 84,
+              "output_tokens": 7,
+              "total_tokens": 91
+            },
+            "time": 0.00004987465217709541
+          },
+          "call": {
+            "request": {
+              "model": "model",
+              "messages": [
+                {
+                  "id": "k2mcLzY7FvNdopSQm6h6r6",
+                  "content": "Call echo",
+                  "source": "input",
+                  "metadata": null,
+                  "role": "user",
+                  "tool_call_id": null
+                }
+              ]
+            },
+            "response": {
+              "content": "Calling"
+            }
+          },
+          "completed": "2026-11-05T00:00:26.917804+00:00",
+          "working_time": 0.00004987465217709541
+        },
+        {
+          "uuid": "5KMrH6X7HqPm8TKexMjkS2",
+          "span_id": "9qxuLdBerzppELBnfGMw4a",
+          "timestamp": "2026-11-05T00:00:26.918114+00:00",
+          "working_start": 0.001200290396809578,
+          "event": "approval",
+          "message": "Calling",
+          "call": {
+            "id": "c1",
+            "function": "echo_path",
+            "arguments": {
+              "path": "proposed"
+            },
+            "type": "function"
+          },
+          "view": {
+            "call": {
+              "format": "markdown",
+              "content": "```python\necho_path(path='proposed')\n```\n"
+            }
+          },
+          "approver": "change_path",
+          "decision": "modify",
+          "modified": {
+            "id": "c1",
+            "function": "echo_path",
+            "arguments": {
+              "path": "changed"
+            },
+            "type": "function"
+          }
+        },
+        {
+          "uuid": "QS3J8h6refs5oRKrw6epnE",
+          "span_id": "X4JFyo47LeA5rPu2FeZCUT",
+          "timestamp": "2026-11-05T00:00:26.918513+00:00",
+          "working_start": 0.0015993323177099228,
+          "event": "span_begin",
+          "id": "X4JFyo47LeA5rPu2FeZCUT",
+          "parent_id": "9qxuLdBerzppELBnfGMw4a",
+          "type": "tool",
+          "name": "echo_path"
+        },
+        {
+          "uuid": "e4dRxrooy8gdBVez3XdgKr",
+          "span_id": "9qxuLdBerzppELBnfGMw4a",
+          "timestamp": "2026-11-05T00:00:26.917973+00:00",
+          "working_start": 0.001059248112142086,
+          "event": "tool",
+          "type": "function",
+          "id": "c1",
+          "function": "echo_path",
+          "arguments": {
+            "path": "proposed"
+          },
+          "result": "",
+          "error": {
+            "type": "approval",
+            "message": "body ran with changed"
+          },
+          "events": [],
+          "completed": "2026-11-05T00:00:26.919166+00:00",
+          "working_time": 0.001193,
+          "message_id": "Sb47xp9ytztynjjAb69wKV"
+        },
+        {
+          "uuid": "ndTvKKjQxhf5ztDKNUiSWN",
+          "span_id": "X4JFyo47LeA5rPu2FeZCUT",
+          "timestamp": "2026-11-05T00:00:26.918775+00:00",
+          "working_start": 0.0018610404804348946,
+          "event": "span_end",
+          "id": "X4JFyo47LeA5rPu2FeZCUT"
+        },
+        {
+          "uuid": "Dpf4zVGM9fq4TS4eaM4nzT",
+          "span_id": "9qxuLdBerzppELBnfGMw4a",
+          "timestamp": "2026-11-05T00:00:26.919402+00:00",
+          "working_start": 0.0024878731928765774,
+          "event": "model",
+          "model": "mockllm/model",
+          "input": [
+            {
+              "id": "k2mcLzY7FvNdopSQm6h6r6",
+              "content": "Call echo",
+              "source": "input",
+              "role": "user"
+            },
+            {
+              "id": "KPZKaGiXSr5cjbghDBh6t3",
+              "content": "Calling",
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "c1",
+                  "function": "echo_path",
+                  "arguments": {
+                    "path": "proposed"
+                  },
+                  "type": "function"
+                }
+              ]
+            },
+            {
+              "id": "Sb47xp9ytztynjjAb69wKV",
+              "content": "",
+              "role": "tool",
+              "tool_call_id": "c1",
+              "function": "echo_path",
+              "error": {
+                "type": "approval",
+                "message": "body ran with changed"
+              }
+            }
+          ],
+          "tools": [
+            {
+              "name": "echo_path",
+              "description": "Record the path it ran with; raise for the changed path.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Literal path."
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "config": {},
+          "output": {
+            "model": "mockllm/model",
+            "choices": [
+              {
+                "message": {
+                  "id": "35GWLRNnLRiEJcAdjHa6H9",
+                  "content": "Calling",
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "c2",
+                      "function": "echo_path",
+                      "arguments": {
+                        "path": "after"
+                      },
+                      "type": "function"
+                    }
+                  ]
+                },
+                "stop_reason": "unknown"
+              }
+            ],
+            "completion": "Calling",
+            "usage": {
+              "input_tokens": 98,
+              "output_tokens": 7,
+              "total_tokens": 105
+            },
+            "time": 0.00007558288052678108
+          },
+          "call": {
+            "request": {
+              "model": "model",
+              "messages": [
+                {
+                  "id": "k2mcLzY7FvNdopSQm6h6r6",
+                  "content": "Call echo",
+                  "source": "input",
+                  "metadata": null,
+                  "role": "user",
+                  "tool_call_id": null
+                },
+                {
+                  "id": "KPZKaGiXSr5cjbghDBh6t3",
+                  "content": "Calling",
+                  "source": null,
+                  "metadata": null,
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "function": "echo_path",
+                      "arguments": {
+                        "path": "proposed"
+                      },
+                      "parse_error": null,
+                      "view": null,
+                      "type": "function"
+                    }
+                  ],
+                  "model": null
+                },
+                {
+                  "id": "Sb47xp9ytztynjjAb69wKV",
+                  "content": "",
+                  "source": null,
+                  "metadata": null,
+                  "role": "tool",
+                  "tool_call_id": "c1",
+                  "function": "echo_path",
+                  "error": {
+                    "type": "approval",
+                    "message": "body ran with changed"
+                  }
+                }
+              ]
+            },
+            "response": {
+              "content": "Calling"
+            }
+          },
+          "completed": "2026-11-05T00:00:26.920203+00:00",
+          "working_time": 0.00007558288052678108
+        },
+        {
+          "uuid": "4ofdxf2Cm4aY6YemjNcPaQ",
+          "span_id": "9qxuLdBerzppELBnfGMw4a",
+          "timestamp": "2026-11-05T00:00:26.920533+00:00",
+          "working_start": 0.0029733735136687756,
+          "event": "approval",
+          "message": "Calling",
+          "call": {
+            "id": "c2",
+            "function": "echo_path",
+            "arguments": {
+              "path": "after"
+            },
+            "type": "function"
+          },
+          "view": {
+            "call": {
+              "format": "markdown",
+              "content": "```python\necho_path(path='after')\n```\n"
+            }
+          },
+          "approver": "change_path",
+          "decision": "approve"
+        },
+        {
+          "uuid": "PJYMZcfbw4T7Un29cTc7E2",
+          "span_id": "HB78pmCTpFbGXZvhxCMvP4",
+          "timestamp": "2026-11-05T00:00:26.920764+00:00",
+          "working_start": 0.003204206470400095,
+          "event": "span_begin",
+          "id": "HB78pmCTpFbGXZvhxCMvP4",
+          "parent_id": "9qxuLdBerzppELBnfGMw4a",
+          "type": "tool",
+          "name": "echo_path"
+        },
+        {
+          "uuid": "SVPMGehnTCHEXYdmCKVpqU",
+          "span_id": "9qxuLdBerzppELBnfGMw4a",
+          "timestamp": "2026-11-05T00:00:26.920408+00:00",
+          "working_start": 0.0028483737260103226,
+          "event": "tool",
+          "type": "function",
+          "id": "c2",
+          "function": "echo_path",
+          "arguments": {
+            "path": "after"
+          },
+          "result": "ran with after",
+          "events": [],
+          "completed": "2026-11-05T00:00:26.921194+00:00",
+          "working_time": 0.000786,
+          "message_id": "Xotta4rAUuZf532vzk78ob"
+        },
+        {
+          "uuid": "iuQoJdEyA7SZiR6w8cLNm5",
+          "span_id": "HB78pmCTpFbGXZvhxCMvP4",
+          "timestamp": "2026-11-05T00:00:26.920991+00:00",
+          "working_start": 0.0034314566291868687,
+          "event": "span_end",
+          "id": "HB78pmCTpFbGXZvhxCMvP4"
+        },
+        {
+          "uuid": "AJET4upjdStg5hn35ZJncm",
+          "span_id": "9qxuLdBerzppELBnfGMw4a",
+          "timestamp": "2026-11-05T00:00:26.921414+00:00",
+          "working_start": 0.0038544568233191967,
+          "event": "model",
+          "model": "mockllm/model",
+          "input": [
+            {
+              "id": "k2mcLzY7FvNdopSQm6h6r6",
+              "content": "Call echo",
+              "source": "input",
+              "role": "user"
+            },
+            {
+              "id": "KPZKaGiXSr5cjbghDBh6t3",
+              "content": "Calling",
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "c1",
+                  "function": "echo_path",
+                  "arguments": {
+                    "path": "proposed"
+                  },
+                  "type": "function"
+                }
+              ]
+            },
+            {
+              "id": "Sb47xp9ytztynjjAb69wKV",
+              "content": "",
+              "role": "tool",
+              "tool_call_id": "c1",
+              "function": "echo_path",
+              "error": {
+                "type": "approval",
+                "message": "body ran with changed"
+              }
+            },
+            {
+              "id": "35GWLRNnLRiEJcAdjHa6H9",
+              "content": "Calling",
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "c2",
+                  "function": "echo_path",
+                  "arguments": {
+                    "path": "after"
+                  },
+                  "type": "function"
+                }
+              ]
+            },
+            {
+              "id": "Xotta4rAUuZf532vzk78ob",
+              "content": "ran with after",
+              "role": "tool",
+              "tool_call_id": "c2",
+              "function": "echo_path"
+            }
+          ],
+          "tools": [
+            {
+              "name": "echo_path",
+              "description": "Record the path it ran with; raise for the changed path.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Literal path."
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "config": {},
+          "output": {
+            "model": "mockllm/model",
+            "choices": [
+              {
+                "message": {
+                  "id": "hsbXw3koJ4Y5cjFTLKZVbW",
+                  "content": "Done",
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "stop"
+              }
+            ],
+            "completion": "Done",
+            "usage": {
+              "input_tokens": 113,
+              "output_tokens": 4,
+              "total_tokens": 117
+            },
+            "time": 0.00007754238322377205
+          },
+          "call": {
+            "request": {
+              "model": "model",
+              "messages": [
+                {
+                  "id": "k2mcLzY7FvNdopSQm6h6r6",
+                  "content": "Call echo",
+                  "source": "input",
+                  "metadata": null,
+                  "role": "user",
+                  "tool_call_id": null
+                },
+                {
+                  "id": "KPZKaGiXSr5cjbghDBh6t3",
+                  "content": "Calling",
+                  "source": null,
+                  "metadata": null,
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "function": "echo_path",
+                      "arguments": {
+                        "path": "proposed"
+                      },
+                      "parse_error": null,
+                      "view": null,
+                      "type": "function"
+                    }
+                  ],
+                  "model": null
+                },
+                {
+                  "id": "Sb47xp9ytztynjjAb69wKV",
+                  "content": "",
+                  "source": null,
+                  "metadata": null,
+                  "role": "tool",
+                  "tool_call_id": "c1",
+                  "function": "echo_path",
+                  "error": {
+                    "type": "approval",
+                    "message": "body ran with changed"
+                  }
+                },
+                {
+                  "id": "35GWLRNnLRiEJcAdjHa6H9",
+                  "content": "Calling",
+                  "source": null,
+                  "metadata": null,
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "c2",
+                      "function": "echo_path",
+                      "arguments": {
+                        "path": "after"
+                      },
+                      "parse_error": null,
+                      "view": null,
+                      "type": "function"
+                    }
+                  ],
+                  "model": null
+                },
+                {
+                  "id": "Xotta4rAUuZf532vzk78ob",
+                  "content": "ran with after",
+                  "source": null,
+                  "metadata": null,
+                  "role": "tool",
+                  "tool_call_id": "c2",
+                  "function": "echo_path",
+                  "error": null
+                }
+              ]
+            },
+            "response": {
+              "content": "Done"
+            }
+          },
+          "completed": "2026-11-05T00:00:26.922161+00:00",
+          "working_time": 0.00007754238322377205
+        },
+        {
+          "uuid": "8vwUyXi8JWMFrEWa7oZV3D",
+          "span_id": "9qxuLdBerzppELBnfGMw4a",
+          "timestamp": "2026-11-05T00:00:26.922550+00:00",
+          "working_start": 0.0043851230293512344,
+          "event": "state",
+          "changes": [
+            {
+              "op": "add",
+              "path": "/messages/1",
+              "value": {
+                "id": "KPZKaGiXSr5cjbghDBh6t3",
+                "content": "Calling",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "c1",
+                    "function": "echo_path",
+                    "arguments": {
+                      "path": "proposed"
+                    },
+                    "type": "function"
+                  }
+                ]
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/2",
+              "value": {
+                "id": "Sb47xp9ytztynjjAb69wKV",
+                "content": "",
+                "role": "tool",
+                "tool_call_id": "c1",
+                "function": "echo_path",
+                "error": {
+                  "type": "approval",
+                  "message": "body ran with changed"
+                }
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/3",
+              "value": {
+                "id": "35GWLRNnLRiEJcAdjHa6H9",
+                "content": "Calling",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "c2",
+                    "function": "echo_path",
+                    "arguments": {
+                      "path": "after"
+                    },
+                    "type": "function"
+                  }
+                ]
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/4",
+              "value": {
+                "id": "Xotta4rAUuZf532vzk78ob",
+                "content": "ran with after",
+                "role": "tool",
+                "tool_call_id": "c2",
+                "function": "echo_path"
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/5",
+              "value": {
+                "id": "hsbXw3koJ4Y5cjFTLKZVbW",
+                "content": "Done",
+                "source": "generate",
+                "role": "assistant",
+                "model": "mockllm/model"
+              }
+            },
+            {
+              "op": "add",
+              "path": "/output/usage",
+              "value": {
+                "input_tokens": 113,
+                "output_tokens": 4,
+                "total_tokens": 117
+              }
+            },
+            {
+              "op": "add",
+              "path": "/output/time",
+              "value": 0.00007754238322377205
+            },
+            {
+              "op": "add",
+              "path": "/output/choices/0",
+              "value": {
+                "message": {
+                  "id": "hsbXw3koJ4Y5cjFTLKZVbW",
+                  "content": "Done",
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "stop"
+              }
+            },
+            {
+              "op": "replace",
+              "path": "/output/completion",
+              "value": "Done",
+              "replaced": ""
+            }
+          ]
+        },
+        {
+          "uuid": "QVjqJbLMzvhBdojod3ebQM",
+          "span_id": "9qxuLdBerzppELBnfGMw4a",
+          "timestamp": "2026-11-05T00:00:26.922688+00:00",
+          "working_start": 0.004523415118455887,
+          "event": "span_end",
+          "id": "9qxuLdBerzppELBnfGMw4a"
+        },
+        {
+          "uuid": "UCEzu7pkwukhAcCmEHkh2P",
+          "span_id": "JumZTct9gBHpHydtrhZP64",
+          "timestamp": "2026-11-05T00:00:26.922765+00:00",
+          "working_start": 0.0045999567955732346,
+          "event": "span_end",
+          "id": "JumZTct9gBHpHydtrhZP64"
+        },
+        {
+          "uuid": "5psgSXy3EJkNpACtLaW8fs",
+          "span_id": "MSuadZoqedbaMHhmq6oLFf",
+          "timestamp": "2026-11-05T00:00:26.922950+00:00",
+          "working_start": 0.004785498138517141,
+          "event": "span_begin",
+          "id": "MSuadZoqedbaMHhmq6oLFf",
+          "type": "scorers",
+          "name": "scorers"
+        },
+        {
+          "uuid": "eYTZHhQm3MkKKqFSZNpugw",
+          "span_id": "MSuadZoqedbaMHhmq6oLFf",
+          "timestamp": "2026-11-05T00:00:26.923024+00:00",
+          "working_start": 0.004858872853219509,
+          "event": "span_end",
+          "id": "MSuadZoqedbaMHhmq6oLFf"
+        }
+      ],
+      "model_usage": {
+        "mockllm/model": {
+          "input_tokens": 295,
+          "output_tokens": 18,
+          "total_tokens": 313
+        }
+      },
+      "role_usage": {},
+      "started_at": "2026-11-05T00:00:26.916371+00:00",
+      "completed_at": "2026-11-05T00:00:26.923154+00:00",
+      "total_time": 0.007,
+      "working_time": 0.005,
+      "uuid": "dxmAqBDUKBZANg5zJiqQVP",
+      "error_retries": [],
+      "attachments": {},
+      "turn_count": 3
+    },
+    {
+      "id": "distinct_before",
+      "epoch": 1,
+      "input": "Call echo",
+      "target": "",
+      "messages": [
+        {
+          "id": "kJx9D2H3DDrmMK5w9584Wk",
+          "content": "Call echo",
+          "source": "input",
+          "role": "user"
+        },
+        {
+          "id": "PrcEeGC8D2RYqXYhUgaBY7",
+          "content": "Calling",
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "c0",
+              "function": "echo_path",
+              "arguments": {
+                "path": "before"
+              },
+              "type": "function"
+            }
+          ]
+        },
+        {
+          "id": "RzxqkT2otJd7Gt73r3gNoV",
+          "content": "ran with before",
+          "role": "tool",
+          "tool_call_id": "c0",
+          "function": "echo_path"
+        },
+        {
+          "id": "davhN2bkEXEnQwni4UP9GY",
+          "content": "Calling",
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "function": "echo_path",
+              "arguments": {
+                "path": "proposed"
+              },
+              "type": "function"
+            }
+          ]
+        },
+        {
+          "id": "PCL33BUFrPeYdu55d6Gnbi",
+          "content": "",
+          "role": "tool",
+          "tool_call_id": "c1",
+          "function": "echo_path",
+          "error": {
+            "type": "approval",
+            "message": "body ran with changed"
+          }
+        },
+        {
+          "id": "MWSrAjCpatJvMk7m42bfzF",
+          "content": "Done",
+          "source": "generate",
+          "role": "assistant",
+          "model": "mockllm/model"
+        }
+      ],
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "id": "MWSrAjCpatJvMk7m42bfzF",
+              "content": "Done",
+              "source": "generate",
+              "role": "assistant",
+              "model": "mockllm/model"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "completion": "Done",
+        "usage": {
+          "input_tokens": 115,
+          "output_tokens": 4,
+          "total_tokens": 119
+        },
+        "time": 0.00010820897296071053
+      },
+      "scores": {},
+      "metadata": {},
+      "store": {},
+      "events": [
+        {
+          "uuid": "emCHL5tJxCezFGe3LZHX8T",
+          "span_id": "gw4n3RsYHnScN5RyiNg5EJ",
+          "timestamp": "2026-11-05T00:00:26.905757+00:00",
+          "working_start": 2326888.824512541,
+          "event": "span_begin",
+          "id": "gw4n3RsYHnScN5RyiNg5EJ",
+          "type": "init",
+          "name": "init"
+        },
+        {
+          "uuid": "bnBfSC7dy8eKnBSpubfAhR",
+          "span_id": "gw4n3RsYHnScN5RyiNg5EJ",
+          "timestamp": "2026-11-05T00:00:26.905934+00:00",
+          "working_start": 2326888.824689291,
+          "event": "sample_init",
+          "sample": {
+            "input": "Call echo",
+            "target": "",
+            "id": "distinct_before"
+          },
+          "state": {
+            "messages": [
+              {
+                "id": "kJx9D2H3DDrmMK5w9584Wk",
+                "content": "Call echo",
+                "source": "input",
+                "role": "user"
+              }
+            ],
+            "tools": [],
+            "tool_choice": null,
+            "store": {},
+            "output": {
+              "model": "mockllm/model",
+              "choices": [],
+              "completion": ""
+            },
+            "completed": false,
+            "metadata": {}
+          }
+        },
+        {
+          "uuid": "MWwTkKbs5RZRzAriTQxvKv",
+          "span_id": "gw4n3RsYHnScN5RyiNg5EJ",
+          "timestamp": "2026-11-05T00:00:26.906043+00:00",
+          "working_start": 2326888.824798083,
+          "event": "span_end",
+          "id": "gw4n3RsYHnScN5RyiNg5EJ"
+        },
+        {
+          "uuid": "XvpaXichkH3d6vap6KmkNS",
+          "span_id": "DCoN6BzxfiGM2KrrxZCQZn",
+          "timestamp": "2026-11-05T00:00:26.906251+00:00",
+          "working_start": 0.00013375002890825272,
+          "event": "span_begin",
+          "id": "DCoN6BzxfiGM2KrrxZCQZn",
+          "type": "solvers",
+          "name": "solvers"
+        },
+        {
+          "uuid": "imBz2VbcYtdG7f4zjjgo7z",
+          "span_id": "M3pcUwF3t6A7uLfiH79H39",
+          "timestamp": "2026-11-05T00:00:26.906327+00:00",
+          "working_start": 0.00021004211157560349,
+          "event": "span_begin",
+          "id": "M3pcUwF3t6A7uLfiH79H39",
+          "parent_id": "DCoN6BzxfiGM2KrrxZCQZn",
+          "type": "solver",
+          "name": "use_tools"
+        },
+        {
+          "uuid": "nwux8rx7wBBudoDiyD6gBK",
+          "span_id": "M3pcUwF3t6A7uLfiH79H39",
+          "timestamp": "2026-11-05T00:00:26.906509+00:00",
+          "working_start": 0.00039245840162038803,
+          "event": "state",
+          "changes": [
+            {
+              "op": "add",
+              "path": "/tools/0",
+              "value": {
+                "name": "echo_path",
+                "description": "Record the path it ran with; raise for the changed path.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Literal path."
+                    }
+                  },
+                  "required": [
+                    "path"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            {
+              "op": "replace",
+              "path": "/tool_choice",
+              "value": "auto"
+            }
+          ]
+        },
+        {
+          "uuid": "jjkUNxst7Myg3qXurWcnp2",
+          "span_id": "M3pcUwF3t6A7uLfiH79H39",
+          "timestamp": "2026-11-05T00:00:26.906592+00:00",
+          "working_start": 0.0004748334176838398,
+          "event": "span_end",
+          "id": "M3pcUwF3t6A7uLfiH79H39"
+        },
+        {
+          "uuid": "Ase5yxqZ5eUV7unQC4U35o",
+          "span_id": "PB8Sx3VYqtCyETUdhNhruc",
+          "timestamp": "2026-11-05T00:00:26.906666+00:00",
+          "working_start": 0.0005490421317517757,
+          "event": "span_begin",
+          "id": "PB8Sx3VYqtCyETUdhNhruc",
+          "parent_id": "DCoN6BzxfiGM2KrrxZCQZn",
+          "type": "solver",
+          "name": "generate"
+        },
+        {
+          "uuid": "bATqmMgypqWaE3mcr5bzdi",
+          "span_id": "PB8Sx3VYqtCyETUdhNhruc",
+          "timestamp": "2026-11-05T00:00:26.906812+00:00",
+          "working_start": 0.000695458147674799,
+          "event": "model",
+          "model": "mockllm/model",
+          "input": [
+            {
+              "id": "kJx9D2H3DDrmMK5w9584Wk",
+              "content": "Call echo",
+              "source": "input",
+              "role": "user"
+            }
+          ],
+          "tools": [
+            {
+              "name": "echo_path",
+              "description": "Record the path it ran with; raise for the changed path.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Literal path."
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "config": {},
+          "output": {
+            "model": "mockllm/model",
+            "choices": [
+              {
+                "message": {
+                  "id": "PrcEeGC8D2RYqXYhUgaBY7",
+                  "content": "Calling",
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "c0",
+                      "function": "echo_path",
+                      "arguments": {
+                        "path": "before"
+                      },
+                      "type": "function"
+                    }
+                  ]
+                },
+                "stop_reason": "unknown"
+              }
+            ],
+            "completion": "Calling",
+            "usage": {
+              "input_tokens": 84,
+              "output_tokens": 7,
+              "total_tokens": 91
+            },
+            "time": 0.00006287498399615288
+          },
+          "call": {
+            "request": {
+              "model": "model",
+              "messages": [
+                {
+                  "id": "kJx9D2H3DDrmMK5w9584Wk",
+                  "content": "Call echo",
+                  "source": "input",
+                  "metadata": null,
+                  "role": "user",
+                  "tool_call_id": null
+                }
+              ]
+            },
+            "response": {
+              "content": "Calling"
+            }
+          },
+          "completed": "2026-11-05T00:00:26.907550+00:00",
+          "working_time": 0.00006287498399615288
+        },
+        {
+          "uuid": "CuMLtG3XkJTZ8yHGg75y6T",
+          "span_id": "PB8Sx3VYqtCyETUdhNhruc",
+          "timestamp": "2026-11-05T00:00:26.907864+00:00",
+          "working_start": 0.001149666029959917,
+          "event": "approval",
+          "message": "Calling",
+          "call": {
+            "id": "c0",
+            "function": "echo_path",
+            "arguments": {
+              "path": "before"
+            },
+            "type": "function"
+          },
+          "view": {
+            "call": {
+              "format": "markdown",
+              "content": "```python\necho_path(path='before')\n```\n"
+            }
+          },
+          "approver": "change_path",
+          "decision": "approve"
+        },
+        {
+          "uuid": "7zgMmw2ECm5sSMdK6vYjMd",
+          "span_id": "n7e9AEm9WZzwbgJWNgqm99",
+          "timestamp": "2026-11-05T00:00:26.908243+00:00",
+          "working_start": 0.0015284158289432526,
+          "event": "span_begin",
+          "id": "n7e9AEm9WZzwbgJWNgqm99",
+          "parent_id": "PB8Sx3VYqtCyETUdhNhruc",
+          "type": "tool",
+          "name": "echo_path"
+        },
+        {
+          "uuid": "j3qzmtno7cTifFroSZCA3h",
+          "span_id": "PB8Sx3VYqtCyETUdhNhruc",
+          "timestamp": "2026-11-05T00:00:26.907734+00:00",
+          "working_start": 0.0010192906484007835,
+          "event": "tool",
+          "type": "function",
+          "id": "c0",
+          "function": "echo_path",
+          "arguments": {
+            "path": "before"
+          },
+          "result": "ran with before",
+          "events": [],
+          "completed": "2026-11-05T00:00:26.908699+00:00",
+          "working_time": 0.000965,
+          "message_id": "RzxqkT2otJd7Gt73r3gNoV"
+        },
+        {
+          "uuid": "CzxEpodbDuEQa5kN2LEGeT",
+          "span_id": "n7e9AEm9WZzwbgJWNgqm99",
+          "timestamp": "2026-11-05T00:00:26.908493+00:00",
+          "working_start": 0.0017777909524738789,
+          "event": "span_end",
+          "id": "n7e9AEm9WZzwbgJWNgqm99"
+        },
+        {
+          "uuid": "Q38pSwJdzkpbmgsmumxNQC",
+          "span_id": "PB8Sx3VYqtCyETUdhNhruc",
+          "timestamp": "2026-11-05T00:00:26.908897+00:00",
+          "working_start": 0.0021817488595843315,
+          "event": "model",
+          "model": "mockllm/model",
+          "input": [
+            {
+              "id": "kJx9D2H3DDrmMK5w9584Wk",
+              "content": "Call echo",
+              "source": "input",
+              "role": "user"
+            },
+            {
+              "id": "PrcEeGC8D2RYqXYhUgaBY7",
+              "content": "Calling",
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "c0",
+                  "function": "echo_path",
+                  "arguments": {
+                    "path": "before"
+                  },
+                  "type": "function"
+                }
+              ]
+            },
+            {
+              "id": "RzxqkT2otJd7Gt73r3gNoV",
+              "content": "ran with before",
+              "role": "tool",
+              "tool_call_id": "c0",
+              "function": "echo_path"
+            }
+          ],
+          "tools": [
+            {
+              "name": "echo_path",
+              "description": "Record the path it ran with; raise for the changed path.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Literal path."
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "config": {},
+          "output": {
+            "model": "mockllm/model",
+            "choices": [
+              {
+                "message": {
+                  "id": "davhN2bkEXEnQwni4UP9GY",
+                  "content": "Calling",
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "function": "echo_path",
+                      "arguments": {
+                        "path": "proposed"
+                      },
+                      "type": "function"
+                    }
+                  ]
+                },
+                "stop_reason": "unknown"
+              }
+            ],
+            "completion": "Calling",
+            "usage": {
+              "input_tokens": 100,
+              "output_tokens": 7,
+              "total_tokens": 107
+            },
+            "time": 0.0000611250288784504
+          },
+          "call": {
+            "request": {
+              "model": "model",
+              "messages": [
+                {
+                  "id": "kJx9D2H3DDrmMK5w9584Wk",
+                  "content": "Call echo",
+                  "source": "input",
+                  "metadata": null,
+                  "role": "user",
+                  "tool_call_id": null
+                },
+                {
+                  "id": "PrcEeGC8D2RYqXYhUgaBY7",
+                  "content": "Calling",
+                  "source": null,
+                  "metadata": null,
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "c0",
+                      "function": "echo_path",
+                      "arguments": {
+                        "path": "before"
+                      },
+                      "parse_error": null,
+                      "view": null,
+                      "type": "function"
+                    }
+                  ],
+                  "model": null
+                },
+                {
+                  "id": "RzxqkT2otJd7Gt73r3gNoV",
+                  "content": "ran with before",
+                  "source": null,
+                  "metadata": null,
+                  "role": "tool",
+                  "tool_call_id": "c0",
+                  "function": "echo_path",
+                  "error": null
+                }
+              ]
+            },
+            "response": {
+              "content": "Calling"
+            }
+          },
+          "completed": "2026-11-05T00:00:26.909567+00:00",
+          "working_time": 0.0000611250288784504
+        },
+        {
+          "uuid": "Zxfh9RjZhkheknMeF4fdSu",
+          "span_id": "PB8Sx3VYqtCyETUdhNhruc",
+          "timestamp": "2026-11-05T00:00:26.909883+00:00",
+          "working_start": 0.0026213331148028374,
+          "event": "approval",
+          "message": "Calling",
+          "call": {
+            "id": "c1",
+            "function": "echo_path",
+            "arguments": {
+              "path": "proposed"
+            },
+            "type": "function"
+          },
+          "view": {
+            "call": {
+              "format": "markdown",
+              "content": "```python\necho_path(path='proposed')\n```\n"
+            }
+          },
+          "approver": "change_path",
+          "decision": "modify",
+          "modified": {
+            "id": "c1",
+            "function": "echo_path",
+            "arguments": {
+              "path": "changed"
+            },
+            "type": "function"
+          }
+        },
+        {
+          "uuid": "cudkJ3pvJetqA4xXpyi7TY",
+          "span_id": "UKGnJz42orGnZFcWDSggCf",
+          "timestamp": "2026-11-05T00:00:26.910105+00:00",
+          "working_start": 0.0028433329425752163,
+          "event": "span_begin",
+          "id": "UKGnJz42orGnZFcWDSggCf",
+          "parent_id": "PB8Sx3VYqtCyETUdhNhruc",
+          "type": "tool",
+          "name": "echo_path"
+        },
+        {
+          "uuid": "CSt2ShsGGQzgcP5qq7mcPA",
+          "span_id": "PB8Sx3VYqtCyETUdhNhruc",
+          "timestamp": "2026-11-05T00:00:26.909758+00:00",
+          "working_start": 0.002496415749192238,
+          "event": "tool",
+          "type": "function",
+          "id": "c1",
+          "function": "echo_path",
+          "arguments": {
+            "path": "proposed"
+          },
+          "result": "",
+          "error": {
+            "type": "approval",
+            "message": "body ran with changed"
+          },
+          "events": [],
+          "completed": "2026-11-05T00:00:26.910705+00:00",
+          "working_time": 0.000947,
+          "message_id": "PCL33BUFrPeYdu55d6Gnbi"
+        },
+        {
+          "uuid": "9xDB7PXwdqnTBLynPh494A",
+          "span_id": "UKGnJz42orGnZFcWDSggCf",
+          "timestamp": "2026-11-05T00:00:26.910327+00:00",
+          "working_start": 0.0030659157782793045,
+          "event": "span_end",
+          "id": "UKGnJz42orGnZFcWDSggCf"
+        },
+        {
+          "uuid": "4BjZohEDiZq9RcTDEGZaeS",
+          "span_id": "PB8Sx3VYqtCyETUdhNhruc",
+          "timestamp": "2026-11-05T00:00:26.910915+00:00",
+          "working_start": 0.0036539160646498203,
+          "event": "model",
+          "model": "mockllm/model",
+          "input": [
+            {
+              "id": "kJx9D2H3DDrmMK5w9584Wk",
+              "content": "Call echo",
+              "source": "input",
+              "role": "user"
+            },
+            {
+              "id": "PrcEeGC8D2RYqXYhUgaBY7",
+              "content": "Calling",
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "c0",
+                  "function": "echo_path",
+                  "arguments": {
+                    "path": "before"
+                  },
+                  "type": "function"
+                }
+              ]
+            },
+            {
+              "id": "RzxqkT2otJd7Gt73r3gNoV",
+              "content": "ran with before",
+              "role": "tool",
+              "tool_call_id": "c0",
+              "function": "echo_path"
+            },
+            {
+              "id": "davhN2bkEXEnQwni4UP9GY",
+              "content": "Calling",
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "c1",
+                  "function": "echo_path",
+                  "arguments": {
+                    "path": "proposed"
+                  },
+                  "type": "function"
+                }
+              ]
+            },
+            {
+              "id": "PCL33BUFrPeYdu55d6Gnbi",
+              "content": "",
+              "role": "tool",
+              "tool_call_id": "c1",
+              "function": "echo_path",
+              "error": {
+                "type": "approval",
+                "message": "body ran with changed"
+              }
+            }
+          ],
+          "tools": [
+            {
+              "name": "echo_path",
+              "description": "Record the path it ran with; raise for the changed path.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Literal path."
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "config": {},
+          "output": {
+            "model": "mockllm/model",
+            "choices": [
+              {
+                "message": {
+                  "id": "MWSrAjCpatJvMk7m42bfzF",
+                  "content": "Done",
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "stop"
+              }
+            ],
+            "completion": "Done",
+            "usage": {
+              "input_tokens": 115,
+              "output_tokens": 4,
+              "total_tokens": 119
+            },
+            "time": 0.00010820897296071053
+          },
+          "call": {
+            "request": {
+              "model": "model",
+              "messages": [
+                {
+                  "id": "kJx9D2H3DDrmMK5w9584Wk",
+                  "content": "Call echo",
+                  "source": "input",
+                  "metadata": null,
+                  "role": "user",
+                  "tool_call_id": null
+                },
+                {
+                  "id": "PrcEeGC8D2RYqXYhUgaBY7",
+                  "content": "Calling",
+                  "source": null,
+                  "metadata": null,
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "c0",
+                      "function": "echo_path",
+                      "arguments": {
+                        "path": "before"
+                      },
+                      "parse_error": null,
+                      "view": null,
+                      "type": "function"
+                    }
+                  ],
+                  "model": null
+                },
+                {
+                  "id": "RzxqkT2otJd7Gt73r3gNoV",
+                  "content": "ran with before",
+                  "source": null,
+                  "metadata": null,
+                  "role": "tool",
+                  "tool_call_id": "c0",
+                  "function": "echo_path",
+                  "error": null
+                },
+                {
+                  "id": "davhN2bkEXEnQwni4UP9GY",
+                  "content": "Calling",
+                  "source": null,
+                  "metadata": null,
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "function": "echo_path",
+                      "arguments": {
+                        "path": "proposed"
+                      },
+                      "parse_error": null,
+                      "view": null,
+                      "type": "function"
+                    }
+                  ],
+                  "model": null
+                },
+                {
+                  "id": "PCL33BUFrPeYdu55d6Gnbi",
+                  "content": "",
+                  "source": null,
+                  "metadata": null,
+                  "role": "tool",
+                  "tool_call_id": "c1",
+                  "function": "echo_path",
+                  "error": {
+                    "type": "approval",
+                    "message": "body ran with changed"
+                  }
+                }
+              ]
+            },
+            "response": {
+              "content": "Done"
+            }
+          },
+          "completed": "2026-11-05T00:00:26.911979+00:00",
+          "working_time": 0.00010820897296071053
+        },
+        {
+          "uuid": "XwmXnzDN2HpourDwttJGZy",
+          "span_id": "PB8Sx3VYqtCyETUdhNhruc",
+          "timestamp": "2026-11-05T00:00:26.912411+00:00",
+          "working_start": 0.004289917182177305,
+          "event": "state",
+          "changes": [
+            {
+              "op": "add",
+              "path": "/messages/1",
+              "value": {
+                "id": "PrcEeGC8D2RYqXYhUgaBY7",
+                "content": "Calling",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "c0",
+                    "function": "echo_path",
+                    "arguments": {
+                      "path": "before"
+                    },
+                    "type": "function"
+                  }
+                ]
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/2",
+              "value": {
+                "id": "RzxqkT2otJd7Gt73r3gNoV",
+                "content": "ran with before",
+                "role": "tool",
+                "tool_call_id": "c0",
+                "function": "echo_path"
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/3",
+              "value": {
+                "id": "davhN2bkEXEnQwni4UP9GY",
+                "content": "Calling",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "c1",
+                    "function": "echo_path",
+                    "arguments": {
+                      "path": "proposed"
+                    },
+                    "type": "function"
+                  }
+                ]
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/4",
+              "value": {
+                "id": "PCL33BUFrPeYdu55d6Gnbi",
+                "content": "",
+                "role": "tool",
+                "tool_call_id": "c1",
+                "function": "echo_path",
+                "error": {
+                  "type": "approval",
+                  "message": "body ran with changed"
+                }
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/5",
+              "value": {
+                "id": "MWSrAjCpatJvMk7m42bfzF",
+                "content": "Done",
+                "source": "generate",
+                "role": "assistant",
+                "model": "mockllm/model"
+              }
+            },
+            {
+              "op": "add",
+              "path": "/output/usage",
+              "value": {
+                "input_tokens": 115,
+                "output_tokens": 4,
+                "total_tokens": 119
+              }
+            },
+            {
+              "op": "add",
+              "path": "/output/time",
+              "value": 0.00010820897296071053
+            },
+            {
+              "op": "add",
+              "path": "/output/choices/0",
+              "value": {
+                "message": {
+                  "id": "MWSrAjCpatJvMk7m42bfzF",
+                  "content": "Done",
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "stop"
+              }
+            },
+            {
+              "op": "replace",
+              "path": "/output/completion",
+              "value": "Done",
+              "replaced": ""
+            }
+          ]
+        },
+        {
+          "uuid": "jAtMGSS8TXgxnoSwsztYcT",
+          "span_id": "PB8Sx3VYqtCyETUdhNhruc",
+          "timestamp": "2026-11-05T00:00:26.912559+00:00",
+          "working_start": 0.004437250085175037,
+          "event": "span_end",
+          "id": "PB8Sx3VYqtCyETUdhNhruc"
+        },
+        {
+          "uuid": "XTFv85sLhdxLpez7H694bU",
+          "span_id": "DCoN6BzxfiGM2KrrxZCQZn",
+          "timestamp": "2026-11-05T00:00:26.912654+00:00",
+          "working_start": 0.004532332997769117,
+          "event": "span_end",
+          "id": "DCoN6BzxfiGM2KrrxZCQZn"
+        },
+        {
+          "uuid": "npxYX6fw5ZqWmJA4CyxeiV",
+          "span_id": "gkvMAjbgnXocDrcnZAtciv",
+          "timestamp": "2026-11-05T00:00:26.912878+00:00",
+          "working_start": 0.004756417125463486,
+          "event": "span_begin",
+          "id": "gkvMAjbgnXocDrcnZAtciv",
+          "type": "scorers",
+          "name": "scorers"
+        },
+        {
+          "uuid": "dooP4YErcnwAPw3UhcYiKu",
+          "span_id": "gkvMAjbgnXocDrcnZAtciv",
+          "timestamp": "2026-11-05T00:00:26.912967+00:00",
+          "working_start": 0.004845541901886463,
+          "event": "span_end",
+          "id": "gkvMAjbgnXocDrcnZAtciv"
+        }
+      ],
+      "model_usage": {
+        "mockllm/model": {
+          "input_tokens": 299,
+          "output_tokens": 18,
+          "total_tokens": 317
+        }
+      },
+      "role_usage": {},
+      "started_at": "2026-11-05T00:00:26.906118+00:00",
+      "completed_at": "2026-11-05T00:00:26.913102+00:00",
+      "total_time": 0.007,
+      "working_time": 0.005,
+      "uuid": "bKyTBoGK4fAWgks2xDuSmj",
+      "error_retries": [],
+      "attachments": {},
+      "turn_count": 3
+    },
+    {
+      "id": "same_after",
+      "epoch": 1,
+      "input": "Call echo",
+      "target": "",
+      "messages": [
+        {
+          "id": "DG3u6TVPmQ9rgr6MZDA8ej",
+          "content": "Call echo",
+          "source": "input",
+          "role": "user"
+        },
+        {
+          "id": "aeP38E9rTb3wUSw9vfLC5z",
+          "content": "Calling",
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "function": "echo_path",
+              "arguments": {
+                "path": "proposed"
+              },
+              "type": "function"
+            }
+          ]
+        },
+        {
+          "id": "F4trJbj4xJq9tQpZmAg5qm",
+          "content": "",
+          "role": "tool",
+          "tool_call_id": "c1",
+          "function": "echo_path",
+          "error": {
+            "type": "approval",
+            "message": "body ran with changed"
+          }
+        },
+        {
+          "id": "o43KRtAUqz8Upn6bhpuAUc",
+          "content": "Calling",
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "function": "echo_path",
+              "arguments": {
+                "path": "after"
+              },
+              "type": "function"
+            }
+          ]
+        },
+        {
+          "id": "AmnShY5Ao29K2VRHRAK57s",
+          "content": "ran with after",
+          "role": "tool",
+          "tool_call_id": "c1",
+          "function": "echo_path"
+        },
+        {
+          "id": "DWhEgsvL8h6xMYMCkL6Ueh",
+          "content": "Done",
+          "source": "generate",
+          "role": "assistant",
+          "model": "mockllm/model"
+        }
+      ],
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "id": "DWhEgsvL8h6xMYMCkL6Ueh",
+              "content": "Done",
+              "source": "generate",
+              "role": "assistant",
+              "model": "mockllm/model"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "completion": "Done",
+        "usage": {
+          "input_tokens": 113,
+          "output_tokens": 4,
+          "total_tokens": 117
+        },
+        "time": 0.00007683271542191505
+      },
+      "scores": {},
+      "metadata": {},
+      "store": {},
+      "events": [
+        {
+          "uuid": "gA5ffAKP6MHqqTUDwZzdAt",
+          "span_id": "W74Sw9gWr6XjUoSiJgAMSV",
+          "timestamp": "2026-11-05T00:00:26.895537+00:00",
+          "working_start": 2326888.81429175,
+          "event": "span_begin",
+          "id": "W74Sw9gWr6XjUoSiJgAMSV",
+          "type": "init",
+          "name": "init"
+        },
+        {
+          "uuid": "kPAkD8xQqQW4deDPebeKFm",
+          "span_id": "W74Sw9gWr6XjUoSiJgAMSV",
+          "timestamp": "2026-11-05T00:00:26.895741+00:00",
+          "working_start": 2326888.814495833,
+          "event": "sample_init",
+          "sample": {
+            "input": "Call echo",
+            "target": "",
+            "id": "same_after"
+          },
+          "state": {
+            "messages": [
+              {
+                "id": "DG3u6TVPmQ9rgr6MZDA8ej",
+                "content": "Call echo",
+                "source": "input",
+                "role": "user"
+              }
+            ],
+            "tools": [],
+            "tool_choice": null,
+            "store": {},
+            "output": {
+              "model": "mockllm/model",
+              "choices": [],
+              "completion": ""
+            },
+            "completed": false,
+            "metadata": {}
+          }
+        },
+        {
+          "uuid": "Ms3j23FjpkQGWrFvtv2D2Y",
+          "span_id": "W74Sw9gWr6XjUoSiJgAMSV",
+          "timestamp": "2026-11-05T00:00:26.895858+00:00",
+          "working_start": 2326888.814613125,
+          "event": "span_end",
+          "id": "W74Sw9gWr6XjUoSiJgAMSV"
+        },
+        {
+          "uuid": "M9VgRJFYufdzZSxpoN6iu9",
+          "span_id": "XGigiSfW9kAWL4iB4oDUNG",
+          "timestamp": "2026-11-05T00:00:26.896082+00:00",
+          "working_start": 0.00014816690236330032,
+          "event": "span_begin",
+          "id": "XGigiSfW9kAWL4iB4oDUNG",
+          "type": "solvers",
+          "name": "solvers"
+        },
+        {
+          "uuid": "7PUjAR3LpnQ2QJETRNtdBR",
+          "span_id": "MQpT4cUo2v5Cy9sZeGMDgF",
+          "timestamp": "2026-11-05T00:00:26.896163+00:00",
+          "working_start": 0.00022891676053404808,
+          "event": "span_begin",
+          "id": "MQpT4cUo2v5Cy9sZeGMDgF",
+          "parent_id": "XGigiSfW9kAWL4iB4oDUNG",
+          "type": "solver",
+          "name": "use_tools"
+        },
+        {
+          "uuid": "MNChuu7yrW3L8sjo8nRHMu",
+          "span_id": "MQpT4cUo2v5Cy9sZeGMDgF",
+          "timestamp": "2026-11-05T00:00:26.896373+00:00",
+          "working_start": 0.00043854163959622383,
+          "event": "state",
+          "changes": [
+            {
+              "op": "add",
+              "path": "/tools/0",
+              "value": {
+                "name": "echo_path",
+                "description": "Record the path it ran with; raise for the changed path.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Literal path."
+                    }
+                  },
+                  "required": [
+                    "path"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            {
+              "op": "replace",
+              "path": "/tool_choice",
+              "value": "auto"
+            }
+          ]
+        },
+        {
+          "uuid": "8HevaHi9hz8qUbMuuiPsh2",
+          "span_id": "MQpT4cUo2v5Cy9sZeGMDgF",
+          "timestamp": "2026-11-05T00:00:26.896459+00:00",
+          "working_start": 0.0005246666260063648,
+          "event": "span_end",
+          "id": "MQpT4cUo2v5Cy9sZeGMDgF"
+        },
+        {
+          "uuid": "ehyBZHfpWDkpW7AF3rYqnD",
+          "span_id": "RuSx2EQWrPfVJJJBLbzr8Y",
+          "timestamp": "2026-11-05T00:00:26.896533+00:00",
+          "working_start": 0.0005994169041514397,
+          "event": "span_begin",
+          "id": "RuSx2EQWrPfVJJJBLbzr8Y",
+          "parent_id": "XGigiSfW9kAWL4iB4oDUNG",
+          "type": "solver",
+          "name": "generate"
+        },
+        {
+          "uuid": "X28eKeKxpF6gSKUsV6f4wQ",
+          "span_id": "RuSx2EQWrPfVJJJBLbzr8Y",
+          "timestamp": "2026-11-05T00:00:26.896695+00:00",
+          "working_start": 0.0007606246508657932,
+          "event": "model",
+          "model": "mockllm/model",
+          "input": [
+            {
+              "id": "DG3u6TVPmQ9rgr6MZDA8ej",
+              "content": "Call echo",
+              "source": "input",
+              "role": "user"
+            }
+          ],
+          "tools": [
+            {
+              "name": "echo_path",
+              "description": "Record the path it ran with; raise for the changed path.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Literal path."
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "config": {},
+          "output": {
+            "model": "mockllm/model",
+            "choices": [
+              {
+                "message": {
+                  "id": "aeP38E9rTb3wUSw9vfLC5z",
+                  "content": "Calling",
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "function": "echo_path",
+                      "arguments": {
+                        "path": "proposed"
+                      },
+                      "type": "function"
+                    }
+                  ]
+                },
+                "stop_reason": "unknown"
+              }
+            ],
+            "completion": "Calling",
+            "usage": {
+              "input_tokens": 84,
+              "output_tokens": 7,
+              "total_tokens": 91
+            },
+            "time": 0.00006625009700655937
+          },
+          "call": {
+            "request": {
+              "model": "model",
+              "messages": [
+                {
+                  "id": "DG3u6TVPmQ9rgr6MZDA8ej",
+                  "content": "Call echo",
+                  "source": "input",
+                  "metadata": null,
+                  "role": "user",
+                  "tool_call_id": null
+                }
+              ]
+            },
+            "response": {
+              "content": "Calling"
+            }
+          },
+          "completed": "2026-11-05T00:00:26.897560+00:00",
+          "working_time": 0.00006625009700655937
+        },
+        {
+          "uuid": "hAaMUqyerCvaX6BbtfwXue",
+          "span_id": "RuSx2EQWrPfVJJJBLbzr8Y",
+          "timestamp": "2026-11-05T00:00:26.897873+00:00",
+          "working_start": 0.0013128346763551235,
+          "event": "approval",
+          "message": "Calling",
+          "call": {
+            "id": "c1",
+            "function": "echo_path",
+            "arguments": {
+              "path": "proposed"
+            },
+            "type": "function"
+          },
+          "view": {
+            "call": {
+              "format": "markdown",
+              "content": "```python\necho_path(path='proposed')\n```\n"
+            }
+          },
+          "approver": "change_path",
+          "decision": "modify",
+          "modified": {
+            "id": "c1",
+            "function": "echo_path",
+            "arguments": {
+              "path": "changed"
+            },
+            "type": "function"
+          }
+        },
+        {
+          "uuid": "3dmr6PKP3RDBRjjcuGNd2e",
+          "span_id": "ET7rs8tbGEnbxvmQnhrW7J",
+          "timestamp": "2026-11-05T00:00:26.898107+00:00",
+          "working_start": 0.0015474176034331322,
+          "event": "span_begin",
+          "id": "ET7rs8tbGEnbxvmQnhrW7J",
+          "parent_id": "RuSx2EQWrPfVJJJBLbzr8Y",
+          "type": "tool",
+          "name": "echo_path"
+        },
+        {
+          "uuid": "Diq2fRKHo28PjFR7e8wWuR",
+          "span_id": "RuSx2EQWrPfVJJJBLbzr8Y",
+          "timestamp": "2026-11-05T00:00:26.897729+00:00",
+          "working_start": 0.001168584916740656,
+          "event": "tool",
+          "type": "function",
+          "id": "c1",
+          "function": "echo_path",
+          "arguments": {
+            "path": "proposed"
+          },
+          "result": "",
+          "error": {
+            "type": "approval",
+            "message": "body ran with changed"
+          },
+          "events": [],
+          "completed": "2026-11-05T00:00:26.898673+00:00",
+          "working_time": 0.000944,
+          "message_id": "F4trJbj4xJq9tQpZmAg5qm"
+        },
+        {
+          "uuid": "jQdofDy3jQUXRvV6DF8Q4P",
+          "span_id": "ET7rs8tbGEnbxvmQnhrW7J",
+          "timestamp": "2026-11-05T00:00:26.898316+00:00",
+          "working_start": 0.0017560007981956005,
+          "event": "span_end",
+          "id": "ET7rs8tbGEnbxvmQnhrW7J"
+        },
+        {
+          "uuid": "EZ6otKFAmANtcrkCgqKpDR",
+          "span_id": "RuSx2EQWrPfVJJJBLbzr8Y",
+          "timestamp": "2026-11-05T00:00:26.898905+00:00",
+          "working_start": 0.0023454176262021065,
+          "event": "model",
+          "model": "mockllm/model",
+          "input": [
+            {
+              "id": "DG3u6TVPmQ9rgr6MZDA8ej",
+              "content": "Call echo",
+              "source": "input",
+              "role": "user"
+            },
+            {
+              "id": "aeP38E9rTb3wUSw9vfLC5z",
+              "content": "Calling",
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "c1",
+                  "function": "echo_path",
+                  "arguments": {
+                    "path": "proposed"
+                  },
+                  "type": "function"
+                }
+              ]
+            },
+            {
+              "id": "F4trJbj4xJq9tQpZmAg5qm",
+              "content": "",
+              "role": "tool",
+              "tool_call_id": "c1",
+              "function": "echo_path",
+              "error": {
+                "type": "approval",
+                "message": "body ran with changed"
+              }
+            }
+          ],
+          "tools": [
+            {
+              "name": "echo_path",
+              "description": "Record the path it ran with; raise for the changed path.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Literal path."
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "config": {},
+          "output": {
+            "model": "mockllm/model",
+            "choices": [
+              {
+                "message": {
+                  "id": "o43KRtAUqz8Upn6bhpuAUc",
+                  "content": "Calling",
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "function": "echo_path",
+                      "arguments": {
+                        "path": "after"
+                      },
+                      "type": "function"
+                    }
+                  ]
+                },
+                "stop_reason": "unknown"
+              }
+            ],
+            "completion": "Calling",
+            "usage": {
+              "input_tokens": 98,
+              "output_tokens": 7,
+              "total_tokens": 105
+            },
+            "time": 0.00008150003850460052
+          },
+          "call": {
+            "request": {
+              "model": "model",
+              "messages": [
+                {
+                  "id": "DG3u6TVPmQ9rgr6MZDA8ej",
+                  "content": "Call echo",
+                  "source": "input",
+                  "metadata": null,
+                  "role": "user",
+                  "tool_call_id": null
+                },
+                {
+                  "id": "aeP38E9rTb3wUSw9vfLC5z",
+                  "content": "Calling",
+                  "source": null,
+                  "metadata": null,
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "function": "echo_path",
+                      "arguments": {
+                        "path": "proposed"
+                      },
+                      "parse_error": null,
+                      "view": null,
+                      "type": "function"
+                    }
+                  ],
+                  "model": null
+                },
+                {
+                  "id": "F4trJbj4xJq9tQpZmAg5qm",
+                  "content": "",
+                  "source": null,
+                  "metadata": null,
+                  "role": "tool",
+                  "tool_call_id": "c1",
+                  "function": "echo_path",
+                  "error": {
+                    "type": "approval",
+                    "message": "body ran with changed"
+                  }
+                }
+              ]
+            },
+            "response": {
+              "content": "Calling"
+            }
+          },
+          "completed": "2026-11-05T00:00:26.899861+00:00",
+          "working_time": 0.00008150003850460052
+        },
+        {
+          "uuid": "J9gsAcvtjS88FXMm4ULkPU",
+          "span_id": "RuSx2EQWrPfVJJJBLbzr8Y",
+          "timestamp": "2026-11-05T00:00:26.900174+00:00",
+          "working_start": 0.0028335009701550007,
+          "event": "approval",
+          "message": "Calling",
+          "call": {
+            "id": "c1",
+            "function": "echo_path",
+            "arguments": {
+              "path": "after"
+            },
+            "type": "function"
+          },
+          "view": {
+            "call": {
+              "format": "markdown",
+              "content": "```python\necho_path(path='after')\n```\n"
+            }
+          },
+          "approver": "change_path",
+          "decision": "approve"
+        },
+        {
+          "uuid": "cPwMLVtoBYrdRQDDsnpToM",
+          "span_id": "9uigUoJwXnfNVGZAafZRCc",
+          "timestamp": "2026-11-05T00:00:26.900398+00:00",
+          "working_start": 0.00305733410641551,
+          "event": "span_begin",
+          "id": "9uigUoJwXnfNVGZAafZRCc",
+          "parent_id": "RuSx2EQWrPfVJJJBLbzr8Y",
+          "type": "tool",
+          "name": "echo_path"
+        },
+        {
+          "uuid": "LUcuR8xonshR44v3Pzqw5h",
+          "span_id": "RuSx2EQWrPfVJJJBLbzr8Y",
+          "timestamp": "2026-11-05T00:00:26.900050+00:00",
+          "working_start": 0.002709709107875824,
+          "event": "tool",
+          "type": "function",
+          "id": "c1",
+          "function": "echo_path",
+          "arguments": {
+            "path": "after"
+          },
+          "result": "ran with after",
+          "events": [],
+          "completed": "2026-11-05T00:00:26.900840+00:00",
+          "working_time": 0.00079,
+          "message_id": "AmnShY5Ao29K2VRHRAK57s"
+        },
+        {
+          "uuid": "7Pm2KXTBHaiGLwZWsZLwN3",
+          "span_id": "9uigUoJwXnfNVGZAafZRCc",
+          "timestamp": "2026-11-05T00:00:26.900624+00:00",
+          "working_start": 0.003283793106675148,
+          "event": "span_end",
+          "id": "9uigUoJwXnfNVGZAafZRCc"
+        },
+        {
+          "uuid": "hbBVcSJmG8uKvtqqpqWpdw",
+          "span_id": "RuSx2EQWrPfVJJJBLbzr8Y",
+          "timestamp": "2026-11-05T00:00:26.901039+00:00",
+          "working_start": 0.0036983760073781013,
+          "event": "model",
+          "model": "mockllm/model",
+          "input": [
+            {
+              "id": "DG3u6TVPmQ9rgr6MZDA8ej",
+              "content": "Call echo",
+              "source": "input",
+              "role": "user"
+            },
+            {
+              "id": "aeP38E9rTb3wUSw9vfLC5z",
+              "content": "Calling",
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "c1",
+                  "function": "echo_path",
+                  "arguments": {
+                    "path": "proposed"
+                  },
+                  "type": "function"
+                }
+              ]
+            },
+            {
+              "id": "F4trJbj4xJq9tQpZmAg5qm",
+              "content": "",
+              "role": "tool",
+              "tool_call_id": "c1",
+              "function": "echo_path",
+              "error": {
+                "type": "approval",
+                "message": "body ran with changed"
+              }
+            },
+            {
+              "id": "o43KRtAUqz8Upn6bhpuAUc",
+              "content": "Calling",
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "c1",
+                  "function": "echo_path",
+                  "arguments": {
+                    "path": "after"
+                  },
+                  "type": "function"
+                }
+              ]
+            },
+            {
+              "id": "AmnShY5Ao29K2VRHRAK57s",
+              "content": "ran with after",
+              "role": "tool",
+              "tool_call_id": "c1",
+              "function": "echo_path"
+            }
+          ],
+          "tools": [
+            {
+              "name": "echo_path",
+              "description": "Record the path it ran with; raise for the changed path.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Literal path."
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "config": {},
+          "output": {
+            "model": "mockllm/model",
+            "choices": [
+              {
+                "message": {
+                  "id": "DWhEgsvL8h6xMYMCkL6Ueh",
+                  "content": "Done",
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "stop"
+              }
+            ],
+            "completion": "Done",
+            "usage": {
+              "input_tokens": 113,
+              "output_tokens": 4,
+              "total_tokens": 117
+            },
+            "time": 0.00007683271542191505
+          },
+          "call": {
+            "request": {
+              "model": "model",
+              "messages": [
+                {
+                  "id": "DG3u6TVPmQ9rgr6MZDA8ej",
+                  "content": "Call echo",
+                  "source": "input",
+                  "metadata": null,
+                  "role": "user",
+                  "tool_call_id": null
+                },
+                {
+                  "id": "aeP38E9rTb3wUSw9vfLC5z",
+                  "content": "Calling",
+                  "source": null,
+                  "metadata": null,
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "function": "echo_path",
+                      "arguments": {
+                        "path": "proposed"
+                      },
+                      "parse_error": null,
+                      "view": null,
+                      "type": "function"
+                    }
+                  ],
+                  "model": null
+                },
+                {
+                  "id": "F4trJbj4xJq9tQpZmAg5qm",
+                  "content": "",
+                  "source": null,
+                  "metadata": null,
+                  "role": "tool",
+                  "tool_call_id": "c1",
+                  "function": "echo_path",
+                  "error": {
+                    "type": "approval",
+                    "message": "body ran with changed"
+                  }
+                },
+                {
+                  "id": "o43KRtAUqz8Upn6bhpuAUc",
+                  "content": "Calling",
+                  "source": null,
+                  "metadata": null,
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "function": "echo_path",
+                      "arguments": {
+                        "path": "after"
+                      },
+                      "parse_error": null,
+                      "view": null,
+                      "type": "function"
+                    }
+                  ],
+                  "model": null
+                },
+                {
+                  "id": "AmnShY5Ao29K2VRHRAK57s",
+                  "content": "ran with after",
+                  "source": null,
+                  "metadata": null,
+                  "role": "tool",
+                  "tool_call_id": "c1",
+                  "function": "echo_path",
+                  "error": null
+                }
+              ]
+            },
+            "response": {
+              "content": "Done"
+            }
+          },
+          "completed": "2026-11-05T00:00:26.901858+00:00",
+          "working_time": 0.00007683271542191505
+        },
+        {
+          "uuid": "PyXyEyM9XFpXcJgjh94Pff",
+          "span_id": "RuSx2EQWrPfVJJJBLbzr8Y",
+          "timestamp": "2026-11-05T00:00:26.902271+00:00",
+          "working_start": 0.004251043777912855,
+          "event": "state",
+          "changes": [
+            {
+              "op": "add",
+              "path": "/messages/1",
+              "value": {
+                "id": "aeP38E9rTb3wUSw9vfLC5z",
+                "content": "Calling",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "c1",
+                    "function": "echo_path",
+                    "arguments": {
+                      "path": "proposed"
+                    },
+                    "type": "function"
+                  }
+                ]
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/2",
+              "value": {
+                "id": "F4trJbj4xJq9tQpZmAg5qm",
+                "content": "",
+                "role": "tool",
+                "tool_call_id": "c1",
+                "function": "echo_path",
+                "error": {
+                  "type": "approval",
+                  "message": "body ran with changed"
+                }
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/3",
+              "value": {
+                "id": "o43KRtAUqz8Upn6bhpuAUc",
+                "content": "Calling",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "c1",
+                    "function": "echo_path",
+                    "arguments": {
+                      "path": "after"
+                    },
+                    "type": "function"
+                  }
+                ]
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/4",
+              "value": {
+                "id": "AmnShY5Ao29K2VRHRAK57s",
+                "content": "ran with after",
+                "role": "tool",
+                "tool_call_id": "c1",
+                "function": "echo_path"
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/5",
+              "value": {
+                "id": "DWhEgsvL8h6xMYMCkL6Ueh",
+                "content": "Done",
+                "source": "generate",
+                "role": "assistant",
+                "model": "mockllm/model"
+              }
+            },
+            {
+              "op": "add",
+              "path": "/output/usage",
+              "value": {
+                "input_tokens": 113,
+                "output_tokens": 4,
+                "total_tokens": 117
+              }
+            },
+            {
+              "op": "add",
+              "path": "/output/time",
+              "value": 0.00007683271542191505
+            },
+            {
+              "op": "add",
+              "path": "/output/choices/0",
+              "value": {
+                "message": {
+                  "id": "DWhEgsvL8h6xMYMCkL6Ueh",
+                  "content": "Done",
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "stop"
+              }
+            },
+            {
+              "op": "replace",
+              "path": "/output/completion",
+              "value": "Done",
+              "replaced": ""
+            }
+          ]
+        },
+        {
+          "uuid": "d2dCi3vJxzW2wQDZMuMMTa",
+          "span_id": "RuSx2EQWrPfVJJJBLbzr8Y",
+          "timestamp": "2026-11-05T00:00:26.902414+00:00",
+          "working_start": 0.004393084440380335,
+          "event": "span_end",
+          "id": "RuSx2EQWrPfVJJJBLbzr8Y"
+        },
+        {
+          "uuid": "nr85FFNcApZTuJ6hrYSRcF",
+          "span_id": "XGigiSfW9kAWL4iB4oDUNG",
+          "timestamp": "2026-11-05T00:00:26.902502+00:00",
+          "working_start": 0.004481751471757889,
+          "event": "span_end",
+          "id": "XGigiSfW9kAWL4iB4oDUNG"
+        },
+        {
+          "uuid": "PLS5M3anZXFQL89kLhut9h",
+          "span_id": "KTPvKuaBFAX4LDh43H8aeH",
+          "timestamp": "2026-11-05T00:00:26.902729+00:00",
+          "working_start": 0.0047090016305446625,
+          "event": "span_begin",
+          "id": "KTPvKuaBFAX4LDh43H8aeH",
+          "type": "scorers",
+          "name": "scorers"
+        },
+        {
+          "uuid": "htTbUxMxXU8UW2svvYXjcf",
+          "span_id": "KTPvKuaBFAX4LDh43H8aeH",
+          "timestamp": "2026-11-05T00:00:26.902816+00:00",
+          "working_start": 0.004795918706804514,
+          "event": "span_end",
+          "id": "KTPvKuaBFAX4LDh43H8aeH"
+        }
+      ],
+      "model_usage": {
+        "mockllm/model": {
+          "input_tokens": 295,
+          "output_tokens": 18,
+          "total_tokens": 313
+        }
+      },
+      "role_usage": {},
+      "started_at": "2026-11-05T00:00:26.895935+00:00",
+      "completed_at": "2026-11-05T00:00:26.902955+00:00",
+      "total_time": 0.007,
+      "working_time": 0.005,
+      "uuid": "CeCjkrmXYiQ8go7hbtGvih",
+      "error_retries": [],
+      "attachments": {},
+      "turn_count": 3
+    },
+    {
+      "id": "same_before",
+      "epoch": 1,
+      "input": "Call echo",
+      "target": "",
+      "messages": [
+        {
+          "id": "J3MnymKuaKm6UUdoRvCeow",
+          "content": "Call echo",
+          "source": "input",
+          "role": "user"
+        },
+        {
+          "id": "ibYiThtpXbLmVuLqv7JyNi",
+          "content": "Calling",
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "function": "echo_path",
+              "arguments": {
+                "path": "before"
+              },
+              "type": "function"
+            }
+          ]
+        },
+        {
+          "id": "UUCKikaNZpD8RN6N7x4hzk",
+          "content": "ran with before",
+          "role": "tool",
+          "tool_call_id": "c1",
+          "function": "echo_path"
+        },
+        {
+          "id": "ZY6dBgCVj7FXTjApBgAhcy",
+          "content": "Calling",
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "c1",
+              "function": "echo_path",
+              "arguments": {
+                "path": "proposed"
+              },
+              "type": "function"
+            }
+          ]
+        },
+        {
+          "id": "np5gvxj6o5f3b9pPsuieQ3",
+          "content": "",
+          "role": "tool",
+          "tool_call_id": "c1",
+          "function": "echo_path",
+          "error": {
+            "type": "approval",
+            "message": "body ran with changed"
+          }
+        },
+        {
+          "id": "7jVRqRoN8aWNGcvzet3waK",
+          "content": "Done",
+          "source": "generate",
+          "role": "assistant",
+          "model": "mockllm/model"
+        }
+      ],
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "id": "7jVRqRoN8aWNGcvzet3waK",
+              "content": "Done",
+              "source": "generate",
+              "role": "assistant",
+              "model": "mockllm/model"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "completion": "Done",
+        "usage": {
+          "input_tokens": 115,
+          "output_tokens": 4,
+          "total_tokens": 119
+        },
+        "time": 0.00009341677650809288
+      },
+      "scores": {},
+      "metadata": {},
+      "store": {},
+      "events": [
+        {
+          "uuid": "RDmjZ6jJdz9wGaKRD7cTAZ",
+          "span_id": "G8KVz468rJQsLDUs5r2r9U",
+          "timestamp": "2026-11-05T00:00:26.694803+00:00",
+          "working_start": 2326888.6135575,
+          "event": "span_begin",
+          "id": "G8KVz468rJQsLDUs5r2r9U",
+          "type": "init",
+          "name": "init"
+        },
+        {
+          "uuid": "ZSDz3FCUedX4w2v6jarqDP",
+          "span_id": "G8KVz468rJQsLDUs5r2r9U",
+          "timestamp": "2026-11-05T00:00:26.695196+00:00",
+          "working_start": 2326888.61394975,
+          "event": "sample_init",
+          "sample": {
+            "input": "Call echo",
+            "target": "",
+            "id": "same_before"
+          },
+          "state": {
+            "messages": [
+              {
+                "id": "J3MnymKuaKm6UUdoRvCeow",
+                "content": "Call echo",
+                "source": "input",
+                "role": "user"
+              }
+            ],
+            "tools": [],
+            "tool_choice": null,
+            "store": {},
+            "output": {
+              "model": "mockllm/model",
+              "choices": [],
+              "completion": ""
+            },
+            "completed": false,
+            "metadata": {}
+          }
+        },
+        {
+          "uuid": "mZJNXX6u4B2XTGQWPSQZXC",
+          "span_id": "G8KVz468rJQsLDUs5r2r9U",
+          "timestamp": "2026-11-05T00:00:26.695375+00:00",
+          "working_start": 2326888.614128083,
+          "event": "span_end",
+          "id": "G8KVz468rJQsLDUs5r2r9U"
+        },
+        {
+          "uuid": "DwZ47tuEZqZCM9Wse5scX4",
+          "span_id": "4j9kaYLjkdQCNjTSVnSCfF",
+          "timestamp": "2026-11-05T00:00:26.695715+00:00",
+          "working_start": 0.0001955418847501278,
+          "event": "span_begin",
+          "id": "4j9kaYLjkdQCNjTSVnSCfF",
+          "type": "solvers",
+          "name": "solvers"
+        },
+        {
+          "uuid": "aBiSrV4TZsuiHhCb3nJL6J",
+          "span_id": "Ttx2PcLvjSoPTuEvqe7j2s",
+          "timestamp": "2026-11-05T00:00:26.695910+00:00",
+          "working_start": 0.0003905841149389744,
+          "event": "span_begin",
+          "id": "Ttx2PcLvjSoPTuEvqe7j2s",
+          "parent_id": "4j9kaYLjkdQCNjTSVnSCfF",
+          "type": "solver",
+          "name": "use_tools"
+        },
+        {
+          "uuid": "6WB9bxgNBAaxG84tnF9a8u",
+          "span_id": "Ttx2PcLvjSoPTuEvqe7j2s",
+          "timestamp": "2026-11-05T00:00:26.697323+00:00",
+          "working_start": 0.0018036668188869953,
+          "event": "state",
+          "changes": [
+            {
+              "op": "add",
+              "path": "/tools/0",
+              "value": {
+                "name": "echo_path",
+                "description": "Record the path it ran with; raise for the changed path.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "description": "Literal path."
+                    }
+                  },
+                  "required": [
+                    "path"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            {
+              "op": "replace",
+              "path": "/tool_choice",
+              "value": "auto"
+            }
+          ]
+        },
+        {
+          "uuid": "Vc4iRvLf64uZuv2BQ5MMY6",
+          "span_id": "Ttx2PcLvjSoPTuEvqe7j2s",
+          "timestamp": "2026-11-05T00:00:26.697451+00:00",
+          "working_start": 0.0019312091171741486,
+          "event": "span_end",
+          "id": "Ttx2PcLvjSoPTuEvqe7j2s"
+        },
+        {
+          "uuid": "87hD9tuqwwjBfMk428KBZb",
+          "span_id": "d6euLQ97CXTY8D4UXmXKJ6",
+          "timestamp": "2026-11-05T00:00:26.697534+00:00",
+          "working_start": 0.0020144591107964516,
+          "event": "span_begin",
+          "id": "d6euLQ97CXTY8D4UXmXKJ6",
+          "parent_id": "4j9kaYLjkdQCNjTSVnSCfF",
+          "type": "solver",
+          "name": "generate"
+        },
+        {
+          "uuid": "Vb5yjgwCAe6qcC2QQKtGbK",
+          "span_id": "d6euLQ97CXTY8D4UXmXKJ6",
+          "timestamp": "2026-11-05T00:00:26.697708+00:00",
+          "working_start": 0.002188124693930149,
+          "event": "model",
+          "model": "mockllm/model",
+          "input": [
+            {
+              "id": "J3MnymKuaKm6UUdoRvCeow",
+              "content": "Call echo",
+              "source": "input",
+              "role": "user"
+            }
+          ],
+          "tools": [
+            {
+              "name": "echo_path",
+              "description": "Record the path it ran with; raise for the changed path.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Literal path."
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "config": {},
+          "output": {
+            "model": "mockllm/model",
+            "choices": [
+              {
+                "message": {
+                  "id": "ibYiThtpXbLmVuLqv7JyNi",
+                  "content": "Calling",
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "function": "echo_path",
+                      "arguments": {
+                        "path": "before"
+                      },
+                      "type": "function"
+                    }
+                  ]
+                },
+                "stop_reason": "unknown"
+              }
+            ],
+            "completion": "Calling",
+            "usage": {
+              "input_tokens": 84,
+              "output_tokens": 7,
+              "total_tokens": 91
+            },
+            "time": 0.09874970884993672
+          },
+          "call": {
+            "request": {
+              "model": "model",
+              "messages": [
+                {
+                  "id": "J3MnymKuaKm6UUdoRvCeow",
+                  "content": "Call echo",
+                  "source": "input",
+                  "metadata": null,
+                  "role": "user",
+                  "tool_call_id": null
+                }
+              ]
+            },
+            "response": {
+              "content": "Calling"
+            }
+          },
+          "completed": "2026-11-05T00:00:26.872895+00:00",
+          "working_time": 0.09874970884993672
+        },
+        {
+          "uuid": "Vh43kBHTj7pM6wSk4LWPYF",
+          "span_id": "d6euLQ97CXTY8D4UXmXKJ6",
+          "timestamp": "2026-11-05T00:00:26.873695+00:00",
+          "working_start": 0.10195050109177828,
+          "event": "approval",
+          "message": "Calling",
+          "call": {
+            "id": "c1",
+            "function": "echo_path",
+            "arguments": {
+              "path": "before"
+            },
+            "type": "function"
+          },
+          "view": {
+            "call": {
+              "format": "markdown",
+              "content": "```python\necho_path(path='before')\n```\n"
+            }
+          },
+          "approver": "change_path",
+          "decision": "approve"
+        },
+        {
+          "uuid": "M6pnAiCNqRNGK5GzwfYtyt",
+          "span_id": "3Bq98aiw89ifPMqgwTZDsW",
+          "timestamp": "2026-11-05T00:00:26.885722+00:00",
+          "working_start": 0.1139755011536181,
+          "event": "span_begin",
+          "id": "3Bq98aiw89ifPMqgwTZDsW",
+          "parent_id": "d6euLQ97CXTY8D4UXmXKJ6",
+          "type": "tool",
+          "name": "echo_path"
+        },
+        {
+          "uuid": "ML5wQCH68qqfzvWE5kPdZA",
+          "span_id": "d6euLQ97CXTY8D4UXmXKJ6",
+          "timestamp": "2026-11-05T00:00:26.873260+00:00",
+          "working_start": 0.10151212615892291,
+          "event": "tool",
+          "type": "function",
+          "id": "c1",
+          "function": "echo_path",
+          "arguments": {
+            "path": "before"
+          },
+          "result": "ran with before",
+          "events": [],
+          "completed": "2026-11-05T00:00:26.886604+00:00",
+          "working_time": 0.013344,
+          "message_id": "UUCKikaNZpD8RN6N7x4hzk"
+        },
+        {
+          "uuid": "7z4DaA5v3V3kNDx7MEVxb5",
+          "span_id": "3Bq98aiw89ifPMqgwTZDsW",
+          "timestamp": "2026-11-05T00:00:26.886241+00:00",
+          "working_start": 0.11449366807937622,
+          "event": "span_end",
+          "id": "3Bq98aiw89ifPMqgwTZDsW"
+        },
+        {
+          "uuid": "NsGFgBr2mpYfLxrsLWytJL",
+          "span_id": "d6euLQ97CXTY8D4UXmXKJ6",
+          "timestamp": "2026-11-05T00:00:26.886966+00:00",
+          "working_start": 0.11521925078704953,
+          "event": "model",
+          "model": "mockllm/model",
+          "input": [
+            {
+              "id": "J3MnymKuaKm6UUdoRvCeow",
+              "content": "Call echo",
+              "source": "input",
+              "role": "user"
+            },
+            {
+              "id": "ibYiThtpXbLmVuLqv7JyNi",
+              "content": "Calling",
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "c1",
+                  "function": "echo_path",
+                  "arguments": {
+                    "path": "before"
+                  },
+                  "type": "function"
+                }
+              ]
+            },
+            {
+              "id": "UUCKikaNZpD8RN6N7x4hzk",
+              "content": "ran with before",
+              "role": "tool",
+              "tool_call_id": "c1",
+              "function": "echo_path"
+            }
+          ],
+          "tools": [
+            {
+              "name": "echo_path",
+              "description": "Record the path it ran with; raise for the changed path.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Literal path."
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "config": {},
+          "output": {
+            "model": "mockllm/model",
+            "choices": [
+              {
+                "message": {
+                  "id": "ZY6dBgCVj7FXTjApBgAhcy",
+                  "content": "Calling",
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "function": "echo_path",
+                      "arguments": {
+                        "path": "proposed"
+                      },
+                      "type": "function"
+                    }
+                  ]
+                },
+                "stop_reason": "unknown"
+              }
+            ],
+            "completion": "Calling",
+            "usage": {
+              "input_tokens": 100,
+              "output_tokens": 7,
+              "total_tokens": 107
+            },
+            "time": 0.00011783279478549957
+          },
+          "call": {
+            "request": {
+              "model": "model",
+              "messages": [
+                {
+                  "id": "J3MnymKuaKm6UUdoRvCeow",
+                  "content": "Call echo",
+                  "source": "input",
+                  "metadata": null,
+                  "role": "user",
+                  "tool_call_id": null
+                },
+                {
+                  "id": "ibYiThtpXbLmVuLqv7JyNi",
+                  "content": "Calling",
+                  "source": null,
+                  "metadata": null,
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "function": "echo_path",
+                      "arguments": {
+                        "path": "before"
+                      },
+                      "parse_error": null,
+                      "view": null,
+                      "type": "function"
+                    }
+                  ],
+                  "model": null
+                },
+                {
+                  "id": "UUCKikaNZpD8RN6N7x4hzk",
+                  "content": "ran with before",
+                  "source": null,
+                  "metadata": null,
+                  "role": "tool",
+                  "tool_call_id": "c1",
+                  "function": "echo_path",
+                  "error": null
+                }
+              ]
+            },
+            "response": {
+              "content": "Calling"
+            }
+          },
+          "completed": "2026-11-05T00:00:26.888369+00:00",
+          "working_time": 0.00011783279478549957
+        },
+        {
+          "uuid": "PnuJQa2QtyKjwmX5Fpnqec",
+          "span_id": "d6euLQ97CXTY8D4UXmXKJ6",
+          "timestamp": "2026-11-05T00:00:26.888815+00:00",
+          "working_start": 0.11594333406537771,
+          "event": "approval",
+          "message": "Calling",
+          "call": {
+            "id": "c1",
+            "function": "echo_path",
+            "arguments": {
+              "path": "proposed"
+            },
+            "type": "function"
+          },
+          "view": {
+            "call": {
+              "format": "markdown",
+              "content": "```python\necho_path(path='proposed')\n```\n"
+            }
+          },
+          "approver": "change_path",
+          "decision": "modify",
+          "modified": {
+            "id": "c1",
+            "function": "echo_path",
+            "arguments": {
+              "path": "changed"
+            },
+            "type": "function"
+          }
+        },
+        {
+          "uuid": "64URuBnVcfVFVCxx7JW2QF",
+          "span_id": "b5HdsWszUzuyR3Ke9mZqtw",
+          "timestamp": "2026-11-05T00:00:26.889127+00:00",
+          "working_start": 0.11625533364713192,
+          "event": "span_begin",
+          "id": "b5HdsWszUzuyR3Ke9mZqtw",
+          "parent_id": "d6euLQ97CXTY8D4UXmXKJ6",
+          "type": "tool",
+          "name": "echo_path"
+        },
+        {
+          "uuid": "ARoZJhhNHbpBLmPNXrMFS5",
+          "span_id": "d6euLQ97CXTY8D4UXmXKJ6",
+          "timestamp": "2026-11-05T00:00:26.888610+00:00",
+          "working_start": 0.11573858372867107,
+          "event": "tool",
+          "type": "function",
+          "id": "c1",
+          "function": "echo_path",
+          "arguments": {
+            "path": "proposed"
+          },
+          "result": "",
+          "error": {
+            "type": "approval",
+            "message": "body ran with changed"
+          },
+          "events": [],
+          "completed": "2026-11-05T00:00:26.890017+00:00",
+          "working_time": 0.001407,
+          "message_id": "np5gvxj6o5f3b9pPsuieQ3"
+        },
+        {
+          "uuid": "6Wj3c2M9DbUSsszLF2mNiZ",
+          "span_id": "b5HdsWszUzuyR3Ke9mZqtw",
+          "timestamp": "2026-11-05T00:00:26.889363+00:00",
+          "working_start": 0.11649150075390935,
+          "event": "span_end",
+          "id": "b5HdsWszUzuyR3Ke9mZqtw"
+        },
+        {
+          "uuid": "32RyZvPpoWFMqXxEz7752j",
+          "span_id": "d6euLQ97CXTY8D4UXmXKJ6",
+          "timestamp": "2026-11-05T00:00:26.890215+00:00",
+          "working_start": 0.11734287580475211,
+          "event": "model",
+          "model": "mockllm/model",
+          "input": [
+            {
+              "id": "J3MnymKuaKm6UUdoRvCeow",
+              "content": "Call echo",
+              "source": "input",
+              "role": "user"
+            },
+            {
+              "id": "ibYiThtpXbLmVuLqv7JyNi",
+              "content": "Calling",
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "c1",
+                  "function": "echo_path",
+                  "arguments": {
+                    "path": "before"
+                  },
+                  "type": "function"
+                }
+              ]
+            },
+            {
+              "id": "UUCKikaNZpD8RN6N7x4hzk",
+              "content": "ran with before",
+              "role": "tool",
+              "tool_call_id": "c1",
+              "function": "echo_path"
+            },
+            {
+              "id": "ZY6dBgCVj7FXTjApBgAhcy",
+              "content": "Calling",
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "c1",
+                  "function": "echo_path",
+                  "arguments": {
+                    "path": "proposed"
+                  },
+                  "type": "function"
+                }
+              ]
+            },
+            {
+              "id": "np5gvxj6o5f3b9pPsuieQ3",
+              "content": "",
+              "role": "tool",
+              "tool_call_id": "c1",
+              "function": "echo_path",
+              "error": {
+                "type": "approval",
+                "message": "body ran with changed"
+              }
+            }
+          ],
+          "tools": [
+            {
+              "name": "echo_path",
+              "description": "Record the path it ran with; raise for the changed path.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Literal path."
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "tool_choice": "auto",
+          "config": {},
+          "output": {
+            "model": "mockllm/model",
+            "choices": [
+              {
+                "message": {
+                  "id": "7jVRqRoN8aWNGcvzet3waK",
+                  "content": "Done",
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "stop"
+              }
+            ],
+            "completion": "Done",
+            "usage": {
+              "input_tokens": 115,
+              "output_tokens": 4,
+              "total_tokens": 119
+            },
+            "time": 0.00009341677650809288
+          },
+          "call": {
+            "request": {
+              "model": "model",
+              "messages": [
+                {
+                  "id": "J3MnymKuaKm6UUdoRvCeow",
+                  "content": "Call echo",
+                  "source": "input",
+                  "metadata": null,
+                  "role": "user",
+                  "tool_call_id": null
+                },
+                {
+                  "id": "ibYiThtpXbLmVuLqv7JyNi",
+                  "content": "Calling",
+                  "source": null,
+                  "metadata": null,
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "function": "echo_path",
+                      "arguments": {
+                        "path": "before"
+                      },
+                      "parse_error": null,
+                      "view": null,
+                      "type": "function"
+                    }
+                  ],
+                  "model": null
+                },
+                {
+                  "id": "UUCKikaNZpD8RN6N7x4hzk",
+                  "content": "ran with before",
+                  "source": null,
+                  "metadata": null,
+                  "role": "tool",
+                  "tool_call_id": "c1",
+                  "function": "echo_path",
+                  "error": null
+                },
+                {
+                  "id": "ZY6dBgCVj7FXTjApBgAhcy",
+                  "content": "Calling",
+                  "source": null,
+                  "metadata": null,
+                  "role": "assistant",
+                  "tool_calls": [
+                    {
+                      "id": "c1",
+                      "function": "echo_path",
+                      "arguments": {
+                        "path": "proposed"
+                      },
+                      "parse_error": null,
+                      "view": null,
+                      "type": "function"
+                    }
+                  ],
+                  "model": null
+                },
+                {
+                  "id": "np5gvxj6o5f3b9pPsuieQ3",
+                  "content": "",
+                  "source": null,
+                  "metadata": null,
+                  "role": "tool",
+                  "tool_call_id": "c1",
+                  "function": "echo_path",
+                  "error": {
+                    "type": "approval",
+                    "message": "body ran with changed"
+                  }
+                }
+              ]
+            },
+            "response": {
+              "content": "Done"
+            }
+          },
+          "completed": "2026-11-05T00:00:26.891176+00:00",
+          "working_time": 0.00009341677650809288
+        },
+        {
+          "uuid": "DuodDJyyxnBAPVrGuq3Qvt",
+          "span_id": "d6euLQ97CXTY8D4UXmXKJ6",
+          "timestamp": "2026-11-05T00:00:26.891614+00:00",
+          "working_start": 0.11795920925214887,
+          "event": "state",
+          "changes": [
+            {
+              "op": "add",
+              "path": "/messages/1",
+              "value": {
+                "id": "ibYiThtpXbLmVuLqv7JyNi",
+                "content": "Calling",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "c1",
+                    "function": "echo_path",
+                    "arguments": {
+                      "path": "before"
+                    },
+                    "type": "function"
+                  }
+                ]
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/2",
+              "value": {
+                "id": "UUCKikaNZpD8RN6N7x4hzk",
+                "content": "ran with before",
+                "role": "tool",
+                "tool_call_id": "c1",
+                "function": "echo_path"
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/3",
+              "value": {
+                "id": "ZY6dBgCVj7FXTjApBgAhcy",
+                "content": "Calling",
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "c1",
+                    "function": "echo_path",
+                    "arguments": {
+                      "path": "proposed"
+                    },
+                    "type": "function"
+                  }
+                ]
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/4",
+              "value": {
+                "id": "np5gvxj6o5f3b9pPsuieQ3",
+                "content": "",
+                "role": "tool",
+                "tool_call_id": "c1",
+                "function": "echo_path",
+                "error": {
+                  "type": "approval",
+                  "message": "body ran with changed"
+                }
+              }
+            },
+            {
+              "op": "add",
+              "path": "/messages/5",
+              "value": {
+                "id": "7jVRqRoN8aWNGcvzet3waK",
+                "content": "Done",
+                "source": "generate",
+                "role": "assistant",
+                "model": "mockllm/model"
+              }
+            },
+            {
+              "op": "add",
+              "path": "/output/usage",
+              "value": {
+                "input_tokens": 115,
+                "output_tokens": 4,
+                "total_tokens": 119
+              }
+            },
+            {
+              "op": "add",
+              "path": "/output/time",
+              "value": 0.00009341677650809288
+            },
+            {
+              "op": "add",
+              "path": "/output/choices/0",
+              "value": {
+                "message": {
+                  "id": "7jVRqRoN8aWNGcvzet3waK",
+                  "content": "Done",
+                  "source": "generate",
+                  "role": "assistant",
+                  "model": "mockllm/model"
+                },
+                "stop_reason": "stop"
+              }
+            },
+            {
+              "op": "replace",
+              "path": "/output/completion",
+              "value": "Done",
+              "replaced": ""
+            }
+          ]
+        },
+        {
+          "uuid": "ncHTyktpZePmjEi8B6rUxu",
+          "span_id": "d6euLQ97CXTY8D4UXmXKJ6",
+          "timestamp": "2026-11-05T00:00:26.891781+00:00",
+          "working_start": 0.1181257925927639,
+          "event": "span_end",
+          "id": "d6euLQ97CXTY8D4UXmXKJ6"
+        },
+        {
+          "uuid": "8DCoeNtrsGea5SwFKc5XoM",
+          "span_id": "4j9kaYLjkdQCNjTSVnSCfF",
+          "timestamp": "2026-11-05T00:00:26.891871+00:00",
+          "working_start": 0.1182162924669683,
+          "event": "span_end",
+          "id": "4j9kaYLjkdQCNjTSVnSCfF"
+        },
+        {
+          "uuid": "CiWcNYQyiMBJBnQZruth3j",
+          "span_id": "82dZkPK6RxrAUJ4EX9LVgV",
+          "timestamp": "2026-11-05T00:00:26.892131+00:00",
+          "working_start": 0.11847600061446428,
+          "event": "span_begin",
+          "id": "82dZkPK6RxrAUJ4EX9LVgV",
+          "type": "scorers",
+          "name": "scorers"
+        },
+        {
+          "uuid": "5YXZ3wfLALWJgLHkkaVSSP",
+          "span_id": "82dZkPK6RxrAUJ4EX9LVgV",
+          "timestamp": "2026-11-05T00:00:26.892218+00:00",
+          "working_start": 0.1185636674053967,
+          "event": "span_end",
+          "id": "82dZkPK6RxrAUJ4EX9LVgV"
+        }
+      ],
+      "model_usage": {
+        "mockllm/model": {
+          "input_tokens": 299,
+          "output_tokens": 18,
+          "total_tokens": 317
+        }
+      },
+      "role_usage": {},
+      "started_at": "2026-11-05T00:00:26.695521+00:00",
+      "completed_at": "2026-11-05T00:00:26.892387+00:00",
+      "total_time": 0.197,
+      "working_time": 0.119,
+      "uuid": "MWqfPPwk2GpgEKyHtzB4Fi",
+      "error_retries": [],
+      "attachments": {},
+      "turn_count": 3
+    }
+  ]
+}

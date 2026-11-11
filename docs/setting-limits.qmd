@@ -345,7 +345,7 @@ with token_limit(10_000) as limit:
     print(f"Used {limit.usage:,} of 10,000 tokens")
 ```
 
-If you're passing the limit instance to `apply_limits()` or an agent and want to query the usage, you should keep a reference to it:
+For limits passed to `apply_limits()` or `run()`, keep a reference to the limit to query its usage. `as_tool()`, `as_solver()`, and `handoff()` copy their limits for each invocation, so the original objects do not report invocation usage.
 
 ``` python
 limit = token_limit(10_000)

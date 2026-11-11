@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from .environment import SandboxEnvironment
 
 from ._cli import SANDBOX_CLI
+from ._framework_operation import framework_sandbox_operation
 from .limits import SandboxEnvironmentLimits
 
 _JSON_RPC_RESPONSE_CHUNK_METHOD = "__inspect_json_rpc_response_chunk__"
@@ -96,15 +97,16 @@ class SandboxJSONRPCTransport(JSONRPCTransport):
         max_response_bytes: int,
     ) -> str:
         env = {_JSON_RPC_RESPONSE_MAX_BYTES_ENV: str(max_response_bytes)}
-        exec_result = await self.sandbox.exec(
-            [SANDBOX_CLI, "exec"],
-            input=request,
-            env=env,
-            timeout=transport_extra_args.get("timeout", None),
-            timeout_retry=transport_extra_args.get("timeout_retry", True),
-            user=transport_extra_args.get("user", None),
-            concurrency=transport_extra_args.get("concurrency", True),
-        )
+        with framework_sandbox_operation():
+            exec_result = await self.sandbox.exec(
+                [SANDBOX_CLI, "exec"],
+                input=request,
+                env=env,
+                timeout=transport_extra_args.get("timeout", None),
+                timeout_retry=transport_extra_args.get("timeout_retry", True),
+                user=transport_extra_args.get("user", None),
+                concurrency=transport_extra_args.get("concurrency", True),
+            )
 
         if not exec_result.success:
             # Prefer stderr, but fall back to stdout — some failures
