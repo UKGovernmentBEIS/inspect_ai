@@ -418,8 +418,11 @@ class SandboxAgentBridge(AgentBridge):
         Each matched proposal also keeps the handouts it was matched with
         (`_Proposal.contested`), so a result of any of its executions checked
         from then on, including one still running, is recorded as checked for
-        each handout it could be: another conversation's scaffold may report
-        it.
+        each of them: another conversation's scaffold may report it. The sets
+        are not merged across executions, which would grow them with every
+        identical call of a chain (each leaving a grant pending for the next)
+        and make the work quadratic. A report under a handout reached only
+        through such a chain is checked again, with no proposal's context.
 
         Grants of one handout (a scaffold retry served from the model cache
         hands the same call over again) are one candidate: its latest
