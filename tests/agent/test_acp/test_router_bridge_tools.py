@@ -32,7 +32,10 @@ from inspect_ai.agent._acp.event_mapping import (
     _AcpEventRouter,
     replay_transcript,
 )
-from inspect_ai.agent._acp.inspect_ext import TOOL_CALL_CANCELABLE_META_KEY
+from inspect_ai.agent._acp.inspect_ext import (
+    TOOL_CALL_CANCELABLE_META_KEY,
+    TOOL_CALL_NEW_EXECUTION_META_KEY,
+)
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.agent._bridge.sandbox.service import call_tool
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
@@ -1177,9 +1180,21 @@ async def test_a_card_never_shows_another_executions_result(
         assert final == {
             "shared": (final["shared"][0], executions[1].arguments, "typed")
         }
-        # live, the click's result showed before the type call took the card
+        [taken] = [
+            p for p in _progress(notifications) if p.field_meta and p.title is not None
+        ]
+        assert taken.field_meta == {
+            TOOL_CALL_NEW_EXECUTION_META_KEY: True,
+            TOOL_CALL_CANCELABLE_META_KEY: True,
+        }
+        assert taken.raw_input == executions[1].arguments
         if mode == "live":
+            # the click's result showed before the type call took the card,
+            # which then shows no result until its own
             assert any(s["shared"][2] == "clicked" for s in states)
+            assert (taken.status, taken.content) == ("in_progress", [])
+        else:
+            assert taken.status == "completed"
     else:
         assert [s.tool_call_id for s in _starts(notifications)] == ["shared", "second"]
         assert {card: state[1:] for card, state in final.items()} == {
@@ -1235,3 +1250,41 @@ def test_late_attach_without_the_earlier_execution_keeps_the_card_consistent() -
     assert all(state["shared"][1] == {"action": "type"} for state in states)
     assert states[-1]["shared"][1:] == ({"action": "type"}, "typed")
     assert "type" in (states[-1]["shared"][0] or "")
+
+
+def test_a_settled_bridged_card_is_taken_by_a_later_execution_under_its_id() -> None:
+    """A bridged call settled by its scaffold's result, then a ToolEvent reusing the id.
+
+    E.g. a bridged agent and then a react agent in one sample, on a provider
+    that repeats ids across responses.
+    """
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        _, published = _attach_router(_new_session())
+        with bridge_model_generate():
+            tr._event(_tool_call_event(_bash_call("call_0", command="ls")))
+            tr._event(
+                _result_event(
+                    ChatMessageTool(tool_call_id="call_0", function="bash", content="a")
+                )
+            )
+        event = ToolEvent(
+            id="call_0", function="read_file", arguments={"path": "b"}, pending=True
+        )
+        tr._event(event)
+        _complete(event)
+        tr._event_updated(event)
+    finally:
+        _transcript.reset(token)
+
+    assert [s.tool_call_id for s in _starts(published)] == ["call_0"]
+    states = _card_states(published)
+    assert states[-1]["call_0"][1:] == ({"path": "b"}, "contents")
+    assert "read_file" in (states[-1]["call_0"][0] or "")
+    taken = [
+        p
+        for p in _progress(published)
+        if (p.field_meta or {}).get(TOOL_CALL_NEW_EXECUTION_META_KEY)
+    ]
+    assert len(taken) == 1 and taken[0].status == "in_progress"

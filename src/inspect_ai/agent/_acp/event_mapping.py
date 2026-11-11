@@ -68,6 +68,7 @@ from inspect_ai.agent._acp._schema_builders import (
 )
 from inspect_ai.agent._acp.inspect_ext import (
     TOOL_CALL_CANCELABLE_META_KEY,
+    TOOL_CALL_NEW_EXECUTION_META_KEY,
     TOTAL_MESSAGES_META_KEY,
     assistant_complete_chunk_meta,
     assistant_content_chunk_meta,
@@ -905,7 +906,8 @@ def _reassigned_card(session_id: str, event: ToolEvent) -> SessionNotification:
     execution reports under the id: its ToolEvent, a human approval request,
     `inspect/cancel_tool_call`. So the id keeps one card, which takes the
     execution's title, arguments and content, replacing the previous
-    execution's, rather than showing its result under another call.
+    execution's, rather than showing its result under another call. A real
+    ``ToolEvent`` backs the execution, so the card is cancelable.
     """
     update = update_tool_call(
         tool_call_id=event.id,
@@ -915,6 +917,10 @@ def _reassigned_card(session_id: str, event: ToolEvent) -> SessionNotification:
         content=_content_for_start(event) or [],
     )
     update.raw_input = event.arguments
+    update.field_meta = {
+        TOOL_CALL_NEW_EXECUTION_META_KEY: True,
+        TOOL_CALL_CANCELABLE_META_KEY: True,
+    }
     return session_notification(session_id, update)
 
 
@@ -938,7 +944,8 @@ def _map_tool_event(
             # the synthesized start was marked non-cancelable; a real ToolEvent
             # now backs the card, so `inspect/cancel_tool_call` can act on it
             yield _settled_card(session_id, event.id, event, cancelable=True)
-        elif shown is not None and shown != key:
+        elif shown != key:
+            # another ToolEvent, or a bridged card its scaffold's result settled
             yield _reassigned_card(session_id, event)
         else:
             yield session_notification(

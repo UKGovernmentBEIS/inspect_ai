@@ -6,6 +6,8 @@ derived signals. No event loop, no pilot.
 
 from __future__ import annotations
 
+from typing import Literal
+
 import pytest
 from acp.schema import (
     AgentMessageChunk,
@@ -1503,44 +1505,130 @@ def test_consume_approval_request_synthesizes_card_when_none_exists() -> None:
     assert state.items[-1] is tc
 
 
-@pytest.mark.parametrize("same_call", [False, True])
-def test_approval_for_another_execution_under_a_card_id_takes_the_card(
-    same_call: bool,
+@pytest.mark.parametrize("same_arguments", [False, True])
+def test_approval_on_a_finished_card_takes_it_for_the_new_execution(
+    same_arguments: bool,
 ) -> None:
-    """A request for a later execution under a repeated call id shows its own call.
+    """A request under a finished card's id is for a later execution of a repeated id.
 
-    The earlier execution's title, input and result don't stay on the card the
-    prompt is attached to. A request for the card's own call leaves it as is.
+    Approval precedes execution, so the card shows the requested call, and the
+    earlier execution's result, timing and markers don't stay on it, even when
+    the two calls have the same arguments.
     """
-    state = SessionState()
-    state.consume(
-        _tool_start("shared", title="computer left_click", raw_input={"a": 1})
-    )
-    state.consume(_tool_progress("shared", raw_output="clicked"))
+    from inspect_ai.agent._acp.tui.state import ToolCallState
+
+    clock = _FakeClock()
+    state = SessionState(now=clock)
+    state.consume(_tool_start("shared", title="computer scroll", raw_input={"a": 1}))
+    state.consume(_tool_progress("shared", raw_output="scrolled"))
+    tc = state._tool_calls_by_id["shared"]
+    tc.cancel_requested = True
+    tc.last_approval_decision = "approved"
     req = _permission_request("shared", title="computer type")
-    if same_call:
-        req.tool_call.title = "computer left_click"
+    if same_arguments:
         req.tool_call.raw_input = {"a": 1}
+    clock.t += 5
 
     state.consume_approval_request(_pending(req))
 
+    assert isinstance(tc, ToolCallState) and tc.pending_approval is not None
+    assert (tc.title, tc.raw_input, tc.raw_output, tc.status, tc.content) == (
+        "computer type",
+        {"a": 1} if same_arguments else {"command": "ls"},
+        None,
+        "pending",
+        None,
+    )
+    assert (tc.start_time, tc.end_time) == (clock.t, None)
+    assert not tc.cancel_requested and tc.last_approval_decision is None
+
+
+def test_approval_on_a_running_card_leaves_it_as_is() -> None:
+    """A unique id's card already running (a bridged card, a dispatched target) keeps its call."""
+    state = SessionState()
+    state.consume(_tool_start("tc-1", title="call_tool read", raw_input={"t": "read"}))
+    state.consume_approval_request(_pending(_permission_request("tc-1")))
+
+    tc = state._tool_calls_by_id["tc-1"]
+    assert (tc.title, tc.raw_input, tc.status) == (
+        "call_tool read",
+        {"t": "read"},
+        "in_progress",
+    )
+
+
+def _new_execution(
+    tool_call_id: str,
+    *,
+    status: Literal["in_progress", "completed", "failed"],
+    title: str,
+    raw_input: dict,
+) -> SessionNotification:
+    from inspect_ai.agent._acp.inspect_ext import TOOL_CALL_NEW_EXECUTION_META_KEY
+
+    prog = ToolCallProgress(
+        session_update="tool_call_update",
+        tool_call_id=tool_call_id,
+        status=status,
+        title=title,
+        raw_input=raw_input,
+        content=[],
+        field_meta={TOOL_CALL_NEW_EXECUTION_META_KEY: True},
+    )
+    return SessionNotification(session_id="sid", update=prog)
+
+
+def test_new_execution_update_resets_the_cards_execution_state() -> None:
+    clock = _FakeClock()
+    state = SessionState(now=clock)
+    state.consume(_tool_start("shared", title="computer click", raw_input={"a": 1}))
     tc = state._tool_calls_by_id["shared"]
-    assert tc.pending_approval is not None
-    if same_call:
-        assert (tc.title, tc.raw_input, tc.raw_output, tc.status) == (
-            "computer left_click",
-            {"a": 1},
-            "clicked",
-            "completed",
+    tc.cancel_requested = True
+    tc.last_approval_decision = "denied"
+    clock.t += 3
+    state.consume(_tool_progress("shared", status="failed", raw_output="cancelled"))
+    clock.t += 5
+
+    state.consume(
+        _new_execution(
+            "shared", status="in_progress", title="computer type", raw_input={"b": 2}
         )
-    else:
-        assert (tc.title, tc.raw_input, tc.raw_output, tc.status) == (
-            "computer type",
-            {"command": "ls"},
-            None,
-            "pending",
+    )
+
+    assert (tc.title, tc.raw_input, tc.status, tc.content, tc.raw_output) == (
+        "computer type",
+        {"b": 2},
+        "in_progress",
+        [],
+        None,
+    )
+    assert (tc.start_time, tc.end_time) == (clock.t, None)
+    assert not tc.cancel_requested and tc.last_approval_decision is None
+    assert "shared" in state.cancel_tool_call_ids
+    clock.t += 2
+    state.consume(_tool_progress("shared", raw_output="typed"))
+    assert tc.duration_seconds == 2
+
+
+def test_new_execution_update_keeps_its_own_approval_decision() -> None:
+    """The execution's approval took the card already; its decision stays."""
+    state = SessionState()
+    state.consume(_tool_start("shared", title="computer click", raw_input={"a": 1}))
+    state.consume(_tool_progress("shared"))
+    state.consume_approval_request(_pending(_permission_request("shared")))
+    state.resolve_approval("shared", option_id="approve")
+    tc = state._tool_calls_by_id["shared"]
+    decision = tc.last_approval_decision
+    assert decision is not None
+
+    state.consume(
+        _new_execution(
+            "shared", status="in_progress", title="bash ls", raw_input={"command": "ls"}
         )
-        assert tc.content is None and tc.end_time is None
+    )
+
+    assert tc.last_approval_decision == decision
+    assert tc.status == "in_progress"
 
 
 def test_mark_interrupted_notifies_once_no_idle_flicker() -> None:
