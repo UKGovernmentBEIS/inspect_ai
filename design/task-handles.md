@@ -213,11 +213,16 @@ the sample it sent still runs and its result is dropped.
   everywhere else on the run's loop; `close()`, `cancel()` and the
   attributes work anywhere.
 - **`samples_from_creator()` tasks** are added only by `enqueue_task()` from a
-  running sample (`sample_active()` set) whose attempt has not ended
-  (`_attempt` set and `ended` false); that attempt becomes the creator.
-  `enqueue_task()` checks both before `RunQueue.add` commits anything, so a
-  detached task that kept a finished sample's context adds nothing and opens
-  no channel. Elsewhere:
+  running sample (`sample_active()` set and its `completed` still `None`)
+  whose attempt has not ended (`_attempt` set and `ended` false); that
+  attempt becomes the creator. A detached task keeps the `ActiveSample` it
+  inherited after the sample's own context clears its binding, and
+  `ActiveSample.complete()` sets `completed` on that shared object while
+  the attempt can stay live for other samples, so the `completed` check is
+  what refuses such a task between its sample's end and its attempt's.
+  `enqueue_task()` checks all three before `RunQueue.add` commits anything,
+  so a detached task that kept a finished sample's context adds nothing and
+  opens no channel. Elsewhere:
   - anywhere else, including a `TaskSource`'s `next_tasks()` or callback
     returns: `RuntimeError` from `enqueue_task()` or `RunQueue.add`;
   - passed to `eval()`, `eval_set()`, a selection worker or `eval_retry()`:
@@ -600,10 +605,12 @@ test touched), with mockllm models; every test that waits is bounded with
     creator whose rollout task fails, which handles the `TaskEndedError`, adds
     a fresh rollout task and then succeeds: the failed rollout's error log is
     among the run's logs and the eval set's (and worker's) result is failure;
-  - a detached task started in a creator's solver, released after the
-    creator's attempt has ended while another task keeps the run open, calls
-    `enqueue_task()` with a `samples_from_creator()` task: it raises
-    `RuntimeError`, adds no record and opens no channel;
+  - a detached task started in a creator's solver calls `enqueue_task()`
+    with a `samples_from_creator()` task, released once after its sample has
+    finished while a sibling sample of the same attempt is held on an event,
+    and once after the creator's attempt has ended while another task keeps
+    the run open: both raise `RuntimeError`, add no record and open no
+    channel;
   - the creator's attempt ending closes its channels: a started rollout task
     ends once its samples have run, and one never sent a sample ends with no
     log;

@@ -71,8 +71,11 @@ hides a problem):
 - A task whose log cannot be initialised ends with an error log and is
   retried, like a failed `log_start()`; today a seed task's failure raises
   from `eval()`.
-- Ctrl-C while `TaskSource.next_tasks()` blocks returns the logs so far
-  instead of raising `KeyboardInterrupt` without them.
+- Ctrl-C while `TaskSource.next_tasks()` blocks is handled like a Ctrl-C
+  during a task: the logs so far are kept, and `eval()` returns them on
+  asyncio; on trio, `run_main` still raises `KeyboardInterrupt` once the run
+  has finished, as it does for a Ctrl-C during a task. Today the call is
+  outside any `eval_run` and `KeyboardInterrupt` propagates from it.
 - Adding a task id already in the run raises `ValueError`.
 - An eval set or selection-mode worker whose seed task was cancelled while
   queued reports failure and names the task.
@@ -212,6 +215,13 @@ The dispatcher runs inside `_run_task_screen`, which absorbs a cancellation
 of the run body so the run returns the logs it has. On the live path
 `feed.next()` is awaited inside it. `run_batches` awaits `next_tasks()`
 outside any `eval_run`, so a Ctrl-C there raises `KeyboardInterrupt`.
+On trio, the synchronous entry points run under `run_main`
+(`src/inspect_ai/_util/_async.py`), whose `_trio_cancel_on_sigint` turns the
+first SIGINT into a cancellation of the whole run and raises
+`KeyboardInterrupt` after the run returns, even when the task screen
+absorbed the cancellation and the logs were written; on asyncio,
+`asyncio.run()` returns what the absorbed run returns. This design keeps
+that wrapper.
 
 ### Sandbox setup and the working directory
 
@@ -324,7 +334,8 @@ list or a `TaskSource`; `eval_set()` including selection mode;
   `RuntimeError`, as today.
 - `enqueue_task()` after the run's dispatch has ended (from a task that
   outlived it and kept its context): `RuntimeError`, before anything is
-  resolved.
+  resolved. Tasks a `TaskSource` callback returns then are dropped with a
+  log line instead ("Source returns after close are dropped").
 - `enqueue_task()` from another event loop (a worker thread that copied the
   run's context and runs the coroutine with `anyio.run()`): `RuntimeError`.
   `_require_run_loop(queue)` compares `anyio.lowlevel.current_token()` with
@@ -361,6 +372,7 @@ class TaskRecord:
 class RunQueue:
     run_id: str
     closed: bool
+    task_names: list[str]             # eval_set_tasks, then each commit's names
     wake: Wake                        # rung by every phase change and addition, waiters or not
     def add(self, resolved: list[ResolvedTask]) -> list[TaskRecord]
     def find(self, task_id: str) -> TaskRecord | None
@@ -396,7 +408,7 @@ anything is committed:
   ids, checks id uniqueness, applies the eval-level overrides, runs the
   `SampleSource` prerequisite checks, resolves the task's `task:id`
   selectors (`resolve_task_sample_ids`) against the run's task names plus
-  this batch's, and constructs the `TaskLogger` with the task directory
+  this batch's (see "The run's task names" below), and constructs the `TaskLogger` with the task directory
   passed explicitly (`TaskLogger(task_dir=...)`, which `git_context()` and
   `cwd_relative_path()` take as their directory), so no `chdir` is needed.
   The constructor slices the dataset with the resolved selection, so a
@@ -408,11 +420,36 @@ batch sequence-major (the order `run_batches` uses at `max_tasks == 1`),
 creates each record in `queued` at the end of the queue, registers it with
 the control channel, grows the display's task count and rings `wake`.
 
+**The run's task names.** `RunQueue` is created with the names of
+`eval_set_tasks`, which `_eval_async_inner` already receives: the whole eval
+set's tasks, including those outside this run when an `eval_set()` round
+retries a subset or a selection worker runs some of them. Both of today's
+paths seed their name list this way (`eval_run`'s `task_names` and
+`_eval_async_inner`'s list for `run_batch`), so a selector `other:1` naming
+an eval-set task outside the run still matches no sample of this task
+instead of being read as a literal id. Each commit then adds its batch's
+names.
+
 Callers: `eval_run` for the seed (errors raise from `eval()`, as today); the
 async `enqueue_task()`, after resolving its argument with
 `_resolve_enqueued_tasks` (errors raise to its caller); `_enqueue_source_tasks`
 for `TaskSource` callback returns; and the dispatcher for a `next_tasks()`
 batch (errors end the run, as today).
+
+**Source returns after close are dropped.** `_enqueue_source_tasks` serves
+`task_complete`, `sample_complete` and `sample_abandoned`, which can run
+after dispatch has closed the queue: an attempt cancelled by Ctrl-C writes
+its `cancelled` log and notifies its source in shielded cleanup, and a
+callback with no checkpoint returns its follow-ups anyway. So
+`_enqueue_source_tasks` reads `queue.closed` first and, when it is set, logs
+"dropping <n> task(s) returned by the task source after the run stopped"
+and returns, before resolving anything; otherwise an add error there would
+escape `notify_task_source`'s callback handler, and `_run_task_screen`,
+which absorbs only cancellation, would replace the run's outcome (the logs
+after Ctrl-C, a latched cancellation, a `debug_errors` error) with it. The
+dispatcher's `next_tasks()` add applies the same check, though it runs in
+the loop before the `finally` closes the queue. The direct `enqueue_task()`
+refusal after close, and add errors while the run is open, are unchanged.
 
 Selection is resolved at the call because it is synchronous, so its errors
 reach the caller. The cost is the batch boundary: today a whole buffered
@@ -535,8 +572,8 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
             loop:
                 drop pending retries whose task carries the abandon stamp
                     (each ends its record with its stored log)
-                for each queued record not yet prepared, in queue order:
-                    await prepare(record)                  # an error ends the run, as today
+                await prepare(queued records not yet prepared, in queue order)
+                                                           # an error ends the run, as today
                 while not cancelled and in_flight < effective_max_tasks(parallel):
                     entry = pick_balanced(startable entries)
                     if entry is None: break
@@ -555,15 +592,20 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
             queue.close(); queue.end_unstarted()           # synchronous, before the group joins
 ```
 
-- **Preparing a record** is what today's `prepare_options` awaits, moved to
-  the dispatcher as the live path's feed has it: `ensure_model_controller`
-  for the record's primary model with the task's generate config merged
-  with the run's (so `inspect ctl config` can retune `max_connections`
-  before the task's first `generate`), then `SandboxManager.start` for its
-  selected seed samples. Under `run_samples=False` it does nothing, as
-  today. The seed is prepared in full before the first task starts, as
-  today; a record added later is prepared on the pass after it is added. A
-  record that ended meanwhile is skipped. An error raises from the
+- **`prepare(records)`** is what today's `prepare_options` awaits, moved to
+  the dispatcher as the live path's feed has it, in two passes over the
+  records it is given. The first awaits `ensure_model_controller` for
+  each record's primary model with the task's generate config merged with
+  the run's; the second awaits `SandboxManager.start` for each record's
+  selected seed samples. So every controller of the pass exists before the
+  first image build, as `prepare_options` creates every controller of a
+  batch before any sandbox starts today, and an `inspect ctl config
+  --max-connections` retune made during a long build reaches every queued
+  task's pool: a retune changes only controllers that already exist. Under
+  `run_samples=False` neither pass does anything, as today. The seed is
+  prepared in full before the first task starts, as today; a record added
+  later is prepared on the pass after it is added. A record that ended
+  meanwhile is skipped. An error raises from the
   dispatcher and fails the run, and while a setup awaits, the dispatcher
   starts nothing, both as on today's live path;
   [task-dispatch-setup.md](task-dispatch-setup.md) removes both limits.
@@ -995,10 +1037,13 @@ test that waits on a run is bounded with `fail_after`.
   has ended when `eval_async()` returns or raises.
 - `tests/test_enqueue_task.py` (preparing): an added task's sandbox setup
   error fails the run, as on today's live path; a record cancelled while
-  another record's setup is held is skipped when its turn comes; an early
-  `inspect ctl config --max-connections` retune applies to a queued record's
-  controller once it is prepared; under `run_samples=False` no setup runs
-  and no controller is created.
+  another record's setup is held is skipped when its turn comes; with two
+  seed tasks on models with separate connection pools (two `openai/` model
+  names with a dummy key and adaptive connections; two `mockllm` names share
+  one pool and do not test this), an `inspect ctl config --max-connections`
+  retune made while the first task's `task_init` is held sets both
+  controllers' ceiling; under `run_samples=False` no setup runs and no
+  controller is created.
 - `tests/test_enqueue_task.py` (loader exception): a solver's
   `enqueue_task("other_dir/tasks.py@name")`, whose module imports a sibling
   module and whose task reads a relative file at construction, adds and runs
@@ -1007,8 +1052,17 @@ test that waits on a run is bounded with `fail_after`.
   `anyio.Event`, a task that a background coroutine of the finished seed
   sample adds with `enqueue_task()` is listed and cancellable while the call
   blocks and starts when it returns, ahead of the returned batch; an
-  exception from `next_tasks()` ends the run as today; Ctrl-C while
-  `next_tasks()` blocks returns the completed logs at `max_tasks` 1 and 2;
+  exception from `next_tasks()` ends the run as today; a cancellation while
+  `next_tasks()` blocks, from a scope around `eval_async()` on both backends
+  and from SIGINT in an isolated child process, keeps the completed logs at
+  `max_tasks` 1 and 2: `eval()` returns them on asyncio, and on trio raises
+  `KeyboardInterrupt` after writing them (as
+  `tests/util/test_async.py::test_run_main_trio_sigint` checks for a
+  task); a source task cancelled while running, whose `task_complete`
+  returns follow-up tasks with no checkpoint, leaves the outcome unchanged
+  (the logs returned, nothing added, the "dropping" log line), and so does
+  the same callback after a latched cancellation and during teardown after a
+  `debug_errors` error, which still raises its original error;
   `next_tasks()` returning `[]` ends the source without calling the
   resolver; the existing live-injection test passes for a plain task list.
 - `tests/test_sample_source.py`: a mid-run configuration through
@@ -1071,7 +1125,7 @@ state in the single `eval_run`), so the setup fixes come first.
    `TaskRecord`, async `enqueue_task()` still returning `None`),
    `_eval/run.py` (`configure_task()`, `dispatch_tasks()` with `prepare()`
    and the inline `next_tasks()` call, `run_one`'s move into `starting` and
-   closed checks; `prepare_options`, `TaskInjection`,
+   closed checks, the run's task names seeded from `eval_set_tasks`; `prepare_options`, `TaskInjection`,
    `PreparedFeed`, `_empty_feed` removed), `_eval/eval.py` (one `eval_run`),
    `_eval/task/run.py` (`logger.init()` at the start of `task_run`;
    `_enqueue_source_tasks`; `on_registered`; `unwritten_task_log` with no
@@ -1113,6 +1167,9 @@ setup beside the dispatcher is its own design.
 - Sandbox setup beside the dispatcher, setup retries and setup-failure
   isolation: [task-dispatch-setup.md](task-dispatch-setup.md).
 - A task added while `next_tasks()` blocks starting before the call returns.
+- A `max_connections` retune reaching a controller created after it: a
+  task added after the retune gets a controller at its configured ceiling.
+  Today's behaviour for every later batch, unchanged.
 - A provider's own lookups in `sample_init` (a missing config's compose-file
   search) seeing the task directory.
 - Pausing or resuming a queued task by task id; queued tasks are only listed

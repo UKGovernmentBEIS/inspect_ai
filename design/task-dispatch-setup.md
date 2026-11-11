@@ -127,14 +127,15 @@ class TaskSetups:                      # one per record
 
 class SandboxSetups:                   # one per run
     root: Context                      # eval_run's context when the setups are created
-    def request(self, record: TaskRecord) -> TaskSetups
+    def request(self, records: list[TaskRecord]) -> list[TaskSetups]   # one commit's records
     def open(self) -> AsyncContextManager[None]
     async def shutdown(self) -> None
 ```
 
 `TaskRecord` gains `setups: TaskSetups | None` in place of `prepared`
 (`None` under `run_samples=False`), and `RunQueue.add` calls
-`setups.request(record)` when it commits a record. The dispatcher loses its
+`setups.request(records)` with the records of each commit (the seed is one
+commit). The dispatcher loses its
 `prepare()` step, and `setups.open()` wraps the attempt group inside the
 task screen:
 
@@ -160,11 +161,15 @@ async with _run_task_screen(...):
   is absorbed with the rest of the run body, and the display has loaded
   before any setup can suspend it.
 - **A record's job.** When `run_samples` is true, `request` starts one
-  background job per record, sandbox or not. It first awaits
-  `ensure_model_controller` for the record's primary model, as `prepare()`
-  did, so `inspect ctl config` can retune `max_connections` for every queued
-  or starting task before its first `generate`. A record with no sandbox is
-  then settled. Otherwise the job resolves the `SetupKey` of each selected
+  background job per record, sandbox or not. Every job of a commit first
+  waits until `ensure_model_controller` has returned for each record of that
+  commit (one controller step per commit, in the setup group and under no
+  record's cancel scope, awaiting them in queue order, as `prepare()`'s
+  first pass did), so no setup of the seed starts before every
+  seed task's controller exists, and `inspect ctl config` can retune
+  `max_connections` for every queued or starting task during a long build
+  and before its first `generate`. A record with no sandbox is then
+  settled. Otherwise the job resolves the `SetupKey` of each selected
   sample (which can await a provider's `task_init_environment`, Docker's
   running a `docker compose config` subprocess), recording it by the
   sample's index in the attempt's sample list, and requests the `task_init`
@@ -413,8 +418,11 @@ a run is bounded with `fail_after`.
   adaptive-connections model and `run_samples` true, a queued sandbox-free
   record, and a sandbox-free solver held on an event before its first
   `generate`, each have their controller, and an early `inspect ctl config
-  --max-connections` retune applies to it rather than being dropped; under
-  `run_samples=False` no controller is created.
+  --max-connections` retune applies to it rather than being dropped; with
+  two seed tasks on models with separate connection pools (two `openai/`
+  names with a dummy key; two `mockllm` names share one pool), a retune made
+  while the first task's `task_init` is held sets both controllers' ceiling;
+  under `run_samples=False` no controller is created.
 - `tests/test_sample_source.py`: a mid-run configuration through
   `setups.ensure()`; its final failure fails only that task; with
   `task_retry_attempts=2` a setup that fails once is absorbed and the added
