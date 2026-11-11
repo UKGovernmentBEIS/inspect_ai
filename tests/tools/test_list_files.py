@@ -125,7 +125,7 @@ def _run_list_files_local(calls: list[dict], files: dict[str, str]) -> list[str]
         dataset=[Sample(input="Please use the tool", target="n/a", files=files)],
         solver=[use_tools(list_files()), generate()],
         scorer=includes(),
-        message_limit=2 + 2 * len(calls),
+        message_limit=1 + 2 * len(calls),
         sandbox="local",
     )
     result = eval(
@@ -142,6 +142,7 @@ def _run_list_files_local(calls: list[dict], files: dict[str, str]) -> list[str]
             ],
         ),
     )[0]
+    assert result.status == "success"
     assert result.samples
     responses = [
         m for m in result.samples[0].messages if isinstance(m, ChatMessageTool)
