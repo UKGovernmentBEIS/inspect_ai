@@ -439,16 +439,20 @@ class _Handouts:
         then get no proposal's context (`hand_over`). Any other id names
         another call when it is empty, in the request's conversation or
         reserved: the bridge can't tell which call it was. So
-        does an id a Gemini CLI echo (`name__id`, `_echoes`) can't tell apart
-        from a reserved or handed one, or one of the response's other calls
-        (`siblings`).
+        does an id a Gemini CLI echo (`name__id`) can't tell apart from a
+        reserved or handed one, or one of the response's other calls
+        (`siblings`), in either direction: an echo of one of `calls`
+        (`_echoes`) that is such an id, or an id of `calls` that may be an
+        echo of one (`_echoed`).
         """
         if not call_id:
             return True
         if any(
             echo in self.reserved_ids or echo in self.handed or echo in siblings
-            for call in calls
-            for echo in _echoes(call)
+            for echo in (
+                *(echo for call in calls for echo in _echoes(call)),
+                *_echoed(call_id),
+            )
         ):
             return True
         handed = self.handed.get(call_id)
@@ -855,6 +859,18 @@ def _echoes(call: ToolCall) -> set[str]:
         if call.id.startswith(f"{name}__")
     }
     return echoes - {call.id, ""}
+
+
+def _echoed(call_id: str) -> Iterator[str]:
+    """The ids a Gemini CLI echo `call_id` may be of: each part after a `__`.
+
+    The prefix may be any call's wire name (`wire_names`), so any is taken.
+    """
+    index = call_id.find("__")
+    while index != -1:
+        if index + 2 < len(call_id):
+            yield call_id[index + 2 :]
+        index = call_id.find("__", index + 1)
 
 
 def wire_names(function: str, arguments: dict[str, Any]) -> set[str]:

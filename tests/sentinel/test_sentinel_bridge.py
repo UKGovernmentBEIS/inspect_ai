@@ -2162,82 +2162,117 @@ async def test_google_identical_results_of_repeated_calls_are_each_checked() -> 
     assert [s.input for s in afters] == model.inputs[:3]
 
 
-@pytest.mark.parametrize("ids", [("123", "read_file__123"), ("read_file__123", "123")])
-@pytest.mark.parametrize("echo", ["unchanged", "prefix_first", "prefix_second"])
+@pytest.mark.parametrize("together", ["in order", "reversed", False])
+@pytest.mark.parametrize(
+    "echo", ["unchanged", "prefix_first", "prefix_second", "prefix_both"]
+)
+@pytest.mark.parametrize("order", ["plain first", "prefixed first"])
+@pytest.mark.parametrize(
+    "functions", [("read_file", "read_file"), ("read_file", "status")]
+)
 async def test_google_echoes_preserve_distinct_issued_call_ids(
-    ids: tuple[str, str],
-    echo: str,
+    functions: tuple[str, str], order: str, echo: str, together: str | bool
 ) -> None:
+    """The model gives two calls ids one of which is a Gemini CLI echo of the other's (`name__id`).
+
+    With `plain first`, the second call's id is the first's prefixed with the
+    first's function; with `prefixed first`, the first's id is the second's
+    prefixed with the second's function. `together`, both are in one
+    response, answered in order or reversed; otherwise the second is in the
+    next one. Gemini CLI echoes each
+    id unchanged, or prefixed with its call's function (`echo`). Each result
+    is checked as its own call's, and the model sees each result under its
+    own call.
+    """
     from inspect_ai.agent._bridge.google_api import inspect_google_api_request
 
+    ids = (
+        ("123", f"{functions[0]}__123")
+        if order == "plain first"
+        else (f"{functions[1]}__123", "123")
+    )
     seen: Steps = []
     calls = [
-        replace(READ, id=ids[0], arguments={"path": "one"}),
-        replace(READ, id=ids[1], arguments={"path": "two"}),
+        ToolCall(id=ids[0], function=functions[0], arguments={"path": "one"}),
+        ToolCall(id=ids[1], function=functions[1], arguments={"path": "two"}),
     ]
-    model = Scripted(calls_output(*calls), calls_output())
+    model = Scripted(
+        *([calls_output(*calls)] if together else [calls_output(c) for c in calls]),
+        calls_output(),
+    )
     bridge = AgentBridge(
         AgentState(messages=[]), model_aliases={"inspect": model.model}
     )
-    tools: Any = [{"functionDeclarations": [{"name": "read_file"}]}]
+    tools: Any = [
+        {"functionDeclarations": [{"name": name} for name in sorted(set(functions))]}
+    ]
     contents: list[Any] = [{"role": "user", "parts": [{"text": TASK}]}]
+    prefixed = {
+        "unchanged": (),
+        "prefix_first": (0,),
+        "prefix_second": (1,),
+        "prefix_both": (0, 1),
+    }[echo]
+    issued: list[str] = []
+
+    async def request() -> list[Any]:
+        reply: Any = await inspect_google_api_request(
+            {"model": "inspect", "contents": contents, "tools": tools},
+            None,
+            None,
+            bridge,
+        )
+        parts = reply["candidates"][0]["content"]["parts"]
+        for part in parts:
+            if "functionCall" in part:
+                index = len(issued)
+                issued.append(part["functionCall"]["id"])
+                if index in prefixed:
+                    call = part["functionCall"]
+                    call["id"] = f"{call['name']}__{call['id']}"
+        return parts
+
+    def answer(parts: list[Any]) -> None:
+        contents.append({"role": "model", "parts": parts})
+        if together == "reversed":
+            parts = parts[::-1]
+        contents.append(
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "functionResponse": {
+                            "id": part["functionCall"]["id"],
+                            "name": part["functionCall"]["name"],
+                            "response": {"out": part["functionCall"]["args"]["path"]},
+                        }
+                    }
+                    for part in parts
+                    if "functionCall" in part
+                ],
+            }
+        )
 
     with active([bridge_recording(seen)]):
-        first: Any = await inspect_google_api_request(
-            {"model": "inspect", "contents": contents, "tools": tools},
-            None,
-            None,
-            bridge,
-        )
-        parts = first["candidates"][0]["content"]["parts"]
-        issued = [
-            part["functionCall"]["id"] for part in parts if "functionCall" in part
-        ]
-        assert len(issued) == 2
-        assert issued[0] != "read_file__" + issued[1]
-        assert issued[1] != "read_file__" + issued[0]
-        if echo != "unchanged":
-            target = 0 if echo == "prefix_first" else 1
-            for index, part in enumerate(
-                part for part in parts if "functionCall" in part
-            ):
-                if index == target:
-                    part["functionCall"]["id"] = "read_file__" + issued[index]
-        response_parts = [
-            {
-                "functionResponse": {
-                    "id": part["functionCall"]["id"],
-                    "name": "read_file",
-                    "response": {"out": "same"},
-                }
-            }
-            for part in parts
-            if "functionCall" in part
-        ]
-        contents += [
-            {"role": "model", "parts": parts},
-            {"role": "user", "parts": response_parts},
-        ]
-        await inspect_google_api_request(
-            {"model": "inspect", "contents": contents, "tools": tools},
-            None,
-            None,
-            bridge,
-        )
+        answer(await request())
+        if not together:
+            answer(await request())
+        await request()
 
+    assert len(issued) == 2
+    for this, other in [(0, 1), (1, 0)]:
+        assert issued[this] != f"{functions[other]}__{issued[other]}"
     before = [step for step in seen if isinstance(step, BeforeToolCall)]
     after = [step for step in seen if isinstance(step, AfterToolCall)]
-    assert [step.call.arguments for step in before] == [
-        {"path": "one"},
-        {"path": "two"},
+    assert [(step.call.function, step.call.arguments) for step in before] == [
+        (functions[0], {"path": "one"}),
+        (functions[1], {"path": "two"}),
     ]
-    assert sorted(
-        (step.call.arguments for step in after), key=lambda args: args["path"]
-    ) == [
-        {"path": "one"},
-        {"path": "two"},
-    ]
-    parsed = model.inputs[1]
+    assert len(after) == 2
+    for step in after:
+        assert step.call.arguments["path"] in step.result.text, step
+    assert sorted(step.call.function for step in after) == sorted(functions)
+    parsed = model.inputs[-1]
     assert [
         call.id
         for message in parsed
@@ -2248,7 +2283,7 @@ async def test_google_echoes_preserve_distinct_issued_call_ids(
         message.tool_call_id
         for message in parsed
         if isinstance(message, ChatMessageTool)
-    ] == issued
+    ] == (issued[::-1] if together == "reversed" else issued)
 
 
 OLD_REQUEST = "Old request: confidential context"
@@ -4508,9 +4543,11 @@ async def test_google_initial_history_alias_cannot_claim_new_result(
         assert [(step.call.function, step.output) for step in afters] == [
             ("read_file", '{"out": "old contents"}')
         ]
-        # the history id and the new one are different calls' (another
-        # function's), so the new call keeps the model's id
-        assert handed == new_id
+        # `read_file__123` may be the history call `123`'s prefixed echo, so
+        # a new call under it gets a fresh id; `123` is no echo of the
+        # history call `read_file__123` read back as a `delete_file` call, so
+        # the new call keeps the model's id
+        assert (handed == new_id) is (new_id == "123")
 
         contents.append(
             {
