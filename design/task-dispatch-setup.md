@@ -133,9 +133,21 @@ class TaskSetups:                      # one per record
 class SandboxSetups:                   # one per run
     root: Context                      # eval_run's context when the setups are created
     def request(self, records: list[TaskRecord]) -> list[TaskSetups]   # one commit's records
+    def forget(self, record: TaskRecord) -> None
     def open(self) -> AsyncContextManager[None]
     async def shutdown(self) -> None
 ```
+
+`SandboxSetups` takes over what task-dispatch.md gives `SandboxManager` for
+a record: the `_resolved_no_metadata` cache (still keyed by `Task` and
+spec) and the record's per-sample key map, which is now the record's
+`TaskSetups` (`key_for`). `SandboxSetups.forget(record)` replaces
+`SandboxManager.forget`: it drops the record's `TaskSetups` and its cache
+entries unless another open record holds the same `Task`, and
+`RunQueue.end` calls it. An injected sample's key is released as in
+task-dispatch.md ("Samples use the key resolved for them"), when every
+epoch of it has completed. task-dispatch.md's retention tests run
+unchanged after this step.
 
 `TaskRecord` gains `setups: TaskSetups | None` in place of `prepared`
 (`None` under `run_samples=False`), and `RunQueue.add` calls
@@ -183,8 +195,7 @@ async with _run_task_screen(...):
   `RunQueue.end` cancels it when the record ends before the job has
   finished, and `setups.open()` cancels every such scope when it exits. A
   cancelled job publishes nothing into the record and writes no resolution
-  cache entry; `RunQueue.end` then calls `SandboxManager.forget(record)`,
-  as in task-dispatch.md, and drops `record.setups`. Setup jobs
+  cache entry; `RunQueue.end` then calls `SandboxSetups.forget(record)`. Setup jobs
   are keyed by `SetupKey`, which holds no `Task`, so they and their cleanup
   registrations stay until the run's shutdown. The `task_init` jobs it
   requested are not under this scope and carry on.

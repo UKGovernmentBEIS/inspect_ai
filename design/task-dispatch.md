@@ -262,9 +262,13 @@ Paths reach providers in three ways:
   (`ComposeProject.create` in `util/_sandbox/docker/util.py`, which bases a
   `ComposeConfig`'s generated file on `os.getcwd()`; `resolve_config_environment`
   in `docker/docker.py`): the task directory in `task_init`, the launch
-  directory in `sample_init`. Docker's compose commands already run with
-  `cwd` set to the compose file's directory (`compose_up` and its siblings in
-  `docker/compose.py`), not the process directory.
+  directory in `sample_init`. Docker's compose commands (`compose_up`,
+  `compose_build`, `compose_pull`, `compose_services` in `docker/compose.py`)
+  pass no `cwd`, so `compose_command` runs them in the process directory;
+  only some cleanup commands set it to the compose file's directory. Compose
+  itself resolves the paths a compose file names (build contexts,
+  `env_file`, the project's `.env`) against the project directory, which is
+  the compose file's directory, whatever the working directory.
 - A provider's own lookups. Surveyed (inspect_sandboxes, inspect-podman,
   inspect_proxmox_sandbox, inspect_k8s_sandbox, inspect_ec2_sandbox,
   inspect_vagrant_sandbox checkouts beside this repo):
@@ -829,7 +833,13 @@ restored afterwards. In place of the `chdir`:
   that key's spec instead of resolving the sample's sandbox again. So a
   config is resolved once, and the path `task_init` used is the path
   `sample_init` gets. The map is the record's and goes with it
-  (`SandboxManager.forget`, "Phases and cancelling").
+  (`SandboxManager.forget`, "Phases and cancelling"). An injected sample's
+  entry (a `SampleSource` addition, or a sample sent to a creator-fed task)
+  goes earlier, where `task_run` already releases the sample itself: when
+  `note_injected_terminal` finds every epoch of it completed. An errored or
+  cancelled epoch keeps the entry, since a requeue runs it again; so a
+  long-lived task's map holds only its seed samples and the injected ones
+  still running or requeueable.
 - **Docker's `task_init_environment` values** reach Docker directly. A
   private `ContextVar` in `src/inspect_ai/util/_sandbox/setup.py` holds the
   key's `env` around the `task_init` call; Docker's `task_init` reads it and
@@ -839,11 +849,14 @@ restored afterwards. In place of the `chdir`:
   that overrides it gets its own values. Nothing is merged into other
   subprocesses.
 - **No other substitute.** `subprocess()` keeps its ordinary default `cwd`,
-  the process directory. Docker needs nothing more: its compose commands
-  already run in the compose file's directory, and with its config paths
-  resolved by Inspect, its remaining lookups (a relative build context with
-  no such directory under the task directory) run in the launch directory in
-  `task_init` as in `sample_init`.
+  the process directory. So Docker's setup subprocesses move from the task
+  directory to the launch directory, as its sample subprocesses already run.
+  That changes nothing they read: Compose resolves a compose file's own
+  paths (build contexts, `env_file`, `.env`) against the file's directory,
+  and Inspect hands Docker its config paths resolved. Its remaining lookups
+  (a relative build context with no such directory under the task
+  directory) run in the launch directory in `task_init` as in
+  `sample_init`.
 - **Third-party providers** run their task-level calls in the launch
   directory, with no flag to declare and no warning. For the surveyed
   providers:
@@ -1115,7 +1128,10 @@ test that waits on a run is bounded with `fail_after`.
   `ComposeBuild(dockerfile="Dockerfile")` (no context; a different
   `Dockerfile` in each directory), on a seed sample and on a sample a
   `SampleSource` adds, select the task directory's file in
-  `task_init_environment`, `task_init` and `sample_init`;
+  `task_init_environment`, `task_init` and `sample_init`; with a file-based
+  config beside the task and a conflicting `.env` and relative `env_file`
+  in both the task and the launch directory, `task_init` and `sample_init`
+  both get the values from the compose file's directory;
   the `SAMPLE_METADATA_*` values reach `compose build` through the project's
   `env`, and a Docker subclass overriding `task_init_environment` gets its own
   values there. One `--runslow` real-Docker test builds a Dockerfile task
@@ -1166,12 +1182,17 @@ test that waits on a run is bounded with `fail_after`.
   configs that end by finishing, by a cancel while queued, by a cancel while
   its own `SandboxManager.start` is held in metadata resolution (a
   metadata-bearing sample ahead of metadata-less ones, released after the
-  cancel), and by a final failed retry; a `weakref` to each ended task's `Task` and dataset is dead
-  after `gc.collect()`, while the sandbox configuration they set up is still
-  registered for the run's cleanup. Controls: a task still running and the
-  same `Task` run for a second model keep their cache hits (no second
-  resolution), and two tasks from different directories with the same
-  relative config resolve to different keys.
+  cancel), and by a final failed retry; a `weakref` to each ended task's
+  `Task` and dataset is dead after `gc.collect()`, while the sandbox
+  configuration they set up is still registered for the run's cleanup.
+  Controls: a task still running and the same `Task` run for a second model
+  keep their cache hits (no second resolution), and two tasks from different
+  directories with the same relative config resolve to different keys. A
+  `SampleSource` task that adds many sandbox samples one at a time keeps a
+  per-sample key map no larger than its seed plus the samples still
+  running; with `epochs=2` an injected sample's entry stays until both
+  epochs complete, and an errored epoch that is requeued still finds its
+  key.
 - `tests/test_enqueue_task.py` (loader exception): a solver's
   `enqueue_task("other_dir/tasks.py@name")`, whose module imports a sibling
   module and whose task reads a relative file at construction, adds and runs
