@@ -17,14 +17,14 @@ To select a model for an evaluation, pass it's name on the command line or use t
 
 ``` bash
 inspect eval arc.py --model openai/gpt-6-luna
-inspect eval arc.py --model anthropic/claude-sonnet-4-0
+inspect eval arc.py --model anthropic/claude-sonnet-5-5
 ```
 
 Or:
 
 ``` python
 eval("arc.py", model="openai/gpt-6-luna")
-eval("arc.py", model="anthropic/claude-sonnet-4-0")
+eval("arc.py", model="anthropic/claude-sonnet-5-5")
 ```
 
 Alternatively, you can set the `INSPECT_EVAL_MODEL` environment variable (either in the shell or a `.env` file) to select a model externally:
@@ -54,7 +54,7 @@ eval("arc.py", model=None)
 To evaluate several models with the same options, pass a comma-separated list:
 
 ``` bash
-inspect eval arc.py --model openai/gpt-6-luna,anthropic/claude-sonnet-4-0
+inspect eval arc.py --model openai/gpt-6-luna,anthropic/claude-sonnet-5-5
 ```
 
 To give each model its own options, use `--model-spec`. Each option holds one inline YAML or JSON mapping. A mapping takes the same fields as a [model role](#model-roles) — a required `model`, any generation config field, and `model_args` — plus a `base_url`:
@@ -94,7 +94,7 @@ export INSPECT_EVAL_MODEL_SPEC='{"model":"openai/gpt-6-luna","reasoning_effort":
 inspect eval arc.py \
     --model-spec '{model: openai/gpt-6-luna, reasoning_effort: low}' \
     --model-spec '{model: openai/gpt-6-luna, reasoning_effort: high}' \
-    --model-role grader=anthropic/claude-sonnet-4-0
+    --model-role grader=anthropic/claude-sonnet-5-5
 ```
 
 `inspect eval-set` accepts `--model-spec` as well. Task identity includes the model's generation config, so two specs for one model stay two units of work. Task identity does not include `base_url` or credential model args such as `api_key`, so an eval set rejects two specs that differ only in those as not distinct; give each spec a distinct generation config, or run them with `inspect eval` instead. See [Eval Sets](eval-sets.qmd).
@@ -310,7 +310,7 @@ eval(
         "grader": [
             "openai/gpt-6-luna",
             "google/gemini-2.0-flash",
-            "anthropic/claude-sonnet-4-0"
+            "anthropic/claude-sonnet-5-5"
         ]
     }
 )
@@ -320,7 +320,7 @@ Or equivalently on the CLI with comma-separated model names:
 
 ``` bash
 inspect eval math.py \
-    --model-role grader=openai/gpt-6-luna,google/gemini-2.0-flash,anthropic/claude-sonnet-4-0
+    --model-role grader=openai/gpt-6-luna,google/gemini-2.0-flash,anthropic/claude-sonnet-5-5
 ```
 
 When a list is bound to the role used by a [model-graded scorer](model-graded.qmd), each model grades independently and the final grade is chosen by majority vote (the same behaviour as passing a list of models to the scorer's `model` parameter). Prefer an odd number of graders: with an even-sized ensemble, a tied vote is resolved in favour of the earliest-listed model. Elsewhere, `get_model(role="...")` resolves to the first model in the list---use `model_roles()` (from `inspect_ai.model`) to access all of the models bound to a role. Note that a single-element list is equivalent to binding the single model directly.

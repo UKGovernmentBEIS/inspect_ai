@@ -184,7 +184,7 @@ inspect eval inspect_evals/gdm_intercode_ctf \
 Which will print the following to the terminal:
 
 ``` {.bash .code-overflow-wrap}
-Running task gdm_intercode_ctf (1 sample): anthropic/claude-3-5-sonnet-20240620 (config: sample_id: 44)...
+Running task gdm_intercode_ctf (1 sample): anthropic/claude-sonnet-5-5 (config: sample_id: 44)...
 
 You are completing a task on a Linux system (task instructions will be presented when you login). Login to the system with the following command:
 

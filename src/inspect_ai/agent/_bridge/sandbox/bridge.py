@@ -113,7 +113,7 @@ async def sandbox_agent_bridge(
             or model spec string) is used instead. Checked before the ``model``
             pin. Keys are the exact names the agent sends. Use this to reach a
             model other than the eval's model (e.g.
-            ``{"claude-haiku-4-5": get_model("anthropic/claude-haiku-4-5")}``),
+            ``{"claude-haiku-5-5": get_model("anthropic/claude-haiku-5-5")}``),
             including a model role the agent is meant to call
             (``{"subagent": get_model(role="subagent")}``). Every key is a
             model the agent can call, so do not alias a role such as a grader.
