@@ -202,7 +202,7 @@ async def test_server_tool_compaction_anthropic_web_search() -> None:
     """Test Anthropic native web_search tool compaction doesn't cause 400 errors."""
     tools = [_create_web_search_tool("anthropic")]
     await check_server_tool_compaction(
-        "anthropic/claude-sonnet-4-5",
+        "anthropic/claude-sonnet-5-5",
         tools=tools,
     )
 
@@ -241,7 +241,7 @@ async def test_server_tool_compaction_anthropic_with_thinking() -> None:
     """Test Anthropic server tool compaction combined with thinking compaction."""
     tools = [_create_web_search_tool("anthropic")]
     await check_server_tool_compaction(
-        "anthropic/claude-sonnet-4-5",
+        "anthropic/claude-sonnet-4-6",
         tools=tools,
         config=GenerateConfig(reasoning_tokens=2000),
     )

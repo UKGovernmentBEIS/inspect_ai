@@ -1130,14 +1130,14 @@ def test_responses_bridge_computer_use_incompatible_model():
 # Run the bridge on two models to keep reasoning coverage current. Anthropic
 # removed extended thinking with an explicit token budget (`thinking.budget_tokens`)
 # at Claude 4.7, so no single model exercises both paths:
-#   - claude-sonnet-4-5 (pre-4.7): request reasoning depth via a thinking token
+#   - claude-sonnet-4-6 (pre-4.7): request reasoning depth via a thinking token
 #     budget; the bridge maps `thinking.budget_tokens` -> `reasoning_tokens`.
 #   - claude-sonnet-5 (4.7+): a budget is rejected, so request depth via
 #     `output_config={"effort": ...}`; the bridge maps it -> `effort`.
 @pytest.mark.parametrize(
     "model, reasoning",
     [
-        ("anthropic/claude-sonnet-4-5", "budget"),
+        ("anthropic/claude-sonnet-4-6", "budget"),
         ("anthropic/claude-sonnet-5", "effort"),
     ],
 )
@@ -1152,9 +1152,9 @@ def test_bridged_agent_anthropic(model: str, reasoning: Literal["budget", "effor
 @skip_if_no_anthropic
 def test_bridged_agent_anthropic_tools():
     log_json = eval_bridged_task(
-        "anthropic/claude-sonnet-4-5", agent=anthropic_agent(True)
+        "anthropic/claude-sonnet-5-5", agent=anthropic_agent(True)
     )
-    check_anthropic_bridge_log_json(log_json, "anthropic/claude-sonnet-4-5", tools=True)
+    check_anthropic_bridge_log_json(log_json, "anthropic/claude-sonnet-5-5", tools=True)
 
 
 def test_anthropic_bridge_forwards_extra_body_sampling_params():
@@ -1202,7 +1202,7 @@ def test_anthropic_bridge_forwards_extra_body_sampling_params():
 def test_bridged_web_search_tool_anthropic():
     log = eval(
         web_search_task(anthropic_web_search_agent()),
-        model="anthropic/claude-sonnet-4-5",
+        model="anthropic/claude-sonnet-5-5",
     )[0]
     log_json = log.model_dump_json(exclude_none=True, indent=2)
     assert '"max_uses": 5' in log_json
@@ -1265,7 +1265,7 @@ def test_bridged_forced_web_search_filtering_version(
 def test_bridged_code_execution_tool_anthropic():
     log = eval(
         code_execution_task(anthropic_code_execution_agent()),
-        model="anthropic/claude-sonnet-4-5",
+        model="anthropic/claude-sonnet-5-5",
     )[0]
     check_server_tool_use(log, "code_execution")
 
@@ -1275,7 +1275,7 @@ def test_bridged_code_execution_tool_anthropic():
 def test_bridged_web_search_tool_openai_to_anthropic():
     log = eval(
         web_search_task(responses_web_search_agent()),
-        model="anthropic/claude-sonnet-4-5",
+        model="anthropic/claude-sonnet-5-5",
     )[0]
     check_server_tool_use(log, "web_search")
 
@@ -1297,7 +1297,7 @@ def test_bridged_web_search_tool_anthropic_to_openai():
 def test_bridged_code_execution_tool_openai_to_anthropic():
     log = eval(
         code_execution_task(responses_code_interpreter_agent()),
-        model="anthropic/claude-sonnet-4-5",
+        model="anthropic/claude-sonnet-5-5",
     )[0]
     check_server_tool_use(log, "code_execution")
 
@@ -1332,7 +1332,7 @@ def check_server_tool_use(log: EvalLog, tool_name: str):
 
 
 def check_anthropic_log_json(log_json: str):
-    assert r'"model": "anthropic/claude-sonnet-4-5"' in log_json
+    assert r'"model": "anthropic/claude-sonnet-5-5"' in log_json
     assert r'"temperature": 0.8' in log_json
     assert dedent("""
     "stop_sequences": [
@@ -1434,7 +1434,7 @@ def test_google_bridge_streaming_not_supported():
 @skip_if_no_openai
 def test_anthropic_bridged_agent():
     log_json = eval_bridged_task(
-        "anthropic/claude-sonnet-4-5", agent=completions_agent(False)
+        "anthropic/claude-sonnet-5-5", agent=completions_agent(False)
     )
     check_anthropic_log_json(log_json)
 
@@ -1455,7 +1455,7 @@ def test_bridged_agent_context():
     logs = eval(
         [bridged_task(agent=completions_agent(False)), openai_api_task()],
         max_tasks=2,
-        model="anthropic/claude-sonnet-4-5",
+        model="anthropic/claude-sonnet-5-5",
     )
     for log in logs:
         assert log.status == "success"
