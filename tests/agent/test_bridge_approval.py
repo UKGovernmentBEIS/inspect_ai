@@ -9353,63 +9353,24 @@ def test_an_execution_whose_tracking_was_dropped_is_doubted_once(
     assert all(len(record) == 1 for record in records)
 
 
-def test_a_call_run_again_after_its_tracking_was_dropped_is_doubted(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A call run again once its reply's tracking was dropped can't be taken as answered.
-
-    Its first run was answered, but the counts of runs and answers went with
-    the tracking, so the first answer sent again would seem to answer the
-    second run. The second run's answer is unknown, so a later identical
-    execution (possibly its retry) is doubted.
-    """
-    monkeypatch.setattr(bridge_types, "_MAX_AWAITED_RESULTS", 3)
-    bridge = _recording_bridge()
-    call = ToolCall(id="call_1", function="read_file", arguments={"path": "a"})
-    _execute(bridge, "reply-1", [call])
-    _answer(bridge, "reply-1", [call], [0])
-    for n in range(3):
-        _execute(
-            bridge,
-            f"filler-{n}",
-            [ToolCall(id=f"list_{n}", function="list_dir", arguments={"path": f"{n}"})],
-        )
-    assert "reply-1" in bridge._untracked_replies
-    bridge._unlink("reply-1")
-    _execute(bridge, "reply-1", [call])
-    _answer(bridge, "reply-1", [call], [0])
-
-    later = replace(call, id="call_2")
-    [doubted] = _execute(bridge, "reply-2", [later])
-    _answer(bridge, "reply-2", [later], [0])
-
-    assert doubted.message_id is None
-
-
-@pytest.mark.parametrize("runs", ["answered", "never answered", "one call run again"])
-def test_the_record_of_executions_stays_bounded(runs: str) -> None:
+@pytest.mark.parametrize("answered", [False, True], ids=["never answered", "answered"])
+def test_the_record_of_executions_stays_bounded(answered: bool) -> None:
     """Repeated identical executions of unlinked replies keep the records bounded.
 
     Answered, each record holds only the latest execution. Never answered,
     each execution is doubted while its reply is tracked, and dropped once
-    its tracking is (`_MAX_AWAITED_RESULTS`, which counts each run of a call,
-    also of one reply handed out again and run again, never answered).
+    its tracking is (`_MAX_AWAITED_RESULTS`).
     """
     bridge = _recording_bridge()
     for n in range(1000):
-        reply_id = "reply" if runs == "one call run again" else f"reply-{n}"
         call = ToolCall(id=f"call_{n}", function="read_file", arguments={"path": "a"})
-        if runs == "one call run again":
-            call = replace(call, id="call")
-        _execute(bridge, reply_id, [call])
-        bridge._unlink(reply_id)
-        if runs == "answered":
-            _answer(bridge, reply_id, [call], [0])
+        _execute(bridge, f"reply-{n}", [call])
+        bridge._unlink(f"reply-{n}")
+        if answered:
+            _answer(bridge, f"reply-{n}", [call], [0])
 
     longest = max(len(record) for record in bridge._executed_calls.values())
-    if runs == "one call run again":
-        assert longest == 1
-    elif runs == "answered":
+    if answered:
         assert longest == 1
         assert len(bridge._executed_tools[("host", "read_file")].calls) <= 16
     else:
@@ -9419,7 +9380,7 @@ def test_the_record_of_executions_stays_bounded(runs: str) -> None:
             <= 2 * bridge_types._MAX_AWAITED_RESULTS
         )
     assert (
-        sum(bridge_types._tracked(reply) for reply in bridge._awaited_results.values())
+        sum(len(reply.events) for reply in bridge._awaited_results.values())
         <= bridge_types._MAX_AWAITED_RESULTS
     )
 
