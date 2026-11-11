@@ -46,7 +46,7 @@ if TYPE_CHECKING:
     # initializing. Same reason `model/_call_tools.py` defers it.
     from inspect_ai.approval._policy import ApprovalPolicy
 
-    from .._sentinel import SentinelCheck
+    from .._sentinel import Handout, SentinelCheck
 
 
 logger = getLogger(__name__)
@@ -108,7 +108,7 @@ class SandboxAgentBridge(AgentBridge):
         self._tool_execution_grants: deque[_ToolExecutionGrant] = deque(
             maxlen=_MAX_TOOL_EXECUTION_GRANTS
         )
-        self._executed_calls: dict[tuple[str, str, str], list[_HandedCall]] = {}
+        self._executed_calls: dict[tuple[str, str, str], list[_Executed]] = {}
         """Per (server, tool, argument key), the calls an execution consumed a grant of, unless settled since (`_record_execution`)."""
         self._executed_tools: dict[tuple[str, str], _ExecutedTool] = {}
         """Per (server, tool), the calls an execution consumed a grant of, settled ones pruned (`_record_execution`)."""
@@ -370,12 +370,14 @@ class SandboxAgentBridge(AgentBridge):
                 proposal.ambiguous = True
                 if proposal.reply is not None:
                     self._unlink(proposal.reply.reply.id)
-        handouts: dict[tuple[str, str], ToolCall] = {}
-        for candidate in matched:
-            if candidate.check is not None:
-                handed = candidate.check.handed
-                handouts.setdefault(self._handouts.handout(handed), handed)
-        self._contest(handouts, proposals)
+        self._contest(
+            {
+                self._handouts.handout(candidate.check.handed)
+                for candidate in matched
+                if candidate.check is not None
+            },
+            proposals,
+        )
         grant = self._tool_execution_grants[matches[0]]
         del self._tool_execution_grants[matches[0]]
         self._record_execution(grant)
@@ -412,9 +414,7 @@ class SandboxAgentBridge(AgentBridge):
         return exact, projected
 
     def _contest(
-        self,
-        handouts: dict[tuple[str, str], ToolCall],
-        proposals: Sequence["_Proposal"],
+        self, handouts: set["Handout"], proposals: Sequence["_Proposal"]
     ) -> None:
         """Record that an execution of a grant of `proposals` may be any of `handouts`.
 
@@ -444,7 +444,7 @@ class SandboxAgentBridge(AgentBridge):
         """
         if len(handouts) < 2:
             return
-        self._handouts.contest(handouts.values())
+        self._handouts.contest(handouts)
         members = list({id(proposal): proposal for proposal in proposals}.values())
         latest = members[0].contests[-1] if members[0].contests else None
         if (
@@ -452,29 +452,27 @@ class SandboxAgentBridge(AgentBridge):
             and all(
                 member.contests and member.contests[-1] is latest for member in members
             )
-            and handouts.keys() <= latest.handouts.keys()
+            and handouts <= latest.handouts
         ):
             return
         contest = _Contest(handouts)
         for member in members:
             member.contests.append(contest)
 
-    def result_executions(self, grant: "_ToolExecutionGrant") -> list[ToolCall]:
-        """The handed calls a result of the host call that consumed `grant` is recorded as checked for.
+    def result_executions(self, grant: "_ToolExecutionGrant") -> list["Handout"]:
+        """The handouts a result of the host call that consumed `grant` is recorded as checked for.
 
         Each handout its proposal was contested with (`_contest`), or else the
         grant's own.
         """
         contests = grant.proposal.contests
         if not contests:
-            return [grant.check.handed] if grant.check is not None else []
-        if len(contests) == 1:
-            return list(contests[0].handouts.values())
-        calls: dict[tuple[str, str], ToolCall] = {}
-        for contest in contests:
-            for handout, call in contest.handouts.items():
-                calls.setdefault(handout, call)
-        return list(calls.values())
+            return (
+                [self._handouts.handout(grant.check.handed)]
+                if grant.check is not None
+                else []
+            )
+        return list(set().union(*(contest.handouts for contest in contests)))
 
     def unlink_denied_call(
         self, server: str, tool: str, arguments: dict[str, Any] | None
@@ -503,9 +501,9 @@ class SandboxAgentBridge(AgentBridge):
             self._executed_tools.pop((server, tool), _ExecutedTool()).calls
             if keys is None
             else [
-                handed
+                execution.handed
                 for key in keys
-                for handed in self._executed_calls.pop((server, tool, key), [])
+                for execution in self._executed_calls.pop((server, tool, key), [])
             ]
         )
         for handed in executed:
@@ -538,15 +536,18 @@ class SandboxAgentBridge(AgentBridge):
           running, unlinks its reply and this one's: this execution may be
           a client's retry of that call (after losing its response), taking
           a later proposal's identical grant, so either answer may hold
-          either result. An earlier execution already settled (its answer
-          linked, or left unlinked) is final and is dropped from the record.
+          either result. For the same reason its handout and this one's are
+          contested (`_contest`), so that neither result gets a proposal's
+          context and this one's is recorded as checked for either. An
+          earlier execution already settled (its answer linked, or left
+          unlinked) is final and is dropped from the record.
         - The call is recorded for `unlink_denied_call`.
 
         Each recorded call is dropped once scanned or unlinked, and the
         per-tool record drops settled calls each time it doubles, so it stays
         within twice the calls of the tool still running or awaiting answers
         and the work is amortized constant per execution. Reply ids,
-        positions and argument hashes only, like the message pool.
+        positions, handouts and argument hashes only, like the message pool.
         """
         reply = grant.proposal.reply
         if reply is None:
@@ -554,18 +555,30 @@ class SandboxAgentBridge(AgentBridge):
         if grant.proposal.executions > 0:
             self._unlink(reply.reply.id)
         keys = self._call_keys(grant.server, grant.tool, grant.arguments)
+        handout = (
+            self._handouts.handout(grant.check.handed)
+            if grant.check is not None
+            else None
+        )
+        doubted: set[Handout] = set()
         doubt = False
         for key in keys:
             for earlier in self._executed_calls.pop(
                 (grant.server, grant.tool, key), []
             ):
-                if self._unsettled(earlier):
-                    self._unlink(earlier.reply.id)
+                if self._unsettled(earlier.handed):
+                    self._unlink(earlier.handed.reply.id)
                     doubt = True
+                    if earlier.handout is not None:
+                        doubted.add(earlier.handout)
         if doubt:
             self._unlink(reply.reply.id)
+            if handout is not None:
+                self._contest(doubted | {handout}, [grant.proposal])
         for key in keys:
-            self._executed_calls[(grant.server, grant.tool, key)] = [reply]
+            self._executed_calls[(grant.server, grant.tool, key)] = [
+                _Executed(reply, handout)
+            ]
         executed = self._executed_tools.setdefault(
             (grant.server, grant.tool), _ExecutedTool()
         )
@@ -756,9 +769,19 @@ class _Contest:
 
     __slots__ = ("handouts",)
 
-    def __init__(self, handouts: dict[tuple[str, str], ToolCall]) -> None:
+    def __init__(self, handouts: set["Handout"]) -> None:
         self.handouts = handouts
-        """Each handout (`_Handouts.handout`), with its call as handed."""
+        """The handouts (`_Handouts.handout`)."""
+
+
+class _Executed(NamedTuple):
+    """An execution `_record_execution` recorded."""
+
+    handed: _HandedCall
+    """The call in the reply it executed a grant of."""
+
+    handout: "Handout | None"
+    """The handout of that call it executed, with a sentinel."""
 
 
 _MIN_EXECUTED_TOOL_FLOOR = 8

@@ -66,7 +66,7 @@ from inspect_ai.agent._acp.transport import AcpUpdate
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._bridge._approval import MAX_CONSECUTIVE_REJECTIONS
-from inspect_ai.agent._bridge._sentinel import BridgedRequest, SentinelCheck
+from inspect_ai.agent._bridge._sentinel import BridgedRequest, Handout, SentinelCheck
 from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
 from inspect_ai.agent._bridge.bridge import agent_bridge
 from inspect_ai.agent._bridge.completions import inspect_completions_api_request
@@ -6765,6 +6765,165 @@ async def test_host_results_two_conversations_could_have_run_get_no_proposal(
             assert after.tools is None and after.tool_choice is None
 
 
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("competitor", ["exact", "summary"])
+@pytest.mark.parametrize(
+    "shape",
+    [
+        "retry while running",
+        "retry after lost response",
+        "no retry",
+        "answered before the identical call",
+    ],
+)
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_retry_taking_a_later_conversations_identical_grant_gets_no_proposal(
+    dialect: HostDialect, shape: str, competitor: str
+) -> None:
+    """A main conversation's retry consumes a sub-agent's sole identical grant.
+
+    The main call executes; before its answer arrives, a sub-agent is handed
+    the same call under another id (with `summary`, carrying a `toolSummary`
+    its scaffold drops), and the main client retries, still running or after
+    losing the response. The retry takes the sub-agent's grant, and the same
+    host calls are what the sub-agent running its own call would send, so
+    the retry's result, and a result completing after it started, is checked
+    with no proposal's context, and main's report of the retry's result is
+    not checked again (a Google result is a JSON object, so its report is a
+    changed result, checked with no proposal's context). With no retry, or
+    the main answer arriving before the identical call executes, each result
+    gets its own proposal's context.
+    """
+    main_call = ToolCall(id="main", function="read_file", arguments={"path": "p"})
+    sub_call = ToolCall(
+        id="sub",
+        function="read_file",
+        arguments={"path": "p", "toolSummary": "Read p"}
+        if competitor == "summary"
+        else {"path": "p"},
+    )
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    answered_first = shape == "answered before the identical call"
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(main_call),
+            done,
+            tool_calls_output(sub_call),
+            done,
+        ]
+        if answered_first
+        else [tool_calls_output(main_call), tool_calls_output(sub_call), done, done],
+    )
+    running = shape == "retry while running"
+    started, release = anyio.Event(), anyio.Event()
+    count = 0
+
+    async def read(path: str) -> str:
+        nonlocal count
+        count += 1
+        number = count
+        if number == 1:
+            started.set()
+            if running:
+                await release.wait()
+        return f"contents {number}"
+
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={"host": {"read_file": read_file(AsyncMock(side_effect=read))}},
+    )
+    [info] = declare("read_file")
+    main = _HostConversation(dialect, "MAIN read p.", info)
+    sub = _HostConversation(dialect, "SUB read p.", info)
+    seen: list[AfterToolCall] = []
+    first_output: list[JsonValue] = []
+
+    async def original() -> None:
+        first_output.append(
+            await call_host_tool(bridge)("host", "read_file", {"path": "p"})
+        )
+
+    async def then() -> tuple[list[tuple[str, Any]], JsonValue]:
+        if answered_first:
+            main.results(main_calls, first_output)
+            await main.request(bridge)
+        sub_calls = await sub.request(bridge)
+        if shape == "no retry":
+            return sub_calls, None
+        # main's retry, or the sub-agent's scaffold running its own call
+        # (without the `toolSummary`)
+        return sub_calls, await call_host_tool(bridge)(
+            "host", "read_file", {"path": "p"}
+        )
+
+    with active_test_sentinel(record_tool_results(seen)):
+        main_calls = await main.request(bridge)
+        if running:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(original)
+                await started.wait()
+                sub_calls, second_output = await then()
+                release.set()
+        else:
+            await original()
+            sub_calls, second_output = await then()
+        executed = list(seen)
+        if answered_first:
+            sub.results(sub_calls, [second_output])
+            await sub.request(bridge)
+        else:
+            main.results(
+                main_calls,
+                [first_output[0] if shape == "no retry" else second_output],
+            )
+            await main.request(bridge)
+        reported = seen[len(executed) :]
+
+    inputs = [
+        [m.text for m in after.input] if after.input is not None else None
+        for after in executed
+    ]
+    if shape == "no retry":
+        assert inputs == [["MAIN read p."]]
+    elif answered_first:
+        # Google's changed report of main's result is checked before the
+        # sub-agent's call runs
+        assert inputs == [["MAIN read p."]] * (1 + (dialect == "google")) + [
+            ["SUB read p."]
+        ]
+    else:
+        assert len(executed) == 2
+        by_result = {after.result.text: after for after in executed}
+        retried = by_result["contents 2"]
+        assert retried.input is None
+        assert retried.message_id == ""
+        assert retried.tools is None and retried.tool_choice is None
+        first = by_result["contents 1"]
+        if running:
+            assert first.input is None
+            assert first.message_id == ""
+        else:
+            assert first.input is not None
+            assert [m.text for m in first.input] == ["MAIN read p."]
+    if dialect != "google":
+        assert reported == []
+    else:
+        assert len(reported) == 1
+        [after] = reported
+        if shape.startswith("retry"):
+            assert after.input is None
+            assert after.tools is None and after.tool_choice is None
+        else:
+            assert after.input is not None
+
+
 @pytest.mark.parametrize("calls", [16, 32, 64, 128])
 def test_contesting_identical_pending_calls_is_linear_in_their_grants(
     calls: int, monkeypatch: pytest.MonkeyPatch
@@ -6804,7 +6963,7 @@ def test_contesting_identical_pending_calls_is_linear_in_their_grants(
     written = 0
 
     class CountingContest(sandbox_types._Contest):
-        def __init__(self, handouts: dict[tuple[str, str], ToolCall]) -> None:
+        def __init__(self, handouts: set[Handout]) -> None:
             nonlocal written
             written += len(handouts)
             super().__init__(handouts)
@@ -6829,7 +6988,7 @@ def test_contesting_identical_pending_calls_is_linear_in_their_grants(
         bridge.consume_tool_execution_grant("host", "read_file", {"path": "p"})
     assert (written, memberships(), scans) == (calls, calls, 1)
     assert all(
-        {call.id for call in bridge.result_executions(grant)}
+        {handout.id for handout in bridge.result_executions(grant)}
         == {call.id for call in handed}
         for grant in grants
     )

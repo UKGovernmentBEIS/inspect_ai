@@ -118,6 +118,22 @@ class SentinelCheck(NamedTuple):
     """The bridged tool the check is for, or None for a call no bridged tool serves."""
 
 
+class Handout(NamedTuple):
+    """A call as handed to the scaffold, an execution of its own (`_Handouts.handout`).
+
+    Ids and a hash only, so a record of executions can keep it.
+    """
+
+    id: str
+    """The call's id."""
+
+    call: str
+    """The call as handed (`_call_key`)."""
+
+    function: str
+    """The function it was handed under."""
+
+
 class BridgedRequest(NamedTuple):
     """A scaffold request, as the bridge tells calls apart by it."""
 
@@ -454,8 +470,8 @@ class _Handouts:
                 read_back=(*record.read_back, (back_key, key))
             )
 
-    def contest(self, calls: Iterable[ToolCall]) -> None:
-        """Make the handed `calls` ambiguous: a host execution may be any of their handouts.
+    def contest(self, handouts: Iterable[Handout]) -> None:
+        """Make the calls of `handouts` ambiguous: a host execution may be any of them.
 
         A host call carries no call id, so this is how an execution matching
         proposals of several handouts is recorded. As for a call handed over
@@ -465,7 +481,7 @@ class _Handouts:
         the calls made ambiguous, if any.
         """
         contested: set[str] = set()
-        for call_id in {call.id for call in calls}:
+        for call_id in {handout.id for handout in handouts}:
             handed = self.handed.get(call_id)
             if handed is None or handed.ambiguous:
                 continue
@@ -475,9 +491,9 @@ class _Handouts:
             for stale in [k for k in self.proposals if k[0] in contested]:
                 del self.proposals[stale]
 
-    def handout(self, call: ToolCall) -> tuple[str, str]:
+    def handout(self, call: ToolCall) -> Handout:
         """The handout a handed `call` is of: its id and the call as handed (`_call_key`)."""
-        return (call.id, _call_key(call))
+        return Handout(call.id, _call_key(call), call.function)
 
     def latest(self, check: SentinelCheck) -> SentinelCheck | None:
         """The check for the latest handout of `check`'s call, with its handed arguments, and target.
@@ -493,7 +509,7 @@ class _Handouts:
         handed = self.handed.get(check.handed.id)
         if handed is not None and handed.ambiguous:
             return None
-        proposal = self.proposals.get(self.handout(check.handed))
+        proposal = self.proposals.get((check.handed.id, _call_key(check.handed)))
         if proposal is None:
             return check
         return next(
@@ -506,13 +522,13 @@ class _Handouts:
             check,
         )
 
-    def result_keys(self, call: ToolCall, content_key: str) -> list[str]:
-        """The keys a result of the handed `call` with `content_key` is checked under."""
-        key = _call_key(call)
+    def result_keys(self, handout: Handout, content_key: str) -> list[str]:
+        """The keys a result of `handout` with `content_key` is checked under."""
+        key = handout.call
         keys = [_digest(["call", key, content_key])]
-        handed = self.handed.get(call.id)
+        handed = self.handed.get(handout.id)
         if handed is not None and handed.proposed is not None:
-            keys.insert(0, _handout_key(call.id, handed.proposed, key, content_key))
+            keys.insert(0, _handout_key(handout.id, handed.proposed, key, content_key))
         return keys
 
     def claim(self, input: list[ChatMessage]) -> _Claimed:
@@ -861,14 +877,14 @@ async def sentinel_host_tool_result(
     output: ToolResult,
     error: ToolCallError | None = None,
     truncated: tuple[int, int] | Literal[False] = False,
-    candidates: Sequence[ToolCall] = (),
+    candidates: Sequence[Handout] = (),
 ) -> None:
     """Check a host call's result as delivered, recording it for its executions.
 
     The result is recorded as checked for the call, or, for a call that
-    matched proposals of several calls (`candidates`, those calls as handed,
-    when the service can't tell which execution it is), for each of them, so
-    the scaffold reporting it is not checked again. A host call no proposal accounts for was handed over
+    matched proposals of several calls (`candidates`, when the service can't
+    tell which execution it is), for each of them, so the scaffold reporting
+    it is not checked again. A host call no proposal accounts for was handed over
     as no call, so no result the scaffold reports can match it.
 
     The call is the bridged scaffold's, so the check does not see the enclosing
@@ -882,7 +898,9 @@ async def sentinel_host_tool_result(
         error=error,
     )
     executions = candidates or (
-        [check.handed] if check.execution_id is not None else []
+        [bridge._handouts.handout(check.handed)]
+        if check.execution_id is not None
+        else []
     )
     keys: list[str] = []
     content_keys: dict[str, str] = {}
