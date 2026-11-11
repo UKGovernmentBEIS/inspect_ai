@@ -1020,8 +1020,11 @@ _ASK_MODEL = "Ask the model."
 _HostToolCall = Literal["generate", "compact", "nested", "none"]
 
 
-def _ask_model_request(count: int) -> dict[str, JsonValue]:
-    """A chat completion request of `count` user messages declaring `ask_model`."""
+def _ask_model_request(count: int, declare: bool = True) -> dict[str, JsonValue]:
+    """A chat completion request of `count` user messages, declaring `ask_model` with `declare`.
+
+    A call to an undeclared tool denotes no host tool, so it grants no execution.
+    """
     return {
         "model": "inspect",
         "messages": [{"role": "user", "content": "Use the tool."}] * count,
@@ -1034,7 +1037,9 @@ def _ask_model_request(count: int) -> dict[str, JsonValue]:
                     "parameters": {"type": "object", "properties": {}},
                 },
             }
-        ],
+        ]
+        if declare
+        else [],
     }
 
 
@@ -1118,7 +1123,8 @@ async def test_host_tool_makes_no_model_call_once_a_limit_is_recorded(
     limit, which the bridge records. The tool's generation, native compaction
     or nested bridge's generation then makes no provider call, and the
     scaffold gets the limit as a tool error. A tool that makes no model call
-    still runs.
+    still runs. On a server that requires no proposal, the tool is not
+    declared, so nothing is granted, and it is called twice.
     """
     calls: list[str] = []
 
@@ -1142,18 +1148,22 @@ async def test_host_tool_makes_no_model_call_once_a_limit_is_recorded(
     )
     limit = make_limit()
     with limit:
-        assert PROVIDER_ERROR_KEY not in await generate(_ask_model_request(1))
-        assert PROVIDER_ERROR_KEY in await generate(_ask_model_request(messages))
+        first = _ask_model_request(1, declare=require_proposal)
+        assert PROVIDER_ERROR_KEY not in await generate(first)
+        later = _ask_model_request(messages, declare=require_proposal)
+        assert PROVIDER_ERROR_KEY in await generate(later)
         recorded = bridge.generation_limit
         assert recorded is not None and recorded.source is limit
+        assert len(bridge._tool_execution_grants) == (1 if require_proposal else 0)
         generations = list(calls)
 
         execute = bridge_service.call_tool(bridge)
-        if call == "none":
-            assert await execute("host", "ask_model", {}) == "ran"
-        else:
-            with pytest.raises(ToolError, match=f"{recorded.type} limit"):
-                await execute("host", "ask_model", {})
+        for _ in range(1 if require_proposal else 2):
+            if call == "none":
+                assert await execute("host", "ask_model", {}) == "ran"
+            else:
+                with pytest.raises(ToolError, match=f"{recorded.type} limit"):
+                    await execute("host", "ask_model", {})
 
     assert calls == generations
     assert bridge.generation_limit is recorded
