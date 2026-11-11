@@ -7219,6 +7219,218 @@ async def test_a_repeated_host_call_keeps_its_context_between_another_agents_req
     }
 
 
+async def _provider_parsed_reads(
+    dialect: HostDialect, paths: Sequence[str], generation: int, google_ids: bool
+) -> ModelOutput:
+    """A generation of parallel `read_file` calls of `paths`, parsed by the dialect's provider.
+
+    Each provider keeps what it parses: Google an anchor per call, signed
+    for the first call only (unsigned anchors are dropped on the wire), with
+    the parse making the ids unless `google_ids` (the Gemini API sends none,
+    Vertex AI sends them); Anthropic a signed thinking block; Responses a
+    reasoning item and item ids.
+    """
+    reads = [(f"g{generation}_{i}", {"path": path}) for i, path in enumerate(paths)]
+    match dialect:
+        case "completions":
+            from inspect_ai.model import model_output_from_openai
+
+            return await model_output_from_openai(
+                {
+                    "id": f"chatcmpl-{generation}",
+                    "object": "chat.completion",
+                    "created": 0,
+                    "model": "mockllm/model",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "finish_reason": "tool_calls",
+                            "message": {
+                                "role": "assistant",
+                                "content": None,
+                                "tool_calls": [
+                                    {
+                                        "id": f"call_{id}",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "read_file",
+                                            "arguments": json.dumps(arguments),
+                                        },
+                                    }
+                                    for id, arguments in reads
+                                ],
+                            },
+                        }
+                    ],
+                }
+            )
+        case "responses":
+            from openai.types.responses import Response
+
+            from inspect_ai.model import model_output_from_openai_responses
+
+            return await model_output_from_openai_responses(
+                Response.model_validate(
+                    {
+                        "id": f"resp_{generation}",
+                        "created_at": 0,
+                        "model": "mockllm/model",
+                        "object": "response",
+                        "output": [
+                            {
+                                "type": "reasoning",
+                                "id": f"rs_{generation}",
+                                "summary": [],
+                                "encrypted_content": "ZW5j",
+                            },
+                            *(
+                                {
+                                    "type": "function_call",
+                                    "id": f"fc_{id}",
+                                    "call_id": f"call_{id}",
+                                    "name": "read_file",
+                                    "arguments": json.dumps(arguments),
+                                    "status": "completed",
+                                }
+                                for id, arguments in reads
+                            ),
+                        ],
+                        "parallel_tool_calls": True,
+                        "tool_choice": "auto",
+                        "tools": [],
+                    }
+                )
+            )
+        case "anthropic":
+            from anthropic.types import Message
+
+            from inspect_ai.model._providers.anthropic import model_output_from_message
+
+            output, _ = await model_output_from_message(
+                None,
+                None,
+                Message.model_validate(
+                    {
+                        "id": f"msg_{generation}",
+                        "type": "message",
+                        "role": "assistant",
+                        "model": "claude-sonnet-4-5",
+                        "content": [
+                            {"type": "thinking", "thinking": "t", "signature": "c2ln"},
+                            *(
+                                {
+                                    "type": "tool_use",
+                                    "id": f"toolu_{id}",
+                                    "name": "read_file",
+                                    "input": arguments,
+                                }
+                                for id, arguments in reads
+                            ),
+                        ],
+                        "stop_reason": "tool_use",
+                        "stop_sequence": None,
+                        "usage": {"input_tokens": 1, "output_tokens": 1},
+                    }
+                ),
+                declare("read_file"),
+            )
+            return output
+        case "google":
+            from google.genai.types import (
+                Candidate,
+                Content,
+                FinishReason,
+                FunctionCall,
+                Part,
+            )
+
+            from inspect_ai.model._providers.google import (
+                completion_choice_from_candidate,
+            )
+
+            choice = completion_choice_from_candidate(
+                "gemini-3-flash-preview",
+                Candidate(
+                    content=Content(
+                        role="model",
+                        parts=[
+                            Part(
+                                function_call=FunctionCall(
+                                    id=id if google_ids else None,
+                                    name="read_file",
+                                    args=arguments,
+                                ),
+                                thought_signature=b"signature" if i == 0 else None,
+                            )
+                            for i, (id, arguments) in enumerate(reads)
+                        ],
+                    ),
+                    finish_reason=FinishReason.STOP,
+                ),
+            )
+            return ModelOutput(model="mockllm/model", choices=[choice])
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize(
+    ("dialect", "google_ids"),
+    [
+        ("completions", False),
+        ("responses", False),
+        ("anthropic", False),
+        ("google", False),
+        ("google", True),
+    ],
+)
+async def test_a_provider_parsed_parallel_call_repeated_keeps_its_context(
+    dialect: HostDialect, google_ids: bool
+) -> None:
+    """A conversation's provider-parsed reply makes parallel calls, then the next reply repeats one.
+
+    The scaffold sends each reply back unchanged, in its dialect's wire
+    form, which may drop what the provider's parse kept (Google drops the
+    unsigned call anchors). The repeat continues the same conversation, so
+    its result keeps its context.
+    """
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+
+    init_sample_assistant_internal()
+    generations: list[Callable[[], Awaitable[ModelOutput]]] = [
+        partial(_provider_parsed_reads, dialect, ["p", "q"], 1, google_ids),
+        partial(_provider_parsed_reads, dialect, ["p"], 2, google_ids),
+    ]
+    count = 0
+
+    async def respond(*_: Any) -> ModelOutput:
+        nonlocal count
+        count += 1
+        if count > len(generations):
+            return ModelOutput.from_content("mockllm/model", "Done.")
+        return await generations[count - 1]()
+
+    model = get_model("mockllm/model", custom_outputs=respond, memoize=False)
+    bridge = _counted_host_bridge(model)
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read p and q.", info)
+    seen: list[AfterToolCall] = []
+    run = call_host_tool(bridge)
+
+    with active_test_sentinel(record_tool_results(seen)):
+        calls = await conversation.request(bridge)
+        conversation.results(
+            calls,
+            [await run("host", "read_file", arguments) for _, arguments in calls],
+        )
+        calls = await conversation.request(bridge)
+        assert [arguments for _, arguments in calls] == [{"path": "p"}]
+        await run("host", "read_file", {"path": "p"})
+
+    inputs = _inputs(seen)
+    assert inputs["contents 1"] == inputs["contents 2"] == ["Read p and q."]
+    assert (inputs["contents 3"] or [])[:1] == ["Read p and q."]
+    assert len(inputs["contents 3"] or []) == 4
+
+
 @pytest.mark.usefixtures("fake_sentinel")
 @pytest.mark.parametrize("shape", ["distinct replies", "cached reply, then diverged"])
 @pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])

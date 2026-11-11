@@ -189,9 +189,15 @@ async def inspect_google_api_request_impl(
         output, model.api.model_name, call_ids=call_ids
     )
     debug_log("SCAFFOLD RESPONSE", response)
-    # re-parse the JSON the client receives (e.g. integer argument keys become strings)
+    # re-parse the JSON the client receives (e.g. integer argument keys become
+    # strings) as a later request's history is parsed, so an unchanged echo
+    # matches it
     wire_content = json.loads(json.dumps(response["candidates"][0]["content"]))
-    transported = messages_from_google_contents([wire_content], None)
+    transported = messages_from_google_contents(
+        [wire_content],
+        None,
+        handed=bridge._handouts.function if call_ids else None,
+    )
 
     # update state if we have more messages than the last generation
     await bridge._track_state(messages, output, [transported])
