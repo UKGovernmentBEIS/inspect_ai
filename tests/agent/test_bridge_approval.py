@@ -7385,6 +7385,233 @@ async def test_reporting_many_calls_sharing_a_handed_id_is_linear(
     assert large <= 12 * small, (small, large)
 
 
+def _change_reply_calls(conversation: _HostConversation, change: str) -> None:
+    """Change every call of the conversation's last reply as a scaffold rewriting its history would: each `edited` (an argument added), or the reply `omitted`."""
+    if change == "omitted":
+        del conversation.history[1:]
+        return
+    if change != "edited":
+        return
+
+    def edited(arguments: dict[str, Any]) -> dict[str, Any]:
+        return {**arguments, "edited": 1}
+
+    reply = conversation.history[-1]
+    match conversation.dialect:
+        case "completions":
+            for call in reply["tool_calls"]:
+                function = call["function"]
+                function["arguments"] = json.dumps(
+                    edited(json.loads(function["arguments"]))
+                )
+        case "responses":
+            # the reply's items: those after the latest result or prompt
+            for item in reversed(conversation.history):
+                if item.get("type") == "function_call":
+                    item["arguments"] = json.dumps(
+                        edited(json.loads(item["arguments"]))
+                    )
+                elif item.get("type") == "function_call_output" or "role" in item:
+                    break
+        case "anthropic":
+            for block in reply["content"]:
+                if block["type"] == "tool_use":
+                    block["input"] = edited(block["input"])
+        case "google":
+            for part in reply["parts"]:
+                if "functionCall" in part:
+                    part["functionCall"]["args"] = edited(part["functionCall"]["args"])
+
+
+def _report_shared(
+    conversation: _HostConversation,
+    issued: list[tuple[str, dict[str, Any]]],
+    change: str,
+    outputs: list[JsonValue],
+    call_id: str,
+) -> None:
+    """Change the last reply's calls (`_change_reply_calls`), then report `outputs` under `call_id`, in order."""
+    _change_reply_calls(conversation, change)
+    conversation.results([issued[0]] * len(outputs), outputs)
+    if conversation.dialect == "google":
+        # the other dialects' results carry the id they answer
+        for part in conversation.history[-1]["parts"]:
+            part["functionResponse"]["id"] = call_id
+
+
+def _checked_as(seen: list[AfterToolCall]) -> list[tuple[str, str]]:
+    """Each check's call's `path` and the result it was checked with, by result."""
+    return sorted(
+        ((str(step.call.arguments.get("path")), step.result.text) for step in seen),
+        key=lambda pair: int(pair[1].rsplit(" ", 1)[-1].rstrip('"}')),
+    )
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("change", ["unchanged", "edited", "omitted"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_each_result_of_calls_sharing_an_id_is_checked_as_one_call(
+    dialect: HostDialect, change: str
+) -> None:
+    """A reply makes N calls under one id; the scaffold reports their results with the calls unchanged, each `edited`, or `omitted`.
+
+    A changed or missing call is none of the id's handouts, so the nth result
+    is paired with the nth call handed over. N results cost N checks, each of
+    one call as it was handed over, with no context, in work linear in N,
+    never a check of every handout for each result. Measured for N of 8 and
+    64.
+    """
+    seen: list[AfterToolCall] = []
+
+    async def work(n: int) -> int:
+        calls = [
+            ToolCall(id="same", function="read_file", arguments={"path": str(i)})
+            for i in range(n)
+        ]
+        model = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                tool_calls_output(*calls),
+                ModelOutput.from_content("mockllm/model", "Done."),
+            ],
+        )
+        bridge = AgentBridge(AgentState(messages=[]), model_aliases={"inspect": model})
+        conversation = _HostConversation(
+            dialect, "Read files.", declare("read_file")[0]
+        )
+        issued = await conversation.request(cast(SandboxAgentBridge, bridge))
+        _report_shared(
+            conversation, issued, change, [f"result {i}" for i in range(n)], "same"
+        )
+        seen.clear()
+        with recorded_transcript(), container_work() as counted:
+            await conversation.request(cast(SandboxAgentBridge, bridge))
+        assert len(seen) == n
+        assert [path for path, _ in _checked_as(seen)] == [str(i) for i in range(n)]
+        assert all(
+            step.call.function == "read_file"
+            and "edited" not in step.call.arguments
+            and step.input is None
+            and (step.message, step.message_id) == ("", "")
+            for step in seen
+        )
+        return counted.work
+
+    with active_test_sentinel(record_tool_results(seen)):
+        small, large = await work(8), await work(64)
+    assert small > 0
+    # linear is 8x; a pass over the id's handouts for each result is 64x
+    assert large <= 12 * small, (small, large)
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("resumed", [False, True])
+@pytest.mark.parametrize("change", ["edited", "omitted"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_result_past_the_calls_sharing_an_id_is_checked_as_the_last(
+    dialect: HostDialect, change: str, resumed: bool
+) -> None:
+    """A reply makes three calls under one id, the first two alike; the scaffold changes them and reports four results.
+
+    Each result is paired by position with a call as the reply made it (the
+    two alike are one handout, answered twice), and the result past the last
+    call with the last. No result is checked as more than one call. The
+    order is kept in the bridge's checkpoint, so a `resumed` bridge pairs
+    them alike.
+    """
+    calls = [
+        ToolCall(id="same", function="read_file", arguments={"path": path})
+        for path in ("0", "0", "2")
+    ]
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model("mockllm/model", custom_outputs=[tool_calls_output(*calls), done])
+    bridge = AgentBridge(AgentState(messages=[]), model_aliases={"inspect": model})
+    conversation = _HostConversation(dialect, "Read files.", declare("read_file")[0])
+    seen: list[AfterToolCall] = []
+    with active_test_sentinel(record_tool_results(seen)):
+        issued = await conversation.request(cast(SandboxAgentBridge, bridge))
+        if resumed:
+            bridge._handouts = _Handouts(
+                _SavedHandouts.model_validate_json(
+                    bridge._handouts.saved().model_dump_json()
+                ),
+                viewer=bridge._handouts.viewer,
+            )
+        _report_shared(
+            conversation, issued, change, [f"result {i}" for i in range(4)], "same"
+        )
+        await conversation.request(cast(SandboxAgentBridge, bridge))
+    assert [path for path, _ in _checked_as(seen)] == ["0", "0", "2", "2"]
+    assert all("edited" not in step.call.arguments for step in seen)
+
+
+@approver(name="test_bridge_modify_each")
+def numbering_approver() -> Approver:
+    """Gives each call it approves other arguments: `approved 1`, `approved 2`, ..."""
+    count = 0
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        nonlocal count
+        count += 1
+        return Approval(
+            decision="modify",
+            modified=ToolCall(
+                id=call.id,
+                function=call.function,
+                arguments={"path": f"approved {count}"},
+            ),
+        )
+
+    return approve
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("change", ["edited", "omitted"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_changed_call_of_an_id_handed_out_twice_is_checked_as_its_latest_handout(
+    dialect: HostDialect, change: str
+) -> None:
+    """The model makes one call under one id in two turns, and approval gives it other arguments each time; the scaffold changes the second turn's call, or leaves the calls out, and reports its result.
+
+    The id has two handouts and the result's call is neither, so it is paired
+    by position with the call the id's latest response handed over: one
+    check, of the second turn's arguments, with no context, not one for each
+    handout.
+    """
+    call = ToolCall(id="same", function="read_file", arguments={"path": "p"})
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[tool_calls_output(call), tool_calls_output(call), done],
+    )
+    bridge = cast(
+        SandboxAgentBridge,
+        AgentBridge(
+            AgentState(messages=[]),
+            model_aliases={"inspect": model},
+            approval=[ApprovalPolicy(numbering_approver(), "*")],
+        ),
+    )
+    conversation = _HostConversation(dialect, "Read p.", declare("read_file")[0])
+    seen: list[AfterToolCall] = []
+    with active_test_sentinel(record_tool_results(seen)):
+        first = await conversation.request(bridge)
+        conversation.results(first, ["result 0"])
+        second = await conversation.request(bridge)
+        assert len(bridge._handouts.handed["same"].handed) == 2
+        seen.clear()
+        _report_shared(conversation, second, change, ["result 1"], "same")
+        await conversation.request(bridge)
+    latest = [step for step in seen if "result 1" in step.result.text]
+    assert [step.call.arguments for step in latest] == [{"path": "approved 2"}]
+    assert latest[0].input is None and latest[0].message_id == ""
+
+
 # `read_file` paths whose arguments a Murmur3 digest cannot tell apart
 COLLIDING_PATHS = (
     "public00000000000000000000000000000000................",

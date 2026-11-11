@@ -4228,8 +4228,10 @@ async def test_a_result_that_can_be_either_handouts_gets_no_proposal(
 ) -> None:
     """A result under an id handed out with two argument sets, and no call in its request.
 
-    It may be either handout's, so it is checked as each one's call, whether
-    or not it names a function, with no proposal's context.
+    It may be either handout's and nothing in the request tells which, so it
+    is paired by position with the call the id's latest response handed
+    over: one check, of the retry's arguments, whether or not the result
+    names a function, with no proposal's context.
     """
     seen: Steps = []
     model = Scripted(calls_output(READ), calls_output(READ), calls_output())
@@ -4251,13 +4253,9 @@ async def test_a_result_that_can_be_either_handouts_gets_no_proposal(
         )
 
     afters = [s for s in seen if isinstance(s, AfterToolCall)]
-    assert [(s.input, s.message_id) for s in afters] == [(None, "")] * 2
-    assert [(s.call.id, s.call.function) for s in afters] == [
-        (READ.id, READ.function)
-    ] * 2
-    assert sorted(s.call.arguments["path"] for s in afters) == sorted(
-        ["safe.txt", READ.arguments["path"]]
-    )
+    [after] = afters
+    assert (after.input, after.message_id) == (None, "")
+    assert after.call == READ
 
 
 def test_handed_calls_are_paired_with_their_read_back_form_by_id() -> None:
@@ -4367,10 +4365,14 @@ def test_pairing_results_with_repeated_call_ids_is_linear(pairing: str) -> None:
         return _container_work(lambda: handouts.claim(input))
 
     paired = [
-        (message.text, found.call.arguments["path"] if found is not None else None)
-        for message, found in _answers(conversation(3))
+        (
+            answer.message.text,
+            answer.found.call.arguments["path"] if answer.found is not None else None,
+            answer.nth,
+        )
+        for answer in _answers(conversation(3))
     ]
-    assert paired == [("result 0", "0"), ("result 1", "1"), ("result 2", "2")]
+    assert paired == [("result 0", "0", 0), ("result 1", "1", 1), ("result 2", "2", 2)]
     small, large = work(64), work(512)
     assert small > 0
     # linear is 8x; shifting the remaining calls for each result is 64x
@@ -6848,7 +6850,12 @@ async def test_a_computer_call_modified_to_an_action_its_dialect_reads_back_othe
 async def test_a_result_two_handouts_read_back_alike_could_be_gets_no_proposal() -> (
     None
 ):
-    """A triple click on one handout and a double click on its retry: both read back as a double click."""
+    """A triple click on one handout and a double click on its retry: both read back as a double click.
+
+    Either could be the one answered, so the result is paired by position
+    with the call the id's latest response handed over: one check, of the
+    retry's double click, with no proposal's context.
+    """
     from inspect_ai.agent._bridge.responses import inspect_responses_api_request
 
     init_sample_assistant_internal()
@@ -6910,11 +6917,11 @@ async def test_a_result_two_handouts_read_back_alike_could_be_gets_no_proposal()
             bridge,
         )
 
-    # either handout could be the one answered, so the result is checked as
-    # each one's call
-    afters = [s for s in seen if isinstance(s, AfterToolCall)]
-    assert [(s.call.id, s.input) for s in afters] == [(item.call_id, None)] * 2
-    assert len({json.dumps(s.call.arguments, sort_keys=True) for s in afters}) == 2
+    [after] = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert (after.call.id, after.input) == (item.call_id, None)
+    assert after.call.arguments == {
+        "actions": [{"action": "double_click", "coordinate": [10, 20]}]
+    }
 
 
 @pytest.mark.parametrize(
