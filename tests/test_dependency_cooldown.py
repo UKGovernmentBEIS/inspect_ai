@@ -18,6 +18,7 @@ from typing import Any
 
 import pytest
 import yaml
+from packaging.specifiers import SpecifierSet
 
 REPO = pathlib.Path(__file__).parents[1]
 WORKFLOWS = REPO / ".github" / "workflows"
@@ -304,6 +305,40 @@ def verify_dependabot_cooldown(
 
 def test_dependabot_cooldown_matches_pyproject() -> None:
     verify_dependabot_cooldown(uv_config(), dependabot_uv())
+
+
+def verify_dependabot_ignores_are_current(
+    ignores: list[dict[str, Any]], locked: dict[str, str]
+) -> None:
+    # A rule that ignores the locked version is stale: uv.lock moved past it
+    # by hand, and the rule now blocks every update after that.
+    for rule in ignores:
+        name = rule["dependency-name"]
+        for versions in rule.get("versions", []):
+            ignored = SpecifierSet(versions, prereleases=True)
+            assert not ignored.contains(locked[name]), (
+                f'dependabot.yml ignores {name} "{versions}", '
+                f"but uv.lock has {locked[name]}"
+            )
+
+
+def locked_versions() -> dict[str, str]:
+    lock = tomllib.loads((REPO / "uv.lock").read_text())
+    return {
+        package["name"]: package["version"]
+        for package in lock["package"]
+        if "version" in package
+    }
+
+
+def test_dependabot_ignores_are_current() -> None:
+    verify_dependabot_ignores_are_current(dependabot_uv()["ignore"], locked_versions())
+
+
+def test_stale_dependabot_ignore_is_caught() -> None:
+    ignores = [{"dependency-name": "click", "versions": [">=8.2.0"]}]
+    with pytest.raises(AssertionError, match="ignores click"):
+        verify_dependabot_ignores_are_current(ignores, locked_versions())
 
 
 def script_uv_config() -> dict[str, Any]:
