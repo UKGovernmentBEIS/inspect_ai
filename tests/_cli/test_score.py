@@ -465,7 +465,8 @@ def _log(total_samples: int, completed_samples: int) -> EvalLog:
 def rendered(log: EvalLog, coverage: EvalResults | None = None) -> str:
     # `print_results` calls `display()`, which reconfigures the global console.
     # Doing that inside the capture resets the buffer and yields an empty
-    # string, so initialise the display first.
+    # string, so initialise the display first. Callers use `fresh_display`, as
+    # an earlier `display="none"` eval leaves the console quiet.
     display()
     console = rich.get_console()
     with console.capture() as capture:
@@ -473,7 +474,7 @@ def rendered(log: EvalLog, coverage: EvalResults | None = None) -> str:
     return capture.get()
 
 
-def test_score_cli_reports_samples_that_errored() -> None:
+def test_score_cli_reports_samples_that_errored(fresh_display: None) -> None:
     """A re-scored log that lost half its samples must not read as a complete run."""
     output = rendered(_log(total_samples=10, completed_samples=5))
     assert "accuracy" in output
@@ -482,19 +483,23 @@ def test_score_cli_reports_samples_that_errored() -> None:
     assert "were not scored" not in output
 
 
-def test_score_cli_stays_quiet_on_a_complete_run() -> None:
+def test_score_cli_stays_quiet_on_a_complete_run(fresh_display: None) -> None:
     output = rendered(_log(total_samples=10, completed_samples=10))
     assert "accuracy" in output
     assert "WARNING" not in output
 
 
 @pytest.mark.parametrize("completed", [0, 1, 9])
-def test_score_cli_reports_every_partial_run(completed: int) -> None:
+def test_score_cli_reports_every_partial_run(
+    fresh_display: None, completed: int
+) -> None:
     output = rendered(_log(total_samples=10, completed_samples=completed))
     assert f"{10 - completed} of 10 executed samples" in output
 
 
-def test_score_cli_uses_the_pre_score_coverage_when_results_were_overwritten() -> None:
+def test_score_cli_uses_the_pre_score_coverage_when_results_were_overwritten(
+    fresh_display: None,
+) -> None:
     """`--action overwrite` recounts `total_samples` over the samples in the log.
 
     Early-stopped samples were never written, so those counts do not share a

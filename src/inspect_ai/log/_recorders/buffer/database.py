@@ -38,7 +38,7 @@ from inspect_ai._util.file import (
     dirname,
     filesystem,
 )
-from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.json import to_json_safe, to_json_str_safe
 from inspect_ai._util.trace import trace_action
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._pool import (
@@ -71,6 +71,7 @@ from ..._log import EvalSampleSummary
 from ..types import SampleEvent
 from .filestore import (
     SAMPLE_METADATA_IN_SUMMARY,
+    SAMPLE_STORE_EMPTY,
     Manifest,
     SampleBufferFilestore,
     SampleManifest,
@@ -182,6 +183,8 @@ class SampleBufferDatabase(SampleBuffer):
         data TEXT, -- JSON containing all other sample fields
         sample_metadata TEXT, -- full sample metadata (summaries are intentionally thinned)
         sample_metadata_hash TEXT, -- sidecar lookup key or exact-summary marker
+        sample_store TEXT, -- final sample store (written when the sample completes)
+        sample_store_hash TEXT, -- sidecar lookup key
         PRIMARY KEY (id, epoch)
     );
 
@@ -453,10 +456,21 @@ class SampleBufferDatabase(SampleBuffer):
         summary: EvalSampleSummary,
         *,
         sample_metadata: dict[str, Any] | None,
+        sample_store: dict[str, Any] | None = None,
     ) -> None:
         metadata_json = (
             to_json_str_safe(sample_metadata) if sample_metadata is not None else None
         )
+        store_json: str | None = None
+        store_hash: str | None = None
+        if sample_store is not None:
+            store_json = to_json_safe(sample_store, indent=None).decode("utf-8")
+            # an empty store (most samples) needs no sidecar file
+            store_hash = (
+                hashlib.sha256(store_json.encode("utf-8")).hexdigest()
+                if sample_store
+                else SAMPLE_STORE_EMPTY
+            )
         metadata_hash = (
             SAMPLE_METADATA_IN_SUMMARY
             if sample_metadata is not None and sample_metadata == summary.metadata
@@ -473,13 +487,17 @@ class SampleBufferDatabase(SampleBuffer):
                 UPDATE samples
                 SET data = ?,
                     sample_metadata = COALESCE(?, sample_metadata),
-                    sample_metadata_hash = COALESCE(?, sample_metadata_hash)
+                    sample_metadata_hash = COALESCE(?, sample_metadata_hash),
+                    sample_store = COALESCE(?, sample_store),
+                    sample_store_hash = COALESCE(?, sample_store_hash)
                 WHERE id = ? and epoch = ?
             """,
                 (
                     to_json_str_safe(summary),
                     metadata_json,
                     metadata_hash,
+                    store_json,
+                    store_hash,
                     str(summary.id),
                     summary.epoch,
                 ),
@@ -841,16 +859,34 @@ class SampleBufferDatabase(SampleBuffer):
         return parse_sample_metadata(metadata_json, id=id, epoch=epoch)
 
     def _get_sample_metadata_json(self, id: str | int, epoch: int) -> str | None:
-        return self._get_sample_metadata_value(id, epoch, "sample_metadata")
+        return self._get_sample_column(id, epoch, "sample_metadata")
 
     def _get_sample_metadata_hash(self, id: str | int, epoch: int) -> str | None:
-        return self._get_sample_metadata_value(id, epoch, "sample_metadata_hash")
+        return self._get_sample_column(id, epoch, "sample_metadata_hash")
 
-    def _get_sample_metadata_value(
+    @override
+    def get_sample_store(self, id: str | int, epoch: int) -> dict[str, Any] | None:
+        store_json = self._get_sample_store_json(id, epoch)
+        if store_json is None:
+            return None
+        return parse_sample_metadata(store_json, id=id, epoch=epoch, field="store")
+
+    def _get_sample_store_json(self, id: str | int, epoch: int) -> str | None:
+        return self._get_sample_column(id, epoch, "sample_store")
+
+    def _get_sample_store_hash(self, id: str | int, epoch: int) -> str | None:
+        return self._get_sample_column(id, epoch, "sample_store_hash")
+
+    def _get_sample_column(
         self,
         id: str | int,
         epoch: int,
-        column: Literal["sample_metadata", "sample_metadata_hash"],
+        column: Literal[
+            "sample_metadata",
+            "sample_metadata_hash",
+            "sample_store",
+            "sample_store_hash",
+        ],
     ) -> str | None:
         if not self.db_path.exists():
             return None
@@ -863,8 +899,9 @@ class SampleBufferDatabase(SampleBuffer):
                         (str(id), epoch),
                     ).fetchone()
                 except OperationalError as ex:
-                    # Older buffers may lack either metadata column. Recovery
-                    # can fall back to sample_init; sync can derive the hash.
+                    # Older buffers may lack the metadata or store columns.
+                    # Recovery falls back to sample_init and the StoreEvents;
+                    # sync can derive the metadata hash.
                     if "no such column" in str(ex).lower():
                         return None
                     raise
@@ -2064,6 +2101,7 @@ def _sync_samples_to_filestore(
                 summary=sample,
                 segments=list(existing.segments) if existing is not None else [],
                 metadata_hash=existing.metadata_hash if existing is not None else None,
+                store_hash=existing.store_hash if existing is not None else None,
             )
         )
 
@@ -2112,6 +2150,24 @@ def _sync_samples_to_filestore(
                     metadata_json.encode("utf-8"),
                 )
                 manifest_sample.metadata_hash = metadata_hash
+
+        store_hash = db._get_sample_store_hash(
+            manifest_sample.summary.id, manifest_sample.summary.epoch
+        )
+        if store_hash == SAMPLE_STORE_EMPTY:
+            manifest_sample.store_hash = SAMPLE_STORE_EMPTY
+        elif store_hash is not None and store_hash != manifest_sample.store_hash:
+            store_json = db._get_sample_store_json(
+                manifest_sample.summary.id, manifest_sample.summary.epoch
+            )
+            if store_json is not None:
+                filestore.write_sample_store(
+                    manifest_sample.summary.id,
+                    manifest_sample.summary.epoch,
+                    store_hash,
+                    store_json.encode("utf-8"),
+                )
+                manifest_sample.store_hash = store_hash
 
         # take the max of last_*_id across all of this sample's segments, not
         # just the latest: each segment's last_*_id is 0 if no items of that
