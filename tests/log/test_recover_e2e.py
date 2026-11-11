@@ -1645,3 +1645,97 @@ async def test_recovery_store_of_in_progress_sample(buffer_kind: str) -> None:
             assert recovered.samples is not None
             assert recovered.samples[0].error is not None
             assert recovered.samples[0].store == {"a": 1}
+
+
+class _FakeTaskSidecars:
+    """Copies monitor state into the sample store the way `TaskSidecars` does."""
+
+    def __init__(self, fail: bool) -> None:
+        self.fail = fail
+
+    async def copy_monitor_state(
+        self, sample_uuid: str, attempt_number: int, store: Any
+    ) -> None:
+        from inspect_ai._sentinel._sidecar._endpoint import SentinelProxyError
+        from inspect_ai._sentinel._sidecar._task import MONITOR_STATE_COPY
+
+        if self.fail:
+            store.set(MONITOR_STATE_COPY, {"copied": False, "reason": "lost"})
+            raise SentinelProxyError("lost")
+        store.set("Tally:lookups", 2)
+        store.set(MONITOR_STATE_COPY, {"copied": True, "keys": ["Tally:lookups"]})
+
+    def skip_monitor_state_copy(
+        self, sample_uuid: str, attempt_number: int, store: Any, reason: str
+    ) -> None:
+        from inspect_ai._sentinel._sidecar._task import MONITOR_STATE_COPY
+
+        store.set(MONITOR_STATE_COPY, {"copied": False, "reason": reason})
+
+
+@pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
+@pytest.mark.parametrize("case", ["copied", "copy_failed", "sample_failed"])
+async def test_recovery_store_keeps_sidecar_monitor_state(
+    buffer_kind: str, case: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Monitor state copied outside the solver and scorer spans is recovered.
+
+    Final scoring copies it between `solvers` and `scorers`, and a failed
+    sample saves it after both; the events the buffer received must replay
+    to the store the log has, including a failed copy's marker.
+    """
+    import inspect_ai._sentinel._sidecar._state as sidecar_state
+    from inspect_ai import Task, eval_async
+    from inspect_ai._eval.task.log import TaskLogger
+    from inspect_ai._sentinel._sidecar._state import monitor_state_missing
+    from inspect_ai.scorer import match
+    from inspect_ai.solver import Generate, TaskState, solver
+    from inspect_ai.util import store
+    from inspect_ai.util._store import Store
+
+    monkeypatch.setattr(
+        sidecar_state,
+        "task_sidecars",
+        lambda eval_id=None: _FakeTaskSidecars(fail=case == "copy_failed"),
+    )
+    buffered: list[Any] = []
+    log_sample_event = TaskLogger.log_sample_event
+
+    def spy(self: TaskLogger, id: str | int, epoch: int, event: Any) -> None:
+        buffered.append(event)
+        log_sample_event(self, id, epoch, event)
+
+    monkeypatch.setattr(TaskLogger, "log_sample_event", spy)
+
+    @solver
+    def write_store():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            store().set("solved", True)
+            if case == "sample_failed":
+                raise RuntimeError("solver failed")
+            return state
+
+        return solve
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            [log] = await eval_async(
+                Task(
+                    dataset=[Sample(id="s1", input="hi", target="reply")],
+                    solver=write_store(),
+                    scorer=match(),
+                ),
+                model="mockllm/model",
+                log_dir=os.path.join(temp_dir, "logs"),
+            )
+            assert log.samples is not None
+            logged = log.samples[0].store
+            assert "sentinel_sidecar:monitor_state" in logged
+
+            output_path = await _recover_sample(buffer_kind, buffered, temp_dir)
+
+            recovered = await read_eval_log_async(output_path)
+            assert recovered.samples is not None
+            assert recovered.samples[0].store == logged
+            missing = monitor_state_missing(Store(recovered.samples[0].store))
+            assert missing == ("lost" if case == "copy_failed" else None)
