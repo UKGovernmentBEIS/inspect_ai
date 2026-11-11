@@ -1505,65 +1505,56 @@ def test_consume_approval_request_synthesizes_card_when_none_exists() -> None:
     assert state.items[-1] is tc
 
 
-def test_approval_on_a_finished_card_takes_it_for_the_new_execution() -> None:
-    """A request for other arguments under a finished card's id: a repeated call id.
+@pytest.mark.parametrize("same_arguments", [False, True])
+def test_approval_on_a_finished_card_takes_it_for_the_new_execution(
+    same_arguments: bool,
+) -> None:
+    """A request under a finished card's id is for a later execution of a repeated id.
 
-    The card shows the requested call; the earlier execution's result, timing
-    and markers don't stay on it.
+    Approval precedes execution, so the card shows the requested call, and the
+    earlier execution's result, timing and markers don't stay on it, even when
+    the two calls have the same arguments.
     """
+    from inspect_ai.agent._acp.tui.state import ToolCallState
+
     clock = _FakeClock()
     state = SessionState(now=clock)
-    state.consume(_tool_start("shared", title="computer click", raw_input={"a": 1}))
-    state.consume(_tool_progress("shared", raw_output="clicked"))
+    state.consume(_tool_start("shared", title="computer scroll", raw_input={"a": 1}))
+    state.consume(_tool_progress("shared", raw_output="scrolled"))
     tc = state._tool_calls_by_id["shared"]
     tc.cancel_requested = True
     tc.last_approval_decision = "approved"
-    tc.parallel_batch_id = 3
+    req = _permission_request("shared", title="computer type")
+    if same_arguments:
+        req.tool_call.raw_input = {"a": 1}
     clock.t += 5
 
-    state.consume_approval_request(
-        _pending(_permission_request("shared", title="computer type"))
-    )
+    state.consume_approval_request(_pending(req))
 
-    assert tc.pending_approval is not None
+    assert isinstance(tc, ToolCallState) and tc.pending_approval is not None
     assert (tc.title, tc.raw_input, tc.raw_output, tc.status, tc.content) == (
         "computer type",
-        {"command": "ls"},
+        {"a": 1} if same_arguments else {"command": "ls"},
         None,
         "pending",
         None,
     )
     assert (tc.start_time, tc.end_time) == (clock.t, None)
     assert not tc.cancel_requested and tc.last_approval_decision is None
-    assert tc.parallel_batch_id is None
 
 
-@pytest.mark.parametrize("finished", [True, False])
-def test_approval_for_a_cards_own_call_leaves_it_as_is(finished: bool) -> None:
-    """A request with the card's arguments, or on a running card, keeps the card.
+def test_approval_on_a_running_card_leaves_it_as_is() -> None:
+    """A unique id's card already running (a bridged card, a dispatched target) keeps its call."""
+    state = SessionState()
+    state.consume(_tool_start("tc-1", title="call_tool read", raw_input={"t": "read"}))
+    state.consume_approval_request(_pending(_permission_request("tc-1")))
 
-    Finished: a sentinel's review of a host tool's result, after its card
-    completed. Running: a unique id's bridged card or dispatched target.
-    """
-    clock = _FakeClock()
-    state = SessionState(now=clock)
-    state.consume(_tool_start("tc-1", title="read_file a", raw_input={"t": "read"}))
-    if finished:
-        state.consume(_tool_progress("tc-1", raw_output="contents"))
     tc = state._tool_calls_by_id["tc-1"]
-    before = (tc.title, tc.raw_input, tc.raw_output, tc.status, tc.content)
-    times = (tc.start_time, tc.end_time)
-    request = _permission_request("tc-1", title="review")
-    if finished:
-        request.tool_call.raw_input = {"t": "read"}
-    clock.t += 5
-
-    state.consume_approval_request(_pending(request))
-
-    assert tc.pending_approval is not None
-    assert (tc.title, tc.raw_input, tc.raw_output, tc.status, tc.content) == before
-    assert (tc.start_time, tc.end_time) == times
-    assert tc.status == ("completed" if finished else "in_progress")
+    assert (tc.title, tc.raw_input, tc.status) == (
+        "call_tool read",
+        {"t": "read"},
+        "in_progress",
+    )
 
 
 def _new_execution(

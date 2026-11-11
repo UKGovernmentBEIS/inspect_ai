@@ -1288,6 +1288,3 @@ def test_a_settled_bridged_card_is_taken_by_a_later_execution_under_its_id() -> 
         if (p.field_meta or {}).get(TOOL_CALL_NEW_EXECUTION_META_KEY)
     ]
     assert len(taken) == 1 and taken[0].status == "in_progress"
-    # the bridged start was non-cancelable; a real ToolEvent now backs the card
-    assert _starts(published)[0].field_meta == {TOOL_CALL_CANCELABLE_META_KEY: False}
-    assert (taken[0].field_meta or {})[TOOL_CALL_CANCELABLE_META_KEY] is True

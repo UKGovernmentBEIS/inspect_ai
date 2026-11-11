@@ -2140,10 +2140,9 @@ class SessionState:
             tc = self._tool_call_state_from_request(pending.request)
             self._tool_calls_by_id[tool_call_id] = tc
             self.items.append(tc)
-        elif tc.is_terminal and tc.raw_input != pending.request.tool_call.raw_input:
-            # another execution under a repeated call id: the card shows the call
-            # the request is for. A finished card's own call (a sentinel's review
-            # of a host tool's result) and a running card stay as they are.
+        elif tc.is_terminal:
+            # approval precedes execution, so this is another execution under a
+            # repeated call id: the card shows the call the request is for
             fresh = self._tool_call_state_from_request(pending.request)
             self._reset_execution(tc)
             tc.title, tc.kind, tc.status = fresh.title, fresh.kind, fresh.status
