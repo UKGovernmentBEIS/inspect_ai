@@ -233,6 +233,12 @@
   author: "[briq](https://github.com/briq-cloud/inspect-briq)"
   categories: ["Sandboxes"]
 
+- name: "[boxd Sandbox](https://github.com/boxd-sh/boxd-inspect)"
+  description: |
+    Runs each sample in its own boxd machine, a full Ubuntu VM. Tasks with a compose.yaml or Dockerfile run unchanged, with Docker inside the machine.
+  author: "[boxd](https://boxd.sh/?ref=inspect_ai)"
+  categories: ["Sandboxes"]
+
 
 - name: "[Inspect Costs Plugin](https://github.com/jasongwartz/inspect_costs_plugin/)"
   description: |
