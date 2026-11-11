@@ -5,7 +5,7 @@ import json
 import zipfile
 import zlib
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
-from typing import IO, TYPE_CHECKING, Any, BinaryIO, NamedTuple
+from typing import TYPE_CHECKING, Any, BinaryIO, NamedTuple
 
 import anyio
 from pydantic import BaseModel
@@ -24,7 +24,7 @@ from inspect_ai._util.json import (
 )
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.zip_common import ZipEntry
-from inspect_ai._util.zipfile import zipfile_compress_kwargs
+from inspect_ai._util.zipfile import RawMemberWriter, zipfile_compress_kwargs
 from inspect_ai.log._edit import ProvenanceData
 from inspect_ai.log._log import (
     EvalLog,
@@ -153,9 +153,9 @@ async def write_merged_zip(
 ) -> EvalLog:
     """Write the merged log's members to `out` and return its header.
 
-    Each sample member that `read_member` locates is decompressed as it
-    streams, written under the name rebuilt from its key and parsed as it
-    passes, keeping only what computing the results needs. Then the
+    Each sample member that `read_member` locates is copied in its compressed
+    form under the name rebuilt from its key, and decompressed and parsed as
+    it streams, keeping only what computing the results needs. Then the
     summaries, the reductions and the header (made by `make_header` from the
     results and the samples' invalidation) are written. No journal is
     written: the merged log is always written finished. The results are computed in the caller's model
@@ -370,21 +370,19 @@ its JSON holds many small values."""
 class _MemberPieces:
     """Takes a sample member's decompressed pieces as they arrive.
 
-    Each piece is added to the CRC-32, written to the merged member and
-    parsed. It holds nothing that feeds it, so the decompressor writing to
-    it forms no reference cycle. Blocking: each call runs in a worker thread.
+    Each piece is added to the CRC-32 and size and parsed. It holds nothing
+    that feeds it, so the decompressor writing to it forms no reference
+    cycle. Blocking: each call runs in a worker thread.
     """
 
-    def __init__(self, zf: zipfile.ZipFile, name: str) -> None:
-        self._zf = zf
-        self._name = name
-        self.writer: IO[bytes] | None = None
+    def __init__(self) -> None:
         self.parse: _SampleParse | None = _SampleParse()
         self.crc = 0
+        self.size = 0
 
     def take(self, piece: bytes) -> None:
         self.crc = zlib.crc32(piece, self.crc)
-        self.open().write(piece)
+        self.size += len(piece)
         if self.parse is not None:
             try:
                 self.parse.feed(piece)
@@ -393,36 +391,36 @@ class _MemberPieces:
                     raise
                 self.parse = None
 
-    def open(self) -> IO[bytes]:
-        if self.writer is None:
-            self.writer = self._zf.open(self._name, "w", force_zip64=True)
-        return self.writer
-
 
 class _SampleCopy:
-    """Writes a sample member to the merged zip, parsing it as it passes.
+    """Copies a sample member to the merged zip, parsing it as it passes.
 
-    Fed the member's compressed bytes, it decompresses them in bounded
-    pieces, each written, parsed and added to the CRC-32 before the next.
-    Blocking: each call runs in a worker thread.
+    Fed the member's compressed bytes, it writes them to the merged member
+    unchanged and decompresses them in bounded pieces, each parsed and added
+    to the CRC-32 before the next. Blocking: each call runs in a worker
+    thread.
     """
 
     def __init__(self, zf: zipfile.ZipFile, name: str, member: SampleMember) -> None:
+        self._zf = zf
+        self._name = name
         self._member = member
-        self._pieces = _MemberPieces(zf, name)
+        self._output: RawMemberWriter | None = None
+        self._pieces = _MemberPieces()
         self._decompressor = PieceDecompressor(
             member.entry.compression_method, self._pieces.take, _PIECE_SIZE
         )
 
     def write(self, data: bytes) -> None:
         """Take the next chunk of the member's compressed bytes."""
+        self._open().write(data)
         self._decompressor.write(data)
 
     def finish(self) -> _ParsedSample | None:
         """Finish the member; None when it must be parsed whole."""
         self._decompressor.finish()
         _check_crc(self._member.location, self._member.entry, self._pieces.crc)
-        self._pieces.open().close()
+        self._open().finish(self._pieces.crc, self._pieces.size)
         parse = self._pieces.parse
         if parse is None:
             return None
@@ -433,15 +431,22 @@ class _SampleCopy:
                 raise
             return None
 
+    def _open(self) -> RawMemberWriter:
+        if self._output is None:
+            self._output = RawMemberWriter(
+                self._zf, self._name, self._member.entry.compression_method
+            )
+        return self._output
+
     @property
     def closed(self) -> bool:
         """Whether the member is closed, or was never opened."""
-        return self._pieces.writer is None or self._pieces.writer.closed
+        return self._output is None or self._output.closed
 
     def close(self) -> None:
         """Close the member if `finish` did not, so the zip can close."""
-        if self._pieces.writer is not None:
-            self._pieces.writer.close()
+        if self._output is not None:
+            self._output.close()
 
 
 async def _copy_sample(
@@ -473,9 +478,9 @@ async def _copy_sample(
                     await chunks.aclose()
             finally:
                 if not copy.closed:
-                    # the close can flush much compressed output, so it runs in
-                    # a worker; closing again here is a no-op unless the
-                    # worker never ran (a native cancellation)
+                    # the close writes to the merged zip, so it runs in a
+                    # worker; closing again here is a no-op unless the worker
+                    # never ran (a native cancellation)
                     try:
                         await run_owned(copy.close)
                     finally:

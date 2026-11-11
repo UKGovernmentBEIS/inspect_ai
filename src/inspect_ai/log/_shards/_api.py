@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Literal, NamedTuple
 import anyio
 
 from inspect_ai._util._async import run_coroutine, tg_collect
-from inspect_ai._util.async_zip import AsyncZipReader
+from inspect_ai._util.async_zip import AsyncZipReader, CentralDirectory
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.file import FileInfo, basename, to_uri
 from inspect_ai._util.log_layout import (
@@ -19,6 +19,7 @@ from inspect_ai._util.log_layout import (
     eval_shards_dir,
     log_basename,
 )
+from inspect_ai._util.zip_common import ZipEntry
 from inspect_ai.log._log import EvalLog, EvalSampleSummary, EvalShardEntry
 from inspect_ai.log._recorders.chunked.format import classify_sample_shape
 from inspect_ai.log._recorders.eval import (
@@ -201,6 +202,7 @@ class _Merged(NamedTuple):
     header: EvalLog
     records: set[SampleRecordKey]
     etag: str | None
+    members: CentralDirectory
 
 
 class _Pass(NamedTuple):
@@ -298,7 +300,7 @@ async def _read_merged(fs: AsyncFilesystem, merged_path: str) -> _Merged | None:
                 f"records: it was changed outside the merge. Delete {merged_path} "
                 "so the next merge rebuilds it from the shards."
             )
-    return _Merged(header, merged_records(cd, merged_path), reader.etag)
+    return _Merged(header, merged_records(cd, merged_path), reader.etag, cd)
 
 
 async def _merge_pass(
@@ -393,16 +395,18 @@ async def _merge_pass(
     if existing is not None and not changed and selection.same_as(recorded):
         return _Pass(existing.header, False)
 
+    kept = _kept_members(existing.members, taken) if existing is not None else set()
     with tempfile.TemporaryDirectory() as temp_dir:
         carried_zip: zipfile.ZipFile | None = None
         carried_reader: AsyncZipReader | None = None
         try:
             carried_summaries: dict[SampleRecordKey, EvalSampleSummary] = {}
-            if carried:
+            if carried or kept:
                 assert existing is not None
                 copy = await merged_log_copy(fs, merged_path, existing.etag, temp_dir)
                 carried_zip = zipfile.ZipFile(copy)
                 carried_reader = AsyncZipReader(fs, copy, verify_crc=True)
+                kept = _kept_members(await carried_reader.entries(), taken)
                 carried_summaries = await run_owned(
                     functools.partial(_read_carried_summaries, carried_zip, merged_path)
                 )
@@ -421,7 +425,7 @@ async def _merge_pass(
 
             async def read_member(key: SampleRecordKey) -> SampleMember:
                 read = taken.get(key)
-                if read is not None:
+                if read is not None and key not in kept:
                     return SampleMember(
                         readers[read.shard], read.members[key], read.file.name
                     )
@@ -582,6 +586,32 @@ async def _read_attempt_header(fs: AsyncFilesystem, shard: ShardDir) -> EvalLog:
     reader = AsyncZipReader(fs, info.name, verify_crc=True)
     cd = await reader.entries()
     return await _read_header_async(reader, {e.filename for e in cd.entries}, info.name)
+
+
+def _kept_members(
+    merged: CentralDirectory, taken: dict[SampleRecordKey, AttemptRead]
+) -> set[SampleRecordKey]:
+    """The keys read from shards that the merged log already holds unchanged.
+
+    A member counts as unchanged when its CRC-32 and uncompressed size equal
+    the shard member's. The merge copies these from the merged log, not the
+    shard: they are then read from a local copy, which on S3 it downloads
+    once for all of them.
+    """
+    kept = set()
+    for key, read in taken.items():
+        entry = merged.entry(_sample_filename(key.sample_id, key.epoch))
+        if entry is not None and _same_data(entry, read.members[key]):
+            kept.add(key)
+    return kept
+
+
+def _same_data(a: ZipEntry, b: ZipEntry) -> bool:
+    return (
+        a.crc32 is not None
+        and a.crc32 == b.crc32
+        and a.uncompressed_size == b.uncompressed_size
+    )
 
 
 def _read_carried_summaries(

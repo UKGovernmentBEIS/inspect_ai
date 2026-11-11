@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import sys
 import tempfile
+import time
 import zipfile
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, BinaryIO
@@ -243,6 +244,83 @@ def copy_live_members(
                 if not chunk:
                     break
                 writer.write(chunk)
+
+
+class RawMemberWriter:
+    """Appends a member to a ``ZipFile`` from its compressed bytes.
+
+    The bytes are written as given, with no decompression or recompression,
+    so they must be the complete compressed data of one member in
+    ``compress_type`` (for example a member of another archive, read with
+    ``AsyncZipReader.open_member_raw``). :meth:`finish` records the CRC-32
+    and size of the uncompressed data, which the caller supplies. The local
+    header always has ZIP64 fields, as for ``ZipFile.open(..., force_zip64=True)``;
+    the central directory uses ZIP64 where a size or offset needs it. Like
+    ``ZipFile.open`` for writing, no other member can be written until the
+    writer is closed. Blocking local I/O: run it in a worker thread from
+    async code.
+    """
+
+    def __init__(self, zf: zipfile.ZipFile, name: str, compress_type: int) -> None:
+        """Start the member ``name`` in ``zf``.
+
+        Args:
+            zf: An archive open for writing, to a seekable file.
+            name: The member's name.
+            compress_type: The compression method of the bytes to be written.
+
+        Raises:
+            ValueError: ``zf`` does not write to a seekable file, or cannot
+                take a member now (closed, read-only or with a member open).
+        """
+        # zipfile wraps an unseekable file in an object with no `seekable`
+        seekable = getattr(zf.fp, "seekable", None)
+        if seekable is None or not seekable():
+            raise ValueError(
+                f"Cannot write member {name} from its compressed bytes: the "
+                "archive must be open for writing to a seekable file."
+            )
+        self._zf = zf
+        self._compress_type = compress_type
+        # written as stored bytes, then given its method, CRC-32 and size
+        self._info = zipfile.ZipInfo(name, date_time=time.localtime(time.time())[:6])
+        self._info.compress_type = zipfile.ZIP_STORED
+        self._writer = zf.open(self._info, "w", force_zip64=True)
+        self._header_size = len(self._info.FileHeader(zip64=True))
+
+    def write(self, data: bytes) -> None:
+        """Append compressed bytes of the member."""
+        self._writer.write(data)
+
+    def finish(self, crc32: int, file_size: int) -> None:
+        """Close the member, recording its uncompressed data's CRC-32 and size."""
+        if self._writer.closed:
+            raise ValueError(f"Member {self._info.filename} is already closed.")
+        self._writer.close()
+        info = self._info
+        info.compress_type = self._compress_type
+        info.CRC = crc32
+        info.file_size = file_size
+        header = info.FileHeader(zip64=True)
+        assert len(header) == self._header_size, "the local header changed size"
+        fp = self._zf.fp
+        assert fp is not None
+        fp.seek(info.header_offset)
+        fp.write(header)
+        fp.seek(self._zf.start_dir)
+
+    @property
+    def closed(self) -> bool:
+        """Whether the member is closed, by :meth:`finish` or :meth:`close`."""
+        return self._writer.closed
+
+    def close(self) -> None:
+        """Close the member if :meth:`finish` did not; does nothing otherwise.
+
+        A member closed this way is recorded as stored bytes, so discard the
+        archive. Use it to release the archive after an error.
+        """
+        self._writer.close()
 
 
 def compact_zip(src_file: BinaryIO, live: frozenset[str]) -> BinaryIO:

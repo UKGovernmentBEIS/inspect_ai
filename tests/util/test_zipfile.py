@@ -1,14 +1,20 @@
 """Tests for the archive rewriting helpers in ``inspect_ai._util.zipfile``."""
 
+import io
 import os
 import tempfile
 import warnings
 import zipfile
-from typing import BinaryIO
+from pathlib import Path
+from typing import Any, BinaryIO
 
 import anyio
+import pytest
 
+from inspect_ai._util.async_zip import AsyncZipReader
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.zipfile import (
+    RawMemberWriter,
     compact_zip,
     copy_live_members,
     zip_dead_bytes,
@@ -98,3 +104,75 @@ def test_zip_dead_bytes_is_zero_for_a_fresh_archive() -> None:
     with zipfile.ZipFile(fresh, "r") as archive:
         assert zip_dead_bytes(archive) == 0
     fresh.close()
+
+
+def _raw_bytes(path: str, info: zipfile.ZipInfo) -> bytes:
+    """A member's compressed bytes, located from its local header."""
+    with open(path, "rb") as file:
+        file.seek(info.header_offset)
+        header = file.read(30)
+        name_length = int.from_bytes(header[26:28], "little")
+        extra_length = int.from_bytes(header[28:30], "little")
+        file.seek(info.header_offset + 30 + name_length + extra_length)
+        return file.read(info.compress_size)
+
+
+@pytest.mark.parametrize("zip64", [False, True])
+async def test_raw_member_writer_copies_members_that_read_back_byte_identical(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, zip64: bool
+) -> None:
+    if zip64:
+        # sizes and offsets past the limit use ZIP64 fields, as for 4 GiB
+        monkeypatch.setattr(zipfile, "ZIP64_LIMIT", 1000)
+    members = {
+        "stored.json": (zipfile.ZIP_STORED, os.urandom(4096)),
+        "deflated.json": (zipfile.ZIP_DEFLATED, b"deflated " * 1000),
+        "zstd.json": (zipfile_compress_kwargs["compression"], b"zstd " * 1000),
+        "empty.json": (zipfile.ZIP_DEFLATED, b""),
+    }
+    source = str(tmp_path / "source.zip")
+    with zipfile.ZipFile(source, "w") as zf:
+        for name, (method, data) in members.items():
+            zf.writestr(name, data, compress_type=method)
+
+    target = str(tmp_path / "target.zip")
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, source)
+        with zipfile.ZipFile(target, "w", **zipfile_compress_kwargs) as zf:
+            zf.writestr("first.json", os.urandom(2048))
+            for entry in (await reader.entries()).entries:
+                writer = RawMemberWriter(zf, entry.filename, entry.compression_method)
+                async for chunk in await reader.open_member_raw(entry):
+                    writer.write(chunk)
+                assert entry.crc32 is not None
+                writer.finish(entry.crc32, entry.uncompressed_size)
+            zf.writestr("last.json", b"last")
+
+        with zipfile.ZipFile(source) as src, zipfile.ZipFile(target) as dst:
+            for name, (method, data) in members.items():
+                info = dst.getinfo(name)
+                assert info.compress_type == method
+                assert dst.read(name) == data
+                assert _raw_bytes(target, info) == _raw_bytes(source, src.getinfo(name))
+            assert dst.read("last.json") == b"last"
+            if zip64:
+                assert dst.getinfo("stored.json").file_size > zipfile.ZIP64_LIMIT
+                assert dst.getinfo("last.json").header_offset > zipfile.ZIP64_LIMIT
+        copied = AsyncZipReader(fs, target, verify_crc=True)
+        for name, (_, data) in members.items():
+            assert await copied.read_member_fully(name) == data
+            async with await copied.open_member(name) as stream:
+                assert b"".join([chunk async for chunk in stream]) == data
+
+
+def test_raw_member_writer_refuses_an_unseekable_archive() -> None:
+    class Unseekable(io.RawIOBase):
+        def writable(self) -> bool:
+            return True
+
+        def write(self, data: Any) -> int:
+            return len(data)
+
+    with zipfile.ZipFile(Unseekable(), "w") as zf:
+        with pytest.raises(ValueError, match="seekable"):
+            RawMemberWriter(zf, "member.json", zipfile.ZIP_DEFLATED)
