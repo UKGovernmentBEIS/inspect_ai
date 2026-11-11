@@ -12,6 +12,7 @@ from typing import Any, BinaryIO, cast
 import anyio
 import boto3
 import pytest
+import zstandard
 
 from inspect_ai import Epochs, Task, eval, eval_retry, task, task_with
 from inspect_ai._eval.task import run as run_module
@@ -19,7 +20,7 @@ from inspect_ai._util.async_zip import AsyncZipReader, ZipCrcError
 from inspect_ai._util.asyncfiles import AsyncFilesystem, DirListing
 from inspect_ai._util.error import WriteConflictError
 from inspect_ai._util.file import FileInfo, local_path
-from inspect_ai._util.zipfile import zipfile_compress_kwargs
+from inspect_ai._util.zipfile import RawMemberWriter, zipfile_compress_kwargs
 from inspect_ai.dataset import Sample
 from inspect_ai.log import (
     EvalLog,
@@ -4690,6 +4691,48 @@ def test_a_sample_member_with_an_incomplete_deflate_stream_fails_the_merge(
     content[data] &= 0xFE
     Path(path).write_bytes(bytes(content))
     with pytest.raises(zlib.error, match="incomplete or truncated stream"):
+        merge_eval_log_shards(merged, _task())
+    assert not os.path.exists(merged)
+
+
+@pytest.mark.parametrize("incomplete", ["no last block", "no checksum"])
+def test_a_sample_member_with_an_incomplete_zstd_frame_fails_the_merge(
+    tmp_path: Path, incomplete: str
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    log = _run(shards, "1", sample_id=[4, 5, 6])
+    name = "samples/5_epoch_1.json"
+    path = local_path(log.location)
+    with zipfile.ZipFile(path) as zf:
+        sample = zf.read(name)
+    # a frame whose output and CRC-32 are complete, but which never ends
+    if incomplete == "no last block":
+        # descriptor: no checksum or content size; window descriptor: 128 KiB;
+        # one raw block without the last-block flag
+        assert len(sample) < 128 * 1024
+        frame = (
+            b"\x28\xb5\x2f\xfd\x00\x38"
+            + (len(sample) << 3).to_bytes(3, "little")
+            + sample
+        )
+    else:
+        frame = zstandard.ZstdCompressor(write_checksum=True).compress(sample)[:-4]
+    with zipfile.ZipFile(path) as src:
+        members = [(i.filename, src.read(i)) for i in src.infolist()]
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as dst:
+        for member, data in members:
+            if member == name:
+                writer = RawMemberWriter(
+                    dst, name, zipfile_compress_kwargs["compression"]
+                )
+                writer.write(frame)
+                writer.finish(zlib.crc32(sample), len(sample))
+            else:
+                dst.writestr(member, data)
+    with zipfile.ZipFile(path) as zf:
+        assert zf.read(name) == sample
+    with pytest.raises(zstandard.ZstdError, match="incomplete or truncated"):
         merge_eval_log_shards(merged, _task())
     assert not os.path.exists(merged)
 

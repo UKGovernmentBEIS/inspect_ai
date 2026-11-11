@@ -1,5 +1,5 @@
 import zlib
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Generator
 from typing import IO, Protocol, cast
 
 import zstandard
@@ -131,6 +131,7 @@ class PieceDecompressor:
         self._piece_size = piece_size
         self._deflate: zlib._Decompress | None = None
         self._zstd: zstandard.ZstdDecompressionWriter | None = None
+        self._zstd_frames: _ZstdFrames | None = None
         if method == ZipCompressionMethod.DEFLATE:
             self._deflate = zlib.decompressobj(-15)  # Raw DEFLATE
         elif method == ZipCompressionMethod.ZSTD:
@@ -139,6 +140,8 @@ class PieceDecompressor:
                 write_size=piece_size,
                 closefd=False,
             )
+            # the stream writer cannot tell whether the data ended mid-frame
+            self._zstd_frames = _ZstdFrames()
         elif method != ZipCompressionMethod.STORED:
             raise NotImplementedError(f"Unsupported compression method: {method}")
 
@@ -146,6 +149,8 @@ class PieceDecompressor:
         """Decompress the next chunk of the member's data."""
         if self._zstd is not None:
             self._zstd.write(data)
+            assert self._zstd_frames is not None
+            self._zstd_frames.write(data)
         elif self._deflate is not None:
             while not self._deflate.eof:
                 piece = self._deflate.decompress(data, self._piece_size)
@@ -165,11 +170,91 @@ class PieceDecompressor:
         Raises:
             zlib.error: A deflate stream ended before its final block, as
                 `zlib.decompress` raises.
+            zstandard.ZstdError: A zstd frame ended before its last block or
+                its checksum.
         """
         if self._deflate is not None and not self._deflate.eof:
             raise zlib.error(
                 "Error -5 while decompressing data: incomplete or truncated stream"
             )
+        if self._zstd_frames is not None:
+            self._zstd_frames.finish()
+
+
+_ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
+_ZSTD_DICTIONARY_ID_SIZES = (0, 1, 2, 4)
+_ZSTD_CONTENT_SIZE_SIZES = (0, 2, 4, 8)
+_ZSTD_RLE_BLOCK = 1
+_ZSTD_RESERVED_BLOCK = 3
+
+
+class _ZstdFrames:
+    """Follows the frame structure of zstd data, without decoding it.
+
+    Reads each frame's header, block headers and checksum (RFC 8878), so that
+    `finish` can tell whether the data ended between frames. Skippable frames
+    are refused: Inspect never writes them.
+    """
+
+    def __init__(self) -> None:
+        self._between_frames = True
+        self._field = bytearray()
+        self._fields = self._read_frames()
+        # bytes of the next field to read, or (negative) to pass over
+        self._want = next(self._fields)
+
+    def write(self, data: bytes) -> None:
+        position = 0
+        while position < len(data):
+            if self._want < 0:
+                taken = min(-self._want, len(data) - position)
+                self._want += taken
+                position += taken
+                if self._want == 0:
+                    self._want = self._fields.send(b"")
+            else:
+                taken = min(self._want - len(self._field), len(data) - position)
+                self._field += data[position : position + taken]
+                position += taken
+                if len(self._field) == self._want:
+                    field = bytes(self._field)
+                    self._field.clear()
+                    self._want = self._fields.send(field)
+
+    def finish(self) -> None:
+        if not self._between_frames or self._field:
+            raise zstandard.ZstdError("incomplete or truncated zstd frame")
+
+    def _read_frames(self) -> Generator[int, bytes, None]:
+        while True:
+            self._between_frames = True
+            magic = yield 4
+            self._between_frames = False
+            if magic != _ZSTD_MAGIC:
+                raise zstandard.ZstdError("unsupported zstd frame")
+            descriptor = (yield 1)[0]
+            single_segment = bool(descriptor & 0x20)
+            content_size_flag = descriptor >> 6
+            header = (
+                (0 if single_segment else 1)  # window descriptor
+                + _ZSTD_DICTIONARY_ID_SIZES[descriptor & 0x03]
+                + _ZSTD_CONTENT_SIZE_SIZES[content_size_flag]
+                + (1 if single_segment and content_size_flag == 0 else 0)
+            )
+            if header:
+                yield -header
+            last = False
+            while not last:
+                block = int.from_bytes((yield 3), "little")
+                last = bool(block & 0x01)
+                block_type = (block >> 1) & 0x03
+                if block_type == _ZSTD_RESERVED_BLOCK:
+                    raise zstandard.ZstdError("reserved zstd block type")
+                content = 1 if block_type == _ZSTD_RLE_BLOCK else block >> 3
+                if content:
+                    yield -content
+            if descriptor & 0x04:  # content checksum
+                yield -4
 
 
 class _SinkWriter:
