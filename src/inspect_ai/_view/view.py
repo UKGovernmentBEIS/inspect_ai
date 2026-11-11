@@ -96,26 +96,26 @@ def view(
 def view_port_pid_file(app_dir: Path, port: int) -> Path:
     ports_dir = app_dir / "ports"
     ports_dir.mkdir(parents=True, exist_ok=True)
-    return ports_dir / str(port)
+    # not `ports/<port>`: older versions read that as a bare pid and fail on
+    # anything else
+    return ports_dir / f"{port}.pid"
 
 
 def view_acquire_port(app_dir: Path, port: int) -> None:
     # pid file name
     pid_file = view_port_pid_file(app_dir, port)
 
-    # does it already exist? if so terminate that process
-    if pid_file.exists():
+    # is another view server holding the port? if so terminate it
+    owner = view_port_owner(pid_file)
+    if owner is not None:
         WAIT_SECONDS = 5
-        with open(pid_file, "r", encoding="utf-8") as f:
-            pid = int(f.read().strip())
         try:
-            p = psutil.Process(pid)
-            p.terminate()
+            owner.terminate()
             display().print(f"Terminating existing view command using port {port}")
-            p.wait(WAIT_SECONDS)
+            owner.wait(WAIT_SECONDS)
 
         except psutil.NoSuchProcess:
-            # expected error for crufty pid files
+            # exited since we checked
             pass
         except psutil.TimeoutExpired:
             logger.warning(
@@ -132,15 +132,43 @@ def view_acquire_port(app_dir: Path, port: int) -> None:
                 + f"port {port} but error occurred: {exception_message(ex)}"
             )
 
-    # write our pid to the file
-    with open(pid_file, "w", encoding="utf-8") as f:
-        f.write(str(os.getpid()))
+    # write our identity to the file
+    ident = process_ident(psutil.Process())
+    pid_file.write_text(ident, encoding="utf-8")
 
-    # arrange to release on exit
+    # arrange to release on exit (unless a newer server has taken the file)
     def release_lock_file() -> None:
         try:
-            pid_file.unlink(True)
+            if pid_file.read_text(encoding="utf-8") == ident:
+                pid_file.unlink()
         except Exception:
             pass
 
     atexit.register(release_lock_file)
+
+
+def view_port_owner(pid_file: Path) -> psutil.Process | None:
+    """Return the other view server recorded in `pid_file`, if it is still running.
+
+    The pid file outlives a server that crashes or is killed, and the OS may
+    since have given its pid to an unrelated process, so the recorded start
+    time must match as well. On Linux the start time psutil reports moves when
+    the system clock is stepped, so it is compared with a small tolerance. A
+    missing, unreadable or malformed file has no owner.
+    """
+    try:
+        pid, create_time = pid_file.read_text(encoding="utf-8").split()
+        process = psutil.Process(int(pid))
+        if (
+            process.pid != os.getpid()
+            and abs(process.create_time() - float(create_time)) < 2
+        ):
+            return process
+    except (OSError, ValueError, psutil.Error):
+        pass
+    return None
+
+
+def process_ident(process: psutil.Process) -> str:
+    """Identify a process by pid and start time, which pid reuse cannot repeat."""
+    return f"{process.pid} {process.create_time()}"

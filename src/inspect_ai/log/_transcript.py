@@ -30,6 +30,7 @@ from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._interrupt import InterruptEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
+from inspect_ai.event._span import SpanBeginEvent
 from inspect_ai.event._store import StoreEvent
 from inspect_ai.event._timeline import Timeline
 from inspect_ai.log._condense import (
@@ -39,7 +40,8 @@ from inspect_ai.log._condense import (
     resolve_events_attachments,
 )
 from inspect_ai.model._chat_message import ChatMessageBase
-from inspect_ai.model._model_call import ModelCall
+from inspect_ai.model._model_call import ModelCall, init_call_interner
+from inspect_ai.util._span import AgentSpans
 from inspect_ai.util._store import (
     store,
     store_changes,
@@ -578,6 +580,9 @@ class Transcript:
             on_release=self._release_message_refs
         )
         self._timelines: list[Timeline] = []
+        self._agent_spans = AgentSpans()
+        for event in self._events:
+            self._add_span(event)
         self._model_call_counts: dict[str, int] = {}
         self._kept_event_ids: set[str] = set()
         self._bounded = bounded
@@ -704,6 +709,7 @@ class Transcript:
             raise ValueError(f"Duplicate event uuid: {event_key}")
         self._process_event(event)
         self._events.append(event)
+        self._add_span(event)
         self._resident_event_ids.add(event_key)
         self._set_attachment_refs(event)
         self._event_count += 1
@@ -749,15 +755,33 @@ class Transcript:
             condensed_events, resolved_events, event_keys
         ):
             self._events.append(event)
+            self._add_span(event)
             self._resident_event_ids.add(event_key)
             self._set_attachment_refs(condensed)
             self._event_count += 1
             self._update_pin_state(event)
             self._update_pending(event)
-            self._update_evictable_state(event)
+            if self._bounded and self._is_evictable_event_key(event_key):
+                self._evictable_event_ids.append(event_key)
             if notify_subscribers:
                 self._notify_subscribers(event)
         self._evict_events()
+
+    def _add_span(self, event: Event) -> None:
+        if isinstance(event, SpanBeginEvent):
+            self._agent_spans.add(event)
+
+    def _agent_span(self, span_id: str) -> str | None:
+        """The innermost agent span at or above the span `span_id`, from the spans begun in this transcript (see `AgentSpans`).
+
+        Raises:
+            ValueError: No span `span_id` was begun in this transcript, or the span tree has a `parent_id` cycle.
+        """
+        if span_id not in self._agent_spans:
+            raise ValueError(
+                f"The span {span_id!r} was not begun in this transcript: its SpanBeginEvent must be recorded before the span is named."
+            )
+        return self._agent_spans.agent_span(span_id)
 
     def _event_updated(self, event: Event) -> None:
         if self._is_resident(event):
@@ -1152,6 +1176,7 @@ def track_store_changes() -> Iterator[None]:
 
 def init_transcript(transcript: Transcript) -> None:
     _transcript.set(transcript)
+    init_call_interner(transcript._log_model_api is True)
 
 
 _transcript: ContextVar[Transcript | None] = ContextVar(

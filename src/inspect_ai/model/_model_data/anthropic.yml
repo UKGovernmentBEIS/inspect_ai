@@ -124,6 +124,21 @@ anthropic:
           snapshot: "20260901"
           aliases:
             - anthropic.claude-fable-5-1
+    claude-fable-5-2:
+      display_name: Claude Fable 5.2
+      release_date: 2026-11-09
+      knowledge_cutoff_date: 2026-06-01
+      context_length: 1000000
+      output_tokens: 128000
+      reasoning: True
+      # Adaptive thinking is always on; the API default effort is `high`.
+      # https://platform.claude.com/docs/en/models/fable-5-2/overview
+      reasoning_effort_default: high
+      versions:
+        claude-fable-5-2:
+          snapshot: "20261109"
+          aliases:
+            - anthropic.claude-fable-5-2
     claude-mythos-5:
       display_name: Claude Mythos 5
       release_date: 2026-06-09

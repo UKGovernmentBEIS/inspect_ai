@@ -8,10 +8,13 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 
 import inspect_ai
+from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.event._event import DiscriminatedEvent, Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sentinel import SentinelEvent
+from inspect_ai.log import read_eval_log, write_eval_log
+from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSample, EvalSpec
 from inspect_ai.scorer import Reference
 from inspect_ai.tool import ToolCall
 
@@ -24,7 +27,7 @@ def test_event_public_alias_stays_introspectable() -> None:
     members = get_args(Event)
     assert ModelEvent in members
     assert InfoEvent in members
-    assert len(members) == 25
+    assert len(members) == 27
 
 
 def test_discriminated_event_validates_by_tag() -> None:
@@ -302,3 +305,44 @@ def test_sentinel_event_tui_shows_the_error() -> None:
     buffer = io.StringIO()
     Console(file=buffer, width=200).print(displays[0].content)
     assert "observation (error): ValueError: [/red]" in buffer.getvalue()
+
+
+@pytest.mark.parametrize("format", ["eval", "json"])
+@pytest.mark.parametrize("execution_id", [None, "call_1_run_2"])
+def test_execution_id_defaults_to_none_and_round_trips_through_the_log(
+    tmp_path: Path, format: str, execution_id: str | None
+) -> None:
+    call = ToolCall(id="call_1", function="bash", arguments={"cmd": "ls"})
+    approval = ApprovalEvent(
+        message="", call=call, approver="human", decision="approve"
+    )
+    sentinel = _sentinel_event()
+    assert approval.execution_id is None
+    assert sentinel.execution_id is None
+
+    approval.execution_id = execution_id
+    sentinel.execution_id = execution_id
+    log = EvalLog(
+        eval=EvalSpec(
+            created="2026-01-01T00:00:00Z",
+            task="task",
+            dataset=EvalDataset(),
+            model="mockllm/model",
+            config=EvalConfig(),
+        ),
+        samples=[
+            EvalSample(id=1, epoch=1, input="", target="", events=[approval, sentinel])
+        ],
+    )
+    location = tmp_path / f"log.{format}"
+    write_eval_log(log, location)
+
+    samples = read_eval_log(location).samples
+    assert samples is not None
+    restored = samples[0].events
+    assert [event.event for event in restored] == ["approval", "sentinel"]
+    assert all(
+        isinstance(event, ApprovalEvent | SentinelEvent)
+        and event.execution_id == execution_id
+        for event in restored
+    )

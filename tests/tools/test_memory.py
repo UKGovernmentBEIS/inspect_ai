@@ -509,10 +509,10 @@ async def test_approval_sees_canonical_readonly_and_rename_paths() -> None:
 
 
 @pytest.mark.parametrize("oversight", [False, True], ids=["no-approval", "approval"])
-async def test_tool_event_records_paths_as_the_model_gave_them_without_oversight(
+async def test_tool_event_records_canonical_paths_with_or_without_oversight(
     oversight: bool,
 ) -> None:
-    """Without oversight the event keeps the model's paths; with it, the canonical ones."""
+    """The event records the paths the tool acts on, with or without oversight."""
     from pydantic import JsonValue
 
     from inspect_ai.approval import ApprovalPolicy, auto_approver
@@ -538,26 +538,22 @@ async def test_tool_event_records_paths_as_the_model_gave_them_without_oversight
 
     reader = memory(initial_data={"/memories/seed.txt": "seed"}, readonly=True)
     viewed = {"command": "view", "path": "/memories/x/../seed.txt"}
-    assert await run(reader, viewed) == (
-        {**viewed, "path": "/memories/seed.txt"} if oversight else viewed
-    )
+    assert await run(reader, viewed) == {**viewed, "path": "/memories/seed.txt"}
 
     tool = memory()
     created = {"command": "create", "path": "/memories/a/../b.txt", "file_text": "x"}
-    assert await run(tool, created) == (
-        {**created, "path": "/memories/b.txt"} if oversight else created
-    )
+    assert await run(tool, created) == {**created, "path": "/memories/b.txt"}
 
     renamed = {
         "command": "rename",
         "old_path": "/memories/a/../b.txt",
         "new_path": "/memories/c/../d.txt",
     }
-    assert await run(tool, renamed) == (
-        {**renamed, "old_path": "/memories/b.txt", "new_path": "/memories/d.txt"}
-        if oversight
-        else renamed
-    )
+    assert await run(tool, renamed) == {
+        **renamed,
+        "old_path": "/memories/b.txt",
+        "new_path": "/memories/d.txt",
+    }
     result = await tool(command="view", path="/memories/d.txt")
     assert isinstance(result, str)
     assert "x" in result

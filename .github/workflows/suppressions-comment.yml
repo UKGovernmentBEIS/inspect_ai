@@ -47,12 +47,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
-env:
-  UV_VERSION: 0.13.5
-
 jobs:
   comment:
     runs-on: ubuntu-latest
+    # No Actions cache use, so the Actions cache refuses any write a malicious
+    # package could attempt with the Actions cache token.
+    cache-mode: none
     steps:
       # No `ref`: on pull_request_target this checks out the BASE branch
       # (trusted script + base ledger). Full history lets merge-tree find the
@@ -66,11 +66,10 @@ jobs:
           filter: "blob:none"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        uses: meridianlabs-ai/actions/setup-uv@330f3df6492418d6b25dc2631fc31143489f4674 # main, 2026-11-02
         with:
-          version: ${{ env.UV_VERSION }}
           python-version: "3.11"
-          enable-cache: false
+          actions-cache: none
 
       - name: Comment ledger delta on PR
         env:

@@ -4,9 +4,11 @@ import string
 import types
 import typing
 from collections.abc import Collection
+from contextlib import contextmanager
+from contextvars import ContextVar
 from copy import copy, deepcopy
-from dataclasses import is_dataclass, replace
-from datetime import date, datetime, time
+from dataclasses import dataclass, is_dataclass, replace
+from datetime import date, datetime, time, timezone
 from enum import EnumMeta
 from logging import getLogger
 from textwrap import dedent
@@ -16,6 +18,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Iterator,
     List,
     Literal,
     NamedTuple,
@@ -33,6 +36,7 @@ from typing import (
 
 if TYPE_CHECKING:
     from inspect_ai.approval import ApprovalPolicy
+    from inspect_ai.approval._approval import Approval
     from inspect_ai.review import ReviewPolicy
 
 import anyio
@@ -42,7 +46,7 @@ from pydantic import BaseModel, TypeAdapter
 from typing_extensions import is_typeddict
 
 from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
-from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
+from inspect_ai._sentinel._scope import sentinel_scope
 from inspect_ai._util._async import raise_unwrapped
 from inspect_ai._util.content import (
     Content,
@@ -79,11 +83,11 @@ from inspect_ai.tool._tool_def import ToolDef, tool_def_fields, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
-from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._json import dataclass_fields
 from inspect_ai.util._limit import LimitExceededError, apply_limits
 from inspect_ai.util._sandbox.environment import SandboxUnavailableError
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
+from inspect_ai.util._sandbox.service import CONTROL_FLOW_EXCEPTIONS
 from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
 from ._chat_message import (
@@ -94,6 +98,7 @@ from ._chat_message import (
     ChatMessageUser,
 )
 from ._generate_config import active_generate_config
+from ._message_ids import edited_message
 
 logger = getLogger(__name__)
 
@@ -108,6 +113,35 @@ the same tool is not executed and is answered with
 when the model API defines batch semantics for a tool (Anthropic's computer
 toolset); `execute_tools` reads it. Calls to other tools are unaffected.
 """
+
+
+@dataclass
+class HandoffWatch:
+    """What one `execute_tools()` call reports to the `watch_handoffs()` around it."""
+
+    called: bool = False
+    """Whether a tool call in the message resolved to a handoff."""
+
+
+_handoff_watch: ContextVar[HandoffWatch | None] = ContextVar(
+    "_handoff_watch", default=None
+)
+
+
+@contextmanager
+def watch_handoffs() -> Iterator[HandoffWatch]:
+    """Watch the next `execute_tools()` call for calls that resolve to handoffs.
+
+    The call takes the watch and clears it for its own tool resolution and
+    tool bodies, so an `execute_tools()` nested in one of its tools (an
+    `as_tool()` child's loop, say) reports nothing to it.
+    """
+    watch = HandoffWatch()
+    token = _handoff_watch.set(watch)
+    try:
+        yield watch
+    finally:
+        _handoff_watch.reset(token)
 
 
 def _fail_fast_tools(message: ChatMessageAssistant) -> set[str]:
@@ -137,10 +171,23 @@ def _sentinel_exception(ex: SentinelFailure) -> Exception:
     # A limit keeps its meaning. Any other sentinel error must fail the sample
     # rather than become a tool error the model sees, so it stays wrapped through
     # enclosing agents' tool calls until the sample unwraps it.
-    inner = inner_exception(ex.error)
-    if isinstance(inner, (LimitExceededError, TerminateSampleError)):
-        return inner
+    decisive = decisive_sentinel_exception(ex.error)
+    if isinstance(decisive, (LimitExceededError, TerminateSampleError)):
+        return decisive
     return ex
+
+
+def decisive_sentinel_exception(error: Exception) -> Exception:
+    # in a group, a termination decides, then any error that fails the sample,
+    # then a limit
+    leaves = _group_leaves(error)
+    for leaf in leaves:
+        if isinstance(leaf, TerminateSampleError):
+            return leaf
+    for leaf in leaves:
+        if not isinstance(leaf, LimitExceededError):
+            return leaf
+    return leaves[0]
 
 
 async def execute_tools(
@@ -177,14 +224,20 @@ async def execute_tools(
 
     approval_cm = approval_context(approval) if approval else nullcontext()
     review_cm = review_context(review) if review else nullcontext()
-    with approval_cm, review_cm:
-        return await _execute_tools_impl(messages, tools, max_output)
+    watch = _handoff_watch.get()
+    token = _handoff_watch.set(None)
+    try:
+        with approval_cm, review_cm:
+            return await _execute_tools_impl(messages, tools, max_output, watch)
+    finally:
+        _handoff_watch.reset(token)
 
 
 async def _execute_tools_impl(
     messages: list[ChatMessage],
     tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource,
     max_output: int | None = None,
+    watch: HandoffWatch | None = None,
 ) -> ExecuteToolsResult:
     message = messages[-1]
     if isinstance(message, ChatMessageAssistant) and message.tool_calls:
@@ -193,6 +246,8 @@ async def _execute_tools_impl(
 
         tool_calls = message.tool_calls
         tdefs = await tool_defs(tools)
+        if watch is not None:
+            _report_handoffs(watch, tool_calls, tdefs)
 
         async def call_tool_task(
             call: ToolCall,
@@ -254,7 +309,7 @@ async def _execute_tools_impl(
                         agent_span_id = called.agent_span_id
                 # unwrap exception group
                 except Exception as ex:
-                    raise_unwrapped(ex, inner_exception(ex))
+                    raise_unwrapped(ex, decisive_tool_exception(ex))
 
             except SentinelFailure as ex:
                 tool_exception = _sentinel_exception(ex)
@@ -381,6 +436,9 @@ async def _execute_tools_impl(
             # time lets us compute working time.)
             stage_events: dict[int, ToolEvent] = {}
             waiting_starts: dict[int, float] = {}
+            # When each call's own unwind from a cancellation ended, and its
+            # working time then.
+            cancel_ends: dict[int, tuple[datetime, float]] = {}
             stage_results: dict[int, StreamItem | None] = {}
             for idx in stage:
                 call = tool_calls[idx]
@@ -391,6 +449,7 @@ async def _execute_tools_impl(
                     arguments=call.arguments,
                     view=call.view,
                     pending=True,
+                    call_message_id=message.id,
                 )
                 stage_results[idx] = None
 
@@ -447,6 +506,7 @@ async def _execute_tools_impl(
                 events: dict[int, ToolEvent],
                 results: dict[int, StreamItem | None],
                 waiting_starts: dict[int, float],
+                cancel_ends: dict[int, tuple[datetime, float]],
             ) -> None:
                 call = tool_calls[idx]
                 event = events[idx]
@@ -538,6 +598,14 @@ async def _execute_tools_impl(
                     # leave the post-task-group block below to detect and
                     # finalise the cancellation.
                     pass
+                except anyio.get_cancelled_exc_class():
+                    # Recorded here, after this call's own cleanup, so a
+                    # sibling's slower cleanup is not counted against it.
+                    cancel_ends[idx] = (
+                        datetime.now(timezone.utc),
+                        sample_working_time_since(waiting_start),
+                    )
+                    raise
 
                 if review_cancellation is not None:
                     raise review_cancellation
@@ -617,9 +685,42 @@ async def _execute_tools_impl(
                             stage_events,
                             stage_results,
                             waiting_starts,
+                            cancel_ends,
                         )
             except Exception as ex:
                 stage_exception = ex
+            except anyio.get_cancelled_exc_class():
+                # An enclosing scope (an agent channel interrupt, a sample
+                # limit) cancelled the stage. Finalise the calls still in
+                # flight so the log does not keep them pending, as generate
+                # does for a cancelled ModelEvent. Events already finalised
+                # (completed calls, ACP's interrupt snapshot) are left as is.
+                for idx in stage:
+                    event = stage_events[idx]
+                    if not event.pending:
+                        continue
+                    completed, working_time = cancel_ends.get(
+                        idx,
+                        (
+                            datetime.now(timezone.utc),
+                            sample_working_time_since(waiting_starts[idx]),
+                        ),
+                    )
+                    event._set_result(
+                        result="",
+                        truncated=None,
+                        error=ToolCallError("cancelled", "Tool call was cancelled."),
+                        working_time=working_time,
+                        agent=None,
+                        failed=True,
+                        message_id=None,
+                    )
+                    event.completed = completed
+                    # A call cancelled before call_tool recorded it (in approval
+                    # or the sentinel's pre-call check) is not logged.
+                    if event in transcript().events:
+                        transcript()._event_updated(event)
+                raise
 
             # Splice results into `result_messages` in declared order so the
             # message list matches the order of tool_calls (Anthropic and
@@ -716,7 +817,9 @@ async def _execute_tools_impl(
             # If anything in the stage raised, re-raise after updating the
             # events so the transcript captures partial state cleanly.
             if stage_exception is not None:
-                raise_unwrapped(stage_exception, inner_exception(stage_exception))
+                raise_unwrapped(
+                    stage_exception, decisive_tool_exception(stage_exception)
+                )
 
         # return tool messages
         return ExecuteToolsResult(result_messages, result_output)
@@ -734,6 +837,18 @@ class CalledTool(NamedTuple):
     output: ModelOutput | None
     agent: str | None
     agent_span_id: str | None
+
+
+def _report_handoffs(
+    watch: HandoffWatch, tool_calls: list[ToolCall], tdefs: list[ToolDef]
+) -> None:
+    """Set `watch.called` if a call resolves to a handoff as `call_tool()` resolves it."""
+    from inspect_ai.agent._handoff import AgentTool
+
+    for call in tool_calls:
+        tdef = next((t for t in tdefs if t.name == call.function), None)
+        if tdef is not None and isinstance(tdef.tool, AgentTool):
+            watch.called = True
 
 
 async def call_tool(
@@ -798,6 +913,24 @@ async def call_tool(
         event.arguments = shown.arguments
         return shown
 
+    # A sentinel sidecar that ended the sample at a call of this turn ends it
+    # before any of the turn's calls runs, as an in-process sentinel's
+    # terminate at a call does, whatever the call holds.
+    from inspect_ai._sentinel._sidecar._act import take_call_decision
+
+    decided = take_call_decision(call.id)
+    if decided is not None and decided.action == "terminate":
+        await record_pending_tool_event()
+        raise TerminateSampleError(decided.message or "Sentinel requested termination.")
+
+    # A call a sentinel sidecar rejected is answered as an in-process
+    # sentinel's rejection is, whatever it holds: the eval is handed it with
+    # its id and function only, so its arguments are never parsed. No approver
+    # sees it: the sidecar judged the turn before Inspect was handed it.
+    if decided is not None and decided.action == "reject":
+        await record_pending_tool_event()
+        raise ToolApprovalError(decided.message)
+
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
         raise await record_tool_parsing_error(call.parse_error)
@@ -814,10 +947,12 @@ async def call_tool(
     if tool_def is None:
         raise await record_tool_parsing_error(f"Tool {call.function} not found")
 
-    model_call = call
     canonical_arguments = tool_canonical_arguments(tool_def.tool)
     if canonical_arguments is not None:
         call = replace(call, arguments=canonical_arguments(call.arguments))
+        # the log records the arguments as checked, which replay reads back
+        event.arguments = call.arguments
+        event.view = tool_call_view(call, tools)
 
     # approvers and sentinel monitors see the validated call, so an invalid
     # call is never presented for approval
@@ -831,14 +966,21 @@ async def call_tool(
         event.view = tool_call_view(deepcopy(validated.call), tools)
         validated.call.view = deepcopy(event.view)
     call, arguments = validated
-    # without oversight the event records the model's arguments, as on main
-    shown = shown_to_callbacks(call if overseen else model_call)
+    # without oversight the event records the model's arguments, canonical
+    shown = shown_to_callbacks(call)
+
+    # A call the sidecar changed is the call Inspect is handed, so approvers
+    # and an in-process sentinel see it changed and may change it again.
+    if decided is not None and decided.modified is not None:
+        error = _sidecar_modified_error(shown, decided.modified)
+        if error is not None:
+            await record_pending_tool_event()
+            raise RuntimeError(error)
+        call, arguments = await revalidated_tool_call(decided.modified, tool_def)
+        shown = shown_to_callbacks(call)
 
     # if we have a tool approver, apply it now
-    from inspect_ai.approval._apply import (
-        apply_tool_approval,
-        modified_function_error,
-    )
+    from inspect_ai.approval._apply import apply_tool_approval
 
     approved, approval = await apply_tool_approval(
         message, call, tool_def.viewer, conversation
@@ -850,22 +992,19 @@ async def call_tool(
             raise TerminateSampleError(message)
         else:
             raise ToolApprovalError(approval.explanation if approval else None)
+    error = approver_result_error(shown, call, approval)
+    if error is not None:
+        await record_pending_tool_event()
+        if approval is not None and approval.decision == "modify":
+            raise RuntimeError(error)
+        raise ToolApprovalError(error)
     if (
         approval is not None
         and approval.decision == "modify"
         and approval.modified is not None
     ):
-        error = modified_function_error(shown, approval.modified) or (
-            _modified_id_error("An approver", shown, approval.modified)
-        )
-        if error is not None:
-            await record_pending_tool_event()
-            raise RuntimeError(error)
         call, arguments = await revalidated_tool_call(approval.modified, tool_def)
         shown = shown_to_callbacks(call)
-    elif approval is not None and _changed_in_place(call, shown):
-        await record_pending_tool_event()
-        raise ToolApprovalError(_CHANGED_IN_PLACE)
 
     if checks_tool_calls():
         from inspect_ai._sentinel._dispatch import (
@@ -928,7 +1067,7 @@ async def call_tool(
                 transcript()._event(event)
                 if on_execute is not None:
                     on_execute(call)
-                with sentinel_scope(AgentScope.OFF):
+                with sentinel_scope("tool"):
                     result: ToolResult = await tool_def.tool(**arguments)
                 agent_span_id = getattr(tool_def.tool, "agent_span_id", None)
                 return CalledTool(result, [], None, None, agent_span_id)
@@ -945,6 +1084,12 @@ _SENTINEL_MODIFIED_FUNCTION = (
     "'modify' decision may change only the arguments of a tool call, not the "
     "function called."
 )
+
+
+def _sidecar_modified_error(shown: ToolCall, modified: ToolCall) -> str | None:
+    if modified.function != shown.function:
+        return _SENTINEL_MODIFIED_FUNCTION.format(modified.function, shown.function)
+    return _modified_id_error("A sentinel sidecar", shown, modified)
 
 
 def _modified_id_error(who: str, shown: ToolCall, modified: ToolCall) -> str | None:
@@ -973,6 +1118,30 @@ def _changed_in_place(call: ToolCall, shown: ToolCall) -> bool:
         or call.function != shown.function
         or not json_equal(call.arguments, shown.arguments)
     )
+
+
+def approver_result_error(
+    shown: ToolCall, reviewed: ToolCall, approval: "Approval | None"
+) -> str | None:
+    """Error for an approver's decision on `reviewed`, judged against `shown`, else `None`.
+
+    `shown` is a snapshot of the call taken before the approver saw it, so a
+    callback that changed `reviewed` in place cannot change what its decision
+    is judged against. A `modify` may change only the arguments: a different
+    function or id is an error in the approver. An `approve` must leave the
+    call as shown (`_changed_in_place`). Callers decide the consequence.
+    """
+    from inspect_ai.approval._apply import modified_function_error
+
+    if approval is None:
+        return None
+    if approval.decision == "modify" and approval.modified is not None:
+        return modified_function_error(shown, approval.modified) or (
+            _modified_id_error("An approver", shown, approval.modified)
+        )
+    if approval.decision == "approve" and _changed_in_place(reviewed, shown):
+        return _CHANGED_IN_PLACE
+    return None
 
 
 async def _apply_tool_review(
@@ -1045,14 +1214,13 @@ async def agent_handoff(
     # tools in parallel and we won't be handling the other calls)
     last_message = agent_conversation[-1]
     if isinstance(last_message, ChatMessageAssistant) and last_message.tool_calls:
-        agent_conversation[-1] = agent_conversation[-1].model_copy(
-            update=dict(
-                tool_calls=[
-                    tool_call
-                    for tool_call in last_message.tool_calls
-                    if tool_call.id == call.id
-                ]
-            )
+        agent_conversation[-1] = edited_message(
+            last_message,
+            tool_calls=[
+                tool_call
+                for tool_call in last_message.tool_calls
+                if tool_call.id == call.id
+            ],
         )
 
     # ammend the conversation with a ChatMessageTool to indicate
@@ -1163,9 +1331,7 @@ def prepend_agent_name(
     message: ChatMessageAssistant, agent_name: str
 ) -> ChatMessageAssistant:
     if isinstance(message.content, str):
-        return message.model_copy(
-            update=dict(content=f"[{agent_name}] {message.content}")
-        )
+        return edited_message(message, content=f"[{agent_name}] {message.content}")
     else:
         content = copy(message.content)
         for i in range(0, len(content)):
@@ -1176,7 +1342,7 @@ def prepend_agent_name(
                         update=dict(text=f"[{agent_name}] {text}")
                     )
                 break
-        return message.model_copy(update=dict(content=content))
+        return edited_message(message, content=content)
 
 
 async def resolve_tools(
@@ -1688,7 +1854,19 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             return typeddict_data
         elif is_dataclass(type_hint):
             dataclass_data: dict[str, Any] = {}
-            for name, (_, field_type) in dataclass_fields(type_hint).items():
+            fields = dataclass_fields(type_hint)
+            non_init_fields = [
+                name
+                for name, (field, _) in fields.items()
+                if not field.init and name in input
+            ]
+            if non_init_fields:
+                raise ToolParsingError(
+                    f"Unexpected non-init dataclass fields: {', '.join(non_init_fields)}"
+                )
+            for name, (field, field_type) in fields.items():
+                if not field.init:
+                    continue
                 dataclass_data[name] = tool_param(field_type, input.get(name))
             return type_hint(**dataclass_data)
         elif issubclass(type_hint, BaseModel):
@@ -1744,7 +1922,7 @@ class MappedToolCallError(NamedTuple):
 def tool_call_error(ex: Exception, function: str) -> MappedToolCallError | None:
     """Map a tool-execution exception to the error the caller reports.
 
-    Callers must normalize exception groups (inner_exception()) first.
+    Callers must reduce exception groups (decisive_tool_exception()) first.
     Control-flow exceptions are classified where they have a tool-error
     rendering (limits) — callers with propagation semantics re-raise after
     recording. Unexpected exceptions (including non-embedded-null-byte
@@ -1833,6 +2011,50 @@ def tool_call_error(ex: Exception, function: str) -> MappedToolCallError | None:
         return MappedToolCallError(error=ToolCallError("unknown", ex.message))
     else:
         return None
+
+
+def decisive_tool_exception(ex: Exception) -> Exception:
+    """The exception that decides a tool failure's disposition.
+
+    A tool can raise an `ExceptionGroup` (concurrent children failing together,
+    or a child raising during cancellation cleanup). Reducing it to whichever
+    leaf comes first can hide a termination, an unexpected exception or a limit
+    behind an expected tool error, so every leaf is considered, in group order
+    (the group structure only, not causes or context): the first sample
+    termination wins, then the first unexpected exception (one
+    `tool_call_error()` does not map), then the first `LimitExceededError`
+    (an output limit is the tool's own, an expected error); otherwise the
+    first leaf, as every leaf is an expected tool error. A non-group exception
+    is returned as is.
+
+    Callers classify the result and apply the disposition the exception would
+    get if raised bare.
+
+    Args:
+        ex: The exception raised by tool execution.
+
+    Returns:
+        The decisive leaf (`ex` itself if it is not a group).
+    """
+    leaves = _group_leaves(ex)
+    for leaf in leaves:
+        if isinstance(leaf, CONTROL_FLOW_EXCEPTIONS):
+            return leaf
+    for leaf in leaves:
+        # the function name only shapes messages, not the classification
+        if tool_call_error(leaf, "") is None:
+            return leaf
+    for leaf in leaves:
+        if isinstance(leaf, LimitExceededError):
+            return leaf
+    return leaves[0]
+
+
+def _group_leaves(ex: Exception) -> list[Exception]:
+    """The leaves of an exception group in group order (`[ex]` otherwise)."""
+    if isinstance(ex, ExceptionGroup):
+        return [leaf for child in ex.exceptions for leaf in _group_leaves(child)]
+    return [ex]
 
 
 class ClassifiedToolException(NamedTuple):

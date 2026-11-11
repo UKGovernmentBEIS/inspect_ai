@@ -13,7 +13,7 @@ Covers:
   models; `none` is dropped and `xhigh`/`max` clamped to `high` only for gpt-oss and
   MiniMax M2 (which reject them), while other models (deepseek/glm/kimi and MiniMax
   M3) accept and pass through `none`/`xhigh`/`max`.
-- OpenRouter: `max` is remapped to `xhigh` (OpenRouter does not accept `max`).
+- OpenRouter: reasoning effort values, including `max`, pass through unchanged.
 - OpenAI-compatible providers: `supports_max_reasoning_effort()` recognizes OpenAI
   families by default and a subclass's override reaches the Responses request.
 """
@@ -222,6 +222,7 @@ def test_google_gemini_2_5_reasoning_tokens_wins_over_effort():
         ("gemini-3.8-flash", ThinkingLevel.LOW),
         ("gemini-3.1-pro-preview", ThinkingLevel.LOW),
         ("gemini-4-argon", ThinkingLevel.LOW),
+        ("gemini-4-carbon", ThinkingLevel.LOW),
     ],
 )
 def test_google_gemini_3_minimal_effort(
@@ -256,6 +257,7 @@ def test_google_gemini_3_uses_thinking_level_not_bridge():
     assert thinking_config.thinking_budget is None
 
 
+@pytest.mark.parametrize("model_name", ["gemini-4-argon", "gemini-4-carbon"])
 @pytest.mark.parametrize(
     "effort,expected_level",
     [
@@ -266,11 +268,12 @@ def test_google_gemini_3_uses_thinking_level_not_bridge():
         ("max", ThinkingLevel.HIGH),
     ],
 )
-def test_google_gemini_4_argon_thinking_level(
+def test_google_gemini_4_thinking_level(
+    model_name: str,
     effort: Literal["low", "medium", "high", "xhigh", "max"],
     expected_level: ThinkingLevel,
 ) -> None:
-    thinking_config = _google_api("gemini-4-argon").chat_thinking_config(
+    thinking_config = _google_api(model_name).chat_thinking_config(
         GenerateConfig(reasoning_effort=effort)
     )
     assert thinking_config is not None
@@ -286,6 +289,7 @@ def test_google_gemini_4_argon_thinking_level(
             "vertex/projects/my-project/locations/us-central1/publishers/google/models/gemini-4-argon",
             False,
         ),
+        ("gemini-4-carbon", False),
         ("gemini-3.8-flash", False),
         ("gemini-3.1-pro-preview", True),
         ("gemini-4-pro", True),
@@ -923,7 +927,7 @@ async def test_openai_compatible_max_support_reaches_responses_request(
     assert create.call_args.kwargs["reasoning"]["effort"] == expected
 
 
-# -- OpenRouter max -> xhigh clamp --
+# -- OpenRouter reasoning effort --
 
 
 @pytest.mark.parametrize(
@@ -934,13 +938,51 @@ async def test_openai_compatible_max_support_reaches_responses_request(
         ("medium", "medium"),
         ("high", "high"),
         ("xhigh", "xhigh"),
-        ("max", "xhigh"),  # OpenRouter doesn't accept 'max'
+        ("max", "max"),
     ],
 )
-def test_openrouter_max_clamped_to_xhigh(effort, expected):
+def test_openrouter_preserves_reasoning_effort(effort, expected):
     api = OpenRouterAPI(model_name="anthropic/claude-3.7-sonnet", api_key="test-key")
     params = api.completion_params(GenerateConfig(reasoning_effort=effort), tools=False)
     assert params["extra_body"]["reasoning"]["effort"] == expected
+
+
+async def test_openrouter_max_reaches_responses_request(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from openai.types.responses import Response
+
+    from inspect_ai.model import ChatMessageUser
+
+    api = OpenRouterAPI(
+        model_name="anthropic/claude-3.7-sonnet",
+        api_key="test-key",
+        responses_api=True,
+        stream=False,
+    )
+    create = AsyncMock(
+        return_value=Response.model_construct(
+            id="resp_test",
+            model="anthropic/claude-3.7-sonnet",
+            created_at=0.0,
+            object="response",
+            status="completed",
+            output=[],
+            tools=[],
+        )
+    )
+    monkeypatch.setattr(api.client.responses, "create", create)
+    try:
+        await api.generate(
+            input=[ChatMessageUser(content="hi")],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(reasoning_effort="max"),
+        )
+    finally:
+        await api.aclose()
+
+    assert create.call_args.kwargs["reasoning"]["effort"] == "max"
 
 
 # -- Grok mapping --
@@ -949,7 +991,7 @@ def test_openrouter_max_clamped_to_xhigh(effort, expected):
 # real effort level from grok-4.6, and xAI documents that grok-4-family models
 # without xhigh support (e.g. grok-4.5) treat it as high, so passing it
 # through preserves user intent on models that honor it. Requires xai_sdk >=
-# 1.18 (the requirements-dev.txt floor); older SDKs clamp to "high" (covered
+# 1.18 (the dev extra's floor); older SDKs clamp to "high" (covered
 # by test_grok_xhigh_clamped_on_older_sdk below).
 
 

@@ -5,7 +5,7 @@ import anyio
 from pydantic import JsonValue, TypeAdapter
 from shortuuid import uuid
 
-from inspect_ai._sentinel._scope import AgentScope, sentinel_scope
+from inspect_ai._sentinel._scope import sentinel_scope
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
@@ -22,6 +22,7 @@ from inspect_ai.log._transcript import transcript
 from inspect_ai.model._call_tools import (
     _exceeds_max_depth,
     _max_depth_parse_error,
+    decisive_tool_exception,
     tool_call_error,
     tool_result_content_list,
     truncate_tool_output,
@@ -31,6 +32,7 @@ from inspect_ai.tool._tool import Tool, ToolError, ToolParsingError, ToolResult
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._anyio import inner_exception
+from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.service import find_control_flow
 from inspect_ai.util._span import parent_span, span
 
@@ -59,21 +61,26 @@ async def execute_host_tool(
     rest are validated against the tool's schema as for a native call, so a
     scaffold's malformed arguments surface as a `ToolParsingError` the model
     can recover from; they are otherwise forwarded as the scaffold sent them.
-    Exceptions are classified after unwrapping any task-group
-    `ExceptionGroup`, as `execute_tools` does, and with the same
-    `tool_call_error` mapping. Those a native call would show the model
-    propagate unchanged as the RPC error the scaffold reads as tool output. A
-    termination (`TerminateSampleError`, anywhere in the exception as
-    `find_control_flow` finds it) also propagates unchanged: the service
-    dispatcher answers the RPC and propagates the termination out of the service
-    task, which ends the sample as a native tool's termination does. Any other
-    exception is a bug in the eval's tool, which natively fails the sample: the
-    unwrapped exception is signalled through `bridge.request_fail` so the
-    bridge's monitor task ends the sample at once, and the original still
-    propagates so the RPC unwinds with an error reply (the teardown may
-    pre-empt its delivery; the scaffold's turn is over either way). An error
-    building the reply from the tool's result (one that cannot be serialized)
-    is classified the same way, so it too fails the sample.
+    An `ExceptionGroup` is decided by its most serious leaf
+    (`decisive_tool_exception`), as in `execute_tools`, and classified with the
+    same `tool_call_error` mapping. Those a native call would show the model
+    propagate unchanged as the RPC error the scaffold reads as tool output,
+    except a `LimitExceededError`, bare or deciding a group: it is raised as a
+    `ToolError` with the native message, as the service dispatcher would route
+    a `LimitExceededError` to the sample, where natively the model reads it as
+    a tool error and the agent continues. A termination
+    (`TerminateSampleError`, anywhere in the exception as `find_control_flow`
+    finds it, a limit's history included) also propagates unchanged: the
+    service dispatcher answers the RPC and propagates the termination out of
+    the service task, which ends the sample as a native tool's termination
+    does. Any other exception is a bug in the eval's tool, which natively
+    fails the sample: the decisive exception is signalled through
+    `bridge.request_fail` so the bridge's monitor task ends the sample at
+    once, and the original still propagates so the RPC unwinds with an error
+    reply (the teardown may pre-empt its delivery; the scaffold's turn is over
+    either way). An error building the reply from the tool's result (one that
+    cannot be serialized) is classified the same way, so it too fails the
+    sample.
 
     A result a native call would pass to the model as text (anything but
     content) is truncated to the same output limit, in the same format
@@ -117,6 +124,7 @@ async def execute_host_tool(
         raise ValueError(message)
 
     if _exceeds_max_depth(arguments):
+        bridge.unlink_denied_call(server, tool, None)
         message = f"Error parsing tool call arguments: {_max_depth_parse_error()}"
         await _record_rejection(
             bridge, tool, {}, ToolCallError("parsing", message), metadata
@@ -129,6 +137,9 @@ async def execute_host_tool(
         else None
     )
     if grant is None and server not in bridge.proposal_exempt_servers:
+        bridge.unlink_denied_call(
+            server, tool, arguments if isinstance(arguments, dict) else None
+        )
         warn_once(
             logger,
             f"Denied host tool call '{server}/{tool}': the model did not "
@@ -191,6 +202,8 @@ async def _record_rejection(
     event_id: str | None = None,
     view: ToolCallContent | None = None,
     failed: bool | None = None,
+    call_message_id: str | None = None,
+    grant: _ToolExecutionGrant | None = None,
 ) -> None:
     """Record a request that did not execute as a completed event in its own `tool` span."""
     event = ToolEvent(
@@ -199,6 +212,7 @@ async def _record_rejection(
         arguments=arguments,
         view=view,
         metadata=metadata.as_metadata(),
+        call_message_id=call_message_id,
     )
     event._set_result(
         result="",
@@ -224,6 +238,25 @@ async def _record_rejection(
         # request was still received and decided, so it is still recorded
         if not recorded:
             transcript()._event(event)
+        _await_result_message(bridge, grant, event)
+
+
+def _await_result_message(
+    bridge: SandboxAgentBridge, grant: _ToolExecutionGrant | None, event: ToolEvent
+) -> None:
+    """Await the result message of the execution that consumed `grant`.
+
+    An execution on a server registered with `require_proposal=False` never
+    links: an unproposed call there takes a pending proposal's grant
+    (`consume_tool_execution_grant`), so the grant doesn't show which call ran.
+    """
+    if grant is not None and grant.proposal.reply is not None:
+        bridge._await_result_message(
+            grant.proposal.reply,
+            event,
+            linkable=grant.proposal.linkable
+            and grant.server not in bridge.proposal_exempt_servers,
+        )
 
 
 async def _execute_granted(
@@ -242,6 +275,7 @@ async def _execute_granted(
         metadata.grant = "exempt"
     event_id = grant.proposal.take_id() if grant is not None else uuid()
     view = grant.proposal.call.view if grant is not None else None
+    call_message_id = grant.proposal.message_id if grant is not None else None
 
     try:
         tool_def = ToolDef(tool_fn)
@@ -251,10 +285,10 @@ async def _execute_granted(
         )
     except Exception as ex:
         # classified as an exception from the tool itself (below)
-        inner_ex = inner_exception(ex)
-        mapped = tool_call_error(inner_ex, tool)
+        decisive = decisive_tool_exception(ex)
+        mapped = tool_call_error(decisive, tool)
         if mapped is None:
-            bridge.request_fail(inner_ex)
+            bridge.request_fail(decisive)
         await _record_rejection(
             bridge,
             tool,
@@ -264,6 +298,8 @@ async def _execute_granted(
             event_id=event_id,
             view=view,
             failed=True if mapped is None else None,
+            call_message_id=call_message_id,
+            grant=grant,
         )
         raise
     if validation_errors:
@@ -275,6 +311,8 @@ async def _execute_granted(
             metadata,
             event_id=event_id,
             view=view,
+            call_message_id=call_message_id,
+            grant=grant,
         )
         raise ToolParsingError(validation_errors)
     call_arguments = cast(dict[str, JsonValue], arguments)
@@ -286,6 +324,7 @@ async def _execute_granted(
         view=view,
         pending=True,
         metadata=metadata.as_metadata(),
+        call_message_id=call_message_id,
     )
     sample = sample_active()
     observer = (
@@ -305,7 +344,7 @@ async def _execute_granted(
                         event._set_cancel_fn(scope.cancel)
                         # as in call_tool: the tool's own model calls are not
                         # agent turns
-                        with sentinel_scope(AgentScope.OFF), known_work():
+                        with sentinel_scope("tool"), known_work():
                             result = await tool_fn(**call_arguments)
                         output, truncated = _recorded_result(
                             tool, result, tool_def.max_output
@@ -320,6 +359,9 @@ async def _execute_granted(
                     # mixed exception group
                     if not scope.cancel_called:
                         outcome = _raised(ex, tool, tool_def.max_output)
+                        raised = outcome.raised
+                        if raised is not None and raised is not ex:
+                            raise raised from ex
                         raise
             # `cancel_called`, not `cancelled_caught`: a tool that absorbs the
             # cancellation and returns was still cancelled
@@ -354,6 +396,7 @@ async def _execute_granted(
                 transcript()._event_updated(event)
             else:
                 transcript()._event(event)
+            _await_result_message(bridge, grant, event)
             if outcome.fatal is not None:
                 bridge.request_fail(outcome.fatal)
 
@@ -393,20 +436,28 @@ def _reply(output: ToolResult, result: ToolResult) -> JsonValue:
 
 
 def _raised(ex: Exception, tool: str, max_output: int | None) -> _Outcome:
-    """A call whose tool (or reply) raised `ex`, which the RPC raises unchanged.
+    """A call whose tool (or reply) raised `ex`, which the RPC raises.
 
-    The unwrapped exception is classified, but the original propagates: the
-    service dispatcher special-cases a bare LimitExceededError (ending the
-    sample), and unwrapping a grouped one would newly route it there.
+    A group is handled as its decisive leaf would be if raised bare, but the
+    original propagates so the scaffold's error reply is unchanged, except that
+    a deciding limit is replaced by a `ToolError` with its mapped message: the
+    service dispatcher routes a `LimitExceededError` to the sample. A
+    termination anywhere in `ex` (including a limit's history) still leaves
+    the original to the dispatcher.
     """
-    inner_ex = inner_exception(ex)
-    mapped = tool_call_error(inner_ex, tool)
+    decisive = decisive_tool_exception(ex)
+    mapped = tool_call_error(decisive, tool)
     if mapped is None:
         # a termination is the service dispatcher's to enact
-        fatal = inner_ex if find_control_flow(ex) is None else None
+        fatal = decisive if find_control_flow(ex) is None else None
         return _Outcome(failed=True, raised=ex, fatal=fatal)
     output, truncated = _recorded_result(tool, mapped.result or "", max_output)
-    return _Outcome(output, truncated, error=mapped.error, raised=ex)
+    raised = (
+        ToolError(mapped.error.message)
+        if isinstance(decisive, LimitExceededError) and find_control_flow(ex) is None
+        else ex
+    )
+    return _Outcome(output, truncated, error=mapped.error, raised=raised)
 
 
 def _recorded_result(

@@ -26,8 +26,13 @@ import anyio
 
 from inspect_ai._display import display as display_manager
 from inspect_ai._eval.context import init_task_context
-from inspect_ai._eval.loader import load_file_tasks, scorer_from_spec
+from inspect_ai._eval.loader import (
+    load_file_tasks,
+    scorer_from_log_name,
+    scorer_from_spec,
+)
 from inspect_ai._eval.task.task import resolve_scorer, resolve_scorer_metrics
+from inspect_ai._sentinel._scope import sentinel_scope
 from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import (
@@ -42,7 +47,9 @@ from inspect_ai._util.registry import (
     registry_params,
     registry_unqualified_name,
 )
+from inspect_ai._util.rich import escape_control_characters
 from inspect_ai.event._event import Event
+from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._score import ScoreEvent
 from inspect_ai.event._tree import (
     EventTreeSpan,
@@ -75,6 +82,7 @@ from inspect_ai.scorer._scorer import ScorerSpec, as_scorer_spec, unique_scorer_
 from inspect_ai.solver import TaskState
 from inspect_ai.util._display import (
     DisplayType,
+    display_type,
     display_type_initialized,
     init_display_type,
 )
@@ -104,6 +112,10 @@ def score(
 ) -> EvalLog:
     """Score an evaluation log.
 
+    Scoring uses the model (unless `model` is passed) and model roles recorded
+    in the log, with their base URLs and model args. Only score logs you
+    trust. The log's metrics are rebuilt without importing its task file.
+
     Args:
        log (EvalLog): Evaluation log.
        scorers (Scorer): List of Scorers to apply to log
@@ -127,8 +139,8 @@ def score(
     # standard platform init for top level entry points
     platform_init()
 
-    # initialize display type
-    init_display_type(display)
+    # initialize display type (keeping the current one by default, as eval does)
+    init_display_type(display or display_type())
 
     # resolve scorers into a list
     scorers = [scorers] if isinstance(scorers, Scorer) else scorers
@@ -239,6 +251,10 @@ async def score_async(
 ) -> EvalLog:
     """Score an evaluation log.
 
+    Scoring uses the model (unless `model` is passed) and model roles recorded
+    in the log, with their base URLs and model args. Only score logs you
+    trust. The log's metrics are rebuilt without importing its task file.
+
     Args:
        log (EvalLog):
          Evaluation log. Only the headers are needed if `samples`
@@ -273,6 +289,8 @@ async def score_async(
 
     # resolve the active model and model_roles for the scoring task context.
     # caller-supplied overrides win; otherwise reconstruct from the log header
+    if model is None and (record := log_model_record(log)) is not None:
+        logger.info(record)
     active_model = (
         model
         if isinstance(model, Model)
@@ -535,14 +553,43 @@ async def _run_score_task(
 
     results: dict[str, SampleScore] = {}
     scorer_names: list[str] = []
-    async with span(name=SCORERS_SPAN_NAME):
+
+    # A sample whose monitor state a sentinel sidecar kept, and whose copy of
+    # it failed when the sample was saved, runs no scorer: no copy is possible
+    # now, and a scorer would read defaults as nothing flagged. Its scores and
+    # events are still updated as the action says, so an overwrite leaves it
+    # with none, as the metrics count it.
+    from inspect_ai._sentinel._sidecar._state import monitor_state_missing
+
+    missing = monitor_state_missing(state.store)
+    not_scored = (
+        None
+        if missing is None
+        else f"The sample isn't scored, as its monitor state wasn't copied from the sentinel sidecar: {missing}."
+    )
+    if not_scored is not None:
         for scorer in scorers:
+            scorer_names.append(
+                unique_scorer_name(scorer, list({*existing_score_names, *scorer_names}))
+            )
+
+    async with span(name=SCORERS_SPAN_NAME):
+        if not_scored is not None:
+            # said in the scorers' span, where the scores would be, which an
+            # overwrite replaces and an append adds to; the warning is recorded
+            # in the transcript too, so it is said here as well
+            logger.warning(f"Sample {sample.id} (epoch {sample.epoch}): {not_scored}")
+            transcript()._event(
+                InfoEvent(source="sentinel_sidecar", data={"not_scored": not_scored})
+            )
+        for scorer in scorers if not_scored is None else []:
             scorer_name = unique_scorer_name(
                 scorer, list({*existing_score_names, *results})
             )
             scorer_names.append(scorer_name)
             async with span(name=scorer_name, type=SCORER_SPAN_TYPE):
-                score_result = await scorer(state, target)
+                with sentinel_scope("scorer", final=True):
+                    score_result = await scorer(state, target)
                 if scorer_name in state.scores:
                     raise RuntimeError(
                         f"Scorer {scorer_name} has modified state.scores"
@@ -845,11 +892,28 @@ def reducers_from_log_header(log: EvalLog) -> list[ScoreReducer] | None:
     return create_reducers(log.eval.config.epochs_reducer)
 
 
+def log_model_record(log: EvalLog) -> str | None:
+    """Record line for scoring with the log's model at the base URL it records.
+
+    Returns `None` when the log records no base URL.
+    """
+    if log.eval.model_base_url is None:
+        return None
+    return escape_control_characters(
+        f"Scoring model {log.eval.model} from the log, "
+        f"base URL {log.eval.model_base_url}."
+    )
+
+
 def resolve_scorers(
     log: EvalLog, scorer: str | None = None, scorer_args: dict[str, Any] | None = None
 ) -> list[Scorer]:
     """
     Create a list of Scorer objects from an evaluation log.
+
+    Scorer names recorded in the log are looked up in the registry only, never
+    as paths. A recorded name or bare `scorer` name the registry cannot build
+    falls back to importing the log's task file.
 
     Args:
         log: EvalLog object containing evaluation configuration and results
@@ -874,20 +938,14 @@ def resolve_scorers(
     # See if we can create scorers from the eval itself
     elif log.eval.scorers is not None:
         return [
-            scorer_from_spec(
-                spec=ScorerSpec(scorer=score.name),
-                task_path=task_path,
-                **(score.options or {}),
-            )
+            scorer_from_log_name(score.name, task_path, **(score.options or {}))
             for score in log.eval.scorers
         ]
 
     # Otherwise, perhaps we can re-create them from the results
     return (
         [
-            scorer_from_spec(
-                spec=ScorerSpec(scorer=score.name), task_path=task_path, **score.params
-            )
+            scorer_from_log_name(score.name, task_path, **score.params)
             for score in log.results.scores
         ]
         if log.results

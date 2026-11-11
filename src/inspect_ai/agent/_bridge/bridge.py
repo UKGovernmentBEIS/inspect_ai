@@ -412,8 +412,10 @@ async def agent_bridge(
           may name any server URL and the model provider will connect to it.
        model_event_sink: Optional sink that takes ownership of `ModelEvent`
           emission for calls routed through the bridge. When set, the bridge
-          installs it around `model.generate()` so the sink decides when and
-          under which span each event is emitted to the transcript.
+          installs it around `model.generate()`. The sink decides under which
+          span each generation runs (its optional `on_start`) and when each
+          event is emitted to the transcript (`on_pending`/`on_complete`); see
+          `ModelEventSink`.
        forward_generation_config: Forward client generation parameters (e.g.
           `max_tokens`, `temperature`, reasoning effort) to the model. Defaults
           to `False`, in which case those parameters are dropped and the resolved
