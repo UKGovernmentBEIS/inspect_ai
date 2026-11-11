@@ -3,6 +3,7 @@ import logging
 import os
 import platform
 import random
+import re
 import socket
 import subprocess
 import time
@@ -28,6 +29,56 @@ def _server_arg_to_cli_key(key: str) -> str:
 
     top_level, *nested = key.split(".")
     return ".".join([top_level.replace("_", "-"), *nested])
+
+
+_SECRET_NAME_SEGMENTS = {"key", "token", "secret", "password"}
+_REDACTED = "***"
+
+
+def _is_secret_name(name: str) -> bool:
+    """Whether a flag or env var name (e.g. `--api-key`, `HF_TOKEN`) names a secret."""
+    segments = re.split(r"[-_.]", name.lstrip("-").lower())
+    return segments[-1] in _SECRET_NAME_SEGMENTS
+
+
+def redact_command(command: list[str]) -> list[str]:
+    """Return a copy of a server command with secret flag values masked, for display.
+
+    Masks the value of any flag whose last name segment is key, token, secret or
+    password (e.g. `--api-key X` or `--api-key=X`). The command actually run is
+    unchanged; this form is for logs and error messages, which are recorded in
+    eval logs and traces.
+    """
+    redacted: list[str] = []
+    mask_next = False
+    for arg in command:
+        if mask_next and not arg.startswith("--"):
+            redacted.append(_REDACTED)
+            mask_next = False
+            continue
+        mask_next = False
+        if arg.startswith("--"):
+            name, eq, _ = arg.partition("=")
+            if _is_secret_name(name):
+                if eq:
+                    arg = f"{name}={_REDACTED}"
+                else:
+                    mask_next = True
+        redacted.append(arg)
+    return redacted
+
+
+def _redact_env(env: dict[str, str]) -> dict[str, str]:
+    return {k: _REDACTED if _is_secret_name(k) else v for k, v in env.items()}
+
+
+def _command_secrets(command: list[str]) -> list[str]:
+    """Secret values in a command, i.e. the args that `redact_command()` masks."""
+    return [
+        arg.partition("=")[2] if arg.startswith("--") else arg
+        for arg, shown in zip(command, redact_command(command))
+        if arg != shown
+    ]
 
 
 def reserve_port(
@@ -116,13 +167,20 @@ def execute_shell_command(
         env=process_env,  # Pass the environment variables
     )
 
+    secrets = [secret for secret in _command_secrets(command) if secret]
+
+    def redact_line(line: str) -> str:
+        for secret in secrets:
+            line = line.replace(secret, _REDACTED)
+        return line
+
     # Set up background thread to read and log stdout
     def log_output() -> None:
         if process.stdout is None:
             return
         for line in iter(process.stdout.readline, ""):
             if line:
-                logger.debug(line.strip())
+                logger.debug(redact_line(line.strip()))
         process.stdout.close()
 
     # Set up background thread to read and log stderr
@@ -131,7 +189,7 @@ def execute_shell_command(
             return
         for line in iter(process.stderr.readline, ""):
             if line:
-                logger.info(line.strip())
+                logger.info(redact_line(line.strip()))
         process.stderr.close()
 
     # Start background threads to handle output
@@ -140,7 +198,7 @@ def execute_shell_command(
     threading.Thread(target=log_output, daemon=True).start()
     threading.Thread(target=log_error, daemon=True).start()
 
-    logger.info(f"Started server with command: {' '.join(command)}")
+    logger.info(f"Started server with command: {' '.join(redact_command(command))}")
     return process
 
 
@@ -241,8 +299,15 @@ def wait_for_server(
     if full_command:
         debug_advice += " Alternatively, you can run the following launch command manually to see the full traceback:\n\n"
         if env:
-            debug_advice += " ".join([f"{k}={v}" for k, v in env.items()]) + " "
-        debug_advice += " ".join(full_command) + "\n\n"
+            debug_advice += (
+                " ".join([f"{k}={v}" for k, v in _redact_env(env).items()]) + " "
+            )
+        shown_command = redact_command(full_command)
+        debug_advice += " ".join(shown_command) + "\n\n"
+        if shown_command != full_command:
+            debug_advice += (
+                f"(Secret values are shown as {_REDACTED}; substitute your own.)\n\n"
+            )
 
     while True:
         # Check for timeout first
