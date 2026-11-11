@@ -543,6 +543,20 @@ attach): `ResolvedTask.task` holds the dataset and the configured task is a
 shallow copy of it, so both references go for a finished task's samples to
 be freed. The record keeps its identity, `log` and `ended`.
 
+The sandbox manager lives for the whole run, so `RunQueue.end` also calls
+`SandboxManager.forget(record)`, which drops the per-sample key map the
+manager recorded for the record ("Samples use the key resolved for them")
+and every `_resolved_no_metadata` entry keyed by the record's `Task`. That
+cache holds strong `(Task, SandboxEnvironmentSpec)` keys, and today a
+manager lasted one batch; without the eviction a long search that keeps
+adding sandbox tasks would keep every ended task's dataset. An entry stays
+while another record still open holds the same `Task` object (the same
+task run for a second model), so live tasks keep their cache hits. The
+record has ended, so no attempt of it is running and none will start; a
+pending retry was ended with it. What lasts until the run's shutdown is
+unchanged: the configuration keys set up, their contexts and bindings, and
+the registered `task_cleanup` calls, none of which refer to a `Task`.
+
 #### A task's log starts with its attempt
 
 `task_run` awaits `logger.init()` as its first startup step, after its first
@@ -807,7 +821,8 @@ restored afterwards. In place of the `chdir`:
   receives), and `run_sample` passes it to `sandboxenv_context`, which uses
   that key's spec instead of resolving the sample's sandbox again. So a
   config is resolved once, and the path `task_init` used is the path
-  `sample_init` gets.
+  `sample_init` gets. The map is the record's and goes with it
+  (`SandboxManager.forget`, "Phases and cancelling").
 - **Docker's `task_init_environment` values** reach Docker directly. A
   private `ContextVar` in `src/inspect_ai/util/_sandbox/setup.py` holds the
   key's `env` around the `task_init` call; Docker's `task_init` reads it and
@@ -1139,6 +1154,15 @@ test that waits on a run is bounded with `fail_after`.
   retune made while the first task's `task_init` is held sets both
   controllers' ceiling; under `run_samples=False` no setup runs and no
   controller is created.
+- `tests/test_enqueue_task.py` (retention): while a long-running task keeps
+  the run open, it adds sandbox tasks with task-level and sample-level
+  configs that end by finishing, by a cancel while queued and by a final
+  failed retry; a `weakref` to each ended task's `Task` and dataset is dead
+  after `gc.collect()`, while the sandbox configuration they set up is still
+  registered for the run's cleanup. Controls: a task still running and the
+  same `Task` run for a second model keep their cache hits (no second
+  resolution), and two tasks from different directories with the same
+  relative config resolve to different keys.
 - `tests/test_enqueue_task.py` (loader exception): a solver's
   `enqueue_task("other_dir/tasks.py@name")`, whose module imports a sibling
   module and whose task reads a relative file at construction, adds and runs
@@ -1228,7 +1252,8 @@ state in the single `eval_run`), so the setup fixes come first.
    `TaskRecord`, async `enqueue_task()` still returning `None`),
    `_eval/run.py` (`configure_task()`, `dispatch_tasks()` with `prepare()`
    and the inline `next_tasks()` call, `run_one`'s move into `starting` and
-   closed checks, the run's task names seeded from `eval_set_tasks`; `prepare_options`, `TaskInjection`,
+   closed checks, the run's task names seeded from `eval_set_tasks`,
+   `SandboxManager.forget` called from `RunQueue.end`; `prepare_options`, `TaskInjection`,
    `PreparedFeed`, `_empty_feed` removed), `_eval/eval.py` (one `eval_run`),
    `_eval/task/run.py` (`logger.init()` at the start of `task_run`;
    `_enqueue_source_tasks`; `on_registered`; `unwritten_task_log` with no

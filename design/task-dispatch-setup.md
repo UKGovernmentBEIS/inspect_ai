@@ -182,7 +182,11 @@ async with _run_task_screen(...):
   created, as today. The record's job runs in its own cancel scope:
   `RunQueue.end` cancels it when the record ends before the job has
   finished, and `setups.open()` cancels every such scope when it exits. A
-  cancelled job publishes nothing into the record. The `task_init` jobs it
+  cancelled job publishes nothing into the record and writes no resolution
+  cache entry; `RunQueue.end` then calls `SandboxManager.forget(record)`,
+  as in task-dispatch.md, and drops `record.setups`. Setup jobs
+  are keyed by `SetupKey`, which holds no `Task`, so they and their cleanup
+  registrations stay until the run's shutdown. The `task_init` jobs it
   requested are not under this scope and carry on.
 - **Once per configuration per run.** `task_init` jobs are keyed by
   `SetupKey` across all records and kept until the run ends. They run one at
