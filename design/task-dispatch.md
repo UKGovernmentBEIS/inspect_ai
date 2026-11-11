@@ -553,7 +553,9 @@ adding sandbox tasks would keep every ended task's dataset. An entry stays
 while another record still open holds the same `Task` object (the same
 task run for a second model), so live tasks keep their cache hits. The
 record has ended, so no attempt of it is running and none will start; a
-pending retry was ended with it. What lasts until the run's shutdown is
+pending retry was ended with it. Its own preparation can still be running,
+and the dispatcher's `prepare` forgets it again when that finishes ("The
+dispatcher"). What lasts until the run's shutdown is
 unchanged: the configuration keys set up, their contexts and bindings, and
 the registered `task_cleanup` calls, none of which refer to a `Task`.
 
@@ -646,7 +648,12 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
   `run_samples=False` neither pass does anything, as today. The seed is
   prepared in full before the first task starts, as today; a record added
   later is prepared on the pass after it is added. A record that ended
-  meanwhile is skipped. An error raises from the
+  meanwhile is skipped. A record can end while its own `SandboxManager.start`
+  awaits (a queued cancel during Docker's metadata interpolation), and the
+  resolution loop then carries on and can cache more entries for its
+  `Task`; so `prepare` calls `SandboxManager.forget(record)` again in a
+  `finally` around that record's `start`, when the record has ended by then,
+  whether `start` returned or raised. An error raises from the
   dispatcher and fails the run, and while a setup awaits, the dispatcher
   starts nothing, both as on today's live path;
   [task-dispatch-setup.md](task-dispatch-setup.md) removes both limits.
@@ -1156,8 +1163,10 @@ test that waits on a run is bounded with `fail_after`.
   controller is created.
 - `tests/test_enqueue_task.py` (retention): while a long-running task keeps
   the run open, it adds sandbox tasks with task-level and sample-level
-  configs that end by finishing, by a cancel while queued and by a final
-  failed retry; a `weakref` to each ended task's `Task` and dataset is dead
+  configs that end by finishing, by a cancel while queued, by a cancel while
+  its own `SandboxManager.start` is held in metadata resolution (a
+  metadata-bearing sample ahead of metadata-less ones, released after the
+  cancel), and by a final failed retry; a `weakref` to each ended task's `Task` and dataset is dead
   after `gc.collect()`, while the sandbox configuration they set up is still
   registered for the run's cleanup. Controls: a task still running and the
   same `Task` run for a second model keep their cache hits (no second
