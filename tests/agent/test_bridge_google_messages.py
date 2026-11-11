@@ -255,6 +255,75 @@ def test_google_ids_the_scaffold_echoes_are_kept(prefixed: bool) -> None:
     assert tool.tool_call_id == "tok_1"
 
 
+@pytest.mark.parametrize(
+    "handed,name,part_id,expected",
+    [
+        # a prefix of the part's name, as it is or stripped, is the id's
+        ({"tok": " read_file"}, " read_file", " read_file__tok", "tok"),
+        ({"tok": " read_file"}, " read_file", "read_file__tok", "tok"),
+        ({"tok": "read_file "}, "read_file ", "read_file __tok", "tok"),
+        ({"tok": ""}, "", "__tok", "tok"),
+        ({"tok": ""}, "", "generic_tool__tok", "tok"),
+        # the stripped name is one the call can come back under
+        ({"tok": " read_file"}, "read_file", "read_file__tok", "tok"),
+        # a handed id is taken as it is
+        (
+            {"tok": " read_file", " read_file__tok": " read_file"},
+            " read_file",
+            " read_file__tok",
+            " read_file__tok",
+        ),
+        # not a prefix of the part's name in either form
+        ({"tok": " read_file"}, "read_file", " read_file__tok", " read_file__tok"),
+        # the id was handed over to another function: the part's name is no
+        # name of its call, so the bridge reserved no such echo of it
+        ({"tok": "status"}, " read_file", " read_file__tok", " read_file__tok"),
+        ({"tok": "read_file"}, " read_file", " read_file__tok", " read_file__tok"),
+        ({"tok": "read_file"}, " read_file", "read_file__tok", "read_file__tok"),
+    ],
+)
+def test_a_google_id_prefixed_with_either_form_of_its_calls_name_is_read_as_the_id(
+    handed: dict[str, str], name: str, part_id: str, expected: str
+) -> None:
+    """Gemini CLI's `name__id` is read as `id` under the name as sent or stripped, only for a call handed over to a function of the part's name."""
+    from inspect_ai.agent._bridge._sentinel import wire_names
+    from inspect_ai.agent._bridge.google_api_impl import _function_part_id
+
+    names = {call_id: wire_names(function) for call_id, function in handed.items()}
+
+    assert _function_part_id({"id": part_id}, name, names.get) == expected
+
+
+def test_a_google_id_is_read_as_a_handed_one_only_where_the_bridge_reserved_it() -> (
+    None
+):
+    """The ids the Google dialect reads as a handed id are echoes the bridge keeps from other calls.
+
+    Each is one `_echoes` gives for the handed call, so `_Handouts.reused`
+    leaves no other call under it. And each echo of the call's id under one of
+    its names, prefixed with that name as it is or stripped, is read as the id.
+    """
+    from itertools import product
+
+    from inspect_ai.agent._bridge._sentinel import _echoes, wire_names
+    from inspect_ai.agent._bridge.google_api_impl import _function_part_id
+
+    functions = ["", " ", "a", " a", "a ", "generic_tool", "computer", "a__b", " a__b"]
+    names = sorted({name for function in functions for name in wire_names(function)})
+    for function, call_id in product(functions, ["r", "a__r", "__r", " r"]):
+        handed = {call_id: wire_names(function)}
+        echoes = _echoes(ToolCall(id=call_id, function=function, arguments={}))
+        for name, prefix in product(names, names):
+            part_id = f"{prefix}__{call_id}"
+            read = _function_part_id({"id": part_id}, name, handed.get)
+            sent = name in handed[call_id] and prefix in (
+                name,
+                name.strip() or "generic_tool",
+            )
+            assert read == (call_id if sent else part_id), (function, name, part_id)
+            assert not sent or part_id in echoes, (function, name, part_id)
+
+
 def test_google_calls_without_ids_keep_their_deterministic_ids() -> None:
     contents: list[dict[str, object]] = [
         {"role": "user", "parts": [{"text": "Read a."}]},

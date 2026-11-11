@@ -7746,6 +7746,75 @@ async def test_gemini_cli_echoes_of_calls_sharing_an_id_are_each_read_as_the_id(
     assert {step.call.id for step in seen} == {"shared"}
 
 
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("resumed", [False, True])
+@pytest.mark.parametrize("echo", ["as declared", "stripped", "renamed", "unchanged"])
+@pytest.mark.parametrize("name", [" read_file", "read_file ", ""])
+async def test_gemini_cli_echoes_of_a_renamed_host_tool_are_read_as_its_id(
+    name: str, echo: str, resumed: bool
+) -> None:
+    """A scaffold declares the host `read_file` under a space-padded or blank `name`; Gemini CLI sends the call's id back prefixed with a form of it.
+
+    The prefix is the name `as declared` or `stripped` (`generic_tool` for a
+    blank one). Either is read as the id the bridge handed over, so the
+    continuation's call and result are the handout's: the result is checked
+    as the bridged tool and a secret one is stopped, as with the id
+    `unchanged`, and on a `resumed` bridge. Gemini CLI itself also sends the
+    call and its result under the stripped name (`renamed`): the call is then
+    not the one handed over, so its result is checked as the handout's target
+    with no proposal's input.
+    """
+    stripped = name.strip() or "generic_tool"
+    call = ToolCall(id="issued", function=name, arguments={"path": "p"})
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model("mockllm/model", custom_outputs=[tool_calls_output(call), done])
+    bridge = _counted_host_bridge(model)
+    conversation = _HostConversation("google", "Read p.", declare(name)[0])
+    seen: list[AfterToolCall] = []
+    with active_test_sentinel(stop_a_secret_read_file_result(seen)):
+        await conversation.request(bridge)
+        [handed] = [
+            part["functionCall"]
+            for part in conversation.history[-1]["parts"]
+            if "functionCall" in part
+        ]
+        assert (handed["name"], handed["id"]) == (name, "issued")
+        if resumed:
+            bridge._handouts = _Handouts(
+                _SavedHandouts.model_validate_json(
+                    bridge._handouts.saved().model_dump_json()
+                ),
+                viewer=bridge._bridged_tool_viewer,
+            )
+        match echo:
+            case "as declared":
+                handed["id"] = f"{name}__issued"
+            case "stripped":
+                handed["id"] = f"{stripped}__issued"
+            case "renamed":
+                handed.update(id=f"{stripped}__issued", name=stripped)
+        conversation.history.append(
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "functionResponse": {
+                            "id": handed["id"],
+                            "name": handed["name"],
+                            "response": {"output": "secret"},
+                        }
+                    }
+                ],
+            }
+        )
+        with pytest.raises(TerminateSampleError, match="secret read_file result"):
+            await conversation.request(bridge)
+    [stopped] = seen
+    assert (stopped.call.function, stopped.call.id) == ("read_file", "issued")
+    assert "secret" in stopped.result.text
+    assert (stopped.input is None) == (resumed or echo == "renamed")
+
+
 # `read_file` paths whose arguments a Murmur3 digest cannot tell apart
 COLLIDING_PATHS = (
     "public00000000000000000000000000000000................",

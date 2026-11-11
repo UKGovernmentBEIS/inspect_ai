@@ -577,29 +577,30 @@ def _strip_system_prompt_prefix(
 def _function_part_id(
     part: dict[str, Any],
     name: str,
-    handed: Callable[[str], AbstractSet[str] | None] | None = None,
+    handed: Callable[[str], AbstractSet[str] | None],
 ) -> str | None:
     """The id a functionCall or functionResponse carries, as the bridge handed it over.
 
-    Gemini CLI may prefix an id with the call's name (`name__id`). With
-    `handed` (the names Gemini can send the calls handed over under an id
-    as, `_Handouts.wire_names`), a handed id is taken as it is, and a prefix
-    is stripped only from the id of a call handed over to a function of that
-    name, which for calls sharing an id is any of theirs; otherwise any
-    prefix is stripped.
+    Gemini CLI may prefix an id with the call's name (`name__id`), as the
+    part gives it or stripped (`generic_tool` for a blank one). A handed id
+    is taken as it is. Otherwise a prefix of either form is stripped only
+    from the id of a call handed over to a function of that name: `handed`
+    gives the names Gemini can send the calls handed over under an id as
+    (`_Handouts.wire_names`), which for calls sharing an id are those of any
+    of theirs. Each id read as another this way is one `_echoes` gives for
+    the call, so no other call has it (`_Handouts.reused`).
     """
     part_id = part.get("id")
     if not isinstance(part_id, str) or not part_id:
         return None
-    prefix = f"{name.strip() or 'generic_tool'}__"
-    if handed is None:
-        return part_id.removeprefix(prefix) or None
     if handed(part_id) is not None:
         return part_id
-    stripped = part_id.removeprefix(prefix)
-    names = handed(stripped) if stripped != part_id else None
-    if names is not None and name in names:
-        return stripped
+    # neither form's prefix starts with the other's, so at most one is the id's
+    for form in (name, name.strip() or "generic_tool"):
+        if part_id.startswith(f"{form}__"):
+            names = handed(part_id[len(form) + 2 :])
+            if names is not None and name in names:
+                return part_id[len(form) + 2 :]
     return part_id
 
 

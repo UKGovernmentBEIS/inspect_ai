@@ -1093,8 +1093,8 @@ def wire_names(function: str) -> frozenset[str]:
     any action's name: the arguments a call is handed over with are those
     approval and the sentinel leave it, which may be another action's. A
     `modify` can't change a call's function. Any other call is sent under its
-    function's name as it is, and read back under the name stripped, or
-    `generic_tool` for a blank one.
+    function's name as it is, and Gemini CLI may echo its id under that name
+    or the name stripped, `generic_tool` for a blank one.
     """
     if function == "computer":
         return _COMPUTER_WIRE_NAMES
