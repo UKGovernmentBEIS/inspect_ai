@@ -397,9 +397,14 @@ class _Handouts:
     call's id, the call as proposed, the call as handed over and the result's
     exact content (`_content_key`), so replays are not checked again, while
     different content for the same execution, down to its whitespace, or the
-    same content for a handout with other arguments, is. A result gets
-    its proposal's context; once the proposal is evicted, the request's
-    conversation and no model input.
+    same content for a handout with other arguments, is. While its proposal
+    is kept, a result is also identified by the bridged tools it is checked
+    as (`_covering`): a check as some of them doesn't exempt a report to be
+    checked as more, whether finished, running or failed, as when a later
+    handout of an ambiguous id adds a target, or a host execution of one of
+    a call's targets is reported for the call. A result gets its proposal's
+    context; once the proposal is evicted, the request's conversation and no
+    model input.
 
     A result under an id the bridge never handed out, or one several calls of
     a response shared (a scaffold that rewrites ids, or one answering no call),
@@ -687,14 +692,26 @@ class _Handouts:
         """
         return any(self.conversations.get(key, _SHARED).shared for key in keys)
 
-    def result_keys(self, call: ToolCall, content_key: str) -> list[str]:
-        """The keys a result of the handed `call` with `content_key` is checked under."""
+    def result_keys(
+        self, execution: SentinelCheck, content_key: str, host_calls: Sequence[str]
+    ) -> list[str]:
+        """The keys a host call's result with `content_key` is recorded as checked under, for `execution`.
+
+        Those of a report of it as the execution's handout's result
+        (`_result`), and under another handout's id (`_Result.executed`), each
+        also for the execution's own target only (`_covering`).
+        """
+        call = execution.handed
         key = _call_key(call)
-        keys = [_digest(["call", key, content_key])]
+        covered = [executed_key(host, content_key) for host in host_calls]
         handed = self.handed.get(call.id)
         if handed is not None and handed.proposed is not None:
-            keys.insert(0, _handout_key(call.id, handed.proposed, key, content_key))
-        return keys
+            covered.insert(0, _handout_key(call.id, handed.proposed, key, content_key))
+        return [
+            _digest(["call", key, content_key]),
+            *covered,
+            *(_covering(covered_key, [execution]) for covered_key in covered),
+        ]
 
     def claim(self, input: list[ChatMessage]) -> _Claimed:
         claimed = _Claimed([], [])
@@ -762,6 +779,8 @@ class _Handouts:
             proposal = self.proposals.get((call_id, handout))
             if proposal is not None:
                 checks = (proposal, *proposal.alternatives)
+                keys.insert(0, _covering(keys[0], checks))
+                executed = tuple(_covering(key, checks) for key in executed)
                 if handed.ambiguous or (hosts and self.shared(hosts)):
                     checks = tuple(
                         _without_context(check, input, found) for check in checks
@@ -858,6 +877,19 @@ def _with_targets_of(check: SentinelCheck, earlier: SentinelCheck) -> SentinelCh
             known.add(identity)
             targets.append(target)
     return targets[0]._replace(alternatives=tuple(targets[1:]))
+
+
+def _covering(key: str, checks: Iterable[SentinelCheck]) -> str:
+    """`key` for a result checked as exactly the bridged tools `checks` are for.
+
+    An ambiguous call's targets grow with its handouts (`_with_targets_of`),
+    and a host execution is checked as its own target only, so a result
+    checked as some of a handout's targets has not been checked as the rest.
+    The key names the handout or host call (`_handout_key`, `executed_key`),
+    which with a bridged tool determines the call the check is for.
+    """
+    targets = {_digest(check.target) for check in checks}
+    return _digest(["covering", key, sorted(targets)])
 
 
 def _handout(handed: _Handed, found: _Call | None) -> str | None:
@@ -1005,8 +1037,10 @@ def _content_key(result: ChatMessageTool) -> str:
     the model (Google's `FunctionResponse.name`); so is a text part's
     `internal`, which a provider can send in its text (Anthropic), serialized
     as it is sent there (`content_internal_tag()`), in its key order. Other
-    parts' `internal` never reaches a model and is left out; a string and a
-    single text part are the same content.
+    parts' `internal` is left out: a provider can replay one (Google's
+    `ContentToolUse.internal["gemini_parts"]`), but no bridge dialect sets
+    one from a scaffold's message. A string and a single text part are the
+    same content.
     """
     content = (
         [ContentText(text=result.content)]
@@ -1149,8 +1183,9 @@ async def sentinel_host_tool_result(
             content_keys[function] = _content_key(
                 result.model_copy(update={"function": function})
             )
-        keys += bridge._handouts.result_keys(execution.handed, content_keys[function])
-        keys += [executed_key(host, content_keys[function]) for host in host_calls]
+        keys += bridge._handouts.result_keys(
+            execution, content_keys[function], host_calls
+        )
     # kept while it runs or once it fails, not once checked (`_Handouts.check`)
     keys = keys or [f"{_UNPROPOSED}{uuid()}"]
     with bridge_request():
