@@ -84,7 +84,7 @@ from inspect_ai.agent._bridge.sandbox.types import (
     _Proposal,
     _ToolExecutionGrant,
 )
-from inspect_ai.agent._bridge.types import AgentBridge, BridgedToolId
+from inspect_ai.agent._bridge.types import AgentBridge, BridgedToolId, _HandedCall
 from inspect_ai.agent._bridge.util import (
     bridge_generate,
     default_code_execution_providers,
@@ -9351,6 +9351,63 @@ def test_an_execution_whose_tracking_was_dropped_is_doubted_once(
         if tool == "read_file"
     ]
     assert all(len(record) == 1 for record in records)
+
+
+def _start(bridge: SandboxAgentBridge, reply_id: str, call: ToolCall) -> _HandedCall:
+    """Hand out a reply with `call` and start executing it on host server `host`."""
+    [handed] = handed_calls(bridge, reply_id, [call])
+    bridge._record_execution(
+        _ToolExecutionGrant(
+            "host",
+            call.function,
+            call.arguments,
+            _Proposal(call, None, reply_id, handed),
+        )
+    )
+    return handed
+
+
+@pytest.mark.parametrize("overflow", [False, True])
+def test_a_running_execution_is_doubted_whatever_answers_arrive(
+    overflow: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An answer sent while the call still runs (the scaffold's own timeout, say) doesn't settle it.
+
+    The client may still retry the call, so later identical executions are
+    doubted until it completes and is answered. With `overflow`, other host
+    calls exceed result tracking meanwhile: completed replies are dropped
+    first, so the running one stays tracked.
+    """
+    monkeypatch.setattr(bridge_types, "_MAX_AWAITED_RESULTS", 3)
+    bridge = _recording_bridge()
+    call = ToolCall(id="call_1", function="read_file", arguments={"path": "a"})
+    running = _start(bridge, "reply-1", call)
+    _answer(bridge, "reply-1", [call], [0])
+    if overflow:
+        for n in range(4):
+            _execute(
+                bridge,
+                f"filler-{n}",
+                [
+                    ToolCall(
+                        id=f"list_{n}", function="list_dir", arguments={"path": f"{n}"}
+                    )
+                ],
+            )
+        assert "reply-1" not in bridge._untracked_replies
+
+    doubted = []
+    for n in (2, 3):
+        later = replace(call, id=f"call_{n}")
+        [event] = _execute(bridge, f"reply-{n}", [later])
+        _answer(bridge, f"reply-{n}", [later], [0])
+        doubted.append(event.message_id)
+    bridge._await_result_message(
+        running,
+        ToolEvent(id="call_1", function="read_file", arguments=call.arguments),
+    )
+
+    assert doubted == [None, None]
 
 
 def test_a_call_run_again_after_its_tracking_was_dropped_is_doubted(
