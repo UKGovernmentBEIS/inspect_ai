@@ -279,3 +279,9 @@
     returns probabilities, so the pass threshold can be chosen after the run.
   author: "[Nace](https://github.com/nace-ai)"
   categories: ["Tooling"]
+
+- name: "[Inspect Grounding](https://github.com/Chris316-git/inspect-grounding)"
+  description: |
+    Deterministic numeric-grounding scorer — flags numbers in model output that do not appear in the input, tool results or metadata. No judge model or API calls.
+  author: "[Yanheng Li](https://github.com/Chris316-git)"
+  categories: ["Analysis"]
