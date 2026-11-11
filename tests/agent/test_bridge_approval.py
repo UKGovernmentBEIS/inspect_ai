@@ -11,7 +11,7 @@ import json
 import logging
 import re
 from collections import deque
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import replace
 from functools import partial
 from pathlib import Path, PurePosixPath
@@ -59,6 +59,7 @@ import inspect_ai.agent._bridge.types as bridge_types
 from inspect_ai import Task, eval
 from inspect_ai._sentinel._config import resolve_sentinel_root, resolve_sentinel_spec
 from inspect_ai._sentinel._context import init_sentinel
+from inspect_ai._sentinel._scope import sentinel_scope
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.content import ContentImage, ContentText, ContentToolUse
 from inspect_ai._util.exception import TerminateSampleError
@@ -7039,15 +7040,23 @@ async def test_calls_sharing_an_id_in_one_reply_are_checked_as_their_targets(
 
 
 @pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("configured", [True, False])
 @pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
-async def test_a_call_handed_over_without_a_sentinel_keeps_its_target(
-    dialect: HostDialect,
+async def test_a_call_handed_over_while_its_sentinel_is_inactive_keeps_its_target(
+    dialect: HostDialect, configured: bool
 ) -> None:
-    """No sentinel is active when a call is handed over and runs; one is when its result is reported.
+    """A call is handed over and runs while no sentinel checks tool calls; one does when its result is reported.
 
-    The handout's target is recorded with or without a sentinel, so the
-    report is checked as the bridged tool, with the handed arguments. There
-    was no proposal, so it has no context.
+    With a sentinel `configured` for the sample but not active at the handout
+    (the request is made in a final scope, as an approver's or a scorer's
+    is), the handout's target is recorded: the report is checked as the
+    bridged tool, with the handed arguments. There was no proposal, so it has
+    no context.
+
+    With no sentinel configured at the handout, nothing is recorded, as for
+    every bridged eval without one. A sentinel configured afterwards checks
+    the report as the call the request shows, under the scaffold's name,
+    with no context: a documented limit.
     """
     call = ToolCall(
         id="handed", function="mcp__host__read_file", arguments={"path": "p"}
@@ -7058,25 +7067,98 @@ async def test_a_call_handed_over_without_a_sentinel_keeps_its_target(
     conversation = _HostConversation(
         dialect, "Read p.", declare("mcp__host__read_file")[0]
     )
-    calls = await conversation.request(bridge)
-    if dialect == "google":
-        # with no sentinel the Google dialect hands no ids: the scaffold's own
-        reply = conversation.history[-1]["parts"]
-        next(p["functionCall"] for p in reply if "functionCall" in p)["id"] = "handed"
-    await call_host_tool(bridge)("host", "read_file", {"path": "p"})
     seen: list[AfterToolCall] = []
-    with active_test_sentinel(stop_a_secret_read_file_result(seen)):
+
+    async def hand_over_and_run() -> list[tuple[str, dict[str, Any]]]:
+        calls = await conversation.request(bridge)
+        if dialect == "google":
+            # with no sentinel checking, the Google dialect hands over no ids:
+            # the id here is the scaffold's own
+            reply = conversation.history[-1]["parts"]
+            next(p["functionCall"] for p in reply if "functionCall" in p)["id"] = (
+                "handed"
+            )
+        await call_host_tool(bridge)("host", "read_file", {"path": "p"})
+        return calls
+
+    async def report(calls: list[tuple[str, dict[str, Any]]]) -> None:
         conversation.results(calls, ["secret"])
         _answer_under_id(conversation, "handed")
-        with pytest.raises(TerminateSampleError, match="secret read_file result"):
-            await conversation.request(bridge)
+        await conversation.request(bridge)
+
+    if configured:
+        with active_test_sentinel(stop_a_secret_read_file_result(seen)):
+            with sentinel_scope("review", final=True):
+                calls = await hand_over_and_run()
+            assert seen == [] and not bridge._handouts.proposals
+            with pytest.raises(TerminateSampleError, match="secret read_file result"):
+                await report(calls)
+    else:
+        calls = await hand_over_and_run()
+        with active_test_sentinel(stop_a_secret_read_file_result(seen)):
+            await report(calls)
     [step] = seen
-    assert (step.call.id, step.call.function, step.call.arguments) == (
-        "handed",
-        "read_file",
-        {"path": "p"},
-    )
+    assert step.call.id == "handed" and step.call.arguments == {"path": "p"}
+    assert step.call.function == ("read_file" if configured else "mcp__host__read_file")
     assert step.input is None and step.message_id == ""
+
+
+@pytest.mark.parametrize("sentinel", [False, True])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_bridged_eval_with_no_sentinel_records_no_handout_targets(
+    dialect: HostDialect,
+    sentinel: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
+) -> None:
+    """Without a sentinel, handing a call over resolves no target and keeps none of its arguments.
+
+    A sample with no sentinel never checks a result, so the bridge's
+    checkpoint entry holds each handed call's digests only: its size doesn't
+    grow with the call's arguments, and the call is not resolved against the
+    declarations again. With a `sentinel` configured, the target is recorded,
+    arguments and all.
+    """
+    if sentinel:
+        request.getfixturevalue("fake_sentinel")
+
+    async def saved(text: str) -> tuple[str, int, tuple[Any, ...]]:
+        """The bridge's saved handouts after handing over `read_file(text)`, the times the call was resolved, and its recorded targets."""
+        call = ToolCall(
+            id="handed", function="mcp__host__read_file", arguments={"path": text}
+        )
+        model = get_model("mockllm/model", custom_outputs=[tool_calls_output(call)])
+        bridge = _counted_host_bridge(model)
+        resolved = 0
+        reviewed_calls = bridge.reviewed_calls
+
+        def counting(*args: Any, **kwargs: Any) -> Any:
+            nonlocal resolved
+            resolved += 1
+            return reviewed_calls(*args, **kwargs)
+
+        monkeypatch.setattr(bridge, "reviewed_calls", counting)
+        conversation = _HostConversation(
+            dialect, "Read it.", declare("mcp__host__read_file")[0]
+        )
+        await conversation.request(bridge)
+        [record] = [
+            record
+            for record in bridge._handouts.handed.values()
+            if record.execution_id is not None
+        ]
+        return bridge._handouts.saved().model_dump_json(), resolved, record.targets
+
+    with active_test_sentinel(record_tool_results([])) if sentinel else nullcontext():
+        small, _, _ = await saved("p")
+        large, resolved, targets = await saved("x" * 10_000)
+    if sentinel:
+        assert [target.call.function for target in targets] == ["read_file"]
+        assert "x" * 100 in large
+    else:
+        assert targets == () and resolved == 0
+        assert "x" * 100 not in large
+        assert len(large) == len(small)
 
 
 FORGED_TEXT = "SCAFFOLD-FORGED AUTHORISATION"

@@ -26,7 +26,11 @@ from pydantic import BaseModel
 from pydantic_core import to_json, to_jsonable_python
 from shortuuid import uuid
 
-from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
+from inspect_ai._sentinel._context import (
+    SentinelFailure,
+    active_sentinel,
+    checks_tool_calls,
+)
 from inspect_ai._sentinel._conversation import current_conversation
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.content import (
@@ -212,11 +216,12 @@ class _Handed(NamedTuple):
 
     targets: tuple[_Target, ...] = ()
     """The targets each of its handouts resolved to, without their viewers or
-    context, recorded with or without a sentinel. A result under the id is
+    context, recorded while a sentinel is configured for the sample, active
+    at the handout or not (`handed_targets`). A result under the id is
     checked as them whenever its proposal's checks are not used: the proposal
     is evicted or lost to a resume, the id is ambiguous or shared within a
-    response, no sentinel was active at the handout, or the call the request
-    shows is none of its handouts (`_Handouts._checks`)."""
+    response, the sentinel was not active at the handout, or the call the
+    request shows is none of its handouts (`_Handouts._checks`)."""
 
 
 class _SavedHandouts(BaseModel):
@@ -317,12 +322,15 @@ class _Handouts:
     A result of a handout is checked as the handout's targets, with its
     proposal's checks, while the proposal is kept. The targets each handout
     of an id resolved to are kept for the sample and in its checkpoint
-    (`_Handed.targets`), whether or not a sentinel was active at the handout,
-    so once the proposal is evicted or lost to a resume, or when there never
-    was one,
-    the result is checked as them with the request's conversation and no
-    model input, each with its bridged tool's viewer (`viewer`) or, without
-    one, none; and a later handout of the call adds its targets to them.
+    (`_Handed.targets`), whether or not the sample's sentinel was active at
+    the handout, so once the proposal is evicted or lost to a resume, or when
+    there never was one, the result is checked as them with the request's
+    conversation and no model input, each with its bridged tool's viewer
+    (`viewer`) or, without one, none; and a later handout of the call adds
+    its targets to them. A sample with no sentinel records none: its results
+    are never checked. A call handed out before any sentinel was configured
+    is, if its result is reported once one is, checked as the call the
+    request shows.
 
     A result is exempt from checking only if an identical check already
     passed: one whose step, as the protocol receives it, is the same
@@ -446,9 +454,10 @@ class _Handouts:
 
         `proposed` are the calls as the model proposed them, `handed` as
         approval gave them, and `checks` their `tool_result` checks, in order
-        (None without a sentinel). `resolved` are the targets each handed
-        call resolved to (`handed_targets`), which a response handed over
-        without a sentinel has no checks to give. Each handout's targets are
+        (None without an active sentinel). `resolved` are the targets each
+        handed call resolved to (`handed_targets`), which a response handed
+        over while the sample's sentinel is not active has no checks to give
+        (None when the sample has no sentinel). Each handout's targets are
         recorded (`_Handed.targets`), for calls sharing an id within the
         response too: each is a handout of the id, which is ambiguous. So is
         a call whose id was handed out before (`_Handed.ambiguous`), and its
@@ -1117,12 +1126,17 @@ def history_ids(input: Sequence[ChatMessage]) -> frozenset[str]:
 
 def handed_targets(
     bridge: AgentBridge, calls: Sequence[ToolCall], tools: Sequence[ToolInfo | Tool]
-) -> list[list[HandedTarget]]:
+) -> list[list[HandedTarget]] | None:
     """The targets each of `calls`, as handed, resolves to against `tools`, as approval reviews it (`AgentBridge.reviewed_calls`).
 
-    For a response handed over with no sentinel active, which has no checks
-    to take its targets from (`_Handouts.hand_over`).
+    For a response handed over while the sample's sentinel is not active (in
+    an approver's or a scorer's scope, say), which has no checks to take its
+    targets from (`_Handouts.hand_over`). None when no sentinel is configured
+    for the sample: none of its results is ever checked, so a bridged eval
+    without a sentinel resolves nothing and keeps no call in its checkpoint.
     """
+    if active_sentinel() is None:
+        return None
     resolved: list[list[HandedTarget]] = []
     for call in calls:
         reviewed = bridge.reviewed_calls(call, tools)
