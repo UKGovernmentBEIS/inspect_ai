@@ -517,6 +517,39 @@ async def test_remote_mcp_with_redacted_credentials_is_refused(provider: str) ->
     assert mcp_requests(requests) == []
 
 
+@pytest.mark.parametrize("provider", ["openai", "anthropic"])
+async def test_bridged_remote_mcp_with_redacted_token_is_refused(
+    provider: str,
+) -> None:
+    """A recorded Anthropic request rebuilt via the bridge isn't sent.
+
+    The bridge turns `authorization_token` into `Authorization: BEARER <token>`,
+    so the redaction marker arrives with a bearer prefix.
+    """
+    [info] = tools_from_anthropic_tools(
+        None,
+        [
+            {
+                "type": "url",
+                "name": "deepwiki",
+                "url": "https://mcp.deepwiki.com/mcp",
+                "authorization_token": REDACTED,
+            }
+        ],
+        None,
+        None,
+        allow_remote_mcp=True,
+    )
+    assert isinstance(info, ToolInfo)
+
+    requests: list[dict[str, Any]] = []
+    async with remote_mcp_model(provider, requests) as model:
+        with pytest.raises(ValueError, match="redacted credentials"):
+            await model.generate("Search the MCP spec.", tools=[info])
+
+    assert mcp_requests(requests) == []
+
+
 def test_structural_request_redaction_copies_only_when_needed() -> None:
     messages: list[Any] = [{"role": "user", "content": MCP_TOKEN}]
     anthropic: dict[str, Any] = {
