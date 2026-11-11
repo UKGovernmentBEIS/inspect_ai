@@ -70,7 +70,7 @@ from inspect_ai._util.content import (
     ContentText,
     ContentToolUse,
 )
-from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.json import jsonable_python, to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge._errors import BridgePolicyError
 from inspect_ai.agent._bridge.types import AgentBridge
@@ -417,9 +417,6 @@ async def inspect_responses_api_request_impl(
 
     debug_log("INSPECT OUTPUT", output.message)
 
-    # update state if we have more messages than the last generation
-    await bridge._track_state(messages, output)
-
     # return response
     response = Response(
         id=output.message.id or uuid(),
@@ -436,6 +433,20 @@ async def inspect_responses_api_request_impl(
         usage=responses_model_usage(output.usage),
     )
     debug_log("SCAFFOLD RESPONSE", response)
+    transported = messages_from_responses_input(
+        [
+            cast(
+                ResponseInputItemParam,
+                item.model_dump(mode="json", exclude_none=True),
+            )
+            for item in response.output
+        ],
+        tools,
+        model_name,
+    )
+
+    # update state if we have more messages than the last generation
+    await bridge._track_state(messages, output, [transported])
 
     return response
 
@@ -1379,10 +1390,8 @@ def messages_from_responses_input(
             pass
         else:
             # ImageGenerationCall
-            # ResponseCodeInterpreterToolCallParam
             # McpApprovalRequest
             # McpApprovalResponse
-            # ResponseCustomToolCallParam
             # LocalShellCall
             # LocalShellCallOutput
             # ResponseFileSearchToolCallParam
@@ -1428,7 +1437,7 @@ def filter_duplicate_assistant_content(
     messages_ids: Set[str] = set()
     for c in reversed(input):
         if c.type == "text" and c.internal:
-            internal = to_json_str_safe(c.internal)
+            internal = json.dumps(jsonable_python(c.internal))
             if internal not in messages_ids:
                 filtered_input.append(c)
                 messages_ids.add(internal)
