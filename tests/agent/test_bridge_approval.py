@@ -6599,7 +6599,11 @@ async def test_a_host_call_handed_over_again_while_running_gets_no_proposal(
     call = ToolCall(id="tool_call_0_0", function="read_file", arguments={"path": "p"})
     model = get_model(
         "mockllm/model",
-        custom_outputs=[tool_calls_output(call), tool_calls_output(call)],
+        custom_outputs=[
+            tool_calls_output(call),
+            tool_calls_output(call),
+            ModelOutput.from_content("mockllm/model", "Done."),
+        ],
     )
     started, release = anyio.Event(), anyio.Event()
 
@@ -6633,9 +6637,9 @@ async def test_a_host_call_handed_over_again_while_running_gets_no_proposal(
             )
 
     with active_test_sentinel(record_tool_results(seen)):
-        [(_, arguments)] = await _HostConversation(dialect, "Read p.", info).request(
-            bridge
-        )
+        main = _HostConversation(dialect, "Read p.", info)
+        calls = await main.request(bridge)
+        [(_, arguments)] = calls
         assert bridge._handouts.proposals
         async with anyio.create_task_group() as tg:
             tg.start_soon(execute, arguments)
@@ -6645,6 +6649,11 @@ async def test_a_host_call_handed_over_again_while_running_gets_no_proposal(
                 await sub.request(bridge)
                 assert not bridge._handouts.proposals
             release.set()
+        # the checked result, reported as delivered, is not checked again (a
+        # Google result is a JSON object, so it is a changed result)
+        if not error and dialect != "google":
+            main.results(calls, ["contents"])
+            await main.request(bridge)
 
     [after] = seen
     assert (after.result.error is not None) == error
