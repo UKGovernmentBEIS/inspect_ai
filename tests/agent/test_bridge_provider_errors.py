@@ -15,7 +15,7 @@ import weakref
 from collections.abc import Awaitable, Iterator
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any, Callable, NamedTuple, cast
+from typing import Any, Callable, Literal, NamedTuple, cast
 from unittest.mock import AsyncMock
 
 import anyio
@@ -87,7 +87,7 @@ from inspect_ai.model._providers.anthropic import (
 )
 from inspect_ai.model._registry import modelapi
 from inspect_ai.solver import Generate, Solver, TaskState, solver
-from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.tool import Tool, ToolChoice, ToolDef, ToolError, ToolInfo
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util import (
@@ -987,6 +987,121 @@ async def test_forward_provider_errors_refuses_model_calls_once_a_limit_is_recor
     reply = await _forward_provider_errors(generate, bridge)({})
     assert calls == 1
     assert reply == {PROVIDER_ERROR_KEY: provider_error_payload(recorded)}
+    assert bridge.generation_limit is recorded
+
+
+_ASK_MODEL = "Ask the model."
+
+
+def _model_calling_tool(
+    model: Model, call: Literal["generate", "compact", "none"]
+) -> Tool:
+    """A host tool making one model call (a generation or a native compaction), or none."""
+
+    async def execute() -> str:
+        """Ask the model.
+
+        Returns:
+            The model's answer.
+        """
+        if call == "generate":
+            return (await model.generate("Say hi.")).completion
+        if call == "compact":
+            await model.compact([ChatMessageUser(content="Compact this.")], [])
+        return "ran"
+
+    return ToolDef(
+        execute, name="ask_model", description=_ASK_MODEL, parameters={}
+    ).as_tool()
+
+
+@pytest.mark.parametrize(
+    ("make_limit", "messages", "call", "require_proposal"),
+    [
+        # the second request's generation is the second turn
+        pytest.param(lambda: turn_limit(1), 1, "generate", True, id="turn-generate"),
+        pytest.param(lambda: turn_limit(1), 1, "compact", True, id="turn-compact"),
+        pytest.param(lambda: turn_limit(1), 1, "generate", False, id="turn-unproposed"),
+        # the second request has no room for a reply
+        pytest.param(
+            lambda: message_limit(2), 2, "generate", True, id="message-generate"
+        ),
+        pytest.param(lambda: turn_limit(1), 1, "none", True, id="turn-no-model-call"),
+    ],
+)
+async def test_host_tool_makes_no_model_call_once_a_limit_is_recorded(
+    monkeypatch: pytest.MonkeyPatch,
+    make_limit: Callable[[], Limit],
+    messages: int,
+    call: Literal["generate", "compact", "none"],
+    require_proposal: bool,
+) -> None:
+    """A host tool's model calls are refused before the provider once the bridge records a limit.
+
+    The first request proposes the host tool call. The second reaches the
+    limit, which the bridge records. The tool's generation or native
+    compaction then makes no provider call, and the scaffold gets the limit as
+    a tool error. A tool that makes no model call still runs.
+    """
+    calls: list[str] = []
+
+    def outputs(*args: Any) -> ModelOutput:
+        calls.append("generate")
+        return ModelOutput.for_tool_call("mockllm/model", "ask_model", {})
+
+    async def compact(*args: Any) -> tuple[list[ChatMessage], ModelUsage]:
+        calls.append("compact")
+        return await _compact_natively(*args)
+
+    monkeypatch.setattr(mockllm.MockLLM, "compact", compact)
+    model = get_model("mockllm/model", custom_outputs=outputs, memoize=False)
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={"host": {"ask_model": _model_calling_tool(model, call)}},
+        proposal_exempt_servers=set() if require_proposal else {"host"},
+    )
+    generate = _forward_provider_errors(
+        bridge_service.generate_completions(bridge), bridge
+    )
+
+    def request(count: int) -> dict[str, JsonValue]:
+        return {
+            "model": "inspect",
+            "messages": [{"role": "user", "content": "Use the tool."}] * count,
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "ask_model",
+                        "description": _ASK_MODEL,
+                        "parameters": {"type": "object", "properties": {}},
+                    },
+                }
+            ],
+        }
+
+    limit = make_limit()
+    with limit:
+        assert PROVIDER_ERROR_KEY not in await generate(request(1))
+        assert PROVIDER_ERROR_KEY in await generate(request(messages))
+        recorded = bridge.generation_limit
+        assert recorded is not None and recorded.source is limit
+        generations = list(calls)
+
+        execute = bridge_service.call_tool(bridge)
+        if call == "none":
+            assert await execute("host", "ask_model", {}) == "ran"
+        else:
+            with pytest.raises(ToolError, match=f"{recorded.type} limit"):
+                await execute("host", "ask_model", {})
+
+    assert calls == generations
     assert bridge.generation_limit is recorded
 
 
