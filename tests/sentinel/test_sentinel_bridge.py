@@ -4228,10 +4228,8 @@ async def test_a_result_that_can_be_either_handouts_gets_no_proposal(
 ) -> None:
     """A result under an id handed out with two argument sets, and no call in its request.
 
-    It may be either handout's and nothing in the request tells which, so it
-    is paired by position with the call the id's latest response handed
-    over: one check, of the retry's arguments, whether or not the result
-    names a function, with no proposal's context.
+    It may be either handout's, so it is checked as each one's call, whether
+    or not it names a function, with no proposal's context.
     """
     seen: Steps = []
     model = Scripted(calls_output(READ), calls_output(READ), calls_output())
@@ -4253,9 +4251,13 @@ async def test_a_result_that_can_be_either_handouts_gets_no_proposal(
         )
 
     afters = [s for s in seen if isinstance(s, AfterToolCall)]
-    [after] = afters
-    assert (after.input, after.message_id) == (None, "")
-    assert after.call == READ
+    assert [(s.input, s.message_id) for s in afters] == [(None, "")] * 2
+    assert [(s.call.id, s.call.function) for s in afters] == [
+        (READ.id, READ.function)
+    ] * 2
+    assert sorted(s.call.arguments["path"] for s in afters) == sorted(
+        ["safe.txt", READ.arguments["path"]]
+    )
 
 
 def test_handed_calls_are_paired_with_their_read_back_form_by_id() -> None:
@@ -6850,12 +6852,7 @@ async def test_a_computer_call_modified_to_an_action_its_dialect_reads_back_othe
 async def test_a_result_two_handouts_read_back_alike_could_be_gets_no_proposal() -> (
     None
 ):
-    """A triple click on one handout and a double click on its retry: both read back as a double click.
-
-    Either could be the one answered, so the result is paired by position
-    with the call the id's latest response handed over: one check, of the
-    retry's double click, with no proposal's context.
-    """
+    """A triple click on one handout and a double click on its retry: both read back as a double click."""
     from inspect_ai.agent._bridge.responses import inspect_responses_api_request
 
     init_sample_assistant_internal()
@@ -6917,11 +6914,11 @@ async def test_a_result_two_handouts_read_back_alike_could_be_gets_no_proposal()
             bridge,
         )
 
-    [after] = [s for s in seen if isinstance(s, AfterToolCall)]
-    assert (after.call.id, after.input) == (item.call_id, None)
-    assert after.call.arguments == {
-        "actions": [{"action": "double_click", "coordinate": [10, 20]}]
-    }
+    # either handout could be the one answered, so the result is checked as
+    # each one's call
+    afters = [s for s in seen if isinstance(s, AfterToolCall)]
+    assert [(s.call.id, s.input) for s in afters] == [(item.call_id, None)] * 2
+    assert len({json.dumps(s.call.arguments, sort_keys=True) for s in afters}) == 2
 
 
 @pytest.mark.parametrize(

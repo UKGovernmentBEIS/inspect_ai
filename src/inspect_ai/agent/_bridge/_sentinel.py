@@ -225,9 +225,9 @@ class _Handed(NamedTuple):
 
     latest: tuple[int, ...] = ()
     """The calls its latest response handed over under the id, in order, each
-    as its handout's position in `handed`; empty for an id with one handout.
-    A result whose call is none of the id's handouts is paired with them by
-    position (`_HandoutIndex.of`)."""
+    as its handout's position in `handed`, where they were several handouts
+    sharing the id; otherwise empty. A result whose call is none of the id's
+    handouts is paired with them by position (`_HandoutIndex.of`)."""
 
 
 class _SavedHandouts(BaseModel):
@@ -295,13 +295,14 @@ class _Handouts:
     call, say). For an id the bridge handed out, its record is the authority,
     not the call a request shows: a result whose call matches no handout of
     its id, or several, or one with no call in its request when the id was
-    handed with several arguments, gets no proposal's context and is paired
-    by position: the nth such result after an assistant message is checked as
-    the targets of the nth call the id's latest response handed over under
-    it, and one past the last as the last's (`_HandoutIndex.of`). So each
-    result has one handout's checks, however many the id has. Calls of one
+    handed with several arguments, gets no proposal's context and is checked
+    as every target the id's handouts resolved to: across responses, one
+    handout may be another bridged tool's than the next. Calls of one
     response sharing an id are each a handout of it, with no proposal's
-    context. Only
+    context, and such a result under their id is instead paired by position:
+    the nth after an assistant message is checked as the targets of the nth
+    of those calls, and one past the last as the last's (`_HandoutIndex.of`),
+    so N results of N calls sharing an id cost N checks. Only
     a result under an id the bridge never handed out (a scaffold that
     rewrites ids, or one answering no call) is checked as the call it answers
     in its request. A call handed out more than once
@@ -508,7 +509,9 @@ class _Handouts:
                 ambiguous,
                 previous.read_back if previous is not None else (),
                 tuple(targets.records),
-                tuple(positions[key] for key in keys) if len(handouts) > 1 else (),
+                tuple(positions[key] for key in keys)
+                if shared and len(handouts) > 1
+                else (),
             )
             if checks is None:
                 continue
@@ -633,13 +636,13 @@ class _Handouts:
         )
         # what the checks depend on besides the bridge's state, which a claim
         # doesn't change: the call answered, or the result's function without
-        # one, and the handout the result is of
+        # one, and the handout the result is matched or paired with
         checks = steps.checks(
             (
                 call_id,
                 id(found),
                 message.function if found is None else None,
-                (targets.handout, targets.matched) if targets is not None else None,
+                (targets.matched, targets.paired) if targets is not None else None,
             ),
             found,
             lambda: self._checks(call_id, handed, targets, found, message),
@@ -664,21 +667,22 @@ class _Handouts:
         """The checks of a result under `call_id` answering `found` (`_Handouts`).
 
         For an id the bridge handed out, its record is the authority, not the
-        call the request shows: the result is checked as `targets`, those of
-        the one handout it is of (`_HandoutIndex.of`). A result whose call is
-        that handout has its proposal's checks, or its recorded targets
-        without context once the proposal is gone or the id is ambiguous. One
-        paired with the handout by position (the scaffold changed the call,
-        or left it out of an id with several handouts) has its recorded
-        targets, without context. Only a result under an id with no recorded
-        target (one the bridge never handed out) is checked as the call the
-        request shows.
+        call the request shows: the result is checked as `targets`
+        (`_HandoutIndex.of`). A result whose call is one of the id's handouts
+        has that handout's proposal's checks, or its recorded targets without
+        context once the proposal is gone or the id is ambiguous. One whose
+        call is none of them, or one several could be (the scaffold changed
+        the call, or left it out of an id with several handouts), has
+        recorded targets without context: every handout's, or one handout's
+        where it is paired by position. Only a result under an id with no
+        recorded target (one the bridge never handed out) is checked as the
+        call the request shows.
         """
         if handed is not None and targets is not None:
             checks: list[SentinelCheck] = []
             proposal = (
-                self.proposals.get((call_id, targets.handout))
-                if targets.matched
+                self.proposals.get((call_id, targets.matched))
+                if targets.matched is not None
                 else None
             )
             if proposal is not None:
@@ -785,17 +789,19 @@ class _Targets:
 
 
 class _HandoutTargets(NamedTuple):
-    """The handout of an id a result is checked as (`_HandoutIndex.of`)."""
+    """The targets of an id's handouts a result is checked as (`_HandoutIndex.of`)."""
 
-    handout: str
-    """The handed call (`_call_key`)."""
+    matched: str | None
+    """The handout (`_call_key`) the result's call is, whose proposal's
+    context applies; None for a result whose call is none, or could be
+    several."""
 
-    matched: bool
-    """Whether the result's call is the handout's, so its proposal's context
-    applies; False for one paired with the handout by position."""
+    paired: str | None
+    """The handout such a result is paired with by position, if any."""
 
     recorded: Sequence[_Target]
-    """The handout's recorded targets (`_Handed.targets`)."""
+    """The recorded targets (`_Handed.targets`) of the handout, or of every
+    handout of the id for a result neither matched nor paired."""
 
 
 class _HandoutIndex:
@@ -808,24 +814,26 @@ class _HandoutIndex:
         for back, key in handed.read_back:
             self._read_back.setdefault(back, set()).add(key)
         self._latest = [handed.handed[position] for position in handed.latest]
+        self._all = handed.targets
         self._targets: dict[str, list[_Target]] = {}
         for target in handed.targets:
             self._targets.setdefault(target.handout, []).append(target)
 
-    def of(self, found: _Call | None, nth: int) -> _HandoutTargets | None:
-        """The handout of the id a result answering `found` (the call in its request, if any) is of.
+    def of(self, found: _Call | None, nth: int) -> _HandoutTargets:
+        """The targets a result answering `found` (the call in its request, if any) is checked as.
 
-        The handed call with `found`'s function and arguments, as handed or as
-        its dialect reads it back (`_Handed.read_back`); for a result with no
-        call in its request, the id's only handed call.
+        Those of the handed call with `found`'s function and arguments, as
+        handed or as its dialect reads it back (`_Handed.read_back`); for a
+        result with no call in its request, of the id's only handed call.
 
         Otherwise the scaffold changed the call or left it out, or several
-        handouts match, and the result is paired by position, as `_answers`
+        handouts match, and the result is checked as every handout's targets:
+        handouts in separate responses may be of other bridged tools, and
+        nothing tells which the result is of. That costs a check for each
+        handout, so a result under an id several calls of one response
+        shared (`_Handed.latest`) is instead paired by position, as `_answers`
         pairs results with a request's calls: the `nth` result (`_Answer.nth`)
-        with the nth call the id's latest response handed over under it
-        (`_Handed.latest`), and one past the last with the last. An id with
-        one handout has that one. So no result is checked as more than one
-        handout's targets. None for an id with no handed call.
+        with the nth of those calls, and one past the last with the last.
         """
         if found is None:
             matches = set(self._handed) if len(self._handed) == 1 else set()
@@ -834,14 +842,12 @@ class _HandoutIndex:
             if found.key in self._keys:
                 matches.add(found.key)
         if len(matches) == 1:
-            return self._targets_of(matches.pop(), matched=True)
-        order = self._latest or self._handed
-        if not order:
-            return None
-        return self._targets_of(order[min(nth, len(order) - 1)], matched=False)
-
-    def _targets_of(self, handout: str, matched: bool) -> _HandoutTargets:
-        return _HandoutTargets(handout, matched, self._targets.get(handout, ()))
+            [handout] = matches
+            return _HandoutTargets(handout, None, self._targets.get(handout, ()))
+        if self._latest:
+            paired = self._latest[min(nth, len(self._latest) - 1)]
+            return _HandoutTargets(None, paired, self._targets.get(paired, ()))
+        return _HandoutTargets(None, None, self._all)
 
 
 def _with_targets_of(check: SentinelCheck, earlier: SentinelCheck) -> SentinelCheck:

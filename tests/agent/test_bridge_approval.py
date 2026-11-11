@@ -7573,15 +7573,14 @@ def numbering_approver() -> Approver:
 @pytest.mark.usefixtures("fake_sentinel")
 @pytest.mark.parametrize("change", ["edited", "omitted"])
 @pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
-async def test_a_changed_call_of_an_id_handed_out_twice_is_checked_as_its_latest_handout(
+async def test_a_changed_call_of_an_id_handed_out_in_two_responses_is_checked_as_each_handout(
     dialect: HostDialect, change: str
 ) -> None:
     """The model makes one call under one id in two turns, and approval gives it other arguments each time; the scaffold changes the second turn's call, or leaves the calls out, and reports its result.
 
-    The id has two handouts and the result's call is neither, so it is paired
-    by position with the call the id's latest response handed over: one
-    check, of the second turn's arguments, with no context, not one for each
-    handout.
+    The id has two handouts, one in each response, and the result's call is
+    neither: it is checked as both, with no context. Pairing by position is
+    only for calls sharing an id within one response.
     """
     call = ToolCall(id="same", function="read_file", arguments={"path": "p"})
     done = ModelOutput.from_content("mockllm/model", "Done.")
@@ -7608,8 +7607,65 @@ async def test_a_changed_call_of_an_id_handed_out_twice_is_checked_as_its_latest
         _report_shared(conversation, second, change, ["result 1"], "same")
         await conversation.request(bridge)
     latest = [step for step in seen if "result 1" in step.result.text]
-    assert [step.call.arguments for step in latest] == [{"path": "approved 2"}]
-    assert latest[0].input is None and latest[0].message_id == ""
+    assert sorted(step.call.arguments["path"] for step in latest) == [
+        "approved 1",
+        "approved 2",
+    ]
+    assert all(step.input is None and step.message_id == "" for step in latest)
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("secret", [True, False])
+@pytest.mark.parametrize("modified", [True, False])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_changed_call_of_an_id_handed_out_as_two_tools_is_checked_as_both(
+    dialect: HostDialect, modified: bool, secret: bool
+) -> None:
+    """Two requests declare `summarize` as `read_file`, then as `status`; the model repeats one call and id in both. The scaffold edits the call in its history and reports a result under the id.
+
+    The id was handed out as `read_file` in one response and as `status` in
+    the next, and the edited call is neither handout, so the report is
+    checked as both bridged tools, with no context: a `secret` report is
+    stopped as `read_file`'s, never checked as `status` alone. With
+    `modified`, approval gives each handout other arguments, so they are two
+    handouts of the id, each with one target; without, one handout with both.
+    """
+    call = ToolCall(id="same", function="summarize", arguments={"path": "p"})
+    proposal = tool_calls_output(call)
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model("mockllm/model", custom_outputs=[proposal, proposal, done])
+    bridge = _status_and_read_file_bridge(model)
+    if modified:
+        bridge.approval = [ApprovalPolicy(numbering_approver(), "*")]
+    reports: list[tuple[str, bool]] = []
+    with active_test_sentinel(terminate_on_a_secret_report("read_file", reports)):
+        first = _HostConversation(
+            dialect, "Same prompt", declare("summarize", description=READ_FILE)[0]
+        )
+        first_calls = await first.request(bridge)
+        later = _HostConversation(
+            dialect, "Same prompt", declare("summarize", description=STATUS)[0]
+        )
+        later_calls = await later.request(bridge)
+        assert later_calls[0][0] == first_calls[0][0]
+        record = bridge._handouts.handed["same"]
+        assert len(record.handed) == (2 if modified else 1)
+        assert {target.call.function for target in record.targets} == {
+            "read_file",
+            "status",
+        }
+        _report_shared(
+            later, later_calls, "edited", ["secret" if secret else "plain"], "same"
+        )
+        if secret:
+            with pytest.raises(TerminateSampleError, match="secret read_file report"):
+                await later.request(bridge)
+        else:
+            await later.request(bridge)
+    assert reports and all(not has_input for _, has_input in reports)
+    assert ("read_file", False) in reports
+    if not secret:
+        assert {target for target, _ in reports} == {"read_file", "status"}
 
 
 # `read_file` paths whose arguments a Murmur3 digest cannot tell apart
