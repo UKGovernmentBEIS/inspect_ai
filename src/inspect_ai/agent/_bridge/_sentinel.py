@@ -43,7 +43,11 @@ from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge.types import AgentBridge, BridgedToolId
-from inspect_ai.model._call_tools import decisive_sentinel_exception, repeated_call_ids
+from inspect_ai.model._call_tools import (
+    decisive_sentinel_exception,
+    get_tools_info,
+    repeated_call_ids,
+)
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -61,7 +65,9 @@ from inspect_ai.tool._tool_call import (
     ToolCallViewError,
     resolve_tool_call_view,
 )
+from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._span import in_agent_span
 
@@ -161,11 +167,29 @@ class BridgedRequest(NamedTuple):
     """A scaffold request, as the bridge tells calls apart by it."""
 
     key: str
-    """Its conversation's digest (`bridged_request`): a retry of the request
+    """Its digest (`bridged_request`, `declaring`): a retry of the request
     has the same."""
 
     ids: frozenset[str]
     """The call ids in its conversation (`history_ids`)."""
+
+    declarations: str = ""
+    """The digest of what its calls resolve against (`declaring`)."""
+
+    def declaring(
+        self, declarations: Sequence[ToolInfo | Tool], tool_choice: ToolChoice | None
+    ) -> "BridgedRequest":
+        """The request as generated with `declarations` and `tool_choice`.
+
+        The bridge resolves a call's targets against its declarations, and a
+        result's step shows them and the tool choice, so a request with the
+        same messages and other declarations or tool choice is another
+        request: a call the model repeats in both is ambiguous, not retried.
+        """
+        digest = _parts_digest(
+            _serialized(get_tools_info(declarations)), _serialized(tool_choice)
+        )
+        return self._replace(key=_parts_digest(self.key, digest), declarations=digest)
 
 
 def bridged_request(input: Sequence[ChatMessage]) -> BridgedRequest:
@@ -234,6 +258,9 @@ class _Conversation(NamedTuple):
     request: str = ""
     """Their digest (`HandoutPoint`)."""
 
+    declarations: str = ""
+    """What the reply's calls resolved against (`BridgedRequest.declarations`)."""
+
     reply: str = ""
     """The reply's id."""
 
@@ -259,7 +286,9 @@ class HandoutPoint:
     computed once and only when a call is recorded. Each message's digest
     also covers what a provider can send the model of it that its content
     leaves out (`unhashed_model_input`), so a request whose model input
-    differs is another conversation.
+    differs is another conversation. A reply handed out again for the same
+    messages with other declarations (`BridgedRequest.declarations`) is
+    another conversation's too.
     """
 
     def __init__(
@@ -268,11 +297,14 @@ class HandoutPoint:
         contents: Callable[[ChatMessage], str],
         reply: str,
         holds: Callable[[int, str, str], bool],
+        declarations: str = "",
     ) -> None:
         self._messages = messages
         self._content = contents
         self.reply = reply
         """The reply's id."""
+        self.declarations = declarations
+        """What the reply's calls resolved against (`BridgedRequest.declarations`)."""
         self._holds = holds
         """Whether the request's message at an index, with a content, is the reply with an id."""
 
@@ -301,6 +333,7 @@ class HandoutPoint:
             self.reply == conversation.reply
             and self.messages == conversation.messages
             and self.digests[-1] == conversation.request
+            and self.declarations == conversation.declarations
         )
 
     def continues(self, conversation: _Conversation) -> bool:
@@ -698,7 +731,11 @@ class _Handouts:
             conversation = self.conversations.get(key)
             if conversation is None:
                 self.conversations[key] = _Conversation(
-                    point.messages, point.digests[-1], point.reply, 1
+                    point.messages,
+                    point.digests[-1],
+                    point.declarations,
+                    point.reply,
+                    1,
                 )
             elif conversation.shared:
                 continue
@@ -708,7 +745,11 @@ class _Handouts:
                 )
             elif point.continues(conversation):
                 self.conversations[key] = _Conversation(
-                    point.messages, point.digests[-1], point.reply, 1
+                    point.messages,
+                    point.digests[-1],
+                    point.declarations,
+                    point.reply,
+                    1,
                 )
             else:
                 self.conversations[key] = _SHARED

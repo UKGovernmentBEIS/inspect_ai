@@ -74,6 +74,7 @@ from inspect_ai.agent._bridge._sentinel import (
     _call_key,
     _Handouts,
     _SavedHandouts,
+    bridged_request,
 )
 from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
 from inspect_ai.agent._bridge.bridge import agent_bridge
@@ -153,7 +154,7 @@ from inspect_ai.tool._tool_call import (
     ToolCallView,
     ToolCallViewError,
 )
-from inspect_ai.tool._tool_choice import ToolChoice
+from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
@@ -7588,6 +7589,135 @@ async def test_a_replay_with_unchanged_added_targets_is_not_checked_again(
         "status",
     ]
     assert len(seen) == checked
+
+
+@protocol
+def terminate_on_a_secret_report(
+    target: str, reports: list[tuple[str, bool]]
+) -> Protocol:
+    """Terminate on a scaffold's report containing `secret` checked as `target`; record each report's (target, has input)."""
+
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if step.truncated is not None:
+            return None
+        reports.append((step.call.function, step.input is not None))
+        if step.call.function == target and "secret" in step.result.text:
+            return Decision.terminate(f"secret {target} report")
+        return None
+
+    return after
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("second", ["declarations", "prompt", "retry"])
+@pytest.mark.parametrize("first_target", ["read_file", "status"])
+@pytest.mark.parametrize("host", [False, True])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_request_with_the_same_messages_and_other_declarations_is_no_retry(
+    dialect: HostDialect, host: bool, first_target: str, second: str
+) -> None:
+    """A second request declares `summarize` as the other bridged tool; the model repeats the first's call, id and reply.
+
+    With the same messages (`declarations`) or another prompt (`prompt`), the
+    call is ambiguous: the first conversation's report is checked as both
+    targets, with no proposal's context, and its secret is caught as the
+    first's target. An unchanged request (`retry`) is a retry: the report is
+    checked as the one target, with its proposal's context. With `host`, the
+    first target runs on the host before the second request.
+    """
+    call = ToolCall(id="same", function="summarize", arguments={"path": "p"})
+    proposal = tool_calls_output(call)
+    done = ModelOutput.from_content("mockllm/model", "Done.")
+    model = get_model("mockllm/model", custom_outputs=[proposal, proposal, done])
+    bridge = _status_and_read_file_bridge(model)
+    descriptions = {"read_file": READ_FILE, "status": STATUS}
+    other_target = "status" if first_target == "read_file" else "read_file"
+    reports: list[tuple[str, bool]] = []
+    with active_test_sentinel(terminate_on_a_secret_report(first_target, reports)):
+        first = _HostConversation(
+            dialect,
+            "Same prompt",
+            declare("summarize", description=descriptions[first_target])[0],
+        )
+        first_calls = await first.request(bridge)
+        if host:
+            await call_host_tool(bridge)("host", first_target, {"path": "p"})
+        later = _HostConversation(
+            dialect,
+            "Other prompt" if second == "prompt" else "Same prompt",
+            declare(
+                "summarize",
+                description=descriptions[
+                    first_target if second == "retry" else other_target
+                ],
+            )[0],
+        )
+        later_calls = await later.request(bridge)
+        assert later_calls[0][0] == first_calls[0][0]
+        assert bridge._handouts.handed["same"].ambiguous is (second != "retry")
+        first.results(first_calls, ["secret"])
+        with pytest.raises(TerminateSampleError, match=f"secret {first_target} report"):
+            await first.request(bridge)
+    if second == "retry":
+        assert reports == [(first_target, True)]
+    else:
+        assert reports and all(not has_input for _, has_input in reports)
+        assert {target for target, _ in reports} <= {first_target, other_target}
+
+
+def test_a_request_is_identified_by_its_declarations_and_tool_choice() -> None:
+    """The same messages with another declared name, description, schema or tool choice are another request; unchanged, the same."""
+    request = bridged_request([ChatMessageUser(content="Same prompt")])
+    [info] = declare("summarize")
+    key = request.declaring([info], "auto").key
+    assert request.declaring([info], "auto").key == key
+    assert request.declaring([info.model_copy()], "auto").key == key
+    changed = [
+        request.declaring([info], "any"),
+        request.declaring([info], ToolFunction(name="summarize")),
+        request.declaring([info], None),
+        request.declaring(declare("other"), "auto"),
+        request.declaring(declare("summarize", description=STATUS), "auto"),
+        request.declaring(declare("summarize", parameters=("file",)), "auto"),
+        request.declaring([info, *declare("other")], "auto"),
+        request.declaring([], "auto"),
+    ]
+    assert len({key, *(other.key for other in changed)}) == len(changed) + 1
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("retry", [False, True])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_a_reply_handed_again_for_other_declarations_is_another_conversations(
+    dialect: HostDialect, retry: bool
+) -> None:
+    """A cached reply is handed out again for a request with the same messages and another declared tool.
+
+    The second request is another conversation's, so the host call it hands
+    over is shared and its execution is checked with no proposal's context.
+    The same request again (`retry`) is the same conversation: the execution
+    keeps its proposal's context.
+    """
+    call = ToolCall(id="same", function="read_file", arguments={"path": "p"})
+    proposal = tool_calls_output(call)
+    model = get_model("mockllm/model", custom_outputs=[proposal, proposal])
+    bridge = _status_and_read_file_bridge(model)
+    seen: list[AfterToolCall] = []
+    with active_test_sentinel(record_tool_results(seen)):
+        [info] = declare("read_file")
+        await _HostConversation(dialect, "Same prompt", info).request(bridge)
+        await _HostConversation(
+            dialect,
+            "Same prompt",
+            info,
+            others=() if retry else declare("summary", description=STATUS),
+        ).request(bridge)
+        await call_host_tool(bridge)("host", "read_file", {"path": "p"})
+    [step] = seen
+    assert step.truncated is not None
+    assert (step.input is not None) is retry
 
 
 @protocol

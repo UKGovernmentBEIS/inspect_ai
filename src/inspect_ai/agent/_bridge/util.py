@@ -1660,8 +1660,9 @@ async def _bridge_generate_impl(
             declarations.extend(declared_in_input(input_messages))
         producer = generations.producer(produced)
         model_ids = [call.id for call in output.message.tool_calls or []]
-        output = _fresh_call_ids(bridge, output, request)
-        bridge._handouts.propose(request, output.message.tool_calls or [])
+        attempt = request.declaring(declarations, tool_choice)
+        output = _fresh_call_ids(bridge, output, attempt)
+        bridge._handouts.propose(attempt, output.message.tool_calls or [])
         with agent_bridge_context_scope(_UTILITY_CONTEXT):
             reviewed = await apply_bridge_tool_approval(
                 bridge, output, input_messages, declarations, producer=producer
@@ -1670,7 +1671,7 @@ async def _bridge_generate_impl(
             handed = reviewed.output.message.tool_calls or []
             _hold_replay_state(reviewed.output, generations.outputs())
             bridge._handouts.hand_over(
-                request, output.message.tool_calls or [], handed, reviewed.sentinel
+                attempt, output.message.tool_calls or [], handed, reviewed.sentinel
             )
             # executions are placed in the proposing ModelEvent's span; only one
             # a sink chose is stored, so a rotating checkpoint span is followed
@@ -1696,6 +1697,7 @@ async def _bridge_generate_impl(
             }
             bridge._proposing_reply_id = reviewed.output.message.id
             bridge._proposing_request = input
+            bridge._proposing_declarations = attempt.declarations
             bridge._proposing_call_verified = verified_calls
             try:
                 bridge._register_tool_execution_grants(
@@ -1708,6 +1710,7 @@ async def _bridge_generate_impl(
                 bridge._proposing_message_ids = {}
                 bridge._proposing_reply_id = None
                 bridge._proposing_request = []
+                bridge._proposing_declarations = ""
                 bridge._proposing_call_verified = None
             return reviewed.output, c_message
 

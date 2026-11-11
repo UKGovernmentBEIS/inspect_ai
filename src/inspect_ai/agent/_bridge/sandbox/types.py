@@ -306,6 +306,7 @@ class SandboxAgentBridge(AgentBridge):
             # a reply without an id is no other reply, nor handed out again
             self._proposing_reply_id or uuid(),
             holds,
+            self._proposing_declarations,
         )
 
     def _warn_eviction(self, evicted: "_ToolExecutionGrant") -> None:
