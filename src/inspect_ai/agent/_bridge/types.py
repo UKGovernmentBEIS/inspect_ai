@@ -174,8 +174,8 @@ class _AwaitedReply:
 
 
 def _tracked(reply: _AwaitedReply) -> int:
-    """How many of a reply's calls result tracking holds: those executed or started."""
-    return len(reply.events.keys() | reply.runs.keys())
+    """How many executions of a reply's calls result tracking holds: each started, or each executed call with none recorded started."""
+    return sum(reply.runs.values()) + len(reply.events.keys() - reply.runs.keys())
 
 
 class DispatchedCall(NamedTuple):
@@ -608,13 +608,19 @@ class AgentBridge:
         Outstanding while the execution runs, and once it has completed until
         as many distinct messages have answered the call as executions of it
         started, whether or not the reply can still link. Unknown once the
-        reply's result tracking was dropped (`_untracked_replies`).
+        reply's result tracking was dropped (`_untracked_replies`), also when
+        its calls run again after: their earlier runs and answers are no longer
+        counted, so an earlier answer sent again could seem to answer the
+        later run.
         """
         root = self._edit_root(handed.reply.id)
+        if root in self._untracked_replies:
+            return None
         reply = self._awaited_results.get(root)
         runs = reply.runs.get(handed.position, 0) if reply is not None else 0
         if reply is None or runs == 0:
-            return None if root in self._untracked_replies else True
+            # not recorded started: outstanding, as for an execution running
+            return True
         return len(reply.answers.get(handed.position, ())) < runs
 
     def _await_result_message(

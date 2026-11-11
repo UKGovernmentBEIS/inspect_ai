@@ -563,10 +563,11 @@ class SandboxAgentBridge(AgentBridge):
         - The call is recorded for `unlink_denied_call`.
 
         The per-key record keeps the executions still awaiting answers when
-        last scanned, and the latest; each is dropped at the first scan after
-        its answer arrives or its tracking is dropped, so a call is doubted
-        only while it may be retried, and at most until
-        `_MAX_AWAITED_RESULTS` later executions. The per-tool record drops
+        last scanned, and the latest, one per call (answers are tracked per
+        call); each is dropped at the first scan after its answer arrives or
+        its tracking is dropped, so a call is doubted only while it may be
+        retried, and at most until `_MAX_AWAITED_RESULTS` later executions
+        (runs of one call count each). The per-tool record drops
         answered calls each time it doubles, so it stays within twice the
         calls of the tool still running or awaiting answers. The work is
         linear in the calls awaiting answers. Reply ids, positions, handouts
@@ -586,8 +587,11 @@ class SandboxAgentBridge(AgentBridge):
         doubted: set[Handout] = set()
         doubt = False
         kept: dict[str, list[_Executed]] = {}
+        call = (self._edit_root(reply.reply.id), reply.position)
         for key in keys:
             kept[key] = []
+            # an answer is tracked per call, so one entry per call is kept
+            calls = {call}
             for earlier in self._executed_calls.pop(
                 (grant.server, grant.tool, key), []
             ):
@@ -598,7 +602,12 @@ class SandboxAgentBridge(AgentBridge):
                 doubt = True
                 if earlier.handout is not None:
                     doubted.add(earlier.handout)
-                if answer == "awaited":
+                earlier_call = (
+                    self._edit_root(earlier.handed.reply.id),
+                    earlier.handed.position,
+                )
+                if answer == "awaited" and earlier_call not in calls:
+                    calls.add(earlier_call)
                     kept[key].append(earlier)
         if doubt:
             self._unlink(reply.reply.id)
