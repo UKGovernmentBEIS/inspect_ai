@@ -268,7 +268,7 @@ the sample it sent still runs and its result is dropped.
   ([task-dispatch.md](task-dispatch.md#the-dispatcher)), so every fed
   task's creator has ended and closed its channel, and every fed task has
   ended: `result()` returns its log at once and `enqueue_sample()` raises
-  the after-close error below.
+  `TaskEndedError` with that log (the order below).
 - **`samples_from_handle()` tasks** are added only by `enqueue_task()` from
   code running inside an attempt that has not ended (`_attempt` set and
   `ended` false), which becomes the creator: a solver, scorer or tool, a
@@ -320,10 +320,25 @@ the sample it sent still runs and its result is dropped.
   never sent, including after `close()`, which the feeder admits before it
   asks whether the source has ended.
 - **`TaskHandle.enqueue_sample()`** on a handle whose task is not fed
-  through it, or after `close()` or `result()`: `RuntimeError`; with a sample that has an
-  `id`: `ValueError` (the channel assigns ids); after a drain, `score` or
-  `error` cancel of the task: `SampleAbandonedError`; after the task ended:
-  `TaskEndedError`.
+  through it: `RuntimeError`; with a sample that has an `id`: `ValueError`
+  (the channel assigns ids). Otherwise a send to a channel that no longer
+  accepts samples raises by one order, checked against the record and the
+  channel's own state, first match wins:
+  1. the task has ended (the record is `ended`): `TaskEndedError` with its
+     final log, or `None`;
+  2. the channel was stopped by a drain, `score` or `error` cancel and the
+     task has not ended yet (samples still buffered or running):
+     `SampleAbandonedError`;
+  3. the channel is closed, by any cause (`close()`, `result()`, `async
+     with` exit, `cancel()` before the task ends, or the end of the
+     creator's attempt while sent samples still run): `RuntimeError`
+     ("the handle is closed: send no more samples").
+
+  So a handle kept from a finished creator raises `RuntimeError` while its
+  task's last samples run and `TaskEndedError` once the task has ended, and
+  a send after a drain of an idle channel, which ends the task, raises
+  `TaskEndedError`. `TaskEndedError` and `SampleAbandonedError` are
+  `RuntimeError` subclasses, so tests assert the exact type.
 - Off the run's loop: `RuntimeError` (see "The handle API").
 
 ### What the handles add to the run queue
@@ -396,7 +411,7 @@ class PortRequest:
   task's, and its creator's own slot is counted. A record whose channel
   closes before any sample was sent ends with no log and no attempt, so a
   handle that is never used costs nothing. Its model controller is created
-  when its attempt starts, as for any added task
+  lazily on its first `generate`, as for any added task
   ([task-dispatch.md](task-dispatch.md#adding-tasks)); under its creator's
   model it usually exists already. It has no seed, so
   its attempt sets up no sandbox before its first sample, and the
@@ -484,7 +499,8 @@ class PortRequest:
   keep today's resolution and filtering.
 - **Graceful cancels stop it.** `_run_task`'s `cancel_task` callback calls
   `channel.stop()` for `drain`, `score` and `error`: `next_samples()` returns
-  `None` and later sends raise `SampleAbandonedError`. Samples already
+  `None` and later sends raise `SampleAbandonedError` until the task ends,
+  then `TaskEndedError` ("What is refused"). Samples already
   buffered or running follow the directive's existing rules and settle
   through `sample_complete` or `sample_abandoned`.
 - **Closing.** The channel closes on `close()`, `result()`, `async with`
@@ -703,7 +719,14 @@ test touched), with mockllm models; every test that waits is bounded with
     a sibling attempt's shielded cleanup);
   - in `next_tasks()`, a fed task's handle kept from its finished creator:
     `result()` returns the task's log at once and `enqueue_sample()` raises
-    the after-close `RuntimeError`;
+    `TaskEndedError` (not its base `RuntimeError`) carrying that log;
+  - the send error order, each asserting the exact type: after `close()`
+    while a sent sample still runs, `RuntimeError` that is neither
+    subclass; after the creator's attempt ends while a sent sample still
+    runs, the same; after a drain while a sample is still running,
+    `SampleAbandonedError`, and after that sample settles and the task
+    ends, `TaskEndedError`; after `cancel()` once the task has ended,
+    `TaskEndedError`;
   - refusals: a `samples_from_handle()` task added from `next_tasks()`, returned from a `TaskSource` callback, added after
     its creator's attempt ended (by a coroutine the creator left running,
     while another task keeps the run open), with `epochs=2`, passed to
@@ -762,9 +785,10 @@ test touched), with mockllm models; every test that waits is bounded with
     fed task, whose limit comes from its model's pool; a run-level approval
     policy applies to a fed task that sets its own; each rollout log's eval
     config records the values that applied;
-  - drain, `score` and `error`: an idle open channel ends the task, later
-    sends raise `SampleAbandonedError`, a buffered or running sample settles
-    under the directive's rule;
+  - drain, `score` and `error`: an idle open channel ends the task and a
+    later send raises `TaskEndedError`; with a sample running, a send
+    raises `SampleAbandonedError` and the running sample settles under the
+    directive's rule;
   - a fed task whose request A completes and whose request B then needs a
     sandbox setup that fails (stub provider): the task ends with its error
     log and is not retried, A's call has already returned its run, and B's

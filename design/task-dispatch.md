@@ -10,7 +10,7 @@ workers alike. Adding a task checks its configuration and sample selection
 at once, so a mistake raises to the caller, and the task's log file is
 created only when the task starts. Every task in the queue, including one
 that has not started, is listed by `inspect ctl task list` and can be
-cancelled.
+cancelled, and stays listed as finished once it ends.
 
 Each task sets up its own sandboxes (a provider's `task_init`) when its
 attempt starts, the way a `SampleSource` task sets up the samples it adds
@@ -50,6 +50,10 @@ sandbox and model):
   any task starts. A task without sandboxes starts while another task
   builds, and a task holds its `max_tasks` slot while its own `task_init`
   runs. `on_task_start` now runs before the task's sandboxes are set up.
+- During a task's sandbox setup the full-screen task display is suspended
+  until the setup finishes, as today, while other tasks keep running
+  (today nothing else runs during the batch's setup, except a
+  `SampleSource` addition's).
 - A task's log file, temporary file and sample buffer database are created
   when the task starts, not when the run starts, so a long queue holds none.
 
@@ -349,8 +353,10 @@ The design keeps these, and each section below says how:
    error log of a task cancelled before it started, or `None` when dispatch
    ended first.
 3. **A record is visible to the control channel from the moment it is
-   added**: in the queued registry until one of its attempts first calls
-   `register_eval`, then through its `EvalState`, as today.
+   added, and after it ends**: in the queued registry until one of its
+   attempts first calls `register_eval`, then through its `EvalState`, as
+   today; a record that ends without registering gets a terminal
+   `EvalState` before it leaves the registry.
 4. **A task's logger owns a recorder entry only while an attempt runs.**
    `task_run` calls `logger.init()` when the attempt starts; `log_finish` or
    `discard()` releases it when the attempt ends. A queued record or a
@@ -483,18 +489,39 @@ which the task screen counts when it opens) and rings `wake`.
 `ensure_model_controller` for each task's primary model with the task's
 generate config merged with the run's, as `prepare_options` does today, and
 does nothing under `run_samples=False`. `eval_run` awaits it for the seed
-before adding it, so the seed's controllers exist before any build. An
-added task's controller is created when its first attempt starts: `run_one`
-awaits `ensure_controllers` for the record right after its move into
-`attempt` (a no-op once the controller exists), before `_run_task`, so
-before the task's `startup_sandboxes` and its own build, and an `inspect
-ctl config --max-connections` retune made during that build reaches it. No
-caller of `RunQueue.add` awaits anything first. The cost: a retune made
-while an added task whose model no other task uses is still queued does not
-reach that task's controller, which is created later at its configured
-ceiling. "Not this design" already accepts that gap for every controller
-created after a retune; a task fed through a handle runs under its
-creator's model, whose controller exists.
+before adding it, so the seed's controllers exist before any build, and a
+bad adaptive setting on a seed task (`adaptive_connections=0`, which
+`GenerateConfig` accepts but `AdaptiveConcurrency` rejects) raises from
+`eval()` as today. An added task gets no eager call (decision: Ransom,
+2026-11-12): its controller is created lazily, as for every model outside
+the seed today, on its model's first `generate`, and no caller of
+`RunQueue.add` awaits anything first. A bad adaptive setting on an added
+task therefore fails inside its attempt, within `task_run`'s main `try`:
+
+- With no `max_samples`, `create_sample_semaphore`
+  (`src/inspect_ai/_eval/task/run.py:1293`) takes the adaptive branch and
+  calls `resolve_adaptive()` (`:4203`), which raises the `ValidationError`
+  before `register_eval` and before the task's sandboxes are set up. The
+  `except` there writes the task's error log, `run_one` retries it under
+  `task_retry_attempts` (each retry fails the same way) and sibling tasks
+  go on; the record ends without registering ("Phases and cancelling").
+- With an explicit `max_samples` the semaphore is a `ResizableLimiter` and
+  nothing resolves the setting until each sample's first `generate`
+  (`Model._connection_concurrency` calls `resolve_adaptive()`), so every
+  sample errors there, under the task's `fail_on_error` like any sample
+  error.
+
+Both were checked by running a two-sample `mockllm` task with
+`adaptive_connections=0` with the eager call stubbed out: with no
+`max_samples` the log has status `error` and no samples; with
+`max_samples=1, fail_on_error=False` both samples carry the validation
+error. The cost: an `inspect ctl config --max-connections` retune made
+before an added task's first `generate` (while it is queued or building its
+sandboxes) is dropped with today's "not using adaptive connections" warning
+when no other task has created that model's controller, and the controller
+is created later at its configured ceiling. Rollouts are unaffected: a task
+fed through a handle runs under its creator's model, whose controller
+the seed's eager call or the creator's own generates have usually created.
 
 **The run's task names.** `RunQueue` is created with the names of
 `eval_set_tasks`, which `_eval_async_inner` already receives: the whole eval
@@ -597,11 +624,34 @@ refused ("Control channel"), so the stamp, which is per task id and lasts
 until `reset_run_registries()`, never reaches a later round's rerun of the
 same id.
 
-`RunQueue.end` sets `ended`, removes the record from the queue and the queued
-registry, rings `wake`, and releases `options` (and what the handles
-attach): `ResolvedTask.task` holds the dataset and the configured task is a
+`RunQueue.end` sets `ended`; for a record whose `reached` is not
+`registered`, registers it as a finished eval (below); removes the record
+from the queue and the queued registry, rings `wake`, and releases `options`
+(and what the handles attach): `ResolvedTask.task` holds the dataset and the configured task is a
 shallow copy of it, so both references go for a finished task's samples to
 be freed. The record keeps its identity, `log` and `ended`.
+
+**Terminal identity without registration.** A record that ends before any
+attempt calls `register_eval` (cancelled while queued, a startup failure
+such as a failed `init()` or a bad adaptive setting with no retry left, a
+stamp-stopped attempt, a record ended unstarted, a fed task closed before
+any sample was sent) would otherwise vanish from the control channel when
+it leaves the queued registry: `latest_eval_for_task` finds nothing, and a
+repeated cancel or drain answers 404. So `RunQueue.end`, in the same
+synchronous step and before removing the registry entry, calls today's
+`register_completed_eval` (`src/inspect_ai/_control/eval_state.py`, used by
+`eval_set()` for reused logs) with zero samples (`total=0`, `completed=0`):
+the eval id, task name, task id and run id of the final log's eval spec, or
+of the logger's when the record ends with no log; the record's model; and
+the log's `location` (empty for an in-memory log). `task list` then shows the
+task as a finished row with no samples, and a repeated cancel or drain,
+`--dry-run` included, answers `changed: false`, "task already finished"
+(`_control/cancel.py`), or "pending retry already abandoned" when a stamp was
+written, as for a finished task today. The record's `options` and samples
+are still released; the `EvalState` holds only counters and names. Under
+`eval_set(retry_immediate=False)` a later round's queued record with the
+same id is found in the registry first ("Control channel"), and its first
+`register_eval` registers after this state, so it is the latest.
 
 The task total on the display counts every record, but the Rich and
 Textual displays count completed tasks from the rows attempts open. So a
@@ -827,8 +877,10 @@ feeder keeps awaiting it for the samples it adds. Under
 `RunQueue.add` registers each record in a process-level registry,
 `src/inspect_ai/_control/queued_tasks.py`, keyed by `task_id`, holding the
 record and a `cancel()` callback into `RunQueue.cancel`. The record leaves it
-when it ends, or in `on_registered()`, with no `await` between that and
-`register_eval`, so a directive always finds the task in one of the two.
+when it ends, after `RunQueue.end` has registered a record that never
+registered as a finished eval ("Phases and cancelling"), or in
+`on_registered()`, with no `await` between that and `register_eval`, so a
+directive always finds the task in one of the two.
 
 The registry takes precedence over `EvalState` history for the same id: under
 `eval_set(retry_immediate=False)` each round is its own `eval()` and keeps the
@@ -1196,10 +1248,19 @@ Code that reads `log.location` from `eval()`'s results gets an empty string
 for it, as it already can for a task whose log could not be written. No eval
 log schema, viewer type or config file changes here.
 
+Model controllers: an added task's model gets its adaptive controller on
+its first `generate`, not before its sandboxes are built, so an `inspect ctl
+config --max-connections` retune made earlier is dropped with today's "not
+using adaptive connections" warning when no other task uses that model; a
+bad adaptive setting on an added task ends that task with its error log
+instead of raising from `eval()`.
+
 Control channel: `GET /tasks` gains queued rows (`status: "queued"`); task
 cancel, drain, pause and resume accept queued tasks (`task_queued` in a
 cancel or drain result); under `eval_set(retry_immediate=False)` a cancel or
 drain of a requested task that has not started answers 409 instead of 404;
+a task that ended without starting stays listed as finished, and a
+repeated cancel or drain of it answers "task already finished";
 and `CONTROL_API_VERSION` increases. Older CLIs see an unknown status value.
 
 ## Security
@@ -1324,9 +1385,15 @@ test that waits on a run is bounded with `fail_after`.
   and adaptive connections; two `mockllm` names share one pool and do not
   test this), an `inspect ctl config --max-connections` retune made while
   the first task's `task_init` is held sets both controllers' ceiling; a
-  task added by `enqueue_task()` on a model no other task uses gets its
-  controller when its first attempt starts, before its `task_init`, and a
-  retune made while that `task_init` is held reaches it.
+  task added by `enqueue_task()` on a model no other task uses has no
+  controller until its first `generate`.
+- `tests/test_enqueue_task.py` (bad adaptive setting on an added task), with
+  `debug_errors` off: a task added with `adaptive_connections=0` and no
+  `max_samples` ends with its error log carrying the `AdaptiveConcurrency`
+  validation error and no samples, after its retries, while a sibling task
+  completes and `eval_async()` returns both logs; with `max_samples=1` and
+  `fail_on_error=False` its samples carry the error; the same setting on a
+  seed task raises from `eval()` as today.
 - `tests/test_enqueue_task.py` (retention): while a long-running task keeps
   the run open, it adds sandbox tasks that end by finishing, by a cancel
   while queued and by a final failed retry; a `weakref` to each ended task's
@@ -1383,6 +1450,13 @@ test that waits on a run is bounded with `fail_after`.
   with the stored log and reports `retry_abandoned: true`; a cancel of an
   unregistered attempt with no stored log ends it with the
   cancelled-before-start error log; a second cancel changes nothing;
+  after a queued record is cancelled, and after an added task's attempt
+  fails before `register_eval` with no retry left (`adaptive_connections=0`,
+  `task_retry_attempts=0`), `GET /tasks` still lists the task as finished
+  with zero samples, and a repeated cancel and drain, each with and without
+  `--dry-run`, answer `changed: false`, "task already finished", not 404;
+  after a cancel of an unregistered attempt, which writes the stamp, they
+  answer `changed: false`, "pending retry already abandoned";
   under `eval_set(retry_immediate=False)` a second round's queued record is
   listed once, a cancel or drain of it (and of one in its unregistered
   attempt) answers 409
@@ -1446,8 +1520,7 @@ state in the single `eval_run`), so the setup fixes come first.
    tasks in the control channel.** `_eval/task/enqueue.py` (`RunQueue`,
    `TaskRecord`, async `enqueue_task()` still returning `None`),
    `_eval/run.py` (`configure_task()` with the `chdir` kept around the
-   logger's construction, `ensure_controllers()` for the seed and at an
-   added task's first attempt,
+   logger's construction, `ensure_controllers()` for the seed only,
    `dispatch_tasks()` with the inline `next_tasks()` call and its dispatch
    waker, `run_one`'s move into `attempt` and closed checks, the run's task
    names seeded from `eval_set_tasks`, `startup_sandboxes` and the record's
@@ -1503,7 +1576,8 @@ way `SampleSource` additions are set up, inside its `max_tasks` slot
 dispatcher and outside the slot, whose evidence was rollout tasks, which
 now take the handle path), that a sample resolves its config again rather
 than keeping a per-sample key, that the seed's controllers are created
-before it is added and an added task's when its first attempt starts, that
+before it is added and an added task's lazily on its model's first
+`generate`, with no eager call, that
 a record has three phases with registration tracked apart, that the `chdir`
 stays around the synchronous construction of a task's logger, and that a task cancelled before it starts ends with an
 in-memory error log, with such cancels refused under legacy `eval_set()`
@@ -1516,7 +1590,12 @@ rounds.
 - A task added while `next_tasks()` blocks starting before the call returns.
 - A `max_connections` retune reaching a controller created after it: a
   task added after the retune gets a controller at its configured ceiling.
-  Today's behaviour for every later batch, unchanged.
+  Today's behaviour for every later batch, unchanged. Widened for added
+  tasks, which get no eager controller: a retune made before an added
+  task's first `generate` (while it is queued or building its sandboxes) is
+  dropped with today's "not using adaptive connections" warning when no
+  other task has created that model's controller. Rollouts are unaffected;
+  they run on their creator's model.
 - A provider's own lookups in `sample_init` (a missing config's compose-file
   search) seeing the task directory.
 - A caller's own cancellation of `eval_async()` (for example
