@@ -197,6 +197,7 @@ The `EvalLog` object returned from `eval()` provides programmatic interface to t
 | `eval` | `EvalSpec` | Top level eval details including task, model, creation time, etc. |
 | `plan` | `EvalPlan` | List of solvers and model generation config used for the eval. |
 | `results` | `EvalResults` | Aggregate results computed by scorer metrics. |
+| `total_samples` | `int \| None` | Sample/epoch runs accepted for this attempt, saved when the eval finishes, even when `results` is absent. `None` means unknown. |
 | `stats` | `EvalStats` | Model usage statistics (input and output tokens) |
 | `error` | `EvalError` | Error information (if `status == "error`) including traceback. |
 | `tags` | `list[str]` | Current tags (eval-time tags merged with any post-eval edits). |

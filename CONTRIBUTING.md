@@ -98,7 +98,7 @@ If there’s something you’d like to work on but no GitHub issue for it, start
 Note that `good first issue` implies `accepted` — you can open a PR for one directly.
 
 ## Working on your issue
-After you’ve claimed an issue, you can start working on it. If this is your first contribution, install [uv](https://docs.astral.sh/uv/) 0.11.8 or later (`required-version` in `pyproject.toml` enforces this; upgrade with `uv self update`, or `brew upgrade uv` if you installed it with Homebrew), clone the repository, and sync the development environment from the lockfile:
+After you’ve claimed an issue, you can start working on it. If this is your first contribution, install [uv](https://docs.astral.sh/uv/) 0.13.4 or later (`required-version` in `pyproject.toml` enforces this; upgrade with `uv self update`, or `brew upgrade uv` if you installed it with Homebrew), clone the repository, and sync the development environment from the lockfile:
 
 ```
 git clone https://github.com/UKGovernmentBEIS/inspect_ai.git
@@ -139,6 +139,8 @@ make test     # Run pytest suite
 Run these as `uv run make check` and `uv run make test`, or activate the environment in `.venv` first.
 
 If any tests are failing, fix the code and run both commands again to verify. Once all the tests are passing, push your branch to GitHub.
+
+`make test` skips the gated tests: slow Docker tests, most live model-provider tests, flaky tests, and trio variants. PR CI runs only some of the slow tests and none of the live provider tests. If you change model providers, sandbox or tool code, agents, or async plumbing, run the gated tests that cover your change locally. Report the commands and results in the "Slow tests" section of the PR description. Name any relevant tests you could not run, and say why. This applies to human contributors and AI agents alike. See [Gated tests](AGENTS.md#gated-tests-slow-api-flaky-trio) in AGENTS.md for common commands and the [slow-tests skill](.agents/skills/slow-tests/SKILL.md) for the full list of flags, directories, and requirements.
 
 ## Creating a pull request
 

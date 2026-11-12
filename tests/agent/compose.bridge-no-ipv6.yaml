@@ -1,0 +1,13 @@
+services:
+  default:
+    build:
+      context: ../tools/docker-compose-context
+      dockerfile: Dockerfile
+    command: "tail -f /dev/null"
+    user: nonroot
+    working_dir: /home/nonroot
+    init: true
+    network_mode: none
+    sysctls:
+      net.ipv6.conf.lo.disable_ipv6: 1
+    stop_grace_period: 1s
