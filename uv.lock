@@ -29,7 +29,7 @@ azure-ai-inference = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 google-genai = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 groq = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 inspect-scout = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
-inspect-sentinel = "2026-11-10T18:45:00Z"
+inspect-sentinel = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 mistralai = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 openai = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
 together = { timestamp = "0001-01-01T00:00:00Z", span = "PT6H" }
