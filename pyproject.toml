@@ -50,7 +50,7 @@ inspect_ai = [
 
 
 [tool.ruff]
-extend-exclude = ["docs", "design"]
+extend-exclude = ["docs", "design", "src/inspect_ai/_view/ts-mono"]
 src = ["src"]
 
 [tool.ruff.lint]
@@ -124,6 +124,7 @@ exclude = [
   "examples/hooks",
   "examples/http_proxy",
   "src/inspect_sandbox_tools",
+  "src/inspect_ai/_view/ts-mono",
 ]
 warn_unused_ignores = true
 no_implicit_reexport = true

@@ -3470,6 +3470,17 @@
             "title": "Tags",
             "type": "array"
           },
+          "total_samples": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Samples"
+          },
           "version": {
             "default": 2,
             "title": "Version",
