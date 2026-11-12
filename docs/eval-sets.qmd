@@ -56,7 +56,7 @@ You can also amend an eval set with additional tasks, models, or epochs. Just re
 
 ```bash
 $ inspect eval-set mmlu.py mathematics.py \
-   --model openai/gpt-6-sol,openai/gpt-6-luna,anthropic/claude-sonnet-5-5 \
+   --model openai/gpt-6-sol,openai/gpt-6-luna,anthropic/claude-haiku-5-5 \
    --epochs 3 \
    --log-dir logs-run-42
 ```
