@@ -79,10 +79,10 @@ All of these are new API; no existing eval waits on a handle or uses
 - `TaskHandle.result()` waits only on a task fed through its handle; on the
   handle of any other added task it raises `RuntimeError`, and that task's
   log is read after the run.
-- A run whose `max_sandboxes` leaves no room for the work a handle wait
-  depends on can hang; the docs explain the headroom needed, and a warning
-  names the `inspect ctl config --max-sandboxes` command that raises it
-  while the run goes on.
+- A run whose `max_sandboxes`, `max_samples` or `max_connections` leaves no
+  room for the work a handle wait depends on can hang; the docs explain the
+  headroom needed, and for sandboxes a warning names the `inspect ctl config
+  --max-sandboxes` command that raises it while the run goes on.
 
 ## Why
 
@@ -293,20 +293,35 @@ the sample it sent still runs and its result is dropped.
   - as a `PreviousTask` or a `ResolvedTask` (with or without a prior sample
     source): `ValueError` ("tasks fed through a handle must start fresh;
     pass the Task");
-  - put on a task a `@task` function returned with
-    `task_with(task, dataset=samples_from_handle())`: `ValueError` from
-    `task_with` ("samples_from_handle() must be the dataset the @task
-    function '<name>' returns: eval_retry() rebuilds the task by calling that
-    function, so a dataset set afterwards would be lost; return
-    samples_from_handle() from a @task function of its own"). The log
-    records only the factory's name and arguments, so a retry of such a
-    task would rebuild the factory's own dataset (an empty ordinary
-    `SampleSource`, say), pass the retry refusal below, and run without the
-    sent samples. `task_with` raises when `dataset` resolves to a
-    `HandleChannel` and the task carries registry info
-    (`is_registry_object(task)`, set by the `@task` wrapper); a `Task`
+  - put on a task a `@task` function returned, with
+    `task_with(task, dataset=samples_from_handle())` after that function
+    returned: `ValueError` from `enqueue_task()` ("samples_from_handle()
+    was set on the task the @task function '<name>' returned, after it
+    returned: eval_retry() rebuilds the task by calling that function, so
+    the dataset would be lost; return the adapted task from a @task
+    function, for example `@task def rollout(): return task_with(<name>(),
+    dataset=samples_from_handle())`"). The log records only the factory's
+    name and arguments, so a retry of such a task would rebuild the
+    factory's own dataset (an empty ordinary `SampleSource`, say), pass the
+    retry refusal below, and run without the sent samples.
+
+    Adapting during composition stays allowed: `@task def rollout(): return
+    task_with(existing_task(), dataset=samples_from_handle())`, the pattern
+    `docs/tasks.qmd` documents. There `task_with` changes the inner task in
+    place, and the outer `@task` wrapper retags the returned object with
+    `rollout`'s registry info after its body returns
+    (`src/inspect_ai/_eval/registry.py`, `construct`), so a retry calls
+    `rollout`, which rebuilds the handle-fed dataset and meets the
+    resolution-time refusal above. The two are told apart by a marker,
+    with no construction-depth check: `task_with`, when `dataset` resolves
+    to a `HandleChannel` and the task carries registry info
+    (`is_registry_object(task)`), sets a private attribute on the task
+    naming its current registry name; the `@task` wrapper's `construct`
+    clears it on the instance it returns, after `tag_task`, because the
+    factory that now owns the task produced that dataset in its body; and
+    `enqueue_task()` refuses a fed task that still carries it. A `Task`
     built directly with `samples_from_handle()`, inside a `@task` function
-    or not, is unaffected.
+    or not, never carries it.
 - **The free `enqueue_sample()` function** (exported from `inspect_ai`,
   which adds samples to the calling task's own `SampleSource`) inside a task fed
   through a handle: `RuntimeError` ("enqueue_sample() cannot add samples to
@@ -531,15 +546,16 @@ class PortRequest:
   does, if the creator fails. `eval_retry()` of a fed task's log is refused
   when the log's task is resolved, because the reloaded task's dataset is
   `samples_from_handle()` ("What is refused"); that holds because a
-  registered task can get that dataset only from its own `@task` function,
-  never from `task_with` afterwards; a crashed log is recovered first, as
+  registered task that is added can get that dataset only in the body of
+  the `@task` function whose registry info it carries, never from
+  `task_with` after that function returned; a crashed log is recovered first, as
   for any log, which runs nothing.
 
 ### Waits and limits
 
 A fed task takes no `max_tasks` slot, and `result()` waits only on fed
-tasks, so no handle wait needs a slot. Two limits still apply to work that a
-handle wait depends on, and neither is lent:
+tasks, so no handle wait needs a slot. Three limits still apply to work
+that a handle wait depends on, and none is lent:
 
 - **`max_sandboxes`.** A waiting sample keeps its `sandboxes/<provider>`
   permit. `max_sandboxes` is often a hard quota (a cloud account's sandbox
@@ -564,12 +580,22 @@ handle wait depends on, and neither is lent:
   `inspect ctl config --max-sandboxes N`".
 - **`max_samples`** is per task, so a task's samples that wait on work its
   own other samples do need room for both.
+- **`max_connections`.** A model connection permit is held for the whole
+  of a `generate` call (`Model._generate_prepared` enters
+  `_connection_concurrency` before `_generate`), and `_generate` awaits the
+  public `on_before_model_generate` hook inside it. That hook runs in the
+  attempt, where handle calls are allowed, so a hook that awaits a sent
+  sample on the creator's model holds a permit that sample needs: with
+  `max_connections=1` it waits forever, whatever the sample and sandbox
+  headroom. A run that waits from such a hook needs a connection limit
+  above the number of such waits; no warning covers it.
 
 The warning is advice: holders that finish release what they hold. The
-`max_tasks`, `max_samples` and `max_sandboxes` docstrings,
-`docs/parallelism.qmd` and the handle docs in `docs/task-source.qmd` state
-the fed-task exception to `max_tasks` and the `max_sandboxes` and
-`max_samples` headroom a waiting run needs.
+`max_tasks`, `max_samples`, `max_sandboxes` and `max_connections`
+docstrings, `docs/parallelism.qmd` and the handle docs in
+`docs/task-source.qmd` state the fed-task exception to `max_tasks` and the
+`max_sandboxes`, `max_samples` and `max_connections` headroom a waiting run
+needs.
 
 ## Alternatives considered
 
@@ -741,11 +767,16 @@ test touched), with mockllm models; every test that waits is bounded with
     `eval()` and `eval_set()`, as a `PreviousTask`, as a `ResolvedTask` with
     no prior sample source, and `eval_retry()` of its log (finished, and
     crashed: recovered, then refused), each raising and adding nothing;
-    `task_with(dataset=samples_from_handle())` over a registered `@task`
-    function whose own dataset is an empty ordinary `SampleSource` raises at
-    the `task_with` call, so no such task runs and no log can be retried as
-    an ordinary empty task, while the same `task_with` over an unregistered
-    `Task` succeeds; off-loop calls raise, and through `anyio.from_thread`
+    `task_with(dataset=samples_from_handle())` in a solver over the
+    returned task of a registered `@task` function whose own dataset is an
+    empty ordinary `SampleSource` makes `enqueue_task()` raise and add
+    nothing, so no such task runs and no log can be retried as an ordinary
+    empty task, while the same `task_with` over an unregistered `Task` is
+    added; the composition `@task def rollout(): return
+    task_with(existing_task(), dataset=samples_from_handle())` is added and
+    runs, its log's task is `rollout` (the outer registry name, with its
+    arguments), and `eval_retry()` of that log calls `rollout` and is
+    refused at resolution with the `PrerequisiteError` above; off-loop calls raise, and through `anyio.from_thread`
     succeed;
   - creation from attempt code outside a sample: an `on_task_start` hook
     adds a fed task and a sample of the same attempt sends to it through the
@@ -854,7 +885,8 @@ One PR, after step 3 of
   `sample_id`; `_attempt` set in `run_one`; the
   uncounted start step; channels closed with the creator's attempt; no
   retry, and `can_retry=False`, for fed tasks; `channel.stop()` from the
-  `cancel_task` callback), `_eval/task/task.py` (the `task_with` refusal),
+  `cancel_task` callback), `_eval/task/task.py` (the `task_with` marker),
+  `_eval/registry.py` (`construct` clears it),
   `_eval/eval.py` (`_resolve_enqueued_tasks` resolving a fed task for its
   creator's model; the `eval_resolve_tasks` refusal; `max_tasks`,
   `max_samples` and `max_sandboxes` docstrings), `_eval/evalset.py`

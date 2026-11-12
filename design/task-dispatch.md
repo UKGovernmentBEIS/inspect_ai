@@ -133,7 +133,10 @@ Could change what an eval computes:
 - **Which `ContextVar` values a sample sees**: its own configuration's setup
   state rather than the last setup's.
 - **`os.environ` during setup** no longer holds `task_init_environment`
-  values; only Docker returns any, and it receives them directly.
+  values; only Docker returns any, and it receives them directly. A
+  provider outside Docker's class family whose `task_init_environment`
+  returns values is refused before its `task_init` ("Setup does not change
+  the process's directory or environment").
 
 ## Why
 
@@ -482,8 +485,11 @@ anything is committed:
   `logger.init()` moved into `task_run`, that block has no `await`, so no
   other coroutine sees the change (worker threads can, as today and as for
   task loading). The constructor slices the dataset with the resolved
-  selection, so a selection error (a literal id the dataset lacks) raises
-  here.
+  selection with today's `slice_dataset` rules
+  (`src/inspect_ai/_eval/task/util.py`), so for a static dataset a
+  selection that matches no sample raises `PrerequisiteError` here, while a
+  literal id it lacks beside others that match only logs "sample id '<id>'
+  not found"; a dynamic dataset (a `SampleSource`) is filtered with neither.
 
 Any error raises to the caller and nothing of the batch is added. Then, in
 the same step, it commits: adds the names to the run's set, orders the
@@ -564,9 +570,11 @@ Selection is resolved at the call because it is synchronous, so its errors
 reach the caller. The cost is the batch boundary: today a whole buffered
 batch's names were known before any selector resolved, so a creator that
 added A, then B, with `sample_id=["parent:1", "B:1"]`, ran no sample of A.
-Now A resolves first and reads `B:1` as a literal id of A, which raises at
-A's call unless A has such a sample. Tasks whose selectors name each other
-are added in one call. The seed is one call, so its selectors resolve as
+Now A resolves first and reads `B:1` as a literal id of A. Under today's
+`slice_dataset` rules, if that leaves a static A with no matching sample it
+raises at A's call; if A has other matches it logs "sample id 'B:1' not
+found" and runs them; a dynamic A is filtered silently. Tasks whose
+selectors name each other are added in one call. The seed is one call, so its selectors resolve as
 today; a `next_tasks()` batch is one call too.
 
 #### Phases and cancelling
@@ -1012,6 +1020,24 @@ restored afterwards. In place of the `chdir`:
   provider class's `task_init_environment` returned, so a subclass of Docker
   that overrides it gets its own values. Nothing is merged into other
   subprocesses.
+- **Other providers' `task_init_environment` values are refused.** The
+  public hook promises variables set for `task_init`, and today
+  `resolve_sandbox_for_task_and_sample` records them for every provider and
+  the manager sets them in `os.environ` around its `task_init`. Only Docker
+  overrides it: no provider in inspect_sandboxes, inspect_k8s_sandbox,
+  inspect_ec2_sandbox, inspect_proxmox_sandbox, inspect_vagrant_sandbox,
+  inspect-podman or inspect-policy-sandbox does. So rather than a general
+  way to pass them, `resolve_sandbox_for_task_and_sample` raises
+  `PrerequisiteError` when the hook returns a nonempty mapping for a
+  provider class that is not `DockerSandboxEnvironment` or a subclass,
+  before any `task_init` runs ("sandbox provider '<type>' returned
+  environment variables from task_init_environment(); Inspect no longer sets
+  them in the process environment and passes them only to Docker's
+  task_init. Put what task_init needs in the sandbox config, and pass
+  environment variables to the subprocesses it starts with
+  subprocess(env=...); return {} from task_init_environment"). The error
+  raises in the attempt like any setup error, so that task ends with its
+  error log; an empty mapping, every provider's default, is unaffected.
 - **No other substitute.** `subprocess()` keeps its ordinary default `cwd`,
   the process directory. So Docker's setup subprocesses move from the task
   directory to the launch directory, as its sample subprocesses already run.
@@ -1055,7 +1081,9 @@ restored afterwards. In place of the `chdir`:
 - `SandboxEnvironment`'s docstring and `docs/extensions-sandboxes.qmd` state
   the contract: `task_init_environment`, `task_init` and `task_cleanup` run
   in the launch directory and environment, like `sample_init`; config paths
-  arrive resolved; `ContextVar` bindings as below.
+  arrive resolved; `ContextVar` bindings as below; and the variables
+  `task_init_environment` returns reach only Docker's `task_init` (another
+  provider returning any is refused, with the migration above).
 
 ### Provider state per setup
 
@@ -1212,7 +1240,10 @@ Third-party sandbox providers need no change unless their `task_init`,
 `task_init_environment` or `task_cleanup` relies on the process directory
 being the task directory; of the surveyed providers only Proxmox does, for a
 relative `PROXMOX_CONFIG_FILE`. No provider needs a release for any step
-here.
+here. A provider other than Docker whose `task_init_environment` returns
+variables (none of the surveyed ones does) now fails that task's setup
+with a `PrerequisiteError` naming the migration: put the values in its
+config and pass them to its subprocesses with `subprocess(env=...)`.
 
 Sandbox setup moves from before the batch into each task's attempt. A
 provider's `task_init` is called the same way, once per configuration per
@@ -1340,7 +1371,11 @@ test that waits on a run is bounded with `fail_after`.
   both get the values from the compose file's directory;
   the `SAMPLE_METADATA_*` values reach `compose build` through the project's
   `env`, and a Docker subclass overriding `task_init_environment` gets its own
-  values there. One `--runslow` real-Docker test builds a Dockerfile task
+  values there; a stub non-Docker provider whose `task_init_environment`
+  returns `{"X": "1"}` ends its task with the `PrerequisiteError` before
+  its `task_init` is called while a sibling task completes, the same
+  provider returning `{}` sets up as before, and `os.environ` is unchanged
+  throughout. One `--runslow` real-Docker test builds a Dockerfile task
   loaded from another directory.
 - `tests/test_enqueue_task.py` (invariants 1–6): an added task starts while
   its creator runs, under `eval()`, `eval_set()` and selection mode; a
@@ -1348,8 +1383,11 @@ test that waits on a run is bounded with `fail_after`.
   reducer `validate_reducer` rejects with `PrerequisiteError`), a duplicate id (a `ResolvedTask` or `PreviousTask`
   added twice, listed twice, or added in a two-model run) and a selection
   error raise at the call and add nothing; a parent that enqueues A and then B
-  under `sample_id=["parent:1", "B:1"]` gets the selection error at A's call,
-  and the same two in one call run as today; a literal namespaced id
+  under `sample_id=["parent:1", "B:1"]` gets the selection error at A's call
+  (a static A with no `B:1`), under `["parent:1", "1", "B:1"]` A runs its
+  sample 1 and logs the not-found warning for `B:1`, a `SampleSource` A
+  is filtered with no error or warning, and the same two in one call run
+  as today; a literal namespaced id
   (`user:cybergym/arvo_6008`) still selects its sample; `enqueue_task()` run
   in a worker thread's own loop raises `RuntimeError`, and through
   `anyio.from_thread.run()` succeeds; after `eval_async()` returns, after a
@@ -1513,7 +1551,7 @@ state in the single `eval_run`), so the setup fixes come first.
    `_eval/loader.py` (`resolve_task_sandbox` and the retry's
    `resolve_task_file_sandbox` through the helper),
    `_eval/task/sandbox.py` (`resolve_sandbox` through the helper; no `chdir`
-   in key resolution), `_eval/run.py` (`SandboxManager` without `chdir` and
+   in key resolution; the non-Docker `task_init_environment` refusal), `_eval/run.py` (`SandboxManager` without `chdir` and
    `environ_vars`), `docs/extensions-sandboxes.qmd`. Tests: `test_sandbox_setup.py`,
    `test_retry.py`, the Docker tests.
 2. **Provider state per setup.** `_eval/run.py` (`SandboxManager` runs each
