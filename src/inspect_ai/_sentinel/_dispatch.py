@@ -397,9 +397,9 @@ def _assistant_index(call: ToolCall, history: list[ChatMessage]) -> int | None:
 
 
 def _producing_event(call: ToolCall, history: list[ChatMessage]) -> ModelEvent | None:
-    """The model call whose output holds `call`, found by the id of the message holding it.
+    """The model call that produced `call`, found by the id of the message holding it.
 
-    A message the scaffold added the call to under the model's id was not produced with the call, so it has none, as in replay, which finds a call's model call by the call's id.
+    Only a model call whose output holds `call` counts. A call the scaffold added to the model's message is not the model's, which is also how replay decides.
     """
     index = _assistant_index(call, history)
     message_id = history[index].id if index is not None else None
