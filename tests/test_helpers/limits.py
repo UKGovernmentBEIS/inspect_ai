@@ -1,4 +1,5 @@
-from typing import Callable
+from contextlib import contextmanager
+from typing import Callable, Iterator
 
 from inspect_ai.event._base import BaseEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
@@ -17,8 +18,34 @@ from inspect_ai.model import (
     StreamTextEvent,
     get_model,
 )
+from inspect_ai.model._model_data.model_data import ModelCost, ModelInfo
+from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
 from inspect_ai.model._stream import NoStreamDataError, report_model_stream_delta
 from inspect_ai.tool import ToolChoice, ToolInfo
+
+
+@contextmanager
+def priced_models(prices: dict[str, float]) -> Iterator[None]:
+    """Price each named model at the given dollars per million tokens.
+
+    Keys are model names without the provider (`"model"` prices `mockllm/model`).
+    """
+    clear_model_info_cache()
+    for model, price in prices.items():
+        cost = ModelCost(
+            input=price, output=price, input_cache_write=0.0, input_cache_read=0.0
+        )
+        set_model_info(model, ModelInfo(cost=cost))
+    try:
+        yield
+    finally:
+        clear_model_info_cache()
+
+
+def with_usage(output: ModelOutput, tokens: int) -> ModelOutput:
+    """Give `output` a usage of `tokens` output tokens."""
+    output.usage = ModelUsage(output_tokens=tokens, total_tokens=tokens)
+    return output
 
 
 def check_limit_event(log: EvalLog, type: str) -> None:
