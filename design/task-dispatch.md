@@ -834,8 +834,13 @@ task id, and `EvalState`s persist across those calls.
   started, so there are no samples for a resolution to apply to; use cancel
   or drain").
 - `pause_task` and `resume_task` (`_control/pause.py`) look in the registry
-  when `latest_eval_for_task` finds nothing, as the cancel directive does,
-  and close or open the task's pause gate (`_task_gate(task_id)`), which is
+  first, as the cancel directive does, and use `latest_eval_for_task` only
+  for a task the registry does not hold: under
+  `eval_set(retry_immediate=False)` a second round's queued record shares
+  its id with the first round's terminal `EvalState`, which would otherwise
+  answer "task already finished" to a pause and describe the old eval on a
+  resume. For a queued record they close or open the task's pause gate
+  (`_task_gate(task_id)`), which is
   the gate the start rule checks: a paused queued task is skipped by the
   dispatcher, which starts the tasks behind it, and starts after a resume
   (the resume fires the dispatch wakers). The response describes the queued
@@ -1348,7 +1353,11 @@ test that waits on a run is bounded with `fail_after`.
   and return `task_queued: true`, `in_flight: 0` (and `queued: 0`) in
   `--json` output, rendered as cancelled before it started; `score`/`error`
   answer 409; pause and resume of a queued task change its gate and report
-  `status: "queued"` with its model, and `--dry-run` changes nothing; a
+  `status: "queued"` with its model, and `--dry-run` changes nothing; under
+  `eval_set(retry_immediate=False)`, pause, resume and their `--dry-run` on a
+  second round's queued record whose first round left a terminal
+  `EvalState` act on and describe the queued record, which is skipped while
+  paused and starts after resume; a
   cancel of a `starting` record stops it before `register_eval`, landing
   before the first stamp check and while `log_start()` is held; a cancel of a
   record whose unregistered attempt failed and whose retry is pending keeps

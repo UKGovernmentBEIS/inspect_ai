@@ -41,11 +41,11 @@ def search(n_steps: int) -> Solver:
 ```
 
 `propose_next` is the searcher's own async function and may call a model.
-The rollout task sets `fail_on_error=False` because, with the default, the
-first errored rollout sample ends the task, every pending
-`enqueue_sample()` raises `TaskEndedError`, and a task fed through a handle
-is not retried; with it, an errored rollout comes back as an `EvalSample`
-whose `error` is set. Closing never stops rollouts already sent; a creator
+The rollout task sets `fail_on_error=False`. With the default, the first
+errored rollout is returned to its sender with its `error` set and then ends
+the task; requests still unresolved receive `TaskEndedError`, and a task fed
+through a handle is not retried. `fail_on_error=False` lets the task keep
+accepting rollouts after a sample error. Closing never stops rollouts already sent; a creator
 stops them with `cancel()`, in an `except Exception:` as above, or in a
 `finally:` to stop them on every exit, including a time limit, which reaches
 the block as a cancellation.
@@ -290,8 +290,20 @@ the sample it sent still runs and its result is dropped.
     (`is_registry_object(task)`, set by the `@task` wrapper); a `Task`
     built directly with `samples_from_handle()`, inside a `@task` function
     or not, is unaffected.
-- **`enqueue_sample()`** on a handle whose task is not fed through it, or
-  after `close()` or `result()`: `RuntimeError`; with a sample that has an
+- **The free `enqueue_sample()` function** (`inspect_ai.dataset`, which
+  adds samples to the calling task's own `SampleSource`) inside a task fed
+  through a handle: `RuntimeError` ("enqueue_sample() cannot add samples to
+  a task fed through its handle; only the handle that added it sends
+  samples"), before anything is buffered. `task_run` registers the attempt's
+  `SampleEnqueuer` as for any source, and marks it as a handle channel's
+  when the task's source is a `HandleChannel`; the free function checks the
+  mark. The channel puts its own requests in that buffer directly, so
+  delivery is unchanged, and every other `SampleSource` task keeps today's
+  behaviour. Without the refusal a rollout solver could add work its handle
+  never sent, including after `close()`, which the feeder admits before it
+  asks whether the source has ended.
+- **`TaskHandle.enqueue_sample()`** on a handle whose task is not fed
+  through it, or after `close()` or `result()`: `RuntimeError`; with a sample that has an
   `id`: `ValueError` (the channel assigns ids); after a drain, `score` or
   `error` cancel of the task: `SampleAbandonedError`; after the task ended:
   `TaskEndedError`.
@@ -742,6 +754,15 @@ test touched), with mockllm models; every test that waits is bounded with
     log;
   - retention: after many requests, the channel holds no request, sample or
     result once each call has returned;
+  - the free `enqueue_sample()` called from a rollout's solver raises
+    `RuntimeError` and adds nothing, both while the handle is open and after
+    `close()` while an earlier rollout is still running (the task then ends
+    with only the sent samples run); the same call in an ordinary
+    `SampleSource` task in the same run adds its sample as today;
+  - with the default `fail_on_error`, the first errored rollout's
+    `enqueue_sample()` returns its `EvalSample` with `error` set, and a
+    request still unresolved when the task then ends raises
+    `TaskEndedError`;
   - request ownership, each bounded: with the feeder held in another sent
     sample's sandbox setup (stub provider), a request sent meanwhile sits in
     the buffer unadmitted; cancelling the task, and failing that setup, each
@@ -758,9 +779,10 @@ One PR, after step 3 of
   `max_tasks` and `max_sandboxes` warnings naming their `inspect ctl
   config` commands, `enqueue_task()` returning handles, passing its creator
   and refusing a fed task outside an attempt or with `epochs` above 1),
-  `_eval/task/sample_source.py` (`HandleChannel`, `samples_from_handle()`),
-  `_eval/task/run.py` (attach and detach the channel where the
-  `SampleEnqueuer` is registered and cleared), `_eval/run.py`
+  `_eval/task/sample_source.py` (`HandleChannel`, `samples_from_handle()`,
+  the free `enqueue_sample()` refusal), `_eval/task/run.py` (attach and
+  detach the channel where the `SampleEnqueuer` is registered and cleared,
+  and mark that enqueuer as the channel's), `_eval/run.py`
   (`configure_task()` resolving a fed task's settings and clearing its
   `epochs`, `limit` and `sample_id`; `_attempt` set in `run_one`; the
   uncounted start step; channels closed with the creator's attempt; no
