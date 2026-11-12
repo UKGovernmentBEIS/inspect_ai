@@ -56,9 +56,12 @@ from inspect_ai import Task, eval
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.content import (
     Content,
+    ContentAudio,
+    ContentDocument,
     ContentImage,
     ContentText,
     ContentToolUse,
+    ContentVideo,
 )
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.json import to_json_str_safe
@@ -72,7 +75,12 @@ from inspect_ai.agent._bridge.bridge import agent_bridge
 from inspect_ai.agent._bridge.completions import inspect_completions_api_request
 from inspect_ai.agent._bridge.google_api import inspect_google_api_request
 from inspect_ai.agent._bridge.responses import inspect_responses_api_request
-from inspect_ai.agent._bridge.sandbox.host_tool import execute_host_tool
+from inspect_ai.agent._bridge.sandbox.host_tool import (
+    _received,
+    _recorded_result,
+    _reply,
+    execute_host_tool,
+)
 from inspect_ai.agent._bridge.sandbox.service import (
     _forward_provider_errors,
     generate_completions,
@@ -84,7 +92,12 @@ from inspect_ai.agent._bridge.sandbox.types import (
     _Proposal,
     _ToolExecutionGrant,
 )
-from inspect_ai.agent._bridge.types import AgentBridge, _holds_result
+from inspect_ai.agent._bridge.types import (
+    _RESULT_EVIDENCE,
+    AgentBridge,
+    _holds_result,
+    _Received,
+)
 from inspect_ai.agent._bridge.util import (
     bridge_generate,
     default_code_execution_providers,
@@ -7574,6 +7587,87 @@ async def test_host_call_answered_without_its_result_links_nothing(
             assert links == {"read_file": None, "list_dir": sent[1]}
 
 
+CHART_URL = "https://example.com/charts/results.png"
+
+MEDIA_RESULTS: dict[str, ToolResult] = {
+    "image url": ContentImage(image=CHART_URL),
+    "image file": ContentImage(image="/tmp/chart.png"),
+    "audio": ContentAudio(audio="data:audio/wav;base64,UklGRiQAAABXQVZF", format="wav"),
+    "video": ContentVideo(video="data:video/mp4;base64,AAAAIGZ0eXBpc29t", format="mp4"),
+    "document": ContentDocument(
+        document="data:application/pdf;base64,JVBERi0xLjQK",
+        filename="report.pdf",
+        mime_type="application/pdf",
+    ),
+    "captioned image": [ContentText(text="Results by model"), ContentImage(image=PNG)],
+}
+"""Host media results the RPC sends as text: an image URL or file path as an MCP text block, other media as JSON (a captioned image as a control)."""
+
+
+def _scaffold_text(reply: JsonValue) -> str:
+    """The text a scaffold's MCP client reads from a host tool's RPC result."""
+    if isinstance(reply, str):
+        return reply
+    assert isinstance(reply, list)
+    return "\n".join(
+        str(block["text"])
+        for block in reply
+        if isinstance(block, dict) and block.get("type") == "text"
+    )
+
+
+@pytest.mark.parametrize("answered", ["reply", "client timeout"])
+@pytest.mark.parametrize("media", list(MEDIA_RESULTS))
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_host_media_result_sent_as_text_links_its_answer(
+    dialect: HostDialect, media: str, answered: str
+) -> None:
+    """A host media result the RPC sends as text links the answer holding that text.
+
+    The scaffold receives an image URL or file path as an MCP text block, and
+    audio, video or a document as JSON text, and sends it back unchanged,
+    which links. Its client timeout doesn't.
+    """
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(
+                ToolCall(id="call_read", function="read_file", arguments={"path": "p"})
+            ),
+            ModelOutput.from_content("mockllm/model", "Noted."),
+        ],
+    )
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={
+            "host": {
+                "read_file": read_file(AsyncMock(return_value=MEDIA_RESULTS[media]))
+            }
+        },
+    )
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read p.", info)
+    with recorded_transcript() as recorded:
+        [(_, arguments)] = calls = await conversation.request(bridge)
+        reply = await call_host_tool(bridge)("host", "read_file", arguments)
+        assert isinstance(reply, list if "image" in media else str)
+        conversation.results(
+            calls, [_scaffold_text(reply) if answered == "reply" else CLIENT_TIMEOUT]
+        )
+        await conversation.request(bridge)
+
+    [event] = [e for e in recorded.events if isinstance(e, ToolEvent)]
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [sent] = [m.id for m in model_events[-1].input if m.role == "tool"]
+    assert event.message_id == (sent if answered == "reply" else None)
+
+
 @pytest.mark.parametrize("answered", ["error", "denied call's error", "client timeout"])
 @pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
 async def test_host_error_links_the_answer_holding_the_error_raised(
@@ -7780,6 +7874,14 @@ MULTILINE_REPLY = to_json_str_safe(MULTILINE_RESULT)
 LONG_CONTENT_REPLY = to_json_str_safe([ContentText(text=LONG_RESULT)])
 """The RPC result for a long content result, as the scaffold receives it."""
 
+LONG_AUDIO = ContentAudio(audio="data:audio/wav;base64," + "A" * 100_000, format="wav")
+
+
+def _media_reply(media: str) -> str:
+    """The RPC result for `MEDIA_RESULTS[media]` sent as JSON, as the scaffold receives it."""
+    return to_json_str_safe(MEDIA_RESULTS[media])
+
+
 MISSING_FILE = str(FileNotFoundError(2, "No such file or directory", "/x/y.txt"))
 """What the RPC raises for a missing file, which Inspect records as `File '/x/y.txt' was not found.`"""
 
@@ -7955,18 +8057,118 @@ DENIED = (
             False,
             id="image answered by a timeout",
         ),
+        pytest.param(
+            MEDIA_RESULTS["captioned image"],
+            None,
+            "Results by model",
+            True,
+            id="captioned image",
+        ),
+        pytest.param(MEDIA_RESULTS["image url"], None, CHART_URL, True, id="image url"),
+        pytest.param(
+            MEDIA_RESULTS["image url"],
+            None,
+            json.dumps([{"type": "text", "text": CHART_URL}]),
+            True,
+            id="image url in codex json",
+        ),
+        pytest.param(
+            MEDIA_RESULTS["image url"],
+            None,
+            CLIENT_TIMEOUT,
+            False,
+            id="image url answered by a timeout",
+        ),
+        pytest.param(
+            [ContentImage(image=CHART_URL)],
+            None,
+            [ContentImage(image=CHART_URL)],
+            False,
+            # the scaffold received the URL as text, not an image
+            id="image url answered by an image",
+        ),
+        pytest.param(
+            MEDIA_RESULTS["image file"], None, "/tmp/chart.png", True, id="image file"
+        ),
+        pytest.param(
+            MEDIA_RESULTS["image file"],
+            None,
+            "Saved /tmp/chart.png",
+            False,
+            id="image file within other text",
+        ),
+        pytest.param(
+            MEDIA_RESULTS["image file"],
+            None,
+            CLIENT_TIMEOUT,
+            False,
+            id="image file answered by a timeout",
+        ),
+        *[
+            pytest.param(
+                MEDIA_RESULTS[media], None, _media_reply(media), True, id=media
+            )
+            for media in ["audio", "video", "document"]
+        ],
+        *[
+            pytest.param(
+                MEDIA_RESULTS[media],
+                None,
+                CLIENT_TIMEOUT,
+                False,
+                id=f"{media} answered by a timeout",
+            )
+            for media in ["audio", "video", "document"]
+        ],
+        pytest.param(
+            MEDIA_RESULTS["audio"],
+            None,
+            json.dumps([{"type": "text", "text": _media_reply("audio")}]),
+            True,
+            id="audio in codex json",
+        ),
+        pytest.param(
+            MEDIA_RESULTS["document"],
+            None,
+            json.dumps({"output": _media_reply("document")}),
+            True,
+            id="document in gemini json",
+        ),
+        pytest.param(
+            LONG_AUDIO,
+            None,
+            json.dumps([{"type": "text", "text": to_json_str_safe(LONG_AUDIO)}])[:600],
+            True,
+            id="long audio in codex json cut short",
+        ),
     ],
 )
 def test_host_result_evidence_in_an_answer(
     result: ToolResult, error: str | None, answer: str | list[Content], holds: bool
 ) -> None:
-    """An answer holds a host result when it holds the start of its first text, however wrapped; a short text must be a whole text of it.
+    """An answer holds a host result when it holds the start of the first text the scaffold received for it, however wrapped; a short text must be a whole text of it.
 
+    Media with no text reaches the scaffold as the RPC sends it: an image URL
+    or path as text, other media as JSON, an inline image as an image.
     `error` is the text the RPC raised instead of returning `result`; the
     prefix the service adds to it is no evidence.
     """
-    event = ToolEvent(id="call", function="read_file", arguments={}, result=result)
-    assert _holds_result(_tool_answer(answer), event, error) is holds
+    output, _ = _recorded_result("read_file", result, None)
+    received = (
+        _received(output, _reply(output, result), None)
+        if error is None
+        else _received("", None, Exception(error))
+    )
+    assert _holds_result(_tool_answer(answer), received) is holds
+
+
+def test_host_media_reply_keeps_only_the_start_of_its_text() -> None:
+    """What the scaffold received for a large media reply is kept as its first `_RESULT_EVIDENCE` characters, which still link the reply."""
+    output, _ = _recorded_result("read_file", LONG_AUDIO, None)
+    reply = _reply(output, LONG_AUDIO)
+    received = _received(output, reply, None)
+    assert received == _Received(str(reply).strip()[:_RESULT_EVIDENCE])
+    assert _holds_result(_tool_answer(str(reply)), received)
 
 
 @pytest.mark.parametrize("side", [True, False], ids=["side request", "none"])
@@ -8744,7 +8946,7 @@ def _execute(
         event = ToolEvent(
             id=call.id, function=call.function, arguments=call.arguments, result="ok"
         )
-        bridge._await_result_message(handed_call, event)
+        bridge._await_result_message(handed_call, event, _Received("ok"))
         events.append(event)
     return events
 
@@ -9483,6 +9685,7 @@ async def test_google_results_link_only_when_their_function_names_one_call(
             bridge._await_result_message(
                 handed_calls(bridge, cast(str, message.id), message.tool_calls)[index],
                 event,
+                _Received(f"contents {path}"),
             )
             events.append(event)
         results = [f"contents {p}" for p in paths]
@@ -9628,7 +9831,7 @@ async def test_reordered_google_results_never_take_each_others_ids(
             event = ToolEvent(
                 id=call.id, function=call.function, arguments={}, result=output
             )
-            bridge._await_result_message(handed, event)
+            bridge._await_result_message(handed, event, _Received(output))
             events.append(event)
         conversation.results(calls, cast(list[JsonValue], outputs))
         bundle = conversation.history[-1]
@@ -9715,6 +9918,7 @@ def test_matching_same_name_google_results_is_linear(host: bool) -> None:
                             arguments={},
                             result="OK",
                         ),
+                        _Received("OK"),
                     )
             inferred: list[ChatMessageTool] = []
             messages = messages_from_google_contents(contents, None, inferred)
@@ -9933,6 +10137,7 @@ async def test_repeated_google_results_are_matched_in_linear_time(host: bool) ->
                             arguments={},
                             result="working",
                         ),
+                        _Received("working"),
                     )
                 contents += [wire, {"role": "user", "parts": [result]}]
             summary = {"role": "user", "parts": [{"text": "Summary: still waiting."}]}

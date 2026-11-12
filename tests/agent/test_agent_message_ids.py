@@ -41,7 +41,7 @@ from inspect_ai.agent import Agent, AgentState, agent, agent_bridge, handoff, re
 from inspect_ai.agent._bridge import bridge as bridge_module
 from inspect_ai.agent._bridge import types as bridge_types
 from inspect_ai.agent._bridge.responses_impl import filter_duplicate_assistant_content
-from inspect_ai.agent._bridge.types import AgentBridge, _unplaced_key
+from inspect_ai.agent._bridge.types import AgentBridge, _Received, _unplaced_key
 from inspect_ai.agent._bridge.util import apply_message_ids
 from inspect_ai.dataset import Sample
 from inspect_ai.event import ModelEvent, ToolEvent
@@ -2732,7 +2732,9 @@ def _awaiting(
     ]
     for event in events:
         bridge._await_result_message(
-            handed_calls(bridge, reply.id, reply.tool_calls)[index], event
+            handed_calls(bridge, reply.id, reply.tool_calls)[index],
+            event,
+            _Received(result),
         )
     return events
 
@@ -2970,7 +2972,7 @@ def _link_copy(
         event = ToolEvent(
             id=call.id, function=call.function, arguments=call.arguments, result=result
         )
-        bridge._await_result_message(tracked[position], event)
+        bridge._await_result_message(tracked[position], event, _Received(result))
         events.append(event)
     tool_messages = [
         ChatMessageTool(

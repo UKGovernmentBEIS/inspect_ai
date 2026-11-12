@@ -16,7 +16,6 @@ from typing import (
 from pydantic import BaseModel
 from shortuuid import uuid
 
-from inspect_ai._util.content import ContentBase, ContentText
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import jsonable_python
@@ -69,7 +68,7 @@ _MAX_AWAITED_RESULTS = 256
 """Host tool calls tracked for their result message, beyond which the oldest replies' are dropped."""
 
 _RESULT_EVIDENCE = 256
-"""How much of the start of a host tool's result text its linked answer must hold (scaffolds truncate long results)."""
+"""How much of the start of the text a scaffold received for a host tool call its linked answer must hold (scaffolds truncate long results)."""
 
 _MIN_CONTAINED_RESULT = 16
 """Shortest host tool result text a linked answer may hold among other text; a shorter one must be a whole text of the answer (`_answer_texts`)."""
@@ -163,8 +162,21 @@ class _AwaitedReply:
     events: dict[int, "ToolEvent | None"] = field(default_factory=dict)
     """Per executed call's position, its execution, or `None` once the call is settled (linked, or left unlinked)."""
 
-    errors: dict[int, str] = field(default_factory=dict)
-    """Per executed call's position whose RPC raised, the error text the scaffold received (`_holds_result`)."""
+    received: dict[int, "_Received"] = field(default_factory=dict)
+    """Per executed call's position, what the scaffold received for it (`_holds_result`)."""
+
+
+class _Received(NamedTuple):
+    """What the scaffold received for a host tool call, which its result message must hold (`_holds_result`)."""
+
+    text: str
+    """The start of a text the scaffold received, stripped, at most `_RESULT_EVIDENCE` characters (empty if it received none)."""
+
+    media: bool = False
+    """Whether, with no `text`, it received media (not text)."""
+
+    error: bool = False
+    """Whether `text` is the error the call raised instead of returning a result."""
 
 
 class DispatchedCall(NamedTuple):
@@ -529,13 +541,13 @@ class AgentBridge:
         self,
         handed: _HandedCall,
         event: "ToolEvent",
+        received: _Received,
         linkable: bool = True,
-        error: str | None = None,
     ) -> None:
         """Set `event.message_id` when the scaffold first sends the result of `handed`.
 
-        `error` is the text the scaffold received instead of a result, for a
-        call whose RPC raised.
+        `received` is what the scaffold received for the call, which the
+        message must hold.
 
         The result reaches the bridge only when the scaffold sends it back in a
         later request (`_link_result_messages`). A second execution of the call,
@@ -555,8 +567,7 @@ class AgentBridge:
             handed.reply.id, _AwaitedReply(handed.reply.calls, handed.reply.handed_at)
         )
         executed = handed.position in reply.events
-        if error is not None:
-            reply.errors[handed.position] = error
+        reply.received[handed.position] = received
         reply.events[handed.position] = (
             event
             if linkable
@@ -643,7 +654,7 @@ class AgentBridge:
                     and answers[0] not in inferred
                     and sent_in.get(answers[0], 0) <= reply.handed_at
                     and isinstance(answer, ChatMessageTool)
-                    and _holds_result(answer, event, reply.errors.get(position))
+                    and _holds_result(answer, reply.received[position])
                 ):
                     event.message_id = answer.id
                     transcript()._event_updated(event)
@@ -1394,37 +1405,26 @@ def _named_result_key(message: ChatMessageTool, call: ToolCall | None) -> str:
     return content_hash(message.model_copy(update={"tool_call_id": answered}))
 
 
-def _holds_result(
-    answer: ChatMessageTool, event: "ToolEvent", error: str | None = None
-) -> bool:
-    """Whether `answer` holds the result the scaffold received for `event`.
+def _holds_result(answer: ChatMessageTool, received: _Received) -> bool:
+    """Whether `answer` holds what the scaffold `received` for a host tool call.
 
     Evidence that the scaffold received the execution's result before it sent
     `answer`: a scaffold that gave up on the call (its own client timeout)
     answers it without the result, after the execution completed. Scaffolds
     reformat, wrap and truncate results, so the evidence is the start of the
-    result's first text (`_RESULT_EVIDENCE`) within the answer, within a
-    string of JSON the answer holds (`_answer_texts`), or JSON-escaped once or
-    twice within the answer's text (a scaffold may cut its JSON so it no
-    longer parses, and a content result is JSON inside the scaffold's JSON).
-    For a call whose RPC raised, the text is `error`, the error the scaffold
-    received, without the service's prefix (a denied retry's answer carries
-    the same prefix), or else the event's error message; an error with no
-    text links nothing. A text shorter than `_MIN_CONTAINED_RESULT` may
-    appear in any message by chance, so it must be a whole text of the
-    answer. A result with no text needs an answer that is empty or, for
-    media, holds media. Linear in the answer's size: one text of the result
-    is compared.
+    received text (`_RESULT_EVIDENCE`) within the answer, within a string of
+    JSON the answer holds (`_answer_texts`), or JSON-escaped once or twice
+    within the answer's text (a scaffold may cut its JSON so it no longer
+    parses, and a content result is JSON inside the scaffold's JSON). An
+    error with no text links nothing. A text shorter than
+    `_MIN_CONTAINED_RESULT` may appear in any message by chance, so it must be
+    a whole text of the answer. With no text, the answer must be empty or, for
+    media, hold media. Linear in the answer's size: one bounded text is
+    compared.
     """
-    if error is None and event.error is not None:
-        error = event.error.message
-    if error is not None:
-        expected, media = error.strip(), False
-        if not expected:
-            return False
-    else:
-        expected, media = _result_evidence(event.result)
-    expected = _escape_surrogates(expected)
+    if received.error and not received.text:
+        return False
+    expected = _escape_surrogates(received.text)
     texts = _answer_texts(answer)
     if expected:
         if len(expected) < _MIN_CONTAINED_RESULT:
@@ -1435,30 +1435,11 @@ def _holds_result(
         return any(
             evidence in text or escaped in text or twice in text for text in texts
         )
-    if media:
+    if received.media:
         return not isinstance(answer.content, str) and any(
             content.type != "text" for content in answer.content
         )
     return "" in texts
-
-
-def _result_evidence(result: Any) -> tuple[str, bool]:
-    """The first non-empty text of a host tool's recorded result, stripped, and whether it holds media."""
-    if isinstance(result, str):
-        return result.strip(), False
-    contents = result if isinstance(result, list) else [result]
-    media = False
-    for content in contents:
-        if isinstance(content, ContentText):
-            if content.text.strip():
-                return content.text.strip(), media
-        elif isinstance(content, ContentBase):
-            media = True
-        else:
-            text = str(content).strip()
-            if text:
-                return text, media
-    return "", media
 
 
 def _answer_texts(answer: ChatMessageTool) -> set[str]:

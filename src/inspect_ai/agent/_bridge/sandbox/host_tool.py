@@ -36,6 +36,7 @@ from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.service import find_control_flow, on_response_written
 from inspect_ai.util._span import parent_span, span
 
+from ..types import _RESULT_EVIDENCE, _Received
 from .types import SandboxAgentBridge, _ToolExecutionGrant
 
 logger = getLogger(__name__)
@@ -242,20 +243,19 @@ async def _record_rejection(
         # request was still received and decided, so it is still recorded
         if not recorded:
             transcript()._event(event)
-        _await_result_message(bridge, grant, event, raised)
+        _await_result_message(bridge, grant, event, _received("", None, raised))
 
 
 def _await_result_message(
     bridge: SandboxAgentBridge,
     grant: _ToolExecutionGrant | None,
     event: ToolEvent,
-    raised: BaseException | None,
+    received: _Received,
 ) -> None:
     """Await the result message of the execution that consumed `grant`.
 
-    `raised` is what the RPC raises instead of returning a result: the
-    scaffold receives its text (after the service's own prefix), which a
-    result message must then hold (`_holds_result`).
+    `received` is what the scaffold receives for the call (`_received`),
+    which a result message must hold (`_holds_result`).
 
     Awaiting starts once the RPC's response is written to the sandbox
     (`on_response_written`), as a message the scaffold sent before then
@@ -270,16 +270,15 @@ def _await_result_message(
     if grant is None or grant.proposal.reply is None:
         return
     handed = grant.proposal.reply
-    error = None if raised is None else str(raised)
 
     def answered(written: bool) -> None:
         bridge._await_result_message(
             handed,
             event,
+            received,
             linkable=written
             and grant.proposal.linkable
             and grant.server not in bridge.proposal_exempt_servers,
-            error=error,
         )
 
     if not on_response_written(answered):
@@ -426,7 +425,12 @@ async def _execute_granted(
                 transcript()._event_updated(event)
             else:
                 transcript()._event(event)
-            _await_result_message(bridge, grant, event, outcome.raised)
+            _await_result_message(
+                bridge,
+                grant,
+                event,
+                _received(outcome.result, outcome.reply, outcome.raised),
+            )
             if outcome.fatal is not None:
                 bridge.request_fail(outcome.fatal)
 
@@ -463,6 +467,41 @@ def _reply(output: ToolResult, result: ToolResult) -> JsonValue:
     ):
         return _mcp_tool_result_content(result)
     return to_json_str_safe(result)
+
+
+def _received(
+    output: ToolResult, reply: JsonValue, raised: BaseException | None
+) -> _Received:
+    """What the scaffold receives for a call recorded as `output`, whose RPC returned `reply` or raised `raised`.
+
+    The error's text (which the scaffold shows after the service's prefix,
+    no evidence as a denied call's error carries it too); else the first text
+    of `output`, which the reply holds as is or JSON-escaped (`_reply`); else
+    the first text of the reply, which for media is an image URL or path (an
+    MCP text block), or the JSON of other media; else whether the reply holds
+    media blocks (an inline image). Only the start of the text is kept
+    (`_RESULT_EVIDENCE`), as the reply may hold large media.
+    """
+    if raised is not None:
+        return _Received(str(raised).strip()[:_RESULT_EVIDENCE], error=True)
+    texts = (
+        [content.text for content in output if isinstance(content, ContentText)]
+        if isinstance(output, list)
+        else []
+    )
+    media = False
+    for block in reply if isinstance(reply, list) else [reply]:
+        match block:
+            case str():
+                texts.append(block)
+            case {"type": "text", "text": str() as text}:
+                texts.append(text)
+            case None:
+                pass
+            case _:
+                media = True
+    text = next((stripped for text in texts if (stripped := text.strip())), "")
+    return _Received(text[:_RESULT_EVIDENCE], media=media and not text)
 
 
 def _raised(ex: Exception, tool: str, max_output: int | None) -> _Outcome:
