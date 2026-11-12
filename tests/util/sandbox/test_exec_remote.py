@@ -2009,83 +2009,26 @@ async def test_timed_out_start_waits_for_a_job_the_server_is_killing(
     assert not await _orphan_running(docker_sandbox)
 
 
-@contextlib.contextmanager
-def _kill_key_replies(sandbox: Any) -> Iterator[list[str]]:
-    """Record the raw sandbox reply (or error) of each exec_remote_kill_key."""
-    real_exec = sandbox.exec
-    replies: list[str] = []
-
-    async def exec_recording_kill_key(*args: Any, **kwargs: Any) -> Any:
-        if "exec_remote_kill_key" not in (kwargs.get("input") or ""):
-            return await real_exec(*args, **kwargs)
-        try:
-            result = await real_exec(*args, **kwargs)
-        except BaseException as ex:
-            replies.append(repr(ex))
-            raise
-        replies.append(repr(result))
-        return result
-
-    with patch.object(sandbox, "exec", exec_recording_kill_key):
-        yield replies
-
-
-# pid, process group, state and command line of every process but this shell;
-# the fields after the ")" that ends the command name are state, ppid and pgrp
-_PROCESS_LIST = r"""
-for d in /proc/[0-9]*; do
-  [ "${d#/proc/}" = "$$" ] && continue
-  s=$(sed 's/.*) //' "$d/stat" 2>/dev/null) || continue
-  set -- $s
-  printf '%s pgid=%s state=%s %s\n' "${d#/proc/}" "$3" "$1" \
-    "$(tr '\0' ' ' < "$d/cmdline" 2>/dev/null)"
-done
-"""
-
-_SERVER_STDERR_TAIL = (
-    "for f in $(find / -xdev -name server-stderr.log 2>/dev/null); do "
-    'echo "== $f"; tail -c 4000 "$f"; done'
-)
-
-
-async def _orphan_report(
-    sandbox: Any, start_error: BaseException, kill_key_replies: list[str]
-) -> str:
-    """Describe the sandbox state when a failed start left its job running."""
-    processes = await sandbox.exec(["sh", "-c", _PROCESS_LIST])
-    server_stderr = await sandbox.exec(["sh", "-c", _SERVER_STDERR_TAIL])
-    return "\n".join(
-        [
-            f"sleep {_ORPHAN_SLEEP} still runs after the failed start.",
-            f"start error: {start_error!r}",
-            f"kill_key replies: {kill_key_replies}",
-            "processes:",
-            processes.stdout + processes.stderr,
-            "server stderr:",
-            (server_stderr.stdout + server_stderr.stderr) or "(none found)",
-        ]
-    )
-
-
 @skip_if_no_docker
 @pytest.mark.slow
 async def test_start_whose_command_closes_stdin_kills_the_job(docker_sandbox) -> None:
-    with _kill_key_replies(docker_sandbox) as kill_key_replies:
-        with pytest.raises(RuntimeError, match="Connection lost") as start_error:
-            await exec_remote_streaming(
-                docker_sandbox,
-                # exec so that no outer shell keeps stdin open
-                ["exec", "sh", "-c", f"exec 0<&-; exec sleep {_ORPHAN_SLEEP}"],
-                5,
-                ExecRemoteStreamingOptions(input=_BACKPRESSURED_INPUT),
-            )
-
-    # The job has survived in CI but never locally; the report records what
-    # the kill path saw (meridianlabs-ai/inspect_ai#622).
-    if await _orphan_running(docker_sandbox):
-        pytest.fail(
-            await _orphan_report(docker_sandbox, start_error.value, kill_key_replies)
+    try:
+        proc = await exec_remote_streaming(
+            docker_sandbox,
+            # exec so that no outer shell keeps stdin open
+            ["exec", "sh", "-c", f"exec 0<&-; exec sleep {_ORPHAN_SLEEP}"],
+            5,
+            ExecRemoteStreamingOptions(input=_BACKPRESSURED_INPUT),
         )
+    except RuntimeError as ex:
+        assert "Connection lost" in str(ex)
+    else:
+        # flaky_retry reruns this test in the same container, where a job left
+        # running would fail every later attempt
+        await proc.kill()
+        pytest.fail("the start succeeded with its input dropped")
+
+    assert not await _orphan_running(docker_sandbox)
 
 
 @skip_if_no_docker
