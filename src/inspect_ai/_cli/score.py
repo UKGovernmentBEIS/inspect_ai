@@ -193,14 +193,11 @@ async def score(
     eval_log = await recorder.read_log(log_file, header_only=bool(stream))
     if stream:
         eval_log.reductions = await recorder.read_log_reductions(log_file)
+    sample_map = await recorder.read_log_sample_ids(log_file) if stream else None
     num_samples = (
-        len(eval_log.samples)
-        if eval_log.samples
-        else eval_log.results.total_samples
-        if eval_log.results
-        else None
+        len(sample_map) if sample_map is not None else len(eval_log.samples or [])
     )
-    if num_samples is None or num_samples == 0:
+    if num_samples == 0:
         raise ValueError(
             f"Cannot determine the number of samples to score for {log_file}"
         )
@@ -209,8 +206,10 @@ async def score(
     # `--action overwrite` replaces `results` with counts taken over the samples
     # present in the log. Early-stopped samples were never written, so those
     # counts no longer share a denominator with the early-stopping summary
-    # carried forward from the header. Read the coverage before scoring.
-    pre_score_coverage = eval_log.results
+    # carried forward from the header. Copy coverage before append can mutate it.
+    pre_score_coverage = (
+        eval_log.results.model_copy(deep=True) if eval_log.results else None
+    )
 
     scorers = resolve_scorers(eval_log, scorer, scorer_args)
     if len(scorers) == 0:
@@ -233,7 +232,7 @@ async def score(
         # an existing output (often the input, which later samples are read
         # from) is only replaced by log_finish
         new_output = not filesystem(output_file).exists(local_path(output_file))
-        sample_map = await recorder.read_log_sample_ids(log_file)
+        assert sample_map is not None
         stream_batch = len(sample_map) if stream is True else stream
         semaphore = anyio.Semaphore(stream_batch)
         samples_written = 0
@@ -259,6 +258,12 @@ async def score(
         await write_recorder.log_init(eval_log.eval, location=output_file)
         await write_recorder.log_start(eval_log.eval, eval_log.plan)
 
+    scoring_errors = 0
+
+    def on_sample_error() -> None:
+        nonlocal scoring_errors
+        scoring_errors += 1
+
     eval_log = await score_async(
         log=eval_log,
         scorers=scorers,
@@ -269,6 +274,8 @@ async def score(
         copy=False,
         samples=read_sample,
         _log_scorers=scorer is None,
+        _sample_count=num_samples,
+        _on_sample_error=on_sample_error,
     )
 
     if stream:
@@ -286,11 +293,22 @@ async def score(
     else:
         await recorder.write_log(output_file, eval_log)
 
-    print_results(output_file, eval_log, coverage=pre_score_coverage)
+    print_results(
+        output_file,
+        eval_log,
+        coverage=pre_score_coverage,
+        scoring_errors=scoring_errors,
+        scoring_samples=num_samples,
+    )
 
 
 def print_results(
-    output_file: str, eval_log: EvalLog, coverage: EvalResults | None = None
+    output_file: str,
+    eval_log: EvalLog,
+    coverage: EvalResults | None = None,
+    *,
+    scoring_errors: int = 0,
+    scoring_samples: int = 0,
 ) -> None:
     # the theme
     theme = rich_theme()
@@ -309,15 +327,21 @@ def print_results(
             total_samples=coverage.total_samples,
             completed_samples=coverage.completed_samples,
             early_stopping=coverage.early_stopping,
-            # this pass scored every sample in the log, errored ones included,
-            # so their scores are in the metrics above whatever the original
-            # run's `score_on_error` was: don't claim they went unscored
+            # This pass attempts all persisted samples regardless of the
+            # original score_on_error setting. Report its failures separately.
             score_on_error=True,
         ):
             grid.add_row("")
             grid.add_row(f" {message}")
 
     grid.add_row("")
+    if scoring_errors:
+        error_pct = int(scoring_errors / scoring_samples * 100)
+        grid.add_row(
+            f" [{theme.warning}]WARNING: {scoring_errors} of {scoring_samples} samples "
+            f"({error_pct}%) failed rescoring.[/{theme.warning}]"
+        )
+        grid.add_row("")
     grid.add_row(f" Log: [{theme.link}]{output_file}[/{theme.link}]")
 
     p = Panel(

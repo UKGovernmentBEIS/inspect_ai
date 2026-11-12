@@ -3,11 +3,13 @@ import functools
 import pathlib
 from typing import Any, Iterator
 
+import anyio
 import pydantic
 import pytest
+from test_helpers.sandbox import CannedSandbox
 from test_helpers.utils import skip_if_no_openai
 
-from inspect_ai import score
+from inspect_ai import Task, eval_async, score
 from inspect_ai._eval.score import (
     ScoreAction,
     _get_updated_events,
@@ -29,7 +31,11 @@ from inspect_ai.log import (
     EvalSample,
     Transcript,
 )
-from inspect_ai.log._file import read_eval_log, read_eval_log_async
+from inspect_ai.log._file import (
+    read_eval_log,
+    read_eval_log_async,
+    write_eval_log_async,
+)
 from inspect_ai.log._transcript import init_transcript
 from inspect_ai.model import ChatCompletionChoice, GenerateConfig, ModelOutput
 from inspect_ai.model._chat_message import (
@@ -40,7 +46,14 @@ from inspect_ai.scorer import accuracy
 from inspect_ai.scorer._metric import SampleScore, Score
 from inspect_ai.scorer._scorer import Scorer, scorer
 from inspect_ai.scorer._target import Target
+from inspect_ai.solver import Generate, Solver, solver
 from inspect_ai.solver._task_state import TaskState
+from inspect_ai.util import (
+    ExecResult,
+    SandboxEnvironment,
+    SandboxEnvironmentConfigType,
+    sandboxenv,
+)
 from inspect_ai.util._span import SCORERS_SPAN_NAME, span
 
 
@@ -1461,29 +1474,62 @@ async def test_score_isolates_a_scorer_failure_to_its_sample() -> None:
     assert scored.results.completed_samples == 1
 
 
-@pytest.mark.anyio
 @pytest.mark.parametrize("action", ["append", "overwrite"])
-async def test_score_clears_a_scoring_error_after_a_successful_rescore(
-    action: ScoreAction,
+@pytest.mark.parametrize("failure_source", ["eval", "rescore", "legacy-rescore"])
+async def test_score_clears_a_real_scoring_error(
+    action: ScoreAction, failure_source: str, tmp_path: pathlib.Path
 ) -> None:
-    """A successful re-score clears the scoring error it replaced."""
-    unclosed_scorers_span = SpanBeginEvent(
-        id="failed-scorers", name=SCORERS_SPAN_NAME, type=SCORERS_SPAN_NAME
-    )
-    sample = _rescored_sample("1", error=_judge_error(), events=[unclosed_scorers_span])
+    log = (
+        await eval_async(
+            Task(
+                dataset=[Sample(id="ok", input="q"), Sample(id="boom", input="q")],
+                solver=[],
+                scorer=_failing_for_sample(
+                    "boom" if failure_source == "eval" else "never"
+                ),
+            ),
+            model="mockllm/model",
+            fail_on_error=False,
+            log_dir=str(tmp_path),
+        )
+    )[0]
+    if failure_source != "eval":
+        log = await score_async(log, _failing_for_sample("boom"), action=action)
+        if failure_source == "legacy-rescore":
+            for sample in log.samples or []:
+                for event in sample.events:
+                    if isinstance(event, ErrorEvent):
+                        event.metadata = None
+    log_file = str(tmp_path / "failed.eval")
+    await write_eval_log_async(log, log_file)
+    log = await read_eval_log_async(log_file)
+    assert log.samples is not None
+    failed = next(sample for sample in log.samples if sample.id == "boom")
+    assert failed.error is not None
+    assert log.results is not None
+    assert log.results.completed_samples == 1
+    # span() closes even when the scorer raises: exercise the persisted events.
+    scorer_spans = {
+        event.id
+        for event in failed.events
+        if isinstance(event, SpanBeginEvent) and event.name == SCORERS_SPAN_NAME
+    }
+    assert scorer_spans
+    assert scorer_spans <= {
+        event.id for event in failed.events if isinstance(event, SpanEndEvent)
+    }
+    assert any(isinstance(event, ErrorEvent) for event in failed.events)
 
-    scored = await score_async(
-        log=_scoring_log([sample]),
-        scorers=[_failing_for_sample("never")],
-        action=action,
-        model="mockllm/model",
-    )
-
+    scored = await score_async(log, _failing_for_sample("never"), action=action)
     assert scored.samples is not None
-    assert scored.samples[0].error is None
-    assert scored.samples[0].scores is not None
+    assert all(sample.error is None for sample in scored.samples)
+    assert all(sample.scores for sample in scored.samples)
     assert scored.results is not None
-    assert scored.results.completed_samples == 1
+    assert scored.results.completed_samples == 2
+    await write_eval_log_async(scored, log_file)
+    persisted = await read_eval_log_async(log_file)
+    assert persisted.samples is not None
+    assert all(sample.error is None for sample in persisted.samples)
 
 
 @pytest.mark.anyio
@@ -1521,3 +1567,188 @@ async def test_score_preserves_an_error_from_an_earlier_phase(
     assert scored.samples[0].scores is not None
     assert scored.results is not None
     assert scored.results.completed_samples == 0
+
+
+@solver
+def _failed_solver() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        raise RuntimeError("agent crashed")
+
+    return solve
+
+
+@pytest.mark.parametrize("action", ["append", "overwrite"])
+@pytest.mark.parametrize("score_on_error", [False, True])
+@pytest.mark.parametrize("fail_eval_scorer", [False, True])
+@pytest.mark.parametrize("fail_rescore", [False, True])
+async def test_score_preserves_real_solver_error(
+    action: ScoreAction,
+    score_on_error: bool,
+    fail_eval_scorer: bool,
+    fail_rescore: bool,
+    tmp_path: pathlib.Path,
+) -> None:
+    log = (
+        await eval_async(
+            Task(
+                dataset=[Sample(id="boom", input="q")],
+                solver=_failed_solver(),
+                scorer=_failing_for_sample("boom" if fail_eval_scorer else "never"),
+            ),
+            model="mockllm/model",
+            fail_on_error=False,
+            score_on_error=score_on_error,
+            log_dir=str(tmp_path),
+        )
+    )[0]
+    log = await read_eval_log_async(log.location)
+    assert log.samples is not None
+    original_error = next(
+        event.error
+        for event in log.samples[0].events
+        if isinstance(event, ErrorEvent) and "agent crashed" in event.error.message
+    )
+    if fail_rescore:
+        log = await score_async(log, _failing_for_sample("boom"), action=action)
+        assert log.samples is not None
+        assert any(
+            isinstance(event, ErrorEvent)
+            and "judge API unavailable" in event.error.message
+            for event in log.samples[0].events
+        )
+        failed_path = str(tmp_path / "rescore-failed.eval")
+        await write_eval_log_async(log, failed_path)
+        log = await read_eval_log_async(failed_path)
+    scored = await score_async(log, _failing_for_sample("never"), action=action)
+    assert scored.samples is not None
+    assert scored.samples[0].error == original_error
+    assert scored.samples[0].scores
+    assert scored.results is not None
+    assert scored.results.completed_samples == 0
+
+
+async def test_score_cancellation_propagates_and_cleans_up() -> None:
+    started = anyio.Event()
+    cleaned_up = False
+
+    @scorer(metrics=[accuracy()])
+    def waiting_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            nonlocal cleaned_up
+            try:
+                started.set()
+                await anyio.sleep_forever()
+            finally:
+                cleaned_up = True
+            return Score(value=1.0)
+
+        return score
+
+    log = _scoring_log([_rescored_sample("1")])
+    async with anyio.create_task_group() as tasks:
+        tasks.start_soon(
+            functools.partial(score_async, log, waiting_scorer(), copy=False)
+        )
+        await started.wait()
+        tasks.cancel_scope.cancel()
+    assert cleaned_up
+    assert log.samples is not None
+    assert log.samples[0].error is None
+    assert not any(isinstance(event, ErrorEvent) for event in log.samples[0].events)
+
+
+@sandboxenv(name="score_cleanup_error")
+class _ScoreCleanupError(CannedSandbox):
+    cause: Exception | None = None
+
+    @classmethod
+    async def sample_init(
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        metadata: dict[str, str],
+    ) -> dict[str, SandboxEnvironment]:
+        return {
+            "default": cls.returning(
+                ExecResult(success=True, returncode=0, stdout="", stderr="")
+            )
+        }
+
+    @classmethod
+    async def sample_cleanup(
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        environments: dict[str, SandboxEnvironment],
+        interrupted: bool,
+    ) -> None:
+        raise RuntimeError("sandbox teardown error") from cls.cause
+
+
+@pytest.mark.parametrize("mode", ["score", "none", "chained_failure"])
+@pytest.mark.parametrize("action", ["append", "overwrite"])
+async def test_score_preserves_sandbox_teardown_error(
+    tmp_path: pathlib.Path, mode: str, action: ScoreAction
+) -> None:
+    @scorer(metrics=[accuracy()])
+    def judge() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score | None:
+            if mode == "chained_failure":
+                try:
+                    raise RuntimeError("scorer failure")
+                except RuntimeError as ex:
+                    _ScoreCleanupError.cause = ex
+                    raise
+            return None if mode == "none" else Score(value=1)
+
+        return score
+
+    _ScoreCleanupError.cause = None
+    log = (
+        await eval_async(
+            Task(
+                dataset=[Sample(input="q")],
+                solver=[],
+                scorer=judge(),
+                sandbox="score_cleanup_error",
+            ),
+            model="mockllm/model",
+            fail_on_error=False,
+            log_dir=str(tmp_path),
+        )
+    )[0]
+    log = await read_eval_log_async(log.location)
+    assert log.samples is not None
+    original_error = log.samples[0].error
+    assert original_error is not None
+    assert "sandbox teardown error" in original_error.message
+    rescored = await score_async(log, _failing_for_sample("never"), action=action)
+    assert rescored.samples is not None
+    assert rescored.samples[0].error == original_error
+    assert rescored.results is not None
+    assert rescored.results.completed_samples == 0
+    _ScoreCleanupError.cause = None
+
+
+@pytest.mark.parametrize("marked", [False, True])
+async def test_score_error_without_traceback_needs_explicit_origin(
+    marked: bool,
+) -> None:
+    error = _judge_error()
+    sample = _rescored_sample(
+        "1",
+        error=error,
+        events=[
+            SpanBeginEvent(
+                id="scorers", name=SCORERS_SPAN_NAME, type=SCORERS_SPAN_NAME
+            ),
+            SpanEndEvent(id="scorers"),
+            ErrorEvent(
+                error=error,
+                metadata={"inspect_ai_error_phase": "scoring"} if marked else None,
+            ),
+        ],
+    )
+    log = await score_async(_scoring_log([sample]), _failing_for_sample("never"))
+    assert log.samples is not None
+    assert log.samples[0].error == (None if marked else error)

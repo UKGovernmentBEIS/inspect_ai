@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import functools
 import logging
+import re
 from copy import deepcopy
 from pathlib import Path
 from typing import (
@@ -34,6 +35,7 @@ from inspect_ai._eval.loader import (
 from inspect_ai._eval.task.task import resolve_scorer, resolve_scorer_metrics
 from inspect_ai._sentinel._scope import sentinel_scope
 from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_collect
+from inspect_ai._util.error import EvalError
 from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import (
     LOG_METRIC_OPTION_TYPES,
@@ -50,7 +52,9 @@ from inspect_ai._util.registry import (
 from inspect_ai._util.rich import escape_control_characters
 from inspect_ai.event._error import ErrorEvent
 from inspect_ai.event._event import Event
+from inspect_ai.event._logger import LoggerEvent
 from inspect_ai.event._score import ScoreEvent
+from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 from inspect_ai.event._tree import (
     EventTreeSpan,
     event_sequence,
@@ -236,22 +240,65 @@ def _get_updated_events(
     return list(event_sequence(sample_event_tree))
 
 
-def _is_scoring_error(sample: EvalSample) -> bool:
-    """Whether the sample's existing error was raised during scoring.
+def _error_after_rescore(sample: EvalSample) -> EvalError | None:
+    """The error to retain if scoring succeeds.
 
-    A scorer exception escapes the sample's `scorers` span, so that span is
-    opened and never closed -- the durable marker a log carries. Solver and
-    sandbox failures happen before the scoring phase, and a sample scored with
-    `score_on_error` keeps a closed span for the scoring attempt it completed.
-
-    Args:
-        sample: Sample whose error is being classified.
-
-    Returns:
-        `True` when the error came from the scoring phase.
+    Both eval and rescoring emit an ErrorEvent after the failed scorers span
+    closes, with an optional warning in between. Match the sample's error to
+    that event rather than the last scoring attempt: score_on_error can run
+    scorers after a solver failure, and span() closes even on exceptions.
+    A failed score_on_error attempt can hide a solver error, which must remain.
     """
-    span = _find_scorers_span(event_tree(sample.events))
-    return span is not None and span.end is None
+    if sample.error is None:
+        return None
+    scorers_spans: set[str] = set()
+    previous: Event | None = None
+    earlier_error: EvalError | None = None
+    retained_error: EvalError | None = sample.error
+    for event in sample.events:
+        if (
+            isinstance(event, SpanBeginEvent)
+            and event.name == SCORERS_SPAN_NAME
+            and event.type == SCORERS_SPAN_NAME
+        ):
+            scorers_spans.add(event.id)
+        if isinstance(event, ErrorEvent):
+            scoring_error = (
+                isinstance(previous, SpanEndEvent)
+                and previous.id in scorers_spans
+                and _scoring_error_origin(event)
+            )
+            if event.error == sample.error:
+                retained_error = earlier_error if scoring_error else sample.error
+            if not scoring_error:
+                earlier_error = event.error
+        if not isinstance(event, LoggerEvent):
+            previous = event
+    return retained_error
+
+
+def _scoring_error_origin(event: ErrorEvent) -> bool:
+    """Distinguish scorer failures from teardown errors after scoring closed.
+
+    New rescoring failures carry an explicit marker. Legacy failures need a
+    scorer call in the final traceback; a prior chained exception is not
+    evidence about the current error. Missing evidence preserves the error.
+    """
+    if (event.metadata or {}).get("inspect_ai_error_phase") == "scoring":
+        return True
+    traceback = event.error.traceback.rsplit("Traceback (most recent call last):", 1)[
+        -1
+    ]
+    return (
+        re.search(
+            r'File "[^"\n]*[/\\]inspect_ai[/\\]_eval[/\\]'
+            r'(?:task[/\\]run\.py", line \d+, in _task_run_sample_attempt'
+            r'|score\.py", line \d+, in _run_score_task)'
+            r"\n\s+score_result = await scorer\(",
+            traceback,
+        )
+        is not None
+    )
 
 
 def _record_scoring_error(sample: EvalSample, ex: BaseException) -> None:
@@ -271,8 +318,14 @@ def _record_scoring_error(sample: EvalSample, ex: BaseException) -> None:
     except Exception:
         # the failure happened before the sample's transcript was initialized
         new_events = []
-    sample.events = [*sample.events, *new_events, ErrorEvent(error=error)]
-    sample.error = error
+    # Keep an earlier solver/sandbox error as the primary error. Otherwise a
+    # later successful rescore would erase that unrepaired failure.
+    sample.error = _error_after_rescore(sample) or error
+    sample.events = [
+        *sample.events,
+        *new_events,
+        ErrorEvent(error=error, metadata={"inspect_ai_error_phase": "scoring"}),
+    ]
 
 
 async def score_async(
@@ -290,6 +343,8 @@ async def score_async(
     samples: Callable[[int], AsyncContextManager[EvalSample]] | None = None,
     *,
     _log_scorers: bool = False,
+    _sample_count: int | None = None,
+    _on_sample_error: Callable[[], None] | None = None,
 ) -> EvalLog:
     """Score an evaluation log.
 
@@ -368,7 +423,13 @@ async def score_async(
         samples = _read_sample
         total_samples = len(_samples)
     else:
-        total_samples = log.results.total_samples if log.results else None
+        total_samples = (
+            _sample_count
+            if _sample_count is not None
+            else log.results.total_samples
+            if log.results
+            else None
+        )
 
     assert total_samples is not None
 
@@ -398,8 +459,8 @@ async def score_async(
     with display_manager().progress(total=total_samples) as p:
         scorer_names: list[str] | None = None
         scores: list[dict[str, SampleScore] | None] = [None] * total_samples
-        # tally the per-sample error state as we go so an overwrite can restate
-        # completed_samples exactly rather than falling back to len(scores)
+        # Tally the persisted sample error state, including repaired errors,
+        # for both append and overwrite.
         sample_completed: list[bool] = [False] * total_samples
 
         async def _score_sample(idx_sample: int) -> None:
@@ -407,12 +468,8 @@ async def score_async(
             sample_score: dict[str, SampleScore] = {}
 
             async with samples(idx_sample) as sample:
-                # the sample may already carry an error from the original run;
-                # note whether it came from scoring before this pass rewrites
-                # the events (see _is_scoring_error)
-                pending_scoring_error = sample.error is not None and _is_scoring_error(
-                    sample
-                )
+                # Classify the original error before this pass rewrites events.
+                retained_error = _error_after_rescore(sample)
 
                 # run the task, capturing the resulting sample scores
                 # and sample names for later use. The sample scores
@@ -437,14 +494,15 @@ async def score_async(
                     # the sample (as the eval loop does) and let the other
                     # samples finish scoring
                     _record_scoring_error(sample, ex)
+                    if _on_sample_error is not None:
+                        _on_sample_error()
                     sample_completed[idx_sample] = False
                     p.update(1)
                     return
 
                 # a successful re-score clears the scoring error it replaced;
                 # errors from earlier phases (solver, sandbox) are preserved
-                if pending_scoring_error:
-                    sample.error = None
+                sample.error = retained_error
 
             assert sample.scores is not None
             scores[idx_sample] = sample_score
@@ -514,6 +572,7 @@ async def score_async(
             if reductions is not None:
                 log.reductions = (log.reductions or []) + reductions
             log.results.scores.extend(results.scores)
+            log.results.completed_samples = results.completed_samples
             log.eval.scorers = (log.eval.scorers or []) + applied_eval_scorers
 
         resolved_headline = resolve_headline_metric(
