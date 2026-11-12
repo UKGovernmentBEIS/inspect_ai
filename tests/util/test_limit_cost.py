@@ -21,8 +21,12 @@ from inspect_ai.util._limit import (
     check_cost_limit,
     cost_limit,
     record_model_cost,
+    record_model_usage,
+    record_turn,
     suspend_cost_limit,
+    suspend_limits,
     token_limit,
+    turn_limit,
 )
 
 
@@ -308,6 +312,20 @@ def test_suspend_cost_limit_resumes_metering_on_exit() -> None:
             _consume_cost(0.02)
 
         assert limit.usage == 0.02
+
+
+def test_suspend_limits_skips_cost_token_and_turn_metering() -> None:
+    with cost_limit(0.01) as cost, token_limit(10) as tokens, turn_limit(1) as turns:
+        with suspend_limits():
+            _consume_cost(1.0)
+            record_model_usage(
+                ModelUsage(input_tokens=100, output_tokens=100, total_tokens=200)
+            )
+            record_turn()
+            record_turn()
+        assert cost.usage == 0
+        assert tokens.usage == 0
+        assert turns.usage == 0
 
 
 def test_suspend_cost_limit_with_no_active_limit() -> None:

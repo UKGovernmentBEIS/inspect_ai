@@ -960,6 +960,29 @@ def suspend_working_limit() -> AbstractContextManager[None]:
     return sample_wait()
 
 
+@contextmanager
+def suspend_limits() -> Iterator[None]:
+    """Suspend cost, token, turn and working limits within a block of code.
+
+    Combines `suspend_cost_limit()`, `suspend_token_limit()`,
+    `suspend_turn_limit()` and `suspend_working_limit()`. Useful for work
+    that should not be charged to the agent's budget, such as a monitor or
+    judge that makes its own model calls.
+
+    Example:
+        with suspend_limits():
+            # cost, tokens, turns and working time here are not charged
+            await run_monitor()
+    """
+    with (
+        suspend_cost_limit(),
+        suspend_token_limit(),
+        suspend_turn_limit(),
+        suspend_working_limit(),
+    ):
+        yield
+
+
 def check_working_limit() -> None:
     from inspect_ai.event._sample_limit import SampleLimitEvent
     from inspect_ai.log._transcript import transcript

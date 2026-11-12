@@ -32,6 +32,7 @@ description: Miscellaneous utility functions.
 ### suspend_token_limit
 ### suspend_cost_limit
 ### suspend_working_limit
+### suspend_limits
 
 ## Concurrency
 

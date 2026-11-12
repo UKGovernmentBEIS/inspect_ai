@@ -6,11 +6,7 @@ from typing import Literal, NamedTuple
 import anyio
 
 from inspect_ai._util.exception import SampleRefusedError
-from inspect_ai.util._limit import (
-    suspend_token_limit,
-    suspend_turn_limit,
-    suspend_working_limit,
-)
+from inspect_ai.util._limit import suspend_limits
 
 from .._config import SentinelProxy
 from ._endpoint import UNAUTHORIZED, SentinelProxyError, SidecarCallError
@@ -70,7 +66,7 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
     sidecar = received.sidecar
     if sidecar is None or received.request_id is None:
         return Looked("unavailable", "the call's request id is not known")
-    with suspend_token_limit(), suspend_turn_limit(), suspend_working_limit():
+    with suspend_limits():
         while True:
             asked = time.monotonic()
             try:
