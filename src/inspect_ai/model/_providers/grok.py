@@ -901,9 +901,20 @@ def _logprobs_from_grok_logprobs(grok_logprobs: chat_pb2.LogProbs) -> Logprobs |
 
 def _model_usage_from_sampling_usage(usage: usage_pb2.SamplingUsage) -> ModelUsage:
     cached = usage.cached_prompt_text_tokens or 0
+    # xAI has been observed to report reasoning outside completion_tokens
+    # (total = prompt + completion + reasoning). Fold it into output_tokens, as
+    # for Google, so output limits and cost count it; the total check leaves
+    # usage that already includes it (or reports no total) unchanged.
+    reasoning = usage.reasoning_tokens or 0
+    output_tokens = usage.completion_tokens
+    if (
+        reasoning > 0
+        and usage.total_tokens >= usage.prompt_tokens + output_tokens + reasoning
+    ):
+        output_tokens += reasoning
     return ModelUsage(
         input_tokens=usage.prompt_tokens - cached,
-        output_tokens=usage.completion_tokens,
+        output_tokens=output_tokens,
         total_tokens=usage.total_tokens,
         input_tokens_cache_read=usage.cached_prompt_text_tokens,
         reasoning_tokens=usage.reasoning_tokens,
