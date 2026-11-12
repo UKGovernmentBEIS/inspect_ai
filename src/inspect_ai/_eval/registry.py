@@ -11,7 +11,6 @@ from inspect_ai._util.registry import (
     RegistryInfo,
     create_registry_object,
     extract_named_params,
-    instantiate_registry_object,
     registry_add,
     registry_info,
     registry_lookup,
@@ -65,53 +64,65 @@ def task_register(
 
 class _TaskDefinition(NamedTuple):
     file: str
+    file_id: tuple[int, int]
     qualname: str
 
 
 def _task_definition(factory: object) -> _TaskDefinition | None:
     """Source file and qualified name of a task function or class.
 
-    A file loaded twice (e.g. imported and also loaded by path) registers two
-    objects with the same definition. Returns None when the definition can't
-    be identified: the source isn't a file on disk (e.g. a notebook cell), or
-    a class's module isn't in `sys.modules`.
+    Returns None when the definition can't be identified: the source isn't a
+    file on disk (e.g. a notebook cell), or a class's module isn't in
+    `sys.modules`.
     """
     obj = inspect.unwrap(cast(Callable[..., Any], factory))
     qualname = getattr(obj, "__qualname__", "")
     try:
         file = inspect.getsourcefile(obj)
+        stat = os.stat(file) if file else None
     except (TypeError, OSError):
         return None
-    if not qualname or not file or not os.path.isfile(file):
+    if not qualname or file is None or stat is None:
         return None
-    return _TaskDefinition(os.path.realpath(file), qualname)
+    return _TaskDefinition(file, (stat.st_dev, stat.st_ino), qualname)
 
 
-def _resolve_task_factory(factory: object, name: str) -> object:
-    """The task factory to run for `factory`, given others registered as `name`.
+def task_factory_name(factory: object) -> str:
+    """Registry name of a task function or class passed to `eval()`.
 
-    Name lookup (task names, `task_file@name` specs, `eval_retry()`) finds the
-    last task registered as `name`. Returns `factory` when that is `factory`
-    or the same definition. Raises when it is a different definition, rather
-    than running one task now and another on retry. Returns the registered
-    task when either definition can't be identified, as name lookup would.
+    The task is then created by looking this name up, as for a task name
+    passed as a string. That finds the last task registered under the name,
+    so raise when it is a different definition from `factory` rather than
+    silently run another task. A file loaded twice, or a decorator stacked on
+    `@task`, is the same definition.
+
+    Raises:
+        PrerequisiteError: If `factory` is not a task, or if a different
+            definition is registered under its name.
     """
-    registered = registry_lookup("task", name)
+    info = registry_info(factory)
+    if info.type != "task":
+        raise PrerequisiteError(
+            f"'{info.name}' is registered as type '{info.type}', not as a task."
+        )
+    registered = registry_lookup("task", info.name)
     if registered is None or registered is factory:
-        return factory
+        return info.name
     factory_def = _task_definition(factory)
     registered_def = _task_definition(registered)
-    if factory_def is not None and factory_def == registered_def:
-        return factory
-    if factory_def is not None and registered_def is not None:
+    if (
+        factory_def is not None
+        and registered_def is not None
+        and (factory_def.file_id, factory_def.qualname)
+        != (registered_def.file_id, registered_def.qualname)
+    ):
         raise PrerequisiteError(
-            f"Task name '{name}' is registered by more than one task "
+            f"Task name '{info.name}' is registered by more than one task "
             f"({factory_def.file}: {factory_def.qualname} and "
             f"{registered_def.file}: {registered_def.qualname}). Tasks are "
-            "looked up by name (e.g. by eval_retry()), so give each @task a "
-            "unique name."
+            "looked up by name, so give each @task a unique name."
         )
-    return registered
+    return info.name
 
 
 def _has_var_keyword(factory: object) -> bool:
@@ -142,41 +153,15 @@ def task_create(name: str, /, **kwargs: Any) -> Task:
     Returns:
         Task with registry info attribute
     """
-    task = registry_lookup("task", name)
-    if not task:
-        raise PrerequisiteError(f"Task named '{name}' not found.")
-    return task_create_from_factory(task, **kwargs)
-
-
-def task_create_from_factory(factory: object, /, **kwargs: Any) -> Task:
-    """Create a Task from a registered task function or class.
-
-    Creates the task from `factory` when looking up its name finds `factory`
-    or the same definition (see `_resolve_task_factory()`).
-
-    Args:
-        factory: Registered task function or class.
-        **kwargs: Optional creation arguments for the task.
-
-    Returns:
-        Task with registry info attribute
-
-    Raises:
-        PrerequisiteError: If `factory` is not a task, or if a different
-            task is registered under its name.
-    """
-    task_info = registry_info(factory)
-    name = task_info.name
-    if task_info.type != "task":
-        raise PrerequisiteError(f"'{name}' is a {task_info.type}, not a task.")
-
-    factory = _resolve_task_factory(factory, name)
-
     # match kwargs params to signature (warn if param not found)
     # (note that we always pass the 'model' param but tasks aren't
     # required to consume it, so we don't warn for 'model')
-    task_params: list[str] = registry_info(factory).metadata["params"]
-    has_var_keyword = _has_var_keyword(factory)
+    task = registry_lookup("task", name)
+    if not task:
+        raise PrerequisiteError(f"Task named '{name}' not found.")
+    task_info = registry_info(task)
+    task_params: list[str] = task_info.metadata["params"]
+    has_var_keyword = _has_var_keyword(task)
     task_args: dict[str, Any] = {}
     for param in kwargs.keys():
         if param in task_params or has_var_keyword:
@@ -184,10 +169,10 @@ def task_create_from_factory(factory: object, /, **kwargs: Any) -> Task:
         else:
             logger.warning(f"param '{param}' not used by task '{name}'")
 
-    return cast(
-        Task,
-        instantiate_registry_object(cast(Callable[..., Task], factory), task_args),
-    )
+    # create_registry_object takes creation args as a dict, so a task arg
+    # named `name`/`type` cannot collide with registry_create's own
+    # leading parameters on replay.
+    return cast(Task, create_registry_object("task", name, task_args))
 
 
 @overload

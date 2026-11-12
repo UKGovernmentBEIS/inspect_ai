@@ -478,7 +478,7 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # 
     obj = registry_lookup(type, name)
 
     if isclass(obj):
-        return instantiate_registry_object(obj, kwargs)
+        return _instantiate_registry_object(obj, kwargs)
     elif callable(obj):
         return_type = get_annotations(obj, eval_str=True).get("return")
         # Until we remove the MetricDeprecated symbol we need this extra
@@ -488,7 +488,7 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # 
         else:
             return_type = getattr(return_type, "__name__", None)
         if return_type and return_type.lower() == type:
-            return instantiate_registry_object(obj, kwargs)
+            return _instantiate_registry_object(obj, kwargs)
         else:
             return obj
     else:
@@ -553,7 +553,7 @@ def create_registry_object(
 
     if isclass(obj) or callable(obj):
         try:
-            return instantiate_registry_object(obj, args, allowed_types=allowed_types)
+            return _instantiate_registry_object(obj, args, allowed_types=allowed_types)
         except DisallowedRegistryArg as ex:
             # the outermost object names the error
             ex.owner = (type, name)
@@ -564,16 +564,12 @@ def create_registry_object(
         )
 
 
-def instantiate_registry_object(
+def _instantiate_registry_object(
     obj: Callable[..., object],
     args: dict[str, Any],
     *,
     allowed_types: frozenset[RegistryType] | None = None,
 ) -> object:
-    """Call a registered class or factory and tag the result with its registry info.
-
-    `create_registry_object()` documents `args` and `allowed_types`.
-    """
     instance = obj(**_resolve_registry_args(args, allowed_types=allowed_types))
     info = registry_info(obj)
     # Objects created by self-tagging factories (e.g. @agent / @solver) already

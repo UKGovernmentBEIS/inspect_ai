@@ -1552,6 +1552,57 @@ def test_eval_task_class_same_name_outside_sys_modules_runs_name_lookup(
     assert _eval_input(first.First, log_dir) == _eval_input(name, log_dir)
 
 
+def test_eval_task_function_same_definition_runs_name_lookup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a decorator stacked on @task, and a second closure from the same factory
+    # function, share a definition with the registered task, so eval() runs
+    # what name lookup finds rather than raising
+    path = tmp_path / "tasks.py"
+    path.write_text(
+        """
+import functools
+
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+
+
+def shout(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        t = fn(*args, **kwargs)
+        return Task(dataset=[Sample(input=f"shout {s.input}") for s in t.dataset])
+
+    return wrapper
+
+
+@shout
+@task(name="eval_task_function_stacked")
+def stacked() -> Task:
+    return Task(dataset=[Sample(input="stacked")])
+
+
+def make(input: str):
+    @task(name="eval_task_function_closure")
+    def closure() -> Task:
+        return Task(dataset=[Sample(input=input)])
+
+    return closure
+"""
+    )
+    tasks = _import_task_module(monkeypatch, path, "eval_same_definition")
+    first_closure = tasks.make("first")
+    tasks.make("second")
+
+    log_dir = tmp_path / "logs"
+    assert _eval_input(tasks.stacked, log_dir) == _eval_input(
+        "eval_task_function_stacked", log_dir
+    )
+    assert _eval_input(first_closure, log_dir) == _eval_input(
+        "eval_task_function_closure", log_dir
+    )
+
+
 def test_eval_task_function_redefined_in_interactive_cell_runs_name_lookup(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1632,7 +1683,9 @@ def test_eval_registered_non_task_function_raises() -> None:
 
         return solve
 
-    with pytest.raises(PrerequisiteError, match="is a solver, not a task"):
+    with pytest.raises(
+        PrerequisiteError, match="registered as type 'solver', not as a task"
+    ):
         eval(cast(Any, not_a_task), model="mockllm/model")
 
 
