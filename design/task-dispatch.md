@@ -688,6 +688,20 @@ the body of `_run_task_screen` (Textual's reset is done by then), calls
 leaves the screen it marks it closed, and records that end afterwards
 (`end_all()`) change no display. The displays are unchanged.
 
+**An attempt stopped after its row opened.** The last stamp check before
+`register_eval` runs after `display().task(...)` has opened the row, so a
+stamp written while `logger.log_start()` awaits is caught there with
+`reached == "row_opened"`, and `RunQueue.end` leaves the total unchanged.
+Today `task_run`'s `except TaskRetryAbandonedError:` handler re-raises
+without completing the row, and Rich and Textual count a task complete only
+once its row has a result, so the run would end with completed one short of
+the total. So that handler, which is inside the row's `with` block, first
+calls `td.complete(TaskCancelled(logger.samples_completed, EvalStats()))`,
+once, then re-raises as today. It runs for every stamp-stopped attempt
+whose row opened: a first attempt cancelled before it registers, and a
+stopped retry, whose row today is left without a result. An attempt stopped
+at the earlier checks has no row and takes one off the total, as above.
+
 The record's sandbox resolution cache (today's run-wide
 `SandboxManager._resolved_no_metadata`, keyed by `(Task, spec)`) is on its
 `options` ("Setup does not change the process's directory or environment"),
@@ -879,7 +893,13 @@ feeder keeps awaiting it for the samples it adds. Under
   the attempt, so the task ends with its error log like any attempt error
   and the run goes on. A failed configuration is not added to the started
   set, so the task's retry under `task_retry_attempts`, and any other task
-  that needs it, runs `task_init` again.
+  that needs it, runs `task_init` again. `task_cleanup` is registered only
+  when `task_init` returns, as today (`SandboxManager._start_sandboxenvs`),
+  so a failed call gets no `task_cleanup`, then or at shutdown, and a
+  configuration whose every call failed has none. Nothing runs between
+  calls. The provider releases what a failed `task_init` allocated before
+  it raises, and a later call for the same configuration either sets it up
+  or fails again as an ordinary error; the contract docs say so (below).
 - **Cancellation.** Cancelling an attempt during a `task_init` it runs
   cancels that call, as a cancelled `SampleSource` addition does on today's
   live path; nothing is marked started and the next task that needs the
@@ -1088,7 +1108,12 @@ restored afterwards. In place of the `chdir`:
   in the launch directory and environment, like `sample_init`; config paths
   arrive resolved; `ContextVar` bindings as below; and the variables
   `task_init_environment` returns reach only Docker's `task_init` (another
-  provider returning any is refused, with the migration above).
+  provider returning any is refused, with the migration above). They also
+  state the repeat-call rule: `task_init` can be called again for a
+  configuration after a call that raised, in the same run; a call that
+  raised gets no `task_cleanup`, so it releases whatever it allocated before
+  raising; and the next call either sets the configuration up or raises
+  again.
 
 ### Provider state per setup
 
@@ -1257,7 +1282,9 @@ path and for `SampleSource` additions, and after its task's `on_task_start`
 hooks. A setup failure becomes the task's error log and is retried with the
 task, where today it raises from `eval()` (and from an `eval_set()` round
 without a retry); a provider whose `task_init` fails once and succeeds on a
-second call now gets that second call.
+second call now gets that second call. A call that raised still gets no
+`task_cleanup`, as today, so what it allocated is the provider's to release
+before it raises; the contract docs state this with the repeat-call rule.
 
 Eval authors whose `ComposeConfig` on Modal or Daytona relies on a relative
 or omitted build context resolving against the launch directory, where the
@@ -1428,7 +1455,12 @@ test that waits on a run is bounded with `fail_after`.
   stub provider above returning `{"X": "1"}`), whose error log carries the
   `PrerequisiteError` and whose `task_init` is never called; with
   `task_retry_attempts=1`, a setup that fails once is run again by the
-  task's retry, which succeeds; two tasks needing one configuration call
+  task's retry, which succeeds; with `task_retry_attempts=2`, a setup that
+  fails twice and then succeeds is called three times, no `task_cleanup`
+  runs after either failure, one runs at shutdown in the successful call's
+  context, and the failed calls' bindings reach no sample; a setup that
+  always fails, at `task_retry_attempts=1`, is called twice, the task ends
+  with its error log, and no `task_cleanup` runs, then or at shutdown; two tasks needing one configuration call
   `task_init` once; a task cancelled while its `task_init` is held cancels
   the call, and the next task that needs the configuration runs it again;
   `on_task_start` fires before the task's `task_init` and a setup failure
@@ -1519,7 +1551,11 @@ test that waits on a run is bounded with `fail_after`.
   record cancelled before it starts lowers the task total by one under the
   Rich and the Textual display (completed and total match once the run
   ends), and a cancel that lands after the record's row opened leaves the
-  total unchanged; with Textual's app load held on an event, one of two seed
+  total unchanged; a cancel written while the first attempt's
+  `logger.log_start()` is held on an event (its row open) ends the record
+  with the cancelled-before-start log, completes that row once with a
+  cancelled result and leaves the total unchanged, so completed and total
+  match once the run ends, under Rich and under Textual; with Textual's app load held on an event, one of two seed
   tasks cancelled during the load leaves 1/1 once the survivor completes,
   and the same cancel after the screen opened (the control) does too.
 - `tests/test_eval_set.py`: a seed task cancelled while queued under
@@ -1582,7 +1618,8 @@ state in the single `eval_run`), so the setup fixes come first.
    `PreparedFeed`, `_empty_feed` removed), `_eval/eval.py` (one `eval_run`),
    `_eval/task/run.py` (`logger.init()` at the start of `task_run`; the
    seed's `startup_sandboxes` call after the task-start hooks;
-   `on_row_opened()` and `on_registered()`;
+   `on_row_opened()` and `on_registered()`; the row completed in the
+   `TaskRetryAbandonedError` handler;
    `unwritten_task_log` with no location; `TaskCancelledBeforeStart`),
    `_eval/task/log.py` (`reinit()` without `init()`, `discard()` without an
    entry and resetting the location, a `location` of `None` until
@@ -1591,7 +1628,8 @@ state in the single `eval_run`), so the setup fixes come first.
    flag), `_control/eval_state.py`, `_control/cancel.py`,
    `_control/pause.py` (queued pause and resume), `_control/state.py`,
    `_control/__init__.py`, `_cli/ctl/_task.py`, `_eval/evalset.py` (the
-   no-log rule and the legacy-round flag); the callers of `enqueue_task()` in `tests/` and
+   no-log rule and the legacy-round flag); `util/_sandbox/environment.py`
+   and `docs/extensions-sandboxes.qmd` (the repeat-call rule); the callers of `enqueue_task()` in `tests/` and
    `docs/task-source.qmd` gain `await`; `design/task-source.md` ("Live
    injection"), `design/ctl/task-drain.md` ("Out of scope"),
    `design/sample-source.md`. Tests: `test_enqueue_task.py`,
