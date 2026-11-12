@@ -15,7 +15,7 @@ import weakref
 from collections.abc import Awaitable, Iterator
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any, Callable, NamedTuple, cast
+from typing import Any, Callable, Literal, NamedTuple, cast
 from unittest.mock import AsyncMock
 
 import anyio
@@ -75,6 +75,7 @@ from inspect_ai.model._model import (
     ModelRefusalError,
     ModelResponseFilter,
     _check_limits_before_dispatch,
+    dispatch_guard,
 )
 from inspect_ai.model._model_data.model_data import ModelCost, ModelInfo
 from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
@@ -87,7 +88,7 @@ from inspect_ai.model._providers.anthropic import (
 )
 from inspect_ai.model._registry import modelapi
 from inspect_ai.solver import Generate, Solver, TaskState, solver
-from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.tool import Tool, ToolChoice, ToolDef, ToolError, ToolInfo
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util import (
@@ -987,6 +988,184 @@ async def test_forward_provider_errors_refuses_model_calls_once_a_limit_is_recor
     reply = await _forward_provider_errors(generate, bridge)({})
     assert calls == 1
     assert reply == {PROVIDER_ERROR_KEY: provider_error_payload(recorded)}
+    assert bridge.generation_limit is recorded
+
+
+async def test_nested_dispatch_guard_keeps_the_enclosing_check() -> None:
+    """A dispatch guard installed inside another runs the enclosing one's check too.
+
+    Both are skipped while token limits are suspended.
+    """
+    calls = 0
+
+    def outputs(*args: Any) -> ModelOutput:
+        nonlocal calls
+        calls += 1
+        return ModelOutput.from_content(model="mockllm/model", content="hi")
+
+    def refuse() -> None:
+        raise LimitExceededError("message", value=2, limit=2)
+
+    model = get_model("mockllm/model", custom_outputs=outputs, memoize=False)
+    with dispatch_guard(refuse), dispatch_guard(lambda: None):
+        with suspend_token_limit():
+            await model.generate("Approve this call.")
+        with pytest.raises(LimitExceededError, match="message"):
+            await model.generate("Say hi.")
+    assert calls == 1
+
+
+_ASK_MODEL = "Ask the model."
+
+_HostToolCall = Literal["generate", "compact", "nested", "none"]
+
+
+def _ask_model_request(count: int, declare: bool = True) -> dict[str, JsonValue]:
+    """A chat completion request of `count` user messages, declaring `ask_model` with `declare`.
+
+    A call to an undeclared tool denotes no host tool, so it grants no execution.
+    """
+    return {
+        "model": "inspect",
+        "messages": [{"role": "user", "content": "Use the tool."}] * count,
+        "tools": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "ask_model",
+                    "description": _ASK_MODEL,
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        ]
+        if declare
+        else [],
+    }
+
+
+def _model_bridge(
+    model: Model,
+    bridged_tools: dict[str, dict[str, Tool]] | None = None,
+    require_proposal: bool = True,
+) -> SandboxAgentBridge:
+    """A sandbox bridge serving `model`, with `bridged_tools`."""
+    return SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools=bridged_tools or {},
+        proposal_exempt_servers=set() if require_proposal else set(bridged_tools or {}),
+    )
+
+
+def _model_calling_tool(model: Model, call: _HostToolCall) -> Tool:
+    """A host tool making one model call, or none.
+
+    The call is a generation, a native compaction, or a generation request of
+    a nested sandbox bridge, which raises the limit it records as the bridge
+    does once its agent has unwound.
+    """
+
+    async def execute() -> str:
+        """Ask the model.
+
+        Returns:
+            The model's answer.
+        """
+        if call == "generate":
+            return (await model.generate("Say hi.")).completion
+        if call == "compact":
+            await model.compact([ChatMessageUser(content="Compact this.")], [])
+        if call == "nested":
+            nested = _model_bridge(model)
+            await _forward_provider_errors(
+                bridge_service.generate_completions(nested), nested
+            )(_ask_model_request(1))
+            if nested.generation_limit is not None:
+                raise nested.generation_limit
+        return "ran"
+
+    return ToolDef(
+        execute, name="ask_model", description=_ASK_MODEL, parameters={}
+    ).as_tool()
+
+
+@pytest.mark.parametrize(
+    ("make_limit", "messages", "call", "require_proposal"),
+    [
+        # the second request's generation is the second turn
+        pytest.param(lambda: turn_limit(1), 1, "generate", True, id="turn-generate"),
+        pytest.param(lambda: turn_limit(1), 1, "compact", True, id="turn-compact"),
+        pytest.param(lambda: turn_limit(1), 1, "generate", False, id="turn-unproposed"),
+        # the second request has no room for a reply
+        pytest.param(
+            lambda: message_limit(2), 2, "generate", True, id="message-generate"
+        ),
+        # the nested bridge has recorded no limit of its own
+        pytest.param(lambda: message_limit(2), 2, "nested", True, id="message-nested"),
+        pytest.param(lambda: turn_limit(1), 1, "none", True, id="turn-no-model-call"),
+    ],
+)
+async def test_host_tool_makes_no_model_call_once_a_limit_is_recorded(
+    monkeypatch: pytest.MonkeyPatch,
+    make_limit: Callable[[], Limit],
+    messages: int,
+    call: _HostToolCall,
+    require_proposal: bool,
+) -> None:
+    """A host tool's model calls are refused before the provider once the bridge records a limit.
+
+    The first request proposes the host tool call. The second reaches the
+    limit, which the bridge records. The tool's generation, native compaction
+    or nested bridge's generation then makes no provider call, and the
+    scaffold gets the limit as a tool error. A tool that makes no model call
+    still runs. On a server that requires no proposal, the tool is not
+    declared, so nothing is granted, and it is called twice.
+    """
+    calls: list[str] = []
+
+    def outputs(*args: Any) -> ModelOutput:
+        calls.append("generate")
+        return ModelOutput.for_tool_call("mockllm/model", "ask_model", {})
+
+    async def compact(*args: Any) -> tuple[list[ChatMessage], ModelUsage]:
+        calls.append("compact")
+        return await _compact_natively(*args)
+
+    monkeypatch.setattr(mockllm.MockLLM, "compact", compact)
+    model = get_model("mockllm/model", custom_outputs=outputs, memoize=False)
+    bridge = _model_bridge(
+        model,
+        {"host": {"ask_model": _model_calling_tool(model, call)}},
+        require_proposal=require_proposal,
+    )
+    generate = _forward_provider_errors(
+        bridge_service.generate_completions(bridge), bridge
+    )
+    limit = make_limit()
+    with limit:
+        first = _ask_model_request(1, declare=require_proposal)
+        assert PROVIDER_ERROR_KEY not in await generate(first)
+        later = _ask_model_request(messages, declare=require_proposal)
+        assert PROVIDER_ERROR_KEY in await generate(later)
+        recorded = bridge.generation_limit
+        assert recorded is not None and recorded.source is limit
+        assert len(bridge._tool_execution_grants) == (1 if require_proposal else 0)
+        generations = list(calls)
+
+        execute = bridge_service.call_tool(bridge)
+        for _ in range(1 if require_proposal else 2):
+            if call == "none":
+                assert await execute("host", "ask_model", {}) == "ran"
+            else:
+                with pytest.raises(ToolError, match=f"{recorded.type} limit"):
+                    await execute("host", "ask_model", {})
+
+    assert calls == generations
     assert bridge.generation_limit is recorded
 
 
