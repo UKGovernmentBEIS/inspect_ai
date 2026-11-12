@@ -2,11 +2,12 @@
 
 ## Overview
 
-`enqueue_task()` returns a `TaskHandle` for each task it added. A handle
-waits for its task's result and cancels it. A task whose dataset is
+`enqueue_task()` returns a `TaskHandle` for each task it added, through
+which the adding task can cancel it. A task whose dataset is
 `samples_from_handle()` takes its samples through its handle: the task that
 added it sends each one with `TaskHandle.enqueue_sample()` and gets back the
-sample's logged `EvalSample`. Such a task runs under the adding task's
+sample's logged `EvalSample`, and `result()` waits for the task's final log.
+Such a task runs under the adding task's
 model, starts when its first sample is sent, and does not take a
 `max_tasks` slot, so a search that drives a rollout task works at any
 `max_tasks`. It stays open until its handle is closed or the attempt that
@@ -75,10 +76,13 @@ All of these are new API; no existing eval waits on a handle or uses
   selection-mode worker's: its creator's log does.
 - The run's `--limit`, `--sample-id` and `--epochs` do not apply to a task
   fed through a handle.
-- A run whose limits leave no room for the work that handle waits depend on
-  can hang; the docs explain the headroom needed, and warnings name
-  `max_tasks` and `max_sandboxes` and the `inspect ctl config` command that
-  raises each while the run goes on.
+- `TaskHandle.result()` waits only on a task fed through its handle; on the
+  handle of any other added task it raises `RuntimeError`, and that task's
+  log is read after the run.
+- A run whose `max_sandboxes` leaves no room for the work a handle wait
+  depends on can hang; the docs explain the headroom needed, and a warning
+  names the `inspect ctl config --max-sandboxes` command that raises it
+  while the run goes on.
 
 ## Why
 
@@ -101,9 +105,9 @@ creator runs, but the creator still cannot use it:
 
 Goals:
 
-- A handle that waits for its task's result, cancels it, and, for a task fed
-  through it, sends it samples and returns each sample's run, with one
-  terminal outcome for every way the task can end.
+- A handle that cancels its task and, for a task fed through it, sends it
+  samples, returns each sample's run and waits for the task's final log,
+  with one terminal outcome for every way the task can end.
 - The search example works at any `max_tasks`, under `eval()`, `eval_set()`
   and selection mode, without exceeding `max_sandboxes` or `max_samples`.
 
@@ -112,9 +116,6 @@ Non-goals:
 - Handles that reach a task in another process (another selection-mode
   worker).
 - Handles for tasks a `TaskSource` returns.
-- Making a wait on an ordinary added task (one with its own dataset) safe at
-  every `max_tasks`: such a wait holds its slot, and the docs and a warning
-  say so ("Waits and limits").
 - The queue, dispatcher, control channel and sandbox setup, which
   [task-dispatch.md](task-dispatch.md) owns.
 
@@ -148,12 +149,20 @@ Non-goals:
   returns; `sample_complete` and `sample_abandoned` run inside `task_run`;
   `next_tasks()` runs in the dispatcher, outside any attempt.
 - Eval-level settings replace a task's own in `prepare_options`: for
-  `epochs`, `message_limit`, `token_limit`, `time_limit`, `working_limit`,
-  `cost_limit`, `fail_on_error`, `continue_on_fail` and `score_on_error`, a
-  value passed to `eval()` (or by `eval_set()`) overwrites the task's, and
-  the task's value is used only when the run passes none. `approval`,
-  `review` and `sentinel` work the same way; tags are merged. Every one of
-  these `Task` arguments defaults to `None`.
+  `epochs`, `message_limit`, `token_limit`, `turn_limit`, `time_limit`,
+  `working_limit`, `cost_limit`, `fail_on_error`, `continue_on_fail` and
+  `score_on_error`, a value passed to `eval()` (or by `eval_set()`)
+  overwrites the task's, and the task's value is used only when the run
+  passes none. `approval`, `review` and `sentinel` work the same way; tags
+  are merged. Every one of these `Task` arguments defaults to `None`.
+- The run's epoch reducer (`eval(epochs=Epochs(3, "at_least_2"))`) travels
+  apart from the epoch count: `eval_async` passes the resolved reducers to
+  `eval_run` as their own argument and records their names in
+  `EvalConfig.epochs_reducer` (`src/inspect_ai/_eval/eval.py`).
+  `prepare_options` sets that argument on every task, then validates each
+  reducer against the task's epoch count (`validate_reducer`), so an
+  `at_least_k`, `pass_at_k` or `pass_k_k` reducer raises `PrerequisiteError`
+  for a task with fewer than k epochs.
 - A sample's sandboxes hold a permit of the process-wide
   `sandboxes/<provider>` limiter from before `sample_init` to after
   `sample_cleanup` (`sandboxenv_context`, `src/inspect_ai/_eval/task/sandbox.py`);
@@ -187,7 +196,7 @@ class TaskHandle:
     async def enqueue_sample(self, sample: Sample) -> EvalSample:
         """Run `sample` in the task (one epoch) and return its logged run."""
     async def result(self) -> EvalLog | None:
-        """Close the handle, then wait until the task ends; its final log, or None."""
+        """Close the handle, then wait until the fed task ends; its final log, or None."""
     def close(self) -> None:
         """Send no more samples; the task ends once the samples sent have run."""
     def cancel(self) -> None:
@@ -221,6 +230,15 @@ its handle", not "creator".
   own code fails, then re-raise, or in a `finally:` to stop them on every
   exit, including a time limit, which reaches the block as a cancellation.
   The handle docs and the overview example show this.
+- `result()` waits only on a task fed through its handle (decision: Ransom,
+  2026-11-12). On the handle of any other task it raises `RuntimeError`
+  ("result() waits only on a task fed through its handle
+  (samples_from_handle()): wait on a task fed through its handle, or read
+  its log after the run"). An ordinary added task needs a `max_tasks` slot
+  of its own while the waiting task keeps its slot, so a run whose every
+  running task waited on a queued one would not progress; the use case
+  never waits on one, and allowing it later breaks nobody. `cancel()`,
+  `close()` and the attributes work on every handle.
 - `result()` closes the handle first (decision: Ransom, 2026-11-10).
   Without that, a creator that awaits `result()` on a task it feeds would
   wait for an end that its own open handle prevents; the cost is that another
@@ -233,7 +251,7 @@ including when dispatch ends, so no wait outlives its target:
 
 | how the target ended | `result()` | an unresolved `enqueue_sample()` |
 | --- | --- | --- |
-| an attempt returned a log (success, error, setup failure, log-init failure, abort, a run-level cancellation of a running task, a pending retry abandoned), or it was cancelled before it started (its in-memory error log) | that log | `TaskEndedError(log=<that log>)` |
+| an attempt returned a log (success, error, setup failure, log-init failure, abort, a run-level cancellation of a running task), or it was cancelled before it started (its in-memory error log) | that log | `TaskEndedError(log=<that log>)` |
 | no log (a fed task closed before any sample was sent, or dispatch ended first) | `None` | `TaskEndedError(log=None)` |
 
 A request that already has its run keeps it; one abandoned raises
@@ -242,16 +260,15 @@ the sample it sent still runs and its result is dropped.
 
 ### What is refused
 
-- **Waits inside `TaskSource.next_tasks()`.** The dispatcher starts nothing
-  while that call blocks
-  ([task-dispatch.md](task-dispatch.md#the-dispatcher)), so a wait there on
-  a task that has not ended would never return. `result()` and
-  `enqueue_sample()` raise `RuntimeError` there: "a task handle cannot be
-  awaited inside TaskSource.next_tasks(): no task starts until it returns;
-  return the task, and wait for it from a running task" (they read the
-  `ContextVar` the dispatcher sets around the call). Waits are allowed
-  everywhere else on the run's loop; `close()`, `cancel()` and the
-  attributes work anywhere.
+- **`result()` on a handle whose task is not fed through it**:
+  `RuntimeError` ("The handle API"), before the handle is closed or anything
+  waits.
+- Handle waits inside `TaskSource.next_tasks()` need no rule of their own.
+  The dispatcher calls it only when no attempt is running
+  ([task-dispatch.md](task-dispatch.md#the-dispatcher)), so every fed
+  task's creator has ended and closed its channel, and every fed task has
+  ended: `result()` returns its log at once and `enqueue_sample()` raises
+  the after-close error below.
 - **`samples_from_handle()` tasks** are added only by `enqueue_task()` from
   code running inside an attempt that has not ended (`_attempt` set and
   `ended` false), which becomes the creator: a solver, scorer or tool, a
@@ -379,8 +396,9 @@ class PortRequest:
   task's, and its creator's own slot is counted. A record whose channel
   closes before any sample was sent ends with no log and no attempt, so a
   handle that is never used costs nothing. Its model controller is created
-  by `enqueue_task()` before the record is committed, as for any added task
-  ([task-dispatch.md](task-dispatch.md#adding-tasks)). It has no seed, so
+  when its attempt starts, as for any added task
+  ([task-dispatch.md](task-dispatch.md#adding-tasks)); under its creator's
+  model it usually exists already. It has no seed, so
   its attempt sets up no sandbox before its first sample, and the
   dispatcher, which never waits on a setup, starts it as soon as a sample is
   sent.
@@ -431,13 +449,21 @@ class PortRequest:
 - **Settings.** `configure_task()` resolves a fed task's settings before it
   builds the task's logger, so the log's eval config records the values
   that applied:
-  - The sample limits (`message_limit`, `token_limit`, `time_limit`,
-    `working_limit`, `cost_limit`) and error tolerance (`fail_on_error`,
-    `continue_on_fail`, `score_on_error`) are the fed task's own value if it
-    sets one, else the run's, else the default. For every other task the
-    run's value still replaces the task's.
-  - `epochs`, `limit` and `sample_id` are cleared: one epoch, no limit, no
-    selection, whatever the run passes. `--limit` and `--sample-id` choose
+  - The sample limits (`message_limit`, `token_limit` with its
+    `token_limit_type`, `turn_limit`, `time_limit`, `working_limit`,
+    `cost_limit`) and error tolerance (`fail_on_error`, `continue_on_fail`,
+    `score_on_error`) are the fed task's own value if it sets one, else the
+    run's, else the default. For every other task the run's value still
+    replaces the task's.
+  - `epochs`, the epoch reducer, `limit` and `sample_id` are cleared: one
+    epoch, no reducer from the run, no limit, no selection, whatever the run
+    passes. For the reducer, `configure_task()` does not apply the run's
+    reducer argument to a fed task and clears `epochs_reducer` from its eval
+    config along with `epochs`, before resolving the task's own one-epoch
+    configuration; the task's own reducer, if it sets one, is validated and
+    recorded as today. Otherwise a run with `epochs=Epochs(3, "at_least_2")`
+    (or a `pass_at_2` or `pass_k_2` reducer) would refuse every fed task,
+    since such a reducer needs two epochs. `--limit` and `--sample-id` choose
     among the requested tasks' samples; a fed task's samples are chosen by
     its creator, whose own selection already limits what it sends, and a
     run-wide value would silently drop requests (a `--sample-id 3` filters
@@ -495,22 +521,10 @@ class PortRequest:
 
 ### Waits and limits
 
-A fed task takes no `max_tasks` slot, so the search example never waits on a
-slot. Three limits still apply to work that a handle wait depends on, and
-none is lent:
+A fed task takes no `max_tasks` slot, and `result()` waits only on fed
+tasks, so no handle wait needs a slot. Two limits still apply to work that a
+handle wait depends on, and neither is lent:
 
-- **`max_tasks`, for an ordinary added task.** A task that awaits `result()`
-  on a task with its own dataset keeps its slot while it waits, and the
-  awaited task needs one. If every slot is held by a task waiting on a
-  queued task, the run does not progress. Inspect warns once per run when a
-  `result()` wait begins inside an attempt on a queued record with no
-  channel while no slot is free: "task 'search' is waiting on task 'probe',
-  which is queued behind max_tasks=1; if every running task is waiting on a
-  queued task, the run will not progress: raise it while the run goes on
-  with `inspect ctl config --max-tasks N`, or take the result after this
-  task's samples finish". The dispatcher's dispatch waker
-  ([task-dispatch.md](task-dispatch.md#the-dispatcher)) starts the queued
-  task as soon as the limit is raised.
 - **`max_sandboxes`.** A waiting sample keeps its `sandboxes/<provider>`
   permit. `max_sandboxes` is often a hard quota (a cloud account's sandbox
   limit, a cluster's capacity), a sandbox is a live resource rather than
@@ -527,10 +541,11 @@ none is lent:
 - **`max_samples`** is per task, so a task's samples that wait on work its
   own other samples do need room for both.
 
-Both warnings are advice: holders that finish release what they hold. The
+The warning is advice: holders that finish release what they hold. The
 `max_tasks`, `max_samples` and `max_sandboxes` docstrings,
 `docs/parallelism.qmd` and the handle docs in `docs/task-source.qmd` state
-the fed-task exception and the headroom a waiting run needs.
+the fed-task exception to `max_tasks` and the `max_sandboxes` and
+`max_samples` headroom a waiting run needs.
 
 ## Alternatives considered
 
@@ -552,6 +567,14 @@ the fed-task exception and the headroom a waiting run needs.
   refused outside a slot-holding attempt, and rules for a wait that outlives
   its attempt and for nested loans. The use case waits only on fed tasks,
   which need no slot at all.
+- **`result()` on any handle, with a warning for `max_tasks`.** A wait on an
+  ordinary added task keeps the waiter's slot while the awaited task needs
+  one, so a run whose every running task waits on a queued one stops until
+  an operator runs `inspect ctl config --max-tasks N`; Inspect would warn
+  when such a wait begins with no slot free, and would refuse waits inside
+  `TaskSource.next_tasks()`, where nothing starts until the call returns.
+  The use case never waits on an ordinary task, and refusing the wait now
+  leaves room to allow it later without breaking anyone.
 - **No added task counts toward `max_tasks`.** Unbounded: a task that adds
   one fixed-dataset task per sample runs them all at once. A fed task runs
   only what its creator sends, so exempting those alone stays bounded by the
@@ -616,9 +639,9 @@ the fed-task exception and the headroom a waiting run needs.
   limit would abort rollouts already running; a creator that wants that
   calls `cancel()` in a `finally:`.
 - **Refusing waits that would never end** with a process-level wait-for graph
-  over handle waits and task, sandbox and sample permits. It must be
-  re-checked at every blocking event and limit change (a live retune can
-  lower a limit below its use); documented headroom and the warnings cover
+  over handle waits and sandbox and sample permits. It must be re-checked
+  at every blocking event and limit change (a live retune can lower a limit
+  below its use); documented headroom and the `max_sandboxes` warning cover
   the configurations the use case needs.
 
 ## Compatibility and migration
@@ -628,9 +651,10 @@ migration is in [task-dispatch.md](task-dispatch.md#compatibility-and-migration)
 new `TaskHandle`, `TaskEndedError`, `SampleAbandonedError` and
 `samples_from_handle`. Existing `SampleSource` tasks are unchanged: only a
 `HandleChannel` gets `stop()`, and only a task fed through a handle ignores
-the run's `--limit`, `--sample-id` and `--epochs`, resolves its settings
-before the run's, runs once under its creator's model, is exempt from
-`max_tasks` and is left out of `eval_set()`'s result.
+the run's `--limit`, `--sample-id` and `--epochs` (with the run's epoch
+reducer), resolves its settings before the run's, runs once under its
+creator's model, is exempt from `max_tasks` and is left out of
+`eval_set()`'s result.
 
 No eval log schema, viewer type, control-channel or config file changes. A
 fed task appears in `inspect ctl task list` as any task does.
@@ -666,17 +690,21 @@ test touched), with mockllm models; every test that waits is bounded with
     `error` set and the search continues; with the searcher raising after a
     send, the `except` cancels the rollout task and the searcher's error
     propagates;
-  - `result()` of a child added without a channel, queued and running;
-    `cancel()` queued, starting and running; `close()` and `async with`
-    leaving running rollouts to finish;
+  - `result()` on the handle of an ordinary added task raises
+    `RuntimeError` with the message above and leaves the task queued or
+    running, while `cancel()` and `close()` on that handle work; `cancel()`
+    of a fed task queued, in its attempt before `register_eval` and
+    running; `close()` and `async with` leaving running rollouts to finish;
   - the terminal-outcome table row by row: a target whose sent sample's
     setup fails, whose log init fails, cancelled while queued (the
     cancelled-before-start error log), closed before any sample was sent (no
     attempt, no log; the display's task total drops by one, as for a queued
     cancel), and still queued at a latched cancellation (with the waiter in
     a sibling attempt's shielded cleanup);
-  - refusals: a wait in `next_tasks()`; a `samples_from_handle()` task added
-    from `next_tasks()`, returned from a `TaskSource` callback, added after
+  - in `next_tasks()`, a fed task's handle kept from its finished creator:
+    `result()` returns the task's log at once and `enqueue_sample()` raises
+    the after-close `RuntimeError`;
+  - refusals: a `samples_from_handle()` task added from `next_tasks()`, returned from a `TaskSource` callback, added after
     its creator's attempt ended (by a coroutine the creator left running,
     while another task keeps the run open), with `epochs=2`, passed to
     `eval()` and `eval_set()`, as a `PreviousTask`, as a `ResolvedTask` with
@@ -698,15 +726,12 @@ test touched), with mockllm models; every test that waits is bounded with
     task with requests is not started after a latched cancellation; a fed
     task's first sample sent while another task's `task_init` is held
     starts the task at once;
-  - the `max_tasks` warning: a parent at `max_tasks=1` awaiting `result()`
-    of an ordinary child logs it once, naming `inspect ctl config
-    --max-tasks`, and the run completes after that command raises the
-    limit; a wait on a fed task, and a wait with a free slot, log nothing;
-  - headroom: with `max_sandboxes=1`, a parent holding the only sandbox
-    awaits its child's `result()` after its own sample finished, the warning
-    naming `inspect ctl config --max-sandboxes` is logged once per provider
-    when a wait starts with every permit in use, and the run completes after
-    that command raises the limit.
+  - headroom: with `max_sandboxes=1`, a creator sample holding the only
+    sandbox sends a sample to a fed task using the same provider; the
+    warning naming `inspect ctl config --max-sandboxes` is logged once per
+    provider when the send starts with every permit in use, and the run
+    completes after that command raises the limit; a send with a free
+    permit logs nothing.
 - `tests/test_sample_source.py` (tasks fed through a handle):
   - each sent sample runs under the id `send-<token>-<n>` in send order,
     with the token the first 8 characters of the task's id, and its one run
@@ -724,11 +749,16 @@ test touched), with mockllm models; every test that waits is bounded with
     rollout log's eval config records no limit or sample id and one epoch,
     and an ordinary `SampleSource` task in the same run is still filtered
     as today; under `eval()` and in a selection-mode worker;
-  - settings: under a run with `time_limit=10`, `message_limit=5` and
-    `fail_on_error=True`, a fed task that sets `time_limit=60` and
-    `fail_on_error=False` keeps them and takes `message_limit=5`, a fed task
-    that sets none takes all three, and an ordinary task in the same run
-    takes the run's values; a run-level `max_samples=2` does not reach the
+  - under a run with `epochs=Epochs(3, "at_least_2")`, and separately with
+    `pass_at_2` and `pass_k_2`, sending to a fed task succeeds, its log's
+    eval config records one epoch and no reducer from the run, and an
+    ordinary task in the same run keeps the run's three epochs and reducer;
+  - settings: under a run with `time_limit=10`, `message_limit=5`,
+    `turn_limit=5` and `fail_on_error=True`, a fed task that sets
+    `time_limit=60`, `turn_limit=100` and `fail_on_error=False` keeps them
+    and takes `message_limit=5`, a fed task that sets none takes all four,
+    and an ordinary task in the same run that sets `turn_limit=100` takes
+    the run's values, `turn_limit=5` included; a run-level `max_samples=2` does not reach the
     fed task, whose limit comes from its model's pool; a run-level approval
     policy applies to a fed task that sets its own; each rollout log's eval
     config records the values that applied;
@@ -775,16 +805,17 @@ One PR, after step 3 of
 [task-dispatch.md](task-dispatch.md#implementation-plan).
 
 - `_eval/task/enqueue.py` (`TaskHandle`, the errors, `TaskAttempt` and
-  `_attempt`, `fed_task_ids()`, the `next_tasks()` wait refusal, the
-  `max_tasks` and `max_sandboxes` warnings naming their `inspect ctl
-  config` commands, `enqueue_task()` returning handles, passing its creator
+  `_attempt`, `fed_task_ids()`, `result()` refusing a handle whose task is
+  not fed through it, the `max_sandboxes` warning naming its `inspect ctl
+  config` command, `enqueue_task()` returning handles, passing its creator
   and refusing a fed task outside an attempt or with `epochs` above 1),
   `_eval/task/sample_source.py` (`HandleChannel`, `samples_from_handle()`,
   the free `enqueue_sample()` refusal), `_eval/task/run.py` (attach and
   detach the channel where the `SampleEnqueuer` is registered and cleared,
   and mark that enqueuer as the channel's), `_eval/run.py`
-  (`configure_task()` resolving a fed task's settings and clearing its
-  `epochs`, `limit` and `sample_id`; `_attempt` set in `run_one`; the
+  (`configure_task()` resolving a fed task's settings, `turn_limit`
+  included, and clearing its `epochs`, the run's epoch reducer, `limit` and
+  `sample_id`; `_attempt` set in `run_one`; the
   uncounted start step; channels closed with the creator's attempt; no
   retry, and `can_retry=False`, for fed tasks; `channel.stop()` from the
   `cancel_task` callback), `_eval/task/task.py` (the `task_with` refusal),
@@ -812,9 +843,11 @@ tasks), and its sent samples get `send-<token>-<n>` ids with a per-task
 token; and (2026-11-12) `samples_from_handle()` is the name, a fed task may
 be added from any code inside a running attempt, runs one epoch per sent
 sample, resolves its settings before the run's (except `max_samples` and
-the oversight controls), does not decide `eval_set()`'s result, and runs
+the oversight controls), does not decide `eval_set()`'s result, runs
 in a `.json`-logged run as in any other (dropping the 2026-11-03 `.json`
-refusal, whose premise was the per-delivery marker dropped on 2026-11-04).
+refusal, whose premise was the per-delivery marker dropped on 2026-11-04),
+and is the only task `result()` waits on (narrowing "wait for the task to
+end" on any handle).
 
 ## Not this design
 
@@ -832,6 +865,11 @@ refusal, whose premise was the per-delivery marker dropped on 2026-11-04).
   change that handles added tasks under `eval_set()`.
 - Making the logs of tasks added under `eval_set()` pass its log-directory
   check without `log_dir_allow_dirty=True`; it applies to every added task.
-- Detecting waits that cannot finish because task slots or sandbox or
-  `max_samples` permits are held by their own waiters; see the wait-for
-  graph under "Alternatives considered".
+- Detecting waits that cannot finish because sandbox or `max_samples`
+  permits are held by their own waiters; see the wait-for graph under
+  "Alternatives considered".
+- Waiting in-run on an ordinary added task (one with its own dataset)
+  through `result()`, a possible later addition. It needs a rule for the
+  waiting task's `max_tasks` slot (a warning naming `inspect ctl config
+  --max-tasks`, or a lent slot) and for waits inside
+  `TaskSource.next_tasks()`.

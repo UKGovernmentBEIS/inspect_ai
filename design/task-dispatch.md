@@ -26,7 +26,8 @@ setup, so each sample and each `task_cleanup` sees the state its own
 configuration's `task_init` produced.
 
 [task-handles.md](task-handles.md) builds on this queue: handles that let a
-running task wait on the tasks it adds and send them samples.
+running task cancel the tasks it adds, send samples to a task fed through
+its handle and wait for that task's log.
 
 ## Behaviour changes
 
@@ -359,10 +360,11 @@ The design keeps these, and each section below says how:
 6. **Once dispatch ends, nothing more starts.** In one synchronous step the
    queue closes (no additions, no retries published) and every record not yet
    started ends, before the attempt group joins its attempts.
-7. **Sandbox setup, key resolution, cleanup and logger construction never
-   call `os.chdir` or write `os.environ`.** The one directory change left in a
-   run is today's loading of a task from a file ("Setup does not change the
-   process's directory or environment").
+7. **No `os.chdir` or `os.environ` write across an `await`.** Sandbox
+   setup, key resolution and cleanup make none. The two directory changes
+   left in a run are synchronous blocks: the one around a task's
+   `TaskLogger` construction and today's loading of a task from a file
+   ("Setup does not change the process's directory or environment").
 8. **Each `task_cleanup` sees what its own `task_init` bound**, and a sample
    sees its configuration's bindings unless it bound its own.
 
@@ -398,7 +400,7 @@ and `prepare_options`; `eval.py` loses `run_batch`, `run_batches` and
 that `enqueue_task()` reads, adds the seed and runs the dispatcher.
 
 ```python
-TaskPhase = Literal["queued", "starting", "running", "retry_pending", "ended"]
+TaskPhase = Literal["queued", "attempt", "ended"]
 TaskReached = Literal["added", "row_opened", "registered"]   # ordered
 
 @dataclass(eq=False)
@@ -419,12 +421,12 @@ class RunQueue:
     task_names: list[str]             # eval_set_tasks, then each commit's names
     wake: Wake                        # rung by every phase change and addition, waiters or not
     uncounted: int                    # display decrements held until the task screen opens
-    def add(self, resolved: list[ResolvedTask]) -> list[TaskRecord]   # controllers already ensured
+    def add(self, resolved: list[ResolvedTask]) -> list[TaskRecord]
     def find(self, task_id: str) -> TaskRecord | None
     def cancel(self, record: TaskRecord) -> None
     def end(self, record: TaskRecord, log: EvalLog | None) -> None
     def close(self) -> None           # idempotent
-    def end_unstarted(self) -> None   # ends every record no attempt is running for
+    def end_unstarted(self) -> None   # ends every queued record with its stored log
     def end_all(self) -> None         # ends every record not yet ended
 ```
 
@@ -432,8 +434,8 @@ class RunQueue:
 `row_opened` when `task_run` opens the task's display row
 (`display().task(...)`, which every display mode does), `registered` when
 `task_run` calls `register_eval` (after the row). `task_run` moves it forward
-through `on_row_opened()` and `on_registered()`, never back, so a retry that
-is starting after a registered attempt still reads `registered`.
+through `on_row_opened()` and `on_registered()`, never back, so a retry
+whose attempt starts after a registered attempt still reads `registered`.
 
 [task-handles.md](task-handles.md#what-the-handles-add-to-the-run-queue)
 adds a sample channel and a creator to the record, and one start rule to the
@@ -460,11 +462,15 @@ anything is committed:
   ids, checks id uniqueness, applies the eval-level overrides, runs the
   `SampleSource` prerequisite checks, resolves the task's `task:id`
   selectors (`resolve_task_sample_ids`) against the run's task names plus
-  this batch's (see "The run's task names" below), and constructs the `TaskLogger` with the task directory
-  passed explicitly (`TaskLogger(task_dir=...)`, which `git_context()` and
-  `cwd_relative_path()` take as their directory), so no `chdir` is needed.
-  The constructor slices the dataset with the resolved selection, so a
-  selection error (a literal id the dataset lacks) raises here.
+  this batch's (see "The run's task names" below), and constructs the
+  `TaskLogger` inside `with chdir(task_run_dir(task))`, as `prepare_options`
+  does today: the constructor reads `git_context()` and
+  `cwd_relative_path()` against the process directory. With
+  `logger.init()` moved into `task_run`, that block has no `await`, so no
+  other coroutine sees the change (worker threads can, as today and as for
+  task loading). The constructor slices the dataset with the resolved
+  selection, so a selection error (a literal id the dataset lacks) raises
+  here.
 
 Any error raises to the caller and nothing of the batch is added. Then, in
 the same step, it commits: adds the names to the run's set, orders the
@@ -473,16 +479,22 @@ creates each record in `queued` at the end of the queue, registers it with
 the control channel, grows the display's task count (except for the seed,
 which the task screen counts when it opens) and rings `wake`.
 
-**Model controllers before the commit.** Before calling `RunQueue.add`,
-every caller awaits `ensure_controllers(resolved)`: `ensure_model_controller`
-for each task's primary model with the task's generate config merged with
-the run's, as `prepare_options` does today, and nothing under
-`run_samples=False`. So every record's controller exists before any attempt
-starts and before any image build, and an `inspect ctl config
---max-connections` retune reaches it. If the add then raises (the queue
-closed during the await, or a configuration error), the controller stays
-unused, as a controller does today for a task that fails before its first
-`generate`.
+**Model controllers.** `ensure_controllers(resolved)` awaits
+`ensure_model_controller` for each task's primary model with the task's
+generate config merged with the run's, as `prepare_options` does today, and
+does nothing under `run_samples=False`. `eval_run` awaits it for the seed
+before adding it, so the seed's controllers exist before any build. An
+added task's controller is created when its first attempt starts: `run_one`
+awaits `ensure_controllers` for the record right after its move into
+`attempt` (a no-op once the controller exists), before `_run_task`, so
+before the task's `startup_sandboxes` and its own build, and an `inspect
+ctl config --max-connections` retune made during that build reaches it. No
+caller of `RunQueue.add` awaits anything first. The cost: a retune made
+while an added task whose model no other task uses is still queued does not
+reach that task's controller, which is created later at its configured
+ceiling. "Not this design" already accepts that gap for every controller
+created after a retune; a task fed through a handle runs under its
+creator's model, whose controller exists.
 
 **The run's task names.** `RunQueue` is created with the names of
 `eval_set_tasks`, which `_eval_async_inner` already receives: the whole eval
@@ -497,7 +509,7 @@ names.
 Callers: `eval_run` for the seed (errors raise from `eval()`, as today); the
 async `enqueue_task()`, after resolving its argument with
 `_resolve_enqueued_tasks` (errors raise to its caller); `_enqueue_source_tasks`,
-which becomes async, for `TaskSource` callback returns; and the dispatcher
+synchronous as today, for `TaskSource` callback returns; and the dispatcher
 for a `next_tasks()` batch (errors end the run, as today).
 
 **Source returns after close are dropped.** `_enqueue_source_tasks` serves
@@ -505,8 +517,7 @@ for a `next_tasks()` batch (errors end the run, as today).
 after dispatch has closed the queue: an attempt cancelled by Ctrl-C writes
 its `cancelled` log and notifies its source in shielded cleanup, and a
 callback with no checkpoint returns its follow-ups anyway. So
-`_enqueue_source_tasks` reads `queue.closed` first, and again after awaiting
-the controllers, and when it is set logs "dropping <n> task(s) returned by
+`_enqueue_source_tasks` reads `queue.closed` first, and when it is set logs "dropping <n> task(s) returned by
 the task source after the run stopped" and returns without adding; otherwise an add error there would
 escape `notify_task_source`'s callback handler, and `_run_task_screen`,
 which absorbs only cancellation, would replace the run's outcome (the logs
@@ -529,24 +540,24 @@ today; a `next_tasks()` batch is one call too.
 | from | event | to | made by |
 | --- | --- | --- | --- |
 | (none) | `add` | `queued` | `RunQueue.add` |
-| `queued` | cancel | `ended`, with the cancelled-before-start error log | `RunQueue.cancel` |
-| `queued` | dispatch ends | `ended`, no log | `end_unstarted()` |
-| `queued`, `retry_pending` | `run_one` begins for the entry the dispatcher picked | `starting` | `run_one`'s first statement |
-| `starting` | an attempt calls `register_eval` | `running` | `on_registered()`, called by `task_run` right after `register_eval` |
-| `starting`, `running` | `run_one` publishes a retry | `retry_pending` | `run_one` |
-| `retry_pending` | the dispatcher drops the abandoned retry, or dispatch ends | `ended`, with the stored log | dispatcher; `end_unstarted()` |
-| `starting`, `running` | `run_one` returns or raises with no retry | `ended`, with the log `run_one` stored (`None` if none) | `run_one` |
+| `queued`, never registered | cancel | `ended`, with the stored log or the cancelled-before-start error log | `RunQueue.cancel` |
+| `queued` | the dispatcher drops a retry carrying the abandon stamp, or dispatch ends | `ended`, with the stored log (`None` if none) | dispatcher; `end_unstarted()` |
+| `queued` | `run_one` begins for the record the dispatcher picked | `attempt` | `run_one`'s first statement |
+| `attempt` | `run_one` publishes a retry | `queued`, with the attempt's log stored | `run_one` |
+| `attempt` | `run_one` returns or raises with no retry | `ended`, with the log `run_one` stored (`None` if none) | `run_one` |
 | any but `ended` | the attempt group has exited | `ended`, with the stored log | `end_all()` |
 
-`starting` means `run_one` is running for the record and the current attempt
-has not registered: it is initialising the log, seeding prior samples and
-writing the header. The move into `starting` is `run_one`'s first statement,
-not the dispatcher's pick: if the record ended between the pick and that
+`queued` holds a first attempt and a retry alike, both waiting for a pick; a
+retry is the one with a stored `log`. `attempt` means `run_one` is running
+for the record. The move into `attempt` is `run_one`'s first statement, not
+the dispatcher's pick: if the record ended between the pick and that
 statement (a cancel, or dispatch ending), `run_one` gives the slot back and
-returns. So a record is never left in `starting` by an attempt that never ran
+returns. So a record is never left in `attempt` by an attempt that never ran
 (an AnyIO task cancelled before its first step runs none of its body).
-A record whose retry is starting after a registered attempt is `starting`
-with `reached == "registered"`, so it is already out of the queued registry.
+Registration is `reached`, not a phase: an attempt that has not reached
+`register_eval` is initialising the log, seeding prior samples and writing
+the header. A retry whose attempt starts after a registered attempt has
+`reached == "registered"`, so it is already out of the queued registry.
 Handles and the control channel show `queued` until the first registration,
 then the `EvalState`.
 
@@ -556,14 +567,15 @@ queued row and by a handle's `cancel()`, is synchronous:
 - `ended`: nothing.
 - `reached == "registered"`: today's control-channel task cancel,
   `cancel_task(task_id)` (`_control/cancel.py`), which aborts a running
-  attempt or abandons a pending retry, exactly as `inspect ctl task cancel`
+  attempt or abandons a pending retry (the dispatcher drops it and the
+  record ends with its stored log), exactly as `inspect ctl task cancel`
   does today.
-- `queued`, never registered: `RunQueue.end(record, cancelled_log(record))`.
-  Nothing was initialised, so nothing is discarded.
-- `starting` or `retry_pending`, never registered: today's stamp,
-  `abandon_task_retry(task_id)`, which rings the dispatcher. A pending retry
-  is dropped by the dispatcher and the record ends with its stored log; an
-  attempt starting stops at `task_run`'s stamp checks before `register_eval`
+- `queued`, never registered: `RunQueue.end(record, record.log or
+  cancelled_log(record))`, reporting `retry_abandoned` when `record.log` is
+  set (an earlier unregistered attempt failed and its retry was waiting).
+  A queued record holds no recorder entry, so nothing is discarded.
+- `attempt`, never registered: today's stamp, `abandon_task_retry(task_id)`.
+  The attempt stops at `task_run`'s stamp checks before `register_eval`
   (the last runs with no `await` before it), `run_one` discards whatever
   `init()` allocated, and the record ends with the log an earlier attempt
   stored, or `cancelled_log(record)` if none did. An attempt that returns a
@@ -571,15 +583,13 @@ queued row and by a handle's `cancel()`, is synchronous:
   `run_samples=False`'s `started` log) ends the record with it, and the
   stamp stops any retry.
 
-`cancelled_log(record)` is `unwritten_task_log(logger, TaskCancelledBeforeStart())`
-with its `location` then set to `""`: the same in-memory error log a failed
-log init returns, with status `error`, the message "task cancelled before it
-started", the eval spec the logger built at add, and no file. The location
-is cleared on this log only: an attempt stopped at a stamp check can have
-finished `logger.init()`, and `discard()` removes the file but leaves the
-logger's `_location` set, so `unwritten_task_log` would name a file that no
-longer exists. A storage-error log keeps the destination location it reports
-today. So a task cancelled before it
+`cancelled_log(record)` is `unwritten_task_log(logger, TaskCancelledBeforeStart())`:
+the same in-memory error log a failed log init returns, with status `error`,
+the message "task cancelled before it started", the eval spec the logger
+built at add, and no file. Its `location` is empty: a queued record's logger
+has none, and `discard()` resets it ("A task's log starts with its
+attempt"), so an attempt stopped at a stamp check after `logger.init()`
+reports none either. So a task cancelled before it
 starts gives `eval()` one log like any other task, and code that judges a
 run by its logs (`all_evals_succeeded`, selection mode) sees a failure.
 Under `eval_set(retry_immediate=False)` such a cancel of a requested task is
@@ -626,15 +636,19 @@ retry-abandon check and before prior-log seeding and `log_start()`.
 still detaches the old attempt's live state and releases an unfinished
 attempt's recorder entry (keeping its destination), but no longer calls
 `init()`: the retry's own `task_run` does. `TaskLogger.discard()` on a logger
-that holds no entry does nothing.
+that holds no entry does nothing, and `discard()` ends by resetting the
+location to `None`, after its own warnings have named it. Nothing reads a
+logger's location after `discard()`: `run_one` reads it only when
+`destination_written` is true, before it decides the retry, and every log
+`run_one` stores was built before the discard.
 
 **A logger with no location.** `init()` assigns the location only when
 `recorder.log_init()` returns, and a failure can come before that (the
 check against existing logs, `_bump_created_past_existing_logs()`, or
 `log_init()` itself, whose recorder tracks the entry only after it is set
 up). So `TaskLogger._location` starts
-as `None` at construction and `reinit()` resets it to `None`, so a retry
-never reports its predecessor's file as its own. Its readers handle it:
+as `None` at construction, and `reinit()` and `discard()` reset it to
+`None`, so a retry never reports its predecessor's file as its own. Its readers handle it:
 
 - `TaskLogger.location` returns `str | None`.
 - `TaskLogger.destination_written` returns `False` while the location is
@@ -673,7 +687,7 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
         try:
             source_done = task_source is None
             loop:
-                drop pending retries whose task carries the abandon stamp
+                drop queued retries whose task carries the abandon stamp
                     (each ends its record with its stored log)
                 while not cancelled and in_flight < effective_max_tasks(parallel):
                     entry = pick_balanced(startable entries)
@@ -686,10 +700,7 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
                 if idle:
                     more = await task_source.next_tasks()  # inline, as on today's live path
                     if not more: source_done = True        # None or [], as today
-                    else:
-                        resolved = resolve(more)
-                        await ensure_controllers(resolved)
-                        queue.add(resolved)
+                    else: queue.add(resolve(more))
                     continue
                 await queue.wake
         finally:
@@ -700,10 +711,10 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
 - **The dispatcher never awaits a sandbox setup.** Each attempt sets up its
   own selected samples' sandboxes, the way a `SampleSource` addition is set
   up today ("Sandbox setup in the attempt" below).
-- **Start rule.** An entry is a record in `queued` or a pending retry, and
-  it is startable when no control-channel pause holds it
+- **Start rule.** A record in `queued` (a first attempt or a retry) is
+  startable when no control-channel pause holds it
   (`task_dispatch_paused`, as today's dispatch loops check). The dispatcher
-  takes the earliest startable entry among the least-used models, so at
+  takes the earliest startable record among the least-used models, so at
   `max_tasks == 1` sequence grouping holds.
 - **Wakers.** The dispatcher registers `queue.wake.set` with
   `add_dispatch_waker` (`_control/pause.py`) for the run and removes it when
@@ -715,7 +726,8 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
   awaits `reinit()` and appends the retry at the back of the queue under the
   record's index. The retry's attempt skips the configurations already set
   up in the run and sets up again any whose `task_init` failed. A cancel or
-  drain while a retry waits abandons it through the stamp.
+  drain while a retry waits ends it: at once when no attempt registered,
+  otherwise through the stamp.
   `task_retry_attempts` is one run-wide value: `eval()`'s argument (default
   0), `eval_set()`'s `retry_attempts` (default 10) when `retry_immediate` is
   on (the default) and 0 otherwise, and 0 in a selection-mode worker; there
@@ -742,9 +754,7 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
   the source without calling the resolver, and an exception the call raises
   ends the run, both as today. The call runs inside `_run_task_screen`, so a
   Ctrl-C while it blocks is absorbed like one during a task, and a
-  cancellation of the run cancels it. The dispatcher marks the call with a
-  `ContextVar`, which handle waits read
-  ([task-handles.md](task-handles.md#what-is-refused)).
+  cancellation of the run cancels it.
 - **End of dispatch.** The `finally` runs inside the attempt group's body,
   so it runs before the group joins its attempts, on every exit: the source
   done, a latched cancellation (an attempt returned no log or a `cancelled`
@@ -759,11 +769,11 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
   accepted as an ordinary `queued` record and ended unrun by the sweep below
   when the `finally` runs; one made after it is refused. `close()` refuses
   every later addition and retry. `end_unstarted()` ends every `queued`
-  record with no log and every `retry_pending` record with its stored log,
-  which settles every handle wait on them at once, including waits in
+  record with its stored log (`None` for one never attempted), which
+  settles every handle wait on them at once, including waits in
   shielded code such as `Task.cleanup` and hooks of cancelled samples, which
-  would otherwise hold the group's join open. Records in `starting` or
-  `running` are left to `run_one`.
+  would otherwise hold the group's join open. Records in `attempt` are left
+  to `run_one`.
 - **After the group exits**, `eval_run`'s `finally` calls `queue.close()` and
   `queue.end_all()`, which ends any record still open with its stored log:
   one whose `run_one` raised, and every record when a failure came before
@@ -880,10 +890,11 @@ their cancels are not refused.
 ### Setup does not change the process's directory or environment
 
 `chdir` and `environ_vars` are removed from setup, key resolution and
-cleanup, and the `chdir` around `TaskLogger` construction goes too
-("Adding tasks"). Every provider call then runs in the launch directory with
-the process's own environment, as `sample_init` does today. One directory
-change stays, unchanged: loading a task from a file
+cleanup. Every provider call then runs in the launch directory with the
+process's own environment, as `sample_init` does today. Two synchronous
+directory changes stay: the `chdir` around a task's `TaskLogger`
+construction, which no longer contains an `await` ("Adding tasks"), and
+loading a task from a file
 (`enqueue_task("path/tasks.py@name")`, or a seed given as a file) goes
 through `load_file_tasks()` and `create_file_tasks()`, whose `chdir_python`
 blocks change the directory and `sys.path` so the file's local imports and
@@ -1293,7 +1304,7 @@ test that waits on a run is bounded with `fail_after`.
   reporting an abandoned retry; the same with a cancellation from
   a scope around `eval_async()` and with a `debug_errors` exception; an
   attempt cancelled before its first step (the dispatcher's pick followed at
-  once by a cancel of the record) leaves no record in `starting`; every record
+  once by a cancel of the record) leaves no record in `attempt`; every record
   has ended when `eval_async()` returns or raises.
 - `tests/test_enqueue_task.py` (setup in the attempt; stub provider whose
   `task_init` blocks on an event or fails on demand): at `max_tasks=2`, a
@@ -1313,17 +1324,18 @@ test that waits on a run is bounded with `fail_after`.
   and adaptive connections; two `mockllm` names share one pool and do not
   test this), an `inspect ctl config --max-connections` retune made while
   the first task's `task_init` is held sets both controllers' ceiling; a
-  task added by `enqueue_task()` has its controller before its first
-  attempt starts; an `enqueue_task()` whose add fails after its controllers
-  were ensured (the queue closed during the await) raises and adds nothing.
+  task added by `enqueue_task()` on a model no other task uses gets its
+  controller when its first attempt starts, before its `task_init`, and a
+  retune made while that `task_init` is held reaches it.
 - `tests/test_enqueue_task.py` (retention): while a long-running task keeps
   the run open, it adds sandbox tasks that end by finishing, by a cancel
   while queued and by a final failed retry; a `weakref` to each ended task's
   `Task` and dataset is dead after `gc.collect()`, while the sandbox
   configuration they set up is still registered for the run's cleanup.
-- `tests/test_enqueue_task.py` (live fixes): a run stalled at `max_tasks=1`
-  (a task awaiting `result()` of an ordinary child it added) completes
-  after `inspect ctl config --max-tasks 2`; a queued task paused with
+- `tests/test_enqueue_task.py` (live fixes): at `max_tasks=1`, a long seed
+  task holds the only slot and a task it added waits behind it; `inspect
+  ctl config --max-tasks 2` starts the added task while the seed task still
+  runs; a queued task paused with
   `inspect ctl task pause` is skipped while the task behind it starts, and
   starts after `inspect ctl task resume`.
 - `tests/test_enqueue_task.py` (loader exception): a solver's
@@ -1363,16 +1375,17 @@ test that waits on a run is bounded with `fail_after`.
   second round's queued record whose first round left a terminal
   `EvalState` act on and describe the queued record, which is skipped while
   paused and starts after resume; a
-  cancel of a `starting` record stops it before `register_eval`, landing
-  before the first stamp check and while `log_start()` is held, and after
-  `logger.init()` succeeded and its storage was discarded the record's log
-  has an empty `location`, for `.eval` and `.json` logs, while a storage
-  failure's error log (the control) keeps its destination location; a cancel of a
-  record whose unregistered attempt failed and whose retry is pending keeps
-  the stored log; a cancel of a `starting` record with no stored log ends it
-  with the cancelled-before-start error log; a second cancel changes nothing;
+  cancel of a record in its attempt before `register_eval` stops it, landing
+  before the first stamp check and while `log_start()` is held, and when it
+  lands after `logger.init()` succeeded and its storage was discarded, the
+  record's log has an empty `location`; a cancel of a queued record whose
+  unregistered attempt failed and whose retry is waiting ends it at once
+  with the stored log and reports `retry_abandoned: true`; a cancel of an
+  unregistered attempt with no stored log ends it with the
+  cancelled-before-start error log; a second cancel changes nothing;
   under `eval_set(retry_immediate=False)` a second round's queued record is
-  listed once, a cancel or drain of it (and of a `starting` one) answers 409
+  listed once, a cancel or drain of it (and of one in its unregistered
+  attempt) answers 409
   naming `process pause` and changes nothing, and a task added during the
   round is still cancelled; with another task keeping the run open, a queued
   record cancelled before it starts lowers the task total by one under the
@@ -1419,9 +1432,7 @@ state in the single `eval_run`), so the setup fixes come first.
    `resolve_task_file_sandbox` through the helper),
    `_eval/task/sandbox.py` (`resolve_sandbox` through the helper; no `chdir`
    in key resolution), `_eval/run.py` (`SandboxManager` without `chdir` and
-   `environ_vars`), `_eval/task/log.py`, `_util/git.py` and
-   `_util/path.py` (the task directory passed explicitly),
-   `docs/extensions-sandboxes.qmd`. Tests: `test_sandbox_setup.py`,
+   `environ_vars`), `docs/extensions-sandboxes.qmd`. Tests: `test_sandbox_setup.py`,
    `test_retry.py`, the Docker tests.
 2. **Provider state per setup.** `_eval/run.py` (`SandboxManager` runs each
    `task_init` in the chained context and records each configuration's
@@ -1434,18 +1445,21 @@ state in the single `eval_run`), so the setup fixes come first.
 3. **One queue and one dispatcher; logs start with their attempt; queued
    tasks in the control channel.** `_eval/task/enqueue.py` (`RunQueue`,
    `TaskRecord`, async `enqueue_task()` still returning `None`),
-   `_eval/run.py` (`configure_task()`, `ensure_controllers()`,
+   `_eval/run.py` (`configure_task()` with the `chdir` kept around the
+   logger's construction, `ensure_controllers()` for the seed and at an
+   added task's first attempt,
    `dispatch_tasks()` with the inline `next_tasks()` call and its dispatch
-   waker, `run_one`'s move into `starting` and closed checks, the run's task
+   waker, `run_one`'s move into `attempt` and closed checks, the run's task
    names seeded from `eval_set_tasks`, `startup_sandboxes` and the record's
    resolution cache for every task; `prepare_options`, `TaskInjection`,
    `PreparedFeed`, `_empty_feed` removed), `_eval/eval.py` (one `eval_run`),
    `_eval/task/run.py` (`logger.init()` at the start of `task_run`; the
-   seed's `startup_sandboxes` call after the task-start hooks; async
-   `_enqueue_source_tasks`; `on_row_opened()` and `on_registered()`;
+   seed's `startup_sandboxes` call after the task-start hooks;
+   `on_row_opened()` and `on_registered()`;
    `unwritten_task_log` with no location; `TaskCancelledBeforeStart`),
    `_eval/task/log.py` (`reinit()` without `init()`, `discard()` without an
-   entry, a `location` of `None` until `log_init()` returns),
+   entry and resetting the location, a `location` of `None` until
+   `log_init()` returns),
    `_control/queued_tasks.py` (new; the queued registry and the legacy-round
    flag), `_control/eval_state.py`, `_control/cancel.py`,
    `_control/pause.py` (queued pause and resume), `_control/state.py`,
@@ -1488,8 +1502,10 @@ way `SampleSource` additions are set up, inside its `max_tasks` slot
 (replacing the 2026-11-03 and 2026-11-05 decisions to set up beside the
 dispatcher and outside the slot, whose evidence was rollout tasks, which
 now take the handle path), that a sample resolves its config again rather
-than keeping a per-sample key, that controllers are created before a record
-is committed, and that a task cancelled before it starts ends with an
+than keeping a per-sample key, that the seed's controllers are created
+before it is added and an added task's when its first attempt starts, that
+a record has three phases with registration tracked apart, that the `chdir`
+stays around the synchronous construction of a task's logger, and that a task cancelled before it starts ends with an
 in-memory error log, with such cancels refused under legacy `eval_set()`
 rounds.
 
