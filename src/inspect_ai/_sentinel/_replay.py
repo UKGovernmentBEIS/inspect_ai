@@ -968,7 +968,12 @@ class _Driver:
     def _take_checks(self, call: _Call) -> None:
         """Pair a native call with the first of its recorded checks no earlier call took, in log order.
 
-        A call its approver refused never ran, so takes no result check.
+        A call that never ran takes no result check, which is then a later
+        call's under its id: one its approver refused, or one rejected before
+        its step was built (invalid or malformed arguments, an unknown tool),
+        which has a parsing or approval error and no check of the call. A
+        tool that raised such an error itself ran after that check, and keeps
+        its result check.
         """
         event = call.event
         if _bridged(event):
@@ -981,7 +986,12 @@ class _Driver:
         call.before_span = self._tool_span_of(
             ("tool_call", event.id), call.produced_at, begin
         )
-        if end is not None and not _approval_refused(call.approval):
+        never_ran = _approval_refused(call.approval) or (
+            call.before_span is None
+            and event.error is not None
+            and event.error.type in ("parsing", "approval")
+        )
+        if end is not None and not never_ran:
             call.after_span = self._tool_span_of(
                 ("tool_result", event.id), end, ending=event.failed is True
             )

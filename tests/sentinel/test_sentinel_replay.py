@@ -9529,6 +9529,108 @@ def test_an_approver_refused_call_leaves_a_later_same_id_call_its_result_check(
     }
 
 
+def _nested(depth: int) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for _ in range(depth):
+        value = {"deeper": value}
+    return value
+
+
+# a first call that never runs, each rejected another way; the model then
+# corrects it under the same id, as a provider that repeats ids sends it
+NEVER_RAN: dict[str, ToolCall] = {
+    "invalid_arguments": ToolCall(
+        id="call_0", function="keep", arguments={"payload": "bad"}
+    ),
+    "malformed_json": ToolCall(
+        id="call_0",
+        function="keep",
+        arguments={},
+        parse_error="Error parsing the following tool call arguments: {",
+    ),
+    "too_deep": ToolCall(
+        id="call_0", function="keep", arguments={"payload": _nested(101)}
+    ),
+    "unknown_tool": ToolCall(id="call_0", function="missing", arguments={}),
+}
+
+
+@pytest.mark.parametrize("watched", ["calls_and_results", "results"])
+@pytest.mark.parametrize("rejected", list(NEVER_RAN))
+def test_a_call_that_never_ran_leaves_a_later_same_id_call_its_result_check(
+    rejected: str, watched: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # after Ransom's review 5869595286: a call rejected before it ran took the
+    # result check, and the person's answer, of the corrected call under its id
+    Panel("approve", "the corrected call is fine").install(monkeypatch)
+
+    @tool
+    def keep() -> Tool:
+        async def execute(payload: dict[str, Any]) -> str:
+            """Keep a payload.
+
+            Args:
+                payload: The payload to keep.
+            """
+            return "kept"
+
+        return execute
+
+    def proposes(call: ToolCall) -> ModelOutput:
+        return ModelOutput(
+            model="mockllm/model",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(content="", tool_calls=[call]),
+                    stop_reason="tool_calls",
+                )
+            ],
+        )
+
+    corrected = ToolCall(id="call_0", function="keep", arguments={"payload": {}})
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="Keep the payload")],
+            solver=[use_tools(keep()), generate()],
+            sentinel=[
+                *([r7_probe(seen, copies=True)] if watched != "results" else []),
+                h_ask("tool_result", ["approve"]),
+            ],
+        ),
+        model=outputs(proposes(NEVER_RAN[rejected]), proposes(corrected), done()),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    assert log.location and log.location.endswith(".json")
+    first, ran = [e for e in logged_sample(log).events if isinstance(e, ToolEvent)]
+    assert first.id == ran.id == "call_0"
+    assert first.error is not None and first.error.type == "parsing"
+    assert first.failed is None
+    assert ran.error is None and ran.arguments == {"payload": {}}
+
+    # read back from the log: the corrected call keeps its result check, the
+    # person's answer at it, and that decision in the steps after it
+    read = read_eval_log(log.location)
+    replay = (
+        # with nothing recording the live steps, there are none to compare
+        replayed(read)
+        if watched == "results"
+        else assert_logged_replay_equals_live(read, seen)
+    )
+    [result] = [step for step in replay if step.stage == "tool_result"]
+    assert isinstance(result.step, AfterToolCall)
+    assert result.step.call.arguments == {"payload": {}}
+    assert dict(result.recorded_answers) == {
+        "human": HumanAnswer(decision="approve", reason="the corrected call is fine")
+    }
+    later = [step.step for step in replay if step.stage == "model_input"][-1]
+    assert [
+        (decision.step_id, decision.stage) for decision in later.human_decisions or []
+    ] == [("call_0", "tool_result")]
+
+
 @pytest.mark.parametrize("error", [ToolParsingError, ToolApprovalError])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 def test_a_concurrent_agent_s_refused_same_id_call_leaves_a_call_its_result_check(
