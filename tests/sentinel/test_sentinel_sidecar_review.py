@@ -12,6 +12,7 @@ from typing import Any, cast
 import anyio
 import httpx2
 import pytest
+from tenacity import wait_none
 from test_helpers.stand_in_sidecar import (
     _MODEL_ROUTES,
     ENDPOINT,
@@ -53,6 +54,7 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
+from inspect_ai.model._providers.anthropic import AnthropicAPI
 from inspect_ai.model._providers.util.hooks import HttpxHooks
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
 from inspect_ai.tool import Tool, ToolCall, ToolCallView, tool
@@ -124,6 +126,8 @@ class ReviewingSidecar(StandInSidecar):
     """The judge model's usage, added up over the call, that every `request_result` about a paused call gives, as the sidecar does."""
     error_lost: bool = False
     """Whether the try that is sent on is answered with the sidecar's own "pending review" when the provider fails it, and not with the provider's error: what Inspect holds when a try of its was answered while another was with the provider."""
+    sdk_retries: bool = True
+    """Whether the provider's SDK may retry a provider's error on a try that is sent on. Without, the error comes back to Inspect, as `x-should-retry: false` makes it."""
     holds: list[tuple[float, float]] = field(default_factory=list)
     """For each request of a paused call, in order: how long the proxy holds it before answering, and how much of that the sentinel spent judging it, in seconds."""
 
@@ -197,7 +201,10 @@ class ReviewingSidecar(StandInSidecar):
             paused.turn = turn
             paused.state = "decided"
             paused.judgment = {"outcome": "proceed", "steps": []}
-        return _MODEL_ROUTES[paused.route](turn, bool(asked.get("stream")), asked)
+        replied = _MODEL_ROUTES[paused.route](turn, bool(asked.get("stream")), asked)
+        if turn.status != 200 and not self.sdk_retries:
+            replied.headers["x-should-retry"] = "false"
+        return replied
 
     def _held(
         self, request: httpx2.Request, response: httpx2.Response
@@ -1280,6 +1287,81 @@ def test_a_reviewed_call_counts_only_the_models_time_in_its_sends(
     assert event.output.time == event.working_time
     assert sample.working_time is not None
     assert model_time - 0.1 <= sample.working_time < model_time + 0.35
+
+
+def test_a_reviewed_call_inspect_retries_counts_only_its_own_judging(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Person("approve").install(monkeypatch)
+    # Inspect retries at once, so the test needn't wait
+    monkeypatch.setattr(AnthropicAPI, "retry_wait", lambda self: wait_none())
+    # The sentinel judges the request 0.3 seconds before it asks. The
+    # provider fails the request the sidecar sends on, and its error is got
+    # from the sidecar. Inspect retries the call under its id, and that try
+    # is sent on and held 0.8 seconds, 0.2 of them judging its reply.
+    stand_in = ReviewingSidecar(
+        pauses=["tool_result"],
+        turns=[Turn(status=529), Turn(text="Sunny.")],
+        sdk_retries=False,
+        holds=[(0.3, 0.3), (0.0, 0.0), (0.0, 0.0), (0.8, 0.2)],
+    )
+
+    sample = _sample(_run(stand_in, solver=generate()))
+
+    # the retry is charged its own model time; the earlier judging was
+    # waiting already, with the attempt it was in
+    assert stand_in.holds == []
+    assert sample.output.completion == "Sunny."
+    event = _model_events(sample)[-1]
+    assert event.working_time is not None
+    assert 0.5 <= event.working_time < 0.85
+
+
+def test_a_reviewed_call_that_fails_counts_only_the_models_time_in_its_sends(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Person("approve").install(monkeypatch)
+    # The request sent on after the person approved is retried by the
+    # provider's SDK after a 529, with the SDK's own wait, and that try is
+    # held 0.3 seconds and refused by the provider. Its error is got from
+    # the sidecar, and the sample fails on it.
+    stand_in = ReviewingSidecar(
+        pauses=["tool_result"],
+        turns=[Turn(status=529), Turn(status=403)],
+        holds=[(0.3, 0.3), (0.0, 0.0), (0.3, 0.0), (0.0, 0.0)],
+    )
+
+    log = _run(stand_in, solver=generate(), fail_on_error=False)
+
+    sample = _sample(log)
+    assert sample.error is not None and "403" in sample.error.message
+    assert stand_in.holds == []
+    # the SDK's wait before its last try is waiting, whatever the call came to
+    assert sample.working_time is not None
+    assert 0.2 <= sample.working_time < 0.6
+
+
+def test_a_rejected_call_counts_only_the_models_time_before_the_person(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Every try of the paused call loses its connection before the sidecar's
+    # "pending review" comes back, so it is never sent again. The person
+    # takes a second to reject it.
+    Person("reject", takes=1.0).install(monkeypatch)
+    stand_in = ReviewingSidecar(
+        pauses=["tool_call"], turns=[_OSLO, Turn()], pending_lost=10
+    )
+
+    sample = _sample(_run(stand_in))
+
+    # the call's own time is its lost try's, and the person's isn't in it
+    assert stand_in.held_reply_requests == []
+    event = _model_events(sample)[0]
+    assert event.working_time is not None and event.output.time is not None
+    assert event.working_time < 0.3
+    assert event.output.time == event.working_time
+    assert sample.working_time is not None
+    assert sample.working_time < 0.5
 
 
 # --- a call Inspect gives up on -----------------------------------------------

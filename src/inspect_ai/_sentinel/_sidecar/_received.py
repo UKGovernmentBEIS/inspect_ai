@@ -193,6 +193,8 @@ class ReceivedCall:
         """When the latest try of the latest attempt's request went out, on the sample clock."""
         self.sends: list[Send] = []
         """The latest attempt's sends, in order, once one has come back an error that the sidecar was asked about. A call a person was asked about is sent more than once in one attempt, and only its sends are the model's time: the time between them is the person's and the sidecar's."""
+        self.judging_before_attempt = 0.0
+        """For a call a person was asked about, the sidecar's judging time for it when the latest attempt began, which earlier attempts were credited with."""
         self.judging_noted: dict[str, float] = {}
         """The sidecar's judging time for each request id of the call, as last given. The sidecar gives the time added up over the call, so what was added since is the judging of the send that came back last."""
 
@@ -253,6 +255,11 @@ def begin_attempt() -> None:
         received.model_sends = 0
         received.error_stands = False
         received.sends = []
+        received.judging_before_attempt = (
+            received.judging_noted.get(received.reviewed_id, 0.0)
+            if received.reviewed_id is not None
+            else 0.0
+        )
 
 
 HELD_REPLY_PATH = "/sentinel/v1/held-reply"

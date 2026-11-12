@@ -28,7 +28,9 @@ def count_judging_as_waiting(
 ) -> float:
     """Count the time a sidecar spent judging an agent call as waiting, not as the agent's working time, as a sentinel's time is in Inspect's process.
 
-    Called once the call is done, whatever it came to, and before its attempts are committed: committed, the attempts' time would be work that a wait can't take back. The proxy held the call's last attempt while the sidecar judged it, so the time is taken from the end of that attempt, or, for a call a person was asked about that was sent more than once, from the end of each send, and from the call's `ModelEvent`: its working time and its output's `time`, which then hold the model's own time, as for a call judged in process. Nothing is counted where the sidecar wasn't asked, as for a call cancelled in flight, since waiting for its answer here would hold up the cancellation.
+    Called once the call is done, whatever it came to, and before its attempts are committed: committed, the attempts' time would be work that a wait can't take back. The proxy held the call's last attempt while the sidecar judged it, so the time is taken from the end of that attempt, and from the call's `ModelEvent`: its working time and its output's `time`, which then hold the model's own time, as for a call judged in process. Nothing is counted where the sidecar wasn't asked, as for a call cancelled in flight, since waiting for its answer here would hold up the cancellation.
+
+    A call a person was asked about is sent more than once, and the proxy held each send while the sidecar judged it, so each send's judging is taken from its end. The time outside its sends, the person's among it, is counted as waiting too.
 
     Args:
         received: What is kept of the call, with the sidecar's answer once it was asked.
@@ -41,25 +43,43 @@ def count_judging_as_waiting(
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.log._transcript import transcript
 
-    looked = received.looked if received is not None else None
-    if looked is None or not looked.judging_time or attempts.last_attempt is None:
+    if received is None or attempts.last_attempt is None:
         return 0.0
-    assert received is not None
-    if received.reviewed_id is not None and len(received.sends) > 1:
-        # A call a person was asked about was sent more than once, and the
-        # proxy held each send while the sidecar judged it. Each send's
+    start, end = attempts.last_attempt
+    if received.reviewed_id is not None and received.sends:
+        # A call a person was asked about: only its sends were the model's
+        # time. The time before, between and after them went to the
+        # provider SDK's own retries, the person and the sidecar's judging
+        # with no send open, whatever the call came to. Each send's
         # judging is taken from its end.
+        sends = received.sends
+        gaps = [
+            (start, sends[0].start),
+            *((before.end, after.start) for before, after in zip(sends, sends[1:])),
+            (sends[-1].end, end),
+        ]
+        for gap_start, gap_end in gaps:
+            if gap_end > gap_start:
+                _waited(attempts, gap_start, gap_end)
         judging = 0.0
-        for send in received.sends:
+        for send in sends:
             judged = min(send.judging, send.end - send.start)
             if judged > 0:
-                _judged_until(attempts, send.end - judged, send.end)
+                _waited(attempts, send.end - judged, send.end)
                 judging += judged
     else:
-        start, end = attempts.last_attempt
-        # never more than the attempt the proxy held
-        judging = min(looked.judging_time, end - start)
-        _judged_until(attempts, end - judging, end)
+        looked = received.looked
+        if looked is None or not looked.judging_time:
+            return 0.0
+        # The sidecar adds the time up over a call a person was asked about,
+        # which Inspect may retry under the same id: what earlier attempts
+        # were credited with was waiting already. Never more than the
+        # attempt the proxy held.
+        judging = min(
+            max(looked.judging_time - received.judging_before_attempt, 0.0),
+            end - start,
+        )
+        _waited(attempts, end - judging, end)
     if not judging:
         return 0.0
     if isinstance(event, ModelEvent):
@@ -72,32 +92,20 @@ def count_judging_as_waiting(
     return judging
 
 
-def _judged_until(attempts: ModelAttempts, start: float, end: float) -> None:
-    # the sidecar judged the call over [start, end] while the proxy held it
+def _waited(attempts: ModelAttempts, start: float, end: float) -> None:
+    # the call waited on something other than the model over [start, end]
     add_sample_wait(start, end, completed=False)
     attempts.exclude(start, end)
 
 
-def time_of_sends(attempts: ModelAttempts, attempt_start: float) -> float | None:
-    """The time an agent call a person was asked about spent in its sends, with the time before and between them counted as waiting.
+def time_of_sends() -> float | None:
+    """The time the current agent call spent in its sends, if a person was asked about it, or None for any other call, whose time is that of its successful request.
 
-    The call was sent again after the person answered, and the time between its sends went to the person and to the sidecar's judging after the answer. The time before its first send's last try went to the provider SDK's own retries, as for any call. None for any other call, whose time is that of its successful request.
-
-    Args:
-        attempts: The call's attempts, not yet committed.
-        attempt_start: When the attempt started, on the sample clock.
+    The call was sent more than once, or once and then answered from what the sidecar decided. The time outside its sends went to the provider SDK's own retries, the person and the sidecar's judging after the answer, and `count_judging_as_waiting` counts it as waiting.
     """
     from ._received import current_receiving
 
     received = current_receiving()
-    if received is None or received.reviewed_id is None or len(received.sends) < 2:
+    if received is None or received.reviewed_id is None or not received.sends:
         return None
-    gaps = [(attempt_start, received.sends[0].start)] + [
-        (before.end, after.start)
-        for before, after in zip(received.sends, received.sends[1:])
-    ]
-    for start, end in gaps:
-        if end > start:
-            add_sample_wait(start, end, completed=False)
-            attempts.exclude(start, end)
     return sum(send.end - send.start for send in received.sends)

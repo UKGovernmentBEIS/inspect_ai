@@ -1925,8 +1925,6 @@ class Model:
             # the error of the attempt's latest send after its first, which
             # is then the attempt's error in place of the first send's
             sent_again_error: Exception | None = None
-            # whether the attempt was sent more than once
-            sent_again = False
 
             async def send_again() -> (
                 ModelOutput | tuple[ModelOutput | Exception, ModelCall]
@@ -1935,9 +1933,8 @@ class Model:
                 # sentinel sidecar paused while a person decided, once or
                 # more. What the earlier send streamed is dropped, and so is
                 # an earlier send's error.
-                nonlocal sent_again_error, sent_again
+                nonlocal sent_again_error
                 sent_again_error = None
-                sent_again = True
                 stream_observer.discard_partial_output()
                 try:
                     # the first send's timeouts are spent, so this send has
@@ -2095,9 +2092,9 @@ class Model:
             if output.input_context_tokens is None:
                 output.input_context_tokens = usage_input_tokens(output.usage)
 
-            # a call sent again after a person was asked about it took the
-            # time of its sends, and the time between them was the person's
-            sends_took = time_of_sends(attempts, time_start) if sent_again else None
+            # a call a person was asked about took the time of its sends,
+            # and the time outside them was the person's (None for any other)
+            sends_took = time_of_sends()
 
             # update output with time (call.time captures time spent
             # on the actual request that succeeds w/ status 200)
