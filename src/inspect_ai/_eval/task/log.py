@@ -823,7 +823,9 @@ class TaskLogger:
         self._seeded_pending.discard(_seeded_key(sample.id, sample.epoch))
         if self._buffer_db is not None:
             self._buffer_db.complete_sample(
-                sample.summary(), sample_metadata=sample.metadata
+                sample.summary(),
+                sample_metadata=sample.metadata,
+                sample_store=sample.store,
             )
 
         # flush=False leaves the sample in the recorder's buffer for whichever
