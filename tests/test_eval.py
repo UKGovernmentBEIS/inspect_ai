@@ -1,12 +1,16 @@
 import functools
+import importlib.util
+import linecache
 import logging
 import os
+import sys
 import tempfile
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Callable, Literal, NoReturn, cast
 from unittest import mock
 
@@ -20,6 +24,7 @@ from inspect_ai import (
     TaskSource,
     eval,
     eval_async,
+    eval_retry,
     eval_set,
     task,
     task_source,
@@ -27,6 +32,8 @@ from inspect_ai import (
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe, datetime_now_utc
+from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.module import load_module
 from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 from inspect_ai.dataset import Sample
 from inspect_ai.hooks._hooks import Hooks
@@ -1433,6 +1440,255 @@ def test_eval_set_task_instance_warns_once(caplog) -> None:
     )
 
 
+_SAME_NAME_TASK = """
+@{decorator}(name="{name}")
+def {fn}() -> Task:
+    return Task(dataset=[Sample(input="{fn}")])
+"""
+
+_SAME_NAME_TASK_CLASS = """
+@task(name="{name}")
+class {fn}(Task):
+    def __init__(self) -> None:
+        super().__init__(dataset=[Sample(input="{fn}")])
+"""
+
+
+def _write_task_module(
+    path: Path, name: str, *fns: str, template: str = _SAME_NAME_TASK
+) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "import inspect_ai\n"
+        "from inspect_ai import Task, task\n"
+        "from inspect_ai.dataset import Sample\n"
+        + "".join(template.format(name=name, fn=fn, decorator="task") for fn in fns)
+    )
+    return path
+
+
+def _import_task_module(
+    monkeypatch: pytest.MonkeyPatch, path: Path, module_name: str
+) -> ModuleType:
+    # in sys.modules (unlike load_module), as a normal import is
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, module_name, module)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _eval_input(tasks: Any, log_dir: Path) -> str:
+    log = eval(tasks, model="mockllm/model", log_dir=str(log_dir))[0]
+    assert log.status == "success"
+    assert log.samples
+    return str(log.samples[0].input)
+
+
+@pytest.mark.parametrize("decorator", ["task", "inspect_ai.task"])
+def test_eval_task_function_same_name_in_other_file_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, decorator: str
+) -> None:
+    # name lookup (and so eval_retry()) would find `second`
+    name = f"eval_same_name_other_file_{decorator.replace('.', '_')}"
+    first_path = _write_task_module(tmp_path / "a" / "tasks.py", name, "first")
+    first_path.write_text(first_path.read_text().replace("@task(", f"@{decorator}("))
+    first = _import_task_module(monkeypatch, first_path, f"{name}_first")
+    _import_task_module(
+        monkeypatch,
+        _write_task_module(tmp_path / "b" / "tasks.py", name, "second"),
+        f"{name}_second",
+    )
+
+    with pytest.raises(PrerequisiteError, match="registered by more than one task"):
+        eval(first.first, model="mockllm/model")
+
+
+def test_eval_task_function_same_name_twice_in_one_file_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tasks = _import_task_module(
+        monkeypatch,
+        _write_task_module(
+            tmp_path / "tasks.py", "eval_task_function_dup_in_file", "first", "second"
+        ),
+        "eval_dup_in_file",
+    )
+    with pytest.raises(PrerequisiteError, match="registered by more than one task"):
+        eval(tasks.first, model="mockllm/model")
+
+
+def test_eval_task_function_from_file_loaded_twice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _write_task_module(
+        tmp_path / "tasks.py", "eval_task_function_file_loaded_twice", "first"
+    )
+    tasks = _import_task_module(monkeypatch, path, "eval_file_loaded_twice")
+    load_module(path)
+
+    assert _eval_input(tasks.first, tmp_path / "logs") == "first"
+
+
+def test_eval_task_class_same_name_outside_sys_modules_runs_name_lookup(
+    tmp_path: Path,
+) -> None:
+    # load_module doesn't add to sys.modules, so these classes have no
+    # identifiable source file; eval() runs what name lookup finds
+    name = "eval_task_class_same_name_outside_sys_modules"
+    first = load_module(
+        _write_task_module(
+            tmp_path / "a" / "tasks.py", name, "First", template=_SAME_NAME_TASK_CLASS
+        )
+    )
+    load_module(
+        _write_task_module(
+            tmp_path / "b" / "tasks.py", name, "Second", template=_SAME_NAME_TASK_CLASS
+        )
+    )
+
+    log_dir = tmp_path / "logs"
+    assert _eval_input(first.First, log_dir) == _eval_input(name, log_dir)
+
+
+def test_eval_task_function_same_definition_runs_name_lookup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a decorator stacked on @task, and a second closure from the same factory
+    # function, share a definition with the registered task, so eval() runs
+    # what name lookup finds rather than raising
+    path = tmp_path / "tasks.py"
+    path.write_text(
+        """
+import functools
+
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+
+
+def shout(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        t = fn(*args, **kwargs)
+        return Task(dataset=[Sample(input=f"shout {s.input}") for s in t.dataset])
+
+    return wrapper
+
+
+@shout
+@task(name="eval_task_function_stacked")
+def stacked() -> Task:
+    return Task(dataset=[Sample(input="stacked")])
+
+
+def make(input: str):
+    @task(name="eval_task_function_closure")
+    def closure() -> Task:
+        return Task(dataset=[Sample(input=input)])
+
+    return closure
+"""
+    )
+    tasks = _import_task_module(monkeypatch, path, "eval_same_definition")
+    first_closure = tasks.make("first")
+    tasks.make("second")
+
+    log_dir = tmp_path / "logs"
+    assert _eval_input(tasks.stacked, log_dir) == _eval_input(
+        "eval_task_function_stacked", log_dir
+    )
+    assert _eval_input(first_closure, log_dir) == _eval_input(
+        "eval_task_function_closure", log_dir
+    )
+
+
+def test_eval_task_function_redefined_in_interactive_cell_runs_name_lookup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # notebook cells have no source file, so eval() runs what name lookup finds
+    name = "eval_task_function_interactive_cell"
+    namespace: dict[str, Any] = {
+        "__name__": "eval_interactive_cells",
+        "task": task,
+        "Task": Task,
+        "Sample": Sample,
+    }
+
+    def run_cell(cell: str, fn: str) -> Any:
+        code = _SAME_NAME_TASK.format(decorator="task", name=name, fn=fn)
+        # IPython registers each cell's source in linecache under its name
+        monkeypatch.setitem(
+            linecache.cache, cell, (len(code), None, code.splitlines(True), cell)
+        )
+        exec(compile(code, cell, "exec"), namespace)
+        return namespace[fn]
+
+    first = run_cell("<cell-1>", "first")
+    run_cell("<cell-2>", "second")
+
+    log_dir = tmp_path / "logs"
+    assert _eval_input(first, log_dir) == _eval_input(name, log_dir)
+
+
+def test_eval_list_with_task_function_then_task_instance(caplog) -> None:
+    # `Tasks` has no mixed-list member, but eval() has always run this list
+    logs = eval(
+        cast(
+            Any,
+            [task_args_warning_check, task_args_warning_check(task_arg="instance")],
+        ),
+        task_args={"task_arg": "function"},
+        model="mockllm/model",
+    )
+    assert [log.status for log in logs] == ["success", "success"]
+    assert [log.eval.task_args["task_arg"] for log in logs] == [
+        "function",
+        "instance",
+    ]
+    records = _task_args_warnings(caplog)
+    assert len(records) == 1, "expected exactly one unconsumed task_args warning"
+    assert "task_arg" in records[0].message
+
+
+def test_eval_list_with_task_function_then_task_instance_no_args_no_warning(
+    caplog,
+) -> None:
+    logs = eval(
+        cast(Any, [task_args_warning_check, task_args_warning_check()]),
+        model="mockllm/model",
+    )
+    assert [log.status for log in logs] == ["success", "success"]
+    assert not _task_args_warnings(caplog)
+
+
+def test_eval_task_function_list_with_task_args_no_warning(caplog) -> None:
+    logs = eval(
+        [task_args_warning_check, task_args_warning_check],
+        task_args={"task_arg": "function"},
+        model="mockllm/model",
+    )
+    assert [log.eval.task_args["task_arg"] for log in logs] == [
+        "function",
+        "function",
+    ]
+    assert not _task_args_warnings(caplog)
+
+
+def test_eval_registered_non_task_function_raises() -> None:
+    @solver(name="eval_non_task_function")
+    def not_a_task() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            return state
+
+        return solve
+
+    with pytest.raises(
+        PrerequisiteError, match="registered as type 'solver', not as a task"
+    ):
+        eval(cast(Any, not_a_task), model="mockllm/model")
+
+
 class _SeedTasks(TaskSource):
     def __init__(self, count: int) -> None:
         self._count = count
@@ -2460,7 +2716,6 @@ def test_retry_resumes_from_own_checkpoint_or_discards_it(
     first, so provisioning starts from an empty dir.
     """
     import inspect_ai.log._samples as samples_module
-    from inspect_ai import eval_retry
     from inspect_ai.log import ProvenanceData, invalidate_samples
     from inspect_ai.util._checkpoint._layout.eval_checkpoints_dir import (
         eval_checkpoints_dir,
