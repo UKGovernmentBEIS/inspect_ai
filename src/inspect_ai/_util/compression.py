@@ -114,8 +114,8 @@ class PieceDecompressor:
     Passes the decompressed bytes to `sink` in pieces of at most `piece_size`
     bytes, however far the data expands, so a caller that handles each piece
     as it arrives holds only one at a time. Multi-frame zstd data is read
-    across its frames. Data after the end of a deflate stream is ignored, as
-    `zlib.decompress` ignores it. Blocking (CPU-bound): run it in a worker
+    across its frames. Bytes after the end of a deflate stream are refused
+    (`zlib.error`). Blocking (CPU-bound): run it in a worker
     thread from async code. `sink` must not refer back to the decompressor:
     garbage collection cannot see into the native zstd writer.
     """
@@ -146,7 +146,11 @@ class PieceDecompressor:
             raise NotImplementedError(f"Unsupported compression method: {method}")
 
     def write(self, data: bytes) -> None:
-        """Decompress the next chunk of the member's data."""
+        """Decompress the next chunk of the member's data.
+
+        Raises:
+            zlib.error: Bytes follow the end of a deflate stream.
+        """
         if self._zstd is not None:
             self._zstd.write(data)
             assert self._zstd_frames is not None
@@ -179,8 +183,7 @@ class PieceDecompressor:
 
         Raises:
             zlib.error: A deflate stream ended before its final block, as
-                `zlib.decompress` raises, or bytes follow the end of the
-                stream.
+                `zlib.decompress` raises.
             zstandard.ZstdError: A zstd frame ended before its last block or
                 its checksum.
         """
