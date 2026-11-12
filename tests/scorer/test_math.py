@@ -890,7 +890,7 @@ async def test_answer_timeout_is_incorrect(monkeypatch: pytest.MonkeyPatch) -> N
 
     assert result is not None
     assert result.value == INCORRECT
-    assert result.reason == "scoring_failed"
+    assert result.reason == "timeout"
     assert result.metadata == {"math_scorer_status": "answer_timeout"}
 
 
