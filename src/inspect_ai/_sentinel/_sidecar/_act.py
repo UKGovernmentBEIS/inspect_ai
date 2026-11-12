@@ -3,14 +3,16 @@
 A sidecar judges a whole turn before Inspect is handed it, and Inspect asks what it decided with `request_result`. A call it rejected is put back into the model's turn, with its id and function only, since an eval is never handed a rejected call's arguments, and answered with an approval error when Inspect would run it; a call it changed is held and runs as changed; a `terminate` ends the sample where an in-process sentinel's would, at the model call or before the turn's calls run.
 """
 
-from collections.abc import Callable
-from typing import Any, Literal, NamedTuple
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 from weakref import WeakKeyDictionary
 
+import anyio
 from pydantic import TypeAdapter
 
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.model._chat_message import ChatMessageAssistant
+from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import (
     ChatCompletionChoice,
     ModelOutput,
@@ -28,7 +30,13 @@ from ._received import Judgment, ReceivedCall, WithheldTurn, current_receiving
 
 _ENDED = "A sentinel in the sidecar ended the sample."
 
+SentAgain = ModelOutput | tuple[ModelOutput | Exception, ModelCall]
+"""What a provider's `generate` returns for a call's request sent again."""
+
 _TOOL_CALL = TypeAdapter(ToolCall)
+
+if TYPE_CHECKING:
+    from inspect_ai.model._response_headers import ResponseHeaders
 
 
 class CallDecision(NamedTuple):
@@ -58,26 +66,67 @@ def take_call_decision(call_id: str) -> CallDecision | None:
 
 
 async def refused_output(
-    model: str, retryable: Callable[[], bool], bridged: Callable[[], bool]
-) -> ModelOutput | None:
+    model: str,
+    retryable: Callable[[], bool],
+    bridged: Callable[[], bool],
+    send_again: Callable[[], Awaitable[SentAgain]] | None = None,
+    response_headers: "ResponseHeaders | None" = None,
+) -> ModelOutput | SentAgain | None:
     """A refusal of the current agent call, as the model output Inspect acts on, or None if the call wasn't refused by a sidecar's decision.
 
     A rejected turn is the model's turn, whose calls are answered with approval errors, as in process. A turn refused because the sample ended is the model's turn if the sidecar was handed one, else empty. An error Inspect retries, such as a 503, isn't looked up while it is retried: the sidecar is asked with `request_result` only of an error Inspect won't retry.
+
+    Where a sentinel in the sidecar asked a person about the call, the call's error is the sidecar's word that the call waits. The person is shown the question, and the call's request is then sent again as the sidecar says: to get the provider's reply the sidecar holds, or for the sidecar to send on to the provider. What the provider's `generate` returns for it is returned in the refusal's place.
 
     Args:
         model: The model's name, for the output.
         retryable: Whether Inspect retries the call's error, as it does an ordinary provider or network failure. Asked only of a call that went through a sidecar, since a provider's `should_retry` can log or raise.
         bridged: Whether the call is a bridged agent's, which runs its own tools.
+        send_again: Sends the call's request again with the provider's client, and returns what the provider's `generate` does. Called only for a call a sentinel in a sidecar asked a person about.
+        response_headers: Where the call's HTTP hooks keep the headers of its latest response, which say whether a response is a provider's error the sidecar served.
+
+    Raises:
+        Exception: The error a request sent again raised, where it stands in place of the call's own.
     """
     # Nothing else is asked of a call that didn't go through a sidecar, or of
     # an attempt that failed before any request of it was sent, which the
     # sidecar never saw.
     received = current_receiving()
-    if received is None or not received.sent or retryable():
+    if received is None or not received.sent:
         return None
-    if received.looked is None:
-        await request_result(received, replied=False)
-    return _refusal(received.judgment, model, bridged())
+    # the error of a request sent again stands, once the sidecar was asked
+    if received.error_stands:
+        return None
+    # A call a person was asked about is one model call at the sidecar, which
+    # says what becomes of it whatever error a try of it got. Any other
+    # call's error that Inspect retries isn't looked up.
+    retried = retryable()
+    if received.reviewed_id is None and retried:
+        return None
+    try:
+        if received.looked is None:
+            await request_result(received, replied=False)
+        if send_again is None or received.reviewed_id is None:
+            return _refusal(received.judgment, model, bridged())
+        from ._review import result_after_review
+
+        after = await result_after_review(
+            received, send_again, retried, response_headers
+        )
+    except anyio.get_cancelled_exc_class():
+        # Inspect gives up on a call cancelled while a person decides
+        from ._review import cancel_open_call
+
+        await cancel_open_call(received)
+        raise
+    if after.reply is not None:
+        return after.reply
+    refusal = _refusal(received.judgment, model, bridged())
+    if refusal is not None:
+        return refusal
+    if after.raised is not None:
+        raise after.raised
+    return after.handed_back
 
 
 async def refusal_after_error(
@@ -98,6 +147,12 @@ async def refusal_after_error(
         return None
     if received.looked is None:
         await request_result(received, replied=False)
+    if received.open:
+        # Inspect has stopped retrying a call a person was asked about, so
+        # nothing waits for it
+        from ._review import cancel_open_call
+
+        await cancel_open_call(received)
     # A sidecar the task requires that keeps no record of the call may have
     # lost the eval in a restart, and what it holds for the attempt may have
     # begun afresh since, so it is never copied, as for a lost sample.

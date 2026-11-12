@@ -167,4 +167,8 @@ async def end_sidecar_sample(sample_uuid: str, cancelled: bool = False) -> None:
     """Tell the sidecars a sample's calls went through that it has ended, after its final scoring; a cancelled sample's aren't told, and drop it at their run expiry."""
     sidecars = task_sidecars()
     if sidecars is not None:
+        # a call a person was asked about that the sample leaves open
+        from ._review import cancel_open_calls
+
+        await cancel_open_calls(sample_uuid)
         await sidecars.end_sample(sample_uuid, tell=not cancelled)

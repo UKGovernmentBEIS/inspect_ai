@@ -1119,6 +1119,7 @@ class Model:
                     through_sidecar.sidecar,
                     through_sidecar.registered_beforehand,
                     through_sidecar.mode,
+                    prepared.input,
                 )
                 if through_sidecar is not None
                 else contextlib.nullcontext()
@@ -1811,8 +1812,79 @@ class Model:
             idle_scope = (
                 anyio.CancelScope() if stream_idle_timeout is not None else None
             )
-            idle_cm = idle_scope if idle_scope is not None else contextlib.nullcontext()
             response_headers = ResponseHeaders()
+
+            async def send(
+                timeout_cm: anyio.CancelScope | contextlib.nullcontext[None],
+                idle_scope: anyio.CancelScope | None,
+            ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+                # One send of the attempt to the provider, under the timeouts
+                # it is given. An attempt has a second send when a sentinel
+                # sidecar paused its call while a person decided
+                # (`send_again` below).
+                assert isinstance(event, ModelEvent)
+                idle_cm = (
+                    idle_scope if idle_scope is not None else contextlib.nullcontext()
+                )
+
+                await stream_observer.begin_attempt(event)
+                # begin_attempt may await the on_stream retry boundary,
+                # during which a concurrent call can reach a limit
+                _check_limits_before_dispatch()
+                if idle_scope is not None:
+                    assert stream_idle_timeout is not None
+                    stream_observer.arm_stall_scope(idle_scope, stream_idle_timeout)
+
+                with (
+                    track_active_model_event(event),
+                    track_response_headers(response_headers),
+                    _observer.track_model_event(event),
+                    model_stream_observer(stream_observer),
+                ):
+                    with timeout_cm, idle_cm:
+                        sent = await self.api.generate(
+                            input=input,
+                            tools=call_tools,
+                            tool_choice=tool_choice,
+                            config=config,
+                        )
+                    # inner scope first: when both fired, the idle scope's
+                    # sharper diagnosis wins
+                    if idle_scope is not None and idle_scope.cancel_called:
+                        raise StreamIdleTimeoutError(stream_idle_timeout)
+                    if (
+                        isinstance(timeout_cm, anyio.CancelScope)
+                        and timeout_cm.cancel_called
+                    ):
+                        raise AttemptTimeoutError(attempt_timeout)
+                return sent
+
+            # the error of the attempt's second send, which is then the
+            # attempt's error in place of the first send's
+            sent_again_error: Exception | None = None
+
+            async def send_again() -> (
+                ModelOutput | tuple[ModelOutput | Exception, ModelCall]
+            ):
+                # Called only by `refused_output`, for an agent call that a
+                # sentinel sidecar paused while a person decided. What the
+                # earlier send streamed is dropped.
+                nonlocal sent_again_error
+                stream_observer.discard_partial_output()
+                try:
+                    # the first send's timeouts are spent, so this send has
+                    # its own
+                    return await send(
+                        anyio.move_on_after(attempt_timeout)
+                        if attempt_timeout is not None
+                        else contextlib.nullcontext(),
+                        anyio.CancelScope()
+                        if stream_idle_timeout is not None
+                        else None,
+                    )
+                except Exception as ex:
+                    sent_again_error = ex
+                    raise
 
             with (
                 trace_action(logger, "Model", f"generate ({str(self)})"),
@@ -1832,47 +1904,22 @@ class Model:
                         else null_execution_observer()
                     )
 
-                    await stream_observer.begin_attempt(event)
-                    # begin_attempt may await the on_stream retry boundary,
-                    # during which a concurrent call can reach a limit
-                    _check_limits_before_dispatch()
-                    if idle_scope is not None:
-                        assert stream_idle_timeout is not None
-                        stream_observer.arm_stall_scope(idle_scope, stream_idle_timeout)
-
-                    with (
-                        track_active_model_event(event),
-                        track_response_headers(response_headers),
-                        _observer.track_model_event(event),
-                        model_stream_observer(stream_observer),
-                    ):
-                        with timeout_cm, idle_cm:
-                            result = await self.api.generate(
-                                input=input,
-                                tools=call_tools,
-                                tool_choice=tool_choice,
-                                config=config,
-                            )
-                        # inner scope first: when both fired, the idle scope's
-                        # sharper diagnosis wins
-                        if idle_scope is not None and idle_scope.cancel_called:
-                            raise StreamIdleTimeoutError(stream_idle_timeout)
-                        if (
-                            isinstance(timeout_cm, anyio.CancelScope)
-                            and timeout_cm.cancel_called
-                        ):
-                            raise AttemptTimeoutError(attempt_timeout)
+                    result = await send(timeout_cm, idle_scope)
                 except Exception as ex:
                     # a sidecar's refusal of an agent call is acted on as the
                     # model's turn, as an in-process sentinel's decision is
                     raised = ex
                     refused = await _refused_or_complete(
                         refused_output(
-                            str(self), lambda: _would_retry(self.api, raised), _bridged
+                            str(self),
+                            lambda: _would_retry(self.api, raised),
+                            _bridged,
+                            send_again,
+                            response_headers,
                         ),
                         stream_observer,
                         event,
-                        lambda: complete(raised, None),
+                        lambda: complete(sent_again_error or raised, None),
                     )
                     if refused is None:
                         # Mark event as failed for uncaught provider exceptions
@@ -1921,15 +1968,30 @@ class Model:
                 failed_call = call
                 refused = await _refused_or_complete(
                     refused_output(
-                        str(self), lambda: _would_retry(self.api, failed), _bridged
+                        str(self),
+                        lambda: _would_retry(self.api, failed),
+                        _bridged,
+                        send_again,
+                        response_headers,
                     ),
                     stream_observer,
                     event,
-                    lambda: complete(failed, failed_call),
+                    lambda: (
+                        complete(sent_again_error, None)
+                        if sent_again_error is not None
+                        else complete(failed, failed_call)
+                    ),
                 )
                 if refused is not None:
                     stream_observer.discard_partial_output()
-                    output = refused
+                    if isinstance(refused, tuple):
+                        # the call sent again, with the record of its request,
+                        # and the attempt ends when that send did
+                        output, call = refused
+                        time_end = sample_clock()
+                        time_elapsed = time_end - time_start
+                    else:
+                        output = refused
 
             # raise error
             if isinstance(output, Exception):
@@ -2556,11 +2618,11 @@ def _model_refusal_message(
 
 
 async def _refused_or_complete(
-    lookup: Awaitable[ModelOutput | None],
+    lookup: Awaitable[ModelOutput | tuple[ModelOutput | Exception, ModelCall] | None],
     stream_observer: ModelStreamObserver,
     event: BaseModel,
     complete_with_error: Callable[[], None],
-) -> ModelOutput | None:
+) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall] | None:
     """A sidecar's refusal of a failed attempt, completing the attempt's event with its error if the lookup is cancelled or fails.
 
     The lookup can wait on a sidecar still judging, so the sample's time limit or an interim-scoring deadline can cancel it, and an unauthorized eval raises: either way the event must not stay pending in the live transcript and the log. It records the attempt's own error; what interrupted the lookup propagates as the sample's. An event an intervention producer (ACP operator-cancel) already completed is left alone.

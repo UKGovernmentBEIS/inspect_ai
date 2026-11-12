@@ -20,6 +20,9 @@ RESULT_WAIT = 30.0
 """How long each `request_result` asks the sidecar to wait while the call is still being judged, in seconds: the longest it waits."""
 
 UNHELD_PAUSE = 0.5
+
+AWAITED_REPLY_ASKS = 10
+"""How many times the sidecar is asked again, `UNHELD_PAUSE` apart, about a call a person was asked about whose try came back as an error while the sidecar still awaits the provider's reply. The sidecar says the provider failed only once the error's whole body has passed, which takes a moment."""
 """How long to wait before asking again when the sidecar answered that it is still judging without holding the answer, in seconds."""
 
 
@@ -35,16 +38,28 @@ SAMPLE_FAILURES: tuple[type[Exception], ...] = (
 """The errors a call through a sidecar raises to fail its sample, which a sandbox-bridged agent must not be handed as a provider's error to retry."""
 
 
+class Failure(NamedTuple):
+    """A failed exchange with the provider, as the sidecar tells it of a call a person was asked about."""
+
+    try_number: int
+    """Which try of the call was sent on to the provider and failed, which tells a failure Inspect has acted on from a new one."""
+    status: int | None
+    """The status of the provider's error, or None for a reply that was cut off."""
+
+
 class Looked(NamedTuple):
     """What `request_result` said of the call's latest attempt."""
 
-    state: Literal["decided", "not_judged", "unavailable"]
+    state: Literal["decided", "not_judged", "unavailable", "awaiting_request"]
+    """`awaiting_request` is of a call a person was asked about, which the sidecar keeps as one model call: it waits for the same request, to send it on to the provider."""
     reason: str | None = None
     """Why the call wasn't judged, or why the judgment is unavailable."""
     judgment: Judgment | None = None
     """What the sidecar decided, once decided."""
     records: str | None = None
     """What the sidecar said of its records of the call, when it said."""
+    failure: Failure | None = None
+    """The provider's last failed exchange, with `awaiting_request`, where the sidecar waits for the request because that exchange failed."""
 
 
 async def request_result(received: ReceivedCall, replied: bool) -> Looked:
@@ -70,6 +85,9 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
     sidecar = received.sidecar
     if sidecar is None or received.request_id is None:
         return Looked("unavailable", "the call's request id is not known")
+    # a sidecar that puts no question to the eval is read as before it could
+    reviews = bool(getattr(sidecar, "review", False)) and not replied
+    awaited = 0
     with suspend_token_limit(), suspend_turn_limit(), suspend_working_limit():
         while True:
             asked = time.monotonic()
@@ -86,24 +104,68 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                 return Looked("unavailable", str(ex))
             records = result.get("records")
             if records != "held":
+                from ._review import reviews_unavailable
+
+                reviews_unavailable(received, str(records))
                 return Looked(
                     "unavailable",
                     f"the sidecar's records are {records}",
                     records=str(records),
                 )
+            # what became of each question asked about the call, for the log
+            # and for a person whose answer wasn't used
+            from ._review import note_reviews
+
+            note_reviews(received, result)
             state = result.get("state")
             if state == "decided":
+                _ended(received)
                 judgment = result.get("judgment")
                 if not isinstance(judgment, dict):
                     return Looked("unavailable", "the sidecar gave no decision")
                 # a judgment this Inspect can't read is never taken for none
                 return Looked("decided", judgment=parse_judgment(judgment))
             if state == "not_judged":
+                _ended(received)
                 return Looked("not_judged", str(result.get("reason")))
+            if reviews and state == "awaiting_review":
+                # A sentinel asked a person about the call. The sidecar keeps
+                # the call as one model call from here, and no connection
+                # waits: the person is shown the question, and the sidecar is
+                # asked again once they have answered.
+                from ._review import ask_person, opened
+
+                opened(received)
+                await ask_person(received)
+                continue
+            if reviews and state == "awaiting_request":
+                from ._review import opened
+
+                opened(received)
+                reason = result.get("reason")
+                return Looked(
+                    "awaiting_request",
+                    str(reason) if reason is not None else None,
+                    failure=_failure(result.get("failure")),
+                )
             # the proxy hands a reply to the sidecar before passing it on, and
             # the sidecar is judging it from then: a call that came back with
             # a reply the sidecar still awaits got past the sidecar
             if state == "awaiting_reply":
+                if (
+                    reviews
+                    and received.reviewed_id is not None
+                    and awaited < AWAITED_REPLY_ASKS
+                ):
+                    # A call a person was asked about, whose try came back as
+                    # an error while the provider's answer to a try the
+                    # sidecar sent on is still passing: the body of its
+                    # error, which the sidecar tells of only once it is
+                    # whole. It is asked again shortly, a bounded number of
+                    # times.
+                    awaited += 1
+                    await anyio.sleep(UNHELD_PAUSE)
+                    continue
                 return Looked(
                     "unavailable",
                     "the reply was passed on without the sidecar"
@@ -119,6 +181,25 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
             # isn't asked again at once
             if time.monotonic() - asked < UNHELD_PAUSE:
                 await anyio.sleep(UNHELD_PAUSE)
+
+
+def _ended(received: ReceivedCall) -> None:
+    # a call a person was asked about is held open at the sidecar no longer
+    if received.open:
+        from ._review import ended
+
+        ended(received)
+
+
+def _failure(failure: object) -> Failure | None:
+    if not isinstance(failure, dict):
+        return None
+    number = failure.get("try_number")
+    if not isinstance(number, int):
+        return None
+    reply = failure.get("reply")
+    status = reply.get("status") if isinstance(reply, dict) else None
+    return Failure(number, status if isinstance(status, int) else None)
 
 
 def unjudged_reply(looked: Looked, mode: SentinelProxy, request_id: str | None) -> None:

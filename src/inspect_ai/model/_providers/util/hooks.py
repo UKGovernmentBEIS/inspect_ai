@@ -22,6 +22,8 @@ from shortuuid import uuid
 from inspect_ai._sentinel._sidecar._received import (
     report_request_id,
     report_sent,
+    request_id_to_reuse,
+    use_held_reply_path,
 )
 from inspect_ai._util.constants import HTTP
 from inspect_ai._util.http import parse_retry_after
@@ -122,7 +124,7 @@ class HttpHooks:
         Use `request()` instead, which also removes the entry when the
         request ends.
         """
-        request_id = uuid()
+        request_id = request_id_to_reuse() or uuid()
         self._requests[request_id] = RequestInfo(0, time.monotonic())
         report_request_id(request_id)
         return request_id
@@ -448,6 +450,7 @@ class HttpxHooks(HttpHooks):
             from inspect_ai._sentinel._sidecar._call import sign_context
 
             sign_context(request.headers, str(request.url))
+            use_held_reply_path(request)
 
     async def response_hook(self, response: HttpxResponseLike) -> None:
         message = f'{response.request.method} {response.request.url} "{response.http_version} {response.status_code} {response.reason_phrase}" '
