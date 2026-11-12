@@ -3363,6 +3363,34 @@ def model_roles() -> dict[str, Model | list[Model]]:
     return _model_roles.get()
 
 
+def active_model_event_id() -> str | None:
+    """The `uuid` of the `ModelEvent` for the model call attempt in progress.
+
+    For code that runs inside a model call, such as a `ModelAPI` that wraps
+    another provider's, to link its own records to that call's event.
+
+    The id is set while the provider's `ModelAPI.generate()` runs, in the code
+    it calls and in the tasks it starts. Each attempt records its own
+    `ModelEvent`, so a retry has a new id. A cache read makes no provider call,
+    so no code runs inside it.
+
+    A model call made inside another, such as a wrapper calling a second
+    model, records its own events: while it runs, this returns the inner
+    attempt's id, then the outer attempt's id again. A sentinel's monitor
+    calls and helper calls are model calls of their own too, each with its
+    own events.
+
+    Returns:
+        The event's `uuid`, or `None` outside a model call attempt and in a
+        long-lived task Inspect started during the call and detached from it
+        (such as the batch worker).
+    """
+    from inspect_ai.log._samples import _active_model_event
+
+    event = _active_model_event.get()
+    return event.uuid if event is not None else None
+
+
 active_model_context_var: ContextVar[Model | None] = ContextVar("active_model")
 
 _model_roles: ContextVar[dict[str, Model | list[Model]]] = ContextVar(
