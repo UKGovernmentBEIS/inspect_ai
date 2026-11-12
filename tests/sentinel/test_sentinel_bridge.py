@@ -3731,6 +3731,24 @@ async def test_a_modify_with_arguments_json_cant_carry_fails_the_sample(
         assert isinstance(bridge._failure, RuntimeError)
 
 
+@pytest.mark.parametrize("sandbox", [False, True])
+async def test_an_approvers_modify_json_cant_carry_is_handed_over_without_a_sentinel(
+    sandbox: bool,
+) -> None:
+    """As on `main`: with no sentinel no result is checked, and the scaffold is handed the JSON form."""
+    approved = {"path": "notes.txt", "at": (1, 2)}
+    model = Scripted(calls_output(READ))
+    task = ChatMessageUser(content=TASK)
+    bridge = started_with(sandbox, model.model, AgentState(messages=[task]))
+    bridge.approval = [
+        ApprovalPolicy(rebuilding_approver(replace(READ, arguments=approved)), "*")
+    ]
+
+    output = await generate(bridge, model, [task])
+
+    assert output.message.tool_calls == [replace(READ, arguments=approved)]
+
+
 @pytest.mark.parametrize("by", ["sentinel", "approver"])
 @pytest.mark.parametrize("sandbox", [False, True])
 async def test_a_modify_with_arguments_json_carries_is_handed_over_exactly(

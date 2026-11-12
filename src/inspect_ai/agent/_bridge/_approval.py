@@ -119,9 +119,9 @@ async def apply_bridge_tool_approval(
     Calls are approved in order and evaluation stops at the first non-approval, so a
     human isn't asked to decide on calls that are about to be discarded anyway.
     `terminate` doesn't return, and neither does a `modify` decision that changes the
-    function called or the call's id, or gives arguments JSON can't carry exactly
-    (`_modified_arguments_error`): that is an error in the approver, and fails
-    the sample. An `approve` from an approver that changed the call it was shown in
+    function called or the call's id, or, while a sentinel is active, gives
+    arguments JSON can't carry exactly (`_modified_arguments_error`): that is an
+    error in the approver, and fails the sample. An `approve` from an approver that changed the call it was shown in
     place is a rejection. Both are judged against a snapshot of the call taken
     before review, by the rules native execution uses (`approver_result_error`).
 
@@ -243,8 +243,12 @@ async def apply_bridge_tool_approval(
                         and approval.decision == "modify"
                         and approval.modified is not None
                     ):
-                        error = _modified_arguments_error(
-                            "An approver", approval.modified
+                        # with no sentinel no result is checked, and the
+                        # scaffold is handed the arguments' JSON form, as on main
+                        error = (
+                            _modified_arguments_error("An approver", approval.modified)
+                            if sentinel_active
+                            else None
                         )
                         if error is None and len(reviewed_calls.calls) > 1:
                             error = (

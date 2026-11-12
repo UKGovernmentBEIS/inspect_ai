@@ -263,10 +263,9 @@ class _SavedHandouts(BaseModel):
 
         A checkpoint's writer keeps such a string as it is. Values it
         serializes itself can change: NaN and the infinities become null, and
-        a lone surrogate in a string is escaped, or replaced where the string
-        is a key, so one call id can become another's. The record holds only
-        values JSON carries exactly (a target's call among them, `_as_json`),
-        with NaN and the infinities as JSON's constants.
+        a lone surrogate is escaped, or replaced in a key, so one call id can
+        become another's. The record holds only values JSON carries exactly
+        (`_as_json`), with NaN and the infinities as JSON's constants.
         """
         return json.dumps(self.model_dump())
 
@@ -1359,8 +1358,7 @@ def _as_json(call: ToolCall) -> ToolCall:
     except Exception as ex:
         raise ValueError(
             f"The arguments of a bridged call to '{call.function}' can't be "
-            f"written as JSON, so the call can't be recorded for its result's "
-            f"sentinel check: {ex}"
+            f"written as JSON, so its result can't be checked: {ex}"
         ) from ex
     return replace(call, arguments=arguments)
 
