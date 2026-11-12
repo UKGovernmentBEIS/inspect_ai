@@ -162,6 +162,15 @@ class TestGetModelInfo:
         assert info.organization == "Moonshot AI"
         assert info.context_length == 1048576
 
+    @pytest.mark.parametrize("model", ["mistral-large-4", "mistral-large-4-0"])
+    def test_known_mistral_large_4_model(self, model):
+        """Test lookup of Mistral Large 4 and its alias."""
+        info = get_model_info(f"mistral/{model}")
+        assert info is not None
+        assert info.organization == "Mistral"
+        assert info.model == "Mistral Large 4"
+        assert info.context_length == 1048576
+
     def test_known_deepseek_v4_model(self):
         """Test lookup of a known DeepSeek V4 model."""
         info = get_model_info("deepseek/deepseek-v4-pro")
