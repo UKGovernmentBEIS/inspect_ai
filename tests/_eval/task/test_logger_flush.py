@@ -77,7 +77,7 @@ async def test_flush_during_log_finish_is_serialized() -> None:
             self.torn_down = False
             self.flushes = 0
 
-        async def log_finish(self, *args: object) -> str:
+        async def log_finish(self, *args: object, **kwargs: object) -> str:
             finish_entered.set()
             await release_finish.wait()
             self.torn_down = True  # mirrors `del self.data[key]`

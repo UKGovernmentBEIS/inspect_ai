@@ -23,5 +23,5 @@ The example includes the following source files:
 You can run the example by evaluating the `task.py` file:
 
 ```bash
-inspect eval task.py --model anthropic/claude-3-7-sonnet-latest
+inspect eval task.py --model anthropic/claude-sonnet-5-5
 ```

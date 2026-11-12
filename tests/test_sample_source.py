@@ -27,7 +27,17 @@ from inspect_ai import (
 )
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
-from inspect_ai.log import EvalLog, EvalSample, read_eval_log, read_eval_log_samples
+from inspect_ai.log import (
+    EvalLog,
+    EvalSample,
+    ProvenanceData,
+    TagsEdit,
+    edit_eval_log,
+    list_eval_logs,
+    read_eval_log,
+    read_eval_log_samples,
+    write_eval_log,
+)
 from inspect_ai.scorer import (
     CORRECT,
     SampleScore,
@@ -92,6 +102,185 @@ def test_sample_source_runs_generations_in_one_task() -> None:
     assert ids["s0"] == 1
     added = [ids["s1"], ids["s2"]]
     assert all(isinstance(id, str) for id in added) and len(set(added)) == 2
+
+
+class _GrowThenFailSource(SampleSource):
+    """Seeds 2 samples, then adds 18 more (for the error-log denominator test)."""
+
+    def __init__(self) -> None:
+        self.added = False
+
+    def initial_samples(self) -> list[Sample]:
+        return [Sample(id=f"seed{i}", input="q") for i in range(2)]
+
+    async def next_samples(self) -> list[Sample] | None:
+        if self.added:
+            return None
+        self.added = True
+        return [Sample(id=f"extra{i}", input="q") for i in range(18)]
+
+
+@solver
+def _fail_on_extra2() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if state.sample_id == "extra2":
+            raise ValueError("boom")
+        return state
+
+    return solve
+
+
+def test_sample_source_error_log_keeps_total_samples() -> None:
+    """An eval that errors mid-feed keeps its denominator on the log (#5814).
+
+    `results` is absent (the eval died before scoring), and the dataset spec
+    keeps describing only the seed (retry reuse depends on it), so without the
+    header's running count nothing in the log says how many sample runs the
+    attempt had accepted.
+    """
+    log = eval(
+        Task(dataset=_GrowThenFailSource(), solver=[_fail_on_extra2(), generate()]),
+        model="mockllm/model",
+        max_samples=1,
+        fail_on_error=True,
+        retry_on_error=0,
+    )[0]
+    log = read_eval_log(log.location)
+    assert log.status == "error"
+    assert log.results is None
+    assert log.eval.dataset.sample_ids == ["seed0", "seed1"]
+    assert log.total_samples == 20
+
+
+def test_sample_source_error_log_keeps_total_samples_through_rewrite() -> None:
+    """Rewriting an errored log preserves the denominator (#5814).
+
+    `write_eval_log` rebuilds the header through `log_finish`; without
+    passing the count along, a rewritten log (and the same path used by
+    `inspect log convert` and streaming `inspect score`) silently drops it
+    back to `None`.
+    """
+    log = eval(
+        Task(dataset=_GrowThenFailSource(), solver=[_fail_on_extra2(), generate()]),
+        model="mockllm/model",
+        max_samples=1,
+        fail_on_error=True,
+        retry_on_error=0,
+    )[0]
+    log = read_eval_log(log.location)
+    assert log.total_samples == 20
+
+    with tempfile.TemporaryDirectory() as tmp:
+        rewritten = Path(tmp) / "rewritten.eval"
+        write_eval_log(log, str(rewritten))
+        reread = read_eval_log(str(rewritten))
+        assert reread.status == "error"
+        assert reread.total_samples == 20
+
+        # header-only reads (used for listing/viewer) go through the
+        # streaming header reader; the count must survive it too
+        header = read_eval_log(str(rewritten), header_only=True)
+        assert header.total_samples == 20
+
+        # a persisted header edit (viewer tag/metadata) rewrites only the
+        # header, rebuilt through _eval_log_header; the count must survive it
+        edited_log = edit_eval_log(
+            read_eval_log(str(rewritten), header_only=True),
+            [TagsEdit(tags_add=["edited"])],
+            ProvenanceData(author="test"),
+        )
+        write_eval_log(edited_log, str(rewritten), header_only=True)
+        edited = read_eval_log(str(rewritten))
+        assert "edited" in edited.tags
+        assert edited.total_samples == 20
+
+        # persisted JSON input keeps the count through the JSON header
+        # reader (streaming) and a full read alike
+        json_path = Path(tmp) / "rewritten.json"
+        write_eval_log(log, str(json_path), format="json")
+        assert read_eval_log(str(json_path), header_only=True).total_samples == 20
+        assert read_eval_log(str(json_path)).total_samples == 20
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_sample_source_cancelled_before_completion_log_keeps_total_samples(
+    tmp_path: Path,
+    log_format: Literal["eval", "json"],
+) -> None:
+    """A cancelled eval keeps its accepted-run count, with nothing finished.
+
+    The seed enqueues added work while it is still running (so acceptance is
+    observable without waiting on the feed), both runs park before either
+    completes, and the interrupt lands there: the log must finalize as
+    cancelled, carry no results, and still count both accepted runs.
+    """
+    import os
+    import signal
+    import threading
+    import time
+
+    from inspect_ai import eval as inspect_eval
+
+    seen: set[str] = set()
+    both_parked = threading.Event()
+    eval_returned = threading.Event()
+
+    @solver(name="enqueue_then_park")
+    def enqueue_then_park() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if str(state.sample_id) == "seed0":
+                # enqueue added work from the still-running seed; the feed
+                # loop wakes on enqueue and accepts the run (counting it)
+                # before starting it
+                enqueue_sample(Sample(id="next0", input="q"))
+            seen.add(str(state.sample_id))
+            if len(seen) >= 2:
+                both_parked.set()
+            await anyio.sleep(30)
+            return state
+
+        return solve
+
+    def send_sigint() -> None:
+        both_parked.wait(60)
+        time.sleep(0.5)
+        while not eval_returned.is_set():
+            os.kill(os.getpid(), signal.SIGINT)
+            eval_returned.wait(3)
+
+    sigint_thread = threading.Thread(target=send_sigint, daemon=True)
+    sigint_thread.start()
+
+    class _EnqueueSeed(SampleSource):
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id="seed0", input="q")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            await anyio.sleep(30)
+            return None
+
+    try:
+        inspect_eval(
+            Task(dataset=_EnqueueSeed(), solver=[enqueue_then_park()]),
+            model="mockllm/model",
+            max_samples=2,
+            log_dir=str(tmp_path),
+            log_format=log_format,
+        )
+    except KeyboardInterrupt:
+        pass
+    finally:
+        eval_returned.set()
+    sigint_thread.join(timeout=5)
+
+    log_files = list_eval_logs(str(tmp_path))
+    assert len(log_files) == 1
+    reread = read_eval_log(log_files[0].name)
+    assert reread.status == "cancelled"
+    # no sample completed before the interrupt, so there are no results to
+    # write — the header's count is the only denominator
+    assert reread.results is None
+    assert reread.total_samples == 2
 
 
 def test_sample_source_seed_only_when_next_is_none() -> None:
@@ -256,8 +445,21 @@ def test_sample_source_explicit_and_auto_ids() -> None:
     assert isinstance(ids["auto"], str)
 
 
-def test_sample_source_duplicate_id_errors() -> None:
-    # an injected sample whose id collides with an existing one fails the task
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+@pytest.mark.parametrize("epochs,limit", [(1, None), (2, 5)])
+def test_sample_source_duplicate_id_errors(
+    epochs: int,
+    limit: int | None,
+    log_format: Literal["eval", "json"],
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # an injected sample whose id collides with an existing one fails the
+    # task; a sample admitted earlier in the same batch still counts
+    from inspect_ai._util._async import current_async_backend
+
     class _Dup(SampleSource):
         def __init__(self) -> None:
             self._produced = False
@@ -266,18 +468,30 @@ def test_sample_source_duplicate_id_errors() -> None:
             return [Sample(id=1, input="seed", target="ok")]
 
         async def next_samples(self) -> list[Sample] | None:
+            assert current_async_backend() == backend
             if not self._produced:
                 self._produced = True
-                return [Sample(id=1, input="dup", target="ok")]
+                return [
+                    Sample(id=2, input="extra", target="ok"),
+                    Sample(id=1, input="dup", target="ok"),
+                ]
             return None
 
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     logs = eval(
         Task(dataset=_Dup(), solver=[generate()]),
         model="mockllm/model",
         display="none",
+        epochs=epochs,
+        limit=limit,
+        log_dir=str(tmp_path),
+        log_format=log_format,
     )
-    assert logs[0].status == "error"
-    assert "duplicate" in (logs[0].error.message if logs[0].error else "")
+    log = read_eval_log(logs[0].location)
+    assert log.status == "error"
+    assert "duplicate" in (log.error.message if log.error else "")
+    # the seed and the admitted extra, each for every epoch
+    assert log.total_samples == 2 * epochs
 
 
 @scorer(metrics=[accuracy()])
@@ -2447,6 +2661,97 @@ def test_sample_source_retry_applies_limit_and_epochs_before_publication(
         retried = next(s for s in final.samples or [] if s.id == 3)
         assert retried.error_retries
         assert "retry task" in retried.error_retries[-1].message
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_sample_source_retry_admission_copy_failure_keeps_total_samples(
+    log_format: Literal["eval", "json"],
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A limited retry that fails copying an admitted run's prior record still counts it.
+
+    The run is admitted (and charged to the limit) before its prior record
+    is copied, so the finished log's total must include it even when the
+    copy fails.
+    """
+    from inspect_ai._eval.task.log import TaskLogger
+    from inspect_ai._util._async import current_async_backend
+
+    failing = True
+
+    class Source(SampleSource):
+        def __init__(self) -> None:
+            self.next_id = 2
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id=1, input="q", target="ok")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            if self.next_id > 3:
+                return None
+            id = self.next_id
+            self.next_id += 1
+            return [Sample(id=id, input="q", target="ok")]
+
+    @solver
+    def fail_last_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == 3 and failing:
+                raise RuntimeError("retry task")
+            return state
+
+        return solve
+
+    @task
+    def admission_copy_task() -> Task:
+        return Task(dataset=Source(), solver=fail_last_once())
+
+    log_dir = str(tmp_path / "logs")
+    ok, _ = eval_set(
+        admission_copy_task(),
+        model="mockllm/model",
+        log_dir=log_dir,
+        log_format=log_format,
+        retry_attempts=1,
+        retry_immediate=False,
+        fail_on_error=True,
+        retry_on_error=0,
+        display="none",
+    )
+    assert not ok
+    failing = False
+
+    async def fail_copy(
+        logger: TaskLogger,
+        prior: str | list[EvalSample],
+        keep: set[tuple[str | int, int]],
+    ) -> None:
+        assert current_async_backend() == backend
+        raise OSError("prior log unreadable")
+
+    monkeypatch.setattr(TaskLogger, "seed_added_samples", fail_copy)
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    ok, logs = eval_set(
+        admission_copy_task(),
+        model="mockllm/model",
+        log_dir=log_dir,
+        log_format=log_format,
+        limit=3,
+        retry_attempts=1,
+        retry_immediate=False,
+        retry_on_error=0,
+        display="none",
+    )
+    assert not ok
+    retry = read_eval_log(logs[0].location)
+    assert retry.status == "error"
+    assert retry.error is not None
+    assert "prior log unreadable" in retry.error.message
+    # the seed (1) plus the admitted run (2) whose copy failed
+    assert retry.total_samples == 2
 
 
 def test_sample_source_task_retry_reuses_explicit_epoch_runs() -> None:
