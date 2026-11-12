@@ -117,6 +117,52 @@ def _raw_bytes(path: str, info: zipfile.ZipInfo) -> bytes:
         return file.read(info.compress_size)
 
 
+def _assert_local_header_matches_central(path: str, info: zipfile.ZipInfo) -> None:
+    """The local header's method, CRC and sizes equal the central directory.
+
+    The viewer reads both headers and refuses a member when they disagree.
+    Python's zipfile and AsyncZipReader read only the central directory, so a
+    missed rewrite of the local header would still pass those tests.
+    """
+    with open(path, "rb") as file:
+        file.seek(info.header_offset)
+        header = file.read(30)
+        assert header[:4] == b"PK\x03\x04"
+        flags = int.from_bytes(header[6:8], "little")
+        method = int.from_bytes(header[8:10], "little")
+        crc = int.from_bytes(header[14:18], "little")
+        compress_size = int.from_bytes(header[18:22], "little")
+        file_size = int.from_bytes(header[22:26], "little")
+        name_length = int.from_bytes(header[26:28], "little")
+        extra_length = int.from_bytes(header[28:30], "little")
+        file.read(name_length)
+        extra = file.read(extra_length)
+
+    # data-descriptor flag (bit 3): sizes and CRC would be in a trailer
+    assert flags & 0x08 == 0
+    assert method == info.compress_type
+    assert crc == info.CRC
+
+    zip64 = b""
+    pos = 0
+    while pos + 4 <= len(extra):
+        header_id = int.from_bytes(extra[pos : pos + 2], "little")
+        data_size = int.from_bytes(extra[pos + 2 : pos + 4], "little")
+        field = extra[pos + 4 : pos + 4 + data_size]
+        pos += 4 + data_size
+        if header_id == 0x0001:
+            zip64 = field
+            break
+    offset = 0
+    if file_size == 0xFFFFFFFF:
+        file_size = int.from_bytes(zip64[offset : offset + 8], "little")
+        offset += 8
+    if compress_size == 0xFFFFFFFF:
+        compress_size = int.from_bytes(zip64[offset : offset + 8], "little")
+    assert file_size == info.file_size
+    assert compress_size == info.compress_size
+
+
 @pytest.mark.parametrize("zip64", [False, True])
 async def test_raw_member_writer_copies_members_that_read_back_byte_identical(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, zip64: bool
@@ -154,6 +200,7 @@ async def test_raw_member_writer_copies_members_that_read_back_byte_identical(
                 assert info.compress_type == method
                 assert dst.read(name) == data
                 assert _raw_bytes(target, info) == _raw_bytes(source, src.getinfo(name))
+                _assert_local_header_matches_central(target, info)
             assert dst.read("last.json") == b"last"
             if zip64:
                 assert dst.getinfo("stored.json").file_size > zipfile.ZIP64_LIMIT

@@ -152,6 +152,12 @@ class PieceDecompressor:
             assert self._zstd_frames is not None
             self._zstd_frames.write(data)
         elif self._deflate is not None:
+            # Bytes after the stream end used to be ignored; the merge now
+            # publishes the compressed bytes as they are, so refuse them.
+            if self._deflate.eof and data:
+                raise zlib.error(
+                    "Error -5 while decompressing data: bytes after the end of a deflate stream"
+                )
             while not self._deflate.eof:
                 piece = self._deflate.decompress(data, self._piece_size)
                 if piece:
@@ -160,6 +166,10 @@ class PieceDecompressor:
                 # a full piece may leave more output pending
                 if not data and len(piece) < self._piece_size:
                     break
+            if self._deflate.eof and self._deflate.unused_data:
+                raise zlib.error(
+                    "Error -5 while decompressing data: bytes after the end of a deflate stream"
+                )
         else:
             for start in range(0, len(data), self._piece_size):
                 self._sink(data[start : start + self._piece_size])
@@ -169,7 +179,8 @@ class PieceDecompressor:
 
         Raises:
             zlib.error: A deflate stream ended before its final block, as
-                `zlib.decompress` raises.
+                `zlib.decompress` raises, or bytes follow the end of the
+                stream.
             zstandard.ZstdError: A zstd frame ended before its last block or
                 its checksum.
         """

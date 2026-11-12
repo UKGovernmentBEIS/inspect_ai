@@ -43,8 +43,27 @@ zipfile_compress_kwargs: dict[str, Any] = {
 }
 
 
-# 200 MiB. Well under fzstd's 256 MiB (2^28) compressed-frame overflow
-# threshold, applied to *input* bytes which compress smaller.
+# Keep these zstd settings under the viewer's decoder limits.
+#
+# Shard merge (inspect_ai.log._shards) now copies sample members into the
+# merged log as-is, without recompressing them. A frame written here is
+# the frame the viewer decodes.
+#
+# The viewer worker cannot decode:
+# - A history window over 32 MiB. In
+#   src/inspect_ai/_view/ts-mono/apps/inspect/src/client/remote/zstd-decoder.ts,
+#   MAX_WINDOW_LOG is 25 (2^25 = 32 MiB) at line 8, and scanFrames raises
+#   ZstdWindowSizeError at lines 106-107 when windowSize > 2**25. For a
+#   single-segment frame, the window is the frame's content size (line 105).
+# - A single zstd frame whose compressed size is >= 256 MiB, which overflows
+#   the pure-JS fzstd decoder the worker uses (see the module docstring
+#   above). The viewer does not itself enforce a 200 MiB cap.
+#   _MAX_INPUT_PER_FRAME (200 MiB of uncompressed input) is this writer's
+#   cap, chosen so compressed frames stay under that overflow.
+#
+# Default compresslevel 3 (when compresslevel is None below) selects a
+# window well under 32 MiB. Do not raise the level, set a larger windowLog,
+# or raise _MAX_INPUT_PER_FRAME, without staying under those limits.
 _MAX_INPUT_PER_FRAME = 200 * 1024 * 1024
 
 # Matches zipfile_zstd's hardcoded default so multi-frame and single-frame zip
@@ -179,6 +198,9 @@ def _install_multiframe_patches() -> None:
             # its thread pool every 200 MiB.
             import zstandard
 
+            # Level and (implicit) window: stay under the viewer limits
+            # documented at _MAX_INPUT_PER_FRAME above. The merge copies
+            # these frames as-is, without recompressing them.
             level = 3 if compresslevel is None else compresslevel
             compressor = zstandard.ZstdCompressor(level=level, threads=_ZSTD_THREADS)
             return _MultiFrameZstdCompressObj(compressor.compressobj)

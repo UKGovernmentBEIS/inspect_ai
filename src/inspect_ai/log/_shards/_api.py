@@ -102,6 +102,18 @@ def merge_eval_log_shards(
     names differ from what the shards recorded, but does not compare their
     options.
 
+    Sample members are copied in the compression the shard (or an earlier
+    merged log) already used, without recompressing them. Shards Inspect
+    writes use zstd; a shard written with deflate stays deflate in the
+    merged log. Readers of merged logs, including the viewer, accept both.
+    The merge does not rewrite zstd frame settings. A frame the viewer
+    cannot decode — a history window over 32 MiB, or a single frame of at
+    least 256 MiB compressed, which Inspect's writer avoids by capping
+    each frame at 200 MiB of uncompressed input — is copied as-is and can
+    produce a merged sample the viewer cannot open. Inspect's own writer
+    stays under those limits. An incomplete or skippable zstd frame fails
+    the merge with `zstandard.ZstdError`.
+
     See [Sharding](https://inspect.aisi.org.uk/sharding.html) for the shard
     layout, when a set is complete, selections, scoring, merging shards run
     with `--epochs`, removing shards and limitations.
@@ -134,6 +146,10 @@ def merge_eval_log_shards(
         WriteConflictError: Another merge holds the lock or published first.
             Run the merge again once it has finished. A lock file left by
             a merge that crashed stays until you delete it.
+        zstandard.ZstdError: A sample member's zstd frame is incomplete
+            or skippable.
+        zlib.error: A sample member's deflate stream is incomplete, or
+            bytes follow the end of the stream.
         FileNotFoundError: Neither the merged log nor any shard exists.
         TypeError: `task` is not a `Task`.
         ValueError: Invalid arguments: both `sample_ids` and

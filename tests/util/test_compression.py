@@ -42,17 +42,25 @@ def test_piece_decompressor_bounds_each_piece(method: ZipCompressionMethod) -> N
 
 
 @pytest.mark.timeout(10)
-def test_piece_decompressor_ignores_data_after_a_deflate_stream() -> None:
+def test_piece_decompressor_refuses_data_after_a_deflate_stream() -> None:
     # output spanning several pieces, then bytes past the end of the stream
     data = os.urandom(200 * 1024)
-    compressed = _compress(data, ZipCompressionMethod.DEFLATE) + b"TAIL"
+    compressed = _compress(data, ZipCompressionMethod.DEFLATE)
     pieces: list[bytes] = []
     decompressor = PieceDecompressor(
         ZipCompressionMethod.DEFLATE, pieces.append, piece_size=64 * 1024
     )
+    with pytest.raises(zlib.error, match="bytes after the end of a deflate stream"):
+        decompressor.write(compressed + b"TAIL")
+    assert b"".join(pieces) == data
+
+    pieces.clear()
+    decompressor = PieceDecompressor(
+        ZipCompressionMethod.DEFLATE, pieces.append, piece_size=64 * 1024
+    )
     decompressor.write(compressed)
-    decompressor.write(b"more")
-    decompressor.finish()
+    with pytest.raises(zlib.error, match="bytes after the end of a deflate stream"):
+        decompressor.write(b"more")
     assert b"".join(pieces) == data
 
 
