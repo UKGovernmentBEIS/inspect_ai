@@ -7,7 +7,6 @@ from typing import (
     Literal,
     ParamSpec,
     Protocol,
-    Self,
     Type,
     Union,
     cast,
@@ -25,6 +24,8 @@ from pydantic import (
     model_serializer,
     model_validator,
 )
+from pydantic.annotated_handlers import GetJsonSchemaHandler
+from pydantic_core import CoreSchema
 
 from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.error import PrerequisiteError
@@ -147,7 +148,7 @@ class ScoreEdit(BaseModel):
             return {"answer": None, "explanation": None} | data
         return data
 
-    @model_serializer(mode="wrap", return_type=Self)
+    @model_serializer(mode="wrap")
     def _serialize_score_edit(
         self,
         handler: SerializerFunctionWrapHandler,
@@ -177,6 +178,21 @@ class ScoreEdit(BaseModel):
                 data[field_name] = None
 
         return data
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls,
+        core_schema: CoreSchema,
+        handler: GetJsonSchemaHandler,
+    ) -> dict[str, Any]:
+        """Keep the model schema from reflecting the wrapped serializer's return."""
+        schema = cast(dict[str, Any], core_schema)
+        serialization = schema.get("serialization")
+        if isinstance(serialization, dict):
+            serialization = dict(serialization)
+            serialization.pop("return_schema", None)
+            schema = {**schema, "serialization": serialization}
+        return handler(cast(CoreSchema, schema))
 
 
 class Score(BaseModel):
