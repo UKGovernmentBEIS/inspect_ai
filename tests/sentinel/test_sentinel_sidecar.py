@@ -3097,6 +3097,76 @@ def test_judging_time_past_the_token_limit_is_waiting_where_the_sidecar_answered
         assert judged > unjudged - 0.5
 
 
+@solver
+def _generate_once(seen: list[ModelOutput]) -> Solver:
+    # the output the agent receives from one model call
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        seen.append(await get_model().generate(state.messages, tools=state.tools))
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("judging_time", [None, 0.9], ids=["unjudged", "judged"])
+def test_a_refusal_recovered_once_retries_are_spent_charges_none_of_the_held_attempt(
+    judging_time: float | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The proxy holds the call a second and refuses it with a status Inspect
+    # retries, which isn't looked up until no retries are left. Inspect's retry
+    # loop counts every retryable attempt as waiting, the last one too, so none
+    # of the held second is charged, with or without the sidecar's judging
+    # time. The refusal Inspect recovers has no time of the model's own.
+    from inspect_ai._util.working import ModelAttempts
+
+    committed = 0
+    commit = ModelAttempts.commit
+
+    def counting(self: ModelAttempts) -> None:
+        nonlocal committed
+        committed += 1
+        commit(self)
+
+    monkeypatch.setattr(ModelAttempts, "commit", counting)
+    refused: dict[str, Any] = _REJECTED_WHOLE | {"status": 503}
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(
+                **refused,
+                judging={"judging_time": judging_time} if judging_time else None,
+                delay=1.0,
+            )
+        ]
+    )
+    # no retries in the provider's SDK or in Inspect
+    model = get_model(
+        _MODELS["anthropic"],
+        base_url="http://proxy.test",
+        api_key="test-key",
+        memoize=False,
+        http_client=stand_in.http_client(),
+        max_retries=0,
+    )
+    seen: list[ModelOutput] = []
+    task = Task(
+        dataset=[Sample(input="What's the weather?")],
+        solver=[use_tools(weather()), _generate_once(seen)],
+    )
+
+    [log] = eval(task, model=model, max_retries=0, display="none")
+
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is None
+    [call] = stand_in.model_calls
+    assert _looked_up(stand_in) == [call.headers["x-irid"]]
+    [output] = seen
+    assert not output.empty
+    assert output.time is None
+    assert committed == 1
+    assert sample.total_time is not None and sample.total_time >= 1.0
+    assert sample.working_time is not None and sample.working_time < 0.5
+
+
 def test_a_sample_cancelled_while_the_proxy_holds_its_call_ends_on_its_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
