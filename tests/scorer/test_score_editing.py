@@ -863,9 +863,14 @@ async def test_score_edit_none_fields_round_trip(
     assert fields([e.edit for e in edit_events]) == fields(history[1:])
 
 
+def _score_edit_with_none(field: str) -> ScoreEdit:
+    values: dict[str, Any] = {"value": "C", field: None}
+    return ScoreEdit(**values)
+
+
 @pytest.mark.parametrize("field", ["answer", "explanation", "reason"])
 def test_score_edit_explicit_none_fields_serialize_as_null(field: str) -> None:
-    edit = ScoreEdit(value="C", **{field: None})
+    edit = _score_edit_with_none(field)
 
     dumped = edit.model_dump(mode="json", exclude_none=True)
 
@@ -881,7 +886,7 @@ def test_score_edit_none_fields_respect_field_selection(
     serializer: str,
     selection: str,
 ) -> None:
-    edit = ScoreEdit(value="C", **{field: None})
+    edit = _score_edit_with_none(field)
     kwargs: dict[str, Any] = (
         {"exclude": {field}} if selection == "exclude" else {"include": {"value"}}
     )
@@ -910,7 +915,7 @@ def test_score_edit_none_fields_respect_mapping_selection(
     selected: bool,
     expected_present: bool,
 ) -> None:
-    edit = ScoreEdit(value="C", **{field: None})
+    edit = _score_edit_with_none(field)
     selected_fields = (
         {"value": True, field: selected}
         if selection == "include"

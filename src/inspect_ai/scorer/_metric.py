@@ -7,6 +7,7 @@ from typing import (
     Literal,
     ParamSpec,
     Protocol,
+    Self,
     Type,
     Union,
     cast,
@@ -146,7 +147,7 @@ class ScoreEdit(BaseModel):
             return {"answer": None, "explanation": None} | data
         return data
 
-    @model_serializer(mode="wrap")
+    @model_serializer(mode="wrap", return_type=Self)
     def _serialize_score_edit(
         self,
         handler: SerializerFunctionWrapHandler,
