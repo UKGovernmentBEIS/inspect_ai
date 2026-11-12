@@ -3933,6 +3933,7 @@ class _GatedFS(fsspec.asyn.AsyncFileSystem):
         self.backend_cancelled = False
 
     async def _gate(self) -> None:
+        assert asyncio.get_running_loop() is self.loop
         self.entries += 1
         entry = self.entries
         await self._wait_for(
@@ -4480,17 +4481,24 @@ async def test_async_remote_read_file_bytes_cancelled_receive_keeps_offset(
     assert pinned_fs.cat_ranges == [(start, start + _RANGE)] * 2
 
 
+@pytest.mark.parametrize("extra", [-48, 1], ids=["short", "long"])
 async def test_pinned_read_of_the_wrong_length_raises(
-    pinned_fs: _PinnedFS, ranged_file: bytes
+    pinned_fs: _PinnedFS,
+    ranged_file: bytes,
+    monkeypatch: pytest.MonkeyPatch,
+    extra: int,
 ) -> None:
+    cat_file = pinned_fs._cat_file
+
+    async def wrong_length(path: str, start: int, end: int) -> bytes:
+        data = await cat_file(path, start, end)
+        return data[:extra] if extra < 0 else data + b"!" * extra
+
+    monkeypatch.setattr(pinned_fs, "_cat_file", wrong_length)
     async with AsyncFilesystem() as afs:
         stream = await afs.read_file_bytes(_RANGED_URL, 0, None)
-        # a correct filesystem never does this: the file shrinks, same version
-        pinned_fs.files["bucket/dir/big.bin"] = ranged_file[: 2 * _RANGE - 48]
-        async with stream:
-            assert await stream.receive(_RANGE) == ranged_file[:_RANGE]
-            with pytest.raises(OSError, match="bytes"):
-                await stream.receive(_RANGE)
+        with pytest.raises(OSError, match="bytes"):
+            await stream.receive(_RANGE)
 
 
 async def test_streamed_read_stays_on_one_version(
@@ -4526,6 +4534,29 @@ async def test_filesystem_without_a_pinned_reader_reads_a_range_in_one_call(
         assert await _drain(await afs.read_file_bytes(url, 100, size)) == payload[100:]
         assert await _drain(await afs.read_file_bytes(url, 100, None)) == payload[100:]
     assert gated_fs.cat_ranges == [(100, size), (100, None)]
+
+
+async def test_unpinned_read_starting_past_the_end_raises_the_backends_error(
+    gated_fs: _GatedFS,
+) -> None:
+    gated_fs.release.set()
+    async with AsyncFilesystem() as afs:
+        with pytest.raises(OSError, match="past the end"):
+            await afs.read_file_bytes(_GATED_URL, len(_PAYLOAD), None)
+
+
+async def test_read_file_into_copies_through_a_pinned_reader(
+    pinned_fs: _PinnedFS,
+) -> None:
+    pinned_fs.release.set()
+    dest = io.BytesIO()
+    async with AsyncFilesystem() as afs:
+        await afs.read_file_into("pinnedtest://bucket/dir/a.bin", dest, chunk_size=100)
+    assert dest.getvalue() == _PAYLOAD
+    assert pinned_fs.cat_ranges == [
+        (start, min(start + 100, len(_PAYLOAD)))
+        for start in range(0, len(_PAYLOAD), 100)
+    ]
 
 
 async def test_read_file_into_stays_on_one_version(pinned_fs: _PinnedFS) -> None:

@@ -88,9 +88,9 @@ Once this package is installed, you'll be able to use `myfs://` with Inspect wit
 
 ### Streaming Large Files
 
-When Inspect reads part of a file from an async filesystem (one that derives from fsspec's `AsyncFileSystem`), for example one sample from an eval log, it calls `_cat_file()` once for the whole range and holds the result in memory.
+Some callers read part of a file as a stream, for example a member of a zipped eval log that is parsed as it arrives. On an async filesystem (one that derives from fsspec's `AsyncFileSystem`), Inspect serves such a read by calling `_cat_file()` once for the whole range and holding the result in memory.
 
-A filesystem can have Inspect fetch the range in 8 MiB pieces instead, as the reader consumes them, by defining one optional method that binds a reader to a single version of the file:
+A filesystem can have Inspect fetch the range in 8 MiB pieces instead, as the caller consumes them, by defining one optional method that binds a reader to a single version of the file:
 
 ``` python
 async def _pinned_range_reader(
@@ -106,7 +106,7 @@ The method returns the size of the version it bound, and an `async` function `re
 -   Has the storage service enforce the version on every request, the first included. A metadata check followed by an unconditional request is not enough.
 -   Raises if that version is no longer available. An `OSError` subclass that names the file is recommended; Inspect passes the error on unchanged.
 
-Inspect also reads through the reader when it copies a whole file to local disk, so the copy is of one version.
+Inspect also reads through the reader when it downloads a whole log to a temporary file, so the download is of one version. Reads that Inspect needs whole, such as a ZIP directory or a member read into memory, still call `_cat_file()` once.
 
 Inspect calls the method with the path stripped of its protocol, and runs both it and `read` on the filesystem's own event loop, one call at a time per reader. It may repeat a range after a cancelled read, may hold a reader for a long time, and never closes one. A missing file should raise `FileNotFoundError` from the method.
 
