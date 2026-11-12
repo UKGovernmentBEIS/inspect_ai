@@ -22,6 +22,7 @@ from inspect_ai.tool._tool_call import ToolCall
 
 from ._lookup import (
     lost_sample,
+    record_unasked_usage,
     request_result,
     unjudged_error,
     unknown_to_required,
@@ -149,14 +150,16 @@ async def refusal_after_error(
 
     An error Inspect retries, such as a 503, is not looked up while it is retried; once the retries are spent, the sidecar is asked what it decided.
 
-    An error raised before any request of the attempt was sent stands as it is, and the sidecar is asked nothing: it was never sent the call, so it has no judgment of it to be unavailable, and holds nothing new for the attempt. A provider allocates the call's request id before it builds the request, so an error in the task's configuration or in writing its input has an id the sidecar never saw.
+    An error raised before any request of the attempt was sent stands as it is, and the sidecar is asked nothing of the attempt: it was never sent the call, so it has no judgment of it to be unavailable, and holds nothing new for it. Earlier attempts Inspect retried are still asked about, for their judging usage. A provider allocates the call's request id before it builds the request, so an error in the task's configuration or in writing its input has an id the sidecar never saw.
 
     Raises:
         SampleRefusedError: If the sidecar couldn't place the sample.
         SidecarNotJudgedError: If the sidecar couldn't judge the call for another reason, or the task requires a sidecar and the call's judgment is unavailable.
     """
-    # as in `refused_output`: an attempt that failed unsent is never looked up
+    # as in `refused_output`: an attempt that failed unsent is never looked up,
+    # though earlier attempts that were sent may still have been judged
     if not received.sent:
+        await record_unasked_usage(received)
         return None
     if received.looked is None:
         await request_result(received, replied=False)

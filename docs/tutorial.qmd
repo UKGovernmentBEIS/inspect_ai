@@ -475,7 +475,7 @@ from inspect_ai import eval_set
 
 success, logs = eval_set(
     tasks=[security_guide(), hellaswag(), math()],
-    model=["openai/gpt-6-sol", "anthropic/claude-sonnet-4-6"],
+    model=["openai/gpt-6-sol", "anthropic/claude-sonnet-5-5"],
     log_dir="logs/run-1",     # required, enables retry & resume
 )
 ```

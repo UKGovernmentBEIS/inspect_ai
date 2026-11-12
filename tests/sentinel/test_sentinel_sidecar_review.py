@@ -118,6 +118,8 @@ class ReviewingSidecar(StandInSidecar):
     """How many of the paused call's requests, from the first, lose their connection before the sidecar's "pending review" comes back: every try the provider's SDK makes by itself, for a large enough number."""
     cut_off: bool = False
     """Whether every try that is sent on is cut off at the provider, with Inspect's own try answered with an error that has a status."""
+    judge_usage: dict[str, Any] | None = None
+    """The judge model's usage, added up over the call, that every `request_result` about a paused call gives, as the sidecar does."""
     error_lost: bool = False
     """Whether the try that is sent on is answered with the sidecar's own "pending review" when the provider fails it, and not with the provider's error: what Inspect holds when a try of its was answered while another was with the provider."""
 
@@ -339,6 +341,10 @@ class ReviewingSidecar(StandInSidecar):
                 result["failure"] = paused.failure
         if paused.reviews:
             result["reviews"] = paused.reviews
+        if self.judge_usage is not None:
+            result["judging_usage"] = [
+                {"role": "monitor", "model": "mockllm/judge", "usage": self.judge_usage}
+            ]
         return result
 
     def _pending_questions(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -1190,6 +1196,32 @@ def test_a_call_whose_exchanges_keep_being_cut_off_isnt_sent_again_without_end(
     # call fails by Inspect's own rules
     assert sample.error is not None
     assert len(stand_in.model_calls) == 1 + MODEL_SENDS
+
+
+def test_a_reviewed_calls_judge_usage_is_counted_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Person("approve").install(monkeypatch)
+    # every lookup of the paused call gives the same usage, added up over it
+    stand_in = ReviewingSidecar(
+        pauses=["tool_call"],
+        turns=[_OSLO, Turn()],
+        judge_usage={"input_tokens": 100, "output_tokens": 10, "total_tokens": 110},
+    )
+
+    sample = _sample(_run(stand_in))
+
+    # it was looked up more than once, and its usage is counted once
+    paused_id = stand_in.model_calls[0].headers["x-irid"]
+    looked_up = [
+        call
+        for call in _called(stand_in, "request_result")
+        if call.get("id") == paused_id
+    ]
+    assert len(looked_up) > 1
+    judge = sample.model_usage["mockllm/judge"]
+    assert (judge.input_tokens, judge.output_tokens) == (100, 10)
+    assert sample.role_usage["monitor"].input_tokens == 100
 
 
 # --- a call Inspect gives up on -----------------------------------------------

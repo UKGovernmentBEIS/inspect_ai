@@ -1,12 +1,15 @@
 """What Inspect keeps of an agent call through a sidecar, and the judgment it asks the sidecar for with `request_result`."""
 
 import hashlib
+import math
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
+
+from inspect_ai.model._model_output import ModelUsage
 
 if TYPE_CHECKING:
     from inspect_ai.model._chat_message import ChatMessage
@@ -56,6 +59,61 @@ class Judgment(BaseModel):
     """What the provider billed for a reply the client was refused."""
 
 
+class JudgingUsage(BaseModel):
+    """What the provider billed for a model the sidecar's sentinel called while judging an agent call, on the sidecar's own key."""
+
+    model_config = ConfigDict(extra="allow")
+
+    role: str | None = None
+    """The role the sentinel asked for, or None where it named the model."""
+    model: str
+    """The model, as Inspect names it."""
+    usage: ModelUsage
+    """The usage of the model's calls added up, with their cost where the sidecar knows it."""
+
+
+_COUNTED = ("input_tokens", "output_tokens", "total_tokens")
+"""The counts every entry's `usage` gives, as the sidecar writes them."""
+
+
+def parse_judging_usage(used: Any) -> list[JudgingUsage]:
+    """The usage of the sidecar's judge models, as its `request_result` writes it.
+
+    Absent, it is no usage. Anything else must be a list of entries, each read strictly: a named model, and a role if any, with `usage` that gives its token counts as whole numbers, and every count and the cost a finite number of 0 or more. Anything else can't be read, rather than be taken for other usage, or for none.
+
+    Raises:
+        ValueError: If the usage isn't one this Inspect can read.
+    """
+    if used is None:
+        return []
+    if not isinstance(used, list):
+        raise ValueError(f"The sidecar's judging usage can't be read: {used!r}")
+    entries: list[JudgingUsage] = []
+    for entry in used:
+        try:
+            read = JudgingUsage.model_validate(entry, strict=True)
+        except ValidationError as ex:
+            raise ValueError(f"The sidecar's judging usage can't be read: {ex}") from ex
+        problem = _unreadable(read, entry)
+        if problem is not None:
+            raise ValueError(f"The sidecar's judging usage can't be read: {problem}")
+        entries.append(read)
+    return entries
+
+
+def _unreadable(read: JudgingUsage, entry: dict[str, Any]) -> str | None:
+    # what strict validation lets through that can't be usage
+    if not read.model or read.role == "":
+        return f"an entry names no model or role: {entry!r}"
+    missing = [name for name in _COUNTED if name not in entry["usage"]]
+    if missing:
+        return f"the usage of {read.model} gives no {', '.join(missing)}"
+    for name, value in read.usage.model_dump().items():
+        if value is not None and (not math.isfinite(value) or value < 0):
+            return f"the {name} of {read.model} is {value!r}"
+    return None
+
+
 class ReceivedCall:
     """What Inspect keeps of the latest attempt at an agent call through a sidecar: the id it was sent under, and what the sidecar said of it."""
 
@@ -94,9 +152,9 @@ class ReceivedCall:
         self.held_reply_requested = False
         """Whether a request of the latest attempt went to the sidecar's held-reply path."""
         self.sent_on_model_path = False
+        """Whether the call's request was sent again for the provider since the sidecar last said it waits for it."""
         self.model_sends = 0
         """How many times the latest attempt sent the call's request again for the sidecar to send on to the provider."""
-        """Whether the call's request was sent again for the provider since the sidecar last said it waits for it."""
         self.error_stands = False
         """Whether the sidecar was asked what became of the latest attempt after its last request, and nothing more is to be sent: the error that request came to stands."""
         self.failures: set[int] = set()
@@ -113,6 +171,10 @@ class ReceivedCall:
         """The ids of the questions a person here answered that the sidecar's records could say nothing of, and of which they have been told."""
         self.answered: set[str] = set()
         """The ids of the questions whose answers the sidecar took, or which it holds no longer."""
+        self.usage_recorded: dict[str, dict[tuple[str | None, str], ModelUsage]] = {}
+        """The judge models' usage already recorded for each request id of the call, by role and model. The sidecar gives the usage added up each time it is asked, and a call a person was asked about is asked about more than once under one id, so only what is new is recorded."""
+        self.unasked: list[str] = []
+        """The request ids of earlier attempts that were sent and that Inspect retried without asking the sidecar about them. The sidecar may have judged their requests with its own models, and is asked for that usage once the latest attempt is asked about."""
 
 
 _received: ContextVar[ReceivedCall | None] = ContextVar(
@@ -144,12 +206,21 @@ def receiving_call(
 
 
 def begin_attempt() -> None:
-    """Forget what was learned of an earlier attempt at the current agent call, which a retry supersedes.
+    """Forget what was learned of an earlier attempt at the current agent call, which a retry supersedes, keeping its request id if it was sent and never asked about.
 
     A call a person was asked about keeps its id, and what is known of the questions and the provider's failures for it: its retry is a try of the same model call at the sidecar.
     """
     received = _received.get()
     if received is not None:
+        if (
+            received.sent
+            and received.request_id is not None
+            and received.looked is None
+            # a call a person was asked about keeps its id, and its usage is
+            # asked for under it
+            and received.request_id != received.reviewed_id
+        ):
+            received.unasked.append(received.request_id)
         received.request_id = None
         received.sent = False
         received.looked = None
