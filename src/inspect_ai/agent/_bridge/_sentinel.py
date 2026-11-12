@@ -1330,14 +1330,26 @@ def _shown_key(call: ToolCall) -> str:
     return _parts_digest(_serialized(call))
 
 
+def same_value(a: Any, b: Any) -> bool:
+    """Whether `a` and `b` are one value, as the step digest tells values apart (`_encode`).
+
+    Unlike `json_equal`, 1 and 1.0, `0.0` and `-0.0`, and an object's keys in
+    another order differ. A value that can't be encoded equals nothing.
+    """
+    try:
+        return _encoded(a) == _encoded(b)
+    except Exception:
+        return False
+
+
 def json_exact(arguments: dict[str, Any]) -> bool:
-    """Whether `arguments`, written as JSON and read back, are the same value (`_encode`).
+    """Whether `arguments`, written as JSON and read back, are the same value (`same_value`).
 
     So no tuple, bytes or set, and no subclass of a JSON type. NaN and the
     infinities, as JSON's constants, and lone surrogates are carried.
     """
     try:
-        return _encoded(json.loads(json.dumps(arguments))) == _encoded(arguments)
+        return same_value(json.loads(json.dumps(arguments)), arguments)
     except Exception:
         return False
 
@@ -1347,14 +1359,18 @@ def _as_json(call: ToolCall) -> ToolCall:
 
     A call a provider parsed from JSON is unchanged, and so is one an
     approver or the sentinel modified (`json_exact`). A model's call that
-    Python code built with other values is as a scaffold is handed it (a
-    tuple as a list), or as text where JSON has no form for it.
+    Python code built with other values is as a sandbox bridge's scaffold is
+    handed it, in Pydantic's JSON form (a tuple or a set as a list).
 
     Raises:
         ValueError: The arguments can't be written as JSON (a circular structure).
     """
     try:
-        arguments = json.loads(json.dumps(call.arguments, default=str))
+        arguments = json.loads(
+            json.dumps(
+                call.arguments, default=lambda v: to_jsonable_python(v, fallback=str)
+            )
+        )
     except Exception as ex:
         raise ValueError(
             f"The arguments of a bridged call to '{call.function}' can't be "

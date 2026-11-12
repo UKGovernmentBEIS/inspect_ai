@@ -3627,13 +3627,14 @@ async def test_a_resumed_result_is_checked_with_the_arguments_its_call_was_hande
     assert (after.call.id, after.call.function) == (handed.id, call.function)
 
 
-# values of a model's call that only Python code builds, and each as JSON
-# carries it or, where JSON has no form for it, as text
+# values of a model's call that only Python code builds, and each as a
+# sandbox bridge's scaffold is handed it (Pydantic's JSON form)
 PYTHON_BUILT: dict[str, tuple[Any, Any]] = {
     "tuple": ((1, 2), [1, 2]),
     "counter": (Counter("ab"), {"a": 1, "b": 1}),
-    "bytes": (b"bytes", "b'bytes'"),
+    "bytes": (b"bytes", "bytes"),
     "date": (date(2024, 1, 1), "2024-01-01"),
+    "set": ({1, 2}, [1, 2]),
 }
 
 
@@ -8375,6 +8376,17 @@ async def test_a_repeated_responses_native_call_stays_native(kind: str) -> None:
 # Python `==` takes these for the proposed arguments, JSON does not
 _PROPOSED_NUMBERS = {"payload": {"enabled": 1, "flags": [0]}}
 _APPROVED_BOOLEANS = {"payload": {"enabled": True, "flags": [False]}}
+# arguments as the model gave them and as approved: values a JSON comparison
+# could take for one another. `json_equal` tells only the booleans apart
+_RESPELLED: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
+    "booleans": (_PROPOSED_NUMBERS, _APPROVED_BOOLEANS),
+    "float_to_int": ({"payload": {"offset": 1.0}}, {"payload": {"offset": 1}}),
+    "negative_zero": ({"payload": {"offset": 0.0}}, {"payload": {"offset": -0.0}}),
+    "key_order": (
+        {"payload": {"first": 1, "second": 2}},
+        {"payload": {"second": 2, "first": 1}},
+    ),
+}
 
 
 def _responses_modified_call(
@@ -8389,14 +8401,15 @@ def _responses_modified_call(
     )
     from openai.types.responses.computer_action import Click
 
-    if change == "booleans":
+    if change in _RESPELLED:
+        proposed, approved = _RESPELLED[change]
         item, tool, result, _ = _responses_modified_call(kind)
         if kind == "function":
-            item.arguments = json.dumps(_PROPOSED_NUMBERS)
+            item.arguments = json.dumps(proposed)
             tool["parameters"]["properties"] = {"payload": {"type": "object"}}
         else:
-            item.arguments = _PROPOSED_NUMBERS
-        return item, tool, result, _APPROVED_BOOLEANS
+            item.arguments = proposed
+        return item, tool, result, approved
     elif kind == "custom":
         return (
             ResponseCustomToolCall(
@@ -8505,8 +8518,11 @@ def _responses_native_arguments(param: Any) -> Any:
         ("function", "edit"),
         ("computer", "edit"),
         ("tool_search", "edit"),
-        ("function", "booleans"),
-        ("tool_search", "booleans"),
+        *[
+            (kind, change)
+            for kind in ["function", "tool_search"]
+            for change in _RESPELLED
+        ],
     ],
 )
 async def test_a_modified_responses_call_continues_as_approved(
@@ -8573,8 +8589,75 @@ async def test_a_modified_responses_call_continues_as_approved(
     assert json.dumps(_responses_native_arguments(call)) != json.dumps(
         _responses_native_arguments(original)
     )
-    if change == "booleans":
+    if change in _RESPELLED:
         assert json.dumps(_responses_native_arguments(call)) == json.dumps(approved)
+
+
+@pytest.mark.parametrize("change", ["float_to_int", "key_order"])
+async def test_a_respelled_responses_computer_call_replays_as_cached(
+    change: str,
+) -> None:
+    """The native actions hold integers and named fields, so such arguments convert to the cached item, which keeps its `id`."""
+    from inspect_ai.model._openai_responses import _replayed_item, assistant_internal
+
+    item, _, _, _ = _responses_modified_call("computer")
+    output = await _responses_output(item)
+    [call] = output.message.tool_calls or []
+    cached = cast(dict[str, Any], assistant_internal().tool_calls[item.call_id])
+    [action] = call.arguments["actions"]
+    respelled = (
+        {**action, "coordinate": [float(n) for n in action["coordinate"]]}
+        if change == "float_to_int"
+        else dict(reversed(action.items()))
+    )
+    assert exactly(respelled) != exactly(action)
+
+    replayed = _replayed_item(cached, replace(call, arguments={"actions": [respelled]}))
+
+    assert replayed == cached and replayed["id"] == item.id
+
+
+@pytest.mark.parametrize("change", list(_RESPELLED))
+@pytest.mark.parametrize("provider", ["anthropic", "google"])
+async def test_a_respelled_call_replays_with_its_own_arguments(
+    provider: str, change: str
+) -> None:
+    """Anthropic and Google keep no arguments in their native state: a call replays with its message's."""
+    from unittest.mock import AsyncMock
+
+    from inspect_ai.model._providers.google import content as google_content
+
+    proposed, approved = _RESPELLED[change]
+    if provider == "anthropic":
+        output = await _anthropic_output(
+            [
+                {
+                    "type": "tool_use",
+                    "id": "toolu_1",
+                    "name": "read_file",
+                    "input": proposed,
+                }
+            ]
+        )
+        [call] = output.message.tool_calls or []
+        assert exactly(call.arguments) == exactly(proposed)
+        message = output.message.model_copy(
+            update={"tool_calls": [replace(call, arguments=approved)]}
+        )
+        [blocks] = await _anthropic_wire([message])
+        [replayed] = [block["input"] for block in blocks if block["type"] == "tool_use"]
+    else:
+        message = signed_parallel_output().message
+        first, second = message.tool_calls or []
+        message = message.model_copy(
+            update={"tool_calls": [replace(first, arguments=approved), second]}
+        )
+        parts = (await google_content(AsyncMock(), message)).parts or []
+        signed, _ = [part for part in parts if part.function_call]
+        assert signed.function_call is not None and signed.thought_signature is not None
+        replayed = signed.function_call.args
+
+    assert exactly(replayed) == exactly(approved) != exactly(proposed)
 
 
 @pytest.mark.parametrize(

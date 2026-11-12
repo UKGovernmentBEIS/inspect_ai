@@ -926,7 +926,15 @@ def _item_names_call(param: dict[str, Any], call: ToolCall) -> bool:
 
 
 def _item_carries_arguments(param: dict[str, Any], call: ToolCall) -> bool:
-    """Whether the item, parsed as the provider parses it, has the call's arguments."""
+    """Whether the item, parsed as the provider parses it, has the call's arguments.
+
+    Exactly (`same_value`): arguments JSON carries alike (1 and 1.0, `0.0` and
+    `-0.0`, an object's keys in another order) are other arguments, which the
+    model must be sent.
+    """
+    # deferred: the bridge imports this module
+    from inspect_ai.agent._bridge._sentinel import same_value
+
     match param["type"]:
         case "function_call":
             # as the parse gives a call its arguments, malformed or not: a scalar
@@ -954,7 +962,7 @@ def _item_carries_arguments(param: dict[str, Any], call: ToolCall) -> bool:
                 else []
             )
             parsed = parse_tool_call(call.id, call.function, arguments, parameters)
-            return json_equal(parsed.arguments, call.arguments)
+            return same_value(parsed.arguments, call.arguments)
         case "custom_tool_call":
             return bool(param.get("input") == next(iter(call.arguments.values()), None))
         # with the fields the parse doesn't read, which an item may lack (a
@@ -973,12 +981,14 @@ def _item_carries_arguments(param: dict[str, Any], call: ToolCall) -> bool:
                     }
                 )
             )
+            # the native actions hold integers and named fields, so arguments
+            # JSON carries alike convert to this same item
             return json_equal(parsed.arguments, call.arguments)
         case "tool_search_call":
             parsed = tool_call_from_openai_tool_search_call(
                 ResponseToolSearchCall.model_validate({"id": "", **param})
             )
-            return json_equal(parsed.arguments, call.arguments)
+            return same_value(parsed.arguments, call.arguments)
         case _:
             return True
 
