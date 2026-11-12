@@ -317,6 +317,11 @@ class EvalRecorder(FileRecorder):
         await log.flush(fsync=False)
 
     @override
+    async def write_buffered_samples(self, eval: EvalSpec) -> None:
+        log = self.data[self._log_file_key(eval)]
+        await log.write_buffered_samples()
+
+    @override
     async def log_finish(
         self,
         eval: EvalSpec,
@@ -329,6 +334,7 @@ class EvalRecorder(FileRecorder):
         invalidated: bool = False,
         log_updates: list[LogUpdate] | None = None,
         config_updates: list[ConfigUpdate] | None = None,
+        total_samples: int | None = None,
     ) -> EvalLog:
         await self.close_seed_source(eval)
         # get the key and log
@@ -377,6 +383,7 @@ class EvalRecorder(FileRecorder):
             stats=log_results.stats,
             status=log_results.status,
             error=log_results.error,
+            total_samples=total_samples,
         )
         await log.write(HEADER_JSON, eval_header)
 
@@ -658,6 +665,7 @@ def _eval_log_header(log: EvalLog) -> EvalLog:
         stats=log.stats,
         status=log.status,
         error=log.error,
+        total_samples=log.total_samples,
     )
 
 
@@ -772,6 +780,7 @@ async def _write_eval_log_with_recorder(
         invalidated=log.invalidated,
         log_updates=log.log_updates,
         config_updates=log.config_updates,
+        total_samples=log.total_samples,
     )
     return result.etag
 

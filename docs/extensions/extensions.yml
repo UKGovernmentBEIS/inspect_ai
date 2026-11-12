@@ -190,13 +190,6 @@
   author: "[Lizard](https://github.com/lizard-build)"
   categories: ["Sandboxes"]
 
-- name: "[EC2 Sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox)"
-  description: |
-    Python package that provides a EC2 virtual machine sandbox environment for Inspect.
-  author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox)"
-  categories: ["Sandboxes"]
-
-
 - name: "[Proxmox Sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
   description: Use virtual machines, running within a Proxmox instance, as Inspect sandboxes.
   author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
@@ -234,6 +227,12 @@
   author: "[Runtime](https://github.com/withruntime/runtime)"
   categories: ["Sandboxes"]
 
+- name: "[briq Sandbox](https://github.com/briq-cloud/inspect-briq)"
+  description: |
+    Runs each sample in its own briq microVM, destroyed when the sample ends.
+  author: "[briq](https://github.com/briq-cloud/inspect-briq)"
+  categories: ["Sandboxes"]
+
 
 - name: "[Inspect Costs Plugin](https://github.com/jasongwartz/inspect_costs_plugin/)"
   description: |
@@ -266,3 +265,16 @@
     examples in fewer samples, accessing only the model's logits.
   author: "[Adrians Skapars](https://scholar.google.com/citations?user=9Vf0mWkAAAAJ&hl=en)"
   categories: ["Tooling"]
+
+- name: "[inspect-drex](https://github.com/nace-ai/inspect-drex)"
+  description: |
+    Scorer that asks Drex decision models whether a sample meets your criteria and
+    returns probabilities, so the pass threshold can be chosen after the run.
+  author: "[Nace](https://github.com/nace-ai)"
+  categories: ["Tooling"]
+
+- name: "[Inspect Grounding](https://github.com/Chris316-git/inspect-grounding)"
+  description: |
+    Deterministic numeric-grounding scorer — flags numbers in model output that do not appear in the input, tool results or metadata. No judge model or API calls.
+  author: "[Yanheng Li](https://github.com/Chris316-git)"
+  categories: ["Analysis"]

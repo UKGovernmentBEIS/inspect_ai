@@ -98,7 +98,7 @@ If there’s something you’d like to work on but no GitHub issue for it, start
 Note that `good first issue` implies `accepted` — you can open a PR for one directly.
 
 ## Working on your issue
-After you’ve claimed an issue, you can start working on it. If this is your first contribution, install [uv](https://docs.astral.sh/uv/) 0.11.8 or later (`required-version` in `pyproject.toml` enforces this; upgrade with `uv self update`, or `brew upgrade uv` if you installed it with Homebrew), clone the repository, and sync the development environment from the lockfile:
+After you’ve claimed an issue, you can start working on it. If this is your first contribution, install [uv](https://docs.astral.sh/uv/) 0.13.4 or later (`required-version` in `pyproject.toml` enforces this; upgrade with `uv self update`, or `brew upgrade uv` if you installed it with Homebrew), clone the repository, and sync the development environment from the lockfile:
 
 ```
 git clone https://github.com/UKGovernmentBEIS/inspect_ai.git
@@ -117,7 +117,9 @@ In an emergency, for example a security fix, you can adopt a release that is les
 1. Under `[tool.uv.exclude-newer-package]` in `pyproject.toml`, add `<package> = "<timestamp>"`. The package must be a direct dependency. Use an RFC 3339 timestamp just after the upload time of the fixed release. Do not add a dated entry to `.github/dependabot.yml`.
 2. Run `uv lock --upgrade-package <package>`.
 3. If `src/inspect_ai/model/_model_data/sync_models.py` locks the package, add the same entry to its inline script metadata. Then run `uv lock --script src/inspect_ai/model/_model_data/sync_models.py --no-config --upgrade-package <package>`. Its workflow runs uv with `--no-config`, so it does not read `pyproject.toml`.
-4. Delete the entry within seven days, when the normal cooldown includes the release. A test fails when a dated entry is seven days old or older.
+4. Within seven days, when the normal cooldown includes the release, delete the entry and run `uv lock --upgrade-package <package>`. A plain `uv lock` doesn't reliably remove the entry from `uv.lock`, and CI then fails. If you added the entry to `sync_models.py`, delete it there too and run its `uv lock --script` command from step 3 again. A test fails when a dated entry is seven days old or older.
+
+When a major or breaking model provider SDK release breaks Inspect, raise the minimum supported version instead of adding compatibility code for both versions. Users install provider SDKs themselves, so the floor they get, where one exists, is the provider's runtime minimum check (`MIN_VERSION`, usually in `src/inspect_ai/model/_providers/providers.py`): always raise it when it exists. Some providers have no runtime version check yet. `azureai()`, `nnterp()` and `transformer_lens()` only try the import and raise `pip_dependency_error`. When you first raise a floor for one of these providers, add a `verify_required_version` check with a `MIN_VERSION`. Many provider SDKs are also dev dependencies, listed in the `pyproject.toml` `dev` extra. For those, set or raise the floor there to match the runtime minimum and update `uv.lock` in the same PR. Some provider SDKs (for example `nnterp` and `transformer_lens`) aren't in `pyproject.toml` at all, so that new runtime check is then their only floor.
 
 uv is the supported way to set up Inspect. Installing with pip (`pip install -e ".[dev]"`) gets neither `uv.lock` nor the repository's cooldown.
 
@@ -137,6 +139,8 @@ make test     # Run pytest suite
 Run these as `uv run make check` and `uv run make test`, or activate the environment in `.venv` first.
 
 If any tests are failing, fix the code and run both commands again to verify. Once all the tests are passing, push your branch to GitHub.
+
+`make test` skips the gated tests: slow Docker tests, most live model-provider tests, flaky tests, and trio variants. PR CI runs only some of the slow tests and none of the live provider tests. If you change model providers, sandbox or tool code, agents, or async plumbing, run the gated tests that cover your change locally. Report the commands and results in the "Slow tests" section of the PR description. Name any relevant tests you could not run, and say why. This applies to human contributors and AI agents alike. See [Gated tests](AGENTS.md#gated-tests-slow-api-flaky-trio) in AGENTS.md for common commands and the [slow-tests skill](.agents/skills/slow-tests/SKILL.md) for the full list of flags, directories, and requirements.
 
 ## Creating a pull request
 

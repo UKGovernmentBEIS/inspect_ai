@@ -373,6 +373,16 @@ class Recorder(abc.ABC):
     @abc.abstractmethod
     async def flush(self, eval: EvalSpec) -> None: ...
 
+    async def write_buffered_samples(self, eval: EvalSpec) -> None:
+        """Write buffered samples to the local tier only.
+
+        Unlike :meth:`flush`, leaves the destination unchanged, so a caller
+        can bound memory while an existing destination stays intact until
+        ``log_finish``. The base implementation is a no-op so recorders
+        without a local tier (JSON) write nothing; ``EvalRecorder``
+        overrides it.
+        """
+
     async def log_prune(self, eval: EvalSpec, keys: set[SampleRecordKey]) -> None:
         """Drop seeded sample records, including their journal summaries.
 
@@ -418,6 +428,7 @@ class Recorder(abc.ABC):
         invalidated: bool = False,
         log_updates: list[LogUpdate] | None = None,
         config_updates: list[ConfigUpdate] | None = None,
+        total_samples: int | None = None,
     ) -> EvalLog: ...
 
     @classmethod

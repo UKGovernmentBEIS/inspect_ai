@@ -151,7 +151,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Python dependencies
-        uses: meridianlabs-ai/actions/install-python-dependencies@f4ae19412da5597fc283e3ef62db1a67384ae609 # main, 2026-11-02
+        uses: meridianlabs-ai/actions/install-python-dependencies@330f3df6492418d6b25dc2631fc31143489f4674 # main, 2026-11-02
         with:
           versions: locked
           python-version: "3.11"

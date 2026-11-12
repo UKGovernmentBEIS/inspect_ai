@@ -248,6 +248,79 @@ class TestExecRemotePoll:
             DEFAULT_RPC_TIMEOUT,
         )
 
+    def test_submit_advertises_poll_wait(self, rpc_client: RpcClient) -> None:
+        response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_start",
+                "params": {"command": "true"},
+                "id": 1,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+
+        assert response["result"]["poll_wait"] is True
+
+    def test_waiting_poll_replies_with_output_and_exit(
+        self, rpc_client: RpcClient
+    ) -> None:
+        """A waiting poll returns a short command's output without a fixed wait.
+
+        The exit status usually shares that reply. On a loaded machine the exit
+        can come after the 0.1 s output wait, so a follow-up poll may carry it.
+        The output arrives once in total.
+        """
+        response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_start",
+                "params": {"command": "sleep 0.5; printf done; exit 3"},
+                "id": 1,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+        pid = response["result"]["pid"]
+
+        start = time.monotonic()
+        poll_response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_poll",
+                "params": {"pid": pid, "ack_seq": 0, "wait": 10},
+                "id": 2,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+        elapsed = time.monotonic() - start
+
+        result = poll_response["result"]
+        assert result["stdout"] == "done"
+        assert elapsed < 5
+        if result["state"] == "running":
+            result = poll_until_complete(rpc_client, pid, ack_seq=result["seq"])
+            result["stdout"] = "done" + result["stdout"]
+        assert (result["state"], result["exit_code"], result["stdout"]) == (
+            "completed",
+            3,
+            "done",
+        )
+
+    @pytest.mark.parametrize("wait", [-1, 61])
+    def test_poll_rejects_wait_out_of_range(
+        self, rpc_client: RpcClient, wait: float
+    ) -> None:
+        response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_poll",
+                "params": {"pid": NONEXISTENT_PID, "ack_seq": 0, "wait": wait},
+                "id": 1,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+
+        assert "error" in response
+
 
 class TestExecRemoteKill:
     """Tests for exec_remote_kill."""
@@ -314,6 +387,64 @@ class TestExecRemoteKill:
         assert "result" in kill_response
         assert "hello_from_kill" in kill_response["result"]["stdout"]
         assert "err_from_kill" in kill_response["result"]["stderr"]
+
+
+class TestExecRemoteKillKey:
+    """Tests for exec_remote_kill_key."""
+
+    JOB_KEY = "fedcba9876543210fedcba9876543210"
+
+    def test_kill_key_kills_the_job_started_with_it(
+        self, rpc_client: RpcClient
+    ) -> None:
+        response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_start",
+                "params": {
+                    "command": f"sleep {LONG_RUNNING_SLEEP_SECONDS * 10}",
+                    "job_key": self.JOB_KEY,
+                },
+                "id": 1,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+        pid = response["result"]["pid"]
+
+        kill_response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_kill_key",
+                "params": {"job_key": self.JOB_KEY},
+                "id": 2,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+        poll_response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_poll",
+                "params": {"pid": pid, "ack_seq": 0},
+                "id": 3,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+
+        assert kill_response["result"] == {"killed": True}
+        assert "No job found" in poll_response["error"]["message"]
+
+    def test_job_key_must_be_hex(self, rpc_client: RpcClient) -> None:
+        response = rpc_client(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_kill_key",
+                "params": {"job_key": "not-a-key"},
+                "id": 1,
+            },
+            DEFAULT_RPC_TIMEOUT,
+        )
+
+        assert "error" in response
 
 
 class TestNonexistentJobErrors:

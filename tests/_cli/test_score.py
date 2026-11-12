@@ -25,7 +25,7 @@ from inspect_ai.log._log import (
     EvalSpec,
     EvalStats,
 )
-from inspect_ai.log._recorders import create_recorder_for_location
+from inspect_ai.log._recorders import Recorder, create_recorder_for_location
 from inspect_ai.util._early_stopping import EarlyStop, EarlyStoppingSummary
 
 LOGS_DIR = pathlib.Path(__file__).parents[1] / "scorer/logs"
@@ -146,6 +146,7 @@ async def test_score_stream_preserves_log_updates(
         ],
         ProvenanceData(author="alice", reason="qa"),
     )
+    log.total_samples = 7
     await write_eval_log_async(log, str(input_file))
 
     monkeypatch.setattr(score_cli, "init_eval_context", lambda *args, **kwargs: None)
@@ -188,6 +189,7 @@ async def test_score_stream_preserves_log_updates(
     assert rescored_log.log_updates == log.log_updates
     assert rescored_log.tags == log.tags
     assert rescored_log.metadata == log.metadata
+    assert rescored_log.total_samples == 7
 
 
 @pytest.mark.anyio
@@ -305,6 +307,53 @@ async def test_score_stream_flushes_periodically(
     assert flush_counts == [1, 2, 3]
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+async def test_score_stream_in_place_failure_leaves_the_log_unchanged(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, log_format: str
+) -> None:
+    log = await read_eval_log_async(str(LOG_SCORED))
+    # the space makes as_uri() below a percent-encoded alias of the input
+    input_file = tmp_path / f"scored log.{log_format}"
+    await write_eval_log_async(log, str(input_file))
+    original = input_file.read_bytes()
+    recorders: list[Recorder] = []
+
+    def create_recorder(location: str, log_dir: str) -> Recorder:
+        recorder = create_recorder_for_location(location, log_dir)
+        recorders.append(recorder)
+        return recorder
+
+    async def failing_score_async(*, samples, **kwargs):
+        for idx in range(len(log.samples or [])):
+            async with samples(idx):
+                pass
+        raise RuntimeError("scoring failed")
+
+    monkeypatch.setattr(score_cli, "create_recorder_for_location", create_recorder)
+    monkeypatch.setattr(score_cli, "score_async", failing_score_async)
+
+    try:
+        with pytest.raises(RuntimeError, match="scoring failed"):
+            await score(
+                log_dir="",
+                log_file=str(input_file),
+                action="overwrite",
+                log_level=None,
+                output_file=input_file.as_uri(),
+                overwrite=True,
+                scorer="match",
+                s=(),
+                metric=None,
+                stream=3,
+            )
+
+        assert input_file.read_bytes() == original
+    finally:
+        # score() does not discard the write recorder when scoring fails
+        await recorders[-1].log_discard(log.eval, keep_destination=True)
+
+
 def early_stops(count: int) -> EarlyStoppingSummary:
     return EarlyStoppingSummary(
         manager="test",
@@ -418,7 +467,8 @@ def _log(total_samples: int, completed_samples: int) -> EvalLog:
 def rendered(log: EvalLog, coverage: EvalResults | None = None) -> str:
     # `print_results` calls `display()`, which reconfigures the global console.
     # Doing that inside the capture resets the buffer and yields an empty
-    # string, so initialise the display first.
+    # string, so initialise the display first. Callers use `fresh_display`, as
+    # an earlier `display="none"` eval leaves the console quiet.
     display()
     console = rich.get_console()
     with console.capture() as capture:
@@ -426,7 +476,7 @@ def rendered(log: EvalLog, coverage: EvalResults | None = None) -> str:
     return capture.get()
 
 
-def test_score_cli_reports_samples_that_errored() -> None:
+def test_score_cli_reports_samples_that_errored(fresh_display: None) -> None:
     """A re-scored log that lost half its samples must not read as a complete run."""
     output = rendered(_log(total_samples=10, completed_samples=5))
     assert "accuracy" in output
@@ -435,19 +485,23 @@ def test_score_cli_reports_samples_that_errored() -> None:
     assert "were not scored" not in output
 
 
-def test_score_cli_stays_quiet_on_a_complete_run() -> None:
+def test_score_cli_stays_quiet_on_a_complete_run(fresh_display: None) -> None:
     output = rendered(_log(total_samples=10, completed_samples=10))
     assert "accuracy" in output
     assert "WARNING" not in output
 
 
 @pytest.mark.parametrize("completed", [0, 1, 9])
-def test_score_cli_reports_every_partial_run(completed: int) -> None:
+def test_score_cli_reports_every_partial_run(
+    fresh_display: None, completed: int
+) -> None:
     output = rendered(_log(total_samples=10, completed_samples=completed))
     assert f"{10 - completed} of 10 executed samples" in output
 
 
-def test_score_cli_uses_the_pre_score_coverage_when_results_were_overwritten() -> None:
+def test_score_cli_uses_the_pre_score_coverage_when_results_were_overwritten(
+    fresh_display: None,
+) -> None:
     """`--action overwrite` recounts `total_samples` over the samples in the log.
 
     Early-stopped samples were never written, so those counts do not share a

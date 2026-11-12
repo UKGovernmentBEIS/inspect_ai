@@ -2,6 +2,7 @@ from inspect_ai.util import sandbox as sandbox_env
 from inspect_ai.util._sandbox.identity import (
     sandbox_identity_cwd,
     sandbox_identity_user,
+    sandbox_identity_vars,
 )
 
 from .._tool import Tool, ToolError, tool
@@ -35,7 +36,12 @@ def list_files(
             depth: Maximum depth for recursive listing. 1 lists only the
                 immediate directory. None lists all files recursively.
         """
-        cmd = ["find", "--", path, "-mindepth", "1"]
+        # find reads an argument that starts with - (or is exactly "(" or "!") as the
+        # start of its expression, even after --, so a path like "-delete" would run as
+        # an action. Prefix paths starting with -, (, ), ! or , with ./ so that find
+        # always reads them as a start point. This set is wider than GNU find needs.
+        safe_path = f"./{path}" if path.startswith(("-", "(", ")", "!", ",")) else path
+        cmd = ["find", safe_path, "-mindepth", "1"]
         if depth is not None:
             cmd.extend(["-maxdepth", str(depth)])
         cmd.append("-print")
@@ -46,6 +52,7 @@ def list_files(
             cwd=sandbox_identity_cwd(sbox, None),
             timeout=timeout,
             user=sandbox_identity_user(sbox, user, strict=True),
+            env=await sandbox_identity_vars(sbox, timeout),
         )
 
         if not result.success:
