@@ -86,6 +86,16 @@ Tools communicate through a two-layer RPC architecture:
 4. Server maintains state across requests and returns responses
 5. The stateless executable forwards the response back through Layer 1
 
+### exec_remote model
+
+`exec_remote` stop, poll, retry, termination and output behavior (host
+`src/inspect_ai/util/_sandbox/exec_remote.py` and the guest
+`_remote_tools/_exec_remote/`) is specified in
+[design/exec_remote/ExecRemote.tla](design/exec_remote/ExecRemote.tla). A
+change to that behavior needs a matching edit to the spec and a TLC run of
+`ExecRemote.cfg`, recorded in [design/exec_remote/README.md](design/exec_remote/README.md)
+or the PR description.
+
 ## Releasing
 
 See [RELEASING.md](design/RELEASING.md) for the end-to-end process for building, publishing, and distributing new sandbox tools versions.

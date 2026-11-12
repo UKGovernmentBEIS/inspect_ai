@@ -167,26 +167,24 @@ class Controller:
     async def kill(self, pid: int, ack_seq: int) -> KillResult:
         """Terminate a running job and return any remaining buffered output."""
         job = self._get_job(pid)
-        seq, stdout, stderr = await job.kill(ack_seq)
+        chunks = await job.kill(ack_seq)
         # Use pop to avoid KeyError if a concurrent poll() already removed the
         # job between our await and here.
         if self._jobs.pop(pid, None) is not None:
             job.retire()
             self._retired_jobs.append(job)
             await job.cleanup()
-        return KillResult(seq=seq, stdout=stdout, stderr=stderr)
+        return KillResult(chunks=chunks)
 
     async def write_stdin(self, pid: int, data: str, ack_seq: int) -> WriteStdinResult:
         """Write data to stdin of a running job and return buffered output."""
         job = self._get_job(pid)
-        seq, stdout, stderr = await job.write_stdin(data, ack_seq)
-        return WriteStdinResult(seq=seq, stdout=stdout, stderr=stderr)
+        return WriteStdinResult(chunks=await job.write_stdin(data, ack_seq))
 
     async def close_stdin(self, pid: int, ack_seq: int) -> CloseStdinResult:
         """Close stdin of a running job and return buffered output."""
         job = self._get_job(pid)
-        seq, stdout, stderr = await job.close_stdin(ack_seq)
-        return CloseStdinResult(seq=seq, stdout=stdout, stderr=stderr)
+        return CloseStdinResult(chunks=await job.close_stdin(ack_seq))
 
     async def shutdown(self) -> None:
         """Terminate every job owned by this server."""

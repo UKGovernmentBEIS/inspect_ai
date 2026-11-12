@@ -1428,8 +1428,7 @@ async def test_bridged_agent_launch_is_not_known_work(
             result: dict[str, object] = {"pid": 42}
             if json.loads(input)["method"] == "exec_remote_poll":
                 await self.release.wait()
-                result = {"state": "completed", "exit_code": 0, "seq": 0}
-                result.update(stdout="", stderr="")
+                result = {"state": "completed", "exit_code": 0, "chunks": []}
             response = {"jsonrpc": "2.0", "result": result, "id": 1}
             return ExecResult(
                 success=True, returncode=0, stdout=json.dumps(response), stderr=""

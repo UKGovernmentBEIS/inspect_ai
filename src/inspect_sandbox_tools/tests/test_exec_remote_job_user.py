@@ -439,7 +439,8 @@ class TestExecRemoteUserIntegration:
             if result.state == "completed":
                 break
             await asyncio.sleep(0.1)
-            result = await job.poll(ack_seq=result.seq)
+            # ack nothing, so the last reply carries every chunk
+            result = await job.poll(ack_seq=0)
         assert result.state == "completed"
         assert result.exit_code == 0
-        assert result.stdout.strip() == "nobody"
+        assert "".join(c.stdout for c in result.chunks).strip() == "nobody"

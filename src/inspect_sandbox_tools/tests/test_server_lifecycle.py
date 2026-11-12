@@ -71,6 +71,15 @@ def _rpc(request: dict[str, Any], *, server_dir: Path, cwd: Path) -> dict[str, A
     return response
 
 
+def _ack_seq(exec_result: dict[str, Any], ack_seq: int) -> int:
+    """The seq to acknowledge after an exec_remote reply: its highest chunk seq."""
+    return max([ack_seq, *(chunk["seq"] for chunk in exec_result["chunks"])])
+
+
+def _joined(exec_result: dict[str, Any], stream: str) -> str:
+    return "".join(chunk[stream] for chunk in exec_result["chunks"])
+
+
 def _wait_for_file(path: Path, timeout: float = 5) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -789,7 +798,7 @@ def test_per_sample_server_shutdown_terminates_resources_and_preserves_next_cwd(
                     "method": "exec_remote_poll",
                     "params": {
                         "pid": exec_response["result"]["pid"],
-                        "ack_seq": exec_poll["result"]["seq"],
+                        "ack_seq": _ack_seq(exec_poll["result"], 0),
                     },
                     "id": 2,
                 },
@@ -913,8 +922,9 @@ def test_per_sample_server_shutdown_terminates_resources_and_preserves_next_cwd(
             server_dir=second_server_dir,
             cwd=second_cwd,
         )
-        stdout = poll_response["result"]["stdout"]
-        stderr = poll_response["result"]["stderr"]
+        stdout = _joined(poll_response["result"], "stdout")
+        stderr = _joined(poll_response["result"], "stderr")
+        ack_seq = _ack_seq(poll_response["result"], 0)
         deadline = time.monotonic() + 5
         while poll_response["result"]["state"] == "running":
             assert time.monotonic() < deadline
@@ -923,17 +933,15 @@ def test_per_sample_server_shutdown_terminates_resources_and_preserves_next_cwd(
                 {
                     "jsonrpc": "2.0",
                     "method": "exec_remote_poll",
-                    "params": {
-                        "pid": second_pid,
-                        "ack_seq": poll_response["result"]["seq"],
-                    },
+                    "params": {"pid": second_pid, "ack_seq": ack_seq},
                     "id": 7,
                 },
                 server_dir=second_server_dir,
                 cwd=second_cwd,
             )
-            stdout += poll_response["result"]["stdout"]
-            stderr += poll_response["result"]["stderr"]
+            stdout += _joined(poll_response["result"], "stdout")
+            stderr += _joined(poll_response["result"], "stderr")
+            ack_seq = _ack_seq(poll_response["result"], ack_seq)
 
         assert stderr == ""
         output_lines = stdout.splitlines()
