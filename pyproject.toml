@@ -50,7 +50,7 @@ inspect_ai = [
 
 
 [tool.ruff]
-extend-exclude = ["docs", "design"]
+extend-exclude = ["docs", "design", "src/inspect_ai/_view/ts-mono"]
 src = ["src"]
 
 [tool.ruff.lint]
