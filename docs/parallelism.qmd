@@ -30,7 +30,7 @@ You can evaluate multiple models in parallel by passing a list of models to the 
 ``` python
 eval("mathematics.py", model=[
     "openai/gpt-6-luna",
-    "anthropic/claude-3-opus-20240229",
+    "anthropic/claude-opus-5-5",
     "google/gemini-2.5-pro"
 ])
 ```
@@ -78,7 +78,7 @@ Note that you can combine parallel tasks with parallel models as follows:
 ``` python
 eval(
     tasks, # 3 tasks for various reasoning efforts
-    model=["openai/gpt-6-luna", "anthropic/claude-haiku-4-5"],
+    model=["openai/gpt-6-luna", "anthropic/claude-haiku-5-5"],
     max_tasks=5,
 )
 ```
@@ -157,7 +157,7 @@ from inspect_ai.model import get_model
 
 models = [
   get_model("openai/gpt-6-sol"),
-  get_model("anthropic/claude-sonnet-4-5"),
+  get_model("anthropic/claude-sonnet-5-5"),
   get_model("mistral/mistral-large-latest")
 ]
 
