@@ -4561,7 +4561,9 @@
                   "refusal",
                   "no_response",
                   "grader_failed",
-                  "scoring_failed"
+                  "scoring_failed",
+                  "excluded",
+                  "zeroed"
                 ],
                 "type": "string"
               },
@@ -9951,7 +9953,9 @@
                   "refusal",
                   "no_response",
                   "grader_failed",
-                  "scoring_failed"
+                  "scoring_failed",
+                  "excluded",
+                  "zeroed"
                 ],
                 "type": "string"
               },
@@ -10139,7 +10143,9 @@
                   "refusal",
                   "no_response",
                   "grader_failed",
-                  "scoring_failed"
+                  "scoring_failed",
+                  "excluded",
+                  "zeroed"
                 ],
                 "type": "string"
               },
