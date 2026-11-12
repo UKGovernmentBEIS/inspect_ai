@@ -33,7 +33,9 @@ from inspect_ai.util._sandbox.exec_remote import (
     ExecRemoteProcess,
     ExecRemoteStreamingOptions,
     ExecStderr,
+    ExecStdout,
 )
+from inspect_ai.util._sandbox.identity import sandbox_identity_scope
 from inspect_ai.util._sandbox.service import find_control_flow
 
 from ..._agent import AgentState
@@ -48,6 +50,15 @@ if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
 
 logger = getLogger(__name__)
+
+BRIDGE_LISTEN_TIMEOUT = 60
+"""Seconds a bridge in a sandbox identity scope waits for its proxy to listen."""
+
+# Read by the model proxy (inspect_sandbox_tools/_agent_bridge/peer_uid.py).
+_PEER_USER_ENV = f"{MODEL_SERVICE.upper()}_PEER_USER"
+
+# Printed by the model proxy (inspect_sandbox_tools/_agent_bridge/proxy.py).
+_LISTENING_PREFIX = "model_proxy: listening on "
 
 
 @contextlib.asynccontextmanager
@@ -98,6 +109,11 @@ async def sandbox_agent_bridge(
     model retry) is in progress. Otherwise their time counts as working, as
     any time does. The agent's model requests and bridged tool calls are
     known work.
+
+    Inside a sandbox identity scope for its sandbox, the proxy serves only
+    connections from sockets the scope's user owns, on `localhost` (both
+    `127.0.0.1` and `::1`), and answers others with HTTP 403. Outside a scope
+    it serves any connection on `127.0.0.1`.
 
     Args:
         state: Initial state for agent bridge. Used as a basis for yielding
@@ -212,6 +228,15 @@ async def sandbox_agent_bridge(
     # resolve sandbox
     sandbox_env = await sandbox_with_injected_tools(sandbox_name=sandbox)
 
+    # inside an identity scope the proxy serves only the scope's user
+    proxy_env = {
+        f"{MODEL_SERVICE.upper()}_PORT": str(port),
+        f"{MODEL_SERVICE.upper()}_INSTANCE": instance,
+    }
+    scope = sandbox_identity_scope(sandbox_env)
+    if scope is not None:
+        proxy_env[_PEER_USER_ENV] = scope.user
+
     # resolve granted capabilities. These default to withheld: the sandboxed agent
     # can otherwise obtain them just by naming the native tool in a request, which
     # reaches the web through the model provider even when the sandbox has no
@@ -287,17 +312,15 @@ async def sandbox_agent_bridge(
                 options=ExecRemoteStreamingOptions(
                     concurrency=False,
                     user=sandbox_env._tools_user,
-                    env={
-                        f"{MODEL_SERVICE.upper()}_PORT": str(port),
-                        f"{MODEL_SERVICE.upper()}_INSTANCE": instance,
-                    },
+                    env=proxy_env,
                     poll_timeout=600,
                     poll_timeout_recovery=poll_timeout_recovery,
                 ),
             )
 
-            # monitor proxy for unexpected death
-            tg.start_soon(_monitor_proxy, proxy)
+            # monitor proxy for unexpected death (and, in a scope, its listening)
+            listening = anyio.Event() if scope is not None else None
+            tg.start_soon(_monitor_proxy, proxy, listening)
 
             # monitor for a sample failure requested from the service task
             # (fail_on_refusal, a response filter failure, an invalid approver
@@ -307,6 +330,8 @@ async def sandbox_agent_bridge(
 
             # main agent
             try:
+                if listening is not None:
+                    await _wait_for_listening(listening)
                 with untracked_sandbox_execs():
                     yield bridge
                 agent_completed = True
@@ -387,6 +412,28 @@ async def _deliver_enclosing_cancellation() -> None:
     await anyio.lowlevel.checkpoint_if_cancelled()
 
 
+async def _wait_for_listening(listening: anyio.Event) -> None:
+    """Wait until the model proxy reports that it listens on its port.
+
+    The proxy process exists before it binds. Until it listens, another user
+    listening on the port could receive the agent's requests and answer them.
+    A proxy that exits first is reported by `_monitor_proxy`, which cancels
+    this wait.
+
+    Raises:
+        RuntimeError: The proxy did not report listening within
+            `BRIDGE_LISTEN_TIMEOUT` seconds.
+    """
+    try:
+        with anyio.fail_after(BRIDGE_LISTEN_TIMEOUT):
+            await listening.wait()
+    except TimeoutError:
+        raise RuntimeError(
+            "The sandbox agent bridge's model proxy did not report listening "
+            f"within {BRIDGE_LISTEN_TIMEOUT} seconds."
+        ) from None
+
+
 def _register_bridged_tools(
     bridge: SandboxAgentBridge, spec: BridgedToolsSpec, port: int
 ) -> MCPServerConfigHTTP:
@@ -424,14 +471,36 @@ async def _monitor_failure(bridge: SandboxAgentBridge) -> None:
     raise bridge._failure
 
 
-async def _monitor_proxy(proxy: ExecRemoteProcess) -> None:
-    """Monitor the proxy process event stream and raise if it dies unexpectedly."""
+async def _monitor_proxy(
+    proxy: ExecRemoteProcess, listening: anyio.Event | None = None
+) -> None:
+    """Monitor the proxy process event stream and raise if it dies unexpectedly.
+
+    With `listening`, set it when the proxy prints its listening line to stdout,
+    which only the proxy process can write; stdout is buffered only until then.
+    A proxy that exits before printing it raises, whatever its exit status.
+    """
     stderr: list[str] = []
+    stdout = ""
     async for event in proxy:
+        if (
+            isinstance(event, ExecStdout)
+            and listening is not None
+            and not listening.is_set()
+        ):
+            *lines, stdout = (stdout + event.data).split("\n")
+            if any(line.startswith(_LISTENING_PREFIX) for line in lines):
+                listening.set()
+                stdout = ""
         if isinstance(event, ExecStderr):
             stderr.append(event.data)
             logger.debug("model_proxy stderr: %s", event.data.rstrip())
         if isinstance(event, ExecCompleted):
+            if listening is not None and not listening.is_set():
+                raise RuntimeError(
+                    "Model proxy process exited before it was listening: "
+                    f"{''.join(stderr)}"
+                )
             if not event.success:
                 raise RuntimeError(
                     f"Model proxy process exited unexpectedly with failure: {''.join(stderr)}."
