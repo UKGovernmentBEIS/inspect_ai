@@ -3667,11 +3667,19 @@ _dispatch_guard: ContextVar[Callable[[], None] | None] = ContextVar(
 def dispatch_guard(check: Callable[[], None]) -> Iterator[None]:
     """Run `check` before each provider dispatch made in this context.
 
-    `check` raises to refuse the dispatch. It is skipped while token limits
-    are suspended: approvers, reviewers and sentinels make their model calls
-    there, and those calls are not the guarded caller's own.
+    `check` raises to refuse the dispatch. The checks of enclosing
+    `dispatch_guard()` contexts still run, first. They are all skipped while
+    token limits are suspended: approvers, reviewers and sentinels make their
+    model calls there, and those calls are not the guarded caller's own.
     """
-    token = _dispatch_guard.set(check)
+    outer = _dispatch_guard.get()
+
+    def outer_then_check() -> None:
+        assert outer is not None
+        outer()
+        check()
+
+    token = _dispatch_guard.set(check if outer is None else outer_then_check)
     try:
         yield
     finally:
@@ -3684,7 +3692,7 @@ def _check_limits_before_dispatch() -> None:
     A further call could only exceed a reached limit. Called on every attempt
     (a concurrent call can reach a limit while a retry waits), after the
     cache lookup (a cache hit sends nothing, so it is never refused). Then
-    runs the `dispatch_guard()` check, if any.
+    runs the `dispatch_guard()` checks, if any.
     """
     check_token_limit(raise_for_equal=True)
     check_cost_limit(raise_for_equal=True)
