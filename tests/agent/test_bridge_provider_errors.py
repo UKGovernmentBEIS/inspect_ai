@@ -12,7 +12,7 @@ from __future__ import annotations
 import ast
 import gc
 import weakref
-from collections.abc import Iterator
+from collections.abc import Awaitable, Iterator
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable, NamedTuple, cast
@@ -31,12 +31,15 @@ from test_helpers.service_dispatch import (
 
 import inspect_ai
 from inspect_ai import Task, eval
-from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._sentinel._sidecar._endpoint import SentinelProxyError
+from inspect_ai._sentinel._sidecar._lookup import SidecarNotJudgedError
+from inspect_ai._util.exception import SampleRefusedError, TerminateSampleError
 from inspect_ai._util.http import status_code_of
 from inspect_ai._util.registry import _registry
 from inspect_ai.agent import Agent, agent, run
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge import bridge as bridge_module
+from inspect_ai.agent._bridge import util as bridge_util
 from inspect_ai.agent._bridge._errors import (
     PROVIDER_ERROR_KEY,
     ResponseFilterError,
@@ -71,6 +74,7 @@ from inspect_ai.model._model import (
     ModelGenerateFilter,
     ModelRefusalError,
     ModelResponseFilter,
+    _check_limits_before_dispatch,
 )
 from inspect_ai.model._model_data.model_data import ModelCost, ModelInfo
 from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
@@ -89,6 +93,7 @@ from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
 from inspect_ai.util import (
     cost_limit,
     message_limit,
+    suspend_token_limit,
     time_limit,
     token_limit,
     turn_limit,
@@ -739,6 +744,18 @@ def _refusal() -> ModelRefusalError:
             lambda: ResponseFilterError("ValueError: filter is broken"),
             id="response_filter",
         ),
+        pytest.param(
+            lambda: SampleRefusedError("The sidecar's tasks folder lacks it."),
+            id="sidecar_refused_sample",
+        ),
+        pytest.param(
+            lambda: SidecarNotJudgedError("The sidecar lost the sample."),
+            id="sidecar_not_judged",
+        ),
+        pytest.param(
+            lambda: SentinelProxyError("The sidecar couldn't register it."),
+            id="sidecar_registration_failed",
+        ),
     ],
 )
 async def test_forward_provider_errors_signals_sample_failure_to_bridge(
@@ -936,6 +953,41 @@ async def test_forward_provider_errors_lets_a_reached_enclosing_limit_replace_th
     recorded = bridge.generation_limit
     assert recorded is not None and recorded.source is outer
     assert reply[PROVIDER_ERROR_KEY] == provider_error_payload(recorded)
+
+
+async def test_forward_provider_errors_refuses_model_calls_once_a_limit_is_recorded() -> (
+    None
+):
+    """A request in flight when a limit is recorded makes no further model call of its own.
+
+    A model call with token limits suspended, as an approver, reviewer or
+    sentinel makes, is not the agent's and still runs.
+    """
+    calls = 0
+
+    def outputs(*args: Any) -> ModelOutput:
+        nonlocal calls
+        calls += 1
+        return ModelOutput.from_content(model="mockllm/model", content="hi")
+
+    model = get_model("mockllm/model", custom_outputs=outputs, memoize=False)
+    bridge = _bridge()
+    recorded = LimitExceededError("turn", value=1, limit=0)
+
+    async def generate(
+        json_data: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> dict[str, Any]:
+        # recorded for a concurrent request
+        bridge.generation_limit = recorded
+        with suspend_token_limit():
+            await model.generate("Approve this call.")
+        await model.generate("Say hi.")
+        return {}
+
+    reply = await _forward_provider_errors(generate, bridge)({})
+    assert calls == 1
+    assert reply == {PROVIDER_ERROR_KEY: provider_error_payload(recorded)}
+    assert bridge.generation_limit is recorded
 
 
 async def test_forward_provider_errors_keeps_only_the_first_limit() -> None:
@@ -1241,6 +1293,8 @@ class _Scaffold:
     expiring then would. With `overlap`, every request reaches the model
     before any generation returns, and each returns only once the reply to the
     one before it has been written. The bridge compacts with `compaction`.
+    Each generation awaits `at_model`, with its input, once it reaches the
+    model.
     """
 
     requests: list[_Request]
@@ -1251,6 +1305,7 @@ class _Scaffold:
     slow_kill: bool = False
     cancel_on_kill: bool = False
     overlap: bool = False
+    at_model: Callable[[list[ChatMessage]], Awaitable[None]] | None = None
     enclosing: anyio.CancelScope = field(init=False)
 
     def arm(self) -> None:
@@ -1262,8 +1317,10 @@ class _Scaffold:
         for request in self.requests:
             request.arm()
 
-    async def generated(self) -> None:
-        """Hold a generation at the model as `overlap` says."""
+    async def generated(self, input: list[ChatMessage]) -> None:
+        """Hold a generation at the model as `at_model` and `overlap` say."""
+        if self.at_model is not None:
+            await self.at_model(input)
         if not self.overlap:
             return
         arrival = self.generations
@@ -1416,9 +1473,9 @@ def _overlapping(first: _Request, held: _Request) -> ModelGenerateFilter:
     """A generate filter making `held` overlap `first`.
 
     `first` waits at the filter until `held` reaches it, and `held` then waits
-    there until `first` is replied to. `held` has passed the bridge's check for
-    a recorded limit, so it generates even when `first` records one. The two
-    are told apart by their number of messages.
+    there until `first` is replied to. `held` has not been sent to the model,
+    so it is refused when `first` records a limit. The two are told apart by
+    their number of messages.
     """
 
     async def overlap(
@@ -1437,6 +1494,41 @@ def _overlapping(first: _Request, held: _Request) -> ModelGenerateFilter:
         return None
 
     return overlap
+
+
+class _Overlap(NamedTuple):
+    filter: ModelGenerateFilter
+    at_model: Callable[[list[ChatMessage]], Awaitable[None]]
+
+
+def _overlapping_at_model(first: _Request, held: _Request) -> _Overlap:
+    """A generate filter and `at_model` hold making `held` overlap `first` at the model.
+
+    `first` waits at the filter until `held` reaches the model, and `held`
+    stays at the model until `first` is replied to. `held` has been sent to
+    the model, so it gets its output even when `first` records a limit. The
+    two are told apart by their number of messages.
+    """
+
+    async def overlap(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> None:
+        if len(input) != held.messages:
+            with anyio.fail_after(10):
+                await held.generating.wait()
+        return None
+
+    async def at_model(input: list[ChatMessage]) -> None:
+        if len(input) == held.messages:
+            held.generating.set()
+            with anyio.fail_after(10):
+                await first.replied.wait()
+
+    return _Overlap(overlap, at_model)
 
 
 @agent
@@ -1481,11 +1573,13 @@ def _run_bridged_agent(
     scaffold: _Scaffold | None = None,
     sample_token_limit: int | None = None,
     outer_limit: Limit | None = None,
+    max_connections: int | None = None,
 ) -> _Outcome:
     """Run a bridged agent under `run(limits=[limit])` in a one-sample eval.
 
     The agent's scaffold makes one request by default. With `outer_limit`,
-    that `run()` is inside another `run()` applying it. The solver marks the
+    that `run()` is inside another `run()` applying it. The model makes at
+    most `max_connections` generations at once. The solver marks the
     sample's store once the outermost `run()` returns, so a sample that
     continued past the agent has `store["continued"]` set.
     """
@@ -1497,8 +1591,8 @@ def _run_bridged_agent(
     errors: list[LimitExceededError | None] = []
     outer_errors: list[LimitExceededError | None] = []
 
-    async def outputs(*args: Any) -> ModelOutput:
-        await scaffold.generated()
+    async def outputs(input: list[ChatMessage], *args: Any) -> ModelOutput:
+        await scaffold.generated(input)
         return output
 
     @agent
@@ -1534,7 +1628,11 @@ def _run_bridged_agent(
             solver=run_bridged(),
             token_limit=sample_token_limit,
         ),
-        model=get_model("mockllm/model", custom_outputs=outputs),
+        model=get_model(
+            "mockllm/model",
+            config=GenerateConfig(max_connections=max_connections),
+            custom_outputs=outputs,
+        ),
         log_dir=str(tmp_path),
         display="none",
     )[0]
@@ -1698,25 +1796,31 @@ def test_concurrent_bridged_generations_raise_the_sample_limit(
     """Of limits reached by concurrent bridged generations, the sample's is raised.
 
     One request reaches the sample's token limit, another the `run()` message
-    limit, in either order, with the requests overlapping. The sample's limit encloses the `run()` limit, so
-    it is raised even when it is reached second: the sample ends with it
-    rather than continuing past it.
+    limit, in either order, with the requests overlapping. When the `run()`
+    limit is first, the sample's request is at the model when it is recorded.
+    The sample's limit encloses the `run()` limit, so it is raised even when
+    it is reached second: the sample ends with it rather than continuing past
+    it.
     """
     # 7 tokens: over the sample's token limit
     sample_request = _Request()
     # 2 messages: no room for a reply under the run() limit
     agent_request = _Request(messages=2)
+    requests = [sample_request, agent_request]
     if first == "sample":
-        overlap = _overlapping(sample_request, held=agent_request)
+        scaffold = _Scaffold(
+            requests, filter=_overlapping(sample_request, held=agent_request)
+        )
     else:
-        overlap = _overlapping(agent_request, held=sample_request)
+        overlap = _overlapping_at_model(agent_request, held=sample_request)
+        scaffold = _Scaffold(requests, filter=overlap.filter, at_model=overlap.at_model)
     limit = message_limit(2)
 
     outcome = _run_bridged_agent(
         tmp_path,
         monkeypatch,
         limit,
-        scaffold=_Scaffold([sample_request, agent_request], filter=overlap),
+        scaffold=scaffold,
         sample_token_limit=5,
     )
 
@@ -2199,6 +2303,149 @@ def test_request_after_a_reached_budget_makes_no_model_call(
     assert sum(isinstance(event, ModelEvent) for event in events) == 1
 
 
+@pytest.mark.parametrize(
+    "make_limit",
+    [
+        # the first compaction's 7 tokens cross it
+        pytest.param(lambda: token_limit(5), id="token"),
+        # the first compaction's $0.007 at $1000 per million tokens crosses it
+        pytest.param(lambda: cost_limit(0.001), id="cost"),
+    ],
+)
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.usefixtures("_model_cost")
+def test_compactions_queued_behind_a_bridged_limit_make_no_model_calls(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    backend: str,
+    make_limit: Callable[[], Limit],
+) -> None:
+    """Concurrent requests waiting to compact when a compaction crosses a limit make no model call.
+
+    Three requests pass the bridge's limit check before any compaction ends,
+    then wait for the compaction lock. The first compaction crosses the token
+    or cost limit. The compactions still waiting are refused before they reach
+    the provider, and every request gets the limit's error reply.
+    """
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    requests = [_Request(content=f"Say hi {i}.") for i in range(3)]
+    checked = 0
+    all_checked: list[anyio.Event] = []
+
+    def count_checks() -> None:
+        nonlocal checked
+        _check_limits_before_dispatch()
+        if not all_checked:
+            all_checked.append(anyio.Event())
+        checked += 1
+        if checked == len(requests):
+            all_checked[0].set()
+
+    calls = 0
+
+    async def compact(*args: Any) -> tuple[list[ChatMessage], ModelUsage]:
+        nonlocal calls
+        calls += 1
+        # every request has passed the bridge's check before this one ends
+        with anyio.fail_after(10):
+            await all_checked[0].wait()
+        return await _compact_natively(*args)
+
+    monkeypatch.setattr(bridge_util, "_check_limits_before_dispatch", count_checks)
+    monkeypatch.setattr(mockllm.MockLLM, "compact", compact)
+    limit = make_limit()
+
+    outcome = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        limit,
+        scaffold=_Scaffold(
+            requests,
+            # with the (empty) tools, a request is 4 tokens and its compacted input 3
+            compaction=CompactionNative(threshold=3),
+        ),
+    )
+
+    _assert_agent_limit(outcome, limit)
+    _assert_error_replies(outcome.replies, count=len(requests))
+    assert (checked, calls) == (len(requests), 1)
+    events = outcome.sample.events
+    assert not any(isinstance(event, ModelEvent) for event in events)
+
+
+@pytest.mark.parametrize(
+    ("make_limit", "wait"),
+    [
+        # the first generation is the first turn
+        pytest.param(lambda: turn_limit(0), "connection", id="turn-connection"),
+        # each request is compacted to one message: no room for the reply
+        pytest.param(lambda: message_limit(1), "compaction", id="message-compaction"),
+    ],
+)
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_requests_waiting_when_a_bridged_limit_is_recorded_make_no_model_calls(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    backend: str,
+    make_limit: Callable[[], Limit],
+    wait: str,
+) -> None:
+    """Requests waiting to call the model when a bridged limit is recorded make no model call.
+
+    Three requests pass the bridge's checks before any model call ends, then
+    wait: for the model's one connection, or for the compaction lock (the
+    bridge compacts natively). The first request reaches a turn or message
+    limit, which the bridge records. The others are refused once their wait
+    ends, and every request gets the limit's error reply.
+    """
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    requests = [_Request(content=f"Say hi {i}.") for i in range(3)]
+    checked = 0
+    all_checked: list[anyio.Event] = []
+
+    def count_checks() -> None:
+        nonlocal checked
+        _check_limits_before_dispatch()
+        if not all_checked:
+            all_checked.append(anyio.Event())
+        checked += 1
+        if checked == len(requests):
+            all_checked[0].set()
+
+    calls = 0
+
+    async def provider_call(*args: Any) -> None:
+        nonlocal calls
+        calls += 1
+        # every request has passed the bridge's checks before this call ends
+        with anyio.fail_after(10):
+            await all_checked[0].wait()
+
+    async def compact(*args: Any) -> tuple[list[ChatMessage], ModelUsage]:
+        await provider_call()
+        return await _compact_natively(*args)
+
+    monkeypatch.setattr(bridge_util, "_check_limits_before_dispatch", count_checks)
+    compaction: CompactionStrategy | None = None
+    if wait == "compaction":
+        monkeypatch.setattr(mockllm.MockLLM, "compact", compact)
+        # with the (empty) tools, a request is 4 tokens and its compacted input 3
+        compaction = CompactionNative(threshold=3)
+    limit = make_limit()
+
+    outcome = _run_bridged_agent(
+        tmp_path,
+        monkeypatch,
+        limit,
+        scaffold=_Scaffold(requests, compaction=compaction, at_model=provider_call),
+        max_connections=1 if wait == "connection" else None,
+    )
+
+    _assert_agent_limit(outcome, limit)
+    _assert_error_replies(outcome.replies, count=len(requests))
+    assert (checked, calls) == (len(requests), 1)
+
+
 @pytest.mark.parametrize("shortened_by", ["compaction", "filter"])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 def test_side_request_over_the_message_limit_is_not_refused(
@@ -2321,8 +2568,8 @@ def test_failure_after_a_bridged_limit_fails_the_sample(
 ) -> None:
     """A failure an overlapping generation requests ends the sample, not the recorded limit.
 
-    The first request reaches the `run()` message limit. The second,
-    overlapping it, has its response filter fail, which fails the sample.
+    The first request reaches the `run()` message limit while the second is
+    at the model. The second's response filter fails, which fails the sample.
     """
 
     async def fails(
@@ -2336,7 +2583,8 @@ def test_failure_after_a_bridged_limit_fails_the_sample(
         message_limit(2),
         scaffold=_Scaffold(
             [first := _Request(messages=2), second := _Request()],
-            filter=_overlapping(first, held=second),
+            filter=(overlap := _overlapping_at_model(first, held=second)).filter,
+            at_model=overlap.at_model,
             response_filter=fails,
         ),
     )
@@ -2373,7 +2621,8 @@ def test_failure_before_a_cancellation_during_bridge_shutdown_fails_the_sample(
         scaffold=_Scaffold(
             # the second reply never completes: only the failure ends the agent
             [first := _Request(messages=2), second := _Request(held=True)],
-            filter=_overlapping(first, held=second),
+            filter=(overlap := _overlapping_at_model(first, held=second)).filter,
+            at_model=overlap.at_model,
             response_filter=fails,
             cancel_on_kill=True,
         ),

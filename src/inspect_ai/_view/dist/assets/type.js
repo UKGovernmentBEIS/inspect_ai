@@ -1,4 +1,4 @@
-//#region ../../packages/util/src/type.ts
+// ../../packages/util/src/type.ts
 /**
 * Checks if a given value is numeric.
 */ var isNumeric = (n) => {
@@ -23,7 +23,6 @@
 */ var isRecord = (value) => {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 };
-//#endregion
 export { toArray as i, isReadonlyArray as n, isRecord as r, isNumeric as t };
 
 //# sourceMappingURL=type.js.map

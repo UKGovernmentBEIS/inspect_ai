@@ -2,7 +2,7 @@ import importlib
 import typing
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from importlib.metadata import PackageNotFoundError, version
-from typing import TYPE_CHECKING, Annotated, Any, TypeAlias, Union, cast
+from typing import TYPE_CHECKING, Annotated, Any, Literal, TypeAlias, Union, cast
 
 import yaml
 from pydantic import (
@@ -41,6 +41,13 @@ class SentinelGroup(typing.Protocol):
 Sentinel: TypeAlias = SentinelFunction | SentinelGroup
 
 Sentinels: TypeAlias = Sentinel | Mapping[str, Sentinel] | Sequence[Sentinel]
+
+
+SentinelProxy: TypeAlias = Literal["auto", "required", "off"]
+"""Whether Inspect looks for a sentinel sidecar behind a model's proxy, and whether it must find one. Inspect never looks unless it is set.
+
+Experimental: not yet a stable API; may change without notice.
+"""
 
 
 class SentinelEntry(BaseModel):
@@ -167,7 +174,7 @@ def sentinel_with_args(
     return SentinelConfig.model_validate({"name": sentinel, "params": params})
 
 
-SENTINEL_MIN_VERSION = "0.3.0"
+SENTINEL_MIN_VERSION = "0.3.1"
 """The oldest inspect_sentinel that this inspect_ai works with."""
 
 

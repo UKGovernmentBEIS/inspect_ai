@@ -12,7 +12,6 @@ from openai.types.chat import ChatCompletionChunk
 from test_helpers.utils import (
     skip_if_no_openai,
     skip_if_no_together,
-    skip_if_no_together_base_url,
 )
 
 from inspect_ai._util.environ import environ_var
@@ -39,10 +38,10 @@ from inspect_ai.tool import ToolInfo
 
 
 @skip_if_no_together
-@skip_if_no_together_base_url
-async def test_openai_compatible() -> None:
+async def test_openai_compatible_together() -> None:
     model = get_model(
-        "openai-api/together/MiniMaxAI/MiniMax-M2.7",
+        "openai-api/together/Qwen/Qwen3.5-9B",
+        base_url="https://api.together.xyz/v1",
         config=GenerateConfig(
             frequency_penalty=0.0,
             stop_seqs=None,
@@ -52,6 +51,8 @@ async def test_openai_compatible() -> None:
             seed=None,
             temperature=0.0,
             top_p=1.0,
+            # reasoning would otherwise consume the small max_tokens budget
+            extra_body={"reasoning": {"enabled": False}},
         ),
     )
 
@@ -355,7 +356,7 @@ def test_stream_model_arg_normalized() -> None:
 
 @skip_if_no_together
 async def test_together_stream_end_to_end() -> None:
-    # Use a generous max_tokens: reasoning models (e.g. gpt-oss) spend their
+    # Use a generous max_tokens: reasoning models (e.g. Qwen3.5) spend their
     # budget on the reasoning channel and emit no answer content if it is too
     # low, producing an empty completion (regardless of streaming).
     events: list[Any] = []
@@ -364,7 +365,7 @@ async def test_together_stream_end_to_end() -> None:
         events.append(event)
 
     model = get_model(
-        "together/openai/gpt-oss-20b",
+        "together/Qwen/Qwen3.5-9B",
         stream=True,
         config=GenerateConfig(max_tokens=1024, temperature=0.0),
     )
