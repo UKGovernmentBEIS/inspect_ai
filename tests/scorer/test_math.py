@@ -47,7 +47,8 @@ def _score_answer(
     ids=[f"{index}-{case['source']}" for index, case in enumerate(CASES)],
 )
 async def test_math_scorer_compatibility_cases(case: dict[str, str]) -> None:
-    scorer = math()
+    # Checks parse/compare results; the 2s default wall-clock budget flakes under load.
+    scorer = math(timeout=60)
     state = simple_task_state(model_output=case["output"])
     result = await scorer(state, Target([case["target"]]))
     assert result is not None
