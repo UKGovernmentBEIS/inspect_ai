@@ -1062,7 +1062,7 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   font-size: var(--inspect-font-size-smallest);
   padding: 0.1em 0.5em;
 }
-._outer_i2ek3_1 {
+._outer_6cugq_1 {
   /* Positioned so the block-left sticky toggle's containing block is this
      wrapper — keeps sticky behavior scoped to the panel instead of leaking
      to some arbitrary positioned ancestor up the tree. */
@@ -1078,11 +1078,11 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   flex-grow: 1;
 }
 
-._expandablePanel_i2ek3_17 {
+._expandablePanel_6cugq_17 {
   position: relative;
 }
 
-._expandableBordered_i2ek3_21 {
+._expandableBordered_6cugq_21 {
   border: solid var(--bs-light-border-subtle) 1px;
   padding: 0.5em;
 }
@@ -1099,16 +1099,11 @@ button._segment_116ql_10._disabled_116ql_51:hover {
    gradient) so the affordance works on any surface, regardless of the
    panel's bg. The inline-right toggle is a sibling of this wrapper, so it
    stays fully opaque. */
-._expandableTruncated_i2ek3_38 {
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    black calc(100% - 3rem),
-    transparent
-  );
+._expandableTruncated_6cugq_38 {
   mask-image: linear-gradient(to bottom, black calc(100% - 3rem), transparent);
 }
 
-._moreToggle_i2ek3_47 {
+._moreToggle_6cugq_42 {
   display: flex;
   margin-top: 0;
   height: 20px;
@@ -1118,14 +1113,14 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   color: var(--bs-link-color);
 }
 
-._moreToggle_i2ek3_47._bordered_i2ek3_57 {
+._moreToggle_6cugq_42._bordered_6cugq_52 {
   border-top: solid var(--bs-light-border-subtle) 1px;
 }
 
 /* Double class beats Bootstrap's `.btn` regardless of stylesheet order —
    in scout, Bootstrap loads after this module and its 6px 12px padding
    overflowed the fixed-height toggle bar. */
-._moreToggle_i2ek3_47 ._moreToggleButton_i2ek3_64 {
+._moreToggle_6cugq_42 ._moreToggleButton_6cugq_59 {
   font-size: var(--inspect-font-size-smaller);
   border: none;
   padding: 0rem 0.5rem;
@@ -1136,7 +1131,7 @@ button._segment_116ql_10._disabled_116ql_51:hover {
 /* Fills the panel so its sticky child is bounded by the panel's rect.
    pointer-events: none lets clicks pass through to the content behind;
    the sticky child re-enables pointer events on itself. */
-._inlineToggleHolder_i2ek3_75 {
+._inlineToggleHolder_6cugq_70 {
   position: absolute;
   inset: 0;
   display: flex;
@@ -1153,13 +1148,13 @@ button._segment_116ql_10._disabled_116ql_51:hover {
    becomes that container and pins the toggle to the panel's bottom edge —
    off screen for a panel taller than the viewport. Consumers that round a
    frame's corners must use `overflow: clip`, not `hidden`. */
-._inlineToggleSticky_i2ek3_92 {
+._inlineToggleSticky_6cugq_87 {
   position: sticky;
   bottom: 0.25em;
   pointer-events: auto;
 }
 
-._moreToggle_i2ek3_47._blockLeft_i2ek3_98 {
+._moreToggle_6cugq_42._blockLeft_6cugq_93 {
   width: fit-content;
   margin-top: 0.2em;
   margin-bottom: 0.5em;
@@ -1174,7 +1169,7 @@ button._segment_116ql_10._disabled_116ql_51:hover {
    panel's own toggle; static, a clipped-away toggle stays out of sight.
    Block-left toggles stay sticky: they sit on the other side.
    `static` (not `relative`) so the stacking `bottom` doesn't shift it. */
-._collapsedContent_i2ek3_113 ._inlineToggleSticky_i2ek3_92 {
+._collapsedContent_6cugq_108 ._inlineToggleSticky_6cugq_87 {
   position: static;
 }
 ._carouselThumbs_1dfia_1 {
