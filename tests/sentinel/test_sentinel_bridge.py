@@ -965,6 +965,79 @@ async def test_tool_result_stage_sees_the_call_as_modified() -> None:
     assert [step.input for step in seen] == [model.inputs[0]] * 2
 
 
+@protocol
+def bridge_modify_rebuilt(arguments: dict[str, Any]) -> Protocol:
+    """Modifies a call with one built from its id and function alone, so of the default type."""
+
+    async def rewrite(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        modified = ToolCall(
+            id=step.call.id, function=step.call.function, arguments=arguments
+        )
+        return Decision(action="modify", modified=modified, explanation="changed")
+
+    return rewrite
+
+
+@approver(name="rebuilding")
+def rebuilding_approver(rebuilt: ToolCall) -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        return Approval(decision="modify", modified=rebuilt)
+
+    return approve
+
+
+@pytest.mark.parametrize("by", ["sentinel", "approver"])
+@pytest.mark.parametrize("sandbox", [False, True])
+async def test_a_modified_custom_calls_result_is_checked_as_a_custom_call(
+    sandbox: bool, by: str
+) -> None:
+    patch_call = ToolCall(
+        id="patch_1",
+        function="apply_patch",
+        arguments={"input": "*** Begin Patch\n*** End Patch"},
+        parse_error="unparsed",
+        type="custom",
+    )
+    approved = {"input": "*** Begin Patch\n*** Add File: a\n*** End Patch"}
+    seen: Steps = []
+    model = Scripted(calls_output(patch_call), calls_output())
+    bridge = started_with(
+        sandbox, model.model, AgentState(messages=[ChatMessageUser(content=TASK)])
+    )
+    rebuilt = ToolCall(
+        id=patch_call.id, function=patch_call.function, arguments=approved
+    )
+    if by == "approver":
+        bridge.approval = [ApprovalPolicy(rebuilding_approver(rebuilt), "*")]
+    protocols = [bridge_recording(seen)]
+
+    with active(
+        protocols if by == "approver" else [bridge_modify_rebuilt(approved), *protocols]
+    ):
+        output = await generate(bridge, model, [ChatMessageUser(content=TASK)])
+        await generate(
+            bridge,
+            model,
+            [
+                ChatMessageUser(content=TASK),
+                output.message,
+                ChatMessageTool(content="Done", tool_call_id=patch_call.id),
+            ],
+        )
+
+    # only the arguments are adopted: the call handed over, and the call its
+    # result is checked as, are the model's custom call otherwise
+    expected = replace(patch_call, arguments=approved)
+    assert rebuilt.type == "function"
+    assert output.message.tool_calls == [expected]
+    [after] = [step for step in seen if isinstance(step, AfterToolCall)]
+    assert after.call == expected
+
+
 async def test_a_result_for_a_call_never_handed_over_is_still_checked() -> None:
     seen: Steps = []
     model = Scripted(calls_output(BASH), calls_output(READ), calls_output())

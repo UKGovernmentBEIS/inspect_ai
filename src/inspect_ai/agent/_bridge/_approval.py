@@ -329,7 +329,9 @@ async def apply_bridge_tool_approval(
                             failure = RuntimeError(error)
                             bridge.request_fail(failure)
                             raise failure
-                        checked = decision.modified
+                        # only the arguments are adopted, as for an approver's
+                        # modify: the handed call keeps everything else
+                        checked = replace(shown, arguments=decision.modified.arguments)
                         modified[index] = bridge.reviewed_calls(call, tools).dispatch(
                             checked.arguments
                         )
