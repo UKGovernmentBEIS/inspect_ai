@@ -3399,6 +3399,22 @@ def model_roles() -> dict[str, Model | list[Model]]:
     return _model_roles.get()
 
 
+def active_model_event_id() -> str | None:
+    """The `uuid` of the `ModelEvent` for the model call attempt in progress.
+
+    For code running inside a model call (e.g. a `ModelAPI` that wraps
+    another provider) to link its own records to that call's event. Each
+    attempt has its own event, so a retry gets a new id.
+
+    Returns:
+        The event's `uuid`, or `None` outside a model call attempt.
+    """
+    from inspect_ai.log._samples import _active_model_event
+
+    event = _active_model_event.get()
+    return event.uuid if event is not None else None
+
+
 active_model_context_var: ContextVar[Model | None] = ContextVar("active_model")
 
 _model_roles: ContextVar[dict[str, Model | list[Model]]] = ContextVar(
