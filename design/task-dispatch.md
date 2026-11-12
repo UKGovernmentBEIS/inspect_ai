@@ -511,10 +511,13 @@ the seed today, on its model's first `generate`, and no caller of
 `RunQueue.add` awaits anything first. A bad adaptive setting on an added
 task therefore fails inside its attempt, within `task_run`'s main `try`:
 
-- With no `max_samples`, `create_sample_semaphore`
-  (`src/inspect_ai/_eval/task/run.py:1293`) takes the adaptive branch and
-  calls `resolve_adaptive()` (`:4203`), which raises the `ValidationError`
-  before `register_eval` and before the task's sandboxes are set up. The
+- With no `max_samples`, `task_run` calls `create_sample_semaphore`
+  (`src/inspect_ai/_eval/task/run.py`) before `register_eval`. Its adaptive
+  branch builds a `DynamicSampleLimiter` from
+  `resolve_adaptive(generate_config.adaptive_connections)`
+  (`src/inspect_ai/util/_concurrency.py`), which raises the
+  `ValidationError` before the task registers and before its sandboxes are
+  set up. The
   `except` there writes the task's error log, `run_one` retries it under
   `task_retry_attempts` (each retry fails the same way) and sibling tasks
   go on; the record ends without registering ("Phases and cancelling").
