@@ -3038,6 +3038,65 @@ def test_the_time_the_sidecar_spent_judging_is_waiting(decided: dict[str, Any]) 
     assert sample_judged < sample_unjudged - 0.5
 
 
+@pytest.mark.parametrize("answered", [True, False], ids=["answered", "lookup failed"])
+def test_judging_time_past_the_token_limit_is_waiting_where_the_sidecar_answered(
+    answered: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The reply takes the sample past its token limit, and the sidecar is
+    # asked about it only to record what it decided. Where it answers, its
+    # judging is waiting; where the lookup fails, nothing is taken out. Either
+    # way the call's attempts are committed once.
+    from inspect_ai._util.working import ModelAttempts
+
+    committed = 0
+    commit = ModelAttempts.commit
+
+    def counting(self: ModelAttempts) -> None:
+        nonlocal committed
+        committed += 1
+        commit(self)
+
+    monkeypatch.setattr(ModelAttempts, "commit", counting)
+
+    def run(judging_time: float | None) -> float:
+        nonlocal committed
+        committed = 0
+        # the proxy holds the call a second, judging_time of it for its sidecar
+        stand_in = StandInSidecar(
+            turns=[
+                Turn(
+                    judgment={"outcome": "proceed", "steps": []},
+                    judging={"judging_time": judging_time} if judging_time else None,
+                    delay=1.0,
+                )
+            ],
+            echoed={} if answered else {"request_result": 400},
+        )
+        task = Task(
+            dataset=[Sample(input="What's the weather?")],
+            solver=generate(),
+            token_limit=6,
+        )
+        [log] = eval(task, model=_model(stand_in), display="none")
+        assert log.samples is not None
+        sample = log.samples[0]
+        assert sample.limit is not None and sample.limit.type == "token"
+        [call] = stand_in.model_calls
+        assert _looked_up(stand_in) == [call.headers["x-irid"]]
+        assert committed == 1
+        assert sample.working_time is not None
+        return sample.working_time
+
+    unjudged = run(None)
+    judged = run(0.9)
+
+    assert unjudged >= 1.0
+    if answered:
+        assert judged < unjudged - 0.5
+    else:
+        assert judged > unjudged - 0.5
+
+
 def test_a_sample_cancelled_while_the_proxy_holds_its_call_ends_on_its_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
