@@ -1076,25 +1076,6 @@ def _scorer_log(
     )
 
 
-@pytest.fixture
-def fresh_display(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Start with no display, display type or Rich console, as a new process does.
-
-    Earlier tests leave these set (a quiet console, a cached display), which
-    would hide or redirect the output these tests capture. The new console is
-    wide enough not to wrap the long temporary paths in that output.
-    """
-    import rich
-
-    from inspect_ai._display.core import active
-    from inspect_ai.util import _display
-
-    monkeypatch.setattr(active, "_active_display", None)
-    monkeypatch.setattr(_display, "_display_type", None)
-    monkeypatch.setattr(rich, "_console", None)
-    monkeypatch.setenv("COLUMNS", "1000")
-
-
 def _printed(capsys: pytest.CaptureFixture[str]) -> str:
     return capsys.readouterr().out
 
@@ -1752,3 +1733,58 @@ async def test_score_error_without_traceback_needs_explicit_origin(
     log = await score_async(_scoring_log([sample]), _failing_for_sample("never"))
     assert log.samples is not None
     assert log.samples[0].error == (None if marked else error)
+
+
+@pytest.mark.parametrize("action", ["append", "overwrite"])
+@pytest.mark.parametrize("failure_source", ["eval", "rescore"])
+async def test_score_preserves_scoring_error_when_monitor_state_is_missing(
+    action: ScoreAction, failure_source: str, tmp_path: pathlib.Path
+) -> None:
+    from inspect_ai._sentinel._sidecar._task import MONITOR_STATE_COPY
+
+    log = (
+        await eval_async(
+            Task(
+                dataset=[Sample(id="boom", input="q")],
+                solver=[],
+                scorer=_failing_for_sample(
+                    "boom" if failure_source == "eval" else "never"
+                ),
+            ),
+            model="mockllm/model",
+            fail_on_error=False,
+            log_dir=str(tmp_path),
+        )
+    )[0]
+    if failure_source == "rescore":
+        log = await score_async(log, _failing_for_sample("boom"), action=action)
+    assert log.samples is not None
+    sample = log.samples[0]
+    original_error = sample.error
+    assert original_error is not None
+    sample.store[MONITOR_STATE_COPY] = {
+        "copied": False,
+        "reason": "the sidecar's monitor state is unavailable",
+        "withheld": False,
+        "keys": [],
+    }
+    log_file = str(tmp_path / "missing-monitor-state.eval")
+    await write_eval_log_async(log, log_file)
+    log = await read_eval_log_async(log_file)
+    scorer_called = False
+
+    @scorer(metrics=[accuracy()])
+    def replacement() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            nonlocal scorer_called
+            scorer_called = True
+            return Score(value=1)
+
+        return score
+
+    rescored = await score_async(log, replacement(), action=action)
+    assert not scorer_called
+    assert rescored.samples is not None
+    assert rescored.samples[0].error == original_error
+    assert rescored.results is not None
+    assert rescored.results.completed_samples == 0
