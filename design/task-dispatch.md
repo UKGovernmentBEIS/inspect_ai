@@ -571,10 +571,15 @@ queued row and by a handle's `cancel()`, is synchronous:
   `run_samples=False`'s `started` log) ends the record with it, and the
   stamp stops any retry.
 
-`cancelled_log(record)` is `unwritten_task_log(logger, TaskCancelledBeforeStart())`:
-the same in-memory error log a failed log init returns, with status `error`,
-the message "task cancelled before it started", the eval spec the logger
-built at add, and no file (`location` empty). So a task cancelled before it
+`cancelled_log(record)` is `unwritten_task_log(logger, TaskCancelledBeforeStart())`
+with its `location` then set to `""`: the same in-memory error log a failed
+log init returns, with status `error`, the message "task cancelled before it
+started", the eval spec the logger built at add, and no file. The location
+is cleared on this log only: an attempt stopped at a stamp check can have
+finished `logger.init()`, and `discard()` removes the file but leaves the
+logger's `_location` set, so `unwritten_task_log` would name a file that no
+longer exists. A storage-error log keeps the destination location it reports
+today. So a task cancelled before it
 starts gives `eval()` one log like any other task, and code that judges a
 run by its logs (`all_evals_succeeded`, selection mode) sees a failure.
 Under `eval_set(retry_immediate=False)` such a cancel of a requested task is
@@ -1359,7 +1364,10 @@ test that waits on a run is bounded with `fail_after`.
   `EvalState` act on and describe the queued record, which is skipped while
   paused and starts after resume; a
   cancel of a `starting` record stops it before `register_eval`, landing
-  before the first stamp check and while `log_start()` is held; a cancel of a
+  before the first stamp check and while `log_start()` is held, and after
+  `logger.init()` succeeded and its storage was discarded the record's log
+  has an empty `location`, for `.eval` and `.json` logs, while a storage
+  failure's error log (the control) keeps its destination location; a cancel of a
   record whose unregistered attempt failed and whose retry is pending keeps
   the stored log; a cancel of a `starting` record with no stored log ends it
   with the cancelled-before-start error log; a second cancel changes nothing;
