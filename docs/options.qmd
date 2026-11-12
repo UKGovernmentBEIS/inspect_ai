@@ -30,7 +30,7 @@ INSPECT_LOG_LEVEL=warning
 
 INSPECT_EVAL_MAX_RETRIES=5
 INSPECT_EVAL_MAX_CONNECTIONS=20
-INSPECT_EVAL_MODEL=anthropic/claude-3-5-sonnet-20240620
+INSPECT_EVAL_MODEL=anthropic/claude-sonnet-5-5
 ```
 
 All command line options can also be set via environment variable, most commonly by using the `INSPECT_EVAL_` prefix. Exceptions are noted below.

@@ -50,7 +50,7 @@ inspect_ai = [
 
 
 [tool.ruff]
-extend-exclude = ["docs", "design"]
+extend-exclude = ["docs", "design", "src/inspect_ai/_view/ts-mono"]
 src = ["src"]
 
 [tool.ruff.lint]
@@ -124,6 +124,7 @@ exclude = [
   "examples/hooks",
   "examples/http_proxy",
   "src/inspect_sandbox_tools",
+  "src/inspect_ai/_view/ts-mono",
 ]
 warn_unused_ignores = true
 no_implicit_reexport = true
@@ -345,8 +346,7 @@ azure-ai-inference = "6 hours"
 google-genai = "6 hours"
 groq = "6 hours"
 inspect-scout = "6 hours"
-# A one-time dated entry, for the release whose signature checks Inspect now needs. Put back to "6 hours" by 2026-11-17 (see CONTRIBUTING.md).
-inspect-sentinel = "2026-11-10T18:45:00Z"
+inspect-sentinel = "6 hours"
 mistralai = "6 hours"
 openai = "6 hours"
 together = "6 hours"

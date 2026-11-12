@@ -13,6 +13,7 @@ from test_helpers.utils import skip_if_no_openai, skip_if_no_openai_model
 from inspect_ai import Task, eval
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
+    ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
     Model,
@@ -21,7 +22,7 @@ from inspect_ai.model import (
 from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._internal import parse_content_with_internal
 from inspect_ai.model._openai import openai_completion_params
-from inspect_ai.tool import tool
+from inspect_ai.tool import ToolFunction, computer, tool
 
 
 def _openai_model_with_status_response(status_code: int, path: str) -> Model:
@@ -1092,3 +1093,30 @@ async def test_skip_if_no_openai_model_propagates_other_errors(
         with pytest.raises(type(error)):
             await gated()
     assert [c.closed for c in clients] == [True, True]
+
+
+@skip_if_no_openai
+async def test_openai_computer_tool_result_without_screenshot() -> None:
+    """A computer tool result with no image (e.g. a tool error) must not 400.
+
+    OpenAI's computer_call_output can only carry a screenshot, so a placeholder
+    is sent in its place. A corrupt placeholder was rejected with "The image
+    data you provided does not represent a valid image."
+    """
+    model = get_model("openai/gpt-5.4")
+    tools = [computer()]
+    user = ChatMessageUser(content="Take a screenshot of the desktop.")
+
+    output = await model.generate(
+        [user], tools=tools, tool_choice=ToolFunction(name="computer")
+    )
+    assert output.message.tool_calls
+    tool_call = output.message.tool_calls[0]
+
+    error = ChatMessageTool(
+        content="Error: the display is not available",
+        tool_call_id=tool_call.id,
+        function=tool_call.function,
+    )
+    output = await model.generate([user, output.message, error], tools=tools)
+    assert output.error is None

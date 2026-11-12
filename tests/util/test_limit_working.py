@@ -1178,10 +1178,10 @@ async def test_retry_wait_withdraws_closed_ancestors_own_work(
 
     Inside an outer tool, an inner tool starts a background task and returns
     at 2. The task's model call runs from 0 and its attempt fails at 5 and is
-    retried. For generate, the time before the provider call is the inner
-    tool's own work; for `count_tokens()` and `compact()`, the attempt holds
-    the inner tool. A sibling under the outer tool works over `[1, 2]` and
-    stays charged.
+    retried. For generate and `compact()`, the time before the provider call
+    is the inner tool's own work; for `count_tokens()`, the attempt holds the
+    inner tool. A sibling under the outer tool works over `[1, 2]` and stays
+    charged.
     """
     ready, inner_closed = anyio.Event(), anyio.Event()
     other: _Task | None = None
@@ -1198,7 +1198,7 @@ async def test_retry_wait_withdraws_closed_ancestors_own_work(
         nonlocal attempts
         attempts += 1
         if attempts == 1:
-            if operation != "generate":
+            if operation == "count_tokens":
                 before_attempt()
             ready.set()
             await inner_closed.wait()
