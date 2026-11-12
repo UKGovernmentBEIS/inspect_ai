@@ -372,7 +372,12 @@ comes from the scope as well as from tool construction:
   does so as the default user while other members are still running, and
   member user isolation does not protect peers from it. Calls on the provider
   object that `as_type()` returns bypass the default, and so do calls on
-  another sandbox. The scope's `cwd` is not applied to these calls.
+  another sandbox. The same calls, except marked ones, use the scope's `cwd`:
+  `exec()` with no `cwd` runs in it, and a relative `cwd` or file path
+  resolves against it (`sandbox_operation_cwd()` and
+  `sandbox_operation_file()`). Docker runs the commands behind `read_file()`
+  and `write_file()` from `/`, so they do not depend on the user being able to
+  enter the image's working directory.
 
 Custom tools inherit the scope's user with no change of their own: a tool that
 calls `exec()`, `read_file()` or `write_file()` without a user runs as the

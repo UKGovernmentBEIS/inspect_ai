@@ -30,6 +30,7 @@ from inspect_ai.util._sandbox.context import (
 )
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 from inspect_ai.util._sandbox.identity import (
+    SANDBOX_OPERATIONS_USE_SCOPE_CWD,
     SandboxIdentityError,
     sandbox_identity,
     sandbox_identity_active,
@@ -212,11 +213,15 @@ async def test_tasks_started_inside_inherit_the_scope(
 
 
 class _FileSandbox(CannedSandbox):
-    """Records `(operation, user)` for every exec, read and write."""
+    """Records `(operation, user)` for every exec, read and write.
+
+    `paths` records the exec's `cwd` or the file operation's path.
+    """
 
     def __init__(self) -> None:
         super().__init__(lambda _cmd, _user: OK)
         self.calls: list[tuple[str, str | None]] = []
+        self.paths: list[str | None] = []
 
     async def exec(
         self,
@@ -230,6 +235,7 @@ class _FileSandbox(CannedSandbox):
         concurrency: bool = True,
     ) -> ExecResult[str]:
         self.calls.append(("exec", user))
+        self.paths.append(cwd)
         return await super().exec(
             cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
         )
@@ -238,6 +244,7 @@ class _FileSandbox(CannedSandbox):
         self, file: str, contents: str | bytes, *, user: str | None = None
     ) -> None:
         self.calls.append(("write_file", user))
+        self.paths.append(file)
 
     @overload
     async def read_file(
@@ -253,6 +260,7 @@ class _FileSandbox(CannedSandbox):
         self, file: str, text: bool = True, *, user: str | None = None
     ) -> str | bytes:
         self.calls.append(("read_file", user))
+        self.paths.append(file)
         return "" if text else b""
 
 
@@ -351,6 +359,60 @@ async def test_framework_operation_keeps_the_default_user() -> None:
         *[(op, "w-1") for op in OPERATIONS],
         ("exec", "w-1"),
     ]
+
+
+async def _relative_operations(env: SandboxEnvironment) -> None:
+    await env.exec(["true"])
+    await env.exec(["true"], cwd="sub")
+    await env.exec(["true"], cwd="/tmp")
+    await env.read_file("f")
+    await env.write_file("d/f", "x", user="root")
+    await env.read_file("/etc/f")
+
+
+RELATIVE_PATHS = [None, "sub", "/tmp", "f", "d/f", "/etc/f"]
+
+
+async def test_operations_use_the_scope_cwd() -> None:
+    provider = _FileSandbox()
+    transcript = Transcript()
+    init_transcript(transcript)
+    with _environments(default=SandboxEnvironmentProxy(provider)):
+        with sandbox_identity("w-1", cwd="/home/w-1"):
+            await _relative_operations(sandbox())
+    assert provider.paths == [
+        "/home/w-1",
+        "/home/w-1/sub",
+        "/tmp",
+        "/home/w-1/f",
+        "/home/w-1/d/f",
+        "/etc/f",
+    ]
+    events = [e for e in transcript.events if isinstance(e, SandboxEvent)]
+    assert [(e.options or {}).get("cwd") for e in events[:3]] == [
+        "/home/w-1",
+        "/home/w-1/sub",
+        "/tmp",
+    ]
+    assert [e.file for e in events[3:]] == ["/home/w-1/f", "/home/w-1/d/f", "/etc/f"]
+    assert SANDBOX_OPERATIONS_USE_SCOPE_CWD is True
+
+
+async def test_scope_cwd_is_not_used_by_framework_operations_or_elsewhere() -> None:
+    default, workspace = _FileSandbox(), _FileSandbox()
+    proxy = SandboxEnvironmentProxy(default)
+    with _environments(default=proxy, workspace=SandboxEnvironmentProxy(workspace)):
+        await _relative_operations(proxy)
+        with sandbox_identity("w-1", cwd="/home/w-1"):
+            with framework_sandbox_operation():
+                await _relative_operations(proxy)
+            await _relative_operations(proxy.as_type(_FileSandbox))
+        with sandbox_identity("w-1"):
+            await _relative_operations(proxy)
+        with sandbox_identity("w-1", cwd="/home/w-1", sandbox="workspace"):
+            await _relative_operations(proxy)
+    assert default.paths == RELATIVE_PATHS * 5
+    assert workspace.paths == []
 
 
 _UNSUPPORTED = (

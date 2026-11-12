@@ -465,6 +465,32 @@ async def test_read_file_reports_unknown_user_as_unsupported(
         await _environment().read_file("source", user="agent")
 
 
+@pytest.mark.parametrize("contents", ["text", b"bytes"])
+async def test_write_file_commands_run_from_the_root_directory(
+    contents: str | bytes, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # the user may be unable to enter the default working directory (/work)
+    exec_mock = AsyncMock(
+        side_effect=[
+            ExecResult(True, 0, "", ""),
+            ExecResult(False, 1, "", "tee: Permission denied"),
+            ExecResult(True, 0, "listing", ""),
+        ]
+    )
+    monkeypatch.setattr(docker_module, "compose_exec", exec_mock)
+
+    with pytest.raises(PermissionError, match="listing"):
+        await _environment().write_file("/scratch/w-1/config", contents, user="agent")
+
+    commands = [call.args[0] for call in exec_mock.await_args_list]
+    assert len(commands) == 3
+    for command in commands:
+        assert command[command.index("--workdir") + 1] == "/"
+        assert command[command.index("--user") + 1] == "agent"
+    assert commands[0][-3:] == ["mkdir", "-p", "/scratch/w-1"]
+    assert commands[2][-4:] == ["ls", "-la", "--", "/scratch/w-1"]
+
+
 @pytest.mark.parametrize("contents", [b"contents", b""])
 @pytest.mark.parametrize(
     "stderr",
@@ -796,6 +822,43 @@ async def test_docker_read_file_survives_removed_working_directory(
 
     for user in [None, "65534", "root"]:
         assert await env.read_file(file, user=user) == "public"
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+@pytest.mark.parametrize(
+    "docker_environment",
+    [
+        {
+            "services": {
+                "default": {
+                    "image": "python:3.12-bookworm",
+                    "working_dir": "/root",
+                    "command": "tail -f /dev/null",
+                    "init": True,
+                    "network_mode": "none",
+                    "stop_grace_period": "1s",
+                }
+            }
+        }
+    ],
+    indirect=True,
+)
+async def test_docker_file_operations_work_for_a_user_outside_the_working_directory(
+    docker_environment: DockerSandboxEnvironment,
+) -> None:
+    env = docker_environment
+    user = "65534"
+    listed = await env.exec(["ls", "."], user=user)
+    assert not listed.success, "the user must not be able to use /root"
+
+    file = f"/tmp/inspect-workdir-{uuid4().hex}/sub/file"
+    await env.write_file(file, "text", user=user)
+    assert await env.read_file(file, user=user) == "text"
+    await env.write_file(file, b"bytes", user=user)
+    assert await env.read_file(file, text=False, user=user) == b"bytes"
+    owner = await env.exec(["stat", "-c", "%u", file])
+    assert owner.stdout.strip() == user
 
 
 @pytest.mark.slow
