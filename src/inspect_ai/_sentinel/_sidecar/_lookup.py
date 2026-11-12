@@ -46,7 +46,7 @@ class Looked(NamedTuple):
 async def request_result(received: ReceivedCall, replied: bool) -> Looked:
     """Ask the sidecar what it decided of the call's latest attempt, and keep the answer, waiting while it is still judging.
 
-    The sidecar holds each answer while the call is still being judged, up to `RESULT_WAIT`, and Inspect asks again while it is. While Inspect waits, the sample's token, turn and working limits are paused, as they are while an in-process sentinel runs; its time limit still applies. A state other than judging, including one this version doesn't know, is an answer.
+    The sidecar holds each answer while the call is still being judged, up to `RESULT_WAIT`, and Inspect asks again while it is. While Inspect waits, the sample's cost, token, turn and working limits are paused, as they are while an in-process sentinel runs; its time limit still applies. A state other than judging, including one this version doesn't know, is an answer.
 
     Args:
         received: What is kept of the call, where the answer is kept too.
