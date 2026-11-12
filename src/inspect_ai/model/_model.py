@@ -52,11 +52,13 @@ from inspect_ai._sentinel._sidecar._act import (
     refused_output,
     refused_usage,
 )
+from inspect_ai._sentinel._sidecar._judging import count_judging_as_waiting
 from inspect_ai._sentinel._sidecar._lookup import (
     request_result,
     unjudged_reply,
 )
 from inspect_ai._sentinel._sidecar._received import (
+    ReceivedCall,
     begin_attempt,
     receiving_call,
 )
@@ -1112,153 +1114,169 @@ class Model:
         # a refusal the sample fails on, which a call through a sidecar raises
         # only once the sidecar's judgment of it is in
         refused = False
-        async with self._connection_concurrency(config) as connection:
-            # generate
-            with (
-                receiving_call(
-                    through_sidecar.sidecar,
-                    through_sidecar.registered_beforehand,
-                    through_sidecar.mode,
-                )
-                if through_sidecar is not None
-                else contextlib.nullcontext()
-            ) as receiving:
-                try:
-                    output, event = await self._generate(
-                        prepared=prepared,
-                        config=config,
-                        cache=cache,
-                        connection=connection,
-                        on_stream=on_stream,
-                        event_uuid=generate_id,
+        # a call through a sidecar leaves its attempts to be committed here,
+        # once the sidecar has said how long it spent judging the call
+        attempts = ModelAttempts() if through_sidecar is not None else None
+        judged_for = 0.0
+        receiving: ReceivedCall | None = None
+        event: BaseModel | None = None
+        try:
+            async with self._connection_concurrency(config) as connection:
+                # generate
+                with (
+                    receiving_call(
+                        through_sidecar.sidecar,
+                        through_sidecar.registered_beforehand,
+                        through_sidecar.mode,
                     )
-                except LimitExceededError:
-                    # The sidecar judged the reply before Inspect counted its
-                    # usage, and keeps what it saw, so what it decided is
-                    # recorded, though the sample ends on the limit before
-                    # any of it is acted on. Its usage was counted already.
-                    if receiving is not None and through_sidecar is not None:
-                        from inspect_ai._sentinel._sidecar._events import (
-                            record_reports_past_limit,
+                    if through_sidecar is not None
+                    else contextlib.nullcontext()
+                ) as receiving:
+                    try:
+                        output, event = await self._generate(
+                            prepared=prepared,
+                            config=config,
+                            cache=cache,
+                            connection=connection,
+                            on_stream=on_stream,
+                            event_uuid=generate_id,
+                            attempts=attempts,
                         )
+                    except LimitExceededError:
+                        # The sidecar judged the reply before Inspect counted its
+                        # usage, and keeps what it saw, so what it decided is
+                        # recorded, though the sample ends on the limit before
+                        # any of it is acted on. Its usage was counted already.
+                        if receiving is not None and through_sidecar is not None:
+                            from inspect_ai._sentinel._sidecar._events import (
+                                record_reports_past_limit,
+                            )
 
-                        await record_reports_past_limit(
-                            receiving, through_sidecar.sidecar, generate_id
-                        )
-                    raise
-                except (TerminateSampleError, ModelRefusalError):
-                    # Inspect's own outcomes, never a provider's error: a
-                    # refusal that reached one was acted on and counted there
-                    raise
-                except Exception as ex:
-                    if receiving is None:
+                            await record_reports_past_limit(
+                                receiving, through_sidecar.sidecar, generate_id
+                            )
                         raise
-                    # an error Inspect stopped retrying may still have been
-                    # a refusal for a sidecar's decision
-                    recovered = await refusal_after_error(
-                        receiving, str(self), ex, _bridged()
-                    )
-                    # the reply the sidecar refused was billed: its usage
-                    # counts, as a model call's does in process
-                    from inspect_ai._sentinel._sidecar._events import (
-                        record_refusal_reports,
-                    )
+                    except (TerminateSampleError, ModelRefusalError):
+                        # Inspect's own outcomes, never a provider's error: a
+                        # refusal that reached one was acted on and counted there
+                        raise
+                    except Exception as ex:
+                        if receiving is None:
+                            raise
+                        # an error Inspect stopped retrying may still have been
+                        # a refusal for a sidecar's decision
+                        recovered = await refusal_after_error(
+                            receiving, str(self), ex, _bridged()
+                        )
+                        # the reply the sidecar refused was billed: its usage
+                        # counts, as a model call's does in process
+                        from inspect_ai._sentinel._sidecar._events import (
+                            record_refusal_reports,
+                        )
 
-                    billed = refused_usage(receiving)
-                    if billed is not None:
-                        try:
-                            record_and_check_model_usage(self, billed, role=self.role)
-                        except LimitExceededError:
-                            # the usage that ends the sample on a limit is
-                            # counted, and what the sidecar decided of the
-                            # call is recorded before it ends
+                        billed = refused_usage(receiving)
+                        if billed is not None:
+                            try:
+                                record_and_check_model_usage(
+                                    self, billed, role=self.role
+                                )
+                            except LimitExceededError:
+                                # the usage that ends the sample on a limit is
+                                # counted, and what the sidecar decided of the
+                                # call is recorded before it ends
+                                if through_sidecar is not None:
+                                    record_refusal_reports(
+                                        receiving, through_sidecar.sidecar, generate_id
+                                    )
+                                raise
+                        if recovered is None:
+                            # a refusal that stands as the error, as a bridged
+                            # agent's does, still has its decisions recorded
                             if through_sidecar is not None:
                                 record_refusal_reports(
                                     receiving, through_sidecar.sidecar, generate_id
                                 )
                             raise
-                    if recovered is None:
-                        # a refusal that stands as the error, as a bridged
-                        # agent's does, still has its decisions recorded
-                        if through_sidecar is not None:
-                            record_refusal_reports(
-                                receiving, through_sidecar.sidecar, generate_id
-                            )
-                        raise
-                    output, event = recovered, None
+                        output, event = recovered, None
 
-            # update the most recent ModelEvent with the actual start/completed
-            # times as well as a computation of working time (events are
-            # created _after_ the call to _generate, potentially in response
-            # to retries, so they need their timestamp updated so it accurately
-            # reflects the full start/end time which we know here)
-            from inspect_ai.event._model import ModelEvent
-            from inspect_ai.log._transcript import transcript
-
-            # a refusal recovered after the error has no event of its own: the
-            # call's event records the error
-            if event is not None:
-                assert isinstance(event, ModelEvent)
-                event.timestamp = start_time
-                event.working_start = working_start
-                completed = datetime.now(timezone.utc)
-                event.completed = completed
-                event.working_time = (
-                    output.time
-                    if output.time is not None
-                    else (completed - start_time).total_seconds()
-                )
-
-                # re-emit so subscribers (e.g. the sample buffer, which
-                # serializes a snapshot at emission time) pick up the timing
-                # fields set above
-                transcript()._event_updated(event)
-
-            # fail the sample on a refusal if requested. Raised here, after the
-            # ModelEvent is complete (so the transcript shows the refusal and
-            # then the error) and after usage/refusal accounting has run.
-            refused = bool(
-                config.fail_on_refusal
-                and not output.empty
-                and output.stop_reason == "content_filter"
-            )
-            if refused and through_sidecar is None:
-                raise ModelRefusalError(output, str(self), self.role)
-
-        # what the sidecar decided of the call, which a reply never carries:
-        # asked after every call through it, unless a refusal was already asked
-        judgment = None
-        if through_sidecar is not None and receiving is not None:
-            looked = receiving.looked
-            if looked is None:
-                looked = await request_result(receiving, replied=True)
-            if looked.state == "decided" and looked.judgment is not None:
-                judgment = looked.judgment
-            else:
-                unjudged_reply(looked, through_sidecar.mode, receiving.request_id)
-
-        # before an in-process sentinel, which judges the reply after the
-        # proxy did
-        if judgment is not None and through_sidecar is not None:
-            from inspect_ai._sentinel._sidecar._events import record_sidecar_reports
-
-            output = act_on_judgment(judgment, output, _bridged())
-            if event is not None:
+                # update the most recent ModelEvent with the actual start/completed
+                # times as well as a computation of working time (events are
+                # created _after_ the call to _generate, potentially in response
+                # to retries, so they need their timestamp updated so it accurately
+                # reflects the full start/end time which we know here)
+                from inspect_ai.event._model import ModelEvent
                 from inspect_ai.log._transcript import transcript
 
-                # The proxy hands Inspect the turn with the sidecar's decisions
-                # applied. The event records the model's turn as the eval
-                # holds it, which act_on_judgment put back, as an in-process
-                # sentinel leaves it, with the calls taken out redacted.
-                event.output = _snapshot_output(output)
-                transcript()._event_updated(event)
-            record_sidecar_reports(
-                judgment,
-                through_sidecar.sidecar,
-                receiving.request_id if receiving is not None else None,
-                generate_id,
-            )
-            end_if_terminated(judgment, output, _bridged())
+                # a refusal recovered after the error has no event of its own: the
+                # call's event records the error
+                if event is not None:
+                    assert isinstance(event, ModelEvent)
+                    event.timestamp = start_time
+                    event.working_start = working_start
+                    completed = datetime.now(timezone.utc)
+                    event.completed = completed
+                    event.working_time = (
+                        output.time
+                        if output.time is not None
+                        else (completed - start_time).total_seconds()
+                    )
+
+                    # re-emit so subscribers (e.g. the sample buffer, which
+                    # serializes a snapshot at emission time) pick up the timing
+                    # fields set above
+                    transcript()._event_updated(event)
+
+                # fail the sample on a refusal if requested. Raised here, after the
+                # ModelEvent is complete (so the transcript shows the refusal and
+                # then the error) and after usage/refusal accounting has run.
+                refused = bool(
+                    config.fail_on_refusal
+                    and not output.empty
+                    and output.stop_reason == "content_filter"
+                )
+                if refused and through_sidecar is None:
+                    raise ModelRefusalError(output, str(self), self.role)
+
+            # what the sidecar decided of the call, which a reply never carries:
+            # asked after every call through it, unless a refusal was already asked
+            judgment = None
+            if through_sidecar is not None and receiving is not None:
+                looked = receiving.looked
+                if looked is None:
+                    looked = await request_result(receiving, replied=True)
+                if looked.state == "decided" and looked.judgment is not None:
+                    judgment = looked.judgment
+                else:
+                    unjudged_reply(looked, through_sidecar.mode, receiving.request_id)
+
+            # before an in-process sentinel, which judges the reply after the
+            # proxy did
+            if judgment is not None and through_sidecar is not None:
+                from inspect_ai._sentinel._sidecar._events import record_sidecar_reports
+
+                output = act_on_judgment(judgment, output, _bridged())
+                if event is not None:
+                    from inspect_ai.log._transcript import transcript
+
+                    # The proxy hands Inspect the turn with the sidecar's decisions
+                    # applied. The event records the model's turn as the eval
+                    # holds it, which act_on_judgment put back, as an in-process
+                    # sentinel leaves it, with the calls taken out redacted.
+                    event.output = _snapshot_output(output)
+                    transcript()._event_updated(event)
+                record_sidecar_reports(
+                    judgment,
+                    through_sidecar.sidecar,
+                    receiving.request_id if receiving is not None else None,
+                    generate_id,
+                )
+                end_if_terminated(judgment, output, _bridged())
+        finally:
+            if attempts is not None:
+                judged_for = count_judging_as_waiting(receiving, attempts, event)
+                attempts.commit()
+        if judged_for and output.time is not None:
+            output.time = max(output.time - judged_for, 0.0)
 
         # a call through a sidecar fails on its refusal once the judgment is
         # recorded and acted on, so a sentinel's terminate comes first
@@ -1609,7 +1627,22 @@ class Model:
         connection: ConnectionSlot | None = None,
         on_stream: StreamHandler | None = None,
         event_uuid: str | None = None,
+        attempts: ModelAttempts | None = None,
     ) -> tuple[ModelOutput, BaseModel]:
+        """Generate, retrying as the model's retry config says.
+
+        Args:
+            prepared: The prepared input, tools and tool choice.
+            config: Generation configuration.
+            cache: Caching behavior.
+            connection: The connection slot the call holds.
+            on_stream: Handler for streamed output.
+            event_uuid: The `uuid` for the first attempt's `ModelEvent`.
+            attempts: The call's attempts, when the caller commits them, as a
+                call through a sentinel sidecar's does once the sidecar has
+                said how long it spent judging the call. Otherwise the
+                attempts are made and committed here.
+        """
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.hooks._hooks import (
             emit_before_model_generate,
@@ -1653,7 +1686,9 @@ class Model:
         # only consulted per attempt (see wait_generate_dispatch's fast path).
         from inspect_ai._control.pause import wait_generate_dispatch
 
-        attempts = ModelAttempts()
+        commit = attempts is None
+        if attempts is None:
+            attempts = ModelAttempts()
 
         # the first attempt's event takes event_uuid; a retry's mints its own
         first_uuid = [event_uuid]
@@ -2010,7 +2045,8 @@ class Model:
                 model_output, event = await generate()
             finally:
                 # the last attempt, successful or failed without a retry
-                attempts.commit()
+                if commit:
+                    attempts.commit()
 
         # record any model fallback against the active sample (here in the
         # outer frame rather than alongside usage recording so that cache
@@ -3707,12 +3743,6 @@ def record_and_check_model_usage(
     role: str | None = None,
     output: ModelOutput | None = None,
 ) -> None:
-    from inspect_ai.log._samples import (
-        set_active_sample_token_limit_usage,
-        set_active_sample_total_cost,
-        set_active_sample_total_tokens,
-    )
-
     # full "provider/model" identifier, used as the usage-bookkeeping dict key
     model_name = f"{model}"
 
@@ -3722,19 +3752,12 @@ def record_and_check_model_usage(
     if total_cost is not None:
         usage.total_cost = total_cost
 
-    # record usage
-    set_model_usage(model_name, usage, sample_model_usage_context_var.get(None))
-    set_model_usage(model_name, usage, model_usage_context_var.get(None))
+    _add_model_usage(model_name, usage, role)
 
     # record into the process-global throughput registry (cache hits never
     # reach this function — their early return in `_generate` keeps cached
     # reads, which consume no provider capacity, out of the reported rate)
     record_generate(model_name, usage)
-
-    # record usage by role name (if role is set)
-    if role is not None:
-        set_model_usage(role, usage, sample_role_usage_context_var.get(None))
-        set_model_usage(role, usage, role_usage_context_var.get(None))
 
     # record into both limit trees before checking either, so a token limit
     # raising for this call cannot skip charging its cost to the cost limits
@@ -3742,16 +3765,60 @@ def record_and_check_model_usage(
     if total_cost is not None:
         record_model_cost(total_cost)
 
-    # update active sample (before the checks so the control channel sees the
-    # usage that tripped a limit)
-    set_active_sample_total_tokens(sample_total_tokens())
-    set_active_sample_token_limit_usage(token_limit_usage())
-    if total_cost is not None:
-        set_active_sample_total_cost(sample_total_cost())
+    # before the checks, so the control channel sees the usage that tripped
+    # a limit
+    _show_sample_usage(cost=total_cost is not None)
 
     check_token_limit()
     if total_cost is not None:
         check_cost_limit()
+
+
+def record_sidecar_judging_usage(model: str, role: str, usage: ModelUsage) -> None:
+    """Record a sentinel sidecar's judge-model usage in the sample's and the eval's usage, by model and by role.
+
+    The sidecar made the calls on its own key, so they count toward no token
+    or cost limit and toward none of this process's model throughput. Usage
+    the sidecar didn't price is priced from this process's cost data for the
+    model, where it has some, as the call would be in process. Cache writes
+    are priced at the standard rate, as the sidecar doesn't say how long its
+    cache entries were written to last.
+    """
+    from inspect_ai.model._model_info import _get_model_info_direct
+
+    if usage.total_cost is None:
+        # by the model's name only: no provider is loaded for a model this
+        # process never calls
+        info = _get_model_info_direct(model)
+        if info is not None and info.cost is not None:
+            usage = usage.model_copy(
+                update={"total_cost": compute_model_cost(info.cost, usage)}
+            )
+    _add_model_usage(model, usage, role)
+    _show_sample_usage(cost=usage.total_cost is not None)
+
+
+def _add_model_usage(model_name: str, usage: ModelUsage, role: str | None) -> None:
+    """Add a call's usage to the sample's and the eval's usage, by model, and by role where it has one."""
+    set_model_usage(model_name, usage, sample_model_usage_context_var.get(None))
+    set_model_usage(model_name, usage, model_usage_context_var.get(None))
+    if role is not None:
+        set_model_usage(role, usage, sample_role_usage_context_var.get(None))
+        set_model_usage(role, usage, role_usage_context_var.get(None))
+
+
+def _show_sample_usage(cost: bool) -> None:
+    """Show the running sample's usage, and its cost where the call was priced, to the control channel."""
+    from inspect_ai.log._samples import (
+        set_active_sample_token_limit_usage,
+        set_active_sample_total_cost,
+        set_active_sample_total_tokens,
+    )
+
+    set_active_sample_total_tokens(sample_total_tokens())
+    set_active_sample_token_limit_usage(token_limit_usage())
+    if cost:
+        set_active_sample_total_cost(sample_total_cost())
 
 
 def model_usage_cost(
