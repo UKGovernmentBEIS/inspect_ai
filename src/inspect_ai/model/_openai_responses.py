@@ -2206,6 +2206,7 @@ def is_assistant_message_param(
         is_response_output_message(param)
         or is_response_computer_tool_call(param)
         or is_response_web_search_call(param)
+        or is_response_code_interpreter_call(param)
         or is_response_function_tool_call(param)
         or is_response_custom_tool_call(param)
         or is_response_reasoning_item(param)

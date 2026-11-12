@@ -18,7 +18,7 @@ from typing_extensions import override
 
 from inspect_ai import Task, TaskSource
 from inspect_ai import eval as inspect_eval
-from inspect_ai._display.core.display import TaskCancel, TaskError
+from inspect_ai._display.core.display import CancelType, TaskCancel, TaskError
 from inspect_ai._eval.evalset import eval_set
 from inspect_ai._eval.task.run import task_run as original_task_run
 from inspect_ai.dataset import Sample
@@ -32,6 +32,53 @@ from inspect_ai.util import (
     SandboxEnvironmentConfigType,
     sandboxenv,
 )
+
+
+@pytest.mark.parametrize(
+    ("pending", "requested", "stamped"),
+    [
+        (None, "drain", "drain"),
+        ("drain", "score", "score"),
+        ("score", "error", "score"),
+        ("error", "retry", "retry"),
+        ("retry", "abort", "abort"),
+        ("abort", "retry", "abort"),
+        ("abort", "abort", "abort"),
+        ("abort", "drain", "abort"),
+        ("drain", None, "drain"),
+    ],
+)
+def test_task_cancel_stamp_only_escalates(
+    pending: CancelType, requested: CancelType, stamped: CancelType
+) -> None:
+    applied: list[CancelType] = []
+    task_cancel = TaskCancel(can_retry=True, apply=applied.append)
+    task_cancel.request(pending)
+    applied.clear()
+
+    task_cancel.request(requested)
+
+    assert task_cancel.cancel_type == stamped
+    assert applied == ([] if stamped == pending else [requested])
+
+
+@pytest.mark.parametrize(
+    ("ended_in_error", "requested", "stamped"),
+    [
+        (True, "abort", "abort"),
+        (True, "retry", None),
+        (False, "abort", None),
+    ],
+)
+def test_task_cancel_after_close_accepts_only_abort_of_errored_attempt(
+    ended_in_error: bool, requested: CancelType, stamped: CancelType
+) -> None:
+    task_cancel = TaskCancel(can_retry=True, apply=lambda _: None)
+    task_cancel.close(ended_in_error=ended_in_error)
+
+    task_cancel.request(requested)
+
+    assert task_cancel.cancel_type == stamped
 
 
 def test_abort_cancel_produces_error_status() -> None:
@@ -60,7 +107,7 @@ def test_abort_cancel_produces_error_status() -> None:
             while not cancel_holder:
                 await anyio.sleep(0.01)
             # Trigger an abort cancellation (simulates clicking Cancel > Abort)
-            cancel_holder[0].cancel_task("abort")
+            cancel_holder[0].request("abort")
             # Sleep to let the cancellation propagate. The abort is expected to
             # interrupt this; the duration is only an upper bound on the
             # propagation window.
@@ -121,7 +168,7 @@ def test_abort_cancel_not_retried_without_task_retries() -> None:
             while not cancel_holder:
                 await anyio.sleep(0.01)
             # Trigger an abort cancellation
-            cancel_holder[0].cancel_task("abort")
+            cancel_holder[0].request("abort")
             # Sleep to let the cancellation propagate. The abort is expected to
             # interrupt this; the duration is only an upper bound on the
             # propagation window.
@@ -325,7 +372,7 @@ def test_error_resolution_downgraded_for_materializing_fail_on_error_sample() ->
         # sample was materializing (after the gate's active_samples() check)
         eval_state = get_eval_states()[0]
         assert eval_state.task_cancel is not None
-        eval_state.task_cancel.cancel_task("error")
+        eval_state.task_cancel.request("error")
         original_start(self, tg)
 
     @solver(name="downgrade_resolution_solver")
@@ -392,7 +439,7 @@ def test_drain_resolution_cancels_materializing_sample() -> None:
         if self.sample.id == 2:
             eval_state = get_eval_states()[0]
             assert eval_state.task_cancel is not None
-            eval_state.task_cancel.cancel_task("drain")
+            eval_state.task_cancel.request("drain")
         original_start(self, tg)
 
     @solver(name="drain_resolution_solver")
@@ -666,7 +713,7 @@ def test_external_interrupt_with_pending_resolution_logs_cancelled(
             # stamp the resolution on the raw handle without interrupting
             # this sample — the pending-graceful-resolution state (e.g. a
             # `--score` cancel stalled on a hung sample/scorer)
-            eval_state.task_cancel.cancel_task("score")
+            eval_state.task_cancel.request("score")
             resolution_pending.set()
             await anyio.sleep(10)
             return state
@@ -1126,7 +1173,7 @@ def _fire_on_log_finish(
     async def log_finish(self: TaskLogger, *args: Any, **kwargs: Any) -> Any:
         if self.eval.task == task_name and args[0] == status and not fired:
             fired.append(self.eval.eval_id)
-            _task_cancel_handle(self.eval.eval_id).cancel_task(cancel_type)
+            _task_cancel_handle(self.eval.eval_id).request(cancel_type)
             if hang:
                 await anyio.sleep_forever()
         return await original_log_finish(self, *args, **kwargs)
@@ -1248,7 +1295,7 @@ async def test_abort_pending_before_error_log_write_keeps_full_log(
     def collect_and_abort(stats: Any) -> None:
         # called in task a's error handler just before its error-log write
         if "a" in handles and not pending_at_write:
-            handles["a"].cancel_task("abort")
+            handles["a"].request("abort")
             pending_at_write.append(handles["a"].cancel_type)
         collect_eval_data(stats)
 
@@ -1377,7 +1424,8 @@ async def test_abort_before_error_log_write_shields_it_for_bounded_time() -> Non
     import inspect_ai._eval.task.run as task_run_module
     from inspect_ai._eval.task.run import abort_bounded_write
 
-    pending = TaskCancel(can_retry=False, cancel_task=print, cancel_type="abort")
+    pending = TaskCancel(can_retry=False, apply=lambda _: None)
+    pending.request("abort")
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(task_run_module, "ABORTED_LOG_WRITE_TIMEOUT", 0.05)
         with anyio.CancelScope() as task_scope:
@@ -1515,7 +1563,7 @@ runs to its end, and the cancellation lands after the teardown.
 
 
 async def _abort_and_wait(eval_id: str) -> None:
-    _task_cancel_handle(eval_id).cancel_task("abort")
+    _task_cancel_handle(eval_id).request("abort")
     await anyio.sleep(_POST_ABORT_WAIT)
 
 
@@ -1733,7 +1781,7 @@ async def test_abort_before_any_log_write_reports_errored_log(
 
     async def log_start(self: TaskLogger, *args: Any, **kwargs: Any) -> None:
         if self.eval.task == "a":
-            handles["a"].cancel_task("abort")
+            handles["a"].request("abort")
             await anyio.sleep_forever()
         await original_log_start(self, *args, **kwargs)
 
@@ -1814,7 +1862,7 @@ async def test_run_cancel_stops_dispatch(tmp_path: Path, with_abort: bool) -> No
             if with_abort:
                 active = sample_active()
                 assert active is not None
-                _task_cancel_handle(active.eval_id).cancel_task("abort")
+                _task_cancel_handle(active.eval_id).request("abort")
             scopes[0].cancel()
             await anyio.sleep_forever()
             return state
@@ -1888,7 +1936,7 @@ async def test_task_source_task_complete_runs_to_completion_after_abort(
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             active = sample_active()
             assert active is not None
-            _task_cancel_handle(active.eval_id).cancel_task("abort")
+            _task_cancel_handle(active.eval_id).request("abort")
             await anyio.sleep_forever()
             return state
 
@@ -2005,7 +2053,7 @@ class _LateCancelSource(TaskSource):
     async def task_complete(self, log: EvalLog) -> None:
         self.completed.append(log.status)
         if len(self.completed) == 1:
-            _task_cancel_handle(log.eval.eval_id).cancel_task(self.cancel_type)
+            _task_cancel_handle(log.eval.eval_id).request(self.cancel_type)
         await anyio.sleep(0)
 
 

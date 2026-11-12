@@ -329,6 +329,7 @@ async def recover_eval_log_async(
                         sample_metadata=buffer.get_sample_metadata(
                             summary.id, summary.epoch
                         ),
+                        sample_store=buffer.get_sample_store(summary.id, summary.epoch),
                         cancelled=is_in_progress,
                         incomplete_action=incomplete_action,
                         include_events=not no_events,

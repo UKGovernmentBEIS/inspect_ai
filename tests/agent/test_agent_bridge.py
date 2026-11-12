@@ -21,8 +21,9 @@ from test_helpers.utils import (
 )
 
 from inspect_ai import Task, eval, eval_async, task
-from inspect_ai._util.content import ContentToolUse
+from inspect_ai._util.content import ContentReasoning, ContentToolUse
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
+from inspect_ai.agent._bridge.google_api_impl import _extract_model_parts
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import bridge_generate
 from inspect_ai.dataset import Sample
@@ -42,6 +43,10 @@ from inspect_ai.model._openai import (
 )
 from inspect_ai.model._openai_convert import model_output_from_openai
 from inspect_ai.model._openai_responses import _tool_param_for_tool_info
+from inspect_ai.model._openrouter_reasoning import (
+    openrouter_reasoning_details_to_reasoning,
+    reasoning_to_openrouter_reasoning_details,
+)
 from inspect_ai.model._prompt import user_prompt
 from inspect_ai.scorer import includes
 from inspect_ai.solver import Generate, Solver, TaskState, solver
@@ -721,6 +726,108 @@ def google_web_search_agent() -> Agent:
     return execute
 
 
+@pytest.mark.parametrize("urlsafe", [False, True])
+@pytest.mark.parametrize("padded", [False, True])
+def test_google_bridge_normalizes_sdk_thought_signature(
+    urlsafe: bool, padded: bool
+) -> None:
+    """All Google signature encodings remain replayable by the provider."""
+    signature = b"\xfb\xff\xfe\xfa"
+    encoded = (
+        base64.urlsafe_b64encode(signature) if urlsafe else base64.b64encode(signature)
+    ).decode()
+    sdk_signature = encoded if padded else encoded.rstrip("=")
+
+    content, calls = _extract_model_parts(
+        [
+            {
+                "functionCall": {"name": "echo_marker", "args": {}},
+                "thoughtSignature": sdk_signature,
+            }
+        ]
+    )
+
+    assert len(calls) == 1
+    assert content and isinstance(content[0], ContentReasoning)
+    assert content[0].reasoning == base64.b64encode(signature).decode()
+
+
+async def test_google_bridge_sdk_round_trip_keeps_openrouter_reasoning() -> None:
+    original = openrouter_reasoning_details_to_reasoning(
+        [
+            {
+                "type": "reasoning.text",
+                "text": "read file",
+                "format": "google-gemini-v1",
+            },
+            {
+                "type": "reasoning.encrypted",
+                "data": "+//++g==",
+                "format": "google-gemini-v1",
+            },
+        ]
+    )
+    assert isinstance(original, ContentReasoning)
+    output = ModelOutput.for_tool_call("mockllm/model", "read_file", {"path": "a"})
+    output.message.content = [original]
+
+    @agent
+    def openrouter_reasoning_agent() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            async with agent_bridge(state) as bridge:
+                async with genai.Client(api_key="inspect").aio as client:
+                    user = genai.types.Content(
+                        role="user", parts=[genai.types.Part(text="read a")]
+                    )
+                    response = await client.models.generate_content(
+                        model="inspect", contents=[user]
+                    )
+                    assert response.candidates and response.candidates[0].content
+                    result = genai.types.Content(
+                        role="user",
+                        parts=[
+                            genai.types.Part(
+                                function_response=genai.types.FunctionResponse(
+                                    name="read_file", response={"output": "ok"}
+                                )
+                            )
+                        ],
+                    )
+                    await client.models.generate_content(
+                        model="inspect",
+                        contents=[user, response.candidates[0].content, result],
+                    )
+                return bridge.state
+
+        return execute
+
+    logs = await eval_async(
+        Task(dataset=[Sample(input="read a")], solver=openrouter_reasoning_agent()),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[output, ModelOutput.from_content("mockllm/model", "done")],
+        ),
+    )
+    assert logs[0].status == "success", logs[0].error
+    assert logs[0].samples
+    model_events = [e for e in logs[0].samples[0].events if isinstance(e, ModelEvent)]
+    assert len(model_events) == 2
+    replayed = [
+        c
+        for m in model_events[1].input
+        if isinstance(m, ChatMessageAssistant) and isinstance(m.content, list)
+        for c in m.content
+        if isinstance(c, ContentReasoning)
+    ]
+    assert len(replayed) == 1
+    assert replayed[0].reasoning == original.reasoning
+    assert replayed[0].signature == original.signature
+    assert replayed[0].summary == original.summary
+    assert reasoning_to_openrouter_reasoning_details(
+        replayed[0]
+    ) == reasoning_to_openrouter_reasoning_details(original)
+
+
 async def test_google_bridge_returns_logprobs_to_client() -> None:
     output = ModelOutput.from_content("mockllm/model", "Hello")
     output.choices[0].logprobs = Logprobs(
@@ -1023,14 +1130,14 @@ def test_responses_bridge_computer_use_incompatible_model():
 # Run the bridge on two models to keep reasoning coverage current. Anthropic
 # removed extended thinking with an explicit token budget (`thinking.budget_tokens`)
 # at Claude 4.7, so no single model exercises both paths:
-#   - claude-sonnet-4-5 (pre-4.7): request reasoning depth via a thinking token
+#   - claude-sonnet-4-6 (pre-4.7): request reasoning depth via a thinking token
 #     budget; the bridge maps `thinking.budget_tokens` -> `reasoning_tokens`.
 #   - claude-sonnet-5 (4.7+): a budget is rejected, so request depth via
 #     `output_config={"effort": ...}`; the bridge maps it -> `effort`.
 @pytest.mark.parametrize(
     "model, reasoning",
     [
-        ("anthropic/claude-sonnet-4-5", "budget"),
+        ("anthropic/claude-sonnet-4-6", "budget"),
         ("anthropic/claude-sonnet-5", "effort"),
     ],
 )
@@ -1045,9 +1152,9 @@ def test_bridged_agent_anthropic(model: str, reasoning: Literal["budget", "effor
 @skip_if_no_anthropic
 def test_bridged_agent_anthropic_tools():
     log_json = eval_bridged_task(
-        "anthropic/claude-sonnet-4-5", agent=anthropic_agent(True)
+        "anthropic/claude-sonnet-5", agent=anthropic_agent(True)
     )
-    check_anthropic_bridge_log_json(log_json, "anthropic/claude-sonnet-4-5", tools=True)
+    check_anthropic_bridge_log_json(log_json, "anthropic/claude-sonnet-5", tools=True)
 
 
 def test_anthropic_bridge_forwards_extra_body_sampling_params():
@@ -1095,7 +1202,7 @@ def test_anthropic_bridge_forwards_extra_body_sampling_params():
 def test_bridged_web_search_tool_anthropic():
     log = eval(
         web_search_task(anthropic_web_search_agent()),
-        model="anthropic/claude-sonnet-4-5",
+        model="anthropic/claude-sonnet-5",
     )[0]
     log_json = log.model_dump_json(exclude_none=True, indent=2)
     assert '"max_uses": 5' in log_json
@@ -1158,7 +1265,7 @@ def test_bridged_forced_web_search_filtering_version(
 def test_bridged_code_execution_tool_anthropic():
     log = eval(
         code_execution_task(anthropic_code_execution_agent()),
-        model="anthropic/claude-sonnet-4-5",
+        model="anthropic/claude-sonnet-5-5",
     )[0]
     check_server_tool_use(log, "code_execution")
 
@@ -1168,7 +1275,7 @@ def test_bridged_code_execution_tool_anthropic():
 def test_bridged_web_search_tool_openai_to_anthropic():
     log = eval(
         web_search_task(responses_web_search_agent()),
-        model="anthropic/claude-sonnet-4-5",
+        model="anthropic/claude-sonnet-5",
     )[0]
     check_server_tool_use(log, "web_search")
 
@@ -1190,7 +1297,7 @@ def test_bridged_web_search_tool_anthropic_to_openai():
 def test_bridged_code_execution_tool_openai_to_anthropic():
     log = eval(
         code_execution_task(responses_code_interpreter_agent()),
-        model="anthropic/claude-sonnet-4-5",
+        model="anthropic/claude-sonnet-5-5",
     )[0]
     check_server_tool_use(log, "code_execution")
 
@@ -1225,7 +1332,7 @@ def check_server_tool_use(log: EvalLog, tool_name: str):
 
 
 def check_anthropic_log_json(log_json: str):
-    assert r'"model": "anthropic/claude-sonnet-4-5"' in log_json
+    assert r'"model": "anthropic/claude-sonnet-5-5"' in log_json
     assert r'"temperature": 0.8' in log_json
     assert dedent("""
     "stop_sequences": [
@@ -1327,7 +1434,7 @@ def test_google_bridge_streaming_not_supported():
 @skip_if_no_openai
 def test_anthropic_bridged_agent():
     log_json = eval_bridged_task(
-        "anthropic/claude-sonnet-4-5", agent=completions_agent(False)
+        "anthropic/claude-sonnet-5-5", agent=completions_agent(False)
     )
     check_anthropic_log_json(log_json)
 
@@ -1348,7 +1455,7 @@ def test_bridged_agent_context():
     logs = eval(
         [bridged_task(agent=completions_agent(False)), openai_api_task()],
         max_tasks=2,
-        model="anthropic/claude-sonnet-4-5",
+        model="anthropic/claude-sonnet-5-5",
     )
     for log in logs:
         assert log.status == "success"
