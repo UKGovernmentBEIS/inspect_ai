@@ -770,7 +770,8 @@ async def _generate_and_capture_cache_flag(
         input=[ChatMessageUser(content="hi")],
         tools=[],
         tool_choice="auto",
-        config=GenerateConfig(),
+        # The real capability probe would bypass the mocked generators.
+        config=GenerateConfig(reasoning_summary="none"),
     )
     return captured["value"]
 
