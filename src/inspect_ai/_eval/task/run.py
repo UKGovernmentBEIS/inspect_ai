@@ -2903,9 +2903,12 @@ async def _task_run_sample_attempt(
             on_resume=task.on_resume,
         )
 
+        # set once this attempt has counted toward fail_on_error
+        error_counted = False
+
         # helper to handle exceptions (will throw if we've exceeded the limit)
         def handle_error(ex: BaseException) -> _AttemptError:
-            nonlocal attempt, score_on_error
+            nonlocal attempt, score_on_error, error_counted
 
             # report the sentinel's own error, from the solver or scorers
             inner = inner_exception(ex) if isinstance(ex, Exception) else ex
@@ -2939,11 +2942,12 @@ async def _task_run_sample_attempt(
                     eval_error(ex, type(ex), ex, ex.__traceback__), None
                 )
             else:
-                err = sample_error(ex)
+                err = sample_error(ex, counted=error_counted)
+                error_counted = True
                 # with score_on_error, suppress the raise so we can score the
-                # sample; error_count was still incremented on sample_error()
-                # above, so the eval-level fail_on_error threshold continues
-                # to apply.
+                # sample; the sample still counted toward error_count on
+                # sample_error() above, so the eval-level fail_on_error
+                # threshold continues to apply.
                 if score_on_error:
                     log_sample_error()
                     transcript()._event(ErrorEvent(error=err[0]))
