@@ -858,11 +858,11 @@ AWS_ENV = ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_DEFAULT_REGION")
 
 LIVE_PROVIDERS = [
     LiveProvider(
-        name="claude-sonnet-4-5",
+        name="claude-sonnet-4-6",
         family="anthropic",
         env=("ANTHROPIC_API_KEY",),
         litellm_params={
-            "model": "anthropic/claude-sonnet-4-5",
+            "model": "anthropic/claude-sonnet-4-6",
             "api_key": "os.environ/ANTHROPIC_API_KEY",
         },
         check=check_anthropic_replay,
