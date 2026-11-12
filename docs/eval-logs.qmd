@@ -519,7 +519,7 @@ Some things to keep in mind:
 
 -   Exclusion does not change the sample's transcript, output or error. An errored sample that you exclude is still re-run by `inspect eval-retry` and eval set retries, and the new result replaces the exclusion.
 
--   Rescoring with `inspect score --action append` keeps the exclusion and adds the new score beside it. `--action overwrite` replaces the sample's scores, so apply the exclusion again afterwards.
+-   Rescoring with `inspect score --action append` keeps the excluded scores, but the appended scores count in their own metrics. Apply the exclusion again to exclude them too. `--action overwrite` replaces the sample's scores, so apply the exclusion again afterwards.
 
 -   As with `edit_score()`, the log's task file is not imported. If the eval used a metric or reducer defined in its task file, import that module before calling `exclude_samples()`; otherwise a `LookupError` names it and the log is not changed. `inspect log exclude` works only when every metric and reducer is part of Inspect or an installed package.
 
