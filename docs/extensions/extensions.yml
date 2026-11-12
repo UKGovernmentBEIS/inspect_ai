@@ -123,6 +123,12 @@
   author: "[Hermes Labs](https://hermes-labs.ai)"
   categories: ["Analysis"]
 
+- name: "[Scorio](https://github.com/mohsenhariri/scorio/blob/python-v0.2.4/docs/integrations/inspect.rst)"
+  description: |
+    Bayes@N posterior means and standard deviations for repeated binary scores.
+  author: "[Mohsen Hariri](https://github.com/mohsenhariri/scorio)"
+  categories: ["Analysis"]
+
 - name: "[Inspect Flow](https://meridianlabs-ai.github.io/inspect_flow/)"
   description: |
     Workflow orchestration for reproducibly running evals at scale.

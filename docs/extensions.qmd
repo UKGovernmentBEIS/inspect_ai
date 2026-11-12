@@ -16,7 +16,3 @@ Inspect can be extended to integrate with systems and workflows beyond what the 
 : {.borderless tbl-colwidths=[35,65]}
 
 Each of the extension types above can be implemented within your own Python package and then used without any special registration—Inspect discovers them automatically through [setuptools entry points](https://setuptools.pypa.io/en/latest/userguide/entry_point.html).
-
-## Community extensions
-
-- [Scorio](https://pypi.org/project/scorio/) provides Bayes@N posterior means and standard deviations for repeated binary scores. Install with `pip install "scorio[inspect]"`; see the [integration guide](https://github.com/mohsenhariri/scorio/blob/python-v0.2.4/docs/integrations/inspect.rst).
