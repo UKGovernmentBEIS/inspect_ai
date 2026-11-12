@@ -1096,8 +1096,6 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                         )
                     )
                 end = pinned.size if end is None else min(end, pinned.size)
-                if end <= start:
-                    return _BytesByteReceiveStream(b"")
                 return _RangedRemoteByteReceiveStream(pinned.read, start, end)
             with file(filename, "rb") as f:
                 f.seek(start)
