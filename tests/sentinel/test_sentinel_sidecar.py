@@ -3038,14 +3038,18 @@ def test_the_time_the_sidecar_spent_judging_is_waiting(decided: dict[str, Any]) 
     assert sample_judged < sample_unjudged - 0.5
 
 
+@pytest.mark.parametrize("limit", ["token", "cost", "turn"])
 @pytest.mark.parametrize("answered", [True, False], ids=["answered", "lookup failed"])
-def test_judging_time_past_the_token_limit_is_waiting_where_the_sidecar_answered(
-    answered: bool, monkeypatch: pytest.MonkeyPatch
+def test_judging_time_past_a_limit_is_waiting_where_the_sidecar_answered(
+    limit: str, answered: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # The reply takes the sample past its token limit, and the sidecar is
+    # The reply takes the sample past its token, cost or turn limit, which
+    # Inspect checks once the reply is recorded, and the sidecar is
     # asked about it only to record what it decided. Where it answers, its
-    # judging is waiting; where the lookup fails, nothing is taken out. Either
-    # way the call's attempts are committed once.
+    # judging is waiting, and the call's event shows the model's own time, as
+    # in process, where a sentinel never judges a reply that ended the sample;
+    # where the lookup fails, nothing is taken out of either. Either way the
+    # call's attempts are committed once.
     from inspect_ai._util.working import ModelAttempts
 
     committed = 0
@@ -3058,7 +3062,7 @@ def test_judging_time_past_the_token_limit_is_waiting_where_the_sidecar_answered
 
     monkeypatch.setattr(ModelAttempts, "commit", counting)
 
-    def run(judging_time: float | None) -> float:
+    def run(judging_time: float | None) -> tuple[float, float]:
         nonlocal committed
         committed = 0
         # the proxy holds the call a second, judging_time of it for its sidecar
@@ -3075,26 +3079,45 @@ def test_judging_time_past_the_token_limit_is_waiting_where_the_sidecar_answered
         task = Task(
             dataset=[Sample(input="What's the weather?")],
             solver=generate(),
-            token_limit=6,
+            token_limit=6 if limit == "token" else None,
+            # the reply's 5 input and 2 output tokens cost $0.000015 at the
+            # rates set below, and the call is sent at $0
+            cost_limit=0.00001 if limit == "cost" else None,
+            turn_limit=0 if limit == "turn" else None,
         )
-        [log] = eval(task, model=_model(stand_in), display="none")
+        # a cost limit needs the agent's model priced
+        if limit == "cost":
+            set_model_cost(
+                "anthropic/claude-haiku-4-5",
+                ModelCost(
+                    input=1.0, output=5.0, input_cache_write=1.25, input_cache_read=0.1
+                ),
+            )
+        try:
+            [log] = eval(task, model=_model(stand_in), display="none")
+        finally:
+            clear_model_info_cache()
         assert log.samples is not None
         sample = log.samples[0]
-        assert sample.limit is not None and sample.limit.type == "token"
+        assert sample.limit is not None and sample.limit.type == limit
         [call] = stand_in.model_calls
         assert _looked_up(stand_in) == [call.headers["x-irid"]]
         assert committed == 1
         assert sample.working_time is not None
-        return sample.working_time
+        event = next(e for e in sample.events if isinstance(e, ModelEvent))
+        assert event.output.time is not None
+        return sample.working_time, event.output.time
 
-    unjudged = run(None)
-    judged = run(0.9)
+    sample_unjudged, call_unjudged = run(None)
+    sample_judged, call_judged = run(0.9)
 
-    assert unjudged >= 1.0
+    assert sample_unjudged >= 1.0 and call_unjudged >= 1.0
     if answered:
-        assert judged < unjudged - 0.5
+        assert sample_judged < sample_unjudged - 0.5
+        assert call_judged < call_unjudged - 0.5
     else:
-        assert judged > unjudged - 0.5
+        assert sample_judged > sample_unjudged - 0.5
+        assert call_judged > call_unjudged - 0.5
 
 
 @solver
