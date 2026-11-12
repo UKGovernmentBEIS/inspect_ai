@@ -1440,41 +1440,29 @@ def test_eval_set_task_instance_warns_once(caplog) -> None:
     )
 
 
-_TASK_MODULE_HEADER = """
-from pathlib import Path
-
-from inspect_ai import Task, task
-from inspect_ai.dataset import Sample
-from inspect_ai.solver import Generate, TaskState, generate, solver
-
-
-@solver
-def fail_once():
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        marker = Path(__file__).parent / "failed_once"
-        if not marker.exists():
-            marker.touch()
-            raise RuntimeError("first attempt fails")
-        return state
-
-    return solve
-"""
-
 _SAME_NAME_TASK = """
+@{decorator}(name="{name}")
+def {fn}() -> Task:
+    return Task(dataset=[Sample(input="{fn}")])
+"""
+
+_SAME_NAME_TASK_CLASS = """
 @task(name="{name}")
-def {fn}(prefix: str = "default", fail: bool = False) -> Task:
-    return Task(
-        dataset=[Sample(input=f"{{prefix}}: {fn}")],
-        solver=[fail_once(), generate()] if fail else generate(),
-    )
+class {fn}(Task):
+    def __init__(self) -> None:
+        super().__init__(dataset=[Sample(input="{fn}")])
 """
 
 
-def _write_task_module(path: Path, name: str, *fns: str) -> Path:
+def _write_task_module(
+    path: Path, name: str, *fns: str, template: str = _SAME_NAME_TASK
+) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        _TASK_MODULE_HEADER
-        + "".join(_SAME_NAME_TASK.format(name=name, fn=fn) for fn in fns)
+        "import inspect_ai\n"
+        "from inspect_ai import Task, task\n"
+        "from inspect_ai.dataset import Sample\n"
+        + "".join(template.format(name=name, fn=fn, decorator="task") for fn in fns)
     )
     return path
 
@@ -1482,7 +1470,7 @@ def _write_task_module(path: Path, name: str, *fns: str) -> Path:
 def _import_task_module(
     monkeypatch: pytest.MonkeyPatch, path: Path, module_name: str
 ) -> ModuleType:
-    # in sys.modules (unlike load_module), so @task records the task_file
+    # in sys.modules (unlike load_module), as a normal import is
     spec = importlib.util.spec_from_file_location(module_name, path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
@@ -1491,57 +1479,30 @@ def _import_task_module(
     return module
 
 
-def test_eval_task_function_not_replaced_by_same_name_task_in_other_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    name = "eval_task_function_same_name"
-    first = _import_task_module(
-        monkeypatch,
-        _write_task_module(tmp_path / "a" / "tasks.py", name, "first"),
-        "eval_same_name_first",
-    )
-    _import_task_module(
-        monkeypatch,
-        _write_task_module(tmp_path / "b" / "tasks.py", name, "second"),
-        "eval_same_name_second",
-    )
-
-    log = eval(
-        first.first,
-        task_args={"prefix": "custom"},
-        model="mockllm/model",
-        log_dir=str(tmp_path / "logs"),
-    )[0]
+def _eval_input(tasks: Any, log_dir: Path) -> str:
+    log = eval(tasks, model="mockllm/model", log_dir=str(log_dir))[0]
     assert log.status == "success"
-    assert log.samples and log.samples[0].input == "custom: first"
-    assert log.eval.task == name
-    assert log.eval.task_args["prefix"] == "custom"
+    assert log.samples
+    return str(log.samples[0].input)
 
 
-def test_eval_retry_task_function_same_name_in_other_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("decorator", ["task", "inspect_ai.task"])
+def test_eval_task_function_same_name_in_other_file_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, decorator: str
 ) -> None:
-    name = "eval_retry_task_function_same_name"
-    first = _import_task_module(
-        monkeypatch,
-        _write_task_module(tmp_path / "a" / "tasks.py", name, "first"),
-        "eval_retry_same_name_first",
-    )
+    # name lookup (and so eval_retry()) would find `second`
+    name = f"eval_same_name_other_file_{decorator.replace('.', '_')}"
+    first_path = _write_task_module(tmp_path / "a" / "tasks.py", name, "first")
+    first_path.write_text(first_path.read_text().replace("@task(", f"@{decorator}("))
+    first = _import_task_module(monkeypatch, first_path, f"{name}_first")
     _import_task_module(
         monkeypatch,
         _write_task_module(tmp_path / "b" / "tasks.py", name, "second"),
-        "eval_retry_same_name_second",
+        f"{name}_second",
     )
 
-    log_dir = str(tmp_path / "logs")
-    log = eval(
-        first.first, task_args={"fail": True}, model="mockllm/model", log_dir=log_dir
-    )[0]
-    assert log.status == "error"
-
-    retried = eval_retry(log, log_dir=log_dir)[0]
-    assert retried.status == "success"
-    assert retried.samples and retried.samples[0].input == "default: first"
+    with pytest.raises(PrerequisiteError, match="registered by more than one task"):
+        eval(first.first, model="mockllm/model")
 
 
 def test_eval_task_function_same_name_twice_in_one_file_raises(
@@ -1554,21 +1515,8 @@ def test_eval_task_function_same_name_twice_in_one_file_raises(
         ),
         "eval_dup_in_file",
     )
-    with pytest.raises(PrerequisiteError, match="registered more than once"):
+    with pytest.raises(PrerequisiteError, match="registered by more than one task"):
         eval(tasks.first, model="mockllm/model")
-
-
-def test_eval_task_function_same_name_without_task_file_raises(
-    tmp_path: Path,
-) -> None:
-    # load_module doesn't add to sys.modules, so no task_file is recorded and
-    # eval_retry() would look the task up by name
-    name = "eval_task_function_same_name_no_task_file"
-    first = load_module(_write_task_module(tmp_path / "a" / "tasks.py", name, "first"))
-    load_module(_write_task_module(tmp_path / "b" / "tasks.py", name, "second"))
-
-    with pytest.raises(PrerequisiteError, match="registered more than once"):
-        eval(first.first, model="mockllm/model")
 
 
 def test_eval_task_function_from_file_loaded_twice(
@@ -1580,76 +1528,35 @@ def test_eval_task_function_from_file_loaded_twice(
     tasks = _import_task_module(monkeypatch, path, "eval_file_loaded_twice")
     load_module(path)
 
-    log = eval(tasks.first, model="mockllm/model", log_dir=str(tmp_path / "logs"))[0]
-    assert log.status == "success"
-    assert log.samples and log.samples[0].input == "default: first"
+    assert _eval_input(tasks.first, tmp_path / "logs") == "first"
 
 
-def test_eval_task_function_same_name_nested_task_ignored(
+def test_eval_task_class_same_name_outside_sys_modules_runs_name_lookup(
+    tmp_path: Path,
+) -> None:
+    # load_module doesn't add to sys.modules, so these classes have no
+    # identifiable source file; eval() runs what name lookup finds
+    name = "eval_task_class_same_name_outside_sys_modules"
+    first = load_module(
+        _write_task_module(
+            tmp_path / "a" / "tasks.py", name, "First", template=_SAME_NAME_TASK_CLASS
+        )
+    )
+    load_module(
+        _write_task_module(
+            tmp_path / "b" / "tasks.py", name, "Second", template=_SAME_NAME_TASK_CLASS
+        )
+    )
+
+    log_dir = tmp_path / "logs"
+    assert _eval_input(first.First, log_dir) == _eval_input(name, log_dir)
+
+
+def test_eval_task_function_redefined_in_interactive_cell_runs_name_lookup(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # reloading the file registers only module-level tasks, so a nested task
-    # with the same name can't change what eval_retry() runs
-    path = _write_task_module(
-        tmp_path / "tasks.py", "eval_task_function_nested_same_name", "first"
-    )
-    path.write_text(
-        path.read_text()
-        + """
-
-def make_nested():
-    @task(name="eval_task_function_nested_same_name")
-    def nested() -> Task:
-        return Task(dataset=[Sample(input="nested")])
-
-    return nested
-"""
-    )
-    tasks = _import_task_module(monkeypatch, path, "eval_nested_same_name")
-    tasks.make_nested()
-
-    log = eval(tasks.first, model="mockllm/model", log_dir=str(tmp_path / "logs"))[0]
-    assert log.status == "success"
-    assert log.samples and log.samples[0].input == "default: first"
-
-
-def test_eval_nested_task_function_before_same_name_module_task_raises(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # eval_retry() reloads the file, which registers the module-level task
-    name = "eval_nested_before_module_same_name"
-    path = tmp_path / "tasks.py"
-    path.write_text(
-        _TASK_MODULE_HEADER
-        + f"""
-
-def make_nested():
-    @task(name="{name}")
-    def nested() -> Task:
-        return Task(dataset=[Sample(input="nested")])
-
-    return nested
-
-
-NESTED = make_nested()
-"""
-        + _SAME_NAME_TASK.format(name=name, fn="first")
-    )
-    tasks = _import_task_module(monkeypatch, path, "eval_nested_before_module")
-    with pytest.raises(PrerequisiteError, match="registered more than once"):
-        eval(tasks.NESTED, model="mockllm/model")
-
-
-def test_eval_task_function_redefined_in_interactive_cell(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # notebook cells have no source file and can't be retried from one, so a
-    # redefinition must not be treated as a duplicate
-    source = """
-@task(name="eval_task_function_interactive_cell")
-def cell_task() -> Task:
-    return Task(dataset=[Sample(input="{input}")])
-"""
+    # notebook cells have no source file, so eval() runs what name lookup finds
+    name = "eval_task_function_interactive_cell"
     namespace: dict[str, Any] = {
         "__name__": "eval_interactive_cells",
         "task": task,
@@ -1657,21 +1564,20 @@ def cell_task() -> Task:
         "Sample": Sample,
     }
 
-    def run_cell(cell: str, input: str) -> Any:
-        code = source.format(input=input)
+    def run_cell(cell: str, fn: str) -> Any:
+        code = _SAME_NAME_TASK.format(decorator="task", name=name, fn=fn)
         # IPython registers each cell's source in linecache under its name
         monkeypatch.setitem(
             linecache.cache, cell, (len(code), None, code.splitlines(True), cell)
         )
         exec(compile(code, cell, "exec"), namespace)
-        return namespace["cell_task"]
+        return namespace[fn]
 
     first = run_cell("<cell-1>", "first")
     run_cell("<cell-2>", "second")
 
-    log = eval(first, model="mockllm/model", log_dir=str(tmp_path / "logs"))[0]
-    assert log.status == "success"
-    assert log.samples and log.samples[0].input == "first"
+    log_dir = tmp_path / "logs"
+    assert _eval_input(first, log_dir) == _eval_input(name, log_dir)
 
 
 def test_eval_list_with_task_function_then_task_instance(caplog) -> None:
@@ -2757,7 +2663,6 @@ def test_retry_resumes_from_own_checkpoint_or_discards_it(
     first, so provisioning starts from an empty dir.
     """
     import inspect_ai.log._samples as samples_module
-    from inspect_ai import eval_retry
     from inspect_ai.log import ProvenanceData, invalidate_samples
     from inspect_ai.util._checkpoint._layout.eval_checkpoints_dir import (
         eval_checkpoints_dir,
