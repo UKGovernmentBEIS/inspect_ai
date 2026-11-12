@@ -2344,6 +2344,9 @@ def test_a_call_with_no_assistant_message_has_no_input() -> None:
 
 
 def indexed_model_event(input: str, role: str | None = None) -> ModelEvent:
+    """A model call, sent `input`, that made `addition_call()`."""
+    output = ModelOutput.from_content("mockllm/model", content=input)
+    output.message.tool_calls = [addition_call()]
     return ModelEvent(
         model="mockllm/model",
         role=role,
@@ -2351,13 +2354,12 @@ def indexed_model_event(input: str, role: str | None = None) -> ModelEvent:
         tools=[],
         tool_choice="auto",
         config=GenerateConfig(),
-        output=ModelOutput.from_content("mockllm/model", content=input),
+        output=output,
     )
 
 
 def produced_by(event: ModelEvent) -> list[ChatMessage]:
-    message = event.output.choices[0].message
-    return [*event.input, message.model_copy(update={"tool_calls": [addition_call()]})]
+    return [*event.input, event.output.message.model_copy()]
 
 
 class CountingHistoryProvider(FakeTranscriptHistoryProvider):

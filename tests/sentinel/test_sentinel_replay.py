@@ -24,7 +24,7 @@ from inspect_ai._sentinel._integration import (
 )
 from inspect_ai._sentinel._steps import ListView, PoolView
 from inspect_ai._util._async import tg_collect
-from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.content import ContentImage, ContentReasoning, ContentText
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import (
     Agent,
@@ -714,6 +714,224 @@ def test_a_prefilled_message_run_through_execute_tools_replays_as_it_ran() -> No
     replay = assert_replay_equals_live(r7_runs_a_prefilled_message(), "mockllm/model")
     [before] = [step for step in replay if step.stage == "tool_call"]
     assert before.step.input is None
+    assert before.step.assistant_message is None
+
+
+def reasoned_calls(turn: int) -> ModelOutput:
+    """One assistant turn with reasoning, text and two calls to `addition`, with ids `t{turn}c0` and `t{turn}c1`."""
+    return ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content=[
+                        ContentReasoning(reasoning=f"plan {turn}"),
+                        ContentText(text=f"adding {turn}"),
+                    ],
+                    model="mockllm/model",
+                    tool_calls=[
+                        ToolCall(
+                            id=f"t{turn}c{index}",
+                            function="addition",
+                            arguments={"x": turn, "y": index},
+                        )
+                        for index in range(2)
+                    ],
+                ),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+
+
+@solver
+def r7_own_generate_loop() -> Solver:
+    """Call `generate()` and `execute_tools()` in the solver's own loop, outside any agent."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        tools = [addition()]
+        while True:
+            state.output = await model.generate(state.messages, tools)
+            state.messages.append(state.output.message)
+            if not state.output.message.tool_calls:
+                return state
+            result = await execute_tools(state.messages, tools)
+            state.messages.extend(result.messages)
+
+    return solve
+
+
+@pytest.mark.parametrize("loop", ["react", "own_loop"])
+@pytest.mark.parametrize("modified_by", [None, "sentinel", "approver"])
+def test_tool_steps_carry_the_assistant_message_that_made_the_call(
+    loop: str, modified_by: str | None
+) -> None:
+    seen: dict[str, Step] = {}
+    task = Task(
+        dataset=[Sample(input="Add.", target="2")],
+        solver=(
+            as_solver(react(tools=[addition()], submit=False))
+            if loop == "react"
+            else r7_own_generate_loop()
+        ),
+        sentinel=[
+            r7_probe(seen),
+            *([d3_modify()] if modified_by == "sentinel" else []),
+        ],
+        approval=(
+            [ApprovalPolicy(d3_approver([], "modify", x=5), "*")]
+            if modified_by == "approver"
+            else None
+        ),
+    )
+    model = outputs(reasoned_calls(1), reasoned_calls(2), done())
+    log = eval(task, model=model, log_format="json")[0]
+    assert log.status == "success", log.error
+    assert log.location is not None and log.location.endswith(".json")
+    replay = assert_logged_replay_equals_live(log, seen)
+
+    [sample] = read_eval_log(log.location).samples or []
+    produced = {
+        event.output.message.id: event.output.message
+        for event in sample.events
+        if isinstance(event, ModelEvent) and event.output.choices
+    }
+    live = live_steps(sample, seen)
+    for steps in (
+        {key: step for key, step in live.items() if key[0].startswith("tool")},
+        {(r.stage, r.id): r.step for r in replay if r.stage.startswith("tool")},
+    ):
+        assert len(steps) == 8
+        by_turn: dict[str, list[Any]] = {}
+        for step in steps.values():
+            assert isinstance(step, BeforeToolCall | AfterToolCall)
+            message = step.assistant_message
+            assert message is not None
+            # the turn that made this call, as the model returned it
+            turn = step.call.id.split("c")[0][1:]
+            assert message.id == step.message_id
+            assert comparable(message) == comparable(produced[step.message_id])
+            assert [call.id for call in message.tool_calls or []] == [
+                f"t{turn}c0",
+                f"t{turn}c1",
+            ]
+            assert message.content[0] == ContentReasoning(reasoning=f"plan {turn}")
+            assert message.text == f"adding {turn}"
+            proposed = next(c for c in message.tool_calls or [] if c.id == step.call.id)
+            assert proposed.arguments == {"x": int(turn), "y": proposed.arguments["y"]}
+            if isinstance(step, AfterToolCall) and modified_by is not None:
+                # `call` is the call as it ran; the message keeps the proposal
+                assert step.call.arguments != proposed.arguments
+            by_turn.setdefault(turn, []).append(message)
+        # a turn's steps share its message: nothing is copied per step
+        assert sorted(by_turn) == ["1", "2"]
+        for messages in by_turn.values():
+            assert all(message is messages[0] for message in messages)
+
+    if loop == "own_loop":
+        assert all(step.agent_messages is None for step in live.values())
+
+
+@solver
+def r7_adds_a_call_to_the_model_s_message() -> Solver:
+    """Run each turn from a copy under the model's id with a call of the scaffold's own added."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        tools = [addition()]
+        while True:
+            state.output = await model.generate(state.messages, tools)
+            message = state.output.message
+            if not message.tool_calls:
+                return state
+            added = ToolCall(
+                id=f"{message.tool_calls[0].id}-added",
+                function="addition",
+                arguments={"x": 0, "y": 0},
+            )
+            state.messages.append(
+                message.model_copy(update={"tool_calls": [*message.tool_calls, added]})
+            )
+            result = await execute_tools(state.messages, tools)
+            state.messages.extend(result.messages)
+
+    return solve
+
+
+def test_a_call_the_scaffold_added_to_the_model_s_message_has_no_assistant_message() -> (
+    None
+):
+    replay = assert_replay_equals_live(
+        r7_adds_a_call_to_the_model_s_message(),
+        outputs(reasoned_calls(1), done()),
+    )
+    by_id: dict[str, list[Any]] = {}
+    for step in replay:
+        if step.stage.startswith("tool"):
+            by_id.setdefault(step.id, []).append(step.step)
+    assert sorted(by_id) == ["t1c0", "t1c0-added", "t1c1"]
+    # the model did not make the added call: no model call produced it
+    assert all(
+        step.assistant_message is None and step.input is None
+        for step in by_id["t1c0-added"]
+    )
+    assert all(
+        step.assistant_message is not None
+        for id in ("t1c0", "t1c1")
+        for step in by_id[id]
+    )
+
+
+@solver
+def r7_runs_a_trimmed_message() -> Solver:
+    """Run only the first call of each turn, from a copy of the turn under its id with its text changed and its other calls taken out."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        tools = [addition()]
+        while True:
+            state.output = await model.generate(state.messages, tools)
+            message = state.output.message
+            if not message.tool_calls:
+                return state
+            state.messages.append(
+                message.model_copy(
+                    update={"content": "trimmed", "tool_calls": message.tool_calls[:1]}
+                )
+            )
+            result = await execute_tools(state.messages, tools)
+            state.messages.extend(result.messages)
+
+    return solve
+
+
+def test_a_tool_step_s_assistant_message_is_the_model_s_not_the_scaffold_s_copy() -> (
+    None
+):
+    seen: dict[str, Step] = {}
+    task = Task(
+        dataset=[Sample(input="Add.", target="2")],
+        solver=r7_runs_a_trimmed_message(),
+        sentinel=[r7_probe(seen)],
+    )
+    log = eval(task, model=outputs(reasoned_calls(1), reasoned_calls(2), done()))[0]
+    assert log.status == "success", log.error
+    # `message` is a known difference: live it is the text of the copy that
+    # ran, in replay the model's
+    replay = assert_logged_replay_equals_live(
+        log, seen, differences=["tool_call.message", "tool_result.message"]
+    )
+    steps = [step for step in replay if step.stage.startswith("tool")]
+    assert [step.id for step in steps] == ["t1c0", "t1c0", "t2c0", "t2c0"]
+    assert log.samples
+    live = live_steps(log.samples[0], seen)
+    for step in steps:
+        assert live[(step.stage, step.id)].message == "trimmed"
+        assert isinstance(step.step, BeforeToolCall | AfterToolCall)
+        message = step.step.assistant_message
+        assert message is not None and message.text == f"adding {step.id[1]}"
+        assert len(message.tool_calls or []) == 2
 
 
 @tool

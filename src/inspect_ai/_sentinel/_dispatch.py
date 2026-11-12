@@ -397,16 +397,25 @@ def _assistant_index(call: ToolCall, history: list[ChatMessage]) -> int | None:
 
 
 def _producing_event(call: ToolCall, history: list[ChatMessage]) -> ModelEvent | None:
+    """The model call whose output holds `call`, found by the id of the message holding it.
+
+    A message the scaffold added the call to under the model's id was not produced with the call, so it has none, as in replay, which finds a call's model call by the call's id.
+    """
     index = _assistant_index(call, history)
     message_id = history[index].id if index is not None else None
     if message_id is None:
         return None
     try:
-        return transcript().history.find_last(produced_by(message_id))
+        event = transcript().history.find_last(produced_by(message_id))
     except TranscriptHistoryUnavailableError:
         return None
     except Exception as ex:
         raise SentinelFailure(ex) from ex
+    if event is None or not any(
+        proposed.id == call.id for proposed in event.output.message.tool_calls or []
+    ):
+        return None
+    return event
 
 
 class _HostNative:

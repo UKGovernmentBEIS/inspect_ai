@@ -24,6 +24,7 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sentinel import SentinelStage
 from inspect_ai.model._chat_message import (
     ChatMessage,
+    ChatMessageAssistant,
     ChatMessageTool,
     _logged_json_adapter,
 )
@@ -236,11 +237,18 @@ class Producer(NamedTuple):
     input: Sequence[ChatMessage]
     tools: Sequence[ToolInfo]
     tool_choice: ToolChoice
+    message: ChatMessageAssistant
+    """The model call's output message as the event records it: the logged snapshot (`_snapshot_output`), which replay reads back, not the agent's copy, which the agent can change before it runs the calls."""
 
 
 def producer_of(event: ModelEvent | None) -> Producer | None:
     return (
-        Producer(view(event.input), view(event.tools), event.tool_choice)
+        Producer(
+            view(event.input),
+            view(event.tools),
+            event.tool_choice,
+            event.output.message,
+        )
         if event is not None
         else None
     )
@@ -366,6 +374,7 @@ def before_tool_call(
         message_id=message_id,
         call=call,
         view=view,
+        assistant_message=producer.message if producer is not None else None,
         input=producer.input if producer is not None else None,
         agent_messages=agent_messages,
         history=record.history(),
@@ -414,6 +423,7 @@ def after_tool_call(
         result=result,
         output=output,
         view=view,
+        assistant_message=producer.message if producer is not None else None,
         input=producer.input if producer is not None else None,
         agent_messages=agent_messages,
         history=record.history(),

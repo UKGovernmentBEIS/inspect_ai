@@ -51,7 +51,13 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai.event import SentinelAction, SentinelSuspicion
-from inspect_ai.model import ChatMessage, ChatMessageTool, GenerateConfig, ModelOutput
+from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    GenerateConfig,
+    ModelOutput,
+)
 from inspect_ai.scorer import Reference
 from inspect_ai.tool import ToolCall, ToolCallView, ToolChoice, ToolInfo, ToolResult
 from inspect_ai.util import Store, StoreModel
@@ -185,6 +191,7 @@ class BeforeToolCall:
     conversation: str
     message: str
     message_id: str
+    assistant_message: ChatMessageAssistant | None = field(default=None, kw_only=True)
     call: ToolCall
     view: ToolCallView
     input: Sequence[ChatMessage] | None
@@ -200,6 +207,7 @@ class AfterToolCall:
     conversation: str
     message: str
     message_id: str
+    assistant_message: ChatMessageAssistant | None = field(default=None, kw_only=True)
     call: ToolCall
     result: ChatMessageTool
     output: ToolResult | None
