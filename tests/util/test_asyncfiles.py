@@ -4528,6 +4528,24 @@ async def test_filesystem_without_a_pinned_reader_reads_a_range_in_one_call(
     assert gated_fs.cat_ranges == [(100, size), (100, None)]
 
 
+async def test_read_file_into_stays_on_one_version(pinned_fs: _PinnedFS) -> None:
+    class ReplacingDest(io.BytesIO):
+        def write(self, data: Any) -> int:
+            if not self.getvalue():
+                pinned_fs.replace("bucket/dir/a.bin", b"x" * len(_PAYLOAD))
+            return super().write(data)
+
+    dest = ReplacingDest()
+    url = "pinnedtest://bucket/dir/a.bin"
+    # each backend call is released from this loop, so none of them blocks it
+    async with AsyncFilesystem() as afs, anyio.create_task_group() as tg:
+        tg.start_soon(_keep_releasing, pinned_fs)
+        with pytest.raises(_Changed):
+            await afs.read_file_into(url, dest, chunk_size=256)
+        tg.cancel_scope.cancel()
+    assert dest.getvalue() == _PAYLOAD[:256]
+
+
 def test_http_keeps_the_synchronous_path() -> None:
     assert not asyncfiles._is_async_remote(filesystem("https://example.com/x.eval"))
 

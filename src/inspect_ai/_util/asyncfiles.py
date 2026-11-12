@@ -1165,7 +1165,9 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         write of one chunk lands in the page cache faster than a thread hop
         would). An async fsspec filesystem (``gs://``, ``az://``, ...) is
         read with one ranged request per chunk on fsspec's own event loop,
-        without blocking the caller's. Any other remote filesystem has no
+        without blocking the caller's; one that provides
+        ``_pinned_range_reader`` is read through it, so every chunk comes
+        from one version of the file. Any other remote filesystem has no
         async API and, per the fsspec rule in AGENTS.md, cannot be read in a
         worker thread either, so it is read synchronously on the event loop
         one chunk at a time with a checkpoint between chunks: each stall is
@@ -1205,15 +1207,21 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             )
         elif _is_async_remote(fsw):
             path = fsw.fs._strip_protocol(filename)
-            info = await _run_on_fsspec_loop(fsw.fs, fsw.fs._info(path))
-            size = info["size"]
-            for start in range(0, size, chunk_size):
-                end = min(start + chunk_size, size)
-                dest.write(
-                    await _run_on_fsspec_loop(
-                        fsw.fs, fsw.fs._cat_file(path, start=start, end=end)
+            pinned = await _pin_read(fsw.fs, path, filename)
+            if pinned is not None:
+                for start in range(0, pinned.size, chunk_size):
+                    end = min(start + chunk_size, pinned.size)
+                    dest.write(await pinned.read(start, end))
+            else:
+                info = await _run_on_fsspec_loop(fsw.fs, fsw.fs._info(path))
+                size = info["size"]
+                for start in range(0, size, chunk_size):
+                    end = min(start + chunk_size, size)
+                    dest.write(
+                        await _run_on_fsspec_loop(
+                            fsw.fs, fsw.fs._cat_file(path, start=start, end=end)
+                        )
                     )
-                )
         else:
             with file(filename, "rb") as src:
                 while chunk := src.read(chunk_size):

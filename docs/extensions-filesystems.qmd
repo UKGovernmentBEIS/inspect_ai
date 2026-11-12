@@ -106,6 +106,8 @@ The method returns the size of the version it bound, and an `async` function `re
 -   Has the storage service enforce the version on every request, the first included. A metadata check followed by an unconditional request is not enough.
 -   Raises if that version is no longer available. An `OSError` subclass that names the file is recommended; Inspect passes the error on unchanged.
 
+Inspect also reads through the reader when it copies a whole file to local disk, so the copy is of one version.
+
 Inspect calls the method with the path stripped of its protocol, and runs both it and `read` on the filesystem's own event loop, one call at a time per reader. It may repeat a range after a cancelled read, may hold a reader for a long time, and never closes one. A missing file should raise `FileNotFoundError` from the method.
 
 The method is not consulted for `s3://`, `http://`, `https://` or `reference://` paths, nor for a filesystem wrapped in `dir://`.
