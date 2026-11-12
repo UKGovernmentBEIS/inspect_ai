@@ -81,9 +81,9 @@
   author: "[Debu Sinha](https://github.com/debu-sinha)"
   categories: ["Analysis"]
 
-- name: "[Inspect falsify](https://github.com/studio-11-co/falsify-inspect)"
+- name: "[Inspect falsify](https://github.com/falsify-dev/falsify-inspect)"
   description: |
-    Pre-register an evaluation's success criteria (metric, threshold, dataset hash, seed) as a tamper-evident PRML manifest before the run, then verify eval logs against the locked claim via installed hooks.
+    Record an evaluation's pass criteria (metric, threshold, dataset hash, seed) in a hashed PRML manifest, then check an eval log's result, model and dataset against them via an Inspect hook or a CI gate command.
   author: "[Cüneyt Öztürk](https://falsify.dev)"
   categories: ["Analysis"]
 
