@@ -1,12 +1,18 @@
 import hashlib
 import json
+import struct
 from collections import OrderedDict, deque
 from contextlib import AbstractContextManager, ExitStack, nullcontext
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, is_dataclass
+from dataclasses import fields as dataclass_fields
+from datetime import date, datetime, time, timedelta
+from decimal import Decimal
+from enum import Enum
 from functools import cached_property, partial
 from itertools import chain
 from logging import getLogger
+from pathlib import PurePath
 from typing import (
     TYPE_CHECKING,
     AbstractSet,
@@ -20,10 +26,11 @@ from typing import (
     Sequence,
     TypeVar,
 )
+from uuid import UUID
 
 import anyio
 from pydantic import BaseModel
-from pydantic_core import to_json, to_jsonable_python
+from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
 from inspect_ai._sentinel._context import (
@@ -927,17 +934,18 @@ class _Steps:
     """The steps a claim's results are checked with, as digests (`_Handouts`).
 
     A step is the `AfterToolCall` a check sends the protocol. Its digest is a
-    SHA-256 over each of `STEP_DIGEST_FIELDS` serialized in full as canonical
-    JSON (`_serialized`), as the check builds them: the conversation, the
-    assistant message's text and id, the call, its view (as its viewer
-    renders it, rejecting a viewer error where the check does; the check is
-    given that view), the generation's input, tools and tool choice
-    (`Produced.digest`), and the result. The result is all of its fields but
-    its `id`, which the bridge gives each parsed message afresh. The fields
-    left out are those of `STEP_DIGEST_EXCLUDED`. A value that can't be
-    serialized gives a digest no other step has. For a check with no
-    proposal's context the digest covers one thing the step lacks: where the
-    call sits in the request (`_check_part`).
+    SHA-256 over each of `STEP_DIGEST_FIELDS` encoded in full, with no two
+    values the protocol can tell apart encoded alike (`_serialized`), as the
+    check builds them: the conversation, the assistant message's text and
+    id, the call, its view (as its viewer renders it, rejecting a viewer
+    error where the check does; the check is given that view), the
+    generation's input, tools and tool choice (`Produced.digest`), and the
+    result. The result is all of its fields but its `id`, which the bridge
+    gives each parsed message afresh. The fields left out are those of
+    `STEP_DIGEST_EXCLUDED`. A value that can't be encoded gives a digest no
+    other step has. For a check with no proposal's context the digest covers
+    one thing the step lacks: where the call sits in the request
+    (`_check_part`).
 
     A check's part of the digest is computed once per set of results it
     answers in the request (`checks`), and each result's once, so repeated
@@ -1023,16 +1031,99 @@ def _check_part(
 
 
 def _serialized(value: Any) -> bytes:
-    """`value` as canonical JSON, NaN and the infinities told apart from None; for one that can't be serialized, a value nothing else is."""
+    """`value` encoded so that values the protocol can tell apart differ (`_encode`); for one that can't be encoded, a value nothing else is."""
     try:
-        return to_json(value, inf_nan_mode="constants", serialize_as_any=True)
+        return _encoded(value)
     except Exception:
         return _unmatched()
 
 
 def _unmatched() -> bytes:
-    # not JSON, so no serialization is the same
+    # no encoding starts as this does (`_encode`)
     return f"unmatched {uuid()}".encode()
+
+
+# written as their class and `repr`, which no two values of one share
+_REPR_TYPES = (datetime, date, time, timedelta, Decimal, UUID, PurePath)
+
+
+def _encoded(value: Any) -> bytes:
+    out: list[bytes] = []
+    _encode(value, out)
+    return b"".join(out)
+
+
+def _encode(value: Any, out: list[bytes]) -> None:
+    """Append to `out` an encoding of `value` that no other value has.
+
+    Each value is written as its type, then its content, with a length or a
+    count before anything of variable size. So None, NaN and each infinity
+    differ, as do `0.0` and `-0.0`, 1 and 1.0, a string and bytes, a list and
+    a tuple, and a dict in another key order. A model or dataclass is its
+    class and its fields as they are. Pydantic's serializers aren't used: a
+    model's writes NaN and the infinities as null whatever mode its caller
+    asks for.
+
+    Raises:
+        TypeError: The value, or one inside it, has a type not handled here
+            (a subclass of a built-in type among them).
+    """
+    kind = type(value)
+    if value is None:
+        out.append(b"n")
+    elif kind is bool:
+        out.append(b"t" if value else b"f")
+    elif kind is int:
+        # hexadecimal, which has no digit limit
+        out.append(b"i%b;" % format(value, "x").encode())
+    elif kind is float:
+        out.append(b"d" + struct.pack(">d", value))
+    elif kind is str or kind is bytes:
+        data = value.encode("utf-8", "surrogatepass") if kind is str else value
+        out.append(b"%b%d:" % (b"s" if kind is str else b"b", len(data)))
+        out.append(data)
+    elif kind is list or kind is tuple:
+        out.append(b"%b%d:" % (b"l" if kind is list else b"u", len(value)))
+        for item in value:
+            _encode(item, out)
+    elif kind is dict:
+        out.append(b"m%d:" % len(value))
+        for key, item in value.items():
+            _encode(key, out)
+            _encode(item, out)
+    elif kind is set or kind is frozenset:
+        # a set's order differs between processes
+        items = sorted(_encoded(item) for item in value)
+        out.append(b"%b%d:" % (b"e" if kind is set else b"z", len(items)))
+        out.extend(items)
+    elif isinstance(value, Enum):
+        out.append(b"v")
+        _encode(_class_name(kind), out)
+        _encode(value.value, out)
+    elif isinstance(value, BaseModel) or (
+        is_dataclass(value) and not isinstance(value, type)
+    ):
+        fields = (
+            [*kind.model_fields, *(value.model_extra or {})]
+            if isinstance(value, BaseModel)
+            else [field.name for field in dataclass_fields(value)]
+        )
+        out.append(b"o")
+        _encode(_class_name(kind), out)
+        out.append(b"%d:" % len(fields))
+        for name in fields:
+            _encode(name, out)
+            _encode(getattr(value, name), out)
+    elif isinstance(value, _REPR_TYPES):
+        out.append(b"r")
+        _encode(_class_name(kind), out)
+        _encode(repr(value), out)
+    else:
+        raise TypeError(f"{_class_name(kind)} can't be encoded")
+
+
+def _class_name(kind: type) -> str:
+    return f"{kind.__module__}.{kind.__qualname__}"
 
 
 def _parts_digest(*parts: str | bytes | None) -> str:
@@ -1165,6 +1256,13 @@ def _unissued(message: ChatMessageTool, found: _Call | None) -> tuple[ToolCall, 
 def _call_key(call: ToolCall, orphan: str | None = None) -> str:
     """A call's conservative identity: its function and arguments.
 
+    Arguments are compared as JSON carries them (`_json_canonical`), so a call
+    a scaffold sends back in another spelling is the same call: 5 and 5.0, an
+    object's keys in another order. The key tells which handout a result's
+    call is, and, with the result's content (`_content_key`), which results
+    the bridge started with. It never decides that a step was checked: a
+    step's digest covers the call the check shows exactly (`_Steps`).
+
     For a result answering no call in its request, `orphan` is the function the
     result names, and the arguments are unknown.
     """
@@ -1195,30 +1293,26 @@ def _content_key(result: ChatMessageTool) -> str:
     paths and instructions), so any difference is a different result, checked
     again; so is the function it is reported under, which a provider can send
     the model (Google's `FunctionResponse.name`); so is a text part's
-    `internal`, which a provider can send in its text (Anthropic), serialized
-    as it is sent there (`content_internal_tag()`), in its key order. Other
-    parts' `internal` is left out: a provider can replay one (Google's
-    `ContentToolUse.internal["gemini_parts"]`), but no bridge dialect sets
-    one from a scaffold's message. A string and a single text part are the
-    same content.
+    `internal`, which a provider can send in its text (Anthropic), in its key
+    order. Other parts' `internal` is left out: a provider can replay one
+    (Google's `ContentToolUse.internal["gemini_parts"]`), but no bridge
+    dialect sets one from a scaffold's message. A string and a single text
+    part are the same content. Everything else is encoded as a step's digest
+    encodes it (`_serialized`): no two values are alike.
     """
     content = (
         [ContentText(text=result.content)]
         if isinstance(result.content, str)
         else result.content
     )
-    parts: list[dict[str, Any]] = []
-    for part in content:
-        parts.append(part.model_dump(exclude={"internal"}, exclude_none=True))
-        if isinstance(part, ContentText) and part.internal is not None:
-            parts[-1]["internal"] = json.dumps(part.internal)
-    error = (
-        [result.error.type, result.error.message] if result.error is not None else None
-    )
+    parts = [
+        part
+        if isinstance(part, ContentText) or part.internal is None
+        else part.model_copy(update={"internal": None})
+        for part in content
+    ]
     # a provider sends no function as an empty name
-    return _digest(
-        to_jsonable_python([result.function or "", parts, error], fallback=str)
-    )
+    return _parts_digest(_serialized([result.function or "", parts, result.error]))
 
 
 def _digest(value: Any) -> str:

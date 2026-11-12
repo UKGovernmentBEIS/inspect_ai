@@ -1,4 +1,6 @@
 import json
+import math
+from collections import Counter
 from collections.abc import Awaitable, Callable, Iterator, Sequence
 from contextlib import contextmanager, nullcontext
 from copy import deepcopy
@@ -32,6 +34,7 @@ from inspect_ai._sentinel._scope import sentinel_solving
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.content import (
     Content,
+    ContentData,
     ContentImage,
     ContentReasoning,
     ContentText,
@@ -86,7 +89,7 @@ from inspect_ai.tool import (
     tool,
 )
 from inspect_ai.tool._tool import ToolParsingError
-from inspect_ai.tool._tool_call import default_tool_call_viewer
+from inspect_ai.tool._tool_call import ToolCallError, default_tool_call_viewer
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
 from inspect_ai.util._checkpoint import Manual
 from inspect_ai.util._checkpoint._layout.host_context import read as read_host_context
@@ -3784,6 +3787,219 @@ async def test_a_result_text_tag_changed_only_in_key_order_is_checked_again(
         await dialect_round_trip(dialect, bridge, results=results)
 
     assert len([step for step in seen if isinstance(step, AfterToolCall)]) == 2
+
+
+# values JSON writes alike, or Pydantic's JSON writes as null
+ALIKE: dict[str, JsonValue] = {
+    "null": None,
+    "nan": math.nan,
+    "inf": math.inf,
+    "-inf": -math.inf,
+    "0": 0,
+    "0.0": 0.0,
+    "-0.0": -0.0,
+}
+
+
+def tagged_internal(dialect: str, value: JsonValue) -> Any:
+    """A result whose text carries `{"value": value}` as its `internal`."""
+    from inspect_ai.model._internal import content_internal_tag
+
+    text = f"x\n{content_internal_tag({'value': value})}"
+    # Responses and Google keep the tag in the result's text
+    if dialect in ("anthropic", "completions"):
+        return [{"type": "text", "text": text}]
+    return text
+
+
+@protocol
+def terminate_on_a_non_finite_internal() -> Protocol:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        content = step.result.content
+        for part in [] if isinstance(content, str) else content:
+            internal = part.internal if isinstance(part, ContentText) else None
+            value = internal.get("value") if isinstance(internal, dict) else None
+            if isinstance(value, float) and not math.isfinite(value):
+                return Decision.terminate("blocked non-finite")
+        return None
+
+    return after
+
+
+@pytest.mark.parametrize("sandbox", [False, True], ids=["agent", "sandbox"])
+@pytest.mark.parametrize("first", ["null", "non-finite"])
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
+@pytest.mark.parametrize("dialect", ["anthropic", "completions"])
+async def test_a_result_changed_from_null_to_a_non_finite_internal_is_checked_again(
+    dialect: str, value: str, first: str, sandbox: bool
+) -> None:
+    # a Pydantic model writes NaN and the infinities as null in its JSON
+    model = Scripted(calls_output(READ), calls_output(), calls_output())
+    bridge = started_with(sandbox, model.model, AgentState(messages=[]))
+    results = [tagged_internal(dialect, ALIKE[name]) for name in ("null", value)]
+    if first == "non-finite":
+        results.reverse()
+
+    with active(terminate_on_a_non_finite_internal()):
+        with pytest.raises(TerminateSampleError, match="blocked non-finite"):
+            await dialect_round_trip(dialect, bridge, results=results)
+
+    # the non-finite value reached no model call
+    assert len(model.inputs) == (2 if first == "null" else 1)
+
+
+@pytest.mark.parametrize("sandbox", [False, True], ids=["agent", "sandbox"])
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_a_result_is_exempt_only_when_its_internal_is_the_same_value(
+    dialect: str, sandbox: bool
+) -> None:
+    seen: Steps = []
+    model = Scripted(calls_output(READ), calls_output())
+    bridge = started_with(sandbox, model.model, AgentState(messages=[]))
+    results = [tagged_internal(dialect, value) for value in ALIKE.values()]
+
+    with active([bridge_recording(seen)]):
+        # each value in turn, then each again
+        await dialect_round_trip(dialect, bridge, results=[*results, *results])
+
+    checked = [step.result for step in seen if isinstance(step, AfterToolCall)]
+    assert len(checked) == len(ALIKE)
+    if dialect in ("anthropic", "completions"):
+        assert [
+            json.dumps(part.internal)
+            for result in checked
+            for part in result.content
+            if isinstance(part, ContentText)
+        ] == [json.dumps({"value": value}) for value in ALIKE.values()]
+
+
+@pytest.mark.parametrize("sandbox", [False, True], ids=["agent", "sandbox"])
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_a_result_of_a_call_changed_to_arguments_json_writes_alike_is_checked(
+    dialect: str, sandbox: bool
+) -> None:
+    # under an id the bridge never handed out, the call checked is the one the
+    # request shows, so a scaffold chooses its arguments
+    seen: Steps = []
+    model = Scripted(calls_output())
+    bridge = started_with(sandbox, model.model, AgentState(messages=[]))
+    calls = [replace(READ, arguments={"path": value}) for value in ALIKE.values()]
+
+    with active([bridge_recording(seen)]):
+        for call in calls:
+            await dialect_history_request(dialect, bridge, call, "x")
+
+    assert [
+        json.dumps(step.call.arguments)
+        for step in seen
+        if isinstance(step, AfterToolCall)
+    ] == [json.dumps(call.arguments) for call in calls]
+
+
+@pytest.mark.parametrize("carrier", ["value", "arguments", "metadata", "internal"])
+def test_values_the_protocol_can_tell_apart_have_step_digests_of_their_own(
+    carrier: str,
+) -> None:
+    from inspect_ai.agent._bridge._sentinel import _serialized
+
+    values: list[Any] = [
+        *ALIKE.values(),
+        1,
+        1.0,
+        True,
+        False,
+        "",
+        "1",
+        "NaN",
+        "null",
+        "\ud800",
+        10**5000,
+        [],
+        {},
+        [None],
+        [[]],
+        [[1], [2]],
+        [[1, 2]],
+        [[1], 2],
+        ["ab", "c"],
+        ["a", "bc"],
+        ["abc"],
+        {"a": 1, "b": 2},
+        {"b": 2, "a": 1},
+        {"a": {"b": 1}},
+        {"a": [["b", 1]]},
+    ]
+    if carrier != "internal":
+        # not JSON, so nothing a text part's `internal` holds
+        values += [
+            b"1",
+            (),
+            (1,),
+            [1],
+            {1: "a"},
+            {"1": "a"},
+            {1},
+            frozenset({1}),
+            Path("1"),
+            ToolCallError("unknown", "1"),
+            ToolCallError("parsing", "1"),
+            ContentText(text="1"),
+            ContentText(text="1", internal={"value": math.nan}),
+            ContentText(text="1", internal={"value": None}),
+        ]
+
+    def carried(value: Any) -> Any:
+        if carrier == "arguments":
+            return ToolCall(id="call", function="f", arguments={"a": value})
+        if carrier == "metadata":
+            return ChatMessageTool(id="id", content="x", metadata={"a": value})
+        if carrier == "internal":
+            return ChatMessageTool(
+                id="id", content=[ContentText(text="x", internal={"a": value})]
+            )
+        return value
+
+    encoded = [_serialized(carried(value)) for value in values]
+
+    assert len(set(encoded)) == len(values)
+    # and the same value, built again, has the same one
+    assert encoded == [_serialized(carried(deepcopy(value))) for value in values]
+    if carrier != "internal":
+        # a value it can't encode is like nothing, itself included
+        for odd in (object(), Counter("a")):
+            assert _serialized(carried(odd)) != _serialized(carried(odd))
+
+
+def test_a_result_the_bridge_started_with_is_keyed_by_its_content_exactly() -> None:
+    from inspect_ai.agent._bridge._sentinel import _content_key
+
+    def keyed(*content: Content) -> str:
+        return _content_key(ChatMessageTool(content=list(content), function="f"))
+
+    data = [
+        ContentData(data={"a": 1, "b": 2}),
+        ContentData(data={"b": 2, "a": 1}),
+        ContentData(data={"a": 1.0, "b": 2}),
+        ContentData(data={"a": None, "b": 2}),
+        ContentData(data={"a": math.nan, "b": 2}),
+    ]
+    text = [
+        ContentText(text="x", internal=internal)
+        for internal in [None, *({"value": value} for value in ALIKE.values())]
+    ]
+    parts: list[Content] = [*data, *text]
+    assert len({keyed(part) for part in parts}) == len(parts)
+
+    # a string and a single text part are the same content, and only a text
+    # part's `internal` reaches the model
+    assert keyed(ContentText(text="x")) == _content_key(
+        ChatMessageTool(content="x", function="f")
+    )
+    assert keyed(ContentData(data={"a": 1}, internal="state")) == keyed(
+        ContentData(data={"a": 1})
+    )
 
 
 @protocol
