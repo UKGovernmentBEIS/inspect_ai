@@ -163,6 +163,9 @@ class _AwaitedReply:
     events: dict[int, "ToolEvent | None"] = field(default_factory=dict)
     """Per executed call's position, its execution, or `None` once the call is settled (linked, or left unlinked)."""
 
+    errors: dict[int, str] = field(default_factory=dict)
+    """Per executed call's position whose RPC raised, the error text the scaffold received (`_holds_result`)."""
+
 
 class DispatchedCall(NamedTuple):
     """A bridged tool call the model made through a scaffold's dispatcher function."""
@@ -523,9 +526,16 @@ class AgentBridge:
         return [_HandedCall(reply, position) for position in range(len(calls))]
 
     def _await_result_message(
-        self, handed: _HandedCall, event: "ToolEvent", linkable: bool = True
+        self,
+        handed: _HandedCall,
+        event: "ToolEvent",
+        linkable: bool = True,
+        error: str | None = None,
     ) -> None:
         """Set `event.message_id` when the scaffold first sends the result of `handed`.
+
+        `error` is the text the scaffold received instead of a result, for a
+        call whose RPC raised.
 
         The result reaches the bridge only when the scaffold sends it back in a
         later request (`_link_result_messages`). A second execution of the call,
@@ -545,6 +555,8 @@ class AgentBridge:
             handed.reply.id, _AwaitedReply(handed.reply.calls, handed.reply.handed_at)
         )
         executed = handed.position in reply.events
+        if error is not None:
+            reply.errors[handed.position] = error
         reply.events[handed.position] = (
             event
             if linkable
@@ -631,7 +643,7 @@ class AgentBridge:
                     and answers[0] not in inferred
                     and sent_in.get(answers[0], 0) <= reply.handed_at
                     and isinstance(answer, ChatMessageTool)
-                    and _holds_result(answer, event)
+                    and _holds_result(answer, event, reply.errors.get(position))
                 ):
                     event.message_id = answer.id
                     transcript()._event_updated(event)
@@ -1382,22 +1394,33 @@ def _named_result_key(message: ChatMessageTool, call: ToolCall | None) -> str:
     return content_hash(message.model_copy(update={"tool_call_id": answered}))
 
 
-def _holds_result(answer: ChatMessageTool, event: "ToolEvent") -> bool:
+def _holds_result(
+    answer: ChatMessageTool, event: "ToolEvent", error: str | None = None
+) -> bool:
     """Whether `answer` holds the result the scaffold received for `event`.
 
     Evidence that the scaffold received the execution's result before it sent
     `answer`: a scaffold that gave up on the call (its own client timeout)
     answers it without the result, after the execution completed. Scaffolds
     reformat, wrap and truncate results, so the evidence is the start of the
-    result's first text (`_RESULT_EVIDENCE`; for an error, its message) within
-    the answer or within a string of JSON the answer holds. A text shorter than
-    `_MIN_CONTAINED_RESULT` may appear in any message by chance, so it must be
-    a whole text of the answer (`_answer_texts`). A result with no text needs
-    an answer that is empty or, for media, holds media. Linear in the answer's
+    result's first text (`_RESULT_EVIDENCE`) within the answer, within a
+    string of JSON the answer holds (`_answer_texts`), or JSON-escaped within
+    the answer's text (a scaffold may cut its JSON so it no longer parses).
+    For a call whose RPC raised, the text is `error`, the error the scaffold
+    received, without the service's prefix (a denied retry's answer carries
+    the same prefix), or else the event's error message; an error with no
+    text links nothing. A text shorter
+    than `_MIN_CONTAINED_RESULT` may appear in any message by chance, so it
+    must be a whole text of the answer. A result with no text needs an
+    answer that is empty or, for media, holds media. Linear in the answer's
     size: one text of the result is compared.
     """
-    if event.error is not None:
-        expected, media = event.error.message.strip(), False
+    if error is None and event.error is not None:
+        error = event.error.message
+    if error is not None:
+        expected, media = error.strip(), False
+        if not expected:
+            return False
     else:
         expected, media = _result_evidence(event.result)
     expected = _escape_surrogates(expected)
@@ -1406,7 +1429,8 @@ def _holds_result(answer: ChatMessageTool, event: "ToolEvent") -> bool:
         if len(expected) < _MIN_CONTAINED_RESULT:
             return expected in texts
         evidence = expected[:_RESULT_EVIDENCE]
-        return any(evidence in text for text in texts)
+        escaped = json.dumps(evidence, ensure_ascii=False)[1:-1]
+        return any(evidence in text or escaped in text for text in texts)
     if media:
         return not isinstance(answer.content, str) and any(
             content.type != "text" for content in answer.content
@@ -1437,9 +1461,12 @@ def _answer_texts(answer: ChatMessageTool) -> set[str]:
     """The texts a result may appear as in `answer`, stripped.
 
     Its text, each text part, and every string in JSON they hold (other than
-    a `"type"` tag) are each a text; JSON holding no string counts as empty.
+    a `"type"` tag) are each a text, and so is every string in JSON such a
+    string holds, one level down; JSON holding no string counts as empty.
     Scaffolds wrap results in JSON (a list of MCP content blocks, a Google
-    `functionResponse`), escaping them. A lone surrogate is compared in its
+    `functionResponse`), escaping them, and a host tool's content result
+    reaches them as JSON already. Each level parses strings of the level
+    above, so the work stays linear. A lone surrogate is compared in its
     escaped form, as a JSON round trip may leave it (`_escape_surrogates`).
     """
     parts = (
@@ -1449,29 +1476,37 @@ def _answer_texts(answer: ChatMessageTool) -> set[str]:
     )
     texts = {answer.text.strip()}
     for part in parts:
-        part = part.strip()
-        texts.add(part)
-        if not part.startswith(("{", "[")):
-            continue
-        try:
-            value = json.loads(part)
-        except (ValueError, RecursionError):
-            continue
-        strings = 0
-        pending: list[tuple[Any, str | None]] = [(value, None)]
-        while pending:
-            item, key = pending.pop()
-            if isinstance(item, str):
-                if key != "type":
-                    texts.add(item.strip())
-                    strings += 1
-            elif isinstance(item, dict):
-                pending.extend((v, k) for k, v in item.items())
-            elif isinstance(item, list):
-                pending.extend((v, None) for v in item)
-        if strings == 0:
-            texts.add("")
+        texts.add(part.strip())
+        for string in _json_strings(part) or []:
+            texts.add(string)
+            texts.update(_json_strings(string) or [])
     return {_escape_surrogates(text) for text in texts}
+
+
+def _json_strings(text: str) -> list[str] | None:
+    """The strings in `text` parsed as a JSON object or array, stripped, other than `"type"` tags; `[""]` if it holds none.
+
+    `None` if `text` isn't a JSON object or array.
+    """
+    text = text.strip()
+    if not text.startswith(("{", "[")):
+        return None
+    try:
+        value = json.loads(text)
+    except (ValueError, RecursionError):
+        return None
+    strings: list[str] = []
+    pending: list[tuple[Any, str | None]] = [(value, None)]
+    while pending:
+        item, key = pending.pop()
+        if isinstance(item, str):
+            if key != "type":
+                strings.append(item.strip())
+        elif isinstance(item, dict):
+            pending.extend((v, k) for k, v in item.items())
+        elif isinstance(item, list):
+            pending.extend((v, None) for v in item)
+    return strings or [""]
 
 
 _SURROGATE = re.compile("[\ud800-\udfff]")

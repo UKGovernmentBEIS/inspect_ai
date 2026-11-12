@@ -61,6 +61,7 @@ from inspect_ai._util.content import (
     ContentToolUse,
 )
 from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._acp.event_mapping import _AcpEventRouter, replay_transcript
 from inspect_ai.agent._acp.transport import AcpUpdate
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport
@@ -7385,8 +7386,11 @@ async def test_answer_sent_while_a_reused_call_id_ran_links_nothing(
     the full conversation with that timeout again (as a string, or as a list
     of one text part where the dialect allows one), so the request holds two
     equal answers. The second was sent before the execution completed and
-    links nothing. As a control, the execution's own result links. The first
-    call's timeout answer doesn't hold its result, so it links nothing.
+    links nothing. Where it is resent, the second call's own result is that
+    same text (the command it ran timed out too), so the answer holds the
+    result and only its being sent before the execution completed decides.
+    As a control, the execution's result sent after it completed links. The
+    first call's timeout answer doesn't hold its result, so it links nothing.
     """
     if dialect == "google" and resent == "listed timeout":
         pytest.skip("Google results are JSON objects")
@@ -7409,7 +7413,7 @@ async def test_answer_sent_while_a_reused_call_id_ran_links_nothing(
             return "OLD"
         started.set()
         await release.wait()
-        return "NEW"
+        return "NEW" if resent == "result" else "Timed out."
 
     bridge = SandboxAgentBridge(
         state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
@@ -7454,7 +7458,10 @@ async def test_answer_sent_while_a_reused_call_id_ran_links_nothing(
     model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
     answers = [m.id for m in model_events[-1].input if m.role == "tool"]
     events = [e for e in recorded.events if isinstance(e, ToolEvent)]
-    assert [e.result for e in events] == ["OLD", "NEW"]
+    assert [e.result for e in events] == [
+        "OLD",
+        "NEW" if resent == "result" else "Timed out.",
+    ]
     assert events[0].message_id is None
     assert events[1].message_id == (answers[1] if resent == "result" else None)
 
@@ -7565,6 +7572,72 @@ async def test_host_call_answered_without_its_result_links_nothing(
             assert links == {"read_file": None}
         case _:
             assert links == {"read_file": None, "list_dir": sent[1]}
+
+
+@pytest.mark.parametrize("answered", ["error", "denied call's error", "client timeout"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_host_error_links_the_answer_holding_the_error_raised(
+    dialect: HostDialect, answered: str
+) -> None:
+    """A host call whose tool raised links the answer holding the error the scaffold received.
+
+    Inspect records a missing file as `File '/x/y.txt' was not found.`, but
+    the RPC raises the original error, which the scaffold's MCP client shows
+    behind its own prefix and the service's. The service's prefix is no
+    evidence: the answer to another call's denial (a request the model
+    didn't propose, which doesn't repeat this call) carries it too and links
+    nothing, as does a client timeout.
+    """
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(
+                ToolCall(id="call_read", function="read_file", arguments={"path": "p"})
+            ),
+            ModelOutput.from_content("mockllm/model", "Noted."),
+        ],
+    )
+    missing = FileNotFoundError(2, "No such file or directory", "/x/y.txt")
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={
+            "host": {"read_file": read_file(AsyncMock(side_effect=missing))}
+        },
+    )
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read p.", info)
+    with recorded_transcript() as recorded:
+        [(_, arguments)] = calls = await conversation.request(bridge)
+        with pytest.raises(FileNotFoundError) as raised:
+            await call_host_tool(bridge)("host", "read_file", arguments)
+        with pytest.raises(PermissionError) as denied:
+            await call_host_tool(bridge)("host", "read_file", {"path": "q"})
+        error = {
+            "error": raised.value,
+            "denied call's error": denied.value,
+        }.get(answered)
+        conversation.results(
+            calls,
+            [CLIENT_TIMEOUT if error is None else f"{MCP_ERROR}{error}"],
+        )
+        await conversation.request(bridge)
+
+    [event] = [
+        e
+        for e in recorded.events
+        if isinstance(e, ToolEvent) and bridge_metadata(e)["grant"] == "consumed"
+    ]
+    assert event.error is not None
+    assert event.error.message == "File '/x/y.txt' was not found."
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [sent] = [m.id for m in model_events[-1].input if m.role == "tool"]
+    assert event.message_id == (sent if answered == "error" else None)
 
 
 class _ServedHostCall(SandboxService):
@@ -7698,93 +7771,189 @@ def _tool_answer(content: str | list[Content]) -> ChatMessageTool:
 
 LONG_RESULT = "\n".join(f'line {n}: "quoted" text' for n in range(100))
 
+MULTILINE_RESULT = [ContentText(text='first line\nsecond line, "quoted"')]
+"""A host MCP tool's content result, which reaches the scaffold as JSON."""
+
+MULTILINE_REPLY = to_json_str_safe(MULTILINE_RESULT)
+"""The RPC result for `MULTILINE_RESULT`, as the scaffold receives it."""
+
+MISSING_FILE = str(FileNotFoundError(2, "No such file or directory", "/x/y.txt"))
+"""What the RPC raises for a missing file, which Inspect records as `File '/x/y.txt' was not found.`"""
+
+MCP_ERROR = "MCP error -32603: Error calling method call_tool: "
+"""The prefix a scaffold's MCP client shows a host tool's error with."""
+
+DENIED = (
+    "Host tool call 'host/read_file' was not proposed by the model in a "
+    "bridged generation (a bridged host tool runs once per proposed call)"
+)
+
 
 @pytest.mark.parametrize(
     "result,error,answer,holds",
     [
-        (LONG_RESULT, None, LONG_RESULT, True),
-        (LONG_RESULT, None, f"Output:\n{LONG_RESULT}\n", True),
-        (
+        pytest.param(LONG_RESULT, None, LONG_RESULT, True, id="equal"),
+        pytest.param(
+            LONG_RESULT, None, f"Output:\n{LONG_RESULT}\n", True, id="within other text"
+        ),
+        pytest.param(
             LONG_RESULT,
             None,
             json.dumps([{"type": "text", "text": LONG_RESULT}]),
             True,
+            id="content block json",
         ),
-        (LONG_RESULT, None, json.dumps({"output": LONG_RESULT}), True),
-        (LONG_RESULT, None, f"{LONG_RESULT[:300]}\n[output truncated]", True),
-        (LONG_RESULT, None, CLIENT_TIMEOUT, False),
-        (LONG_RESULT, None, LONG_RESULT[:200], False),
-        ("ok", None, "ok", True),
-        ("ok", None, json.dumps([{"type": "text", "text": "ok"}]), True),
-        ("ok", None, "ok, but the client timed out", False),
-        ("1", None, CLIENT_TIMEOUT, False),
-        ("", None, "", True),
-        ("", None, "[]", True),
-        ("", None, CLIENT_TIMEOUT, False),
-        (
-            "",
-            ToolCallError("unknown", "The file p does not exist."),
-            "MCP error -32603: Error calling method call_tool: "
-            "The file p does not exist.",
+        pytest.param(
+            LONG_RESULT,
+            None,
+            json.dumps({"output": LONG_RESULT}),
             True,
+            id="google response json",
         ),
-        (
-            "",
-            ToolCallError("unknown", "The file p does not exist."),
-            CLIENT_TIMEOUT,
+        pytest.param(
+            LONG_RESULT,
+            None,
+            f"{LONG_RESULT[:300]}\n[output truncated]",
+            True,
+            id="truncated",
+        ),
+        pytest.param(
+            LONG_RESULT,
+            None,
+            json.dumps([{"type": "text", "text": LONG_RESULT}])[:400],
+            True,
+            id="content block json cut short",
+        ),
+        pytest.param(LONG_RESULT, None, CLIENT_TIMEOUT, False, id="client timeout"),
+        pytest.param(
+            LONG_RESULT, None, LONG_RESULT[:200], False, id="too little of it"
+        ),
+        pytest.param(MULTILINE_RESULT, None, MULTILINE_REPLY, True, id="content reply"),
+        pytest.param(
+            MULTILINE_RESULT,
+            None,
+            json.dumps([{"type": "text", "text": MULTILINE_REPLY}]),
+            True,
+            id="content reply in codex json",
+        ),
+        pytest.param(
+            MULTILINE_RESULT,
+            None,
+            json.dumps({"output": MULTILINE_REPLY}),
+            True,
+            id="content reply in gemini json",
+        ),
+        pytest.param(
+            [ContentText(text="café menu\nsecond line")],
+            None,
+            json.dumps(
+                [
+                    {
+                        "type": "text",
+                        "text": json.dumps(
+                            [{"type": "text", "text": "café menu\nsecond line"}]
+                        ),
+                    }
+                ]
+            ),
+            True,
+            # only parsing the inner JSON finds it: its escapes differ from ours
+            id="content reply with ascii escapes in codex json",
+        ),
+        pytest.param(
+            MULTILINE_RESULT,
+            None,
+            "tool call error: timed out awaiting tools/call after 60s",
             False,
+            id="content reply answered by a codex timeout",
         ),
-        (
+        pytest.param(
+            MULTILINE_RESULT,
+            None,
+            json.dumps({"error": CLIENT_TIMEOUT}),
+            False,
+            id="content reply answered by a gemini timeout",
+        ),
+        pytest.param("ok", None, "ok", True, id="short equal"),
+        pytest.param(
+            "ok",
+            None,
+            json.dumps([{"type": "text", "text": "ok"}]),
+            True,
+            id="short in content block json",
+        ),
+        pytest.param(
+            "ok", None, "ok, but the client timed out", False, id="short within text"
+        ),
+        pytest.param("1", None, CLIENT_TIMEOUT, False, id="short within a timeout"),
+        pytest.param(
+            "text",
+            None,
+            json.dumps([{"type": "text", "text": ""}]),
+            False,
+            id="short equal to a type tag",
+        ),
+        pytest.param("", None, "", True, id="empty"),
+        pytest.param("", None, "[]", True, id="empty json"),
+        pytest.param("", None, CLIENT_TIMEOUT, False, id="empty answered by a timeout"),
+        pytest.param(
+            "", MISSING_FILE, MCP_ERROR + MISSING_FILE, True, id="error as raised"
+        ),
+        pytest.param(
+            "",
+            MISSING_FILE,
+            json.dumps({"error": MCP_ERROR + MISSING_FILE}),
+            True,
+            id="error as raised in gemini json",
+        ),
+        pytest.param(
+            "",
+            MISSING_FILE,
+            "File '/x/y.txt' was not found.",
+            False,
+            id="error as recorded",
+        ),
+        pytest.param(
+            "", MISSING_FILE, MCP_ERROR + DENIED, False, id="error answered by a denial"
+        ),
+        pytest.param(
+            "", MISSING_FILE, CLIENT_TIMEOUT, False, id="error answered by a timeout"
+        ),
+        pytest.param("", "", MCP_ERROR, False, id="error with no text"),
+        pytest.param("", "not found", MCP_ERROR + "not found", False, id="short error"),
+        pytest.param(
             [ContentText(text=""), ContentText(text=LONG_RESULT)],
             None,
             [ContentText(text=LONG_RESULT)],
             True,
+            id="first text part",
         ),
-        (
+        pytest.param(
             [ContentImage(image="data:image/png;base64,AAAA")],
             None,
             [ContentImage(image="data:image/png;base64,AAAA")],
             True,
+            id="image",
         ),
-        (
+        pytest.param(
             [ContentImage(image="data:image/png;base64,AAAA")],
             None,
             CLIENT_TIMEOUT,
             False,
+            id="image answered by a timeout",
         ),
-    ],
-    ids=[
-        "equal",
-        "within other text",
-        "content block json",
-        "google response json",
-        "truncated",
-        "client timeout",
-        "too little of it",
-        "short equal",
-        "short in content block json",
-        "short within other text",
-        "short within a timeout",
-        "empty",
-        "empty json",
-        "empty answered by a timeout",
-        "error message",
-        "error answered by a timeout",
-        "first text part",
-        "image",
-        "image answered by a timeout",
     ],
 )
 def test_host_result_evidence_in_an_answer(
-    result: ToolResult,
-    error: ToolCallError | None,
-    answer: str | list[Content],
-    holds: bool,
+    result: ToolResult, error: str | None, answer: str | list[Content], holds: bool
 ) -> None:
-    """An answer holds a host result when it holds the start of its first text, however wrapped; a short text must be a whole text of it."""
+    """An answer holds a host result when it holds the start of its first text, however wrapped; a short text must be a whole text of it.
+
+    `error` is the text the RPC raised instead of returning `result`; the
+    prefix the service adds to it is no evidence.
+    """
     event = ToolEvent(id="call", function="read_file", arguments={}, result=result)
-    event.error = error
-    assert _holds_result(_tool_answer(answer), event) is holds
+    assert _holds_result(_tool_answer(answer), event, error) is holds
 
 
 @pytest.mark.parametrize("side", [True, False], ids=["side request", "none"])

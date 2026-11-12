@@ -464,13 +464,20 @@ The link is exact when all of these hold:
   even after the agent's MCP client gave up on the call (its own timeout),
   and the agent then answers with its timeout error, sent after the response
   was written. A message holds the result when it contains the first 256
-  characters of the result's first text (for an error, its message), or a
-  JSON string inside it does (Codex sends a list of MCP content blocks,
-  Google a `functionResponse` object). A text shorter than 16 characters
-  must be a whole text of the message, a text part or a JSON string. A result
-  with no text needs an empty answer or, for media, one holding media. An
-  agent that truncates the start of a result or rewrites it leaves the call
-  unlinked.
+  characters of the result's first text, or a JSON string inside it does,
+  one level down too (Codex sends a list of MCP content blocks, Google a
+  `functionResponse` object, and a host tool's content result reaches the
+  agent as JSON already), or its text contains them JSON-escaped (an agent
+  may cut its JSON so it no longer parses). For a call whose RPC raised, the
+  text is the error the agent received (`str()` of what the RPC raised, which
+  for an OS error differs from the message the event records), not counting
+  the service's `Error calling method call_tool:` prefix, which a denied
+  call's answer carries too; an error with no text links nothing. A text
+  shorter than 16 characters must be a whole text of the message, a text
+  part or a JSON string, so a short error message, which agents show behind
+  a prefix, links nothing. A result with no text needs an empty answer or,
+  for media, one holding media. An agent that truncates the start of a
+  result or rewrites it leaves the call unlinked.
 
 Otherwise `message_id` stays `None`. This includes a Google result whose call
 id the dialect inferred from order (a call sharing its function with another),

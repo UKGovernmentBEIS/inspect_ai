@@ -93,22 +93,26 @@ class ToolEvent(BaseEvent):
     ran once, no other call of the reply has its id or its function and
     arguments, and exactly one tool message answers it (by call id, before the
     next assistant message with tool calls), is new in that request, and holds
-    the result: the start of its text (for an error, its message), also within
-    JSON the scaffold wraps it in, or all of a short text. Its content may
-    otherwise differ from `result`: scaffolds edit results and dialects
-    reshape them.
+    the result: the first 256 characters of the result's first text (for an
+    error, the error text the scaffold received), directly or in a JSON string
+    the scaffold wraps it in; a result under 16 characters must be a whole
+    text of the answer. A result with no text needs an empty answer or, for
+    media, one holding media. Its content may otherwise differ from `result`:
+    scaffolds edit results and dialects reshape them.
 
     Otherwise it stays `None`: the scaffold never sends the result, edits the
     reply, or sends it where the bridge can't place it (another conversation
     may hold an equal reply); a message the bridge couldn't place took the
-    reply's id; the call executed more than once; more than one tool
-    message answers it; the answer equals a message sent before, was sent
-    before the call's response was written, or doesn't hold its result (a
-    scaffold's client gave up on the call and answered it with a timeout,
-    say); the call's response was never written; Google names only the
-    result's function and
-    several calls of the reply share it; the sample resumed from a checkpoint
-    first; or 256 later host calls are tracked before its result arrives.
+    reply's id; the call executed more than once; more than one tool message
+    answers it; the answer equals a message sent before, was sent before the
+    call's response was written, or doesn't hold its result (a scaffold's
+    client gave up on the call and answered it with a timeout, say, or
+    dropped the start of the result); the call's response was never written;
+    the call raised an error with no text, or one under 16 characters, which
+    scaffolds show behind a prefix; Google names only the result's function
+    and several calls of the reply share it; the sample resumed from a
+    checkpoint first; or 256 later host calls are tracked before its result
+    arrives.
     """
 
     call_message_id: str | None = Field(default=None)

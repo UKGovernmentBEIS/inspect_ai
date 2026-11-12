@@ -204,8 +204,12 @@ async def _record_rejection(
     failed: bool | None = None,
     call_message_id: str | None = None,
     grant: _ToolExecutionGrant | None = None,
+    raised: BaseException | None = None,
 ) -> None:
-    """Record a request that did not execute as a completed event in its own `tool` span."""
+    """Record a request that did not execute as a completed event in its own `tool` span.
+
+    `raised` is what the RPC raises for a request that consumed `grant`.
+    """
     event = ToolEvent(
         id=event_id or uuid(),
         function=tool,
@@ -238,13 +242,20 @@ async def _record_rejection(
         # request was still received and decided, so it is still recorded
         if not recorded:
             transcript()._event(event)
-        _await_result_message(bridge, grant, event)
+        _await_result_message(bridge, grant, event, raised)
 
 
 def _await_result_message(
-    bridge: SandboxAgentBridge, grant: _ToolExecutionGrant | None, event: ToolEvent
+    bridge: SandboxAgentBridge,
+    grant: _ToolExecutionGrant | None,
+    event: ToolEvent,
+    raised: BaseException | None,
 ) -> None:
     """Await the result message of the execution that consumed `grant`.
+
+    `raised` is what the RPC raises instead of returning a result: the
+    scaffold receives its text (after the service's own prefix), which a
+    result message must then hold (`_holds_result`).
 
     Awaiting starts once the RPC's response is written to the sandbox
     (`on_response_written`), as a message the scaffold sent before then
@@ -259,6 +270,7 @@ def _await_result_message(
     if grant is None or grant.proposal.reply is None:
         return
     handed = grant.proposal.reply
+    error = None if raised is None else str(raised)
 
     def answered(written: bool) -> None:
         bridge._await_result_message(
@@ -267,6 +279,7 @@ def _await_result_message(
             linkable=written
             and grant.proposal.linkable
             and grant.server not in bridge.proposal_exempt_servers,
+            error=error,
         )
 
     if not on_response_written(answered):
@@ -314,9 +327,11 @@ async def _execute_granted(
             failed=True if mapped is None else None,
             call_message_id=call_message_id,
             grant=grant,
+            raised=ex,
         )
         raise
     if validation_errors:
+        parsing = ToolParsingError(validation_errors)
         await _record_rejection(
             bridge,
             tool,
@@ -327,8 +342,9 @@ async def _execute_granted(
             view=view,
             call_message_id=call_message_id,
             grant=grant,
+            raised=parsing,
         )
-        raise ToolParsingError(validation_errors)
+        raise parsing
     call_arguments = cast(dict[str, JsonValue], arguments)
 
     event = ToolEvent(
@@ -410,7 +426,7 @@ async def _execute_granted(
                 transcript()._event_updated(event)
             else:
                 transcript()._event(event)
-            _await_result_message(bridge, grant, event)
+            _await_result_message(bridge, grant, event, outcome.raised)
             if outcome.fatal is not None:
                 bridge.request_fail(outcome.fatal)
 
