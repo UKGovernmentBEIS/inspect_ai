@@ -310,6 +310,14 @@ async def run_model_service(
     instance: str,
     started: anyio.Event,
 ) -> None:
+    """Serve the bridge's model service to its proxy.
+
+    The service's request queue is private to the tools user, the user the
+    proxy runs as, so no other user (the sandbox's default user included) can
+    submit requests past the proxy's check of the client's user. Every bridge
+    does this, scoped or not: bridges' queues share one parent directory, which
+    must have one owner.
+    """
     await sandbox_service(
         name=MODEL_SERVICE,
         methods={
@@ -330,6 +338,7 @@ async def run_model_service(
         },
         until=lambda: False,
         sandbox=sandbox,
+        user=sandbox._tools_user,
         instance=instance,
         polling_interval=2,
         started=started,
