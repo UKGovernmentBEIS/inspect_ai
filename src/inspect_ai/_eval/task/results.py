@@ -714,10 +714,10 @@ def reduce_scores(
 ) -> list[SampleScore]:
     """Reduce each sample's epoch scores to one score.
 
-    Excluded epochs (`score_is_excluded()`) are left out, so the reducer sees
-    only the others. When every epoch is excluded the reducer is not called
-    and the sample reduces to its first excluded score, which counts as
-    unscored.
+    Excluded epochs (`score_is_excluded()`) are left out, so the sample
+    reduces, sample metadata included, as if they had not run. When every
+    epoch is excluded the reducer is not called and the sample reduces to its
+    first excluded score, which counts as unscored.
     """
     # Group the scores by sample_id
     grouped_scores: dict[str, list[SampleScore]] = defaultdict(list)
@@ -728,15 +728,17 @@ def reduce_scores(
     # reduce the scores
     reduced_scores: list[SampleScore] = []
     for scores in grouped_scores.values():
-        kept = [score.score for score in scores if not score_is_excluded(score.score)]
+        kept = [score for score in scores if not score_is_excluded(score.score)]
         if kept:
-            reduced = reducer(kept)
+            reduced = reducer([score.score for score in kept])
+            first = kept[0]
         else:
-            reduced = scores[0].score.model_copy(update={"history": []})
+            first = scores[0]
+            reduced = first.score.model_copy(update={"history": []})
         reduced_scores.append(
             SampleScore(
-                sample_id=scores[0].sample_id,
-                sample_metadata=scores[0].sample_metadata,
+                sample_id=first.sample_id,
+                sample_metadata=first.sample_metadata,
                 score=reduced,
             )
         )

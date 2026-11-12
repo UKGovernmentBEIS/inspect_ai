@@ -28,6 +28,7 @@ from inspect_ai.scorer import (
     accuracy,
     at_least,
     collect_score,
+    grouped,
     includes,
     majority_score,
     match,
@@ -1123,6 +1124,47 @@ def test_reduce_scores_all_excluded_skips_reducer() -> None:
     )
     assert eval_scores[0].scored_samples == 1
     assert eval_scores[0].unscored_samples == 1
+
+
+def test_reduce_scores_excluded_epoch_sample_metadata_matches_removal() -> None:
+    # solver-written sample metadata can differ per epoch; excluding an epoch
+    # must reduce like removing it, so the metadata comes from a kept epoch
+    first = SampleScore(
+        sample_id="a",
+        sample_metadata={"category": "refusal"},
+        score=_excluded(Score(value="I")),
+    )
+    kept = SampleScore(
+        sample_id="a", sample_metadata={"category": "success"}, score=Score(value="C")
+    )
+    other = SampleScore(
+        sample_id="b", sample_metadata={"category": "success"}, score=Score(value="I")
+    )
+
+    excluded = reduce_scores([first, kept, other], majority_reducer)
+    removed = reduce_scores([kept, other], majority_reducer)
+    assert excluded == removed
+    assert excluded[0].sample_metadata == {"category": "success"}
+
+    def grouped_metrics(sample_scores: list[SampleScore]) -> dict[str, Any]:
+        metric = grouped(accuracy(), "category")
+        eval_scores, _ = compute_eval_scores_for_views(
+            sample_scores,
+            [metric],
+            "match",
+            ScorerInfo(name="match", metrics=[metric]),
+            [majority_reducer],
+        )
+        return {k: v.value for k, v in eval_scores[0].metrics.items()}
+
+    assert grouped_metrics([first, kept, other]) == grouped_metrics([kept, other])
+
+    # every epoch excluded: the metadata of the first epoch is kept
+    all_excluded = reduce_scores(
+        [first, first.model_copy(update={"sample_metadata": {"category": "x"}})],
+        majority_reducer,
+    )
+    assert all_excluded[0].sample_metadata == {"category": "refusal"}
 
 
 @pytest.mark.parametrize(
