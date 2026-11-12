@@ -48,9 +48,20 @@ class SampleErrorHandler:
         self.total_samples = total_samples
         self.defer_fractional = defer_fractional
 
-    def __call__(self, ex: BaseException) -> tuple[EvalError, BaseException | None]:
-        # increment error count
-        self.error_count += 1
+    def __call__(
+        self, ex: BaseException, *, counted: bool = False
+    ) -> tuple[EvalError, BaseException | None]:
+        """Count a sample error and decide whether it fails the eval.
+
+        Args:
+            ex: The sample's error.
+            counted: The sample already counted toward `fail_on_error` with an
+                earlier error (eg. its `score_on_error` scoring raising after
+                the solver did). The threshold is checked without counting the
+                sample again.
+        """
+        if not counted:
+            self.error_count += 1
 
         # create error (we may return it)
         def sample_error(
