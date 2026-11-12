@@ -117,7 +117,7 @@ from inspect_ai.model._providers._google_citations import (
 )
 from inspect_ai.model._providers._google_computer_use import (
     computer_tool_result_parts,
-    gemini_action_from_tool_call,
+    gemini_replay_args,
     maybe_computer_use_tool,
     tool_call_from_gemini_computer_action,
 )
@@ -563,6 +563,9 @@ class GoogleGenAIAPI(ModelAPI):
 
         # record api version
         self.api_version = api_version
+
+        # the endpoint a client of this model resolves (`_client_endpoint`)
+        self._resolved_endpoint: str | None = None
 
         # set when the countTokens endpoint returns 404 (no route for this
         # configuration); later counts use the local estimate
@@ -1288,6 +1291,16 @@ class GoogleGenAIAPI(ModelAPI):
         return RetryDecision.no()
 
     @override
+    def _client_endpoint(self) -> str | None:
+        # a client is constructed per call; one constructed here only reads
+        # the endpoint it resolves, and sends nothing
+        if self._resolved_endpoint is None:
+            client = self.model_client()
+            self._resolved_endpoint = client._api_client._http_options.base_url
+            client.close()
+        return self._resolved_endpoint
+
+    @override
     def connection_key(self) -> str:
         """Scope adaptive concurrency per (key, model).
 
@@ -1818,12 +1831,11 @@ async def content(
                 action_name = (
                     tool_call.id.rsplit("_", 1)[0] if tool_call.id else "computer"
                 )
-                _, action_args = gemini_action_from_tool_call(tool_call)
                 return Part(
                     function_call=FunctionCall(
                         id=tool_call.id,
                         name=action_name,
-                        args=action_args,
+                        args=gemini_replay_args(action_name, tool_call),
                     )
                 )
             else:

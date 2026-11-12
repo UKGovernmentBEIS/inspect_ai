@@ -61,7 +61,7 @@ from ._publish import (
     supported_location,
 )
 from ._walk import ShardDir, check_s3_location, list_shard_set
-from ._write import check_task_matches, write_merged_zip
+from ._write import SampleMember, check_task_matches, write_merged_zip
 
 if TYPE_CHECKING:
     from inspect_ai._eval.task.task import Task
@@ -395,12 +395,14 @@ async def _merge_pass(
 
     with tempfile.TemporaryDirectory() as temp_dir:
         carried_zip: zipfile.ZipFile | None = None
+        carried_reader: AsyncZipReader | None = None
         try:
             carried_summaries: dict[SampleRecordKey, EvalSampleSummary] = {}
             if carried:
                 assert existing is not None
                 copy = await merged_log_copy(fs, merged_path, existing.etag, temp_dir)
                 carried_zip = zipfile.ZipFile(copy)
+                carried_reader = AsyncZipReader(fs, copy, verify_crc=True)
                 carried_summaries = await run_owned(
                     functools.partial(_read_carried_summaries, carried_zip, merged_path)
                 )
@@ -417,17 +419,17 @@ async def _merge_pass(
                         f"{merged_path} so the next merge rebuilds it from the shards."
                     )
 
-            async def read_member(key: SampleRecordKey) -> bytes:
+            async def read_member(key: SampleRecordKey) -> SampleMember:
                 read = taken.get(key)
                 if read is not None:
-                    reader = readers[read.shard]
-                    return await reader.read_member_fully(read.members[key])
-                assert carried_zip is not None
-                return await run_owned(
-                    functools.partial(
-                        carried_zip.read, _sample_filename(key.sample_id, key.epoch)
+                    return SampleMember(
+                        readers[read.shard], read.members[key], read.file.name
                     )
+                assert carried_reader is not None
+                entry = await carried_reader.get_member_entry(
+                    _sample_filename(key.sample_id, key.epoch)
                 )
+                return SampleMember(carried_reader, entry, merged_path)
 
             name = log_basename(merged_path)
             total = selected_total(selection, held_ids) * epochs

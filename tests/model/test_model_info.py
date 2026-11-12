@@ -734,6 +734,18 @@ class TestGetModelInputTokens:
         assert info.snapshot == "20260901"
         assert str(info.knowledge_cutoff_date) == "2026-06-01"
 
+    def test_claude_fable_5_2(self):
+        """Test that Claude Fable 5.2 resolves to its own registration."""
+        model = get_model("anthropic/claude-fable-5-2")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+        info = get_model_info("anthropic/claude-fable-5-2")
+        assert info is not None
+        assert info.model == "Claude Fable 5.2"
+        assert info.snapshot == "20261109"
+        assert str(info.knowledge_cutoff_date) == "2026-06-01"
+        assert info.reasoning_effort_default == "high"
+
     def test_claude_mythos_preview(self):
         """Test that Claude Mythos Preview reports 1MM input tokens."""
         model = get_model("anthropic/claude-mythos-preview")
@@ -771,6 +783,19 @@ class TestGetModelInputTokens:
         assert info is not None
         assert info.model == "Gemini 4 Argon"
         assert str(info.release_date) == "2026-10-13"
+        assert str(info.knowledge_cutoff_date) == "2026-03-01"
+        assert info.output_tokens == 65_536
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "medium"
+
+    def test_gemini_4_carbon(self) -> None:
+        """Gemini 4 Carbon resolves to its own entry (1M context, 64K output)."""
+        model = get_model("google/gemini-4-carbon", api_key="test-key")
+        assert get_model_input_tokens(model) == 1_048_576
+        info = get_model_info("google/gemini-4-carbon")
+        assert info is not None
+        assert info.model == "Gemini 4 Carbon"
+        assert str(info.release_date) == "2026-11-10"
         assert str(info.knowledge_cutoff_date) == "2026-03-01"
         assert info.output_tokens == 65_536
         assert info.reasoning is True

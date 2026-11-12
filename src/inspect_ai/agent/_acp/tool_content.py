@@ -20,10 +20,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from acp.helpers import (
-    ToolCallContentVariant,
-    tool_diff_content,
-)
 from acp.schema import (
     ContentToolCallContent,
     FileEditToolCallContent,
@@ -38,6 +34,10 @@ from inspect_ai._util.url import (
     data_uri_to_base64,
     is_data_uri,
     is_http_url,
+)
+from inspect_ai.agent._acp._schema_builders import (
+    ToolCallContentVariant,
+    tool_diff_content,
 )
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.tool._tool_call import ToolCallContent, substitute_tool_call_content
