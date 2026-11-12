@@ -14,15 +14,15 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-from acp.helpers import (
+from acp.schema import AgentPlanUpdate
+
+from inspect_ai.agent._acp._schema_builders import (
     session_notification,
     start_tool_call,
     text_block,
     update_agent_message,
     update_tool_call,
 )
-from acp.schema import AgentPlanUpdate
-
 from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
 from inspect_ai.agent._acp.inspect_ext import PLAN_RENDERING_META_KEY, PLAN_TOOL_NAMES
 from inspect_ai.agent._acp.session_router import Forwarders

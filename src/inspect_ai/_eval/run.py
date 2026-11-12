@@ -51,6 +51,7 @@ from inspect_ai._display.core.display import (
 from inspect_ai._eval.task.constants import TASK_ALL_PARAMS_ATTR
 from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._sentinel._config import (
+    SentinelProxy,
     Sentinels,
     resolve_sentinel_root,
     sentinel_config,
@@ -164,6 +165,7 @@ async def eval_run(
     approval: list[ApprovalPolicy] | None = None,
     review: list[ReviewPolicy] | None = None,
     sentinel: Sentinels | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
     solver: Solver | SolverSpec | None = None,
     scanner: "Scanners | None" = None,
     scan_id: str | None = None,
@@ -476,6 +478,7 @@ async def eval_run(
                         eval_wd=eval_wd,
                         config=task_eval_config,
                         sentinel=sentinel_root,
+                        sentinel_proxy=sentinel_proxy,
                         solver=eval_solver,
                         scanner=scanner,
                         scan_id=scan_id,
@@ -641,12 +644,7 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
     absorb it.
     """
     result: EvalLog | None = None
-    cancel_type: CancelType = None
     abandoned = False
-    scope_exited = False
-    # whether the attempt ended in error (the cancel handle, which outlives
-    # the attempt, keeps this rather than the log)
-    ended_in_error = False
     notifying = False
     run_returned = False
     try:
@@ -658,23 +656,13 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
             # encloses only task_run, so the TaskSource is notified outside it
             async with anyio.create_task_group() as task_tg:
                 task_scope = anyio.CancelScope()
-                task_cancel = TaskCancel(
-                    can_retry=can_retry, cancel_task=lambda _: None
-                )
+                task_cancel = TaskCancel(can_retry=can_retry, apply=lambda _: None)
 
-                def cancel_task(
+                def apply_cancel(
                     type: CancelType,
                     scope: anyio.CancelScope = task_scope,
                     tc: TaskCancel = task_cancel,
                 ) -> None:
-                    nonlocal cancel_type
-                    # after task_run the attempt's outcome is decided: only an
-                    # abort of an attempt that ended in error still applies
-                    # (it stops the dispatcher's retry)
-                    if scope_exited and not (type == "abort" and ended_in_error):
-                        return
-                    cancel_type = type
-                    tc.cancel_type = type
                     # samples parked at the pause gate observe the stamped
                     # cancel through their escape predicate — wake them so a
                     # graceful resolution reaches the queue-exit abandon
@@ -688,11 +676,10 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                     if type in ("abort", "retry") and not bound_log_write(tc):
                         scope.cancel()
 
-                task_cancel.cancel_task = cancel_task
+                task_cancel.apply = apply_cancel
 
                 async def run() -> None:
-                    nonlocal result, abandoned, scope_exited, ended_in_error
-                    nonlocal notifying, run_returned
+                    nonlocal result, abandoned, notifying, run_returned
                     write_failed = False
                     error_after_write = False
                     with task_scope:
@@ -743,25 +730,30 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                                 )
                                 result = unwritten_task_log(options.logger, inner)
                                 write_failed = True
-                    scope_exited = True
                     written_log = options.logger.pop_finished_log()
                     # task_scope swallows only its own cancellation (a
                     # run-level one propagates), so no log here means the
                     # task's abort/retry request interrupted task_run, or an
                     # error escaped it after the write
                     if result is None and not abandoned:
-                        assert error_after_write or cancel_type in ("abort", "retry")
+                        assert error_after_write or task_cancel.cancel_type in (
+                            "abort",
+                            "retry",
+                        )
                         if written_log is not None:
                             result = written_log
                         else:
                             result = unwritten_task_log(
                                 options.logger,
                                 TerminateTaskError(
-                                    f"Task cancelled by user ({cancel_type})"
+                                    "Task cancelled by user "
+                                    f"({task_cancel.cancel_type})"
                                 ),
                             )
                             write_failed = True
-                    ended_in_error = result is not None and result.status == "error"
+                    task_cancel.close(
+                        ended_in_error=result is not None and result.status == "error"
+                    )
                     if abandoned or write_failed:
                         run_returned = True
                         return
@@ -795,7 +787,7 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                 await options.logger.recorder.close_seed_source(options.logger.eval)
             except Exception as ex:
                 log.warning(f"Error closing prior log source: {exception_message(ex)}")
-    return TaskRunResult(result, cancel_type)
+    return TaskRunResult(result, task_cancel.cancel_type)
 
 
 class PendingTask(NamedTuple):

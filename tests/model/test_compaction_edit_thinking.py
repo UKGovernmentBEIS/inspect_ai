@@ -51,7 +51,7 @@ async def check_thinking_compaction(
     """Test that thinking blocks can be safely removed from history without errors.
 
     Args:
-        model_name: Model identifier (e.g., "openai/o1", "anthropic/claude-sonnet-4-5")
+        model_name: Model identifier (e.g., "openai/o1", "anthropic/claude-sonnet-4-6")
         config: GenerateConfig with reasoning parameters
         model_args: Additional model args.
     """
@@ -188,7 +188,7 @@ async def test_thinking_compaction_openai_gpt_5_6() -> None:
 @pytest.mark.slow
 async def test_thinking_compaction_anthropic() -> None:
     await check_thinking_compaction(
-        "anthropic/claude-sonnet-4-5",
+        "anthropic/claude-sonnet-4-6",
         GenerateConfig(reasoning_tokens=2000),
     )
 

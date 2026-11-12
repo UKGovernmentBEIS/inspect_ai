@@ -136,8 +136,15 @@ class OpenAICompatibleAPI(ModelAPI):
                 )
 
         # use service prefix to lookup base_url
+        base_url_var = f"{service_env_name}_BASE_URL"
+        # a sentinel sidecar is looked for only behind a URL someone set, as
+        # an argument or in the environment, never the service's own address
+        # (which a subclass may pass as the base_url argument too)
+        set_url = model_base_url(base_url, [base_url_var])
+        self._explicit_base_url: str | None = (
+            set_url if set_url is not None and set_url != service_base_url else None
+        )
         if not self.base_url:
-            base_url_var = f"{service_env_name}_BASE_URL"
             self.base_url = model_base_url(base_url, [base_url_var]) or service_base_url
             if not self.base_url:
                 raise environment_prerequisite_error(
@@ -220,6 +227,15 @@ class OpenAICompatibleAPI(ModelAPI):
     @override
     async def aclose(self) -> None:
         await self.client.close()
+
+    async def proxy_endpoint(self) -> tuple[AsyncOpenAI, str] | None:
+        """The SDK client and the base URL a sentinel sidecar may sit behind: the URL someone set, or None where the model is called at its provider's own address.
+
+        Awaited, so a provider that builds its client lazily may do that here as it does before a generate.
+        """
+        if self._explicit_base_url is None:
+            return None
+        return self.client, self._explicit_base_url
 
     def uses_responses_api(self, tools: list[ToolInfo], config: GenerateConfig) -> bool:
         """Whether `generate()` sends a request with these tools to the Responses API."""
@@ -422,6 +438,10 @@ class OpenAICompatibleAPI(ModelAPI):
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         decision = openai_classify_retry(ex)
         return decision if decision is not None else RetryDecision.no()
+
+    @override
+    def _client_endpoint(self) -> str | None:
+        return str(self.client.base_url)
 
     @override
     def connection_key(self) -> str:
