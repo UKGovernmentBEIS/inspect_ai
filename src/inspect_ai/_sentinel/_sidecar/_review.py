@@ -35,7 +35,7 @@ from ._endpoint import (
     SidecarCallError,
 )
 from ._lookup import SAMPLE_FAILURES, Looked, request_result
-from ._received import ReceivedCall
+from ._received import ReceivedCall, note_send
 
 if TYPE_CHECKING:
     from inspect_ai.model._response_headers import ResponseHeaders
@@ -139,6 +139,7 @@ async def result_after_review(
             # Inspect's own outcomes, which no sidecar explains
             raise
         except Exception as ex:
+            note_send(received)
             raised = ex
             if fetching is not None and _failed_try(ex) == fetching:
                 return _provider_failed(received, fetching, AfterReview(raised=ex))
@@ -150,6 +151,7 @@ async def result_after_review(
             if received.request_id is None:
                 # no request was begun, so the call keeps its id
                 received.request_id = received.reviewed_id
+        note_send(received)
         error = _error(result)
         if fetching is not None:
             marked = (

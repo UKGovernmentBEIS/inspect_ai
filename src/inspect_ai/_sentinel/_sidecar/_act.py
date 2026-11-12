@@ -27,7 +27,13 @@ from ._lookup import (
     unjudged_error,
     unknown_to_required,
 )
-from ._received import Judgment, ReceivedCall, WithheldTurn, current_receiving
+from ._received import (
+    Judgment,
+    ReceivedCall,
+    WithheldTurn,
+    current_receiving,
+    note_send,
+)
 
 _ENDED = "A sentinel in the sidecar ended the sample."
 
@@ -98,6 +104,10 @@ async def refused_output(
     # the error of a request sent again stands, once the sidecar was asked
     if received.error_stands:
         return None
+    # the attempt's first send came back as an error, and it is timed, in
+    # case a person was asked about the call and it is sent again
+    if not received.sends:
+        note_send(received)
     # A call a person was asked about is one model call at the sidecar, which
     # says what becomes of it whatever error a try of it got. Any other
     # call's error that Inspect retries isn't looked up.

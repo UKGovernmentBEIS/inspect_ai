@@ -5,10 +5,12 @@ import math
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from inspect_ai._util.working import sample_clock
 from inspect_ai.model._model_output import ModelUsage
 
 if TYPE_CHECKING:
@@ -114,6 +116,18 @@ def _unreadable(read: JudgingUsage, entry: dict[str, Any]) -> str | None:
     return None
 
 
+@dataclass
+class Send:
+    """One send of an attempt at an agent call whose request was sent again after a person was asked about it, on the sample clock."""
+
+    start: float
+    """When the send's last try went out. Its earlier tries, which the provider's SDK retried, and its waits before them, are not the model's time."""
+    end: float
+    """When the send came back."""
+    judging: float = 0.0
+    """How long the sidecar judged the call while the send waited on the proxy, in seconds."""
+
+
 class ReceivedCall:
     """What Inspect keeps of the latest attempt at an agent call through a sidecar: the id it was sent under, and what the sidecar said of it."""
 
@@ -175,6 +189,12 @@ class ReceivedCall:
         """The judge models' usage already recorded for each request id of the call, by role and model. The sidecar gives the usage added up each time it is asked, and a call a person was asked about is asked about more than once under one id, so only what is new is recorded."""
         self.unasked: list[str] = []
         """The request ids of earlier attempts that were sent and that Inspect retried without asking the sidecar about them. The sidecar may have judged their requests with its own models, and is asked for that usage once the latest attempt is asked about."""
+        self.try_sent_at: float | None = None
+        """When the latest try of the latest attempt's request went out, on the sample clock."""
+        self.sends: list[Send] = []
+        """The latest attempt's sends, in order, once one has come back an error that the sidecar was asked about. A call a person was asked about is sent more than once in one attempt, and only its sends are the model's time: the time between them is the person's and the sidecar's."""
+        self.judging_noted: dict[str, float] = {}
+        """The sidecar's judging time for each request id of the call, as last given. The sidecar gives the time added up over the call, so what was added since is the judging of the send that came back last."""
 
 
 _received: ContextVar[ReceivedCall | None] = ContextVar(
@@ -232,6 +252,7 @@ def begin_attempt() -> None:
         received.sent_on_model_path = False
         received.model_sends = 0
         received.error_stands = False
+        received.sends = []
 
 
 HELD_REPLY_PATH = "/sentinel/v1/held-reply"
@@ -302,6 +323,26 @@ def report_sent(request_id: str) -> None:
     received = _received.get()
     if received is not None and received.request_id == request_id:
         received.sent = True
+        received.try_sent_at = sample_clock()
+
+
+def note_send(received: ReceivedCall) -> None:
+    """Note that a send of the latest attempt's request has come back, if a try of it went out."""
+    if received.sent and received.try_sent_at is not None:
+        received.sends.append(Send(received.try_sent_at, sample_clock()))
+
+
+def note_judging_time(received: ReceivedCall, judging_time: float | None) -> None:
+    """Count what the sidecar's judging time for the call has grown by as the judging of its latest send.
+
+    The sidecar judges a send's request and reply before the send comes back, and a step that asked a person is timed once the person has answered, before the call is sent again. So the time it gives grows only with the judging of the latest send.
+    """
+    if judging_time is None or received.request_id is None:
+        return
+    before = received.judging_noted.get(received.request_id, 0.0)
+    received.judging_noted[received.request_id] = max(before, judging_time)
+    if judging_time > before and received.sends:
+        received.sends[-1].judging += judging_time - before
 
 
 def parse_judgment(judgment: dict[str, Any]) -> Judgment:

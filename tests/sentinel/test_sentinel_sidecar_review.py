@@ -90,6 +90,8 @@ class _Paused:
     tries: int = 0
     reviews: list[dict[str, Any]] = field(default_factory=list)
     """What became of each question asked about the call, as `request_result` gives it."""
+    judging_time: float = 0.0
+    """How long the sentinel judged the call while the proxy held its sends, added up over them."""
 
 
 @dataclass
@@ -122,6 +124,8 @@ class ReviewingSidecar(StandInSidecar):
     """The judge model's usage, added up over the call, that every `request_result` about a paused call gives, as the sidecar does."""
     error_lost: bool = False
     """Whether the try that is sent on is answered with the sidecar's own "pending review" when the provider fails it, and not with the provider's error: what Inspect holds when a try of its was answered while another was with the provider."""
+    holds: list[tuple[float, float]] = field(default_factory=list)
+    """For each request of a paused call, in order: how long the proxy holds it before answering, and how much of that the sentinel spent judging it, in seconds."""
 
     def __post_init__(self) -> None:
         assert self.info is not None
@@ -139,7 +143,7 @@ class ReviewingSidecar(StandInSidecar):
         context = request.headers.get("x-inspect-context")
         if path == HELD_REPLY_PATH:
             self.requests.append(request)
-            return self._held_reply(request)
+            return self._held(request, self._held_reply(request))
         if path in _MODEL_ROUTES and context is not None:
             irid = request.headers.get("x-irid")
             if irid in self.paused or self.pauses:
@@ -149,7 +153,7 @@ class ReviewingSidecar(StandInSidecar):
                     self.refused.append(unread)
                     return _refusal(unread)
                 assert irid is not None
-                return self._paused_call(request, irid)
+                return self._held(request, self._paused_call(request, irid))
         if path == ENDPOINT:
             call = json.loads(request.content)
             if (
@@ -194,6 +198,16 @@ class ReviewingSidecar(StandInSidecar):
             paused.state = "decided"
             paused.judgment = {"outcome": "proceed", "steps": []}
         return _MODEL_ROUTES[paused.route](turn, bool(asked.get("stream")), asked)
+
+    def _held(
+        self, request: httpx2.Request, response: httpx2.Response
+    ) -> httpx2.Response:
+        # held by the proxy, part of the time while the sentinel judged it
+        if self.holds:
+            hold, judging = self.holds.pop(0)
+            self._holds[id(request)] = hold
+            self.paused[request.headers["x-irid"]].judging_time += judging
+        return response
 
     def _pending(self, request: httpx2.Request) -> httpx2.Response:
         # the sidecar's "pending review", unless the connection is lost first
@@ -341,6 +355,8 @@ class ReviewingSidecar(StandInSidecar):
                 result["failure"] = paused.failure
         if paused.reviews:
             result["reviews"] = paused.reviews
+        if paused.judging_time:
+            result["judging_time"] = paused.judging_time
         if self.judge_usage is not None:
             result["judging_usage"] = [
                 {"role": "monitor", "model": "mockllm/judge", "usage": self.judge_usage}
@@ -445,10 +461,15 @@ class Person:
     """A person at Inspect's approval panel, who picks the same choice each time they are asked."""
 
     def __init__(
-        self, decision: ApprovalDecision, explanation: str | None = None
+        self,
+        decision: ApprovalDecision,
+        explanation: str | None = None,
+        takes: float = 0.0,
     ) -> None:
         self.decision = decision
         self.explanation = explanation
+        self.takes = takes
+        """How long they take to answer, in seconds."""
         self.asked: list[tuple[str, ToolCall, ToolCallView, list[str]]] = []
         self.shown: list[list[ChatMessage]] = []
         """The conversation the panel was given with each question."""
@@ -466,6 +487,7 @@ class Person:
         ) -> Approval:
             self.asked.append((message, call, view, choices))
             self.shown.append(cast("list[ChatMessage]", history))
+            await anyio.sleep(self.takes)
             return Approval(decision=self.decision, explanation=self.explanation)
 
         monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
@@ -1222,6 +1244,42 @@ def test_a_reviewed_calls_judge_usage_is_counted_once(
     judge = sample.model_usage["mockllm/judge"]
     assert (judge.input_tokens, judge.output_tokens) == (100, 10)
     assert sample.role_usage["monitor"].input_tokens == 100
+
+
+@pytest.mark.parametrize(
+    "stage,holds,model_time",
+    [
+        # the provider replied before the sentinel asked, and the held reply
+        # is got at once
+        ("tool_call", [(1.0, 0.4), (0.0, 0.0)], 0.6),
+        # the sentinel asked before the provider was called, and judged the
+        # reply of the send it sent on
+        ("tool_result", [(0.5, 0.5), (1.0, 0.3)], 0.7),
+    ],
+)
+def test_a_reviewed_call_counts_only_the_models_time_in_its_sends(
+    stage: str,
+    holds: list[tuple[float, float]],
+    model_time: float,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the person takes a second, which is theirs, not the model's
+    Person("approve", takes=1.0).install(monkeypatch)
+    stand_in = ReviewingSidecar(
+        pauses=[stage], turns=[_OSLO, Turn()], holds=list(holds)
+    )
+
+    sample = _sample(_run(stand_in))
+
+    # each send's time counts, less the sentinel's judging in it; the time
+    # between sends, the person's, doesn't
+    assert stand_in.holds == []
+    event = _model_events(sample)[0]
+    assert event.working_time is not None and event.output.time is not None
+    assert model_time - 0.1 <= event.working_time < model_time + 0.25
+    assert event.output.time == event.working_time
+    assert sample.working_time is not None
+    assert model_time - 0.1 <= sample.working_time < model_time + 0.35
 
 
 # --- a call Inspect gives up on -----------------------------------------------

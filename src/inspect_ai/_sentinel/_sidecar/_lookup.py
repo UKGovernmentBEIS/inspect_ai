@@ -21,6 +21,7 @@ from ._received import (
     JudgingUsage,
     Judgment,
     ReceivedCall,
+    note_judging_time,
     parse_judging_usage,
     parse_judgment,
 )
@@ -97,6 +98,7 @@ async def request_result(received: ReceivedCall, replied: bool) -> Looked:
     await record_unasked_usage(received)
     received.looked = looked
     received.judgment = looked.judgment
+    note_judging_time(received, looked.judging_time)
     record_judging_usage(_not_yet_recorded(received, looked.judging_usage))
     return looked
 
