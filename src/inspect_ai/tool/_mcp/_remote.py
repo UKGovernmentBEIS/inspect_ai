@@ -65,7 +65,9 @@ def mcp_server_config(tool: ToolInfo) -> MCPServerConfigHTTP:
         name for name, value in (config.headers or {}).items() if value == REDACTED
     ]
     # the agent bridge sends a recorded `authorization_token` as "BEARER <token>"
-    if config.authorization_token == REDACTED and "Authorization" not in redacted:
+    if config.authorization_token == REDACTED and not any(
+        name.lower() == "authorization" for name in redacted
+    ):
         redacted.append("Authorization")
     if redacted:
         raise ValueError(

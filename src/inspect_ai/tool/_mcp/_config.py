@@ -52,13 +52,19 @@ class MCPServerConfigHTTP(MCPServerConfig):
 
     @property
     def authorization_token(self) -> str | None:
-        if self.headers and "Authorization" in self.headers:
-            authorization = str(self.headers["Authorization"])
-            authorization = (
-                authorization[7:]
-                if authorization.upper().startswith("BEARER ")
-                else authorization
-            )
-            return authorization
-        else:
+        # header names are case-insensitive; the token itself is not
+        authorization = next(
+            (
+                str(value)
+                for name, value in (self.headers or {}).items()
+                if name.lower() == "authorization"
+            ),
+            None,
+        )
+        if authorization is None:
             return None
+        return (
+            authorization[7:]
+            if authorization.upper().startswith("BEARER ")
+            else authorization
+        )

@@ -35,6 +35,7 @@ from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._model import GenerateFilter
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import MCPServer, ToolChoice, ToolInfo, mcp_server_http
+from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import (
     redact_anthropic_mcp_servers,
     redact_grok_mcp_tools,
@@ -548,6 +549,77 @@ async def test_bridged_remote_mcp_with_redacted_token_is_refused(
             await model.generate("Search the MCP spec.", tools=[info])
 
     assert mcp_requests(requests) == []
+
+
+AUTHORIZATION_NAMES = [
+    "Authorization",
+    "authorization",
+    "AUTHORIZATION",
+    "AuThOrIzAtIoN",
+]
+BEARER_PREFIXES = ["Bearer ", "BEARER ", "bearer "]
+
+
+def mcp_server_tool_info(headers: dict[str, str] | None) -> ToolInfo:
+    config = MCPServerConfigHTTP(
+        name="deepwiki",
+        type="http",
+        url="https://mcp.deepwiki.com/mcp",
+        headers=headers,
+    )
+    return ToolInfo(
+        name=f"mcp_server_{config.name}",
+        description="deepwiki",
+        options=config.model_dump(),
+    )
+
+
+@pytest.mark.parametrize("provider", ["openai", "anthropic"])
+@pytest.mark.parametrize("header", AUTHORIZATION_NAMES)
+@pytest.mark.parametrize("prefix", BEARER_PREFIXES + [""])
+async def test_redacted_bearer_token_refused_for_any_header_case(
+    provider: str, header: str, prefix: str
+) -> None:
+    """Header names are case-insensitive, so any casing of Authorization is checked."""
+    info = mcp_server_tool_info({header: f"{prefix}{REDACTED}"})
+
+    requests: list[dict[str, Any]] = []
+    async with remote_mcp_model(provider, requests) as model:
+        with pytest.raises(ValueError, match="redacted credentials"):
+            await model.generate("Search the MCP spec.", tools=[info])
+
+    assert mcp_requests(requests) == []
+
+
+@pytest.mark.parametrize("header", AUTHORIZATION_NAMES)
+@pytest.mark.parametrize("prefix", BEARER_PREFIXES + [""])
+def test_authorization_token_extraction(header: str, prefix: str) -> None:
+    config = MCPServerConfigHTTP(
+        name="s", type="http", url="https://x", headers={header: f"{prefix}TokEn-123"}
+    )
+    # the header name matches in any case; the token keeps its case
+    assert config.authorization_token == "TokEn-123"
+
+
+def test_authorization_token_absent() -> None:
+    for headers in [None, {}, {"X-Api-Key": "k"}]:
+        config = MCPServerConfigHTTP(
+            name="s", type="http", url="https://x", headers=headers
+        )
+        assert config.authorization_token is None
+
+
+@pytest.mark.parametrize("header", AUTHORIZATION_NAMES)
+async def test_anthropic_sends_token_from_any_header_case(header: str) -> None:
+    info = mcp_server_tool_info({header: f"Bearer {MCP_TOKEN}"})
+
+    requests: list[dict[str, Any]] = []
+    async with remote_mcp_model("anthropic", requests) as model:
+        await model.generate("Search the MCP spec.", tools=[info])
+
+    [request] = mcp_requests(requests)
+    [server] = request["mcp_servers"]
+    assert server["authorization_token"] == MCP_TOKEN
 
 
 def test_structural_request_redaction_copies_only_when_needed() -> None:
