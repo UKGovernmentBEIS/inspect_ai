@@ -1051,6 +1051,12 @@ class TestUserParam:
         assert params["user"] == "root"
         assert params["cwd"] == "/srv"
 
+    async def test_identity_scope_resolves_a_relative_cwd(self) -> None:
+        params = await self._start_params(
+            ExecRemoteStreamingOptions(cwd="sub"), identity=("w-1", "/home/w-1")
+        )
+        assert params["cwd"] == "/home/w-1/sub"
+
     async def test_identity_scope_for_another_sandbox_is_ignored(self) -> None:
         params = await self._start_params(
             ExecRemoteStreamingOptions(),

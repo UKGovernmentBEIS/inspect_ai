@@ -26,6 +26,8 @@ from inspect_ai.util._sandbox.context import (
     sandbox_default_context_var,
     sandbox_environments_context_var,
     sandbox_file_detector,
+    sandbox_with,
+    sandbox_with_environments_context_var,
     sandbox_with_injection,
 )
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
@@ -38,6 +40,7 @@ from inspect_ai.util._sandbox.identity import (
     sandbox_identity_user,
     sandbox_identity_vars,
 )
+from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 from inspect_ai.util._subprocess import ExecResult
 
 OK = ExecResult(True, 0, "", "")
@@ -72,6 +75,7 @@ def test_outside_a_scope_resolution_returns_its_argument(
         assert sandbox_identity_user(default, "root", strict=True) == "root"
         assert sandbox_identity_cwd(default, None) is None
         assert sandbox_identity_cwd(default, "/x") == "/x"
+        assert sandbox_identity_cwd(default, "sub") == "sub"
         assert not sandbox_identity_active()
         assert not sandbox_identity_active(default)
 
@@ -85,6 +89,7 @@ def test_inside_a_scope_resolves_to_the_scope(default: CannedSandbox) -> None:
             sandbox_identity_user(default, "root", strict=True)
         assert sandbox_identity_cwd(default, None) == "/home/w-1"
         assert sandbox_identity_cwd(default, "/x") == "/x"
+        assert sandbox_identity_cwd(default, "sub") == "/home/w-1/sub"
         assert sandbox_identity_active()
         assert sandbox_identity_active(default)
     assert not sandbox_identity_active()
@@ -126,6 +131,8 @@ def test_the_provider_behind_a_sample_proxy_is_the_same_sandbox(
         with sandbox_identity("w-1", sandbox="workspace"):
             assert sandbox_identity_user(default, "root", strict=True) == "root"
             assert sandbox_identity_cwd(default, None) is None
+        with sandbox_identity("w-1"):
+            assert sandbox_identity_cwd(default, "sub") == "sub"
 
 
 def test_nested_scopes_raise(default: CannedSandbox) -> None:
@@ -470,6 +477,27 @@ async def test_file_detection_reads_as_the_default_user_in_a_scope(
     with _environments(default=proxy), sandbox_identity("w-1"):
         assert await sandbox_file_detector("/opt/tool")(proxy)
     assert provider.calls == [("exec", None), ("read_file", None)]
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires POSIX user identities")
+async def test_file_discovery_follows_the_scope_cwd() -> None:
+    local = LocalSandboxEnvironment()
+    member = Path(local.directory.name) / "member"
+    member.mkdir()
+    proxy = SandboxEnvironmentProxy(local)
+    token = sandbox_with_environments_context_var.set({})
+    try:
+        with _environments(default=proxy):
+            with sandbox_identity(str(os.geteuid()), cwd=member.as_posix()):
+                await proxy.write_file("result.txt", "x")
+                assert await sandbox_with("result.txt") is proxy
+            # the scoped lookup is not reused outside the scope
+            assert await sandbox_with("result.txt") is None
+            assert await sandbox_with((member / "result.txt").as_posix()) is proxy
+        assert (member / "result.txt").read_text() == "x"
+    finally:
+        sandbox_with_environments_context_var.reset(token)
+        local.directory.cleanup()
 
 
 async def test_path_detection_runs_as_the_default_user_in_a_scope() -> None:

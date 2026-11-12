@@ -308,7 +308,8 @@ comes from the scope as well as from tool construction:
   `bash_session()` shell starts (and restarts) in the `cwd`, and fails to start
   if the user cannot enter it; `text_editor()` resolves relative paths against
   the `cwd`. `exec_remote()` uses the scope's user and `cwd` when its options
-  omit them and keeps explicit values; the agent bridge launches its proxy
+  omit them, keeps an explicit user and joins a relative `cwd` to the
+  scope's; the agent bridge launches its proxy
   this way, as root when the tools user is root. The sandbox MCP server runs
   as the scope's user (`ai/util/_sandbox/_cli.py`, `tools_user_param()`).
 - **Refuse.** The model-facing tools above, configured with a different user
@@ -373,8 +374,8 @@ comes from the scope as well as from tool construction:
   member user isolation does not protect peers from it. Calls on the provider
   object that `as_type()` returns bypass the default, and so do calls on
   another sandbox. The same calls, except marked ones, use the scope's `cwd`:
-  `exec()` with no `cwd` runs in it, and a relative `cwd` or file path
-  resolves against it (`sandbox_operation_cwd()` and
+  `exec()` with no `cwd` runs in it, and a relative `cwd`, file path or
+  `sandbox_with()` lookup resolves against it (`sandbox_operation_cwd()` and
   `sandbox_operation_file()`). Docker runs the commands behind `read_file()`
   and `write_file()` from `/`, so they do not depend on the user being able to
   enter the image's working directory.

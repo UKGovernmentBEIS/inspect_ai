@@ -849,8 +849,9 @@ async def test_docker_file_operations_work_for_a_user_outside_the_working_direct
 ) -> None:
     env = docker_environment
     user = "65534"
-    listed = await env.exec(["ls", "."], user=user)
-    assert not listed.success, "the user must not be able to use /root"
+    # checked from "/": some runtimes refuse to start a command in /root
+    entered = await env.exec(["test", "-x", "/root"], cwd="/", user=user)
+    assert not entered.success, "the user must not be able to enter /root"
 
     file = f"/tmp/inspect-workdir-{uuid4().hex}/sub/file"
     await env.write_file(file, "text", user=user)

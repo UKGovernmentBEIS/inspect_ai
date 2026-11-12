@@ -22,9 +22,11 @@ rather than reading or writing as the default user. The scope and the marker
 stay private to inspect_ai.
 
 The same calls also use the scope's `cwd`. `exec()` with no `cwd` runs in it,
-and a relative `cwd` or a relative `read_file()` or `write_file()` path
-resolves against it, so a relative path names the same file in all three
-calls. Absolute paths are kept, and marked operations are unaffected. Docker
+and every relative path the caller gives resolves against it: a `cwd` passed
+to `exec()` or `exec_remote()`, a `read_file()` or `write_file()` path, and a
+`sandbox_with()` file lookup. A relative path therefore names the same file
+in all of them. Absolute paths are kept, and marked operations are
+unaffected. Docker
 runs the commands behind `write_file()` from `/`, as it already does for
 `read_file()`, so an absolute path works for a user who cannot enter the
 image's working directory.
@@ -85,8 +87,8 @@ Goals:
 - A provider that cannot perform a file operation as a user fails loudly inside
   a scope instead of quietly using the default user.
 - Inside a scope with a `cwd`, the same calls use it as their default working
-  directory, and `exec()` and the file calls agree on what a relative path
-  names (see [The scope's `cwd` at the boundary](#the-scopes-cwd-at-the-boundary)).
+  directory, and `exec()`, `exec_remote()`, the file calls and `sandbox_with()`
+  agree on what a relative path names (see [The scope's `cwd` at the boundary](#the-scopes-cwd-at-the-boundary)).
 - The trust model's "Sandbox identity scopes" and "File-operation users"
   sections describe the new contract.
 
@@ -137,7 +139,7 @@ Current callers of the resolver:
 | `bash()`, `python()`, `grep()`, `list_files()`, `read_file()` tool | strict, plus scope `cwd` | `tool/_tools/_execute.py:110-114`, `:173-178`, `_grep.py:72-76`, `_list_files.py:44-48`, `_read_file.py:58-62` |
 | `bash_session()`, `text_editor()` | strict | `tool/_tools/_bash_session.py:251`, `_text_editor.py:134` |
 | Sandbox-tools request `user` param (`exec_remote()`, MCP servers, bridge CLI) | lenient | `util/_sandbox/_cli.py:36-53` |
-| `exec_remote()` working directory | scope `cwd` when unset | `util/_sandbox/exec_remote.py:356` |
+| `exec_remote()` working directory | scope `cwd` when unset; a relative `cwd` is joined to it | `util/_sandbox/exec_remote.py:356` |
 | `computer()`, `web_browser()`, `skill()` | refuse in a scope | `tool/_tools/_computer/_common.py:357`, `_web_browser/_back_compat.py:102`, `_sandbox_tools_utils/_legacy_helpers.py:40`, `_skill/tool.py:60-61` |
 
 `SandboxEnvironment.exec()`, `read_file()` and `write_file()` do not consult the
@@ -315,6 +317,21 @@ Inside a scope for the sandbox that has a `cwd`, and outside any
   relative `cwd` as relative to the default working directory, and inside the
   scope that directory is the scope's `cwd`.
 - An absolute `cwd` or path is kept.
+
+The same join applies wherever else a caller gives a relative path inside the
+scope (decision: Ransom, 2026-11-12):
+
+- `exec_remote()` resolves its `cwd` with `sandbox_identity_cwd()`, which now
+  joins a relative `cwd` to the scope's `cwd`, so `exec_remote(cwd="sub")` and
+  `exec(cwd="sub")` run in the same directory. The model-facing tools that
+  call it with no `cwd` are unchanged.
+- `sandbox_with(file)` resolves a relative `file` with
+  `sandbox_operation_file()` for each sandbox before probing it, so a file a
+  member wrote with `write_file("result.txt")` is found by
+  `sandbox_with("result.txt")`. The probe itself stays a framework operation
+  and runs as the default user. The discovery cache key holds the path each
+  sandbox is probed with, so a lookup made in one scope, or outside any scope,
+  is not reused in another. `on_path=True` lookups are unchanged.
 
 These rules do not depend on the user. A call that names `user="root"` and no
 `cwd` also runs in the scope's `cwd`, as `exec_remote()` already does, so the
@@ -665,7 +682,8 @@ Inside a scope:
   scope's user. This is the intended change.
 - **Working directory.** Inside a scope with a `cwd`, an `exec()` with no
   `cwd` runs there instead of in the provider's default directory, and
-  relative `cwd`s and file paths resolve against it. Code that relied on the
+  relative `cwd`s (of `exec()` and `exec_remote()`), file paths and
+  `sandbox_with()` lookups resolve against it. Code that relied on the
   provider's default directory inside a scope must pass an absolute `cwd` or
   path.
 - **Providers without file users** raise on unmarked `read_file()` and
@@ -822,6 +840,12 @@ the async conventions in AGENTS.md, so they run under asyncio and, with
 - `test_scope_cwd_is_not_used_by_framework_operations_or_elsewhere`: marked
   operations, `as_type()`, a scope without a `cwd`, a scope on another sandbox
   and no scope leave `cwd` and paths unchanged.
+- `test_inside_a_scope_resolves_to_the_scope`: `sandbox_identity_cwd()` joins a
+  relative `cwd` to the scope's `cwd` and keeps an absolute one.
+- `test_file_discovery_follows_the_scope_cwd`: on the `local` provider, a
+  scoped `write_file("result.txt")` is found by `sandbox_with("result.txt")`
+  in the scope, the same lookup outside the scope does not reuse that result,
+  and the absolute path is found anywhere.
 
 `tests/tools/sandbox_tools_utils/test_sandbox_tools.py`:
 
@@ -838,6 +862,8 @@ Other files:
 
 - `tests/util/sandbox/test_exec_remote.py`: an `exec_remote()` call inside a
   scope is unchanged. Its launch transport exec passes the tools user.
+  `test_identity_scope_resolves_a_relative_cwd`: a relative `cwd` is sent
+  joined to the scope's `cwd`.
 - `tests/checkpoint/test_snapshot_strategy.py` (which already calls
   `copy_out()`): inside a scope, a chunk read passes no user to a provider
   that lacks file users, and passes `"root"` to one that has them.

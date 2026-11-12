@@ -41,7 +41,8 @@ def sandbox_identity(
     `user` raises `SandboxIdentityError`, and so do `computer()`, which
     cannot run as a user, and `skill()`, which does not
     yet install skills as a user. `exec_remote()` uses the
-    scope's user and cwd when omitted and keeps explicit values. Other
+    scope's user and cwd when omitted, keeps an explicit user and resolves a
+    relative `cwd` against the scope's `cwd`. Other
     sandbox-tool launches inherit the scope's user when omitted; they keep
     their existing working-directory behavior.
 
@@ -69,11 +70,12 @@ def sandbox_identity(
     default user. Calls on the provider returned by `as_type()` do not take
     the scope's user.
 
-    These calls also use the scope's `cwd`, so a relative path names the same
-    file in each of them: `exec()` with no `cwd` runs in it, and a relative
-    `cwd` or a relative `read_file()` or `write_file()` path resolves against
-    it. An absolute path or `cwd` is kept. Inspect's own sandbox operations and
-    calls on the provider returned by `as_type()` do not use the scope's `cwd`.
+    These calls also use the scope's `cwd`. Every relative path the caller
+    gives resolves against it: a `cwd` passed to `exec()` or `exec_remote()`, a
+    `read_file()` or `write_file()` path, and a `sandbox_with()` lookup that is
+    not `on_path`. `exec()` with no `cwd` runs in it. An absolute path or `cwd`
+    is kept. Inspect's own sandbox operations and calls on the provider
+    returned by `as_type()` do not use the scope's `cwd`.
 
     The scope is held in a context variable, so tasks started inside the block
     inherit it.
@@ -289,17 +291,18 @@ def sandbox_file_user_params(
 def sandbox_identity_cwd(env: SandboxEnvironment, cwd: str | None) -> str | None:
     """The working directory for a command in `env`.
 
-    An explicit `cwd` wins. Otherwise the working directory of the
-    `sandbox_identity()` scope for `env`, if any.
+    Inside a `sandbox_identity()` scope for `env` that has a `cwd`, an omitted
+    `cwd` becomes the scope's `cwd` and a relative one resolves against it, as
+    in `sandbox_operation_cwd()`. An absolute `cwd` is always kept.
 
     Args:
        env: Sandbox environment the command runs in.
        cwd: Working directory the caller asked for, if any.
     """
-    if cwd is not None:
-        return cwd
     identity = sandbox_identity_scope(env)
-    return identity.cwd if identity is not None else None
+    if identity is None or identity.cwd is None:
+        return cwd
+    return identity.cwd if cwd is None else posixpath.join(identity.cwd, cwd)
 
 
 async def sandbox_identity_vars(

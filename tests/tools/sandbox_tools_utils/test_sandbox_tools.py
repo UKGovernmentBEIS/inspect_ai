@@ -1006,10 +1006,12 @@ def _custom_tools_use_the_scope_cwd() -> Solver:
             await sandbox().write_file(config, "model = 'x'")
             assert await sandbox().read_file(config) == "model = 'x'"
 
-        # the user cannot use the default working directory (/root), but the
-        # Docker file calls do not run there
+        # the user cannot enter the default working directory (/root), but the
+        # Docker file calls do not run there; checked from "/" because some
+        # runtimes refuse to start a command in /root
         with sandbox_identity("w1"):
-            assert not (await sandbox().exec(["ls", "."])).success
+            entered = await sandbox().exec(["test", "-x", "/root"], cwd="/")
+            assert not entered.success, entered
             await sandbox().write_file("/home/w1/b.txt", "absolute")
             assert await sandbox().read_file("/home/w1/b.txt") == "absolute"
 
