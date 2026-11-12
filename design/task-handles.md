@@ -548,8 +548,16 @@ handle wait depends on, and neither is lent:
   one specific sample, so permits are not lent. `max_sandboxes` for each
   provider both tasks use must exceed the number of samples that hold one
   while waiting. Inspect warns once per provider per run when a handle wait
-  starts while every permit of a provider the target's task-level config
-  names is in use (`sandbox_limiters()`, `in_use >= limit`): "task 'search'
+  starts while every permit of a provider the wait depends on is in use
+  (`sandbox_limiters()`, `in_use >= limit`). For `enqueue_sample()` that is
+  the sent sample's effective provider, resolved with today's
+  `await resolve_sandbox(task_sandbox, sample, task_name)`
+  (`src/inspect_ai/_eval/task/sandbox.py`),
+  so the task's own sandbox type takes precedence and a sample-level
+  sandbox counts when the task has none; for `result()` it is the
+  task-level provider and the effective providers of its sent samples not
+  yet settled. Each provider is checked against its own limiter and warned
+  about once: "task 'search'
   is waiting on task 'rollout', which uses 'docker' sandboxes, while all 1 of
   them (max_sandboxes) are in use; if their holders are waiting on
   'rollout', the run will not progress: raise it while the run goes on with
@@ -754,7 +762,11 @@ test touched), with mockllm models; every test that waits is bounded with
     warning naming `inspect ctl config --max-sandboxes` is logged once per
     provider when the send starts with every permit in use, and the run
     completes after that command raises the limit; a send with a free
-    permit logs nothing.
+    permit logs nothing; the same with a fed task that has no task-level
+    sandbox, sent a sample whose own `sandbox` is Docker while its creator
+    holds the only Docker permit: the warning names `docker` and
+    `inspect ctl config --max-sandboxes N`, and raising the limit lets the
+    run complete.
 - `tests/test_sample_source.py` (tasks fed through a handle):
   - each sent sample runs under the id `send-<token>-<n>` in send order,
     with the token the first 8 characters of the task's id, and its one run

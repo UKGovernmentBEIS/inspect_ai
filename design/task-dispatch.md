@@ -7,7 +7,9 @@ added with `enqueue_task()`, tasks a `TaskSource` returns, and task retries
 all go through the same queue, and a task starts as soon as a `max_tasks`
 slot is free, under `eval()`, `eval_set()` and eval-set selection-mode
 workers alike. Adding a task checks its configuration and sample selection
-at once, so a mistake raises to the caller, and the task's log file is
+at once, so a mistake raises to the caller (a model's adaptive-concurrency
+setting is the exception: it is checked when the task first needs its
+model), and the task's log file is
 created only when the task starts. Every task in the queue, including one
 that has not started, is listed by `inspect ctl task list` and can be
 cancelled, and stays listed as finished once it ends.
@@ -52,8 +54,8 @@ sandbox and model):
   runs. `on_task_start` now runs before the task's sandboxes are set up.
 - During a task's sandbox setup the full-screen task display is suspended
   until the setup finishes, as today, while other tasks keep running
-  (today nothing else runs during the batch's setup, except a
-  `SampleSource` addition's).
+  (today this overlap is limited to live `TaskSource` injection and
+  `SampleSource` additions).
 - A task's log file, temporary file and sample buffer database are created
   when the task starts, not when the run starts, so a long queue holds none.
 
@@ -66,8 +68,13 @@ API:
   own tests and `docs/task-source.qmd`, all inside async solvers; no satellite
   repository (inspect_swarm, inspect_flow, inspect_steward, inspect_swe and
   the others checked out beside this repo) calls it.
-- `enqueue_task()` raises at the call for every configuration or selection
-  error, and nothing of that call is added.
+- `enqueue_task()` raises at the call for every selection error and for
+  every error in the configuration checks made while adding (id
+  uniqueness, the eval-level overrides, the epoch reducer against the
+  epoch count, the `SampleSource` prerequisites), and nothing of that call
+  is added. Model-concurrency settings are not among them: an added task's
+  adaptive-connections setting is validated in its attempt ("Model
+  controllers"), and a bad one ends that task with its error log.
 - `task:id` sample selectors resolve when a task is added, against the task
   names of the run so far and of that call: tasks whose selectors name each
   other must be added in the same `enqueue_task()` call.
@@ -1337,7 +1344,8 @@ test that waits on a run is bounded with `fail_after`.
   loaded from another directory.
 - `tests/test_enqueue_task.py` (invariants 1–6): an added task starts while
   its creator runs, under `eval()`, `eval_set()` and selection mode; a
-  configuration error, a duplicate id (a `ResolvedTask` or `PreviousTask`
+  configuration error (a task with `epochs=Epochs(1, "at_least_2")`, whose
+  reducer `validate_reducer` rejects with `PrerequisiteError`), a duplicate id (a `ResolvedTask` or `PreviousTask`
   added twice, listed twice, or added in a two-model run) and a selection
   error raise at the call and add nothing; a parent that enqueues A and then B
   under `sample_id=["parent:1", "B:1"]` gets the selection error at A's call,
