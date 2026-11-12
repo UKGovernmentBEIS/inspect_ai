@@ -59123,7 +59123,7 @@ var decoder$1 = new TextDecoder();
 		if (!pending) {
 			const name = this.entryNameFor(start);
 			pending = this.bytes.read(name).then((bytes) => {
-				const items = JSON.parse(decoder$1.decode(bytes));
+				const items = jsonParse(decoder$1.decode(bytes));
 				log$3.debug(`parse ${name}: ${items.length} items`);
 				return items;
 			}).then((items) => this.transform?.(items, start) ?? items);
@@ -59231,7 +59231,7 @@ var readJson = async (source, name) => {
 	const startedAt = performance.now();
 	const bytes = await source.readFile(name);
 	log$3.info(`fetch ${name} — ${(bytes.byteLength / 1024).toFixed(1)}KB in ${(performance.now() - startedAt).toFixed(0)}ms (sidecar, uncached)`);
-	return JSON.parse(decoder.decode(bytes));
+	return jsonParse(decoder.decode(bytes));
 };
 /**
 * Open a chunked sample. `entryNames` is the log's central-directory name
@@ -69037,13 +69037,13 @@ function _temp$90(k) {
 	return t6;
 };
 var GeneratingIndicator_module_default = {
-	bar: "_bar_pg4l8_1",
-	"gen-sweep": "_gen-sweep_pg4l8_1",
-	barLabelOnly: "_barLabelOnly_pg4l8_34",
-	label: "_label_pg4l8_38",
-	ell: "_ell_pg4l8_47",
-	"gen-ell": "_gen-ell_pg4l8_1",
-	attempt: "_attempt_pg4l8_64"
+	bar: "_bar_1wkhg_1",
+	"gen-sweep": "_gen-sweep_1wkhg_1",
+	barLabelOnly: "_barLabelOnly_1wkhg_34",
+	label: "_label_1wkhg_38",
+	ell: "_ell_1wkhg_47",
+	"gen-ell": "_gen-ell_1wkhg_1",
+	attempt: "_attempt_1wkhg_64"
 };
 // ../../packages/inspect-components/src/indicators/GeneratingIndicator.tsx
 var GeneratingIndicator = (t0) => {
@@ -69135,14 +69135,14 @@ function messageHasVisibleContent(message) {
 	});
 }
 var LoadingEventsIndicator_module_default = {
-	bar: "_bar_q6epo_1",
-	"le-sweep": "_le-sweep_q6epo_1",
-	compact: "_compact_q6epo_33",
-	spinner: "_spinner_q6epo_44",
-	"le-spin": "_le-spin_q6epo_1",
-	label: "_label_q6epo_55",
-	ell: "_ell_q6epo_68",
-	"le-ell": "_le-ell_q6epo_1"
+	bar: "_bar_14x5r_1",
+	"le-sweep": "_le-sweep_14x5r_1",
+	compact: "_compact_14x5r_33",
+	spinner: "_spinner_14x5r_44",
+	"le-spin": "_le-spin_14x5r_1",
+	label: "_label_14x5r_55",
+	ell: "_ell_14x5r_68",
+	"le-ell": "_le-ell_14x5r_1"
 };
 // ../../packages/inspect-components/src/indicators/LoadingEventsIndicator.tsx
 var LoadingEventsIndicator = (t0) => {
