@@ -1225,6 +1225,7 @@ class TaskLogger:
         reductions: list[EvalSampleReductions] | None = None,
         error: EvalError | None = None,
         prune_unplanned: bool = False,
+        total_samples: int | None = None,
     ) -> EvalLog:
         """Finish this attempt's log.
 
@@ -1269,6 +1270,7 @@ class TaskLogger:
                     reductions,
                     error,
                     self.header_only,
+                    total_samples=total_samples,
                 )
                 teardown_scope.shield = True
 
