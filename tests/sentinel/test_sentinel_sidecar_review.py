@@ -33,7 +33,11 @@ from inspect_ai._sentinel._sidecar._received import (
     request_id_to_reuse,
     use_held_reply_path,
 )
-from inspect_ai._sentinel._sidecar._review import FAILED_TRY, FAILURE_FETCHES
+from inspect_ai._sentinel._sidecar._review import (
+    FAILED_TRY,
+    FAILURE_FETCHES,
+    MODEL_SENDS,
+)
 from inspect_ai.approval import Approval
 from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.approval._human import acp as acp_module
@@ -110,6 +114,10 @@ class ReviewingSidecar(StandInSidecar):
     """The message of the provider's error that the held-reply path serves, in Anthropic's format, in place of the stand-in's own."""
     error_cut_off: int = 0
     """How many times the held-reply path's answer with the provider's error has its connection fail part way through the body, after its headers, the sidecar's marker among them, have come."""
+    pending_lost: int = 0
+    """How many of the paused call's requests, from the first, lose their connection before the sidecar's "pending review" comes back: every try the provider's SDK makes by itself, for a large enough number."""
+    cut_off: bool = False
+    """Whether every try that is sent on is cut off at the provider, with Inspect's own try answered with an error that has a status."""
     error_lost: bool = False
     """Whether the try that is sent on is answered with the sidecar's own "pending review" when the provider fails it, and not with the provider's error: what Inspect holds when a try of its was answered while another was with the provider."""
 
@@ -160,12 +168,16 @@ class ReviewingSidecar(StandInSidecar):
             if paused.stage == "tool_call":
                 # the provider replied, and the stand-in holds the reply
                 paused.turn = self.turns.pop(0) if self.turns else Turn()
-            return _refusal("pending review")
+            return self._pending(request)
         paused.tries += 1
         if paused.state != "awaiting_request":
             # no other try is sent on, and a call that has ended is read
             # with `request_result`
-            return _refusal("pending review")
+            return self._pending(request)
+        if self.cut_off:
+            paused.reason = "cut_off"
+            paused.failure = {"try_number": paused.tries}
+            return _refusal("The connection to the provider was lost.")
         turn = self.turns.pop(0) if self.turns else Turn()
         if turn.status != 200:
             paused.reason = "provider_error"
@@ -180,6 +192,13 @@ class ReviewingSidecar(StandInSidecar):
             paused.state = "decided"
             paused.judgment = {"outcome": "proceed", "steps": []}
         return _MODEL_ROUTES[paused.route](turn, bool(asked.get("stream")), asked)
+
+    def _pending(self, request: httpx2.Request) -> httpx2.Response:
+        # the sidecar's "pending review", unless the connection is lost first
+        if self.pending_lost > 0:
+            self.pending_lost -= 1
+            raise httpx2.ConnectError("The connection was lost.", request=request)
+        return _refusal("pending review")
 
     def _held_reply(self, request: httpx2.Request) -> httpx2.Response:
         context = request.headers.get("x-inspect-context")
@@ -1094,6 +1113,83 @@ def test_a_person_is_told_when_the_sidecar_cant_say_what_became_of_their_answer(
     assert "a person's answer (approve)" in told and "dropped" in told
     assert not [w for w in _warned(sample) if "wasn't used" in w]
     assert _reviews_logged(sample) == []
+
+
+def test_a_pending_review_lost_on_the_way_is_found_and_not_asked_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    person = Person("approve")
+    person.install(monkeypatch)
+    # Every try the provider's SDK makes of the paused call loses its
+    # connection before the sidecar's "pending review" comes back, so Inspect
+    # holds an error it retries.
+    stand_in = ReviewingSidecar(
+        pauses=["tool_call"], turns=[_OSLO, Turn()], pending_lost=10
+    )
+
+    sample = _sample(_run(stand_in))
+
+    # The sidecar is asked about the call first, so the person is asked once,
+    # the held reply is got under the call's own id, and Inspect's retry is
+    # never another model call at the sidecar.
+    assert sample.error is None
+    assert len(person.asked) == 1
+    [got] = stand_in.held_reply_requests
+    first = stand_in.model_calls[0]
+    assert got.headers["x-irid"] == first.headers["x-irid"]
+    assert _LOOKED_UP == ["Oslo"]
+
+
+def test_a_call_given_up_on_after_a_lost_pending_review_is_cancelled_at_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def never(*args: object, **kwargs: object) -> Approval:
+        await anyio.sleep_forever()
+        raise AssertionError
+
+    async def acp(**kwargs: object) -> Approval | None:
+        return None
+
+    monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
+    monkeypatch.setattr(approver_module, "panel_approval", never)
+    # the sidecar's "pending review" is lost on every try
+    stand_in = ReviewingSidecar(pauses=["tool_call"], turns=[_OSLO], pending_lost=10)
+    cancelled_before_the_sample_ended: list[list[str]] = []
+
+    @solver
+    def gives_up_on_one_call() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            # the solver stops waiting for the call while the person decides,
+            # and the sample goes on
+            with anyio.move_on_after(5):
+                await generate(state)
+            cancelled_before_the_sample_ended.append(list(stand_in.cancelled))
+            return state
+
+        return solve
+
+    _run(stand_in, solver=gives_up_on_one_call())
+
+    # the call is cancelled at the sidecar when it is given up on, not only
+    # when the sample ends
+    first = stand_in.model_calls[0]
+    assert cancelled_before_the_sample_ended == [[first.headers["x-irid"]]]
+
+
+def test_a_call_whose_exchanges_keep_being_cut_off_isnt_sent_again_without_end(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Person("approve").install(monkeypatch)
+    stand_in = ReviewingSidecar(pauses=["tool_result"], cut_off=True)
+
+    sample = _sample(
+        _run(stand_in, solver=generate(), fail_on_error=False, time_limit=30)
+    )
+
+    # sent on a bounded number of times, after which the error stands and the
+    # call fails by Inspect's own rules
+    assert sample.error is not None
+    assert len(stand_in.model_calls) == 1 + MODEL_SENDS
 
 
 # --- a call Inspect gives up on -----------------------------------------------

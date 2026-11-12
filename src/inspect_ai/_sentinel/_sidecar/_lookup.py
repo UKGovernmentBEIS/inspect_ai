@@ -20,10 +20,10 @@ RESULT_WAIT = 30.0
 """How long each `request_result` asks the sidecar to wait while the call is still being judged, in seconds: the longest it waits."""
 
 UNHELD_PAUSE = 0.5
+"""How long to wait before asking again when the sidecar answered that it is still judging without holding the answer, in seconds."""
 
 AWAITED_REPLY_ASKS = 10
-"""How many times the sidecar is asked again, `UNHELD_PAUSE` apart, about a call a person was asked about whose try came back as an error while the sidecar still awaits the provider's reply. The sidecar says the provider failed only once the error's whole body has passed, which takes a moment."""
-"""How long to wait before asking again when the sidecar answered that it is still judging without holding the answer, in seconds."""
+"""How many times the sidecar is asked again, `UNHELD_PAUSE` apart, about a call a person was asked about whose try came back as an error while the sidecar still awaits the provider's reply. The sidecar says the provider failed only once the error's whole body has arrived, which takes a moment."""
 
 
 class SidecarNotJudgedError(RuntimeError):

@@ -124,6 +124,8 @@ class HttpHooks:
         Use `request()` instead, which also removes the entry when the
         request ends.
         """
+        # None but for an agent call that a sentinel sidecar paused for a
+        # person's review, which keeps its id for every request sent for it
         request_id = request_id_to_reuse() or uuid()
         self._requests[request_id] = RequestInfo(0, time.monotonic())
         report_request_id(request_id)

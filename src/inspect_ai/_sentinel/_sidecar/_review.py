@@ -51,6 +51,9 @@ CANCEL_TIMEOUT = 5.0
 FAILED_TRY = "x-sentinel-failed-try"
 """The header a sidecar adds to a provider's error it serves from its held-reply path: the number of the failed try the error is of. No refusal of the sidecar's own has it."""
 
+MODEL_SENDS = 3
+"""How many times one attempt at a call sends its request again for the sidecar to send on to the provider. Past that, the latest error stands, and Inspect retries or fails the call by its own rules, with its own waits: a provider whose exchanges keep being cut off isn't called again at once without end."""
+
 FAILURE_FETCHES = 2
 """How many times the provider's error for one failed try is asked of the sidecar before the call's judgment is taken to be unavailable."""
 
@@ -253,6 +256,9 @@ def _request_to_send(
                 "the sidecar didn't take the request sent again for the call it waits for",
             )
             return None
+        if received.model_sends >= MODEL_SENDS:
+            return None
+        received.model_sends += 1
         received.sent_on_model_path = True
         return "model"
     if (

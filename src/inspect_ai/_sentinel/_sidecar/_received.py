@@ -67,9 +67,9 @@ class ReceivedCall:
         history: "list[ChatMessage] | None" = None,
     ) -> None:
         self.sidecar = sidecar
+        """The sidecar the call goes through, which `request_result` asks."""
         self.history: "list[ChatMessage]" = history if history is not None else []
         """The conversation the call is sent with, as Inspect holds it, for a person who is asked about the call to be shown. It never leaves the eval's process."""
-        """The sidecar the call goes through, which `request_result` asks."""
         self.registered_beforehand = registered_beforehand
         """Whether the sidecar's admin registered the call's task beforehand, so a sample the sidecar can't place was never accepted, rather than lost."""
         self.mode: "SentinelProxy" = mode
@@ -94,6 +94,8 @@ class ReceivedCall:
         self.held_reply_requested = False
         """Whether a request of the latest attempt went to the sidecar's held-reply path."""
         self.sent_on_model_path = False
+        self.model_sends = 0
+        """How many times the latest attempt sent the call's request again for the sidecar to send on to the provider."""
         """Whether the call's request was sent again for the provider since the sidecar last said it waits for it."""
         self.error_stands = False
         """Whether the sidecar was asked what became of the latest attempt after its last request, and nothing more is to be sent: the error that request came to stands."""
@@ -157,6 +159,7 @@ def begin_attempt() -> None:
         received.asked_for_held_reply = False
         received.held_reply_requested = False
         received.sent_on_model_path = False
+        received.model_sends = 0
         received.error_stands = False
 
 

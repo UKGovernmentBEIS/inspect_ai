@@ -74,7 +74,7 @@ async def refused_output(
 ) -> ModelOutput | SentAgain | None:
     """A refusal of the current agent call, as the model output Inspect acts on, or None if the call wasn't refused by a sidecar's decision.
 
-    A rejected turn is the model's turn, whose calls are answered with approval errors, as in process. A turn refused because the sample ended is the model's turn if the sidecar was handed one, else empty. An error Inspect retries, such as a 503, isn't looked up while it is retried: the sidecar is asked with `request_result` only of an error Inspect won't retry.
+    A rejected turn is the model's turn, whose calls are answered with approval errors, as in process. A turn refused because the sample ended is the model's turn if the sidecar was handed one, else empty. An error Inspect retries, such as a 503, isn't looked up while it is retried: the sidecar is asked with `request_result` only of an error Inspect won't retry. A sidecar that asks a person through the eval is asked once of a retried error too, as the error may stand in for its word that the call waits for a person.
 
     Where a sentinel in the sidecar asked a person about the call, the call's error is the sidecar's word that the call waits. The person is shown the question, and the call's request is then sent again as the sidecar says: to get the provider's reply the sidecar holds, or for the sidecar to send on to the provider. What the provider's `generate` returns for it is returned in the refusal's place.
 
@@ -101,9 +101,22 @@ async def refused_output(
     # says what becomes of it whatever error a try of it got. Any other
     # call's error that Inspect retries isn't looked up.
     retried = retryable()
-    if received.reviewed_id is None and retried:
+    if (
+        received.reviewed_id is None
+        and retried
+        and not getattr(received.sidecar, "review", False)
+    ):
         return None
     try:
+        if received.reviewed_id is None and retried:
+            # The error may stand in for the sidecar's word that a person is
+            # asked about the call, as when the connection failed before
+            # that answer came back. Inspect's retry would be another model
+            # call at the sidecar, with another id, so the sidecar is asked
+            # first. A call no person was asked about is retried as before.
+            await request_result(received, replied=False)
+            if received.reviewed_id is None:
+                return None
         if received.looked is None:
             await request_result(received, replied=False)
         if send_again is None or received.reviewed_id is None:
