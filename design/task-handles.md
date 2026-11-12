@@ -290,8 +290,8 @@ the sample it sent still runs and its result is dropped.
     (`is_registry_object(task)`, set by the `@task` wrapper); a `Task`
     built directly with `samples_from_handle()`, inside a `@task` function
     or not, is unaffected.
-- **The free `enqueue_sample()` function** (`inspect_ai.dataset`, which
-  adds samples to the calling task's own `SampleSource`) inside a task fed
+- **The free `enqueue_sample()` function** (exported from `inspect_ai`,
+  which adds samples to the calling task's own `SampleSource`) inside a task fed
   through a handle: `RuntimeError` ("enqueue_sample() cannot add samples to
   a task fed through its handle; only the handle that added it sends
   samples"), before anything is buffered. `task_run` registers the attempt's
