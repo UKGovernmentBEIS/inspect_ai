@@ -9,7 +9,15 @@ import time
 import tracemalloc
 import uuid
 from pathlib import Path
-from typing import Any, AsyncGenerator, Awaitable, Callable, Iterator, cast
+from typing import (
+    Any,
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Coroutine,
+    Iterator,
+    cast,
+)
 from unittest.mock import AsyncMock, Mock
 
 import aiohttp
@@ -20,6 +28,7 @@ import fsspec.asyn  # type: ignore[import-untyped]  # fsspec ships no type stubs
 import pytest
 from aiobotocore.awsrequest import AioAWSResponse
 from anyio import EndOfStream
+from anyio.abc import ByteReceiveStream
 from boto3.s3.transfer import TransferConfig
 from botocore.awsrequest import AWSPreparedRequest, AWSResponse, HTTPHeaders
 from botocore.exceptions import (
@@ -4051,6 +4060,52 @@ def gated_fs() -> Iterator[_GatedFS]:
     _GatedFS.clear_instance_cache()
 
 
+class _Changed(OSError):
+    """`_PinnedFS`'s error for a file replaced after a reader was bound to it."""
+
+
+class _PinnedFS(_GatedFS):
+    """A gated filesystem that binds its own readers to one version of a file."""
+
+    protocol = "pinnedtest"
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.versions: dict[str, int] = {}
+
+    def replace(self, path: str, data: bytes) -> None:
+        self.files[path] = data
+        self.versions[path] = self.versions.get(path, 1) + 1
+
+    async def _pinned_range_reader(
+        self, path: str
+    ) -> tuple[int, Callable[[int, int], Coroutine[Any, Any, bytes]]]:
+        path = self._strip_protocol(path)
+        await self._gate()
+        if path not in self.files:
+            raise FileNotFoundError(path)
+        version = self.versions.get(path, 1)
+
+        async def read(start: int, end: int) -> bytes:
+            data = await self._cat_file(path, start, end)
+            # checked once the bytes are in hand, with no await in between
+            if self.versions.get(path, 1) != version:
+                raise _Changed(path)
+            return data
+
+        return len(self.files[path]), read
+
+
+@pytest.fixture
+def pinned_fs() -> Iterator[_PinnedFS]:
+    fsspec.register_implementation("pinnedtest", _PinnedFS, clobber=True)
+    _PinnedFS.clear_instance_cache()
+    fs = filesystem("pinnedtest://bucket").fs
+    assert isinstance(fs, _PinnedFS)
+    yield fs
+    _PinnedFS.clear_instance_cache()
+
+
 async def _release_when_entered(fs: _GatedFS, entries: int = 1) -> None:
     while fs.entries < entries:
         await anyio.sleep(0.001)
@@ -4081,9 +4136,11 @@ async def _settle(fs: _GatedFS) -> None:
     await _flush_fsspec_loop(fs)
 
 
-async def _cancel_then_release(fs: _GatedFS, scope: anyio.CancelScope) -> None:
+async def _cancel_then_release(
+    fs: _GatedFS, scope: anyio.CancelScope, entries: int = 1
+) -> None:
     """Cancel once a backend call is in flight; release it once that has settled."""
-    while fs.entries < 1:
+    while fs.entries < entries:
         await anyio.sleep(0.001)
     scope.cancel()
     with anyio.CancelScope(shield=True):
@@ -4313,13 +4370,18 @@ async def test_async_fsspec_read_completes_while_loop_makes_sync_call(
         assert await afs.read_file(_GATED_URL) == _PAYLOAD
 
 
-async def test_async_fsspec_errors_pass_through(gated_fs: _GatedFS) -> None:
+async def test_async_fsspec_errors_pass_through(
+    gated_fs: _GatedFS, pinned_fs: _PinnedFS
+) -> None:
     gated_fs.release.set()
+    pinned_fs.release.set()
     async with AsyncFilesystem() as afs:
         with pytest.raises(FileNotFoundError):
             await afs.read_file("gatedtest://bucket/missing.bin")
         with pytest.raises(fsspec.FSTimeoutError):
             await afs.read_file("gatedtest://bucket/timeout.bin")
+        with pytest.raises(FileNotFoundError):
+            await afs.read_file_bytes("pinnedtest://bucket/missing.bin", 0, 10)
 
 
 async def test_async_fsspec_read_range_edges(gated_fs: _GatedFS) -> None:
@@ -4335,16 +4397,16 @@ async def test_async_fsspec_read_range_edges(gated_fs: _GatedFS) -> None:
 
 
 _RANGE = 1024
-_RANGED_URL = "gatedtest://bucket/dir/big.bin"
+_RANGED_URL = "pinnedtest://bucket/dir/big.bin"
 
 
 @pytest.fixture
-def ranged_file(gated_fs: _GatedFS, monkeypatch: pytest.MonkeyPatch) -> bytes:
-    """A 3.5-range file on the released gated filesystem, with `_RANGE` ranges."""
+def ranged_file(pinned_fs: _PinnedFS, monkeypatch: pytest.MonkeyPatch) -> bytes:
+    """A 3.5-range file on the released pinned filesystem, with `_RANGE` ranges."""
     monkeypatch.setattr(asyncfiles, "_REMOTE_RANGE_SIZE", _RANGE)
-    gated_fs.release.set()
+    pinned_fs.release.set()
     payload = os.urandom(3 * _RANGE + _RANGE // 2)
-    gated_fs.files["bucket/dir/big.bin"] = payload
+    pinned_fs.files["bucket/dir/big.bin"] = payload
     return payload
 
 
@@ -4353,20 +4415,27 @@ def _ranges(start: int, end: int) -> list[tuple[int, int]]:
     return [(s, min(s + _RANGE, end)) for s in range(start, end, _RANGE)]
 
 
+async def _drain(stream: ByteReceiveStream) -> bytes:
+    async with stream:
+        return b"".join([chunk async for chunk in stream])
+
+
 async def test_async_remote_read_file_bytes_streams_in_ranges(
-    gated_fs: _GatedFS, ranged_file: bytes
+    pinned_fs: _PinnedFS, ranged_file: bytes
 ) -> None:
+    # each backend call is released from this loop, so none of them blocks it
+    pinned_fs.release.clear()
     start, end = 100, len(ranged_file)
-    async with AsyncFilesystem() as afs:
-        stream = await afs.read_file_bytes(_RANGED_URL, start, end)
-        async with stream:
-            chunks = [chunk async for chunk in stream]
-    assert b"".join(chunks) == ranged_file[start:end]
-    assert gated_fs.cat_ranges == _ranges(start, end)
+    async with AsyncFilesystem() as afs, anyio.create_task_group() as tg:
+        tg.start_soon(_keep_releasing, pinned_fs)
+        data = await _drain(await afs.read_file_bytes(_RANGED_URL, start, end))
+        tg.cancel_scope.cancel()
+    assert data == ranged_file[start:end]
+    assert pinned_fs.cat_ranges == _ranges(start, end)
 
 
 async def test_async_remote_read_file_bytes_stops_fetching_when_closed(
-    gated_fs: _GatedFS, ranged_file: bytes
+    pinned_fs: _PinnedFS, ranged_file: bytes
 ) -> None:
     async with AsyncFilesystem() as afs:
         stream = await afs.read_file_bytes(_RANGED_URL, 0, len(ranged_file))
@@ -4374,55 +4443,89 @@ async def test_async_remote_read_file_bytes_stops_fetching_when_closed(
         await stream.aclose()
         with pytest.raises(EndOfStream):
             await stream.receive(10)
-    assert gated_fs.cat_ranges == [(0, _RANGE)]
+    assert pinned_fs.cat_ranges == [(0, _RANGE)]
 
 
 async def test_async_remote_read_file_bytes_fully_is_one_request(
-    gated_fs: _GatedFS, ranged_file: bytes
+    pinned_fs: _PinnedFS, ranged_file: bytes
 ) -> None:
     end = len(ranged_file)
     async with AsyncFilesystem() as afs:
         whole = await afs.read_file_bytes_fully(_RANGED_URL, 0, end)
         to_eof = await afs.read_file_bytes_fully(_RANGED_URL, 100, None)
     assert (whole, to_eof) == (ranged_file, ranged_file[100:])
-    assert gated_fs.cat_ranges == [(0, end), (100, None)]
+    assert pinned_fs.cat_ranges == [(0, end), (100, None)]
 
 
 @pytest.mark.timeout(30, method="thread")
 async def test_async_remote_read_file_bytes_cancelled_receive_keeps_offset(
-    gated_fs: _GatedFS, ranged_file: bytes
+    pinned_fs: _PinnedFS, ranged_file: bytes
 ) -> None:
-    gated_fs.release.clear()
     start = 100
     async with AsyncFilesystem() as afs:
         stream = await afs.read_file_bytes(_RANGED_URL, start, len(ranged_file))
+        pinned_fs.release.clear()
         with anyio.CancelScope() as scope:
             async with anyio.create_task_group() as tg:
-                tg.start_soon(_cancel_then_release, gated_fs, scope)
+                # wait for the range request, not the calls made so far
+                tg.start_soon(
+                    _cancel_then_release, pinned_fs, scope, pinned_fs.entries + 1
+                )
                 await stream.receive(10)
         assert scope.cancelled_caught
         # the cancelled receive's `_cat_file` ran to completion first
-        assert gated_fs.cat_returned.is_set()
-        assert not gated_fs.backend_cancelled
+        assert pinned_fs.cat_returned.is_set()
+        assert not pinned_fs.backend_cancelled
         assert await stream.receive(10) == ranged_file[start : start + 10]
-    assert gated_fs.cat_ranges == [(start, start + _RANGE)] * 2
+    assert pinned_fs.cat_ranges == [(start, start + _RANGE)] * 2
 
 
-async def test_async_remote_read_file_bytes_ends_at_a_short_piece(
-    gated_fs: _GatedFS, ranged_file: bytes
+async def test_pinned_read_of_the_wrong_length_raises(
+    pinned_fs: _PinnedFS, ranged_file: bytes
 ) -> None:
-    short = 2 * _RANGE - 48
     async with AsyncFilesystem() as afs:
         stream = await afs.read_file_bytes(_RANGED_URL, 0, None)
-        # the object shrank after its size was read
-        gated_fs.files["bucket/dir/big.bin"] = ranged_file[:short]
+        # a correct filesystem never does this: the file shrinks, same version
+        pinned_fs.files["bucket/dir/big.bin"] = ranged_file[: 2 * _RANGE - 48]
         async with stream:
-            chunks = [chunk async for chunk in stream]
-            with pytest.raises(EndOfStream):
-                await stream.receive()
-    assert b"".join(chunks) == ranged_file[:short]
-    # the short piece ends the stream; a range after it would start past the end
-    assert gated_fs.cat_ranges == _ranges(0, 2 * _RANGE)
+            assert await stream.receive(_RANGE) == ranged_file[:_RANGE]
+            with pytest.raises(OSError, match="bytes"):
+                await stream.receive(_RANGE)
+
+
+async def test_streamed_read_stays_on_one_version(
+    pinned_fs: _PinnedFS, ranged_file: bytes
+) -> None:
+    async with AsyncFilesystem() as afs:
+        stream = await afs.read_file_bytes(_RANGED_URL, 0, None)
+        assert await stream.receive(_RANGE) == ranged_file[:_RANGE]
+        pinned_fs.replace("bucket/dir/big.bin", b"x" * len(ranged_file))
+        with pytest.raises(_Changed):
+            await stream.receive(_RANGE)
+
+
+async def test_streamed_read_pins_the_first_piece(
+    pinned_fs: _PinnedFS, ranged_file: bytes
+) -> None:
+    async with AsyncFilesystem() as afs:
+        stream = await afs.read_file_bytes(_RANGED_URL, 0, None)
+        pinned_fs.replace("bucket/dir/big.bin", b"x" * len(ranged_file))
+        with pytest.raises(_Changed):
+            await stream.receive(_RANGE)
+
+
+async def test_filesystem_without_a_pinned_reader_reads_a_range_in_one_call(
+    gated_fs: _GatedFS, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(asyncfiles, "_REMOTE_RANGE_SIZE", _RANGE)
+    gated_fs.release.set()
+    payload = os.urandom(3 * _RANGE + _RANGE // 2)
+    gated_fs.files["bucket/dir/big.bin"] = payload
+    url, size = "gatedtest://bucket/dir/big.bin", len(payload)
+    async with AsyncFilesystem() as afs:
+        assert await _drain(await afs.read_file_bytes(url, 100, size)) == payload[100:]
+        assert await _drain(await afs.read_file_bytes(url, 100, None)) == payload[100:]
+    assert gated_fs.cat_ranges == [(100, size), (100, None)]
 
 
 def test_http_keeps_the_synchronous_path() -> None:
