@@ -3206,7 +3206,7 @@ def saved(checkpointer: RecordingCheckpointer, *keys: str) -> dict[str, object]:
     """Tracked values as a checkpoint saves and resume restores them."""
     types: dict[str, Any] = {
         "bridge_compaction_prefix": list[ChatMessage],
-        "bridge_handouts": _SavedHandouts,
+        "bridge_handouts": str,
     }
     return {
         key: TypeAdapter(types[key]).validate_json(
@@ -3472,10 +3472,20 @@ async def test_a_bridge_does_not_resume_from_incomplete_result_checks(
 
             saved = read_host_context(str(tmp_path / "context")).agent_state
             assert saved is not None
-            del saved["bridge_handouts"]["reserved_ids"]
+            handouts = json.loads(saved["bridge_handouts"])
+            del handouts["reserved_ids"]
+            saved["bridge_handouts"] = json.dumps(handouts)
             resumed = real_checkpointer(tmp_path, saved)
             try:
                 with pytest.raises(ValidationError, match="reserved_ids"):
+                    started_with(sandbox, model.model, deepcopy(start), resumed)
+            finally:
+                resumed.close()
+            # nor from the record as an object, which the writer could change
+            saved["bridge_handouts"] = handouts
+            resumed = real_checkpointer(tmp_path, saved)
+            try:
+                with pytest.raises(TypeError, match="bridge_handouts.*expected str"):
                     started_with(sandbox, model.model, deepcopy(start), resumed)
             finally:
                 resumed.close()
@@ -3523,6 +3533,266 @@ async def test_a_result_checked_before_a_checkpoint_is_checked_once_more_after_r
         (as_handed(dialect, "safe"), True),
         (as_handed(dialect, "changed"), True),
     ]
+
+
+# arguments JSON carries alike, which a model can tell apart
+ALIKE_ARGUMENTS: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
+    "zeros": ({"offset": 0.0}, {"offset": -0.0}),
+    "int_float": ({"offset": 1}, {"offset": 1.0}),
+    "key_order": ({"where": {"a": 1, "b": 2}}, {"where": {"b": 2, "a": 1}}),
+}
+
+
+def exactly(arguments: dict[str, Any]) -> str:
+    """Arguments as text that tells apart those `==` doesn't: `-0.0`, 1.0, a key order."""
+    return json.dumps(arguments)
+
+
+# arguments a checkpoint's writer changes when it serializes them itself, each
+# as a provider parses it from a model's JSON
+WRITER_CHANGED: dict[str, str] = {
+    "overflow": '{"offset": 1e309}',
+    "negative_overflow": '{"offset": -1e309}',
+    "nan": '{"offset": NaN}',
+    "nested": '{"at": [{"x": Infinity, "y": null}, -0.0, 1.0, 1]}',
+    "surrogate": '{"path": "a\\ud800"}',
+    "surrogate_key": '{"\\udc00": "a"}',
+}
+# never handed over while a sentinel is active: a call with NaN is rejected as
+# changed in place (`json_equal`, where NaN equals nothing), and a response
+# with a lone surrogate in an argument's name fails to serialize
+NEVER_HANDED = {"nan", "surrogate_key"}
+
+
+async def resumed_from_the_checkpoint_of(
+    root: Path, sandbox: bool, model: "Scripted", hand_over: Any
+) -> tuple[AgentBridge, _CountingCheckpointer]:
+    """A bridge resumed from the production checkpoint of one that ran `hand_over`."""
+    start = AgentState(messages=[ChatMessageUser(content=TASK)])
+    checkpointer = real_checkpointer(root)
+    await hand_over(started_with(sandbox, model.model, deepcopy(start), checkpointer))
+    await checkpointer.checkpoint()
+    checkpointer.close()
+    saved = read_host_context(str(root / "context")).agent_state
+    resumed = real_checkpointer(root, saved)
+    return started_with(sandbox, model.model, deepcopy(start), resumed), resumed
+
+
+@pytest.mark.parametrize("shown", ["handed", "changed"])
+@pytest.mark.parametrize("arguments", sorted(set(WRITER_CHANGED) - NEVER_HANDED))
+@pytest.mark.parametrize("sandbox", [False, True])
+async def test_a_resumed_result_is_checked_with_the_arguments_its_call_was_handed_with(
+    sandbox: bool, arguments: str, shown: str, tmp_path: Path
+) -> None:
+    call = replace(READ, arguments=json.loads(WRITER_CHANGED[arguments]))
+    seen: Steps = []
+    model = Scripted(calls_output(call), calls_output())
+    task = ChatMessageUser(content=TASK)
+    outputs: list[ModelOutput] = []
+
+    async def hand_over(bridge: AgentBridge) -> None:
+        with active([bridge_recording(seen)]):
+            outputs.append(await generate(bridge, model, [task]))
+
+    async with AsyncFilesystem():
+        with _patch_sample_runtime([]):
+            bridge, resumed = await resumed_from_the_checkpoint_of(
+                tmp_path, sandbox, model, hand_over
+            )
+            try:
+                [handed] = outputs[0].message.tool_calls or []
+                assert exactly(handed.arguments) == exactly(call.arguments)
+                # the record is the authority, whatever call the request shows
+                reported = (
+                    handed
+                    if shown == "handed"
+                    else replace(handed, arguments={"path": "other.txt"})
+                )
+                with active([bridge_recording(seen)]):
+                    await generate(
+                        bridge,
+                        model,
+                        [
+                            task,
+                            ChatMessageAssistant(content="", tool_calls=[reported]),
+                            ChatMessageTool(content="contents", tool_call_id=handed.id),
+                        ],
+                    )
+            finally:
+                resumed.close()
+
+    [after] = [step for step in seen if isinstance(step, AfterToolCall)]
+    assert exactly(after.call.arguments) == exactly(call.arguments)
+    assert (after.call.id, after.call.function) == (handed.id, call.function)
+
+
+@pytest.mark.parametrize("value", [(1, 2), b"bytes", {1, 2}, Counter("ab")], ids=type)
+@pytest.mark.parametrize("sandbox", [False, True])
+async def test_a_resumed_result_whose_call_json_cant_carry_is_checked_as_the_call_reported(
+    sandbox: bool,
+    value: object,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from inspect_ai._util import logger as inspect_logger
+
+    monkeypatch.setattr(inspect_logger, "_warned", [])
+    call = replace(READ, arguments={"path": "notes.txt", "at": value})
+    seen: Steps = []
+    model = Scripted(calls_output(call), calls_output())
+    task = ChatMessageUser(content=TASK)
+    outputs: list[ModelOutput] = []
+
+    async def hand_over(bridge: AgentBridge) -> None:
+        with active([bridge_recording(seen)]):
+            outputs.append(await generate(bridge, model, [task]))
+
+    async with AsyncFilesystem():
+        with _patch_sample_runtime([]):
+            bridge, resumed = await resumed_from_the_checkpoint_of(
+                tmp_path, sandbox, model, hand_over
+            )
+            try:
+                [handed] = outputs[0].message.tool_calls or []
+                reported = replace(handed, arguments={"path": "reported.txt"})
+                with active([bridge_recording(seen)]), caplog.at_level("WARNING"):
+                    await generate(
+                        bridge,
+                        model,
+                        [
+                            task,
+                            ChatMessageAssistant(content="", tool_calls=[reported]),
+                            ChatMessageTool(content="contents", tool_call_id=handed.id),
+                        ],
+                    )
+            finally:
+                resumed.close()
+
+    # never the arguments as the checkpoint could keep them: the call the
+    # request shows, with no proposal's context
+    [after] = [step for step in seen if isinstance(step, AfterToolCall)]
+    assert (after.call, after.message_id, after.input) == (reported, "", None)
+    assert [
+        record.levelname
+        for record in caplog.records
+        if "could not be recorded exactly" in record.message
+    ] == ["WARNING"]
+
+
+@pytest.mark.parametrize("sandbox", [False, True])
+async def test_resumed_results_under_ids_with_lone_surrogates_are_checked_as_their_own_calls(
+    sandbox: bool, tmp_path: Path
+) -> None:
+    # ids the checkpoint's writer would give one key, and the key itself
+    ids = ["x\ud800", "x\ud801", "x\ufffd\ufffd\ufffd"]
+    calls = [
+        replace(READ, id=call_id, arguments={"path": f"{index}.txt"})
+        for index, call_id in enumerate(ids)
+    ]
+    seen: Steps = []
+    model = Scripted(calls_output(*calls), calls_output())
+    task = ChatMessageUser(content=TASK)
+    outputs: list[ModelOutput] = []
+
+    async def hand_over(bridge: AgentBridge) -> None:
+        with active([bridge_recording(seen)]):
+            outputs.append(await generate(bridge, model, [task]))
+
+    async with AsyncFilesystem():
+        with _patch_sample_runtime([]):
+            bridge, resumed = await resumed_from_the_checkpoint_of(
+                tmp_path, sandbox, model, hand_over
+            )
+            try:
+                handed = outputs[0].message.tool_calls or []
+                assert [call.id for call in handed] == ids
+                # the scaffold reports each under other arguments
+                reported = [replace(call, arguments={"path": "x"}) for call in handed]
+                with active([bridge_recording(seen)]):
+                    await generate(
+                        bridge,
+                        model,
+                        [
+                            task,
+                            ChatMessageAssistant(content="", tool_calls=reported),
+                            *[
+                                ChatMessageTool(content="contents", tool_call_id=id)
+                                for id in ids
+                            ],
+                        ],
+                    )
+            finally:
+                resumed.close()
+
+    assert sorted(
+        (step.call.id, step.call.arguments["path"])
+        for step in seen
+        if isinstance(step, AfterToolCall)
+    ) == sorted((call.id, call.arguments["path"]) for call in calls)
+
+
+@pytest.mark.parametrize(
+    ("arguments", "kept"),
+    [
+        *[(json.loads(text), True) for text in WRITER_CHANGED.values()],
+        *[(arguments, True) for pair in ALIKE_ARGUMENTS.values() for arguments in pair],
+        ({"n": 10**40, "small": 5e-324, "third": 0.1 + 0.2, "none": None}, True),
+        ({"text": "caf\u00e9 \U0001f600 \x00 \ud800"}, True),
+        ({"at": (1, 2)}, False),
+        ({"at": b"bytes"}, False),
+        ({"at": {1, 2}}, False),
+        ({"at": Counter("ab")}, False),
+        ({"at": object()}, False),
+        # a NaN JSON's constant doesn't read back as
+        ({"at": math.copysign(math.nan, -1)}, False),
+    ],
+)
+def test_a_targets_call_is_read_back_exactly_or_not_at_all(
+    arguments: dict[str, Any], kept: bool
+) -> None:
+    from inspect_ai._util.json import to_json_str_safe
+    from inspect_ai.agent._bridge._sentinel import (
+        HandedTarget,
+        _Handed,
+        _restored,
+        _shown_key,
+        _Targets,
+    )
+
+    call = ToolCall(
+        id="id \ud800",
+        function="apply_patch",
+        arguments=arguments,
+        parse_error="unparsed",
+        view=ToolCallContent(format="markdown", content="shown \ud800"),
+        type="custom",
+    )
+    targets = _Targets(())
+    targets.add("handout", [HandedTarget(None, call)])
+    record = _SavedHandouts(
+        reserved_ids=[call.id],
+        handed={
+            call.id: _Handed(
+                "f", None, ("handout",), None, targets=tuple(targets.records)
+            )
+        },
+        checked=[],
+    )
+
+    # through the production writer's serializer, as a checkpoint keeps it
+    encoded = json.loads(to_json_str_safe({"bridge_handouts": record.encoded()}))
+    restored = _SavedHandouts.decoded(encoded["bridge_handouts"])
+
+    assert restored == record
+    [target] = restored.handed[call.id].targets
+    read = _restored(target)
+    if kept:
+        assert read is not None and _shown_key(read) == _shown_key(call)
+        assert exactly(read.arguments) == exactly(call.arguments)
+        assert read == replace(call, arguments=read.arguments)
+    else:
+        assert read is None
 
 
 @pytest.mark.parametrize("dialect", DIALECTS)
@@ -5608,19 +5878,6 @@ async def test_calls_sharing_an_id_keep_their_own_modifications() -> None:
     assert second == replace(two, arguments={"path": "safe.txt"})
 
 
-# arguments JSON carries alike, which a model can tell apart
-ALIKE_ARGUMENTS: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
-    "zeros": ({"offset": 0.0}, {"offset": -0.0}),
-    "int_float": ({"offset": 1}, {"offset": 1.0}),
-    "key_order": ({"where": {"a": 1, "b": 2}}, {"where": {"b": 2, "a": 1}}),
-}
-
-
-def exactly(arguments: dict[str, Any]) -> str:
-    """Arguments as text that tells apart those `==` doesn't: `-0.0`, 1.0, a key order."""
-    return json.dumps(arguments)
-
-
 @pytest.mark.parametrize("results", ["same", "different"])
 @pytest.mark.parametrize("ids", ["shared", "distinct"])
 @pytest.mark.parametrize("alike", list(ALIKE_ARGUMENTS))
@@ -5747,6 +6004,7 @@ def test_targets_json_carries_alike_are_kept_apart(alike: str) -> None:
     from inspect_ai.agent._bridge._sentinel import (
         HandedTarget,
         SentinelCheck,
+        _restored,
         _Targets,
         _with_targets_of,
     )
@@ -5756,10 +6014,10 @@ def test_targets_json_carries_alike_are_kept_apart(alike: str) -> None:
 
     targets = _Targets(())
     targets.add("handout", [HandedTarget(None, call) for call in [one, two, again]])
-    assert [exactly(record.call.arguments) for record in targets.records] == [
-        exactly(one.arguments),
-        exactly(two.arguments),
-    ]
+    assert [
+        exactly(call.arguments) if call is not None else None
+        for call in map(_restored, targets.records)
+    ] == [exactly(one.arguments), exactly(two.arguments)]
     # the records an id already has are known by their own
     targets = _Targets(targets.records)
     targets.add("handout", [HandedTarget(None, call) for call in [two, again]])

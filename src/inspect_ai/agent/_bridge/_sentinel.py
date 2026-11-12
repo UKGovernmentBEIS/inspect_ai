@@ -29,7 +29,7 @@ from typing import (
 from uuid import UUID
 
 import anyio
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
@@ -189,11 +189,13 @@ class _Target(NamedTuple):
     target: BridgedToolId | None
     """As `SentinelCheck.target`."""
 
-    call: ToolCall
-    """As `SentinelCheck.call`: the call its checks show."""
+    call: str | None
+    """The call its checks show (`SentinelCheck.call`), as JSON it is read
+    back from (`_stored`, `_restored`); None for one JSON can't carry."""
 
     digest: str
-    """`call`, exactly (`_shown_key`): a target is another only with the same."""
+    """That call, exactly (`_shown_key`): a target is another only with the
+    same, and its checks show the call read back only if it is the same."""
 
 
 class _Handed(NamedTuple):
@@ -232,7 +234,9 @@ class _Handed(NamedTuple):
     checked as them whenever its proposal's checks are not used: the proposal
     is evicted or lost to a resume, the id is ambiguous or shared within a
     response, the sentinel was not active at the handout, or the call the
-    request shows is none of its handouts (`_Handouts._checks`)."""
+    request shows is none of its handouts (`_Handouts._checks`). One whose
+    call can't be read back exactly is checked as the call the request shows
+    instead (`_restored`)."""
 
     latest: tuple[int, ...] = ()
     """The calls its latest response handed over under the id, in order, each
@@ -255,6 +259,22 @@ class _SavedHandouts(BaseModel):
 
     inherited: list[str] = []
     """The conservative keys of the results the bridge started with (`inherited_result_keys`)."""
+
+    def encoded(self) -> str:
+        """The record as a checkpoint keeps it: JSON in ASCII, written here.
+
+        A checkpoint's writer keeps such a string as it is. Values it
+        serializes itself can change: NaN and the infinities become null, and
+        a lone surrogate in a string is escaped, or replaced where the string
+        is a key, so one call id can become another's. The record holds only
+        strings, numbers and None (a target's call is JSON already,
+        `_stored`), which JSON carries exactly.
+        """
+        return json.dumps(self.model_dump())
+
+    @classmethod
+    def decoded(cls, encoded: str) -> "_SavedHandouts":
+        return cls.model_validate(json.loads(encoded))
 
 
 class _Result(NamedTuple):
@@ -286,6 +306,15 @@ class _Claim(NamedTuple):
 class _Claimed(NamedTuple):
     owned: list[_Claim]
     waiting: list[anyio.Event]
+
+
+class _Recorded(NamedTuple):
+    """Checks of an id's recorded targets (`_Handouts._recorded`)."""
+
+    checks: list[SentinelCheck]
+
+    lost: bool
+    """Whether a target's call could not be read back exactly (`_restored`)."""
 
 
 class _ReadBack(NamedTuple):
@@ -741,10 +770,11 @@ class _Handouts:
         recorded targets without context: every handout's, or one handout's
         where it is paired by position. Only a result under an id with no
         recorded target (one the bridge never handed out) is checked as the
-        call the request shows.
+        call the request shows; so is one with a recorded target whose call
+        can't be read back exactly (`_restored`), besides its other targets.
         """
+        checks: list[SentinelCheck] = []
         if handed is not None and targets is not None:
-            checks: list[SentinelCheck] = []
             proposal = (
                 self.proposals.get((call_id, targets.matched))
                 if targets.matched is not None
@@ -754,37 +784,45 @@ class _Handouts:
                 checks = [proposal, *proposal.alternatives]
                 if handed.ambiguous:
                     checks = [_without_context(check) for check in checks]
+            lost = False
             # a call handed out once has its proposal's targets; otherwise add
             # those of an evicted proposal or an earlier handout
             if proposal is None or handed.ambiguous:
-                checks.extend(self._recorded(targets.recorded, checks))
-            if checks:
+                recorded = self._recorded(targets.recorded, checks)
+                checks.extend(recorded.checks)
+                lost = recorded.lost
+            if checks and not lost:
                 return tuple(checks)
+        # no recorded target, or one whose call is lost: the result is (also)
+        # checked as the call the request shows
         call = _unissued(message, found)[0]
         if found is None and handed is not None and handed.proposed is not None:
             call = ToolCall(id=call_id, function=handed.function, arguments={})
-        return (SentinelCheck(call, None, "", _NO_MESSAGE_ID),)
+        return (*checks, SentinelCheck(call, None, "", _NO_MESSAGE_ID))
 
     def _recorded(
         self, recorded: Sequence[_Target], checks: Sequence[SentinelCheck]
-    ) -> list[SentinelCheck]:
+    ) -> _Recorded:
         """Checks of a handout's `recorded` targets (`_Handed.targets`) that `checks` lack.
 
         Each with its bridged tool's viewer, if the bridge still serves one,
-        and no context.
+        and no context. A target whose call can't be read back exactly has
+        none (`_restored`).
         """
         known = {(check.target, _shown_key(check.call)) for check in checks}
-        rebuilt: list[SentinelCheck] = []
+        rebuilt = _Recorded([], False)
         for target in recorded:
             identity = (target.target, target.digest)
             if identity in known:
                 continue
             known.add(identity)
+            call = _restored(target)
+            if call is None:
+                rebuilt = rebuilt._replace(lost=True)
+                continue
             viewer = self.viewer(target.target) if target.target is not None else None
-            rebuilt.append(
-                SentinelCheck(
-                    target.call, viewer, "", _NO_MESSAGE_ID, target=target.target
-                )
+            rebuilt.checks.append(
+                SentinelCheck(call, viewer, "", _NO_MESSAGE_ID, target=target.target)
             )
         return rebuilt
 
@@ -856,7 +894,7 @@ class _Targets:
             if identity not in self._known:
                 self._known.add(identity)
                 self.records.append(
-                    _Target(handout, target.target, target.call, digest)
+                    _Target(handout, target.target, _stored(target.call), digest)
                 )
 
 
@@ -1311,6 +1349,49 @@ def _exact_key(call: ToolCall) -> str:
 def _shown_key(call: ToolCall) -> str:
     """The call a check shows, exactly: every field, no two values alike (`_serialized`)."""
     return _parts_digest(_serialized(call))
+
+
+_CALL: TypeAdapter[ToolCall] = TypeAdapter(ToolCall)
+
+
+def _stored(call: ToolCall) -> str | None:
+    """`call` as a target's record keeps it: JSON in ASCII, which a checkpoint keeps as it is.
+
+    With NaN and the infinities as JSON's constants and lone surrogates
+    escaped, so a call a provider parsed from JSON is read back exactly
+    (`_restored`). None for a call JSON can't carry at all (bytes, a set);
+    one it carries as another value (a tuple, as a list) is found when it
+    is read back.
+    """
+    try:
+        return json.dumps(_CALL.dump_python(call))
+    except Exception:
+        return None
+
+
+def _restored(target: _Target) -> ToolCall | None:
+    """A recorded target's call, or None unless it is read back as the call recorded, exactly.
+
+    A check must not show other arguments than the scaffold was handed. So
+    a result whose target's call is lost is checked as the call its request
+    shows, with no viewer (`_Handouts._checks`), with or without a resume
+    in between.
+    """
+    if target.call is not None:
+        try:
+            call = _CALL.validate_python(json.loads(target.call))
+        except Exception:
+            call = None
+        if call is not None and _shown_key(call) == target.digest:
+            return call
+    warn_once(
+        logger,
+        "A bridged tool call's arguments hold a value JSON can't carry, so the "
+        "call could not be recorded exactly. Where the sentinel's tool_result "
+        "check of its result needs the record, it sees the call the scaffold "
+        "reports, without the bridged tool's viewer.",
+    )
+    return None
 
 
 def _json_canonical(value: Any) -> Any:

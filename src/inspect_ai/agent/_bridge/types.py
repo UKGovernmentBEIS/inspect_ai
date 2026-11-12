@@ -276,25 +276,26 @@ class AgentBridge:
             inherited_result_keys,
         )
 
-        # a checkpoint written without them exempts no result and reserves the
-        # ids of its prefix and its conversation; an incomplete one fails to
-        # restore
+        # kept as a string the bridge encodes itself, which the checkpoint's
+        # writer can't change (`_SavedHandouts.encoded`). A checkpoint written
+        # without them exempts no result and reserves the ids of its prefix
+        # and its conversation; an incomplete one fails to restore
+        handouts = self._cp.track(
+            "bridge_handouts", lambda: self._handouts.saved().encoded(), ""
+        )
         self._handouts = _Handouts(
-            self._cp.track(
-                "bridge_handouts",
-                lambda: self._handouts.saved(),
-                _SavedHandouts(
-                    reserved_ids=sorted(
-                        history_ids(self._compaction_prefix)
-                        | history_ids(restored_messages)
-                    ),
-                    handed={},
-                    checked=[],
-                    inherited=sorted(inherited_result_keys(state.messages))
-                    if self._cp.attempt == "initial"
-                    else [],
+            _SavedHandouts.decoded(handouts)
+            if handouts
+            else _SavedHandouts(
+                reserved_ids=sorted(
+                    history_ids(self._compaction_prefix)
+                    | history_ids(restored_messages)
                 ),
-                value_type=_SavedHandouts,
+                handed={},
+                checked=[],
+                inherited=sorted(inherited_result_keys(state.messages))
+                if self._cp.attempt == "initial"
+                else [],
             ),
             viewer=self._bridged_tool_viewer,
         )
