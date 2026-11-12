@@ -8660,6 +8660,42 @@ async def test_a_respelled_call_replays_with_its_own_arguments(
     assert exactly(replayed) == exactly(approved) != exactly(proposed)
 
 
+@pytest.mark.parametrize("edit", [*_RESPELLED, "none"])
+@pytest.mark.parametrize("sandbox", [False, True])
+@pytest.mark.parametrize("dialect", DIALECTS)
+async def test_a_response_filter_respelling_a_calls_arguments_clears_its_producer(
+    dialect: str, sandbox: bool, edit: str
+) -> None:
+    """Both tool stages have the generation's input only for the response as the model gave it, exactly."""
+    proposed, edited = _RESPELLED.get(edit, ({"payload": 1.0}, {"payload": 1.0}))
+    call = replace(READ, arguments={"path": "notes.txt", **proposed})
+    returned = replace(READ, arguments={"path": "notes.txt", **edited})
+    assert (exactly(call.arguments) == exactly(returned.arguments)) == (edit == "none")
+    seen: Steps = []
+    model = Scripted(calls_output(call, content="Reading."), calls_output())
+    bridge = started_with(sandbox, model.model, AgentState(messages=[]))
+
+    async def response_filter(
+        model: Model, output: ModelOutput, input: GenerateInput
+    ) -> ModelOutput | None:
+        if output.message.tool_calls:
+            output.message.tool_calls = [returned]
+        return output
+
+    bridge.response_filter = response_filter
+    with active([bridge_recording(seen)]):
+        await dialect_round_trip(dialect, bridge)
+
+    before, after = seen
+    assert exactly(before.call.arguments) == exactly(returned.arguments)
+    if edit == "none":
+        assert before.input == after.input == model.inputs[0]
+        assert before.tools is not None and after.tools is not None
+    else:
+        assert (before.input, after.input) == (None, None)
+        assert (before.tools, after.tools) == (None, None)
+
+
 @pytest.mark.parametrize(
     ("param", "modified", "expected"),
     [

@@ -55,6 +55,7 @@ from inspect_ai.agent._bridge._sentinel import (
     Produced,
     handed_targets,
     history_ids,
+    same_value,
     sentinel_tool_results,
 )
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
@@ -2493,10 +2494,12 @@ def _same_response(output: ModelOutput, logged: ModelOutput) -> bool:
     are not compared: a tool call's `view` (inspect_swe's consumers attach
     their own renderings in `on_complete`), and a message's `metadata` and
     `source`, which never reach a model. Everything else in each choice's
-    message is: its id, content and tool calls.
+    message is, exactly (`same_value`): its id, content and tool calls, so
+    arguments changed to ones JSON carries alike (1.0 to 1) are another
+    response.
     """
     return len(output.choices) == len(logged.choices) and all(
-        json_equal(_handed(ours.message), _handed(theirs.message))
+        same_value(_handed(ours.message), _handed(theirs.message))
         for ours, theirs in zip(output.choices, logged.choices)
     )
 
