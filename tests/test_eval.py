@@ -81,6 +81,20 @@ def test_eval_rejects_filesystem_root(
     scan.assert_not_called()
 
 
+def test_eval_rejects_invalid_sandbox_override(tmp_path: Path) -> None:
+    sandbox: Any = False
+    log_dir = tmp_path / "logs"
+
+    with pytest.raises(ValueError, match="Invalid sandbox specification: False"):
+        eval(
+            Task(dataset=[Sample(input="x")]),
+            model="mockllm/model",
+            sandbox=sandbox,
+            log_dir=str(log_dir),
+        )
+    assert not log_dir.exists() or not any(log_dir.iterdir())
+
+
 def test_eval_epochs_sample_count():
     task = Task(dataset=[Sample(input="s1"), Sample(input="s2")])
     log = eval(task, model="mockllm/model", epochs=3)[0]
