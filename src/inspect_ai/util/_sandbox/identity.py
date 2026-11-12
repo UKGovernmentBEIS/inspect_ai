@@ -292,8 +292,9 @@ def sandbox_identity_cwd(env: SandboxEnvironment, cwd: str | None) -> str | None
     """The working directory for a command in `env`.
 
     Inside a `sandbox_identity()` scope for `env` that has a `cwd`, an omitted
-    `cwd` becomes the scope's `cwd` and a relative one resolves against it, as
-    in `sandbox_operation_cwd()`. An absolute `cwd` is always kept.
+    `cwd` becomes the scope's `cwd`, and a relative one resolves against it
+    unless the call is part of a `framework_sandbox_operation()`, as in
+    `sandbox_operation_cwd()`. An absolute `cwd` is always kept.
 
     Args:
        env: Sandbox environment the command runs in.
@@ -302,7 +303,11 @@ def sandbox_identity_cwd(env: SandboxEnvironment, cwd: str | None) -> str | None
     identity = sandbox_identity_scope(env)
     if identity is None or identity.cwd is None:
         return cwd
-    return identity.cwd if cwd is None else posixpath.join(identity.cwd, cwd)
+    if cwd is None:
+        return identity.cwd
+    if in_framework_sandbox_operation():
+        return cwd
+    return posixpath.join(identity.cwd, cwd)
 
 
 async def sandbox_identity_vars(

@@ -323,8 +323,9 @@ scope (decision: Ransom, 2026-11-12):
 
 - `exec_remote()` resolves its `cwd` with `sandbox_identity_cwd()`, which now
   joins a relative `cwd` to the scope's `cwd`, so `exec_remote(cwd="sub")` and
-  `exec(cwd="sub")` run in the same directory. The model-facing tools that
-  call it with no `cwd` are unchanged.
+  `exec(cwd="sub")` run in the same directory. Inside a marked operation, such
+  as an in-loop scorer, a relative `cwd` is kept, as raw `exec()` keeps it
+  there. The model-facing tools that call it with no `cwd` are unchanged.
 - `sandbox_with(file)` resolves a relative `file` with
   `sandbox_operation_file()` for each sandbox before probing it, so a file a
   member wrote with `write_file("result.txt")` is found by
@@ -863,7 +864,7 @@ Other files:
 - `tests/util/sandbox/test_exec_remote.py`: an `exec_remote()` call inside a
   scope is unchanged. Its launch transport exec passes the tools user.
   `test_identity_scope_resolves_a_relative_cwd`: a relative `cwd` is sent
-  joined to the scope's `cwd`.
+  joined to the scope's `cwd`, and unchanged inside a marked operation.
 - `tests/checkpoint/test_snapshot_strategy.py` (which already calls
   `copy_out()`): inside a scope, a chunk read passes no user to a provider
   that lacks file users, and passes `"root"` to one that has them.
