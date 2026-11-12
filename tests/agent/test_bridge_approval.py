@@ -70,7 +70,7 @@ from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._bridge._approval import MAX_CONSECUTIVE_REJECTIONS
 from inspect_ai.agent._bridge._sentinel import (
     SentinelCheck,
-    _call_key,
+    _exact_key,
     _Handouts,
     _SavedHandouts,
 )
@@ -8851,7 +8851,7 @@ async def test_a_result_checked_for_one_target_is_checked_again_after_its_propos
                 )
             )
         if fallback != "none":
-            assert ("same", _call_key(call)) not in bridge._handouts.proposals
+            assert ("same", _exact_key(call)) not in bridge._handouts.proposals
         checked = len(seen)
         second.results(second_calls, ["secret changed" if changed else "secret"])
         with pytest.raises(TerminateSampleError, match="non-status secret"):

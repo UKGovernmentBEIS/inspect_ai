@@ -184,13 +184,16 @@ class _Target(NamedTuple):
     """A target a handout resolved to, kept for the sample (`_Handed.targets`)."""
 
     handout: str
-    """The handed call (`_call_key`)."""
+    """The handed call (`_exact_key`)."""
 
     target: BridgedToolId | None
     """As `SentinelCheck.target`."""
 
     call: ToolCall
     """As `SentinelCheck.call`: the call its checks show."""
+
+    digest: str
+    """`call`, exactly (`_shown_key`): a target is another only with the same."""
 
 
 class _Handed(NamedTuple):
@@ -199,12 +202,12 @@ class _Handed(NamedTuple):
     function: str
 
     proposed: str | None
-    """The call as the model proposed it (`_call_key`), or None when several
+    """The call as the model proposed it (`_exact_key`), or None when several
     calls of its response shared the id."""
 
     handed: tuple[str, ...]
     """The call as handed over under the id, once for each set of arguments
-    approval gave it (`_call_key`): each is a handout of its own."""
+    it was handed with (`_exact_key`): each is a handout of its own."""
 
     execution_id: str | None
     """The call's latest handout, or None for a call only in a rejected turn."""
@@ -216,10 +219,11 @@ class _Handed(NamedTuple):
     of its results keeps a proposal's context (`_Handouts`); each is still
     checked as the targets its handouts resolved to."""
 
-    read_back: tuple[tuple[str, str], ...] = ()
-    """The forms its dialect reads handed calls back in (`read_back`), where
-    those differ from the calls: each the read-back call's key and the
-    handed call's (`_call_key`)."""
+    forms: tuple[tuple[str, str], ...] = ()
+    """The forms a request may show its handouts in, each a call as JSON
+    carries it (`_call_key`) and the handout it is (`_exact_key`): the call
+    as handed, and the form its dialect reads it back in where that differs
+    (`read_back`). Handouts JSON carries alike share a form."""
 
     targets: tuple[_Target, ...] = ()
     """The targets each of its handouts resolved to, without their viewers or
@@ -308,12 +312,15 @@ class _Handouts:
 
     A call is handed over under the model's id. Each handout is an execution
     with its own `execution_id`, identified by the id and the arguments it
-    was handed with: a scaffold retry served from the model cache hands the
-    same call over again, under the same id, and its result is that of the
-    latest handout with the arguments the result's call has, the one the
-    scaffold received. The result's call matches a handout as handed, or in
-    the form its dialect reads it back in (a Gemini action for a `computer`
-    call, say). For an id the bridge handed out, its record is the authority,
+    was handed with, exactly (`_exact_key`): a scaffold retry served from the
+    model cache hands the same call over again, under the same id, and its
+    result is that of the latest handout with the arguments the result's call
+    has, the one the scaffold received. The result's call matches a handout
+    as handed, or in the form its dialect reads it back in (a Gemini action
+    for a `computer` call, say), compared as JSON carries it (`_call_key`): a
+    scaffold may send a call back in another spelling. Handouts JSON carries
+    alike (`0.0` and `-0.0`) are then several the call matches. For an id the
+    bridge handed out, its record is the authority,
     not the call a request shows: a result whose call matches no handout of
     its id, or several, or one with no call in its request when the id was
     handed with several arguments, gets no proposal's context and is checked
@@ -403,7 +410,7 @@ class _Handouts:
         self.reserved_ids: set[str] = set(saved.reserved_ids)
         # by call id (`wire_names`)
         self._wire_names: dict[str, frozenset[str]] = {}
-        # by call id and handed call (`_call_key`)
+        # by call id and handout (`_exact_key`)
         self.proposals: OrderedDict[tuple[str, str], SentinelCheck] = OrderedDict()
         # step digests (`_Steps`)
         self.checked: set[str] = set(saved.checked)
@@ -455,8 +462,8 @@ class _Handouts:
         """Whether the model's id for `calls` (those of a response under it) names another call.
 
         An id the bridge proposed before (handed over or rejected) names
-        another call when it was another function or arguments as proposed, or
-        several calls. The same call proposed again keeps its id: a retry of
+        another call when it was another function or arguments as proposed
+        (`_exact_key`), or several calls. The same call proposed again keeps its id: a retry of
         its request (served from the model cache, or after a rejection), or
         the call again in a later turn or another conversation, whose results
         then get no proposal's context (`hand_over`). Any other id names
@@ -488,7 +495,7 @@ class _Handouts:
         return (
             handed.proposed is None
             or len(calls) > 1
-            or _call_key(calls[0]) != handed.proposed
+            or _exact_key(calls[0]) != handed.proposed
         )
 
     def hand_over(
@@ -528,11 +535,13 @@ class _Handouts:
                 and (earlier.ambiguous or earlier.execution_id is not None)
             )
             handouts = dict.fromkeys(previous.handed if previous is not None else ())
+            forms = dict.fromkeys(previous.forms if previous is not None else ())
             functions = dict.fromkeys(handed[index].function for index in indexes)
             targets = _Targets(previous.targets if previous is not None else ())
-            keys = [_call_key(handed[index]) for index in indexes]
+            keys = [_exact_key(handed[index]) for index in indexes]
             for index, key in zip(indexes, keys):
                 handouts.setdefault(key)
+                forms.setdefault((_call_key(handed[index]), key))
                 if checks is not None:
                     targets.add(key, _check_targets(checks[index]))
                 elif resolved is not None:
@@ -541,11 +550,11 @@ class _Handouts:
             last = indexes[-1]
             self.handed[call_id] = _Handed(
                 handed[last].function,
-                None if shared else _call_key(proposed[last]),
+                None if shared else _exact_key(proposed[last]),
                 tuple(handouts),
                 uuid(),
                 ambiguous,
-                previous.read_back if previous is not None else (),
+                tuple(forms),
                 tuple(targets.records),
                 tuple(positions[key] for key in keys)
                 if shared and len(handouts) > 1
@@ -559,7 +568,7 @@ class _Handouts:
                 for stale in [k for k in self.proposals if k[0] == call_id]:
                     del self.proposals[stale]
                 continue
-            key = _call_key(handed[last])
+            key = keys[-1]
             check = checks[last]
             earlier_check = self.proposals.pop((call_id, key), None)
             if ambiguous and earlier_check is not None:
@@ -586,7 +595,7 @@ class _Handouts:
         shared = repeated_call_ids(calls)
         for call in calls:
             if call.id not in self.handed:
-                key = _call_key(call)
+                key = _exact_key(call)
                 self.handed[call.id] = _Handed(
                     call.function,
                     None if call.id in shared else key,
@@ -612,19 +621,22 @@ class _Handouts:
         # linear in them
         adding: dict[str, _ReadBack | None] = {}
         for call, back in zip(handed, read, strict=True):
-            key, back_key = _call_key(call), _call_key(back)
-            if back_key == key:
+            back_key = _call_key(back)
+            # the form a call is handed in is recorded with it (`hand_over`)
+            if back_key == _call_key(call):
                 continue
             if call.id not in adding:
                 record = self.handed.get(call.id)
                 adding[call.id] = (
-                    _ReadBack(frozenset(record.handed), set(record.read_back), [])
+                    _ReadBack(frozenset(record.handed), set(record.forms), [])
                     if record is not None
                     else None
                 )
             forms = adding[call.id]
-            pair = (back_key, key)
-            if forms is None or key not in forms.handed or pair in forms.known:
+            if forms is None:
+                continue
+            pair = (back_key, _exact_key(call))
+            if pair[1] not in forms.handed or pair in forms.known:
                 continue
             forms.known.add(pair)
             forms.added.append(pair)
@@ -632,7 +644,7 @@ class _Handouts:
             if forms is not None and forms.added:
                 record = self.handed[call_id]
                 self.handed[call_id] = record._replace(
-                    read_back=(*record.read_back, *forms.added)
+                    forms=(*record.forms, *forms.added)
                 )
 
     def claim(self, input: list[ChatMessage]) -> _Claimed:
@@ -761,10 +773,10 @@ class _Handouts:
         Each with its bridged tool's viewer, if the bridge still serves one,
         and no context.
         """
-        known = {(check.target, _call_key(check.call)) for check in checks}
+        known = {(check.target, _shown_key(check.call)) for check in checks}
         rebuilt: list[SentinelCheck] = []
         for target in recorded:
-            identity = (target.target, _call_key(target.call))
+            identity = (target.target, target.digest)
             if identity in known:
                 continue
             known.add(identity)
@@ -828,24 +840,31 @@ class _Targets:
     def __init__(self, records: Iterable[_Target]) -> None:
         self.records = list(records)
         self._known = {
-            (record.handout, record.target, _call_key(record.call))
-            for record in self.records
+            (record.handout, record.target, record.digest) for record in self.records
         }
 
     def add(self, handout: str, resolved: Iterable[HandedTarget]) -> None:
-        """Add the targets `handout` (`_call_key`) resolved to that the id lacks."""
+        """Add the targets `handout` (`_exact_key`) resolved to that the id lacks.
+
+        A target is another's only if its handout, its bridged tool and the
+        call its checks show are the same exactly, so calls JSON carries
+        alike (`0.0` and `-0.0`) each keep theirs.
+        """
         for target in resolved:
-            identity = (handout, target.target, _call_key(target.call))
+            digest = _shown_key(target.call)
+            identity = (handout, target.target, digest)
             if identity not in self._known:
                 self._known.add(identity)
-                self.records.append(_Target(handout, target.target, target.call))
+                self.records.append(
+                    _Target(handout, target.target, target.call, digest)
+                )
 
 
 class _HandoutTargets(NamedTuple):
     """The targets of an id's handouts a result is checked as (`_HandoutIndex.of`)."""
 
     matched: str | None
-    """The handout (`_call_key`) the result's call is, whose proposal's
+    """The handout (`_exact_key`) the result's call is, whose proposal's
     context applies; None for a result whose call is none, or could be
     several."""
 
@@ -862,10 +881,9 @@ class _HandoutIndex:
 
     def __init__(self, handed: _Handed) -> None:
         self._handed = handed.handed
-        self._keys = frozenset(handed.handed)
-        self._read_back: dict[str, set[str]] = {}
-        for back, key in handed.read_back:
-            self._read_back.setdefault(back, set()).add(key)
+        self._forms: dict[str, set[str]] = {}
+        for form, key in handed.forms:
+            self._forms.setdefault(form, set()).add(key)
         self._latest = [handed.handed[position] for position in handed.latest]
         self._all = handed.targets
         self._targets: dict[str, list[_Target]] = {}
@@ -875,12 +893,15 @@ class _HandoutIndex:
     def of(self, found: _Call | None, nth: int) -> _HandoutTargets:
         """The targets a result answering `found` (the call in its request, if any) is checked as.
 
-        Those of the handed call with `found`'s function and arguments, as
-        handed or as its dialect reads it back (`_Handed.read_back`); for a
-        result with no call in its request, of the id's only handed call.
+        Those of the handed call `found` is a form of (`_Handed.forms`): the
+        call as JSON carries it, as handed or as its dialect reads it back;
+        for a result with no call in its request, of the id's only handed
+        call.
 
         Otherwise the scaffold changed the call or left it out, or several
-        handouts match, and the result is checked as every handout's targets:
+        handouts match (calls JSON carries alike among them, which a
+        request can't tell apart), and the result is checked as every
+        handout's targets:
         handouts in separate responses may be of other bridged tools, and
         nothing tells which the result is of. That costs a check for each
         handout, so a result under an id several calls of one response
@@ -891,9 +912,7 @@ class _HandoutIndex:
         if found is None:
             matches = set(self._handed) if len(self._handed) == 1 else set()
         else:
-            matches = set(self._read_back.get(found.key, ()))
-            if found.key in self._keys:
-                matches.add(found.key)
+            matches = self._forms.get(found.key, set())
         if len(matches) == 1:
             [handout] = matches
             return _HandoutTargets(handout, None, self._targets.get(handout, ()))
@@ -910,9 +929,9 @@ def _with_targets_of(check: SentinelCheck, earlier: SentinelCheck) -> SentinelCh
     of either handout, each resolved against its own request's tools.
     """
     targets = [check, *check.alternatives]
-    known = {(target.target, _call_key(target.call)) for target in targets}
+    known = {(target.target, _shown_key(target.call)) for target in targets}
     for target in (earlier, *earlier.alternatives):
-        identity = (target.target, _call_key(target.call))
+        identity = (target.target, _shown_key(target.call))
         if identity not in known:
             known.add(identity)
             targets.append(target)
@@ -1258,10 +1277,12 @@ def _call_key(call: ToolCall, orphan: str | None = None) -> str:
 
     Arguments are compared as JSON carries them (`_json_canonical`), so a call
     a scaffold sends back in another spelling is the same call: 5 and 5.0, an
-    object's keys in another order. The key tells which handout a result's
-    call is, and, with the result's content (`_content_key`), which results
-    the bridge started with. It never decides that a step was checked: a
-    step's digest covers the call the check shows exactly (`_Steps`).
+    object's keys in another order. For a call a request shows only: the key
+    tells which handouts it is a form of (`_Handed.forms`), and, with the
+    result's content (`_content_key`), which results the bridge started with.
+    The handouts themselves, and the targets a result is checked as, are kept
+    exactly (`_exact_key`, `_shown_key`), and a step's digest covers the call
+    the check shows exactly (`_Steps`).
 
     For a result answering no call in its request, `orphan` is the function the
     result names, and the arguments are unknown.
@@ -1272,6 +1293,24 @@ def _call_key(call: ToolCall, orphan: str | None = None) -> str:
         else [call.function, _json_canonical(call.arguments)]
     )
     return _digest(identity)
+
+
+def _exact_key(call: ToolCall) -> str:
+    """A call's exact identity: its function and arguments, no two values alike (`_serialized`).
+
+    What the bridge's own records are kept by: which handout a handed call
+    is, and whether a model's call is the one it proposed before. Calls JSON
+    carries alike (`0.0` and `-0.0`, 1 and 1.0, an object's keys in another
+    order) are different calls, and one that can't be encoded is no other
+    call. Only a call a request shows is compared as JSON carries it
+    (`_call_key`).
+    """
+    return _parts_digest(_serialized([call.function, call.arguments]))
+
+
+def _shown_key(call: ToolCall) -> str:
+    """The call a check shows, exactly: every field, no two values alike (`_serialized`)."""
+    return _parts_digest(_serialized(call))
 
 
 def _json_canonical(value: Any) -> Any:

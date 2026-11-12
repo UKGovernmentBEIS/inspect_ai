@@ -4553,6 +4553,7 @@ def test_handed_calls_are_paired_with_their_read_back_form_by_id() -> None:
     """Anthropic places a renamed call after those with recorded positions."""
     from inspect_ai.agent._bridge._sentinel import (
         _call_key,
+        _exact_key,
         _Handouts,
     )
 
@@ -4566,9 +4567,10 @@ def test_handed_calls_are_paired_with_their_read_back_form_by_id() -> None:
     ]
     handouts.read_back([first, second], read)
 
-    assert [handouts.handed[call.id].read_back for call in [first, second]] == [
-        ((_call_key(read[1]), _call_key(first)),),
-        ((_call_key(read[0]), _call_key(second)),),
+    # each handout's forms: the call as handed, then as read back
+    assert [handouts.handed[call.id].forms for call in [first, second]] == [
+        tuple((_call_key(form), _exact_key(first)) for form in [first, read[1]]),
+        tuple((_call_key(form), _exact_key(second)) for form in [second, read[0]]),
     ]
 
 
@@ -4693,7 +4695,7 @@ def test_recording_the_forms_many_calls_are_read_back_in_is_linear(ids: str) -> 
             counted += 1
             return super().__hash__()
 
-    call_key = _sentinel._call_key
+    call_key, exact_key = _sentinel._call_key, _sentinel._exact_key
 
     def work(n: int) -> int:
         nonlocal counted
@@ -4708,21 +4710,28 @@ def test_recording_the_forms_many_calls_are_read_back_in_is_linear(ids: str) -> 
         ]
         read = [replace(call, function="wait_5_seconds") for call in handed]
         handouts = _Handouts(_SavedHandouts(reserved_ids=[], handed={}, checked=[]))
-        with patch.object(
-            _sentinel, "_call_key", lambda call: CountedKey(call_key(call))
+        with (
+            patch.object(
+                _sentinel, "_call_key", lambda call: CountedKey(call_key(call))
+            ),
+            patch.object(
+                _sentinel, "_exact_key", lambda call: CountedKey(exact_key(call))
+            ),
         ):
             handouts.hand_over(handed, handed, None)
             counted = 0
             handouts.read_back(handed, read)
             first = counted
-            recorded = [record.read_back for record in handouts.handed.values()]
+            recorded = [record.forms for record in handouts.handed.values()]
             # the same forms again add nothing
             handouts.read_back(handed, read)
-        pairs = [(call_key(back), call_key(call)) for call, back in zip(handed, read)]
+        # each handout's forms: the call as handed, then as read back
+        own = [(call_key(call), exact_key(call)) for call in handed]
+        back = [(call_key(back), exact_key(call)) for call, back in zip(handed, read)]
         assert recorded == (
-            [tuple(pairs)] if ids == "shared" else [(pair,) for pair in pairs]
+            [(*own, *back)] if ids == "shared" else [pair for pair in zip(own, back)]
         )
-        assert [record.read_back for record in handouts.handed.values()] == recorded
+        assert [record.forms for record in handouts.handed.values()] == recorded
         return first
 
     small, large = work(100), work(800)
@@ -5597,6 +5606,174 @@ async def test_calls_sharing_an_id_keep_their_own_modifications() -> None:
     first, second = output.message.tool_calls or []
     assert first == one
     assert second == replace(two, arguments={"path": "safe.txt"})
+
+
+# arguments JSON carries alike, which a model can tell apart
+ALIKE_ARGUMENTS: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
+    "zeros": ({"offset": 0.0}, {"offset": -0.0}),
+    "int_float": ({"offset": 1}, {"offset": 1.0}),
+    "key_order": ({"where": {"a": 1, "b": 2}}, {"where": {"b": 2, "a": 1}}),
+}
+
+
+def exactly(arguments: dict[str, Any]) -> str:
+    """Arguments as text that tells apart those `==` doesn't: `-0.0`, 1.0, a key order."""
+    return json.dumps(arguments)
+
+
+@pytest.mark.parametrize("results", ["same", "different"])
+@pytest.mark.parametrize("ids", ["shared", "distinct"])
+@pytest.mark.parametrize("alike", list(ALIKE_ARGUMENTS))
+@pytest.mark.parametrize("sandbox", [False, True])
+async def test_calls_json_carries_alike_are_each_checked_as_themselves(
+    sandbox: bool, alike: str, ids: str, results: str
+) -> None:
+    one, two = (
+        ToolCall(
+            id="one" if ids == "shared" or index == 0 else "two",
+            function="read_file",
+            arguments=arguments,
+        )
+        for index, arguments in enumerate(ALIKE_ARGUMENTS[alike])
+    )
+    texts = ["contents", "contents"] if results == "same" else ["a", "b"]
+    seen: Steps = []
+    model = Scripted(calls_output(one, two), calls_output())
+    task = ChatMessageUser(content=TASK)
+    bridge = started_with(sandbox, model.model, AgentState(messages=[task]))
+
+    with active([bridge_recording(seen)]):
+        output = await generate(bridge, model, [task])
+        request: list[ChatMessage] = [
+            task,
+            output.message,
+            *[
+                ChatMessageTool(content=text, tool_call_id=call.id)
+                for text, call in zip(texts, [one, two])
+            ],
+        ]
+        await generate(bridge, model, request)
+        # a replay is not checked again
+        await generate(bridge, model, request)
+
+    # each result as its own call, with the arguments the model gave it
+    assert sorted(
+        (exactly(step.call.arguments), step.output)
+        for step in seen
+        if isinstance(step, AfterToolCall)
+    ) == sorted(zip(map(exactly, [one.arguments, two.arguments]), texts))
+
+
+@pytest.mark.parametrize("sandbox", [False, True])
+async def test_many_calls_sharing_an_id_that_json_carries_alike_cost_a_check_each(
+    sandbox: bool,
+) -> None:
+    # each call's zeros have their own signs
+    calls = [
+        ToolCall(
+            id="shared",
+            function="read_file",
+            arguments={"at": [-0.0 if index >> bit & 1 else 0.0 for bit in range(5)]},
+        )
+        for index in range(32)
+    ]
+    seen: Steps = []
+    model = Scripted(calls_output(*calls), calls_output())
+    task = ChatMessageUser(content=TASK)
+    bridge = started_with(sandbox, model.model, AgentState(messages=[task]))
+
+    with active([bridge_recording(seen)]):
+        output = await generate(bridge, model, [task])
+        results = [
+            ChatMessageTool(content=f"result {index}", tool_call_id="shared")
+            for index in range(len(calls))
+        ]
+        await generate(bridge, model, [task, output.message, *results])
+
+    # paired by position: the nth result with the nth call, and no other
+    assert [
+        (exactly(step.call.arguments), step.output)
+        for step in sorted(
+            (step for step in seen if isinstance(step, AfterToolCall)),
+            key=lambda step: int(str(step.output).split()[1]),
+        )
+    ] == [
+        (exactly(call.arguments), f"result {index}") for index, call in enumerate(calls)
+    ]
+
+
+@pytest.mark.parametrize("alike", list(ALIKE_ARGUMENTS))
+@pytest.mark.parametrize("sandbox", [False, True])
+async def test_a_call_json_carries_like_the_one_proposed_under_its_id_is_another_call(
+    sandbox: bool, alike: str
+) -> None:
+    one, two = (
+        ToolCall(id="same", function="read_file", arguments=arguments)
+        for arguments in ALIKE_ARGUMENTS[alike]
+    )
+    seen: Steps = []
+    model = Scripted(calls_output(one), calls_output(two), calls_output())
+    task = ChatMessageUser(content=TASK)
+    bridge = started_with(sandbox, model.model, AgentState(messages=[task]))
+
+    with active([bridge_recording(seen)]):
+        first = await generate(bridge, model, [task])
+        second = await generate(bridge, model, [task])
+        [handed] = second.message.tool_calls or []
+        # not the call the id names, so handed over under an id of its own
+        assert handed.id != "same"
+        assert exactly(handed.arguments) == exactly(two.arguments)
+        for output, call_id in [(first, "same"), (second, handed.id)]:
+            await generate(
+                bridge,
+                model,
+                [
+                    task,
+                    output.message,
+                    ChatMessageTool(content="contents", tool_call_id=call_id),
+                ],
+            )
+
+    # each result with its own call and the input its model was sent
+    afters = [step for step in seen if isinstance(step, AfterToolCall)]
+    assert [(exactly(step.call.arguments), step.input) for step in afters] == [
+        (exactly(one.arguments), model.inputs[0]),
+        (exactly(two.arguments), model.inputs[1]),
+    ]
+
+
+@pytest.mark.parametrize("alike", list(ALIKE_ARGUMENTS))
+def test_targets_json_carries_alike_are_kept_apart(alike: str) -> None:
+    from inspect_ai.agent._bridge._sentinel import (
+        HandedTarget,
+        SentinelCheck,
+        _Targets,
+        _with_targets_of,
+    )
+
+    one, two = (replace(READ, arguments=a) for a in ALIKE_ARGUMENTS[alike])
+    again = deepcopy(one)
+
+    targets = _Targets(())
+    targets.add("handout", [HandedTarget(None, call) for call in [one, two, again]])
+    assert [exactly(record.call.arguments) for record in targets.records] == [
+        exactly(one.arguments),
+        exactly(two.arguments),
+    ]
+    # the records an id already has are known by their own
+    targets = _Targets(targets.records)
+    targets.add("handout", [HandedTarget(None, call) for call in [two, again]])
+    assert len(targets.records) == 2
+
+    def check(call: ToolCall) -> SentinelCheck:
+        return SentinelCheck(call, None, "", None)
+
+    merged = _with_targets_of(
+        check(one), check(two)._replace(alternatives=(check(again),))
+    )
+    assert [
+        exactly(target.call.arguments) for target in (merged, *merged.alternatives)
+    ] == [exactly(one.arguments), exactly(two.arguments)]
 
 
 async def test_a_host_call_beyond_the_proposal_cap_is_still_checked_when_reported() -> (
