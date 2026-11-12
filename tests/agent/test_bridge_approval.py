@@ -7777,6 +7777,9 @@ MULTILINE_RESULT = [ContentText(text='first line\nsecond line, "quoted"')]
 MULTILINE_REPLY = to_json_str_safe(MULTILINE_RESULT)
 """The RPC result for `MULTILINE_RESULT`, as the scaffold receives it."""
 
+LONG_CONTENT_REPLY = to_json_str_safe([ContentText(text=LONG_RESULT)])
+"""The RPC result for a long content result, as the scaffold receives it."""
+
 MISSING_FILE = str(FileNotFoundError(2, "No such file or directory", "/x/y.txt"))
 """What the RPC raises for a missing file, which Inspect records as `File '/x/y.txt' was not found.`"""
 
@@ -7861,6 +7864,13 @@ DENIED = (
             id="content reply with ascii escapes in codex json",
         ),
         pytest.param(
+            [ContentText(text=LONG_RESULT)],
+            None,
+            json.dumps([{"type": "text", "text": LONG_CONTENT_REPLY}])[:600],
+            True,
+            id="long content reply in codex json cut short",
+        ),
+        pytest.param(
             MULTILINE_RESULT,
             None,
             "tool call error: timed out awaiting tools/call after 60s",
@@ -7920,6 +7930,9 @@ DENIED = (
             "", MISSING_FILE, CLIENT_TIMEOUT, False, id="error answered by a timeout"
         ),
         pytest.param("", "", MCP_ERROR, False, id="error with no text"),
+        pytest.param(
+            "", "", "", False, id="error with no text answered by an empty message"
+        ),
         pytest.param("", "not found", MCP_ERROR + "not found", False, id="short error"),
         pytest.param(
             [ContentText(text=""), ContentText(text=LONG_RESULT)],

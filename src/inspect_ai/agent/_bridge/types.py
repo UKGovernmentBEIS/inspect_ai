@@ -1404,16 +1404,17 @@ def _holds_result(
     answers it without the result, after the execution completed. Scaffolds
     reformat, wrap and truncate results, so the evidence is the start of the
     result's first text (`_RESULT_EVIDENCE`) within the answer, within a
-    string of JSON the answer holds (`_answer_texts`), or JSON-escaped within
-    the answer's text (a scaffold may cut its JSON so it no longer parses).
+    string of JSON the answer holds (`_answer_texts`), or JSON-escaped once or
+    twice within the answer's text (a scaffold may cut its JSON so it no
+    longer parses, and a content result is JSON inside the scaffold's JSON).
     For a call whose RPC raised, the text is `error`, the error the scaffold
     received, without the service's prefix (a denied retry's answer carries
     the same prefix), or else the event's error message; an error with no
-    text links nothing. A text shorter
-    than `_MIN_CONTAINED_RESULT` may appear in any message by chance, so it
-    must be a whole text of the answer. A result with no text needs an
-    answer that is empty or, for media, holds media. Linear in the answer's
-    size: one text of the result is compared.
+    text links nothing. A text shorter than `_MIN_CONTAINED_RESULT` may
+    appear in any message by chance, so it must be a whole text of the
+    answer. A result with no text needs an answer that is empty or, for
+    media, holds media. Linear in the answer's size: one text of the result
+    is compared.
     """
     if error is None and event.error is not None:
         error = event.error.message
@@ -1430,7 +1431,10 @@ def _holds_result(
             return expected in texts
         evidence = expected[:_RESULT_EVIDENCE]
         escaped = json.dumps(evidence, ensure_ascii=False)[1:-1]
-        return any(evidence in text or escaped in text for text in texts)
+        twice = json.dumps(escaped, ensure_ascii=False)[1:-1]
+        return any(
+            evidence in text or escaped in text or twice in text for text in texts
+        )
     if media:
         return not isinstance(answer.content, str) and any(
             content.type != "text" for content in answer.content
