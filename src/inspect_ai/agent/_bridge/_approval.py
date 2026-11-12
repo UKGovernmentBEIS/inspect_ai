@@ -35,6 +35,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge._sentinel import (
     Produced,
     SentinelCheck,
+    json_exact,
     sentinel_tool_call,
 )
 from inspect_ai.agent._bridge.types import AgentBridge, BridgedToolId
@@ -118,7 +119,8 @@ async def apply_bridge_tool_approval(
     Calls are approved in order and evaluation stops at the first non-approval, so a
     human isn't asked to decide on calls that are about to be discarded anyway.
     `terminate` doesn't return, and neither does a `modify` decision that changes the
-    function called or the call's id: that is an error in the approver, and fails
+    function called or the call's id, or gives arguments JSON can't carry exactly
+    (`_modified_arguments_error`): that is an error in the approver, and fails
     the sample. An `approve` from an approver that changed the call it was shown in
     place is a rejection. Both are judged against a snapshot of the call taken
     before review, by the rules native execution uses (`approver_result_error`).
@@ -132,8 +134,8 @@ async def apply_bridge_tool_approval(
 
     When a sentinel is active, once every call is approved each possible target
     goes through its `tool_call` stage in order: its `reject`, `modify` and
-    `terminate` take effect like an approver's, and a `modify` that changes the
-    function called or the call's id fails the sample. The response carries the
+    `terminate` take effect like an approver's, and a `modify` an approver's
+    would fail the sample for fails it too. The response carries the
     `tool_result` check for each call handed to the scaffold (`_sentinel.py`).
     A generation that is an agent turn has already been through the
     `model_input` and `model_output` stages inside `Model.generate()`; the
@@ -241,14 +243,19 @@ async def apply_bridge_tool_approval(
                         and approval.decision == "modify"
                         and approval.modified is not None
                     ):
-                        if len(reviewed_calls.calls) > 1:
-                            failure = RuntimeError(
+                        error = _modified_arguments_error(
+                            "An approver", approval.modified
+                        )
+                        if error is None and len(reviewed_calls.calls) > 1:
+                            error = (
                                 f"An approver modified a call to '{shown.function}' "
                                 "that would run several bridged tools sharing a "
                                 "description. A modified call can't be approved for "
                                 "all of them; give the bridged tools distinct "
                                 "descriptions."
                             )
+                        if error is not None:
+                            failure = RuntimeError(error)
                             bridge.request_fail(failure)
                             raise failure
                         modified[index] = reviewed_calls.dispatch(
@@ -317,7 +324,11 @@ async def apply_bridge_tool_approval(
                         and decision is not None
                         and decision.modified is not None
                     ):
-                        error = _sentinel_modify_error(shown, decision.modified)
+                        error = _sentinel_modify_error(
+                            shown, decision.modified
+                        ) or _modified_arguments_error(
+                            "A sentinel monitor", decision.modified
+                        )
                         if error is None and len(targets) > 1:
                             error = (
                                 "A sentinel modified a call that would run several "
@@ -363,6 +374,22 @@ def _sentinel_modify_error(shown: ToolCall, modified: ToolCall) -> str | None:
     if modified.function != shown.function:
         return _SENTINEL_MODIFIED_FUNCTION.format(modified.function, shown.function)
     return _modified_id_error("A sentinel monitor", shown, modified)
+
+
+def _modified_arguments_error(who: str, modified: ToolCall) -> str | None:
+    """The error for a `modify` whose arguments JSON can't carry exactly.
+
+    The scaffold is handed the call as JSON. Natively such a modify is
+    refused too: its arguments must rebuild to themselves.
+    """
+    if json_exact(modified.arguments):
+        return None
+    return (
+        f"{who} modified a call to '{modified.function}' with arguments JSON "
+        "can't carry exactly (a tuple, bytes, a set or a subclass of a JSON "
+        "type, say). A bridged call is handed to the scaffold as JSON, so a "
+        "modify must give JSON values."
+    )
 
 
 def with_modified_arguments(

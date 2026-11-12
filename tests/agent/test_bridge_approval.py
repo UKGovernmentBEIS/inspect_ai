@@ -72,9 +72,7 @@ from inspect_ai.agent._bridge._sentinel import (
     SentinelCheck,
     _exact_key,
     _Handouts,
-    _restored,
     _SavedHandouts,
-    _Target,
 )
 from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
 from inspect_ai.agent._bridge.bridge import agent_bridge
@@ -6946,13 +6944,6 @@ def _change_handed_call(conversation: _HostConversation, change: str) -> None:
                 call["name"] = "status"
 
 
-def _recorded_function(target: _Target) -> str:
-    """The function of the call a recorded target's checks show."""
-    call = _restored(target)
-    assert call is not None
-    return call.function
-
-
 def _answer_under_id(conversation: _HostConversation, call_id: str) -> None:
     """Give a Google conversation's latest result the call id it answers (the other dialects' results carry theirs)."""
     if conversation.dialect == "google":
@@ -7162,7 +7153,7 @@ async def test_a_bridged_eval_with_no_sentinel_records_no_handout_targets(
         small, _, _ = await saved("p")
         large, resolved, targets = await saved("x" * 10_000)
     if sentinel:
-        assert [_recorded_function(target) for target in targets] == ["read_file"]
+        assert [target.call.function for target in targets] == ["read_file"]
         assert "x" * 100 in large
     else:
         assert targets == () and resolved == 0
@@ -7659,7 +7650,7 @@ async def test_a_changed_call_of_an_id_handed_out_as_two_tools_is_checked_as_bot
         assert later_calls[0][0] == first_calls[0][0]
         record = bridge._handouts.handed["same"]
         assert len(record.handed) == (2 if modified else 1)
-        assert {_recorded_function(target) for target in record.targets} == {
+        assert {target.call.function for target in record.targets} == {
             "read_file",
             "status",
         }

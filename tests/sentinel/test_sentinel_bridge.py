@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable, Iterator, Sequence
 from contextlib import contextmanager, nullcontext
 from copy import deepcopy
 from dataclasses import replace
+from datetime import date
 from pathlib import Path
 from tempfile import mkdtemp
 from typing import TYPE_CHECKING, Any, cast
@@ -3626,19 +3627,25 @@ async def test_a_resumed_result_is_checked_with_the_arguments_its_call_was_hande
     assert (after.call.id, after.call.function) == (handed.id, call.function)
 
 
-@pytest.mark.parametrize("value", [(1, 2), b"bytes", {1, 2}, Counter("ab")], ids=type)
-@pytest.mark.parametrize("sandbox", [False, True])
-async def test_a_resumed_result_whose_call_json_cant_carry_is_checked_as_the_call_reported(
-    sandbox: bool,
-    value: object,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    from inspect_ai._util import logger as inspect_logger
+# values of a model's call that only Python code builds, and each as JSON
+# carries it or, where JSON has no form for it, as text
+PYTHON_BUILT: dict[str, tuple[Any, Any]] = {
+    "tuple": ((1, 2), [1, 2]),
+    "counter": (Counter("ab"), {"a": 1, "b": 1}),
+    "bytes": (b"bytes", "b'bytes'"),
+    "date": (date(2024, 1, 1), "2024-01-01"),
+}
 
-    monkeypatch.setattr(inspect_logger, "_warned", [])
-    call = replace(READ, arguments={"path": "notes.txt", "at": value})
+
+@pytest.mark.parametrize("resumed", [False, True])
+@pytest.mark.parametrize("value", list(PYTHON_BUILT))
+@pytest.mark.parametrize("sandbox", [False, True])
+async def test_a_result_whose_call_python_built_is_checked_as_the_call_handed_over(
+    sandbox: bool, value: str, resumed: bool, tmp_path: Path
+) -> None:
+    """The scaffold changes the call it shows: the check has the recorded call, as JSON carries it, with or without a resume."""
+    built, carried = PYTHON_BUILT[value]
+    call = replace(READ, arguments={"path": "notes.txt", "at": built})
     seen: Steps = []
     model = Scripted(calls_output(call), calls_output())
     task = ChatMessageUser(content=TASK)
@@ -3648,36 +3655,119 @@ async def test_a_resumed_result_whose_call_json_cant_carry_is_checked_as_the_cal
         with active([bridge_recording(seen)]):
             outputs.append(await generate(bridge, model, [task]))
 
-    async with AsyncFilesystem():
-        with _patch_sample_runtime([]):
-            bridge, resumed = await resumed_from_the_checkpoint_of(
-                tmp_path, sandbox, model, hand_over
+    async def report(bridge: AgentBridge) -> None:
+        [handed] = outputs[0].message.tool_calls or []
+        reported = replace(handed, arguments={"path": "reported.txt"})
+        with active([bridge_recording(seen)]):
+            await generate(
+                bridge,
+                model,
+                [
+                    task,
+                    ChatMessageAssistant(content="", tool_calls=[reported]),
+                    ChatMessageTool(content="contents", tool_call_id=handed.id),
+                ],
             )
-            try:
-                [handed] = outputs[0].message.tool_calls or []
-                reported = replace(handed, arguments={"path": "reported.txt"})
-                with active([bridge_recording(seen)]), caplog.at_level("WARNING"):
-                    await generate(
-                        bridge,
-                        model,
-                        [
-                            task,
-                            ChatMessageAssistant(content="", tool_calls=[reported]),
-                            ChatMessageTool(content="contents", tool_call_id=handed.id),
-                        ],
-                    )
-            finally:
-                resumed.close()
 
-    # never the arguments as the checkpoint could keep them: the call the
-    # request shows, with no proposal's context
+    if resumed:
+        async with AsyncFilesystem():
+            with _patch_sample_runtime([]):
+                bridge, checkpointer = await resumed_from_the_checkpoint_of(
+                    tmp_path, sandbox, model, hand_over
+                )
+                try:
+                    await report(bridge)
+                finally:
+                    checkpointer.close()
+    else:
+        bridge = started_with(sandbox, model.model, AgentState(messages=[task]))
+        await hand_over(bridge)
+        await report(bridge)
+
+    # the record, never the call the request shows, and with no context
     [after] = [step for step in seen if isinstance(step, AfterToolCall)]
-    assert (after.call, after.message_id, after.input) == (reported, "", None)
-    assert [
-        record.levelname
-        for record in caplog.records
-        if "could not be recorded exactly" in record.message
-    ] == ["WARNING"]
+    assert after.call == replace(call, arguments={"path": "notes.txt", "at": carried})
+    assert (after.message_id, after.input) == ("", None)
+
+
+NOT_JSON: dict[str, Any] = {
+    "tuple": (1, 2),
+    "bytes": b"bytes",
+    "set": {1, 2},
+    "counter": Counter("ab"),
+    "negative_nan": math.copysign(math.nan, -1),
+    "date": date(2024, 1, 1),
+}
+
+
+@pytest.mark.parametrize("value", list(NOT_JSON))
+@pytest.mark.parametrize("by", ["sentinel", "approver"])
+@pytest.mark.parametrize("sandbox", [False, True])
+async def test_a_modify_with_arguments_json_cant_carry_fails_the_sample(
+    sandbox: bool, by: str, value: str
+) -> None:
+    approved = {"path": "notes.txt", "at": NOT_JSON[value]}
+    model = Scripted(calls_output(READ), calls_output())
+    task = ChatMessageUser(content=TASK)
+    bridge = started_with(sandbox, model.model, AgentState(messages=[task]))
+    if by == "approver":
+        bridge.approval = [
+            ApprovalPolicy(rebuilding_approver(replace(READ, arguments=approved)), "*")
+        ]
+    who = "An approver" if by == "approver" else "A sentinel monitor"
+
+    with active(
+        [bridge_modify_rebuilt(approved) if by == "sentinel" else bridge_recording([])]
+    ):
+        with pytest.raises(
+            RuntimeError, match=f"{who} modified a call to 'read_file' with arguments"
+        ):
+            await generate(bridge, model, [task])
+
+    # nothing was handed over, and the model was not asked again
+    assert len(model.inputs) == 1
+    assert bridge._handouts.handed[READ.id].execution_id is None
+    if isinstance(bridge, SandboxAgentBridge):
+        assert isinstance(bridge._failure, RuntimeError)
+
+
+@pytest.mark.parametrize("by", ["sentinel", "approver"])
+@pytest.mark.parametrize("sandbox", [False, True])
+async def test_a_modify_with_arguments_json_carries_is_handed_over_exactly(
+    sandbox: bool, by: str
+) -> None:
+    approved = json.loads(
+        '{"offset": 1e309, "at": [-0.0, 1.0, 1, null], "path": "a\\ud800"}'
+    )
+    seen: Steps = []
+    model = Scripted(calls_output(READ), calls_output())
+    task = ChatMessageUser(content=TASK)
+    bridge = started_with(sandbox, model.model, AgentState(messages=[task]))
+    if by == "approver":
+        bridge.approval = [
+            ApprovalPolicy(rebuilding_approver(replace(READ, arguments=approved)), "*")
+        ]
+    protocols = [bridge_recording(seen)]
+
+    with active(
+        [bridge_modify_rebuilt(approved), *protocols] if by == "sentinel" else protocols
+    ):
+        output = await generate(bridge, model, [task])
+        [handed] = output.message.tool_calls or []
+        await generate(
+            bridge,
+            model,
+            [
+                task,
+                ChatMessageAssistant(content="", tool_calls=[handed]),
+                ChatMessageTool(content="contents", tool_call_id=handed.id),
+            ],
+        )
+
+    [after] = [step for step in seen if isinstance(step, AfterToolCall)]
+    assert (
+        exactly(handed.arguments) == exactly(after.call.arguments) == exactly(approved)
+    )
 
 
 @pytest.mark.parametrize("sandbox", [False, True])
@@ -3733,31 +3823,27 @@ async def test_resumed_results_under_ids_with_lone_surrogates_are_checked_as_the
 
 
 @pytest.mark.parametrize(
-    ("arguments", "kept"),
+    "arguments",
     [
-        *[(json.loads(text), True) for text in WRITER_CHANGED.values()],
-        *[(arguments, True) for pair in ALIKE_ARGUMENTS.values() for arguments in pair],
-        ({"n": 10**40, "small": 5e-324, "third": 0.1 + 0.2, "none": None}, True),
-        ({"text": "caf\u00e9 \U0001f600 \x00 \ud800"}, True),
-        ({"at": (1, 2)}, False),
-        ({"at": b"bytes"}, False),
-        ({"at": {1, 2}}, False),
-        ({"at": Counter("ab")}, False),
-        ({"at": object()}, False),
-        # a NaN JSON's constant doesn't read back as
-        ({"at": math.copysign(math.nan, -1)}, False),
+        *[json.loads(text) for text in WRITER_CHANGED.values()],
+        *[arguments for pair in ALIKE_ARGUMENTS.values() for arguments in pair],
+        {"n": 10**40, "small": 5e-324, "third": 0.1 + 0.2, "none": None},
+        {"text": "caf\u00e9 \U0001f600 \x00 \ud800"},
+        *[{"at": built} for built, _ in PYTHON_BUILT.values()],
+        {"at": {1, 2}},
+        {"at": math.copysign(math.nan, -1)},
     ],
 )
-def test_a_targets_call_is_read_back_exactly_or_not_at_all(
-    arguments: dict[str, Any], kept: bool
+def test_a_targets_call_is_kept_by_a_checkpoint_exactly(
+    arguments: dict[str, Any],
 ) -> None:
     from inspect_ai._util.json import to_json_str_safe
     from inspect_ai.agent._bridge._sentinel import (
         HandedTarget,
         _Handed,
-        _restored,
         _shown_key,
         _Targets,
+        json_exact,
     )
 
     call = ToolCall(
@@ -3770,29 +3856,37 @@ def test_a_targets_call_is_read_back_exactly_or_not_at_all(
     )
     targets = _Targets(())
     targets.add("handout", [HandedTarget(None, call)])
+    [recorded] = targets.records
     record = _SavedHandouts(
         reserved_ids=[call.id],
-        handed={
-            call.id: _Handed(
-                "f", None, ("handout",), None, targets=tuple(targets.records)
-            )
-        },
+        handed={call.id: _Handed("f", None, ("handout",), None, targets=(recorded,))},
         checked=[],
     )
 
     # through the production writer's serializer, as a checkpoint keeps it
     encoded = json.loads(to_json_str_safe({"bridge_handouts": record.encoded()}))
-    restored = _SavedHandouts.decoded(encoded["bridge_handouts"])
+    [restored] = (
+        _SavedHandouts.decoded(encoded["bridge_handouts"]).handed[call.id].targets
+    )
 
-    assert restored == record
-    [target] = restored.handed[call.id].targets
-    read = _restored(target)
-    if kept:
-        assert read is not None and _shown_key(read) == _shown_key(call)
-        assert exactly(read.arguments) == exactly(call.arguments)
-        assert read == replace(call, arguments=read.arguments)
-    else:
-        assert read is None
+    # whatever was recorded is read back as it was: the call itself where
+    # JSON carries its arguments exactly, and its JSON form otherwise
+    assert _shown_key(restored.call) == _shown_key(recorded.call)
+    assert restored.digest == recorded.digest
+    assert (_shown_key(recorded.call) == _shown_key(call)) == json_exact(arguments)
+    assert json_exact(recorded.call.arguments)
+
+
+def test_a_call_whose_arguments_cant_be_written_as_json_is_not_recorded() -> None:
+    from inspect_ai.agent._bridge._sentinel import HandedTarget, _Targets
+
+    circular: dict[str, Any] = {}
+    circular["self"] = circular
+
+    with pytest.raises(ValueError, match="'read_file' can't be written as JSON"):
+        _Targets(()).add(
+            "handout", [HandedTarget(None, replace(READ, arguments=circular))]
+        )
 
 
 @pytest.mark.parametrize("dialect", DIALECTS)
@@ -6004,7 +6098,6 @@ def test_targets_json_carries_alike_are_kept_apart(alike: str) -> None:
     from inspect_ai.agent._bridge._sentinel import (
         HandedTarget,
         SentinelCheck,
-        _restored,
         _Targets,
         _with_targets_of,
     )
@@ -6014,10 +6107,10 @@ def test_targets_json_carries_alike_are_kept_apart(alike: str) -> None:
 
     targets = _Targets(())
     targets.add("handout", [HandedTarget(None, call) for call in [one, two, again]])
-    assert [
-        exactly(call.arguments) if call is not None else None
-        for call in map(_restored, targets.records)
-    ] == [exactly(one.arguments), exactly(two.arguments)]
+    assert [exactly(record.call.arguments) for record in targets.records] == [
+        exactly(one.arguments),
+        exactly(two.arguments),
+    ]
     # the records an id already has are known by their own
     targets = _Targets(targets.records)
     targets.add("handout", [HandedTarget(None, call) for call in [two, again]])
