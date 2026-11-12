@@ -200,6 +200,26 @@ tests that cover the change locally, and the PR description must report the
 run. The `slow-tests` skill (`.agents/skills/slow-tests/SKILL.md`) says which
 flags and directories go with which change and what each class needs.
 
+This table lists common cases. The skill has the full list and takes precedence.
+
+| You changed | Run | Needs |
+|---|---|---|
+| A model provider | `pytest --runapi --runslow tests/model/providers/test_<provider>*.py` | That provider's credentials |
+| Tool code (`src/inspect_ai/tool/`) | `pytest --runslow -m slow tests/tools/ -x` | Docker running |
+| Sandbox tools build inputs (`src/inspect_sandbox_tools/`, other paths in `injectable_paths.txt`) | Build the `-dev` binaries with `build_within_container.py --arch <arch>`, then again with `--musl`. Then run `pytest --runslow -m slow tests/tools/ -x` | Docker running |
+| Agent code | `pytest --runslow --runapi tests/agent/` | Some tests need Docker or an OpenAI or Anthropic key |
+
+`build_within_container.py` and `injectable_paths.txt` are in
+`src/inspect_ai/tool/_sandbox_tools_utils/`. Use the architecture of your
+Docker host for `<arch>`; CI uses `amd64`. The tests reuse the existing `-dev`
+binaries. Rebuild both after each change.
+
+A gated test that is not enabled shows as skipped, and pytest still exits
+successfully. `--runslow` alone does not run the live provider tests marked
+`api`; they also need `--runapi` and the provider's credentials. Check the
+skip summary at the end of the run to confirm the tests you meant to run
+actually ran.
+
 Report the run in a `### Slow tests` section after `### Validation`. Use one
 short bullet per run: test class/provider, version when relevant, exact
 command, and passed, failed, and skipped counts. End with a "Not run" bullet

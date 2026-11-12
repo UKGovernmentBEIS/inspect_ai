@@ -24,9 +24,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import JsonValue
+from test_helpers.checkpoint import RecordingCheckpointer
 from test_helpers.transcript import FakeTranscriptHistoryProvider, make_model_event
 
 from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai.agent import AgentState
+from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.event._checkpoint import CheckpointEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
@@ -2385,14 +2388,17 @@ def _finalize_setup(
     tmp_path: Path,
     *,
     attempt: Literal["initial", "resume", "resume_for_scoring"] | None = None,
+    agent_state: dict[str, JsonValue] | None = None,
 ) -> Iterator[_CheckpointerSetup]:
     """Yield a patched `_CheckpointerSetup`.
 
     `hydrate` and `transcript` are stubbed (no real I/O). Pass `attempt`
-    to simulate a resumed session.
+    to simulate a resumed session, and `agent_state` for the tracked state
+    it restores.
     """
     fake_transcript = Transcript(bounded=False)
     hydration = _fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "work"))
+    hydration.host.agent_state = agent_state
     Path(hydration.sample_checkpoints_dir).mkdir(parents=True)
     Path(hydration.context_dir).mkdir(parents=True)
     resume = ResumeCheckpoint(attempt=attempt) if attempt is not None else None
@@ -2479,6 +2485,42 @@ async def test_finalize_idempotent_across_reentry(tmp_path: Path) -> None:
                 assert cp2 is cp
         # only the first clean exit finalizes
         fire.assert_awaited_once_with("agent_complete", final=True)
+
+
+async def test_final_checkpoint_of_a_resumed_bridge_without_a_generation_keeps_its_state(
+    tmp_path: Path,
+) -> None:
+    """A bridge resumed and finished before a generation writes the state it restored.
+
+    The final checkpoint holds the restored main thread and output, matching
+    the tracking state it also holds, while the scaffold starts from its
+    initial prompt.
+    """
+    task = ChatMessageUser(content="Main task.")
+    answer = ChatMessageAssistant(content="Unique main answer.")
+    recording = RecordingCheckpointer()
+    bridge = AgentBridge(AgentState(messages=[task]), checkpointer=recording)
+    await bridge._track_state([task], ModelOutput.from_message(answer), [])
+    written = tmp_path / "written"
+    written.mkdir()
+
+    async def write(cp: _EnteredCheckpointer, trigger: str, *, final: bool) -> None:
+        await cp._write_host_context(str(written), Store())
+
+    with _finalize_setup(
+        tmp_path, attempt="resume", agent_state=recording.snapshot()
+    ) as setup:
+        with patch.object(_EnteredCheckpointer, "_fire", write):
+            async with setup as cp:
+                resumed = AgentBridge(AgentState(messages=[task]), checkpointer=cp)
+                assert [m.id for m in resumed.state.messages] == [task.id]
+
+    agent_state = json.loads((written / "agent_state.json").read_text())
+    assert [m["id"] for m in agent_state["bridge_messages"]] == [task.id, answer.id]
+    output = ModelOutput.model_validate(agent_state["bridge_output"])
+    assert output.message.id == answer.id
+    assert output.completion == answer.text
+    assert agent_state["bridge_placement"]["tracking"] is not None
 
 
 async def test_resume_ignores_transcript_store_restored_into_context_dir(

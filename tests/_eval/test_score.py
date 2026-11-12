@@ -1060,25 +1060,6 @@ def _scorer_log(
     )
 
 
-@pytest.fixture
-def fresh_display(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Start with no display, display type or Rich console, as a new process does.
-
-    Earlier tests leave these set (a quiet console, a cached display), which
-    would hide or redirect the output these tests capture. The new console is
-    wide enough not to wrap the long temporary paths in that output.
-    """
-    import rich
-
-    from inspect_ai._display.core import active
-    from inspect_ai.util import _display
-
-    monkeypatch.setattr(active, "_active_display", None)
-    monkeypatch.setattr(_display, "_display_type", None)
-    monkeypatch.setattr(rich, "_console", None)
-    monkeypatch.setenv("COLUMNS", "1000")
-
-
 def _printed(capsys: pytest.CaptureFixture[str]) -> str:
     return capsys.readouterr().out
 
