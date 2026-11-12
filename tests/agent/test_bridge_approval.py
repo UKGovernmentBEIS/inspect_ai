@@ -11717,6 +11717,62 @@ def test_denial_keeps_a_settled_calls_reply_linked(
         assert [e.message_id for e in events] == [None, None]
 
 
+@pytest.mark.parametrize(
+    "recorded",
+    [
+        "nothing",
+        "another tool executed",
+        "executed",
+        "executed, then an unreadable denial",
+        "pending grant",
+    ],
+)
+def test_denial_hashes_arguments_only_when_a_call_of_the_tool_is_recorded(
+    recorded: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A denied call hashes its arguments only when it may repeat a recorded call.
+
+    Hashing serializes the whole arguments, so a large denied call of a tool
+    with no executed call or pending grant must not pay for it. An unreadable
+    denial drops the tool's per-tool record but leaves its per-key record,
+    which a later denial still checks.
+    """
+    bridge = _recording_bridge()
+    call = ToolCall(id="call", function="read_file", arguments={"path": "a"})
+    if recorded == "another tool executed":
+        _execute(
+            bridge,
+            "reply",
+            [ToolCall(id="call", function="list_dir", arguments={"path": "a"})],
+        )
+    elif recorded.startswith("executed"):
+        _execute(bridge, "reply", [call])
+        if recorded == "executed, then an unreadable denial":
+            bridge.unlink_denied_call("host", "read_file", None)
+            assert ("host", "read_file") not in bridge._executed_tools
+    elif recorded == "pending grant":
+        [handed] = handed_calls(bridge, "reply", [call])
+        bridge._tool_execution_grants.append(
+            _ToolExecutionGrant(
+                "host",
+                "read_file",
+                call.arguments,
+                _Proposal(call, None, "reply", handed),
+            )
+        )
+    hashed: list[dict[str, Any]] = []
+    call_keys = bridge._call_keys
+
+    def spy(server: str, tool: str, arguments: dict[str, Any]) -> set[str]:
+        hashed.append(arguments)
+        return call_keys(server, tool, arguments)
+
+    monkeypatch.setattr(bridge, "_call_keys", spy)
+    bridge.unlink_denied_call("host", "read_file", {"path": "a"})
+
+    assert bool(hashed) is (recorded not in ("nothing", "another tool executed"))
+
+
 @pytest.mark.parametrize("later_call", ["denied", "takes a third grant"])
 @pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
 async def test_call_whose_grant_was_evicted_taking_a_later_replys_grant_links_nothing(

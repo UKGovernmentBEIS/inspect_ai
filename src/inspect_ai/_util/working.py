@@ -632,13 +632,19 @@ class ModelAttempts:
 
     def __init__(self) -> None:
         self._pending: list[_WorkSpan] = []
+        self.last_attempt: tuple[float, float] | None = None
+        """When the latest attempt started and ended, on the sample clock, once it has ended."""
 
     @contextlib.contextmanager
     def attempt(self) -> Iterator[None]:
         """Count the block as an attempt in flight."""
+        start = sample_clock()
         span = _open_work(deferred=True)
         if span is None:
-            yield
+            try:
+                yield
+            finally:
+                self.last_attempt = (start, sample_clock())
             return
         self._pending.append(span)
         token = _current_work.set(span)
@@ -647,6 +653,7 @@ class ModelAttempts:
         finally:
             _current_work.reset(token)
             span.close()
+            self.last_attempt = (start, sample_clock())
 
     def exclude_before(self, start: float) -> None:
         """Stop counting the pending attempts' time before `start` as work.
@@ -654,8 +661,17 @@ class ModelAttempts:
         Used for the time a successful attempt spent in the provider SDK's own
         retries. The attempts stay pending, so a later retry still drops them.
         """
+        self.exclude(-math.inf, start)
+
+    def exclude(self, start: float, end: float) -> None:
+        """Stop counting the pending attempts' time in `[start, end]` as work.
+
+        Used for time an attempt spent waiting on something other than the
+        model, such as a sentinel sidecar judging the call while the proxy
+        held it. The attempts stay pending.
+        """
         for span in self._pending:
-            span.withdraw(-math.inf, start, origins={span})
+            span.withdraw(start, end, origins={span})
 
     def commit(self) -> None:
         """Record the pending attempts as known work."""
