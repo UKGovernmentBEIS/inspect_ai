@@ -1036,8 +1036,10 @@ restored afterwards. In place of the `chdir`:
   task_init. Put what task_init needs in the sandbox config, and pass
   environment variables to the subprocesses it starts with
   subprocess(env=...); return {} from task_init_environment"). The error
-  raises in the attempt like any setup error, so that task ends with its
-  error log; an empty mapping, every provider's default, is unaffected.
+  raises where setup errors raise: once setup runs in the attempt (step 3),
+  that task ends with its error log; under step 1 alone, before that, it
+  fails the run from `eval()` as a setup error does today. An empty
+  mapping, every provider's default, is unaffected.
 - **No other substitute.** `subprocess()` keeps its ordinary default `cwd`,
   the process directory. So Docker's setup subprocesses move from the task
   directory to the launch directory, as its sample subprocesses already run.
@@ -1372,10 +1374,10 @@ test that waits on a run is bounded with `fail_after`.
   the `SAMPLE_METADATA_*` values reach `compose build` through the project's
   `env`, and a Docker subclass overriding `task_init_environment` gets its own
   values there; a stub non-Docker provider whose `task_init_environment`
-  returns `{"X": "1"}` ends its task with the `PrerequisiteError` before
-  its `task_init` is called while a sibling task completes, the same
-  provider returning `{}` sets up as before, and `os.environ` is unchanged
-  throughout. One `--runslow` real-Docker test builds a Dockerfile task
+  returns `{"X": "1"}` raises the `PrerequisiteError` before its
+  `task_init` is called (under step 1 from `eval()`, the run-level failure
+  a setup error gives today), the same provider returning `{}` sets up as
+  before, and `os.environ` is unchanged throughout. One `--runslow` real-Docker test builds a Dockerfile task
   loaded from another directory.
 - `tests/test_enqueue_task.py` (invariants 1–6): an added task starts while
   its creator runs, under `eval()`, `eval_set()` and selection mode; a
@@ -1418,7 +1420,10 @@ test that waits on a run is bounded with `fail_after`.
   sandbox-free task starts and finishes while another task's `task_init` is
   held, and the building task holds its slot meanwhile; a seed task whose
   setup fails ends with its error log while a sandbox-free seed task runs to
-  completion and `eval_async()` returns both logs; with
+  completion and `eval_async()` returns both logs, and the same holds for a
+  seed task refused for a non-Docker `task_init_environment` mapping (the
+  stub provider above returning `{"X": "1"}`), whose error log carries the
+  `PrerequisiteError` and whose `task_init` is never called; with
   `task_retry_attempts=1`, a setup that fails once is run again by the
   task's retry, which succeeds; two tasks needing one configuration call
   `task_init` once; a task cancelled while its `task_init` is held cancels
