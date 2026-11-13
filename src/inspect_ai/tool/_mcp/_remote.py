@@ -1,3 +1,5 @@
+from collections.abc import Mapping
+from logging import Filter, LogRecord, getLogger
 from types import TracebackType
 from typing import Any
 
@@ -7,7 +9,11 @@ from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import MCP_SERVER_TOOL_PREFIX, REDACTED, ToolInfo
 
 from .._tool import Tool, ToolResult
-from ._config import MCPServerConfigHTTP
+from ._config import (
+    MCPServerConfigHTTP,
+    authorization_header_values,
+    strip_bearer,
+)
 from ._types import MCPServer
 
 
@@ -65,8 +71,9 @@ def mcp_server_config(tool: ToolInfo) -> MCPServerConfigHTTP:
         name for name, value in (config.headers or {}).items() if value == REDACTED
     ]
     # the agent bridge sends a recorded `authorization_token` as "BEARER <token>"
-    if config.authorization_token == REDACTED and not any(
-        name.lower() == "authorization" for name in redacted
+    if not any(name.lower() == "authorization" for name in redacted) and any(
+        strip_bearer(value) == REDACTED
+        for value in authorization_header_values(config.headers)
     ):
         redacted.append("Authorization")
     if redacted:
@@ -166,3 +173,33 @@ def redact_grok_mcp_tools(request: dict[str, Any]) -> dict[str, Any]:
     if all(new is old for new, old in zip(new_tools, tools)):
         return request
     return request | {"tools": new_tools}
+
+
+class _AnthropicRequestOptionsRedactor(Filter):
+    """Redacts MCP tokens in the Anthropic SDK's "Request options" debug record.
+
+    At debug level the SDK logs each request's options, and Inspect captures
+    debug records into the eval log. The request sent is not modified.
+    """
+
+    def filter(self, record: LogRecord) -> bool:
+        # a single mapping argument is stored as `record.args` itself
+        options = record.args
+        if record.msg != "Request options: %s" or not isinstance(options, Mapping):
+            return True
+        redacted = dict(options)
+        for key in ("json_data", "extra_json"):
+            value = options.get(key)
+            if isinstance(value, dict):
+                redacted[key] = redact_anthropic_mcp_servers(value)
+        if any(redacted[key] is not options[key] for key in options):
+            record.args = redacted
+        return True
+
+
+_anthropic_request_options_redactor = _AnthropicRequestOptionsRedactor()
+
+
+def redact_anthropic_sdk_debug_log() -> None:
+    """Install the redactor on the Anthropic SDK's request logger (idempotent)."""
+    getLogger("anthropic._base_client").addFilter(_anthropic_request_options_redactor)

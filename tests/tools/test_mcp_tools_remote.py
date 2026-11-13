@@ -1,5 +1,8 @@
 import json
 import zipfile
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from logging import DEBUG, WARNING, getLogger
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +16,7 @@ from test_helpers.utils import (
 )
 
 from inspect_ai import Task, eval
+from inspect_ai._util.logger import _logHandler, init_logger
 from inspect_ai.agent import AgentState, react
 from inspect_ai.agent._bridge.anthropic_api_impl import tools_from_anthropic_tools
 from inspect_ai.agent._bridge.responses_impl import tool_from_responses_tool
@@ -20,7 +24,7 @@ from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import bridge_generate
 from inspect_ai.approval import ApprovalPolicy, approval, auto_approver
 from inspect_ai.dataset import Sample
-from inspect_ai.event import ModelEvent, StateEvent
+from inspect_ai.event import LoggerEvent, ModelEvent, StateEvent
 from inspect_ai.log import read_eval_log
 from inspect_ai.model import (
     ChatMessage,
@@ -34,7 +38,13 @@ from inspect_ai.model import (
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.model._model import GenerateFilter
 from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool import MCPServer, ToolChoice, ToolInfo, mcp_server_http
+from inspect_ai.tool import (
+    MCPServer,
+    ToolChoice,
+    ToolInfo,
+    mcp_server_http,
+    mcp_server_sse,
+)
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import (
     redact_anthropic_mcp_servers,
@@ -551,6 +561,67 @@ async def test_bridged_remote_mcp_with_redacted_token_is_refused(
     assert mcp_requests(requests) == []
 
 
+@contextmanager
+def log_handler_levels(transcript_level: int) -> Iterator[None]:
+    """Capture records at `transcript_level` into the eval log.
+
+    The log handler is created once per process, so `eval(log_level=...)` does
+    not change its levels when an earlier test already created it.
+    """
+    init_logger(None)
+    handler = _logHandler["handler"]
+    assert handler is not None
+    root = getLogger()
+    saved = (handler.level, handler.transcript_levelno, handler.display_level)
+    saved_root = root.level
+    handler.setLevel(transcript_level)
+    handler.transcript_levelno = transcript_level
+    handler.display_level = WARNING
+    root.setLevel(transcript_level)
+    try:
+        yield
+    finally:
+        handler.setLevel(saved[0])
+        handler.transcript_levelno, handler.display_level = saved[1], saved[2]
+        root.setLevel(saved_root)
+
+
+@pytest.mark.parametrize("provider", ["openai", "anthropic"])
+def test_remote_mcp_credentials_not_logged_at_debug_level(
+    provider: str, tmp_path: Path
+) -> None:
+    """SDK debug records (e.g. Anthropic's "Request options") reach the log."""
+    requests: list[dict[str, Any]] = []
+    task = Task(
+        dataset=[Sample(input=MCP_INPUT)],
+        solver=[use_tools(credentialed_server()), generate()],
+    )
+    with log_handler_levels(DEBUG):
+        log = eval(
+            task,
+            model=remote_mcp_model(provider, requests),
+            log_dir=str(tmp_path),
+            log_level="debug",
+            log_level_transcript="debug",
+        )[0]
+    assert log.status == "success"
+    assert mcp_requests(requests)
+
+    # the SDK's debug records were captured, without the credentials
+    assert log.samples
+    logger_events = [e for e in log.samples[0].events if isinstance(e, LoggerEvent)]
+    if provider == "anthropic":
+        assert any("Request options:" in e.message.message for e in logger_events)
+    for e in logger_events:
+        assert_no_credentials(e.message.message)
+    assert_no_credentials(read_eval_log(log.location).model_dump_json())
+    for file in tmp_path.rglob("*"):
+        if file.suffix == ".eval":
+            with zipfile.ZipFile(file) as z:
+                for member in z.namelist():
+                    assert_no_credentials(z.read(member))
+
+
 AUTHORIZATION_NAMES = [
     "Authorization",
     "authorization",
@@ -620,6 +691,49 @@ async def test_anthropic_sends_token_from_any_header_case(header: str) -> None:
     [request] = mcp_requests(requests)
     [server] = request["mcp_servers"]
     assert server["authorization_token"] == MCP_TOKEN
+
+
+@pytest.mark.parametrize("constructor", [mcp_server_http, mcp_server_sse])
+@pytest.mark.parametrize("header", AUTHORIZATION_NAMES[1:])
+async def test_authorization_argument_takes_precedence_over_header(
+    constructor: Callable[..., MCPServer], header: str
+) -> None:
+    """`authorization=` wins over another casing of the header in `headers`."""
+    server = constructor(
+        name="deepwiki",
+        url="https://mcp.deepwiki.com/mcp",
+        execution="remote",
+        headers={header: "Bearer previous-token"},
+        authorization=MCP_TOKEN,
+    )
+    [tool] = await server.tools()
+    [info] = get_tools_info([tool])
+
+    requests: list[dict[str, Any]] = []
+    async with remote_mcp_model("anthropic", requests) as model:
+        await model.generate("Search the MCP spec.", tools=[info])
+
+    [request] = mcp_requests(requests)
+    [server_param] = request["mcp_servers"]
+    assert server_param["authorization_token"] == MCP_TOKEN
+
+
+@pytest.mark.parametrize("provider", ["openai", "anthropic"])
+@pytest.mark.parametrize("header", AUTHORIZATION_NAMES[1:])
+async def test_redacted_header_refused_alongside_real_authorization(
+    provider: str, header: str
+) -> None:
+    """Any redacted casing is refused, even when `Authorization` is real."""
+    info = mcp_server_tool_info(
+        {header: f"Bearer {REDACTED}", "Authorization": f"Bearer {MCP_TOKEN}"}
+    )
+
+    requests: list[dict[str, Any]] = []
+    async with remote_mcp_model(provider, requests) as model:
+        with pytest.raises(ValueError, match="redacted credentials"):
+            await model.generate("Search the MCP spec.", tools=[info])
+
+    assert mcp_requests(requests) == []
 
 
 def test_structural_request_redaction_copies_only_when_needed() -> None:

@@ -178,6 +178,7 @@ from inspect_ai.tool._mcp._remote import (
     is_mcp_server_tool,
     mcp_server_config,
     redact_anthropic_mcp_servers,
+    redact_anthropic_sdk_debug_log,
 )
 from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
 from inspect_ai.util._json import (
@@ -464,6 +465,8 @@ class AnthropicAPI(ModelAPI):
         computer_toolset: bool | None = None,
         **model_args: Any,
     ):
+        redact_anthropic_sdk_debug_log()
+
         # extract any service prefix from model name
         parts = model_name.split("/")
         if len(parts) > 1:
