@@ -223,6 +223,7 @@ def test_google_gemini_2_5_reasoning_tokens_wins_over_effort():
         ("gemini-3.1-pro-preview", ThinkingLevel.LOW),
         ("gemini-4-argon", ThinkingLevel.LOW),
         ("gemini-4-carbon", ThinkingLevel.LOW),
+        ("gemini-4-hydrogen", ThinkingLevel.LOW),
     ],
 )
 def test_google_gemini_3_minimal_effort(
@@ -257,15 +258,25 @@ def test_google_gemini_3_uses_thinking_level_not_bridge():
     assert thinking_config.thinking_budget is None
 
 
-@pytest.mark.parametrize("model_name", ["gemini-4-argon", "gemini-4-carbon"])
 @pytest.mark.parametrize(
-    "effort,expected_level",
+    "model_name,effort,expected_level",
     [
-        ("low", ThinkingLevel.LOW),
-        ("medium", ThinkingLevel.MEDIUM),
-        ("high", ThinkingLevel.HIGH),
-        ("xhigh", ThinkingLevel.HIGH),
-        ("max", ThinkingLevel.HIGH),
+        (model_name, effort, level)
+        for model_name in ["gemini-4-argon", "gemini-4-carbon"]
+        for effort, level in [
+            ("low", ThinkingLevel.LOW),
+            ("medium", ThinkingLevel.MEDIUM),
+            ("high", ThinkingLevel.HIGH),
+            ("xhigh", ThinkingLevel.HIGH),
+            ("max", ThinkingLevel.HIGH),
+        ]
+    ]
+    + [
+        ("gemini-4-hydrogen", "low", ThinkingLevel.LOW),
+        ("gemini-4-hydrogen", "medium", ThinkingLevel.MEDIUM),
+        ("gemini-4-hydrogen", "high", ThinkingLevel.HIGH),
+        ("gemini-4-hydrogen", "xhigh", ThinkingLevel.XHIGH),
+        ("gemini-4-hydrogen", "max", ThinkingLevel.XHIGH),
     ],
 )
 def test_google_gemini_4_thinking_level(
@@ -290,6 +301,11 @@ def test_google_gemini_4_thinking_level(
             False,
         ),
         ("gemini-4-carbon", False),
+        ("gemini-4-hydrogen", True),
+        (
+            "vertex/projects/my-project/locations/us-central1/publishers/google/models/gemini-4-hydrogen",
+            True,
+        ),
         ("gemini-3.8-flash", False),
         ("gemini-3.1-pro-preview", True),
         ("gemini-4-pro", True),
@@ -301,7 +317,7 @@ def test_google_reasoning_effort_none(
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`none` disables thinking except on Pro models, which warn instead."""
+    """`none` disables thinking except on Pro models and Hydrogen, which warn instead."""
     monkeypatch.setattr("inspect_ai._util.logger._warned", [])
     vertex = model_name.startswith("vertex/")
     api = GoogleGenAIAPI(

@@ -49,6 +49,7 @@ KNOWN_MODELS = [
     "gemini-3.8-flash",
     "gemini-4-argon",
     "gemini-4-carbon",
+    "gemini-4-hydrogen",
 ]
 
 NON_GENERATIVE_MODELS = [
@@ -109,6 +110,7 @@ def test_pro_codename_is_thinking_only() -> None:
         ("vertex/gemini-4-argon", False),
         ("gemini-4-carbon", False),
         ("vertex/gemini-4-carbon", False),
+        ("gemini-4-hydrogen", False),
         ("gemini-3.1-flash-lite", True),
         ("gemini-3.1-flash-lite-preview", True),
         ("gemini-3.5-flash-lite", True),
@@ -160,6 +162,7 @@ def test_supports_minimal_thinking(model_name: str, expected: bool) -> None:
     [
         ("gemini-4-argon", (4,)),
         ("gemini-4-carbon", (4,)),
+        ("gemini-4-hydrogen", (4,)),
         ("gemini-3.8-flash", (3, 8)),
         ("gemini-3-pro", (3,)),
         ("gemini-2.5-flash-lite", (2, 5)),
@@ -237,6 +240,19 @@ def test_codename_context_window_resolves() -> None:
         ("gemini-4-carbon", "high", "high"),
         ("gemini-4-carbon", "max", "high"),
         ("gemini-4-carbon", "none", None),
+        ("gemini-4-carbon", "xhigh", "high"),
+        ("gemini-4-hydrogen", "minimal", "low"),
+        ("gemini-4-hydrogen", "low", "low"),
+        ("gemini-4-hydrogen", "medium", "medium"),
+        ("gemini-4-hydrogen", "high", "high"),
+        ("gemini-4-hydrogen", "xhigh", "xhigh"),
+        ("gemini-4-hydrogen", "max", "xhigh"),
+        ("gemini-4-hydrogen", "none", None),
+        (
+            "projects/my-project/locations/us-central1/publishers/google/models/gemini-4-hydrogen",
+            "xhigh",
+            "xhigh",
+        ),
         ("nimbus-preview", "minimal", "low"),
         ("gemini-3-pro", "low", "low"),
         ("gemini-3-pro", "medium", "medium"),
@@ -280,6 +296,7 @@ def test_gemini_is_latest(family: str, expected: bool) -> None:
         ("gemini-3.1-pro-preview", True, True, True),
         ("gemini-4-argon", True, True, False),
         ("gemini-4-carbon", True, True, False),
+        ("gemini-4-hydrogen", True, True, True),
         ("gemini-4-pro", True, True, True),
         ("gemini-pro-latest", True, True, True),
         (
@@ -287,6 +304,12 @@ def test_gemini_is_latest(family: str, expected: bool) -> None:
             True,
             True,
             False,
+        ),
+        (
+            "projects/my-project/locations/us-central1/publishers/google/models/gemini-4-hydrogen",
+            True,
+            True,
+            True,
         ),
         (
             "projects/my-project/locations/us-central1/publishers/google/models/gemini-3.8-flash",

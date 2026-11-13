@@ -231,7 +231,7 @@ dev = [
   "azure-ai-inference",
   "azure-identity",
   "brotli",  # tests decode the agent bridge's forwarded Accept-Encoding: br; not a runtime dependency, since it makes httpx advertise br on every request
-  "google-genai>=3.0.0",
+  "google-genai>=3.3.0",
   "griffe>=2",
   "groq>=0.28.0",
   "huggingface_hub>=1.6.0",
@@ -340,14 +340,15 @@ required-version = ">=0.13.4"
 # Only resolve releases at least 7 days old (see CONTRIBUTING.md).
 exclude-newer = "7 days"
 
-# 6 hours only for direct dependencies that are a model provider SDK or an Inspect package; see CONTRIBUTING.md.
+# Direct dependencies only: 6 hours for model provider SDKs, no cooldown (false)
+# for Inspect packages; see CONTRIBUTING.md.
 [tool.uv.exclude-newer-package]
 anthropic = "6 hours"
 azure-ai-inference = "6 hours"
 google-genai = "6 hours"
 groq = "6 hours"
-inspect-scout = "6 hours"
-inspect-sentinel = "6 hours"
+inspect-scout = false
+inspect-sentinel = false
 mistralai = "6 hours"
 openai = "6 hours"
 together = "6 hours"

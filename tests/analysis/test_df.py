@@ -427,6 +427,16 @@ def test_messages_df_filter():
     assert len(df) == 14
 
 
+@pytest.mark.parametrize("parallel", [False, 2])
+def test_messages_df_keeps_shared_input_messages(
+    tmp_path: Path, parallel: bool | int
+) -> None:
+    task = Task(dataset=[Sample(input=[ChatMessageUser(content="Say hi.")])], epochs=2)
+    eval(task, model="mockllm/model", log_dir=str(tmp_path))
+    df = messages_df(str(tmp_path), parallel=parallel)
+    assert df.groupby("sample_id").size().tolist() == [2, 2]
+
+
 def test_events_df():
     df = events_df(LOGS_DIR)
     assert len(df) == 124
