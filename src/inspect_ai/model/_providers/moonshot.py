@@ -36,6 +36,13 @@ KIMI_FIXED_SAMPLING_WARNING = (
     "fixed sampling) and will be ignored."
 )
 
+KIMI_K3_REASONING_EFFORT = {
+    "none": "low",
+    "minimal": "low",
+    "medium": "high",
+    "xhigh": "max",
+}
+
 KIMI_TOOL_CHOICE_WARNING = (
     "Forcing use of the {name!r} tool is not supported by {model} (a named "
     "tool_choice is incompatible with thinking, which is enabled by default) "
@@ -189,8 +196,18 @@ class MoonshotAPI(OpenAICompatibleAPI):
                             parameter=param, model=self.service_model_name()
                         ),
                     )
-        if self.is_kimi_k3():
-            effort = params.get("reasoning_effort")
-            if effort is not None and effort != "max":
-                params["reasoning_effort"] = "max"
+        if self.is_kimi_k3() and "reasoning_effort" in params:
+            params = self.k3_reasoning_effort_params(params)
+        return params
+
+    def k3_reasoning_effort_params(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Map `reasoning_effort` onto the levels Kimi K3 accepts.
+
+        K3 accepts `low`, `high`, and `max`, and defaults to `max` when the
+        field is omitted. Other efforts map silently to a supported level, as
+        other providers do. K3 always reasons, so `none` maps to `low` rather
+        than being omitted (which would give the most reasoning).
+        """
+        effort = params["reasoning_effort"]
+        params["reasoning_effort"] = KIMI_K3_REASONING_EFFORT.get(effort, effort)
         return params

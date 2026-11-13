@@ -68,20 +68,47 @@ def test_moonshot_kimi_k3_no_warning_when_params_unset(
     assert not any("fixed sampling" in m for m in _warn_once_messages)
 
 
-def test_moonshot_kimi_k3_coerces_reasoning_effort(mock_moonshot_env):
-    """K3 thinking effort only accepts "max" — other values are coerced silently."""
+@pytest.mark.parametrize(
+    "effort,expected",
+    [
+        ("none", "low"),
+        ("minimal", "low"),
+        ("low", "low"),
+        ("medium", "high"),
+        ("high", "high"),
+        ("xhigh", "max"),
+        ("max", "max"),
+    ],
+)
+def test_moonshot_kimi_k3_maps_reasoning_effort(
+    mock_moonshot_env, _warn_once_messages, effort, expected
+):
+    """K3 accepts low/high/max — supported values pass through, others map silently.
+
+    `none` maps to `low` because omitting the field would select K3's default, `max`.
+    """
     from inspect_ai.model._providers.moonshot import MoonshotAPI
 
     api = MoonshotAPI(model_name="kimi-k3")
     params = api.completion_params(
-        config=GenerateConfig(reasoning_effort="high"), tools=False
+        config=GenerateConfig(reasoning_effort=effort), tools=False
     )
-    assert params["reasoning_effort"] == "max"
+    assert params["reasoning_effort"] == expected
+    assert not any("reasoning_effort" in m for m in _warn_once_messages)
 
+
+def test_moonshot_kimi_k2_6_preserves_reasoning_effort(
+    mock_moonshot_env, _warn_once_messages
+):
+    """The K3 effort mapping doesn't apply to other Kimi models."""
+    from inspect_ai.model._providers.moonshot import MoonshotAPI
+
+    api = MoonshotAPI(model_name="kimi-k2.6")
     params = api.completion_params(
-        config=GenerateConfig(reasoning_effort="max"), tools=False
+        config=GenerateConfig(reasoning_effort="medium"), tools=False
     )
-    assert params["reasoning_effort"] == "max"
+    assert params["reasoning_effort"] == "medium"
+    assert not _warn_once_messages
 
 
 def test_moonshot_kimi_k3_coerces_forced_tool_choice(
