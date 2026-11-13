@@ -2096,8 +2096,12 @@ class Model:
             if output.input_context_tokens is None:
                 output.input_context_tokens = usage_input_tokens(output.usage)
 
-            # a call a person was asked about took the time of its sends,
-            # and the time outside them was the person's (None for any other)
+            # A call a person was asked about took the time of its sends
+            # (None for any other). The time outside them is not the
+            # model's as far as Inspect can tell: the person's, the
+            # sidecar's, and the time spent asking the sidecar about a call
+            # the provider still had after Inspect's own send timed out,
+            # which undercounts that provider's work.
             sends_took = time_of_sends()
 
             # update output with time (call.time captures time spent

@@ -30,7 +30,7 @@ def count_judging_as_waiting(
 
     Called once the call is done, whatever it came to, and before its attempts are committed: committed, the attempts' time would be work that a wait can't take back. The proxy held the call's last attempt while the sidecar judged it, so the time is taken from the end of that attempt, and from the call's `ModelEvent`: its working time and its output's `time`, which then hold the model's own time, as for a call judged in process. Nothing is counted where the sidecar wasn't asked, as for a call cancelled in flight, since waiting for its answer here would hold up the cancellation.
 
-    A call a person was asked about is sent more than once, and the proxy held each send while the sidecar judged it, so each send's judging is taken from its end. The time outside its sends, the person's among it, is counted as waiting too.
+    A call a person was asked about is sent more than once, and the proxy held each send while the sidecar judged it, so each send's judging is taken from its end. The time outside its sends, the person's among it, is counted as waiting too. That includes the time Inspect spent asking the sidecar about a call the provider still had after Inspect's own send timed out. Inspect can't tell the provider's part of that time from the sidecar's judging or a person's, so the call's working time can undercount such a provider's work.
 
     Args:
         received: What is kept of the call, with the sidecar's answer once it was asked.
@@ -101,7 +101,7 @@ def _waited(attempts: ModelAttempts, start: float, end: float) -> None:
 def time_of_sends() -> float | None:
     """The time the current agent call spent in its sends, if a person was asked about it, or None for any other call, whose time is that of its successful request.
 
-    The call was sent more than once, or once and then answered from what the sidecar decided. The time outside its sends went to the provider SDK's own retries, the person and the sidecar's judging after the answer, and `count_judging_as_waiting` counts it as waiting.
+    The call was sent more than once, or once and then answered from what the sidecar decided. The time outside its sends went to the provider SDK's own retries, the person, the sidecar's judging after the answer, and asking the sidecar what became of the call, and `count_judging_as_waiting` counts it as waiting. Where Inspect's own send timed out while the provider still had the request, the provider's work after that send is outside the sends too, so this time can undercount it.
     """
     from ._received import current_receiving
 
