@@ -1941,19 +1941,25 @@ class Model:
                 await wait_generate_dispatch(self, connection)
                 stream_observer.discard_partial_output()
                 try:
-                    # the first send's timeouts are spent, so this send has
-                    # its own
-                    return await send(
-                        anyio.move_on_after(attempt_timeout)
-                        if attempt_timeout is not None
-                        else contextlib.nullcontext(),
-                        anyio.CancelScope()
-                        if stream_idle_timeout is not None
-                        else None,
-                    )
+                    # The first send's timeouts are spent, so this send has
+                    # its own. It is counted as an attempt in flight too:
+                    # where the provider handed its error back, the
+                    # attempt's own block has ended by now.
+                    with attempts.attempt():
+                        return await send(
+                            anyio.move_on_after(attempt_timeout)
+                            if attempt_timeout is not None
+                            else contextlib.nullcontext(),
+                            anyio.CancelScope()
+                            if stream_idle_timeout is not None
+                            else None,
+                        )
                 except Exception as ex:
                     sent_again_error = ex
                     raise
+                finally:
+                    # the attempt runs from its first send to this one's end
+                    attempts.last_attempt = (time_start, sample_clock())
 
             with (
                 trace_action(logger, "Model", f"generate ({str(self)})"),

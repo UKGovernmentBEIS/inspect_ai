@@ -42,6 +42,7 @@ from inspect_ai._sentinel._sidecar._review import (
     FAILURE_FETCHES,
     MODEL_SENDS,
 )
+from inspect_ai._util.working import sample_wait
 from inspect_ai.approval import Approval
 from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.approval._human import acp as acp_module
@@ -118,7 +119,11 @@ class ReviewingSidecar(StandInSidecar):
     error_passing_asks: int = 0
     """How many times, once the provider has failed a try, `request_result` still says the sidecar awaits the reply: the error's body is passing, and the sidecar tells of the error only once it is whole."""
     failure_message: str | None = None
-    """The message of the provider's error that the held-reply path serves, in Anthropic's format, in place of the stand-in's own."""
+    """The message of the provider's error, in Anthropic's format, in place of the stand-in's own: as the held-reply path serves it, and as the try that is sent on is answered with it."""
+    lookups_lost: int = 0
+    """How many `request_result` calls about a paused call, once a person has answered, the proxy answers with a 502, so that they never reach the sidecar."""
+    lookups_refused: int = 0
+    """How many such calls the sidecar itself answers with an error."""
     error_cut_off: int = 0
     """How many times the held-reply path's answer with the provider's error has its connection fail part way through the body, after its headers, the sidecar's marker among them, have come."""
     pending_lost: int = 0
@@ -180,6 +185,15 @@ class ReviewingSidecar(StandInSidecar):
                 and call["params"].get("id") in self.paused
             ):
                 self.methods["request_result"] = self._request_result
+                if self.paused[call["params"]["id"]].state != "awaiting_review":
+                    if self.lookups_lost > 0:
+                        self.lookups_lost -= 1
+                        return httpx2.Response(502, text="Bad Gateway")
+                    if self.lookups_refused > 0:
+                        self.lookups_refused -= 1
+                        self.methods["request_result"] = lambda params: self._refuse(
+                            -32000, "The sidecar can't answer."
+                        )
                 if self.paused[call["params"]["id"]].state == "awaiting_reply":
                     self.awaited_lookups += 1
                     if self.lookups_take:
@@ -241,9 +255,21 @@ class ReviewingSidecar(StandInSidecar):
             paused.state = "decided"
             paused.judgment = {"outcome": "proceed", "steps": []}
         replied = _MODEL_ROUTES[paused.route](turn, bool(asked.get("stream")), asked)
+        if turn.status != 200 and self.failure_message is not None:
+            replied = self._failed(turn.status, self.failure_message)
         if turn.status != 200 and not self.sdk_retries:
             replied.headers["x-should-retry"] = "false"
         return replied
+
+    def _failed(self, status: int, message: str) -> httpx2.Response:
+        # a provider's error with a message of its own, in Anthropic's format
+        return httpx2.Response(
+            status,
+            json={
+                "type": "error",
+                "error": {"type": "invalid_request_error", "message": message},
+            },
+        )
 
     def _held(
         self, request: httpx2.Request, response: httpx2.Response
@@ -295,15 +321,8 @@ class ReviewingSidecar(StandInSidecar):
                 asked,
             )
             if self.failure_message is not None:
-                failed = httpx2.Response(
-                    paused.failure["reply"]["status"],
-                    json={
-                        "type": "error",
-                        "error": {
-                            "type": "invalid_request_error",
-                            "message": self.failure_message,
-                        },
-                    },
+                failed = self._failed(
+                    paused.failure["reply"]["status"], self.failure_message
                 )
             failed.headers[FAILED_TRY] = str(paused.failure["try_number"])
             failed.headers["x-should-retry"] = "false"
@@ -831,6 +850,45 @@ def test_a_rejected_call_goes_on_as_the_models_turn(
     assert _LOOKED_UP == []
 
 
+def test_a_question_that_cant_be_shown_tells_nothing_of_what_it_held(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    person = Person("approve")
+    person.install(monkeypatch)
+    stand_in = ReviewingSidecar(
+        pauses=["tool_call"], turns=[_OSLO, Turn(text="I can't look that up.")]
+    )
+    listed = stand_in._pending_questions
+    secret = "sk-not-to-be-told"
+
+    def unreadable(params: dict[str, Any]) -> dict[str, Any]:
+        # a question whose call Inspect can't read: its arguments are a list,
+        # and hold a secret
+        questions = listed(params)
+        for question in questions["questions"]:
+            question["call"]["arguments"] = ["--api-key", secret]
+        return questions
+
+    stand_in.methods["pending_questions"] = unreadable
+
+    sample = _sample(_run(stand_in))
+
+    # the question fails closed, and no person is asked
+    assert person.asked == []
+    [answer] = _called(stand_in, "answer_question")
+    assert answer["decision"] == "reject"
+    # The reason sent with the answer is what the model is told. It names the
+    # error's type, and has nothing of its text, which holds the arguments.
+    assert "ValidationError" in answer["reason"]
+    assert secret not in answer["reason"]
+    # the warning in the eval's log likewise
+    [warned] = [w for w in _warned(sample) if "couldn't be shown" in w]
+    assert "ValidationError" in warned
+    assert secret not in warned
+    # so the secret is nowhere in the sample's log
+    assert secret not in sample.model_dump_json()
+
+
 def test_an_sdk_retry_of_the_held_reply_request_keeps_the_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1028,16 +1086,24 @@ def test_inspect_asks_again_while_a_providers_error_is_still_passing(
     assert len(stand_in.held_reply_requests) == 1
 
 
+@pytest.mark.parametrize(
+    "error_lost",
+    [True, False],
+    ids=["got from the sidecar", "passed on to Inspect's own try"],
+)
 def test_a_providers_error_that_its_own_code_reads_as_a_reply_is_the_calls_result(
+    error_lost: bool,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
     # Anthropic's code reads a prompt that is too long as a reply that
-    # stopped for the model's length, and not as an error
+    # stopped for the model's length, and not as an error. The proxy passes
+    # the provider's error on to the try the sidecar sent on, which is
+    # Inspect's own unless another try of the call was with the provider.
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(status=400)],
-        error_lost=True,
+        error_lost=error_lost,
         failure_message="prompt is too long: 250000 tokens > 200000 maximum",
     )
 
@@ -1052,7 +1118,8 @@ def test_a_providers_error_that_its_own_code_reads_as_a_reply_is_the_calls_resul
     first = stand_in.model_calls[0]
     assert stand_in.cancelled == [first.headers["x-irid"]]
     assert len(stand_in.model_calls) == 2
-    assert len(stand_in.held_reply_requests) == 1
+    assert len(stand_in.held_reply_requests) == (1 if error_lost else 0)
+    assert review_module._open_calls == {}
 
 
 def test_a_refusal_of_the_sidecars_own_that_the_providers_code_reads_as_a_reply_is_not_taken(
@@ -1136,6 +1203,129 @@ def test_a_refusal_of_the_sidecars_own_is_never_taken_for_the_providers_error(
 
 
 # --- what became of each question, in the log and for the person ---------------
+
+
+def test_a_lookup_lost_on_the_way_doesnt_give_up_a_call_a_person_approved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(lookup_module, "LOOKUP_RETRY_PAUSE", 0.01)
+    Person("approve").install(monkeypatch)
+    # the proxy fails once, for the lookup that follows the person's answer
+    stand_in = ReviewingSidecar(
+        pauses=["tool_call"], turns=[_OSLO, Turn()], lookups_lost=1
+    )
+
+    sample = _sample(_run(stand_in))
+
+    # the sidecar is asked again, and the approved call goes on: the person
+    # isn't asked twice, the call isn't cancelled, and its held reply is got
+    assert stand_in.lookups_lost == 0
+    assert sample.error is None
+    assert len(_called(stand_in, "answer_question")) == 1
+    assert stand_in.cancelled == []
+    assert len(stand_in.held_reply_requests) == 1
+
+
+def test_lookups_that_keep_being_lost_are_asked_again_only_so_many_times(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(lookup_module, "LOOKUP_RETRY_PAUSE", 0.01)
+    Person("approve").install(monkeypatch)
+    stand_in = ReviewingSidecar(pauses=["tool_call"], turns=[_OSLO], lookups_lost=100)
+
+    log = _run(stand_in, solver=generate(), fail_on_error=False)
+
+    # The lookup is lost, and so is each of the times it is asked again. The
+    # call's judgment is then unavailable, and the call is given up: it is
+    # cancelled at the sidecar, which is asked once more for its records.
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None
+    assert 100 - stand_in.lookups_lost == 1 + lookup_module.LOOKUP_RETRIES + 1
+    [first] = stand_in.model_calls
+    assert stand_in.cancelled == [first.headers["x-irid"]]
+    assert stand_in.held_reply_requests == []
+
+
+def test_a_lookup_the_sidecar_answers_with_an_error_isnt_asked_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(lookup_module, "LOOKUP_RETRY_PAUSE", 0.01)
+    Person("approve").install(monkeypatch)
+    stand_in = ReviewingSidecar(
+        pauses=["tool_call"], turns=[_OSLO], lookups_refused=100
+    )
+
+    log = _run(stand_in, solver=generate(), fail_on_error=False)
+
+    # an error the sidecar itself gave is its answer: one lookup after the
+    # person's answer, and one after the call is cancelled
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None
+    assert 100 - stand_in.lookups_refused == 2
+    [first] = stand_in.model_calls
+    assert stand_in.cancelled == [first.headers["x-irid"]]
+
+
+@solver
+def _generates_beside_a_waiting_task() -> Solver:
+    # one model call, while another task of the sample waits on something
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        waiting = anyio.Event()
+        done = anyio.Event()
+
+        async def waits() -> None:
+            with sample_wait():
+                waiting.set()
+                await done.wait()
+
+        async with anyio.create_task_group() as tasks:
+            tasks.start_soon(waits)
+            # the other task's wait is open before the call begins
+            await waiting.wait()
+            state.output = await get_model().generate(state.messages)
+            done.set()
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize(
+    "pending_lost,holds",
+    [
+        # the provider's client hands the sidecar's "pending review" back, so
+        # the held reply is got after the attempt's own block has ended
+        (0, [(0.0, 0.0), (1.0, 0.0)]),
+        # every try of the first send loses its connection, so the client
+        # raises, and the held reply is got inside the attempt's block
+        (10, [(1.0, 0.0)]),
+    ],
+    ids=["its error handed back", "its error raised"],
+)
+def test_a_send_after_a_review_is_the_models_time_while_another_task_waits(
+    pending_lost: int,
+    holds: list[tuple[float, float]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Person("approve").install(monkeypatch)
+    # the send that gets the held reply takes a second
+    stand_in = ReviewingSidecar(
+        pauses=["tool_call"],
+        turns=[Turn(text="Sunny.")],
+        pending_lost=pending_lost,
+        holds=list(holds),
+    )
+
+    sample = _sample(_run(stand_in, solver=_generates_beside_a_waiting_task()))
+
+    # that second is the model's, for the sample as for the model event,
+    # though another task of the sample was waiting all the while
+    assert stand_in.holds == []
+    [event] = _model_events(sample)
+    assert event.working_time is not None and sample.working_time is not None
+    assert 0.8 <= event.working_time < 1.6
+    assert 0.8 <= sample.working_time < 1.6
 
 
 def _reviews_logged(sample: EvalSample) -> list[dict[str, Any]]:
@@ -1670,6 +1860,53 @@ def test_a_reply_that_came_within_the_calls_timeout_is_judged_past_it(
     assert time.monotonic() - began > 2
     assert sample.output.completion == "Sunny."
     assert stand_in.cancelled == []
+
+
+async def test_a_followed_call_asked_about_again_isnt_bound_by_its_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(lookup_module, "AWAITED_REPLY_PAUSE", 0.01)
+    monkeypatch.setattr(review_module, "NO_QUESTION_PAUSE", 0.01)
+    # What the sidecar says of the call each time it is asked. The provider
+    # still has the request, then a second question is open, with the judging
+    # of the provider's reply between them never seen, then the call is
+    # decided.
+    states = ["awaiting_reply", "awaiting_review", "decided"]
+    cancelled: list[str] = []
+
+    class Sidecar:
+        origin = "http://proxy.test"
+        review = True
+
+        async def eval_call(self, method: str, params: dict[str, Any]) -> Any:
+            if method == "pending_questions":
+                # the call's timeout passes while the question is dealt with
+                await anyio.sleep(0.6)
+                return {"questions": []}
+            if method == "cancel_request":
+                cancelled.append(params["id"])
+                return {"id": params["id"], "cancelled": True}
+            assert method == "request_result"
+            state = states.pop(0) if len(states) > 1 else states[0]
+            result: dict[str, Any] = {
+                "id": params["id"],
+                "records": "held",
+                "state": state,
+            }
+            if state == "decided":
+                result["judgment"] = {"outcome": "proceed", "steps": []}
+            return result
+
+    with receiving_call(Sidecar(), timeout=1) as received:
+        # a call a person was asked about, with half of its timeout left
+        received.request_id = received.reviewed_id = "request_1"
+        received.sent = received.open = True
+        received.began = time.monotonic() - 0.5
+        looked = await lookup_module.request_result(received, replied=False)
+
+    # the provider had replied, so the call is decided, and isn't given up
+    assert looked.state == "decided"
+    assert cancelled == []
 
 
 # --- a call Inspect gives up on -----------------------------------------------

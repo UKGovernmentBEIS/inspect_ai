@@ -183,10 +183,14 @@ async def result_after_review(
             await cancel_open_call(received)
             return AfterReview(reply=result)
         if error is None:
-            # The call brought a reply, so the sidecar holds nothing open
-            # for it. What the sidecar decided of it is asked as it is after
-            # any reply.
-            _closed(received)
+            # The call brought a reply, and what the sidecar decided of it is
+            # asked as it is after any reply. The reply the sidecar held is
+            # of a call that has ended there. A reply to a request the
+            # sidecar sent on may be the provider's error, which its own code
+            # read as a reply: the sidecar then still waits for the request,
+            # so the call stays open here until it has been asked.
+            if to_send != "model":
+                _closed(received)
             return AfterReview(reply=result)
         handed_back = result
         held = _HeldError(status=status_code_of(error), sent_again=True)
@@ -522,12 +526,17 @@ async def _decision(
     try:
         return await _ask(question, offered, received.history)
     except Exception as ex:
+        # Only the error's type is told. Its text may hold what the question
+        # held, as a validation error's holds the values it couldn't read,
+        # the call's arguments among them. The warning goes into the eval's
+        # log, and the reason is what the model is told of the rejected call.
+        failed = type(ex).__name__
         logger.warning(
-            f"A question from the sentinel sidecar at {received.sidecar.origin} couldn't be shown to a person, so it is answered with caution: {ex}"
+            f"A question from the sentinel sidecar at {received.sidecar.origin} couldn't be shown to a person, so it is answered with caution ({failed})."
         )
         return (
             "reject" if "reject" in offered else "terminate",
-            f"Inspect couldn't show the question to a person, so it failed closed ({ex}).",
+            f"Inspect couldn't show the question to a person, so it failed closed ({failed}).",
         )
 
 

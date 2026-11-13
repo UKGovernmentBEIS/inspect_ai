@@ -39,6 +39,12 @@ AWAITED_REPLY_PAUSE = 0.5
 AWAITED_REPLY_PAUSE_MAX = 5.0
 """The longest wait between two such asks, in seconds."""
 
+LOOKUP_RETRIES = 3
+"""How many times in a row a `request_result` that was lost on the way is asked again, of a call a person may have been asked about, before the call's judgment is taken to be unavailable."""
+
+LOOKUP_RETRY_PAUSE = 0.5
+"""How long to wait before asking again after the first such `request_result` was lost, in seconds. Each later wait is twice the one before."""
+
 
 class SidecarNotJudgedError(RuntimeError):
     """An agent call came back as an error, and the sidecar says it couldn't judge it."""
@@ -217,6 +223,11 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
     # the waiting: no lookup begins once it has passed, and one under way
     # when it passes is given up. An answer that comes before then is taken.
     following = False
+    # A person may have been asked about the call, or was: what they decided
+    # is at the sidecar, so a lookup lost on the way is asked again. Any
+    # other lookup is read as before.
+    asks_again = reviews or received.reviewed_id is not None
+    lost = 0
     result: dict[str, Any] = {}
     with suspend_token_limit(), suspend_turn_limit(), suspend_working_limit():
         while True:
@@ -242,9 +253,20 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                         raise SentinelProxyError(
                             f"The sentinel sidecar at {sidecar.origin} won't take the eval's calls, so it won't say what it decided of them: {ex}"
                         ) from ex
+                    if ex.code is None and asks_again and lost < LOOKUP_RETRIES:
+                        # The request didn't reach the sidecar, or its answer
+                        # didn't come back, as when the proxy between them
+                        # fails for a moment. Asking again asks the person
+                        # nothing and sends the provider nothing, and the
+                        # call's `timeout` still ends it. An error the
+                        # sidecar itself answered with is never asked again.
+                        lost += 1
+                        await anyio.sleep(LOOKUP_RETRY_PAUSE * 2 ** (lost - 1))
+                        continue
                     return Looked("unavailable", str(ex))
             if within.cancelled_caught:
                 return await _out_of_time(received, result)
+            lost = 0
             records = result.get("records")
             if records != "held":
                 from ._review import reviews_unavailable
@@ -289,9 +311,34 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                 # asked again once they have answered.
                 from ._review import ask_person, opened
 
+                # A followed call is asked about without waiting, so the
+                # judging between the provider's reply and this question may
+                # never have been seen. The provider has replied all the
+                # same, so the call's `timeout` bounds the wait no longer.
+                following = False
                 opened(received)
                 await ask_person(received)
                 continue
+            if (
+                replied
+                and state == "awaiting_request"
+                and received.reviewed_id is not None
+            ):
+                failure = _failure(result.get("failure"))
+                if failure is not None and failure.status is not None:
+                    # The provider answered the try the sidecar sent on with
+                    # an error, which the proxy passed on and the provider's
+                    # own code read as a reply, as Anthropic's does a prompt
+                    # that is too long. So Inspect holds a reply, while the
+                    # sidecar waits for the request again. Inspect acts on
+                    # the reply as the call's result and sends nothing more,
+                    # so the call is closed at the sidecar. It reads as any
+                    # call whose provider answered with an error: not judged.
+                    from ._review import cancel_open_call
+
+                    received.failures.add(failure.try_number)
+                    await cancel_open_call(received)
+                    return _judging(Looked("not_judged", "provider_error"), result)
             if reviews and state == "awaiting_request":
                 from ._review import opened
 
