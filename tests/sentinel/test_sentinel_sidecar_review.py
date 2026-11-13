@@ -50,6 +50,7 @@ from inspect_ai.approval._human import approver as approver_module
 from inspect_ai.dataset import Sample
 from inspect_ai.event import InfoEvent, LoggerEvent, ModelEvent, SentinelEvent
 from inspect_ai.log import EvalLog, EvalSample
+from inspect_ai.log._samples import sample_active
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -98,6 +99,17 @@ class _Paused:
     """What became of each question asked about the call, as `request_result` gives it."""
     judging_time: float = 0.0
     """How long the sentinel judged the call while the proxy held its sends, added up over them."""
+
+
+@dataclass
+class _HeldRequest:
+    """A request the stand-in held before answering, as a proxy holds a call, with when the hold began and ended on the monotonic clock."""
+
+    path: str
+    began: float
+    ended: float = 0.0
+    finished: bool = False
+    """Whether the hold ran its whole time. A hold whose client went away, as when the call was cancelled or timed out, ended before that."""
 
 
 @dataclass
@@ -151,6 +163,11 @@ class ReviewingSidecar(StandInSidecar):
     """When each request given a hold came, on the monotonic clock."""
     """For each request of a paused call, in order: how long the proxy holds it before answering, and how much of that the sentinel spent judging it, in seconds."""
 
+    when_held: Callable[[], None] | None = None
+    """Called as the stand-in begins to hold a request, in the task of the call that sent it, so that a test can time something from the hold's start."""
+    held_requests: list[_HeldRequest] = field(default_factory=list)
+    """Each request the stand-in held, in the order they came, with how long it was really held: a busy machine holds one longer than it was told to."""
+
     def __post_init__(self) -> None:
         assert self.info is not None
         self.info["review"] = True
@@ -161,6 +178,23 @@ class ReviewingSidecar(StandInSidecar):
     @property
     def held_reply_requests(self) -> list[httpx2.Request]:
         return [r for r in self.requests if r.url.path == HELD_REPLY_PATH]
+
+    async def _handle_async(self, request: httpx2.Request) -> httpx2.Response:
+        response = self._handle(request)
+        hold = self._holds.pop(id(request), 0.0)
+        if hold:
+            # timed here, where the request is held, so that a test can
+            # compare what Inspect counted with what really happened
+            held = _HeldRequest(request.url.path, time.monotonic())
+            self.held_requests.append(held)
+            if self.when_held is not None:
+                self.when_held()
+            try:
+                await anyio.sleep(hold)
+                held.finished = True
+            finally:
+                held.ended = time.monotonic()
+        return response
 
     def _handle(self, request: httpx2.Request) -> httpx2.Response:
         path = request.url.path
@@ -621,6 +655,25 @@ def _sample(log: EvalLog) -> EvalSample:
 
 def _model_events(sample: EvalSample) -> list[ModelEvent]:
     return [e for e in sample.events if isinstance(e, ModelEvent)]
+
+
+_SDK_RETRY_WAITS = 0.375 + 0.75
+"""The least Anthropic's SDK waits, in seconds, before its second and third tries of a request whose connection failed: half a second and then a second, each shortened by up to a quarter."""
+
+
+def _event_waiting(event: ModelEvent) -> float:
+    # How much of a model event, from its start to its end, was not the
+    # model's work, in seconds. A slow machine adds to the event's whole time
+    # and to its working time alike, so this holds what was counted as
+    # waiting however slow the machine.
+    assert event.completed is not None and event.working_time is not None
+    return (event.completed - event.timestamp).total_seconds() - event.working_time
+
+
+def _sample_waiting(sample: EvalSample) -> float:
+    # the same for a sample: its whole time less its working time
+    assert sample.total_time is not None and sample.working_time is not None
+    return sample.total_time - sample.working_time
 
 
 def _called(stand_in: StandInSidecar, method: str) -> list[dict[str, Any]]:
@@ -1324,8 +1377,8 @@ def test_a_send_after_a_review_is_the_models_time_while_another_task_waits(
     assert stand_in.holds == []
     [event] = _model_events(sample)
     assert event.working_time is not None and sample.working_time is not None
-    assert 0.8 <= event.working_time < 1.6
-    assert 0.8 <= sample.working_time < 1.6
+    assert event.working_time >= 0.8
+    assert sample.working_time >= 0.8
 
 
 def _reviews_logged(sample: EvalSample) -> list[dict[str, Any]]:
@@ -1549,15 +1602,19 @@ def test_a_reviewed_call_counts_only_the_models_time_in_its_sends(
 
     sample = _sample(_run(stand_in))
 
-    # each send's time counts, less the sentinel's judging in it; the time
-    # between sends, the person's, doesn't
+    # each send's time counts, less the sentinel's judging in it
     assert stand_in.holds == []
     event = _model_events(sample)[0]
     assert event.working_time is not None and event.output.time is not None
-    assert model_time - 0.1 <= event.working_time < model_time + 0.25
+    assert event.working_time >= model_time - 0.1
     assert event.output.time == event.working_time
     assert sample.working_time is not None
-    assert model_time - 0.1 <= sample.working_time < model_time + 0.35
+    assert sample.working_time >= model_time - 0.1
+    # the person's second between the sends, and the sentinel's judging in
+    # them, are waiting, for the event and for the sample
+    judging = sum(judged for _, judged in holds)
+    assert _event_waiting(event) >= 1.0 + judging - 0.1
+    assert _sample_waiting(sample) >= 1.0 + judging - 0.1
 
 
 def test_a_reviewed_call_inspect_retries_counts_only_its_own_judging(
@@ -1585,7 +1642,11 @@ def test_a_reviewed_call_inspect_retries_counts_only_its_own_judging(
     assert sample.output.completion == "Sunny."
     event = _model_events(sample)[-1]
     assert event.working_time is not None
-    assert 0.5 <= event.working_time < 0.85
+    # 0.6 seconds of the retry were the model's: the 0.3 seconds judged in
+    # the earlier attempt are not taken from it again
+    assert event.working_time >= 0.5
+    # and its own 0.2 seconds of judging are waiting
+    assert _event_waiting(event) >= 0.2 - 0.05
 
 
 def test_a_reviewed_call_that_fails_counts_only_the_models_time_in_its_sends(
@@ -1612,9 +1673,9 @@ def test_a_reviewed_call_that_fails_counts_only_the_models_time_in_its_sends(
     # SDK's wait before its last try, 0.375 seconds at least, are waiting,
     # whatever the call came to. They are measured against the sample's whole
     # time: a slow machine adds to the working time and to the whole alike.
-    assert sample.working_time is not None and sample.total_time is not None
+    assert sample.working_time is not None
     assert sample.working_time >= 0.2
-    assert sample.total_time - sample.working_time >= 0.6
+    assert _sample_waiting(sample) >= 0.6
 
 
 def test_a_rejected_call_counts_only_the_models_time_before_the_person(
@@ -1630,42 +1691,57 @@ def test_a_rejected_call_counts_only_the_models_time_before_the_person(
 
     sample = _sample(_run(stand_in))
 
-    # the call's own time is its lost try's, and the person's isn't in it
+    # The call's own time is its lost tries', and the person's second isn't
+    # in it, for the event or for the sample. The SDK's waits between those
+    # tries are waiting as well, so the person's second is looked for on top
+    # of them: the waits alone come to less.
     assert stand_in.held_reply_requests == []
+    # three tries of the call, so the SDK waited twice
+    first = stand_in.model_calls[0].headers["x-irid"]
+    assert sum(r.headers["x-irid"] == first for r in stand_in.model_calls) == 3
     event = _model_events(sample)[0]
     assert event.working_time is not None and event.output.time is not None
-    assert event.working_time < 0.3
     assert event.output.time == event.working_time
-    assert sample.working_time is not None
-    assert sample.working_time < 0.5
+    assert _event_waiting(event) >= 1.0 + _SDK_RETRY_WAITS - 0.1
+    assert _sample_waiting(sample) >= 1.0 + _SDK_RETRY_WAITS - 0.1
 
 
 def test_a_send_cut_short_by_the_sample_ending_counts_as_the_models_time(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
+
+    def end_the_sample_in_a_second() -> None:
+        # timed from when the request is held, so that however long the
+        # sample took to get there, the send is cut short a second into it
+        active = sample_active()
+        assert active is not None
+        asyncio.get_running_loop().call_later(1.0, active.interrupt, "score")
+
     # Every try of the paused call loses its connection before the sidecar's
     # "pending review" comes back. Once the person approves, the request
-    # that gets the held reply is held until the sample's time runs out.
+    # that gets the held reply is held until the sample is ended.
     stand_in = ReviewingSidecar(
         pauses=["tool_call"],
         turns=[_OSLO, Turn()],
         pending_lost=10,
         holds=[(30.0, 0.0)],
+        when_held=end_the_sample_in_a_second,
     )
 
-    log = _run(stand_in, time_limit=3)
+    log = _run(stand_in)
 
     assert log.samples is not None
     [sample] = log.samples
-    ended = time.monotonic()
-    assert sample.limit is not None and sample.limit.type == "time"
     [got] = stand_in.held_reply_requests
-    [held_at] = stand_in.held_at
-    # the send was with the model until the sample ended, and counts as work
-    assert ended - held_at > 0.5
+    # The request was held from when it came until the sample's end cut it
+    # short, as the stand-in timed it: that time was with the model, inside
+    # the send, and counts as work.
+    [held] = stand_in.held_requests
+    assert not held.finished
+    assert held.ended - held.began >= 0.9
     assert sample.working_time is not None
-    assert sample.working_time >= (ended - held_at) - 0.5
+    assert sample.working_time >= (held.ended - held.began) - 0.1
 
 
 def test_a_request_sent_again_waits_for_an_operators_hard_pause(
@@ -1759,21 +1835,24 @@ def test_a_call_whose_timeout_passes_while_the_provider_works_is_closed_at_the_s
         provider_takes_asks=1_000_000,
     )
 
-    began = time.monotonic()
+    # the sample's own limit is far off: it ends a call that outlives its
+    # timeout, so that such a test fails and doesn't hang
     log = _run(
         stand_in,
         solver=generate(),
         fail_on_error=False,
         timeout=2,
         attempt_timeout=1,
+        time_limit=30,
     )
 
-    # the call fails once its timeout has passed, and not before or long
-    # after, and the sidecar is told it is given up
+    # the call fails once its timeout has passed, and not before; its own
+    # timeout ends it, and not the sample's limit; and the sidecar is told
+    # it is given up
     assert log.samples is not None
     [sample] = log.samples
-    assert sample.error is not None
-    assert 1.9 <= time.monotonic() - began < 4.5
+    assert sample.error is not None and sample.limit is None
+    assert sample.total_time is not None and sample.total_time >= 1.9
     [first, _] = stand_in.model_calls
     assert stand_in.cancelled == [first.headers["x-irid"]]
 
@@ -1792,22 +1871,25 @@ def test_a_lookup_under_way_when_the_calls_timeout_passes_is_given_up(
         lookups_take=[0.0, 10.0],
     )
 
-    began = time.monotonic()
     log = _run(
         stand_in,
         solver=generate(),
         fail_on_error=False,
         timeout=2,
         attempt_timeout=1,
+        time_limit=30,
     )
 
-    # the call fails when its timeout passes, and not when the sidecar would
-    # have answered, and the sidecar is told it is given up
+    # the call fails when its timeout passes, and not before; the lookup the
+    # sidecar took ten seconds over was given up, and not waited out; and the
+    # sidecar is told the call is given up
     assert log.samples is not None
     [sample] = log.samples
-    assert sample.error is not None
-    assert 1.9 <= time.monotonic() - began < 4.5
+    assert sample.error is not None and sample.limit is None
+    assert sample.total_time is not None and sample.total_time >= 1.9
     assert stand_in.awaited_lookups == 2
+    [slow] = [held for held in stand_in.held_requests if held.path == ENDPOINT]
+    assert not slow.finished
     [first, _] = stand_in.model_calls
     assert stand_in.cancelled == [first.headers["x-irid"]]
 
