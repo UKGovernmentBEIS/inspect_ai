@@ -307,7 +307,7 @@ You can also use `read_eval_log_sample_summaries()` as means of filtering which 
 ```python
 errors: list[EvalSample] = []
 for sample in read_eval_log_sample_summaries(log_file):
-    if sample.error is not None
+    if sample.error is not None:
         errors.append(
             read_eval_log_sample(log_file, sample.id, sample.epoch)
         )
