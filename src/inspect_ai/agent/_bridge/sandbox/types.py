@@ -642,7 +642,7 @@ class _Proposal:
         """The model's id for the call, which `call.id` replaces when the call is handed over under a fresh id (`_fresh_call_ids`)."""
 
         self.execution_id = execution_id
-        """The id of the handout that minted the grants (`_Handed.execution_id`), recorded on each execution's `ToolEvent`."""
+        """The id of the handout that minted the grants (`_Handed.execution_id`), recorded on each execution's `ToolEvent` unless the proposal is `ambiguous`."""
 
         self.span_id = span_id
         """Span to record executions under, or `None` for the span current then."""

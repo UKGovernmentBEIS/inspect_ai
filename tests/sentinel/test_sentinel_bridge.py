@@ -2440,6 +2440,34 @@ async def test_a_result_of_a_handout_run_twice_names_the_handout() -> None:
     assert [e.execution_id for e in results] == [handout, handout]
 
 
+@pytest.mark.parametrize("runs", [1, 2])
+async def test_a_host_run_matching_grants_of_two_handouts_names_neither(
+    runs: int,
+) -> None:
+    read = ToolCall(
+        id="host_1", function="mcp__host__read_file", arguments=READ.arguments
+    )
+    model = Scripted(calls_output(read), calls_output(read))
+    bridge = sandbox_bridge(AsyncMock(return_value="contents"))
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    with active([reporting_results()]):
+        # the scaffold loses the first response and sends its request again,
+        # then runs the call it received; with two runs, it runs both
+        # handouts, and the first run takes the older grant
+        await generate(bridge, model, history, declare_read_file())
+        await generate(bridge, model, history, declare_read_file())
+        for _ in range(runs):
+            await call_host_tool(bridge)("host", "read_file", READ.arguments)
+
+    handouts = [e.execution_id for e in sentinel_events() if e.stage == "tool_call"]
+    assert None not in handouts and len(set(handouts)) == 2
+    # which handout each run was for can't be told, so none is named
+    executions = [e for e in transcript().events if isinstance(e, ToolEvent)]
+    assert [e.id for e in executions][:1] == ["host_1"]
+    assert [e.execution_id for e in executions] == [None] * runs
+
+
 async def google_round_trips(
     bridge: AgentBridge, model: Scripted, outputs: list[str]
 ) -> None:

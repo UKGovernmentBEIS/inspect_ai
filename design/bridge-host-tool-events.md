@@ -181,7 +181,10 @@ call is reviewed, and records it on the call's `ApprovalEvent`s and
 (`_Proposal.execution_id`). A host `ToolEvent` that consumed a grant carries
 it as `execution_id`, so every run of one handout (a call denoting several
 bridged tools can run once per tool) has the same `execution_id` and its own
-event id. A handout is not an execution: the same call handed out again (a
+event id. A run whose request matched the grants of more than one handout
+records `None`: the bridge already can't tell which handout it ran for
+(`_Proposal.ambiguous`), as a handout's response may never have reached the
+agent, or two agents may run the same call in the other order. A handout is not an execution: the same call handed out again (a
 retry or a cache hit) is a new handout, with a new id, under the same call
 id.
 

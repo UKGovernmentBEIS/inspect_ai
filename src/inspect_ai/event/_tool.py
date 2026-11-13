@@ -41,7 +41,9 @@ class ToolEvent(BaseEvent):
     ran for: each response's handing of the call to the scaffold has its own,
     and an execution of a call handed over once that denotes several bridged
     tools sharing a description can run more than once under it. `None` for a
-    host call no handout accounts for, and in logs written before this field.
+    host call no handout accounts for, for a host call whose request matched
+    the grants of more than one handout (which one it ran for is unknown), and
+    in logs written before this field.
 
     Experimental: not yet a stable API; may change without notice.
     """

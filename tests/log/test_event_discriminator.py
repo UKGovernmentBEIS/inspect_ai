@@ -13,6 +13,7 @@ from inspect_ai.event._event import DiscriminatedEvent, Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sentinel import SentinelEvent
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log import read_eval_log, write_eval_log
 from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSample, EvalSpec
 from inspect_ai.scorer import Reference
@@ -155,14 +156,20 @@ def test_events_from_logs_without_an_execution_id_read_as_none() -> None:
         decision="approve",
         execution_id="call_token",
     )
-    for event in [_observation(execution_id="call_token"), approval]:
+    tool = ToolEvent(
+        id="call_1",
+        function="read_file",
+        arguments={"path": "notes.txt"},
+        execution_id="run_1",
+    )
+    for event in [_observation(execution_id="call_token"), approval, tool]:
         logged = event.model_dump(mode="json")
         del logged["execution_id"]
         restored = adapter.validate_json(json.dumps(logged))
-        assert isinstance(restored, SentinelEvent | ApprovalEvent)
+        assert isinstance(restored, SentinelEvent | ApprovalEvent | ToolEvent)
         assert restored.execution_id is None
-    restored = adapter.validate_json(adapter.dump_json(approval))
-    assert restored == approval
+    for event in [approval, tool]:
+        assert adapter.validate_json(adapter.dump_json(event)) == event
 
 
 def test_sentinel_event_rejects_invalid_suspicion() -> None:

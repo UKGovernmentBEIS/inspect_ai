@@ -200,6 +200,18 @@ class _BridgeMetadata:
         }
 
 
+def _handout(grant: _ToolExecutionGrant | None) -> str | None:
+    """The handout a run that consumed `grant` is of (`ToolEvent.execution_id`).
+
+    `None` without a grant, or when the run's request matched grants of more
+    than one handout (`_Proposal.ambiguous`): which of them it ran for is
+    unknown, as one handout's response may never have reached the scaffold.
+    """
+    if grant is None or grant.proposal.ambiguous:
+        return None
+    return grant.proposal.execution_id
+
+
 async def _record_rejection(
     bridge: SandboxAgentBridge,
     tool: str,
@@ -216,7 +228,7 @@ async def _record_rejection(
     """Record a request that did not execute as a completed event in its own `tool` span."""
     event = ToolEvent(
         id=event_id or uuid(),
-        execution_id=grant.proposal.execution_id if grant is not None else None,
+        execution_id=_handout(grant),
         function=tool,
         arguments=arguments,
         view=view,
@@ -328,7 +340,7 @@ async def _execute_granted(
 
     event = ToolEvent(
         id=event_id,
-        execution_id=grant.proposal.execution_id if grant is not None else None,
+        execution_id=_handout(grant),
         function=tool,
         arguments=call_arguments,
         view=view,
