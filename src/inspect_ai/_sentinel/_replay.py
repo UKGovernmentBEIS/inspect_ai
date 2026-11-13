@@ -430,9 +430,23 @@ class _Proposals:
         self._by_conversation: dict[tuple[str, str], _Proposal] = {}
         # the one conversation proposing each id; None once several have
         self._conversation: dict[str, str | None] = {}
+        # every proposal of each id, in log order, and whether those up to
+        # each one are of one conversation (`execution_owner`)
+        self._history: dict[str, list[_Proposal]] = {}
+        self._one_conversation: dict[str, list[bool]] = {}
+        # the proposals of each id by their output message's id
+        self._by_message: dict[tuple[str, str | None], list[_Proposal]] = {}
 
     def add(self, proposal: _Proposal) -> None:
         id = proposal.call.id
+        history = self._history.setdefault(id, [])
+        single = self._one_conversation.setdefault(id, [])
+        single.append(
+            not history
+            or (single[-1] and history[-1].conversation == proposal.conversation)
+        )
+        history.append(proposal)
+        self._by_message.setdefault((id, proposal.message.id), []).append(proposal)
         self._latest[id] = proposal
         self._by_span[(id, proposal.event.span_id)] = proposal
         self._by_conversation[(id, proposal.conversation)] = proposal
@@ -452,6 +466,41 @@ class _Proposals:
         found = self._by_conversation.get((id, conversation))
         return found if found is not None else self._by_span.get((id, span_id))
 
+    def execution_owner(
+        self,
+        id: str,
+        span_id: str | None,
+        conversation: str,
+        message_id: str | None,
+        before: int,
+    ) -> _Proposal | None:
+        """The proposal a native execution's call came from, by the rules of `owner` among the proposals complete before the execution's first recorded event (`before`).
+
+        The proposal whose output message ran the call (`ToolEvent.call_message_id`)
+        is exact; several share it only where one output was returned again
+        (a cache hit), which proposes the same call. Without one (a message
+        the agent edited or built), any proposal of the id before `before` is
+        taken: one proposed while the execution's approval or check awaited
+        comes after it.
+        """
+        named = [
+            proposal
+            for proposal in self._by_message.get((id, message_id), [])
+            if proposal.position < before
+        ]
+        if named:
+            return _owned(named, None, span_id, conversation)
+        history = self._history.get(id, [])
+        end = bisect_left(history, before, key=lambda p: p.position)
+        if end == 0:
+            return None
+        return _owned(
+            history[:end],
+            self._one_conversation[id][end - 1],
+            span_id,
+            conversation,
+        )
+
     def approval_key(
         self, id: str, owner: _Proposal | None, conversation: str
     ) -> tuple[str, str | None]:
@@ -461,6 +510,25 @@ class _Proposals:
         if owner is not None:
             return (id, owner.conversation)
         return (id, conversation if self.proposed(id) else None)
+
+
+def _owned(
+    proposals: Sequence[_Proposal],
+    one_conversation: bool | None,
+    span_id: str | None,
+    conversation: str,
+) -> _Proposal | None:
+    """`_Proposals.owner` among `proposals`, in log order; `one_conversation` says whether they are of one conversation, None to find out."""
+    if one_conversation is None:
+        one_conversation = len({proposal.conversation for proposal in proposals}) == 1
+    if one_conversation:
+        return proposals[-1]
+    found = next(
+        (p for p in reversed(proposals) if p.conversation == conversation), None
+    )
+    if found is not None:
+        return found
+    return next((p for p in reversed(proposals) if p.event.span_id == span_id), None)
 
 
 @dataclass
@@ -598,6 +666,8 @@ class _Driver:
         approvals: dict[tuple[str, str | None], tuple[int, ApprovalEvent]] = {}
         # approvals that name the execution they judged, by its id
         execution_approvals: dict[str, tuple[int, ApprovalEvent]] = {}
+        # the index of the first approval naming each execution
+        first_approvals: dict[str, int] = {}
         approval_entries: list[tuple[int, ApprovalEvent, str]] = []
         unplaced_approvals: list[tuple[int, ApprovalEvent]] = []
         consumed_approvals: set[int] = set()
@@ -658,6 +728,7 @@ class _Driver:
                 owner = proposals.owner(event.call.id, event.span_id, own)
                 if event.execution_id is not None:
                     execution_approvals[event.execution_id] = (index, event)
+                    first_approvals.setdefault(event.execution_id, index)
                 else:
                     approvals[proposals.approval_key(event.call.id, owner, own)] = (
                         index,
@@ -676,7 +747,19 @@ class _Driver:
                 if self._in_sentinel_span(event.span_id):
                     continue
                 own = self._conversation(event)
-                owner = proposals.owner(event.id, event.span_id, own)
+                owner = (
+                    proposals.execution_owner(
+                        event.id,
+                        event.span_id,
+                        own,
+                        event.call_message_id,
+                        self._first_event_of(
+                            event.execution_id, index, first_approvals
+                        ),
+                    )
+                    if event.execution_id is not None and not _bridged(event)
+                    else proposals.owner(event.id, event.span_id, own)
+                )
                 producer: ModelEvent | None = None
                 produced_at = -1
                 assistant: ChatMessageAssistant | None
@@ -1214,6 +1297,21 @@ class _Driver:
                     return None
                 return spans.pop(at)
         return None
+
+    def _first_event_of(
+        self, execution_id: str, index: int, first_approvals: dict[str, int]
+    ) -> int:
+        """The index of the first event of a native execution: its first approval, the start of its `tool_call` check, or its `ToolEvent` (`index`).
+
+        Each is recorded after the generation that proposed the call is.
+        """
+        first = [index]
+        if execution_id in first_approvals:
+            first.append(first_approvals[execution_id])
+        spans = self.execution_spans.get(("tool_call", execution_id))
+        if spans:
+            first.append(self.begins[spans[0]][0])
+        return min(first)
 
     def _execution_span_of(self, stage: SentinelStage, execution_id: str) -> str | None:
         """The first native check at `stage` that names this execution and no call has taken."""

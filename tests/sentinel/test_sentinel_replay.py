@@ -9878,7 +9878,9 @@ def r7_modifies_once_a_same_id_turn_completes() -> Protocol:
 
 
 @solver
-def a_same_id_turn_completes_during_a_call_check() -> Solver:
+def a_same_id_turn_completes_during_a_call_check(again: str | None) -> Solver:
+    """Run a call while another turn of its conversation proposes its id: from `again` as a new user message, or from the same input (a cache hit)."""
+
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         started, generated = anyio.Event(), anyio.Event()
         _SAME_ID_TURN.update(started=started, generated=generated)
@@ -9892,7 +9894,10 @@ def a_same_id_turn_completes_during_a_call_check() -> Solver:
 
         async def generate_again() -> None:
             await started.wait()
-            await model.generate(messages, tools=tools)
+            await model.generate(
+                [*messages, ChatMessageUser(content=again)] if again else messages,
+                tools=tools,
+            )
             generated.set()
 
         await tg_collect([run_call, generate_again])
@@ -9901,34 +9906,47 @@ def a_same_id_turn_completes_during_a_call_check() -> Solver:
     return solve
 
 
+@pytest.mark.parametrize("replies", ["same", "distinct"])
 @pytest.mark.parametrize("approved", [False, True])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 def test_a_call_check_pairs_with_its_call_when_a_same_id_turn_completes_during_it(
+    replies: str,
     approved: bool,
     backend: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    # "same": the second generation returns the first's reply again from the
+    # same input, as a cache hit does (one message id); "distinct": another
+    # turn, from other input, proposes another call under the id
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
-    reply = ModelOutput.for_tool_call(
-        "mockllm/model",
-        tool_name="read_path",
-        tool_arguments={"path": "bad.txt"},
-        tool_call_id="call_x",
+    reply, again = (
+        ModelOutput.for_tool_call(
+            "mockllm/model",
+            tool_name="read_path",
+            tool_arguments={"path": path},
+            tool_call_id="call_x",
+            content=content,
+        )
+        for path, content in [("bad.txt", "Reading it."), ("other.txt", "Other.")]
     )
+    if replies == "same":
+        again = reply
     seen: dict[str, Step] = {}
     log = eval(
         Task(
             dataset=[Sample(input="Read the file")],
-            solver=a_same_id_turn_completes_during_a_call_check(),
+            solver=a_same_id_turn_completes_during_a_call_check(
+                "Read it again" if replies == "distinct" else None
+            ),
             sentinel=[
                 r7_probe(seen, copies=True),
                 r7_modifies_once_a_same_id_turn_completes(),
             ],
             approval=[ApprovalPolicy(auto_approver(), "*")] if approved else None,
         ),
-        model=outputs(reply, reply),
+        model=outputs(reply, again),
         log_format="json",
         log_dir=str(tmp_path),
     )[0]
@@ -9936,8 +9954,14 @@ def test_a_call_check_pairs_with_its_call_when_a_same_id_turn_completes_during_i
     events = logged_sample(log).events
     [ran] = [e for e in events if isinstance(e, ToolEvent)]
     assert ran.arguments == {"path": "safe.txt"}
+    proposals = [e for e in events if isinstance(e, ModelEvent)]
+    assert len(proposals) == 2
+    assert (proposals[0].output.message.id == proposals[1].output.message.id) == (
+        replies == "same"
+    )
 
-    # the check names the call it judged, so it pairs with it
+    # the check names the call it judged, so it pairs with it, and with the
+    # generation that proposed it: its call, message and input equal live
     with caplog.at_level(logging.WARNING):
         replay = assert_logged_replay_equals_live(log, seen, old_log_differs=True)
     assert "match no tool call" not in caplog.text
@@ -9945,6 +9969,15 @@ def test_a_call_check_pairs_with_its_call_when_a_same_id_turn_completes_during_i
         ("tool_call", {"path": "bad.txt"}),
         ("tool_result", {"path": "safe.txt"}),
     ]
+    tool_steps = [
+        s.step for s in replay if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    ]
+    assert len(tool_steps) == 2
+    assert {(s.message, s.message_id) for s in tool_steps} == {
+        ("Reading it.", proposals[0].output.message.id)
+    }
+    for step in tool_steps:
+        assert [m.text for m in step.input or []] == ["Read the file"]
 
     # a log without execution ids pairs a call check only after the latest
     # proposal of its id, so the check is orphaned as before
