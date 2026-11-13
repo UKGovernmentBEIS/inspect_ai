@@ -64,7 +64,7 @@ Note that when using the "openai" provider, you should also specify a fallback e
 
 ### Anthropic Options
 
-The `web_search()` tool can use Anthropic's built-in search capability when running on a limited number of Anthropic models (currently "claude-opus-4-20250514", "claude-sonnet-4-20250514", "claude-3-7-sonnet-20250219", "claude-3-5-sonnet-latest", "claude-3-5-haiku-latest"). This provider does not require any API keys beyond what's needed for the model itself.
+The `web_search()` tool can use Anthropic's built-in search capability when running on Claude 4 and later models. This provider does not require any API keys beyond what's needed for the model itself.
 
 For more details on Anthropic's web search parameters, see [Anthropic Web Search Documentation](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool).
 
@@ -344,7 +344,7 @@ def computer_task():
 To evaluate the task with models tuned for computer use:
 
 ``` bash
-inspect eval computer.py --model anthropic/claude-sonnet-4-6
+inspect eval computer.py --model anthropic/claude-sonnet-5-5
 inspect eval computer.py --model openai/gpt-5.4
 inspect eval computer.py --model google/gemini-3-flash-preview
 ```
