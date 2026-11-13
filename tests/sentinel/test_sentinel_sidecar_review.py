@@ -1607,9 +1607,14 @@ def test_a_reviewed_call_that_fails_counts_only_the_models_time_in_its_sends(
     sample = _sample(log)
     assert sample.error is not None and "403" in sample.error.message
     assert stand_in.holds == []
-    # the SDK's wait before its last try is waiting, whatever the call came to
-    assert sample.working_time is not None
-    assert 0.2 <= sample.working_time < 0.6
+    # The try the provider refused was held 0.3 seconds, which is the model's
+    # time. The sentinel's judging of the first send, 0.3 seconds, and the
+    # SDK's wait before its last try, 0.375 seconds at least, are waiting,
+    # whatever the call came to. They are measured against the sample's whole
+    # time: a slow machine adds to the working time and to the whole alike.
+    assert sample.working_time is not None and sample.total_time is not None
+    assert sample.working_time >= 0.2
+    assert sample.total_time - sample.working_time >= 0.6
 
 
 def test_a_rejected_call_counts_only_the_models_time_before_the_person(
