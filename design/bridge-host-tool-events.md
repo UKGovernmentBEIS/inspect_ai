@@ -165,9 +165,38 @@ bridged tools has a grant for each, so it can run more than once; one of
 those events takes the proposing id and the rest get fresh ids, since
 `ToolEvent.id` is what ACP cards, the viewer's approval and navigation maps,
 `sample cancel-tool-call` and `InterruptEvent` key on. Every event that
-consumed a grant records the proposing id in `metadata.bridge.proposal_id`,
-which is the field to join on; which request takes the id is
-`_execute_granted()`'s order.
+consumed a grant records the model's id for the proposing call in
+`metadata.bridge.proposal_id`, which joins it to the `ModelEvent` that
+proposed it, and the proposal's handout in `execution_id` (below), which
+joins it to the call's approvals and sentinel steps; which request takes
+the id is `_execute_granted()`'s order.
+
+### Execution ids
+
+Each response the bridge hands to the agent is a handout of each of its
+calls. `bridge_generate()` mints an id for each call's handout before the
+call is reviewed, and records it on the call's `ApprovalEvent`s and
+`tool_call` sentinel steps, on the bridge's record of the call id
+(`_Handed.execution_id`, kept in the checkpoint), and on the call's grants
+(`_Proposal.execution_id`). A host `ToolEvent` that consumed a grant carries
+it as `execution_id`, so every run of one handout (a call denoting several
+bridged tools can run once per tool) has the same `execution_id` and its own
+event id. A handout is not an execution: the same call handed out again (a
+retry or a cache hit) is a new handout, with a new id, under the same call
+id.
+
+A `tool_result` step is checked when the agent's next request carries the
+result (see Sentinel below), under the call id the agent reports. It
+records the handout's id while that is the call id's only handout. Once the
+call id is handed out again, or when calls of one response share it, the
+bridge can't tell which handout a result answers, and the step's
+`execution_id` is `None`; so it is for a call id the bridge never handed
+out. The host `ToolEvent`'s own id never names a step: a second run's event
+gets a fresh id, while the result the agent reports is of the handout.
+
+Native tool calls get an `execution_id` per `ToolEvent` too
+(`execute_tools()`), which their approvals and both sentinel tool stages
+record. Sentinel replay pairs a native call with its checks by it.
 
 A `_Proposal` is referenced only by its grants, so pairing state lives in the
 bounded grant store (1024 entries) and is dropped with the last of its grants,
@@ -220,10 +249,11 @@ other order their ids are swapped between two otherwise identical events.
   dispatcher `call_mcp_tool`); `null` without a proposal. For a dispatcher
   call the event's `arguments` are the inner arguments that ran, which is
   what the grant binds.
-- `proposal_id`: the proposing call's id on every consumed grant, else `null`.
-  The bridge hands a call over under the model's id, except when the model
-  reuses an id that already names another call: the call is then handed over,
-  and runs, under a fresh id, and its `ModelEvent` keeps the model's.
+- `proposal_id`: the model's id for the proposing call on every consumed
+  grant, else `null`. The bridge hands a call over under the model's id,
+  except when the model reuses an id that already names another call: the
+  call is then handed over, and runs, under a fresh id (the event's `id`),
+  and `proposal_id` keeps the model's, as its `ModelEvent` does.
 - `grant`: `"consumed"`, `"denied"`, `"exempt"` (an exempt server ran it
   without a matching proposal), or `null` for a request rejected before the
   grant check (unknown server or tool, arguments too deep).
@@ -508,14 +538,15 @@ proposal, and fixing the pairing would mean keeping evicted grants.
   grants are minted, and reviews each call under the bridged tool it denotes,
   whatever name the agent declared, through the same resolution the grants
   use (`reviewed_calls()`); a call denoting several bridged tools is approved
-  separately for each, and the resulting `ApprovalEvent`s carry the proposing
-  id. See
+  separately for each, and the resulting `ApprovalEvent`s carry the id the
+  call is handed over under and its handout's `execution_id`. See
   [Bridged Agents](../docs/approval.qmd#bridged-agents).
 - **Sentinel.** The host executor runs no sentinel tool stage. The bridge
   checks the call when the model proposes it, and its result when the agent's
   next request carries it (`sentinel_tool_results()`), each in a
   `sentinel_bridge` span under the request, not under the tool span: the
-  request carries the call's id, which the MCP call does not. Sentinel replay
+  request carries the call's id, which the MCP call does not. The steps
+  record the handout's `execution_id` (see Execution ids). Sentinel replay
   rebuilds no tool stage for a `ToolEvent` with `metadata["bridge"]`, and
   warns.
 - **Hooks, control server, TUI, dataframes.** Pending host events drive the
@@ -567,8 +598,9 @@ proposal, and fixing the pairing would mean keeping evicted grants.
 
 ## Compatibility
 
-- **Logs.** No schema change. Bridged samples that call host tools have
-  `tool` events and `tool` spans. Data-URI images in a transcript tool
+- **Logs.** `ToolEvent`, `ApprovalEvent` and `SentinelEvent` have an optional
+  `execution_id` (experimental); logs written before it read `None`. Bridged
+  samples that call host tools have `tool` events and `tool` spans. Data-URI images in a transcript tool
   event's result are stored as attachments (`log_images=True`) or removed (`log_images=False`);
   URL and file-path image sources stay inline. An older Inspect reading such
   a log shows the `attachment://` reference in the result.

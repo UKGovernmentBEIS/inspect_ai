@@ -1,11 +1,9 @@
 import contextlib
 from collections.abc import Iterator
 from contextvars import ContextVar
-from typing import NamedTuple
 
 from inspect_ai._sentinel._scope import sentinel_scope
 from inspect_ai.approval._approval import Approval
-from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import (
     ToolCall,
@@ -33,38 +31,28 @@ async def apply_tool_approval(
     call: ToolCall,
     viewer: ToolCallViewer | None,
     history: list[ChatMessage],
+    *,
+    execution_id: str | None = None,
 ) -> tuple[bool, Approval | None]:
     """Apply the active approval policy to a tool call.
 
     If the tool's viewer raises, the call is rejected without consulting the
     approvers: an approver deciding on a fallback rendering might approve an
     action that the tool's own view would have shown differently.
+
+    `execution_id` names the call's execution, recorded on each `ApprovalEvent`
+    (`ApprovalEvent.execution_id`).
     """
-    applied = await apply_tool_approval_recorded(message, call, viewer, history)
-    return applied.approved, applied.approval
-
-
-class AppliedApproval(NamedTuple):
-    approved: bool
-    approval: Approval | None
-    events: list[ApprovalEvent]
-    """The approvals recorded for the call, not for calls its approvers make."""
-
-
-async def apply_tool_approval_recorded(
-    message: str,
-    call: ToolCall,
-    viewer: ToolCallViewer | None,
-    history: list[ChatMessage],
-) -> AppliedApproval:
     approver = _tool_approver.get(None)
     if approver:
         try:
             view = resolve_tool_call_view(call, viewer, reject_on_error=True)
         except ToolCallViewError as ex:
             rejection = Approval(decision="reject", explanation=str(ex))
-            event = record_approval("policy", message, call, None, rejection)
-            return AppliedApproval(False, rejection, [event])
+            record_approval(
+                "policy", message, call, None, rejection, execution_id=execution_id
+            )
+            return False, rejection
 
         # call approver (approvers which use model inference — e.g. LLM monitors —
         # shouldn't have that inference charged to the agent's own budget, and
@@ -75,30 +63,36 @@ async def apply_tool_approval_recorded(
             suspend_working_limit(),
             sentinel_scope("approval", final=True),
         ):
-            approval, events = await approver.decide(message, call, view, history)
+            approval = await approver(
+                message=message,
+                call=call,
+                view=view,
+                history=history,
+                execution_id=execution_id,
+            )
 
         # process decision
         match approval.decision:
             case "approve":
-                return AppliedApproval(True, approval, events)
+                return True, approval
             case "modify":
                 # without a modified call there is nothing approved to run, and
                 # running the original would contradict the recorded decision
                 if approval.modified is None:
-                    return AppliedApproval(
-                        False,
-                        Approval(decision="reject", explanation=MODIFY_WITHOUT_CALL),
-                        events,
+                    return False, Approval(
+                        decision="reject", explanation=MODIFY_WITHOUT_CALL
                     )
-                return AppliedApproval(True, approval, events)
-            case "reject" | "terminate":
-                return AppliedApproval(False, approval, events)
+                return True, approval
+            case "reject":
+                return False, approval
+            case "terminate":
+                return False, approval
             case "escalate":
                 raise RuntimeError("Unexpected 'escalate' from policy approver.")
 
     # no approval system registered
     else:
-        return AppliedApproval(True, None, [])
+        return True, None
 
 
 def modified_function_error(call: ToolCall, modified: ToolCall) -> str | None:

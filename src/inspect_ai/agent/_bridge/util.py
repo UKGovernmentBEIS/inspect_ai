@@ -1664,9 +1664,17 @@ async def _bridge_generate_impl(
         model_ids = [call.id for call in output.message.tool_calls or []]
         output = _fresh_call_ids(bridge, output, request_ids)
         bridge._handouts.propose(output.message.tool_calls or [])
+        # each call's handout, named before review so its approvals and
+        # `tool_call` steps record it
+        execution_ids = [uuid() for _ in output.message.tool_calls or []]
         with agent_bridge_context_scope(_UTILITY_CONTEXT):
             reviewed = await apply_bridge_tool_approval(
-                bridge, output, input_messages, declarations, producer=producer
+                bridge,
+                output,
+                input_messages,
+                declarations,
+                producer=producer,
+                execution_ids=execution_ids,
             )
         if reviewed.rejection is None:
             handed = reviewed.output.message.tool_calls or []
@@ -1678,6 +1686,7 @@ async def _bridge_generate_impl(
                 handed_targets(bridge, handed, declarations)
                 if reviewed.sentinel is None
                 else None,
+                execution_ids,
             )
             # executions are placed in the proposing ModelEvent's span; only one
             # a sink chose is stored, so a rotating checkpoint span is followed
@@ -1704,6 +1713,7 @@ async def _bridge_generate_impl(
             bridge._proposing_reply_id = reviewed.output.message.id
             bridge._proposing_call_verified = verified_calls
             bridge._proposing_model_ids = model_ids
+            bridge._proposing_execution_ids = execution_ids
             try:
                 bridge.register_tool_execution_grants(
                     handed,
@@ -1715,6 +1725,7 @@ async def _bridge_generate_impl(
                 bridge._proposing_reply_id = None
                 bridge._proposing_call_verified = None
                 bridge._proposing_model_ids = None
+                bridge._proposing_execution_ids = None
             return reviewed.output, c_message
 
         rejections += 1

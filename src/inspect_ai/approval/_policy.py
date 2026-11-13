@@ -10,7 +10,6 @@ from pydantic_core import to_jsonable_python
 from inspect_ai._util.config import read_config_object
 from inspect_ai._util.file import exists, local_path
 from inspect_ai._util.registry import create_registry_object, registry_lookup
-from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.util._resource import resource
@@ -188,13 +187,14 @@ def _jsonable(value: Any) -> Any:
     return to_jsonable_python(value)
 
 
-class PolicyApproval(NamedTuple):
-    approval: Approval
-    events: list[ApprovalEvent]
-    """The approvals recorded for the call, not for calls its approvers make."""
-
-
 class PolicyApprover:
+    """The approvers of a list of policies, consulted in order for a tool call.
+
+    Called as an `Approver`. `execution_id` names the execution of the call
+    under review, recorded on each `ApprovalEvent` the approval records
+    (`ApprovalEvent.execution_id`).
+    """
+
     def __init__(self, policies: list[ApprovalPolicy]) -> None:
         self._matchers = [
             (tool_call_matcher(policy.tools, policy.arguments), policy.approver)
@@ -207,29 +207,20 @@ class PolicyApprover:
         call: ToolCall,
         view: ToolCallView,
         history: list[ChatMessage],
+        *,
+        execution_id: str | None = None,
     ) -> Approval:
-        return (await self.decide(message, call, view, history)).approval
-
-    async def decide(
-        self,
-        message: str,
-        call: ToolCall,
-        view: ToolCallView,
-        history: list[ChatMessage],
-    ) -> PolicyApproval:
         # process approvers for this tool call (continue loop on "escalate")
-        events: list[ApprovalEvent] = []
         has_approver = False
         for matches, approver in self._matchers:
             if not matches(call):
                 continue
             has_approver = True
-            approval, event = await call_approver(
-                approver, message, call, view, history
+            approval = await call_approver(
+                approver, message, call, view, history, execution_id=execution_id
             )
-            events.append(event)
             if approval.decision != "escalate":
-                return PolicyApproval(approval, events)
+                return approval
 
         # if there are no approvers then we reject
         reject = Approval(
@@ -237,8 +228,10 @@ class PolicyApprover:
             explanation=f"No {'approval granted' if has_approver else 'approvers registered'} for tool {call.function}",
         )
         # record and return the rejection
-        events.append(record_approval("policy", message, call, view, reject))
-        return PolicyApproval(reject, events)
+        record_approval(
+            "policy", message, call, view, reject, execution_id=execution_id
+        )
+        return reject
 
 
 def policy_approver(policies: str | list[ApprovalPolicy]) -> PolicyApprover:

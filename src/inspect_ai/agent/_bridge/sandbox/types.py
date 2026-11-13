@@ -219,6 +219,9 @@ class SandboxAgentBridge(AgentBridge):
                 proposal_id=self._proposing_model_ids[index]
                 if self._proposing_model_ids is not None
                 else None,
+                execution_id=self._proposing_execution_ids[index]
+                if self._proposing_execution_ids is not None
+                else None,
             )
             for target in targets:
                 if (
@@ -614,6 +617,7 @@ class _Proposal:
     __slots__ = (
         "call",
         "proposal_id",
+        "execution_id",
         "span_id",
         "message_id",
         "reply",
@@ -629,12 +633,16 @@ class _Proposal:
         reply: _HandedCall | None,
         *,
         proposal_id: str | None = None,
+        execution_id: str | None = None,
     ) -> None:
         self.call = call
         """The proposing call as handed to the scaffold, with the function name as the model saw it."""
 
         self.proposal_id = proposal_id if proposal_id is not None else call.id
         """The model's id for the call, which `call.id` replaces when the call is handed over under a fresh id (`_fresh_call_ids`)."""
+
+        self.execution_id = execution_id
+        """The id of the handout that minted the grants (`_Handed.execution_id`), recorded on each execution's `ToolEvent`."""
 
         self.span_id = span_id
         """Span to record executions under, or `None` for the span current then."""

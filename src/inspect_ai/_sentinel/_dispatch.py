@@ -134,7 +134,7 @@ async def sentinel_before_tool_call(
     producer: ModelEvent | None = None,
     *,
     bridge: bool = False,
-    recorded: list[SentinelEvent] | None = None,
+    execution_id: str | None = None,
 ) -> Decision | None:
     if not _watches(BeforeToolCall):
         return None
@@ -156,7 +156,7 @@ async def sentinel_before_tool_call(
         agent_messages=agent_messages(conversation),
         record=_record(conversation),
     )
-    return await _run(step, call.id, bridge=bridge, recorded=recorded)
+    return await _run(step, call.id, bridge=bridge, execution_id=execution_id)
 
 
 def apply_sentinel_decision(decision: Decision | None, call: ToolCall) -> ToolCall:
@@ -320,12 +320,11 @@ async def _run(
     *,
     bridge: bool = False,
     execution_id: str | None = None,
-    recorded: list[SentinelEvent] | None = None,
 ) -> Decision | None:
     root = active_sentinel()
     if root is None or type(step) not in watched_stages(root):
         return None
-    recorder = _Recorder(step_id, execution_id, recorded)
+    recorder = _Recorder(step_id, execution_id)
     try:
         try:
             async with span(
@@ -803,11 +802,10 @@ class _Recorder:
         self,
         step_id: str,
         execution_id: str | None = None,
-        recorded: list[SentinelEvent] | None = None,
     ) -> None:
         self._step_id = step_id
+        # the execution a tool-stage step judged (`SentinelEvent.execution_id`)
         self._execution_id = execution_id
-        self._recorded = recorded
         # this step's human() decisions, published once it settles
         self.kept: list[HumanDecision] = []
 
@@ -857,7 +855,7 @@ class _Recorder:
     def raised(self, root: SentinelRoot, step: Step, error: Exception) -> None:
         # the step's invocation failed, so its human() decisions are not
         # published; replay reads this event to withhold them too
-        self._record(
+        transcript()._event(
             SentinelEvent(
                 factory=registry_info(root).name,
                 path="",
@@ -939,7 +937,7 @@ class _Recorder:
         modified: ToolCall | None = None,
         error: str | None = None,
     ) -> None:
-        self._record(
+        transcript()._event(
             SentinelEvent(
                 factory=factory,
                 path=context.path,
@@ -961,11 +959,6 @@ class _Recorder:
                 error=error,
             )
         )
-
-    def _record(self, event: SentinelEvent) -> None:
-        transcript()._event(event)
-        if self._recorded is not None:
-            self._recorded.append(event)
 
 
 def _factory_kind(factory: str) -> _Kind:

@@ -95,8 +95,9 @@ async def execute_host_tool(
     Every request is recorded as one `ToolEvent` in a `tool` span, as a native
     call is, with `metadata["bridge"]` describing it (see `ToolEvent`). An
     execution that consumed a grant takes the id its call was handed to the
-    scaffold under, records the model's id for the call as `proposal_id`, and
-    is recorded in the span of the proposing `ModelEvent`; a denied or rejected
+    scaffold under, records the model's id for the call as `proposal_id` and
+    its handout as `execution_id`, and is recorded in the span of the
+    proposing `ModelEvent`; a denied or rejected
     request gets a fresh id and the error the scaffold receives. A running
     call can be cancelled by the operator like a native one.
     """
@@ -215,6 +216,7 @@ async def _record_rejection(
     """Record a request that did not execute as a completed event in its own `tool` span."""
     event = ToolEvent(
         id=event_id or uuid(),
+        execution_id=grant.proposal.execution_id if grant is not None else None,
         function=tool,
         arguments=arguments,
         view=view,
@@ -326,6 +328,7 @@ async def _execute_granted(
 
     event = ToolEvent(
         id=event_id,
+        execution_id=grant.proposal.execution_id if grant is not None else None,
         function=tool,
         arguments=call_arguments,
         view=view,

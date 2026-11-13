@@ -8,7 +8,7 @@ from dataclasses import replace
 from datetime import date
 from pathlib import Path
 from tempfile import mkdtemp
-from typing import TYPE_CHECKING, Any, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, cast
 from unittest.mock import AsyncMock, patch
 
 import anyio
@@ -61,7 +61,6 @@ from inspect_ai.approval._apply import apply_tool_approval, approval
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
     ApprovalEvent,
-    Event,
     ModelEvent,
     SentinelEvent,
     SpanBeginEvent,
@@ -2162,36 +2161,39 @@ async def test_a_result_whose_proposal_was_dropped_is_still_checked(
             )
 
 
-async def test_a_result_whose_proposal_was_dropped_names_its_execution(
+async def test_a_result_whose_proposal_was_dropped_names_its_handout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from inspect_ai.agent._bridge import _sentinel
 
     monkeypatch.setattr(_sentinel, "_MAX_PROPOSALS", 1)
     other = replace(READ, id="other", arguments={"path": "other"})
-    model = Scripted(calls_output(READ), calls_output(READ), calls_output(other))
+    model = Scripted(calls_output(READ), calls_output(other), calls_output())
     history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
     bridge = in_process_bridge(history)
 
     with active([reporting_results()]):
+        output = await generate(bridge, model, history)
+        # a later call drops its proposal
         await generate(bridge, model, history)
-        repeated = await generate(bridge, model, history)
-        # a later call drops the repeated call's proposal
-        await generate(bridge, model, history)
-        [handed] = repeated.message.tool_calls or []
         await generate(
             bridge,
             model,
             [
                 *history,
-                repeated.message,
-                ChatMessageTool(content="contents", tool_call_id=handed.id),
+                output.message,
+                ChatMessageTool(content="contents", tool_call_id=READ.id),
             ],
         )
 
-    assert handed.id != READ.id
+    [proposed] = [
+        e for e in sentinel_events() if e.stage == "tool_call" and e.step_id == READ.id
+    ]
     [checked] = [e for e in sentinel_events() if e.stage == "tool_result"]
-    assert (checked.step_id, checked.execution_id) == (READ.id, handed.id)
+    assert checked.step_id == READ.id
+    assert checked.execution_id is not None
+    assert checked.execution_id == proposed.execution_id
+    assert checked.execution_id == bridge._handouts.handed[READ.id].execution_id
 
 
 @protocol
@@ -2272,61 +2274,6 @@ def reporting_results() -> MonitorGroup:
     return MonitorGroup(before, after)
 
 
-class HostPairing(NamedTuple):
-    execution: ToolEvent
-    proposal: ModelEvent | None
-    before: SentinelEvent | None
-    after: SentinelEvent | None
-
-
-def pair_host_executions(events: Sequence[Event]) -> list[HostPairing]:
-    """Pair each host execution as the viewer does, by its `proposal_id`.
-
-    The proposal is the latest model output before the execution proposing that
-    id, its `tool_call` step the latest before it, and its `tool_result` step
-    the first after it.
-    """
-    pairings: list[HostPairing] = []
-    for position, event in enumerate(events):
-        if not isinstance(event, ToolEvent) or not event.metadata:
-            continue
-        key = event.metadata["bridge"]["proposal_id"]
-        earlier, later = events[:position], events[position + 1 :]
-        proposal = next(
-            (
-                e
-                for e in reversed(earlier)
-                if isinstance(e, ModelEvent)
-                and key in {call.id for call in e.output.message.tool_calls or []}
-            ),
-            None,
-        )
-        before = next(
-            (
-                e
-                for e in reversed(earlier)
-                if isinstance(e, SentinelEvent)
-                and e.kind == "observation"
-                and e.stage == "tool_call"
-                and e.step_id == key
-            ),
-            None,
-        )
-        after = next(
-            (
-                e
-                for e in later
-                if isinstance(e, SentinelEvent)
-                and e.kind == "observation"
-                and e.stage == "tool_result"
-                and e.step_id == key
-            ),
-            None,
-        )
-        pairings.append(HostPairing(event, proposal, before, after))
-    return pairings
-
-
 @tool
 def read_copy(mock: AsyncMock) -> Tool:
     async def execute(path: str) -> str:
@@ -2390,7 +2337,7 @@ def repeated_host_call(cached: bool, shared: bool) -> Solver:
 
 @pytest.mark.parametrize("shared", [False, True])
 @pytest.mark.parametrize("cached", [False, True])
-def test_a_host_call_handed_over_under_a_new_id_pairs_with_its_proposal_and_steps(
+def test_each_handout_of_a_repeated_host_call_names_its_run_and_steps(
     cached: bool, shared: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
@@ -2409,43 +2356,88 @@ def test_a_host_call_handed_over_under_a_new_id_pairs_with_its_proposal_and_step
     events = sample.events
 
     generations = [e for e in events if isinstance(e, ModelEvent)]
-    proposals = generations[:2]
     if cached:
-        assert [e.cache for e in proposals] == ["write", "read"]
-    pairings = pair_host_executions(events)
-    # each execution keeps its own id
-    first, second = (pairing.execution.id for pairing in pairings)
-    assert first == "host_1" and second not in ("host_1", "")
-    for index, pairing in enumerate(pairings):
-        assert pairing.proposal is proposals[index]
-        assert pairing.before is not None and pairing.after is not None
-        assert (
-            events.index(pairing.proposal)
-            < events.index(pairing.before)
-            < events.index(pairing.execution)
-        )
-        assert pairing.after.explanation == f"saw contents {index + 1}"
+        assert [e.cache for e in generations[:2]] == ["write", "read"]
+    # both runs are of the call under the model's id, each with its handout's id
+    executions = [e for e in events if isinstance(e, ToolEvent)]
+    assert [e.id for e in executions] == ["host_1", "host_1"]
+    assert [e.metadata["bridge"]["proposal_id"] for e in executions if e.metadata] == [
+        "host_1",
+        "host_1",
+    ]
+    handouts = [e.execution_id for e in executions]
+    assert None not in handouts and handouts[0] != handouts[1]
 
-    # every step and approval of a run names its execution: the run handed
-    # over under the model's id by that id, the other by its execution_id
+    # each run's approvals and tool_call steps, one per target, name its handout
     targets = 2 if shared else 1
-    for index, pairing in enumerate(pairings):
-        run = events[
-            events.index(generations[index]) : events.index(generations[index + 1])
-        ]
+    for index, execution in enumerate(executions):
+        run = events[events.index(generations[index]) : events.index(execution)]
         approvals = [e for e in run if isinstance(e, ApprovalEvent)]
         steps = [
-            e
-            for e in run
-            if isinstance(e, SentinelEvent) and e.stage in ("tool_call", "tool_result")
+            e for e in run if isinstance(e, SentinelEvent) and e.stage == "tool_call"
         ]
-        assert len(approvals) == targets
-        assert [e.stage for e in steps] == ["tool_call"] * targets + ["tool_result"]
-        assert {e.call.id for e in approvals} | {e.step_id for e in steps} == {"host_1"}
-        execution_id = None if pairing.execution.id == "host_1" else second
-        assert {e.execution_id for e in approvals} | {
-            e.execution_id for e in steps
-        } == {execution_id}
+        assert (
+            [e.execution_id for e in approvals]
+            == [e.execution_id for e in steps]
+            == [handouts[index]] * targets
+        )
+
+    # a result names its handout while that is the id's only one; once the call
+    # is handed out again, which handout a result answers can't be told
+    results = [
+        (e.explanation, e.execution_id)
+        for e in events
+        if isinstance(e, SentinelEvent) and e.stage == "tool_result"
+    ]
+    unknown = [("saw contents 1", None)] * targets + [
+        ("saw contents 2", None)
+    ] * targets
+    if cached:
+        assert results == unknown
+    else:
+        assert results == [("saw contents 1", handouts[0])] * targets + unknown
+
+
+async def test_a_result_of_a_handout_run_twice_names_the_handout() -> None:
+    read = ToolCall(
+        id="host_1", function="mcp__host__read_file", arguments=READ.arguments
+    )
+    model = Scripted(calls_output(read), calls_output())
+    bridge = sandbox_bridge(AsyncMock(return_value="contents"))
+    bridge.register_bridged_tools(
+        "copy", {"read_copy": read_copy(AsyncMock(return_value="contents"))}
+    )
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    with active([reporting_results()]):
+        output = await generate(bridge, model, history, declare_read_file())
+        [handed] = output.message.tool_calls or []
+        # the call denotes both tools, and the scaffold runs it on each
+        await call_host_tool(bridge)("host", "read_file", READ.arguments)
+        await call_host_tool(bridge)("copy", "read_copy", READ.arguments)
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                output.message,
+                ChatMessageTool(
+                    content="contents",
+                    tool_call_id=handed.id,
+                    function=handed.function,
+                ),
+            ],
+            declare_read_file(),
+        )
+
+    # the second run takes a fresh event id, and both name the handout
+    runs = [e for e in transcript().events if isinstance(e, ToolEvent)]
+    assert runs[0].id == "host_1" and runs[1].id not in ("host_1", "")
+    [handout] = {e.execution_id for e in runs}
+    assert handout is not None
+    # the report's checks, one per tool, are of the handout, not of a run
+    results = [e for e in sentinel_events() if e.stage == "tool_result"]
+    assert [e.execution_id for e in results] == [handout, handout]
 
 
 async def google_round_trips(
@@ -5438,13 +5430,19 @@ async def test_a_result_under_an_id_never_handed_out_is_checked_under_each_id() 
         (READ.id, "same", model.inputs[0]),
         ("scaffold_3", "same", None),
     ]
-    # neither names an execution: one was never handed out, the other was
-    # handed over under the model's id
+    # a result under an id never handed out names no handout
+    handout = bridge._handouts.handed[READ.id].execution_id
+    assert handout is not None
     assert [
         (e.step_id, e.execution_id)
         for e in sentinel_events()
         if e.stage == "tool_result"
-    ] == [("scaffold_1", None), (READ.id, None)]
+    ] == [
+        ("scaffold_1", None),
+        ("scaffold_2", None),
+        (READ.id, handout),
+        ("scaffold_3", None),
+    ]
 
 
 async def gemini_cli_round_trips(
@@ -6201,7 +6199,7 @@ async def test_calls_sharing_an_id_keep_their_own_result_checks(
     ) == [("notes.txt", "a"), ("other", "b")]
 
 
-async def test_steps_of_calls_sharing_an_id_name_their_executions() -> None:
+async def test_steps_of_calls_sharing_an_id_name_their_handouts() -> None:
     one = replace(READ, id="one")
     two = replace(READ, id="one", arguments={"path": "other"})
     model = Scripted(calls_output(one, two), calls_output())
@@ -6225,23 +6223,19 @@ async def test_steps_of_calls_sharing_an_id_name_their_executions() -> None:
             ],
         )
 
-    # the first is handed over under the model's id, the second under a token
-    handed = [call.id for call in calls]
-    assert handed[0] == "one" and handed[1] != "one"
+    # both are handed over under the model's id, each as a handout of its own
+    assert [call.id for call in calls] == ["one", "one"]
     approvals = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
-    assert [(e.call.arguments["path"], e.execution_id) for e in approvals] == [
-        ("notes.txt", None),
-        ("other", handed[1]),
-    ]
+    handouts = [e.execution_id for e in approvals]
+    assert [e.call.arguments["path"] for e in approvals] == ["notes.txt", "other"]
+    assert None not in handouts and handouts[0] != handouts[1]
     steps = [e for e in sentinel_events() if e.stage in ("tool_call", "tool_result")]
     assert {e.step_id for e in steps} == {"one"}
-    assert [e.execution_id for e in steps if e.stage == "tool_call"] == [
-        None,
-        handed[1],
-    ]
+    assert [e.execution_id for e in steps if e.stage == "tool_call"] == handouts
+    # which handout a result under the shared id answers can't be told
     assert sorted(
         (e.explanation or "", e.execution_id) for e in steps if e.stage == "tool_result"
-    ) == [("saw a", None), ("saw b", handed[1])]
+    ) == [("saw a", None), ("saw b", None)]
 
 
 @monitor
@@ -6286,18 +6280,18 @@ async def test_a_monitors_own_approvals_name_no_execution() -> None:
             ],
         )
 
-    handed = [call.id for call in calls]
-    assert handed[0] == "one" and handed[1] != "one"
     approvals = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
-    assert sorted((e.call.id, e.execution_id or "") for e in approvals) == sorted(
-        [("one", ""), ("one", handed[1])]
-        + [("lookup_before", "")] * 2
-        + [("lookup_after", "")] * 2
+    handouts = [e.execution_id for e in approvals if e.call.id == "one"]
+    assert len(handouts) == 2 and None not in handouts
+    # the monitor's approvals are of calls no execution ran
+    assert (
+        sorted((e.call.id, e.execution_id) for e in approvals if e.call.id != "one")
+        == [("lookup_after", None)] * 2 + [("lookup_before", None)] * 2
     )
     steps = [e for e in sentinel_events() if e.stage in ("tool_call", "tool_result")]
-    assert sorted(e.execution_id or "" for e in steps) == sorted(
-        ["", "", handed[1], handed[1]]
-    )
+    assert [(e.stage, e.execution_id) for e in steps if e.stage == "tool_call"] == [
+        ("tool_call", handout) for handout in handouts
+    ]
 
 
 @tool
@@ -6344,63 +6338,72 @@ def running_its_own_call() -> Approver:
     return approve
 
 
-def assert_own_calls_name_no_execution(token: str, lookups: int) -> None:
-    approvals = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
-    assert [e.execution_id for e in approvals if e.call.function == "read_file"] == [
-        None,
-        token,
-    ]
+def assert_own_calls_name_their_own_executions(lookups: int) -> None:
+    events = transcript().events
+    approvals = [e for e in events if isinstance(e, ApprovalEvent)]
+    handouts = [e.execution_id for e in approvals if e.call.function == "read_file"]
+    assert len(handouts) == 2 and None not in handouts
+    assert handouts[0] != handouts[1]
+    # a monitor's or approver's own calls under the agent's id are its own
+    # executions, and never name the agent's handouts
+    own_runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert [e.id for e in own_runs] == ["same"] * lookups
     own = [e for e in approvals if e.call.function == "lookup"]
-    assert [(e.call.id, e.execution_id) for e in own] == [("same", None)] * lookups
-    executions = [e for e in transcript().events if isinstance(e, ToolEvent)]
-    assert [e.id for e in executions] == ["same"] * lookups
+    assert [(e.call.id, e.execution_id) for e in own] == [
+        ("same", run.execution_id) for run in own_runs
+    ]
+    assert not {e.execution_id for e in own} & set(handouts)
     steps = [e for e in sentinel_events() if e.stage in ("tool_call", "tool_result")]
+    # the result follows the second handout of the id, so names neither
     assert [(e.stage, e.execution_id) for e in steps] == [
-        ("tool_call", None),
-        ("tool_call", token),
-        ("tool_result", token),
+        ("tool_call", handouts[0]),
+        ("tool_call", handouts[1]),
+        ("tool_result", None),
     ]
 
 
-async def run_calls_sharing_an_id(bridge: AgentBridge) -> str:
+async def run_calls_sharing_an_id(bridge: AgentBridge) -> None:
     """Generate the call `same` twice, and report the second's result."""
     call = replace(READ, id="same")
     model = Scripted(calls_output(call), calls_output(call), calls_output())
     history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
     await generate(bridge, model, history)
     second = await generate(bridge, model, history)
-    token = (second.message.tool_calls or [])[0].id
-    assert token != "same"
+    [handed] = second.message.tool_calls or []
+    assert handed.id == "same"
     await generate(
         bridge,
         model,
-        [*history, second.message, ChatMessageTool(content="b", tool_call_id=token)],
+        [*history, second.message, ChatMessageTool(content="b", tool_call_id="same")],
     )
-    return token
 
 
-async def test_a_monitors_own_calls_sharing_the_agents_id_name_no_execution() -> None:
+async def test_a_monitors_own_calls_sharing_the_agents_id_name_their_own_executions() -> (
+    None
+):
     bridge = in_process_bridge([ChatMessageUser(content=TASK)])
     with (
         approval([ApprovalPolicy(auto_approver(), "*")]),
         active([running_its_own_calls()]),
     ):
-        token = await run_calls_sharing_an_id(bridge)
+        await run_calls_sharing_an_id(bridge)
 
     # its own calls at both proposals, and at the second's result
-    assert_own_calls_name_no_execution(token, 3)
+    assert_own_calls_name_their_own_executions(3)
 
 
-async def test_an_approvers_own_calls_sharing_the_agents_id_name_no_execution() -> None:
+async def test_an_approvers_own_calls_sharing_the_agents_id_name_their_own_executions() -> (
+    None
+):
     bridge = in_process_bridge([ChatMessageUser(content=TASK)])
     bridge.approval = [
         ApprovalPolicy(running_its_own_call(), "read_file"),
         ApprovalPolicy(auto_approver(), "*"),
     ]
     with active([reporting_results()]):
-        token = await run_calls_sharing_an_id(bridge)
+        await run_calls_sharing_an_id(bridge)
 
-    assert_own_calls_name_no_execution(token, 2)
+    assert_own_calls_name_their_own_executions(2)
 
 
 async def test_calls_sharing_an_id_keep_their_own_modifications() -> None:
@@ -12550,56 +12553,43 @@ async def test_a_provider_output_rebuilt_from_its_fields_replays_its_own_calls()
     ]
 
 
-@pytest.mark.parametrize("fresh", ["unknown_state", "modified_state", "gemini_action"])
-async def test_a_call_handed_under_a_fresh_id_names_its_execution(fresh: str) -> None:
-    from google.genai.types import FunctionCall
-
-    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
-    from inspect_ai.model._providers._google_computer_use import (
-        tool_call_from_gemini_computer_action,
-    )
-
-    init_sample_assistant_internal()
-    input: list[ChatMessage] = [ChatMessageUser(content=TASK)]
-    if fresh == "unknown_state":
-        # its generation's replay state was lost: a rebuilt provider output
-        _, new = _responses_calls_reading("function", True)
-
-        async def rebuilt() -> ModelOutput:
-            output = await _responses_output(new)
-            return ModelOutput.model_validate_json(output.model_dump_json())
-
-        model: Model = Parsing(rebuilt).model
-        model_id, sentinel = "call_reused", reporting_results()
-    elif fresh == "modified_state":
-        # its replay state carries the arguments approval changed
-        item, _, _, _ = _responses_modified_call("function")
-        model = Scripted(await _responses_output(item)).model
-        model_id = item.call_id
-        sentinel = bridge_modify_action({"path": "other.txt"})
-    else:
-        # its id names the action approval changed
-        call = tool_call_from_gemini_computer_action(
-            FunctionCall(name="search", args={"query": "inspect"})
-        )
-        model = Scripted(calls_output(call)).model
-        model_id, sentinel = call.id, bridge_modify_action(NAVIGATE)
-    bridge = in_process_bridge(input)
+@pytest.mark.parametrize("fresh", [False, True])
+async def test_a_handed_calls_approvals_and_steps_name_its_handout(fresh: bool) -> None:
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    if fresh:
+        # the model's id already names a call in the conversation
+        earlier = replace(READ, arguments={"path": "old.txt"})
+        history += [
+            ChatMessageAssistant(content="Earlier.", tool_calls=[earlier]),
+            ChatMessageTool(content="old", tool_call_id=READ.id),
+        ]
+    model = Scripted(calls_output(READ), calls_output())
+    bridge = in_process_bridge(history)
     bridge.approval = [ApprovalPolicy(auto_approver(), "*")]
 
-    with active([sentinel]):
-        output = await _generate_bridged(bridge, model, input, [])
+    with active([reporting_results()]):
+        output = await generate(bridge, model, history)
+        [handed] = output.message.tool_calls or []
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                output.message,
+                ChatMessageTool(content="contents", tool_call_id=handed.id),
+            ],
+        )
 
-    [handed] = output.message.tool_calls or []
-    assert handed.id != model_id
+    assert (handed.id != READ.id) == fresh
+    handout = bridge._handouts.handed[handed.id].execution_id
+    assert handout is not None
     approvals = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
-    steps = [e for e in sentinel_events() if e.stage == "tool_call"]
-    assert len(approvals) == len(steps) == 1
-    assert (
-        [e.execution_id for e in approvals]
-        == [e.execution_id for e in steps]
-        == [handed.id]
-    )
+    assert [(e.call.id, e.execution_id) for e in approvals] == [(handed.id, handout)]
+    steps = [e for e in sentinel_events() if e.stage in ("tool_call", "tool_result")]
+    assert [(e.stage, e.step_id, e.execution_id) for e in steps] == [
+        ("tool_call", handed.id, handout),
+        ("tool_result", handed.id, handout),
+    ]
 
 
 @pytest.fixture
