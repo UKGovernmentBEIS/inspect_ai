@@ -59,6 +59,7 @@ from inspect_ai._util.content import (
     ContentAudio,
     ContentDocument,
     ContentImage,
+    ContentReasoning,
     ContentText,
     ContentToolUse,
     ContentVideo,
@@ -6063,10 +6064,13 @@ class _HostConversation:
         With `listed`, each result's text is sent as a list of text parts (one,
         or none for empty text), where the dialect allows one (Google results
         are JSON objects); with `padded` as well, the list starts and ends with
-        an empty text part. With `error`, Anthropic results are sent as errors.
+        an empty text part. A list output is sent as is (not for Google). With
+        `error`, Anthropic results are sent as errors.
         """
 
         def content(output: JsonValue, text_type: str = "text") -> Any:
+            if isinstance(output, list):
+                return output
             if not listed:
                 return str(output)
             parts = [{"type": text_type, "text": str(output)}] if output != "" else []
@@ -7669,9 +7673,11 @@ async def test_host_media_result_sent_as_text_links_its_answer(
 
 
 async def _host_result_link(
-    dialect: HostDialect, result: ToolResult, answer: Callable[[str], str]
+    dialect: HostDialect,
+    result: ToolResult | Exception,
+    answer: Callable[[str], JsonValue],
 ) -> bool:
-    """Whether a host call returning `result` links the answer `answer` makes of the text the scaffold received."""
+    """Whether a host call returning (or raising) `result` links the answer `answer` makes of the text the scaffold received."""
     model = get_model(
         "mockllm/model",
         custom_outputs=[
@@ -7690,15 +7696,26 @@ async def _host_result_link(
         model=None,
         model_aliases={"inspect": model},
         bridged_tools={
-            "host": {"read_file": read_file(AsyncMock(return_value=result))}
+            "host": {
+                "read_file": read_file(
+                    AsyncMock(side_effect=result)
+                    if isinstance(result, Exception)
+                    else AsyncMock(return_value=result)
+                )
+            }
         },
     )
     [info] = declare("read_file")
     conversation = _HostConversation(dialect, "Read p.", info)
     with recorded_transcript() as recorded:
         [(_, arguments)] = calls = await conversation.request(bridge)
-        reply = await call_host_tool(bridge)("host", "read_file", arguments)
-        conversation.results(calls, [answer(_scaffold_text(reply))])
+        try:
+            text = _scaffold_text(
+                await call_host_tool(bridge)("host", "read_file", arguments)
+            )
+        except Exception as error:
+            text = f"{MCP_ERROR}{error}"
+        conversation.results(calls, [answer(text)])
         await conversation.request(bridge)
 
     [event] = [e for e in recorded.events if isinstance(e, ToolEvent)]
@@ -7735,6 +7752,54 @@ async def test_empty_host_result_links_only_an_empty_answer(
     """An empty host result links an answer holding no text, however wrapped, but not one with a timeout beside an empty field."""
     text, links = EMPTY_ANSWERS[answer]
     assert await _host_result_link(dialect, "", lambda _: text) is links
+
+
+REASONING_TIMEOUT: JsonValue = [{"type": "reasoning", "reasoning": CLIENT_TIMEOUT}]
+"""A Completions tool answer holding a client timeout as reasoning, not media or text."""
+
+
+@pytest.mark.parametrize(
+    "result,answer,links",
+    [
+        pytest.param(
+            ContentImage(image=PNG),
+            REASONING_TIMEOUT,
+            False,
+            id="image answered by reasoning",
+        ),
+        pytest.param("", REASONING_TIMEOUT, False, id="empty answered by reasoning"),
+        pytest.param("", [], True, id="empty answered by no parts"),
+    ],
+)
+async def test_host_result_answered_by_reasoning_links_nothing(
+    result: ToolResult, answer: JsonValue, links: bool
+) -> None:
+    """Reasoning in a Completions tool answer is neither the media nor the empty text a host result needs.
+
+    The image control is a unit case (`test_host_result_evidence_in_an_answer`):
+    a model without tool result images gets the image in a new user message.
+    """
+    assert await _host_result_link("completions", result, lambda _: answer) is links
+
+
+TIMEOUT_WORDING = "Request timed out"
+"""A host result or error the wording of `CLIENT_TIMEOUT` holds."""
+
+
+@pytest.mark.parametrize("answered", ["reply", "client timeout"])
+@pytest.mark.parametrize("raised", [False, True], ids=["result", "error"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_host_result_within_a_client_timeout_links_nothing(
+    dialect: HostDialect, raised: bool, answered: str
+) -> None:
+    """A host result or error within a client timeout's wording doesn't link that timeout; the scaffold's reply does."""
+    result = ToolError(TIMEOUT_WORDING) if raised else TIMEOUT_WORDING
+    links = await _host_result_link(
+        dialect,
+        result,
+        lambda text: text if answered == "reply" else CLIENT_TIMEOUT,
+    )
+    assert links is (answered == "reply")
 
 
 UNICODE_RESULT = "café menu\n" + "\n".join(
@@ -8123,6 +8188,56 @@ DENIED = (
         pytest.param("", None, "", True, id="empty"),
         pytest.param("", None, "[]", True, id="empty json"),
         pytest.param("", None, CLIENT_TIMEOUT, False, id="empty answered by a timeout"),
+        pytest.param(
+            "",
+            None,
+            [ContentReasoning(reasoning=CLIENT_TIMEOUT)],
+            False,
+            id="empty answered by reasoning",
+        ),
+        pytest.param(
+            "",
+            None,
+            [ContentText(text=""), ContentReasoning(reasoning="")],
+            False,
+            # a part other than text fails closed
+            id="empty answered by empty text and reasoning",
+        ),
+        pytest.param(
+            TIMEOUT_WORDING,
+            None,
+            CLIENT_TIMEOUT,
+            False,
+            id="result within a timeout",
+        ),
+        pytest.param(
+            TIMEOUT_WORDING,
+            None,
+            json.dumps({"error": CLIENT_TIMEOUT}),
+            False,
+            id="result within a timeout in gemini json",
+        ),
+        pytest.param(
+            "timed out awaiting tools/call",
+            None,
+            "tool call error: timed out awaiting tools/call after 60s",
+            False,
+            id="result within a codex timeout",
+        ),
+        pytest.param(
+            "",
+            TIMEOUT_WORDING,
+            CLIENT_TIMEOUT,
+            False,
+            id="error within a timeout",
+        ),
+        pytest.param(
+            "",
+            TIMEOUT_WORDING,
+            MCP_ERROR + TIMEOUT_WORDING,
+            True,
+            id="error within a timeout as raised",
+        ),
         *[
             pytest.param("", None, text, holds, id=f"empty answered by {name}")
             for name, (text, holds) in EMPTY_ANSWERS.items()
@@ -8192,6 +8307,13 @@ DENIED = (
             CLIENT_TIMEOUT,
             False,
             id="image answered by a timeout",
+        ),
+        pytest.param(
+            [ContentImage(image="data:image/png;base64,AAAA")],
+            None,
+            [ContentReasoning(reasoning=CLIENT_TIMEOUT)],
+            False,
+            id="image answered by reasoning",
         ),
         pytest.param(
             MEDIA_RESULTS["captioned image"],

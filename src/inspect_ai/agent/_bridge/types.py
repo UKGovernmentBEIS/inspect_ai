@@ -73,6 +73,15 @@ _RESULT_EVIDENCE = 256
 _MIN_CONTAINED_RESULT = 16
 """Shortest host tool result text a linked answer may hold among other text; a shorter one must be a whole text of the answer (`_answer_texts`)."""
 
+_CLIENT_TIMEOUTS = (
+    "MCP error -32001: Request timed out",
+    "timed out awaiting tools/call",
+)
+"""What scaffolds' MCP clients answer a call they gave up waiting on with (the MCP SDKs, Codex)."""
+
+_MEDIA_TYPES = frozenset({"image", "audio", "video", "document"})
+"""Content types of the media a host tool result may reach a scaffold as."""
+
 _MAX_RECENT_THREADS = 16
 """Recent requests and generations kept, each in place of the kept ones it extends, whose replies can contest a thread's placement (see `_contested`)."""
 
@@ -1418,16 +1427,25 @@ def _holds_result(answer: ChatMessageTool, received: _Received) -> bool:
     cut its JSON so it no longer parses, and a content result is JSON inside
     the scaffold's JSON). An error with no text links nothing. A text shorter
     than `_MIN_CONTAINED_RESULT` may appear in any message by chance, so it
-    must be a whole text of the answer. With no text, every innermost text of
-    the answer must be empty (`_innermost_texts`: a timeout beside an empty
-    field is not empty) or, for media, the answer must hold media. Linear in
-    the answer's size: a few escapings of one bounded text are compared.
+    must be a whole text of the answer. A text within a client timeout's
+    wording (`_CLIENT_TIMEOUTS`) links no answer holding that wording. With no
+    text, the answer must hold only text parts, each innermost text empty
+    (`_innermost_texts`: a timeout beside an empty field is not empty), or,
+    for media, hold a media part (`_MEDIA_TYPES`; reasoning is not media).
+    Linear in the answer's size: a few escapings of one bounded text are
+    compared.
     """
     if received.error and not received.text:
         return False
     expected = _escape_surrogates(received.text)
     texts = _answer_texts(answer)
     if expected:
+        if any(
+            expected in timeout and timeout in text
+            for timeout in _CLIENT_TIMEOUTS
+            for text in texts
+        ):
+            return False
         if len(expected) < _MIN_CONTAINED_RESULT:
             return expected in texts
         evidence = expected[:_RESULT_EVIDENCE]
@@ -1438,11 +1456,13 @@ def _holds_result(answer: ChatMessageTool, received: _Received) -> bool:
             for ascii_twice in (False, True):
                 forms.add(json.dumps(escaped, ensure_ascii=ascii_twice)[1:-1])
         return any(form in text for form in forms for text in texts)
+    if isinstance(answer.content, str):
+        return not received.media and not any(_innermost_texts(answer))
     if received.media:
-        return not isinstance(answer.content, str) and any(
-            content.type != "text" for content in answer.content
-        )
-    return not any(_innermost_texts(answer))
+        return any(content.type in _MEDIA_TYPES for content in answer.content)
+    return all(content.type == "text" for content in answer.content) and not any(
+        _innermost_texts(answer)
+    )
 
 
 def _answer_texts(answer: ChatMessageTool) -> set[str]:

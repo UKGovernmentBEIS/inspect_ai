@@ -480,10 +480,13 @@ The link is exact when all of these hold:
   a denied call's answer carries too; an error with no text links nothing. A
   text shorter than 16 characters must be a whole text of the message, a text
   part or a JSON string, so a short error message, which agents show behind a
-  prefix, links nothing. A reply with no text needs an answer whose text,
-  and every string of JSON it holds (one level down too), is empty, so an
-  empty field beside a timeout error links nothing; for an inline image, the
-  answer must hold media. An agent that truncates the start of a
+  prefix, links nothing. A text within a known client timeout's wording
+  (`Request timed out` within `MCP error -32001: Request timed out`) links
+  no answer holding that timeout. A reply with no text needs an answer of
+  only text parts whose text, and every string of JSON it holds (one level
+  down too), is empty, so an empty field beside a timeout error, or a
+  reasoning part, links nothing; for an inline image, the answer must hold
+  an image, audio, video or document part (reasoning is not media). An agent that truncates the start of a
   result or rewrites it leaves the call unlinked.
 
 Otherwise `message_id` stays `None`. This includes a Google result whose call
