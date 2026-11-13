@@ -1158,12 +1158,6 @@
       "count": 1
     }
   },
-  "tests/agent/test_acp/test_active_sample_link.py": {
-    "type: ignore[attr-defined]": {
-      "count": 2,
-      "undescribed": 2
-    }
-  },
   "tests/agent/test_acp/test_elicitation.py": {
     "type: ignore[attr-defined]": {
       "count": 1,
