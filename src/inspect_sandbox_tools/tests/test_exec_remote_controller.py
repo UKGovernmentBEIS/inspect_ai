@@ -755,7 +755,9 @@ class TestKillByJobKey:
         try:
             with pytest.raises(ConnectionResetError, match="Connection lost"):
                 await controller.submit(
-                    "exec 0<&-; exec sleep 60", input=_LARGE_INPUT, job_key=_JOB_KEY
+                    "sleep 0.05; exec 0<&-; exec sleep 60",
+                    input=_LARGE_INPUT,
+                    job_key=_JOB_KEY,
                 )
 
             assert not _group_alive(spawned[0].pid)
