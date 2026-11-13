@@ -226,12 +226,15 @@ class MCPServerLocalSession(MCPServer):
             )
         conn.refcount -= 1
         if conn.refcount == 0:
-            # Clear the cached tool list too, so a session reused across two
-            # mcp_connection blocks in the same task re-fetches from the server.
             self._conn = None
-            self._cached_tool_list = None
-            with trace_action(logger, "MCPServer", f"disconnect ({self._name})"):
-                await conn.exit_stack.aclose()
+            try:
+                with trace_action(logger, "MCPServer", f"disconnect ({self._name})"):
+                    await conn.exit_stack.aclose()
+            finally:
+                # Clear the cached tool list once teardown is over (a tools()
+                # call during it can refill the cache), so a session reused
+                # across two mcp_connection blocks re-fetches from the server.
+                self._cached_tool_list = None
 
     @override
     async def tools(self) -> list[Tool]:

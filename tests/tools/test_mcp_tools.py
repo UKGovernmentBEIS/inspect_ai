@@ -93,8 +93,8 @@ def _make_simulated_mcp_client(
 ):
     """Build a fake MCP transport context manager.
 
-    The writer responds to ``initialize`` with a valid handshake, delegates
-    ``tools/call`` to ``on_tool_call`` (which returns a ``JSONRPCMessage`` to
+    The writer responds to ``initialize`` with a valid handshake and to
+    ``tools/list`` with no tools, delegates ``tools/call`` to ``on_tool_call`` (which returns a ``JSONRPCMessage`` to
     send back), accepts notifications, and records anything else into
     ``unexpected_methods`` (asserted by callers — raising from the writer
     task wraps the failure in an ExceptionGroup, which obscures the message).
@@ -206,6 +206,18 @@ def _make_simulated_mcp_client(
                                 )
                             elif root.method == "tools/call":
                                 await read_stream_writer.send(on_tool_call(root))
+                            elif root.method == "tools/list":
+                                await read_stream_writer.send(
+                                    SessionMessage(
+                                        message=jsonrpc_message(
+                                            JSONRPCResponse(
+                                                jsonrpc="2.0",
+                                                id=root.id,
+                                                result={"tools": []},
+                                            )
+                                        )
+                                    )
+                                )
                             else:
                                 unexpected_methods.append(root.method)
                         elif isinstance(root, JSONRPCNotification):
@@ -858,6 +870,77 @@ async def test_mcp_failed_connect_closes_transport_and_allows_retry(
     async with session:
         assert (opened, closed) == (2, 1)
     assert (opened, closed) == (2, 2)
+
+
+@skip_if_no_mcp_package
+async def test_mcp_tool_use_during_disconnect_opens_its_own_connection() -> None:
+    """Tool use while a connection closes neither rides it nor outlives it.
+
+    A tool call from another task during teardown must open its own
+    connection rather than use the closing one. A `tools()` call through the
+    session returned by `async with` fills the cache from that temporary
+    connection, so the cache must still be empty once teardown finishes.
+    """
+    from inspect_ai.model._call_tools import decisive_tool_exception
+    from inspect_ai.tool._mcp._local import MCPServerLocalSession
+
+    closing = anyio.Event()
+    release = anyio.Event()
+    unexpected: list[str] = []
+    received: list[tuple[int, str]] = []
+    simulated = _make_simulated_mcp_client(
+        _answer_tool_call, unexpected_methods=unexpected, received=received
+    )
+    opened = 0
+
+    @contextlib.asynccontextmanager
+    async def client() -> AsyncIterator[Any]:
+        nonlocal opened
+        connection = opened
+        opened += 1
+        async with simulated() as streams:
+            try:
+                yield streams
+            finally:
+                if connection == 0:
+                    closing.set()
+                    await release.wait()
+
+    session = MCPServerLocalSession(client, name="closing", events=False)
+    tool = session._tool_def_from_mcp_tool(_mcp_tool("probe"))
+    connected: list[MCPServer] = []
+    call_errors: list[Exception] = []
+
+    async def owner() -> None:
+        async with session as server:
+            connected.append(server)
+
+    async def use_during_teardown() -> None:
+        await closing.wait()
+        try:
+            with anyio.fail_after(5):
+                try:
+                    await tool.tool()
+                except Exception as ex:
+                    call_errors.append(ex)
+                await connected[0].tools()
+        finally:
+            release.set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(owner)
+        tg.start_soon(use_during_teardown)
+
+    assert not unexpected, f"writer saw unexpected methods: {unexpected}"
+    assert len(call_errors) == 1
+    error = decisive_tool_exception(call_errors[0])
+    assert isinstance(error, ToolError), repr(call_errors[0])
+    assert "answered" in str(error)
+    assert (0, "tools/call") not in received, received
+    assert session._cached_tool_list is None, (
+        "tools listed over a temporary connection during teardown must not "
+        "be served to the next connection"
+    )
 
 
 @skip_if_no_mcp_package
