@@ -865,8 +865,8 @@ async def test_mcp_exit_from_another_task_raises() -> None:
     """Exiting from a task that didn't enter must fail, even under `python -O`.
 
     Connections are per task, so the exiting task has no connection to
-    close. Failing silently would drive its refcount negative and leave the
-    entering task's connection open.
+    close. Failing silently would drive its own refcount negative and hide
+    that the entering task's connection was never closed.
     """
     from inspect_ai.tool._mcp._local import MCPServerLocal
 
@@ -966,6 +966,8 @@ async def test_mcp_task_session_reused_after_close() -> None:
     async with server:
         s1 = server._task_session()
     s2 = server._task_session()
+    async with server:
+        assert server._task_session() is s1
     assert s2 is s1, "closing a session should not force a new object for the same task"
 
 

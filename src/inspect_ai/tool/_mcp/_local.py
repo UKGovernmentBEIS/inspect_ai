@@ -174,7 +174,7 @@ class MCPServerLocal(MCPServer):
 
 @dataclass
 class _Connection:
-    """A connection held open by `mcp_connection()` entries in one task."""
+    """A connection held open by this session's entries in one task."""
 
     session: ClientSession
     exit_stack: AsyncExitStack
