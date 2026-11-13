@@ -866,8 +866,19 @@ jobs:
       - name: Build
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true'
         run: |
-          "$RUNNER_TEMP/build-env/bin/python" -m build --no-isolation
+          "$RUNNER_TEMP/build-env/bin/python" -m build --no-isolation --sdist --wheel
           ls -l dist
+
+      # conda-forge and --no-binary installs build from the sdist, so check that
+      # it still builds a wheel. The output stays out of dist/.
+      - name: Build a wheel from the sdist
+        if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true'
+        run: |
+          sdist_dir="$RUNNER_TEMP/sdist"
+          mkdir -p "$sdist_dir"
+          tar -xzf dist/*.tar.gz -C "$sdist_dir"
+          "$RUNNER_TEMP/build-env/bin/python" -m build --no-isolation --wheel \
+            --outdir "$RUNNER_TEMP/sdist-wheel" "$sdist_dir"/*/
 
       # twine and check-wheel-contents come from uv.lock (the dist extra).
       - name: Install check tools

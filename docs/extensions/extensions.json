@@ -33,17 +33,6 @@
     ]
   },
   {
-    "id": "ec2-sandbox",
-    "name": "EC2 Sandbox",
-    "url": "https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox",
-    "desc": "Python package that provides a EC2 virtual machine sandbox environment for Inspect.",
-    "author": "UK AISI",
-    "author_url": "https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox",
-    "categories": [
-      "Sandboxes"
-    ]
-  },
-  {
     "id": "proxmox-sandbox",
     "name": "Proxmox Sandbox",
     "url": "https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox",
