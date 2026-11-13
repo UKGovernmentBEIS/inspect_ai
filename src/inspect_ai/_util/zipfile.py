@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import sys
 import tempfile
+import time
 import zipfile
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, BinaryIO
@@ -42,8 +43,27 @@ zipfile_compress_kwargs: dict[str, Any] = {
 }
 
 
-# 200 MiB. Well under fzstd's 256 MiB (2^28) compressed-frame overflow
-# threshold, applied to *input* bytes which compress smaller.
+# Keep these zstd settings under the viewer's decoder limits.
+#
+# Shard merge (inspect_ai.log._shards) now copies sample members into the
+# merged log as-is, without recompressing them. A frame written here is
+# the frame the viewer decodes.
+#
+# The viewer worker cannot decode:
+# - A history window over 32 MiB. In
+#   src/inspect_ai/_view/ts-mono/apps/inspect/src/client/remote/zstd-decoder.ts,
+#   MAX_WINDOW_LOG is 25 (2^25 = 32 MiB) at line 8, and scanFrames raises
+#   ZstdWindowSizeError at lines 106-107 when windowSize > 2**25. For a
+#   single-segment frame, the window is the frame's content size (line 105).
+# - A single zstd frame whose compressed size is >= 256 MiB, which overflows
+#   the pure-JS fzstd decoder the worker uses (see the module docstring
+#   above). The viewer does not itself enforce a 200 MiB cap.
+#   _MAX_INPUT_PER_FRAME (200 MiB of uncompressed input) is this writer's
+#   cap, chosen so compressed frames stay under that overflow.
+#
+# Default compresslevel 3 (when compresslevel is None below) selects a
+# window well under 32 MiB. Do not raise the level, set a larger windowLog,
+# or raise _MAX_INPUT_PER_FRAME, without staying under those limits.
 _MAX_INPUT_PER_FRAME = 200 * 1024 * 1024
 
 # Matches zipfile_zstd's hardcoded default so multi-frame and single-frame zip
@@ -178,6 +198,9 @@ def _install_multiframe_patches() -> None:
             # its thread pool every 200 MiB.
             import zstandard
 
+            # Level and (implicit) window: stay under the viewer limits
+            # documented at _MAX_INPUT_PER_FRAME above. The merge copies
+            # these frames as-is, without recompressing them.
             level = 3 if compresslevel is None else compresslevel
             compressor = zstandard.ZstdCompressor(level=level, threads=_ZSTD_THREADS)
             return _MultiFrameZstdCompressObj(compressor.compressobj)
@@ -243,6 +266,83 @@ def copy_live_members(
                 if not chunk:
                     break
                 writer.write(chunk)
+
+
+class RawMemberWriter:
+    """Appends a member to a ``ZipFile`` from its compressed bytes.
+
+    The bytes are written as given, with no decompression or recompression,
+    so they must be the complete compressed data of one member in
+    ``compress_type`` (for example a member of another archive, read with
+    ``AsyncZipReader.open_member_raw``). :meth:`finish` records the CRC-32
+    and size of the uncompressed data, which the caller supplies. The local
+    header always has ZIP64 fields, as for ``ZipFile.open(..., force_zip64=True)``;
+    the central directory uses ZIP64 where a size or offset needs it. Like
+    ``ZipFile.open`` for writing, no other member can be written until the
+    writer is closed. Blocking local I/O: run it in a worker thread from
+    async code.
+    """
+
+    def __init__(self, zf: zipfile.ZipFile, name: str, compress_type: int) -> None:
+        """Start the member ``name`` in ``zf``.
+
+        Args:
+            zf: An archive open for writing, to a seekable file.
+            name: The member's name.
+            compress_type: The compression method of the bytes to be written.
+
+        Raises:
+            ValueError: ``zf`` does not write to a seekable file, or cannot
+                take a member now (closed, read-only or with a member open).
+        """
+        # zipfile wraps an unseekable file in an object with no `seekable`
+        seekable = getattr(zf.fp, "seekable", None)
+        if seekable is None or not seekable():
+            raise ValueError(
+                f"Cannot write member {name} from its compressed bytes: the "
+                "archive must be open for writing to a seekable file."
+            )
+        self._zf = zf
+        self._compress_type = compress_type
+        # written as stored bytes, then given its method, CRC-32 and size
+        self._info = zipfile.ZipInfo(name, date_time=time.localtime(time.time())[:6])
+        self._info.compress_type = zipfile.ZIP_STORED
+        self._writer = zf.open(self._info, "w", force_zip64=True)
+        self._header_size = len(self._info.FileHeader(zip64=True))
+
+    def write(self, data: bytes) -> None:
+        """Append compressed bytes of the member."""
+        self._writer.write(data)
+
+    def finish(self, crc32: int, file_size: int) -> None:
+        """Close the member, recording its uncompressed data's CRC-32 and size."""
+        if self._writer.closed:
+            raise ValueError(f"Member {self._info.filename} is already closed.")
+        self._writer.close()
+        info = self._info
+        info.compress_type = self._compress_type
+        info.CRC = crc32
+        info.file_size = file_size
+        header = info.FileHeader(zip64=True)
+        assert len(header) == self._header_size, "the local header changed size"
+        fp = self._zf.fp
+        assert fp is not None
+        fp.seek(info.header_offset)
+        fp.write(header)
+        fp.seek(self._zf.start_dir)
+
+    @property
+    def closed(self) -> bool:
+        """Whether the member is closed, by :meth:`finish` or :meth:`close`."""
+        return self._writer.closed
+
+    def close(self) -> None:
+        """Close the member if :meth:`finish` did not; does nothing otherwise.
+
+        A member closed this way is recorded as stored bytes, so discard the
+        archive. Use it to release the archive after an error.
+        """
+        self._writer.close()
 
 
 def compact_zip(src_file: BinaryIO, live: frozenset[str]) -> BinaryIO:

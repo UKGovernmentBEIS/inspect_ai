@@ -473,7 +473,14 @@ def _parse_chinese_number(s: str) -> Optional[float]:
             frac_val += int(d) * base
             base /= 10.0
 
-    return float(int_val) + frac_val
+    try:
+        return float(int_val) + frac_val
+    except OverflowError:
+        # A digit run long enough to leave the float range has no value to
+        # compare against, so report it as unparseable instead of raising.
+        # The scorer then answers INCORRECT, which is what it did before the
+        # digits were joined into a run.
+        return None
 
 
 def _parse_chinese_integer_with_units(s: str) -> Optional[int]:
@@ -488,6 +495,12 @@ def _parse_chinese_integer_with_units(s: str) -> Optional[int]:
     The split is evaluated with an explicit stack, not recursion: a long
     run of repeated large units (e.g. "万" * 1100) would otherwise recurse
     once per unit and raise RecursionError before any value is produced.
+
+    Digits outside the Chinese digit set are read positionally as a run, so
+    `12万` is 120000 and not 20000, which is how the digits-only path already
+    joins its digits. A unit ends the run (`12万34` is 120034), and mixing
+    Chinese digit characters with positional digits in one run is not
+    supported.
     """
     # Each frame is ("eval", segment, 0) or ("combine", "", unit). Frames
     # are pushed combine-first so the coefficient segment evaluates before
@@ -551,7 +564,8 @@ def _parse_chinese_small_segment(s: str) -> Optional[int]:
 
         d = _char_to_ascii_digit(ch)
         if d is not None:
-            number = int(d)
+            # Non-Chinese digits form a run: 12万 is 12×10⁴, not 2×10⁴.
+            number = number * 10 + int(d)
             continue
 
         if ch in _CH_SMALL_UNITS:

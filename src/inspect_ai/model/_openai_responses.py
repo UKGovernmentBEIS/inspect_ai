@@ -721,6 +721,9 @@ def responses_stop_details(response: OpenAIResponse) -> StopDetails | None:
     if not explanation and not is_content_filter:
         return None
 
+    if not explanation and is_content_filter:
+        explanation = "Response incomplete: content_filter"
+
     return StopDetails(
         type="content_filter" if is_content_filter else "refusal",
         explanation=explanation,
@@ -1126,7 +1129,7 @@ def _chat_message_assistant_from_openai_response(
         _process_response_output_items(response.output, tools)
     )
 
-    if has_tool_calls:
+    if has_tool_calls and stop_reason == "stop":
         stop_reason = "tool_calls"
 
     return (
@@ -2206,6 +2209,7 @@ def is_assistant_message_param(
         is_response_output_message(param)
         or is_response_computer_tool_call(param)
         or is_response_web_search_call(param)
+        or is_response_code_interpreter_call(param)
         or is_response_function_tool_call(param)
         or is_response_custom_tool_call(param)
         or is_response_reasoning_item(param)

@@ -61,6 +61,15 @@ def test_evals_df():
     assert len(df) == 4
 
 
+def test_evals_df_total_samples_falls_back_to_header():
+    """total_samples survives a missing results block via the header count (#5814)."""
+    log = read_eval_log(str(SECURITY_GUIDE_LOG))
+    log.results = None
+    log.total_samples = 20
+    df = evals_df([log])
+    assert df.iloc[0]["total_samples"] == 20
+
+
 def test_evals_df_scores_with_reducers():
     """Ensure per-reducer score metrics get distinct columns.
 
@@ -416,6 +425,16 @@ def test_messages_df_columns():
 def test_messages_df_filter():
     df = messages_df(LOGS_DIR, filter=lambda m: m.role == "assistant")
     assert len(df) == 14
+
+
+@pytest.mark.parametrize("parallel", [False, 2])
+def test_messages_df_keeps_shared_input_messages(
+    tmp_path: Path, parallel: bool | int
+) -> None:
+    task = Task(dataset=[Sample(input=[ChatMessageUser(content="Say hi.")])], epochs=2)
+    eval(task, model="mockllm/model", log_dir=str(tmp_path))
+    df = messages_df(str(tmp_path), parallel=parallel)
+    assert df.groupby("sample_id").size().tolist() == [2, 2]
 
 
 def test_events_df():

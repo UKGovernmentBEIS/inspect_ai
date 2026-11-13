@@ -178,8 +178,9 @@ restore.
 Grants are stored for servers registered with `require_proposal=False` too,
 only so that a proposed call on them pairs; their calls execute with or
 without one (decision: Ransom, 2026-09-15). They share the store, and the
-eviction warning says what an evicted grant loses: for an exempt server only
-the pairing, for any other the right to execute. An unproposed call on an
+eviction warning says what an evicted grant loses: for an exempt server the
+pairing, for any other the right to execute. Either way the evicted grant's
+reply no longer links any of its calls (see `message_id` below). An unproposed call on an
 exempt server with the same arguments as a pending proposal takes that
 proposal's grant and id, and the proposed call then runs with a fresh id and
 `grant: "exempt"`. Execution is unaffected; the user docs state this
@@ -390,9 +391,91 @@ data-URI images in a transcript tool event's result, native or host, follow
 (`ToolEvent.events`) stay inline. Text results stay inline: the same text is already inline in the tool
 message the model sees next.
 
-`message_id` is `None`: the agent builds the `ChatMessageTool` itself and
-sends it in a later request, so its id does not exist when the event is
-finalised. `agent` is `None`; `agent_span_id` is the tool's, as natively.
+`message_id` is the id of the tool message holding the result when the link
+is exact, and `None` otherwise. The agent builds that `ChatMessageTool` itself
+and sends it in a later request, so its id does not exist when the event is
+finalised. The bridge waits for it (`_await_result_message()`) and sets
+`message_id` when the request arrives (`_link_result_messages()`), updating
+the completed event through the transcript's event-update path
+(`_event_updated()`), as for a pending event. Transcript subscribers see the
+event completed with `message_id=None` and then updated; a log read back has
+it set.
+
+The link is exact when all of these hold:
+
+- The reply holding the call is placed under the id the bridge handed it
+  with (`_align_with_tracked()`), and no message the bridge could not place
+  took that id first.
+- The bridge has complete evidence of the reply's executions: it handed the
+  reply out once, and it neither dropped the reply's awaited calls (it tracks
+  at most 256, dropping the oldest replies' first) nor evicted one of its
+  grants. A reply handed out again (a cached generation or retry, also after
+  a checkpoint resume, since the checkpoint keeps the ids the bridge knows)
+  may have its calls run once per hand-out, and executions the bridge no
+  longer tracks can't be told apart from the one it does. The bridge records
+  each such reply's id in `_unlinked_replies` (ids only, for the rest of the
+  sample; `_unlink()`, or directly when it drops awaited calls), and none of
+  the reply's calls links again, including one first executed after the
+  drop.
+- The grant it consumed is not for a server registered with
+  `require_proposal=False`: there an unproposed call with a pending
+  proposal's arguments takes that proposal's grant, so the grant does not
+  show which call ran.
+- The call ran once, its id is unique in the reply, and no other call in the
+  reply has its function and arguments.
+- Its execution matched no other reply's pending grant, exactly or once
+  undeclared arguments are dropped. `consume_tool_execution_grant()` marks
+  every proposal the execution could belong to `ambiguous` and unlinks its
+  reply, so none of them links, including an execution of theirs that
+  completed before the ambiguity was found.
+- No other request may have repeated the call while its answer was
+  outstanding. A client that lost a response sends the call again, and the
+  agent may send that attempt's result as the call's answer. Calls are
+  compared by (server, tool) and arguments, as grants compare them (also
+  projected onto a closed schema's declared keys). The check runs when an
+  execution consumes a grant (`_record_execution()`), before it starts, and
+  when a request is denied:
+  - The proposal's second execution (one call granted for several tools)
+    unlinks its reply.
+  - An execution of a call whose earlier execution under another reply is
+    still running or awaiting its answer may be that call's retry, taking
+    the later reply's identical grant: both replies are unlinked. An earlier
+    execution already settled (its answer linked, or left unlinked) is final,
+    so ordinary repeated calls whose answers arrived in between keep their
+    links.
+  - A grant is one-shot, so a retry with no other grant to take is denied,
+    and the agent may send the denial as the answer. `unlink_denied_call()`
+    unlinks the reply of every recorded or pending call it may repeat, or of
+    every call of the tool when the arguments can't be read (not an object,
+    or nested too deep). A request naming no bridged tool repeats no
+    proposal.
+
+  The record holds reply ids, positions and argument hashes only, and each
+  entry is dropped once it is scanned or unlinked, so the work is amortized
+  constant per execution.
+- Exactly one tool message answers it, by call id, before the next assistant
+  message with tool calls, and that message is new in the request: one sent
+  before, or equal to one sent before, may hold another result.
+
+Otherwise `message_id` stays `None`. This includes a Google result whose call
+id the dialect inferred from order (a call sharing its function with another),
+a call of a reply whose awaited calls were dropped, and a call proposed before
+a checkpoint resume.
+
+Lost-grant cross-proposal limitation. Once a reply's grant is evicted (1024
+unconsumed grants), matching no longer knows that reply. If a later reply
+proposes the identical call, an execution of the first reply's call takes the
+later reply's grant without ambiguity, so its event pairs with the later
+proposal (`proposal_id`, id and span) although it ran the earlier call. The
+link is still left unset when the later reply's own call is sent: it is
+denied, which unlinks the later reply, or it takes another identical grant
+while the execution paired with the later reply awaits its answer, which
+unlinks both. A wrong link would need the agent to answer the later call
+without sending it to the bridge (reusing the earlier result, say). Not
+handled further: it needs 1024 unconsumed grants and an identical later
+proposal, and fixing the pairing would mean keeping evicted grants.
+
+`agent` is `None`; `agent_span_id` is the tool's, as natively.
 
 ## Consumers
 
@@ -490,7 +573,8 @@ finalised. `agent` is `None`; `agent_span_id` is the tool's, as natively.
   while a host call is pending keeps a pending event that resume never
   completes, as for a native tool. Grants are not restored, so a proposal
   made before a checkpoint does not pair after resume and, on a server that
-  requires proposals, its call is denied.
+  requires proposals, its call is denied. Its result is not linked
+  (`message_id` stays `None`).
 
 ## Security
 
@@ -525,8 +609,6 @@ The untrusted input is the agent's `tools/call`: `server`, `tool` and
   proposing call's).
 - **Native error wording on the wire.** A mapped exception reaches the agent
   as its own text, not the `ToolCallError` wording the event records.
-- **Back-filling `ToolEvent.message_id`** when the agent's `ChatMessageTool`
-  arrives, which needs a hooks-safe way to update a completed event.
 - **Grants and proposals across checkpoint restore** (registering the grant
   store with the checkpointer).
 - **A viewer badge** for `metadata.bridge` (host execution, denied, exempt) on

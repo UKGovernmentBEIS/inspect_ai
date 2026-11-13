@@ -216,7 +216,7 @@ def _read_samples_df(
             _reconcile_string_columns(cast(list[pd.DataFrame], df_results)),
             ignore_index=True,
         )
-        subset = f"{detail.name}_id" if detail else SAMPLE_ID
+        subset = [SAMPLE_ID, f"{detail.name}_id"] if detail else SAMPLE_ID
         try:
             df.drop_duplicates(subset=subset, ignore_index=True, inplace=True)
         except Exception as e:
@@ -445,7 +445,10 @@ def _read_samples_df_serial(
     if detail is not None:
         details_table = records_to_pandas(detail_records)
         details_table.drop_duplicates(
-            f"{detail.name}_id", keep="first", inplace=True, ignore_index=True
+            [SAMPLE_ID, f"{detail.name}_id"],
+            keep="first",
+            inplace=True,
+            ignore_index=True,
         )
         if len(details_table) > 0:
             samples_table = details_table.merge(

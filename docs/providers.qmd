@@ -211,7 +211,7 @@ To use the [Anthropic](https://www.anthropic.com/api) provider, install the `ant
 ``` bash
 pip install anthropic
 export ANTHROPIC_API_KEY=your-anthropic-api-key
-inspect eval arc.py --model anthropic/claude-sonnet-4-0
+inspect eval arc.py --model anthropic/claude-sonnet-5-5
 ```
 
 For the `anthropic` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncAnthropic` class.
@@ -229,11 +229,17 @@ The following environment variables are supported by the Anthropic provider
 
 Some Anthropic features require that you include a beta identifier in the `betas` field of model requests. Inspect automatically includes the requisite identifier for beta features it utilizes (e.g. "mcp-client-2025-04-04", "computer-use-2025-01-24", etc.).
 
-If there are other beta features you want to enable, use the `betas` model arg (`-M`). For example, to enable [1M token context windows](https://platform.claude.com/docs/en/build-with-claude/context-windows) for Sonnet 4.5 and Opus 4.6 models:
+If there are other beta features you want to enable, use the `betas` model arg (`-M`), as in the cache diagnostics example below.
+
+#### Cache Diagnostics {#anthropic-cache-diagnostics}
+
+Include the `cache-diagnosis-2026-04-07` beta header to produce diagnostics for prompt caching. Diagnostics are automatically included in `ChatMessageAssistant.metadata["diagnostics"]` (which you can see in the viewer) and a warning message is printed for cache misses. For example:
 
 ``` bash
-inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025-08-07
+inspect eval arc.py --model anthropic/claude-sonnet-5-5 -M betas=cache-diagnosis-2026-04-07
 ```
+
+Learn more about cache diagnostics at <https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics>.
 
 ### Refusal Fallback {#anthropic-refusal-fallback}
 
@@ -253,16 +259,6 @@ This is a feature of the first-party Anthropic API only — it is not supported 
 
 See the [Fallbacks](fallbacks.qmd) article for complete documentation, including what gets recorded in logs, dataframes, and the viewer when fallbacks occur.
 
-#### Cache Diagnostics {#anthropic-cache-diagnostics}
-
-Include the `cache-diagnosis-2026-04-07` beta header to produce diagnostics for prompt caching. Diagnostics are automatically included in `ChatMessageAssistant.metadata["diagnostics"]` (which you can see in the viewer) and a warning message is printed for cache misses. For example:
-
-``` bash
-inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M betas=cache-diagnosis-2026-04-07
-```
-
-Learn more about cache diagnostics at <https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics>.
-
 ### Cache TTL {#anthropic-cache-ttl}
 
 Inspect enables Anthropic [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) by default. Use the `cache_ttl` model arg (`-M`) to control the cache TTL. Valid values are:
@@ -272,7 +268,7 @@ Inspect enables Anthropic [prompt caching](https://platform.claude.com/docs/en/b
 - "5m" or "1h": pin the TTL for all requests (disables automatic escalation).
 
 ``` bash
-inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M cache_ttl=1h
+inspect eval arc.py --model anthropic/claude-sonnet-5-5 -M cache_ttl=1h
 ```
 
 Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1.25x for 5-minute writes), so the longer TTL pays off only when requests sharing a prefix arrive more than 5 minutes apart. Automatic escalation applies only on the first-party Claude API (not Bedrock, Vertex, or Azure) and does not apply in [batch mode](models-batch.qmd).
@@ -282,16 +278,16 @@ Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1
 The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") will automatically use streaming when the caller passes an `on_stream` callback to `generate()`, when thinking is enabled, or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with \>= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
 
 ``` bash
-inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
+inspect eval arc.py --model anthropic/claude-sonnet-5-5 -M streaming=true
 ```
 
 ### Computer Use {#anthropic-computer-use}
 
-When the [`computer()`](tools-standard.qmd#sec-computer) tool is used with a Claude model, Inspect binds it to Anthropic's native computer use support. On the Claude API and Vertex, Claude Opus 5.5, Sonnet 5.5, and Haiku 5.5 (which reject the earlier tool there), Fable 5/5.1, and Mythos 5/5.1 use Anthropic's [computer toolset](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) (`computer_toolset_20260801`). Other models, including Opus 5, Sonnet 5, and Opus 4.8, keep the legacy `computer_20251124` tool. Anthropic offers the toolset only on the Claude API and Vertex, so on Bedrock and Foundry every model (Opus 5.5, Sonnet 5.5, Haiku 5.5, and Fable/Mythos included) uses the legacy tool.
+When the [`computer()`](tools-standard.qmd#sec-computer) tool is used with a Claude model, Inspect binds it to Anthropic's native computer use support. On the Claude API and Vertex, Claude Opus 5.5, Sonnet 5.5, and Haiku 5.5 (which reject the earlier tool there), and Fable/Mythos 5.x use Anthropic's [computer toolset](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) (`computer_toolset_20260801`). Other models, including Opus 5, Sonnet 5, and Opus 4.8, keep the legacy `computer_20251124` tool. Anthropic offers the toolset only on the Claude API and Vertex, with one exception: Fable 5.2 rejects the earlier tool everywhere except Bedrock, so it uses the toolset on Foundry too. Otherwise, on Bedrock and Foundry every model (Opus 5.5, Sonnet 5.5, Haiku 5.5, and Fable/Mythos included) uses the legacy tool.
 
 With the toolset, each computer action arrives as its own tool call. Inspect executes the actions in one assistant turn in order and stops at the first failure, reporting the remaining actions to the model as not executed. Logs record each action as a `computer` tool call with an `action` argument, exactly as with the legacy tool.
 
-Use the `computer_toolset` model arg (`-M`) to force either mode where the platform supports it (`false` is rejected only for Opus 5.5, Sonnet 5.5, and Haiku 5.5 on the Claude API or Vertex, where the legacy tool returns an error). The toolset requires Claude Opus 4.8, Sonnet 5, Opus 5 or later on the Claude API or Vertex; for example, to use it with Opus 5:
+Use the `computer_toolset` model arg (`-M`) to force either mode where the platform supports it (`false` is rejected for Opus 5.5, Sonnet 5.5, and Haiku 5.5 on the Claude API or Vertex, and for Fable 5.2 everywhere except Bedrock, where the legacy tool returns an error). The toolset requires Claude Opus 4.8, Sonnet 5, Opus 5 or later on the Claude API or Vertex; for example, to use it with Opus 5:
 
 ``` bash
 inspect eval computer.py --model anthropic/claude-opus-5 -M computer_toolset=true
@@ -305,19 +301,19 @@ To use Anthropic models on Bedrock, use the normal `anthropic` provider with the
 export AWS_ACCESS_KEY_ID=your-aws-access-key-id
 export AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
 export AWS_DEFAULT_REGION=us-east-1
-inspect eval arc.py --model anthropic/bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0
+inspect eval arc.py --model anthropic/bedrock/global.anthropic.claude-sonnet-4-6
 ```
 
 You can also optionally set the `ANTHROPIC_BEDROCK_BASE_URL` environment variable to set a custom base URL for Bedrock API requests.
 
 ### Anthropic on Vertex AI {#anthropic-on-vertex-ai}
 
-To use Anthropic models on Vertex, you can use the standard `anthropic` model provider with the `vertex` qualifier (e.g. `anthropic/vertex/claude-3-5-sonnet-v2@20241022`). You should also set two environment variables indicating your project ID and region. Here is a complete example:
+To use Anthropic models on Vertex, you can use the standard `anthropic` model provider with the `vertex` qualifier (e.g. `anthropic/vertex/claude-sonnet-5-5`). You should also set two environment variables indicating your project ID and region. Regional endpoints (e.g. `us-east5`) serve Claude Sonnet 4.6 and earlier models only, so for newer models set the region to `global` or a multi-region (`us` or `eu`). Here is a complete example:
 
 ``` bash
 export ANTHROPIC_VERTEX_PROJECT_ID=project-12345
-export ANTHROPIC_VERTEX_REGION=us-east5
-inspect eval ctf.py --model anthropic/vertex/claude-3-5-sonnet-v2@20241022
+export ANTHROPIC_VERTEX_REGION=global
+inspect eval ctf.py --model anthropic/vertex/claude-sonnet-5-5
 ```
 
 Authentication is doing using the standard Google Cloud CLI (i.e. if you have authorised the CLI then no additional auth is needed for the model API).
@@ -561,7 +557,7 @@ export MOONSHOT_API_KEY=your-moonshot-api-key
 inspect eval arc.py --model moonshot/kimi-k3
 ```
 
-Note that Kimi K3 uses fixed sampling (Moonshot recommends omitting sampling parameters), so the `moonshot` provider does not pass `temperature`, `top_p`, or penalty options to K3 models. Similarly, K3's thinking effort currently only accepts `max`, so other `--reasoning-effort` values are submitted as `max`.
+Note that Kimi K3 uses fixed sampling (Moonshot recommends omitting sampling parameters), so the `moonshot` provider does not pass `temperature`, `top_p`, or penalty options to K3 models. K3's thinking effort accepts `low`, `high`, and `max` (the default): `none` and `minimal` are submitted as `low`, `medium` as `high`, and `xhigh` as `max`. K3 always reasons, so `none` uses the lowest effort rather than the default.
 
 The following environment variables are supported by the Moonshot AI provider
 
@@ -572,7 +568,7 @@ The following environment variables are supported by the Moonshot AI provider
 
 ## Meta {#meta}
 
-To use the [Meta](https://dev.meta.ai/docs) provider (Muse Spark models on the Meta Model API), install the `openai` package (which the Meta Model API provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
+To use the [Meta](https://dev.meta.ai/docs) provider (Muse models on the Meta Model API), install the `openai` package (which the Meta Model API provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install openai
@@ -582,7 +578,7 @@ inspect eval arc.py --model meta/muse-spark-1.3
 
 The provider uses the [Responses API](https://dev.meta.ai/docs/protocols/responses), which is the only Meta endpoint that preserves the model's reasoning across turns (as encrypted reasoning items that are replayed automatically). Pass `-M responses_api=false` to use Chat Completions instead.
 
-Muse Spark always reasons. Use `--reasoning-effort` (`minimal` through `max`) to control how much. `none` is not supported and is ignored with a warning. `max` is available on standard-tier `muse-spark-1.3` only; for the `-contributor` tier and older versions it is submitted as `xhigh`. The API only accepts `tool_choice="auto"`, so forced tool choices are submitted as `"auto"`. Log probabilities, stop sequences, and logit bias are not supported and are dropped with a warning.
+Muse models always reason. Use `--reasoning-effort` (`minimal` through `max`) to control how much. `none` is not supported and is ignored with a warning. `max` is available on `muse-wonder-1.0`, `muse-ember-1.0`, and standard-tier `muse-spark-1.3`; for the `-contributor` tier and older Muse Spark versions it is submitted as `xhigh`. Muse Wonder and Muse Ember default to `max` and Muse Spark to `high`. The API only accepts `tool_choice="auto"`, so forced tool choices are submitted as `"auto"`. Log probabilities, stop sequences, and logit bias are not supported and are dropped with a warning.
 
 Prompts blocked by Meta's content policy are reported as `stop_reason="content_filter"` with `stop_details`. The API signals such a block three different ways depending on protocol and streaming (an HTTP 400 with a `content_policy_violation` code, a `content_filter` finish reason, or a `refusal` content part), and the provider normalizes all of them. Note that a refusal the model writes itself, rather than one the policy layer blocks, carries no signal at all and arrives as an ordinary completion. Score those from the completion text. Meta also restricts API keys after repeated policy violations (HTTP 403 with code `user_blocked`); while a key is restricted, streamed requests return a refusal for every prompt, so an eval where every sample stops with `content_filter` is more likely hitting that restriction than the content policy.
 
@@ -666,6 +662,8 @@ For the `bedrock` provider, custom model args (`-M`) are forwarded to the `creat
 Note that all models on AWS Bedrock require that you [request model access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html) before using them in a deployment (in some cases access is granted immediately, in other cases it could one or more days).
 
 You should be also sure that you have the appropriate AWS credentials before accessing models on Bedrock. You aren't likely to need to, but you can also specify a custom base URL for AWS Bedrock using the `BEDROCK_BASE_URL` environment variable.
+
+You can also authenticate with a named AWS profile instead of static access keys: set `AWS_PROFILE` to the profile name — aiobotocore picks it up from the environment via the standard AWS credential chain.
 
 If you are using Anthropic models on Bedrock, you can alternatively use the [Anthropic provider](#anthropic-on-aws-bedrock) as your means of access. If you are using OpenAI models on Bedrock, access them via the `openai` provider with the `bedrock` qualifier — see [OpenAI on AWS Bedrock](#openai-on-aws-bedrock).
 
@@ -1574,6 +1572,19 @@ export DEEPSEEK_BASE_URL=https://api.deepseek.com
 inspect eval arc.py --model openai-api/deepseek/deepseek-flash
 ```
 
+### Apple Silicon via mlx-lm
+
+You can run models locally on Apple Silicon with [mlx-lm](https://github.com/ml-explore/mlx-lm), which serves an OpenAI-compatible API. Start its server, then point the `openai-api` provider at it:
+
+``` bash
+mlx_lm.server --model mlx-community/Qwen3-30B-A3B-Instruct-2507-4bit --host 127.0.0.1 --port 8080 --max-tokens 4096
+export MLX_BASE_URL=http://127.0.0.1:8080/v1
+export MLX_API_KEY=not-needed
+inspect eval inspect_evals/gsm8k --model openai-api/mlx/mlx-community/Qwen3-30B-A3B-Instruct-2507-4bit --limit 10
+```
+
+The local server does not authenticate requests, so any value works for `MLX_API_KEY`. Note that `mlx_lm.server` defaults to 512 max tokens, so set `--max-tokens` high enough for the task — longer step-by-step reasoning would otherwise be cut off.
+
 ### Responses API
 
 You can enable the use of the Responses API with the `openai-api` provider by passing the `responses_api` model arg. For example:
@@ -1664,7 +1675,7 @@ For the `openrouter` provider, the following custom model args (`-M`) are suppor
 
 | Argument | Example |
 |------------------------------------|------------------------------------|
-| [`models`](https://openrouter.ai/docs/guides/routing/model-fallbacks) | `-M "models=anthropic/claude-3.5-sonnet, gryphe/mythomax-l2-13b"` |
+| [`models`](https://openrouter.ai/docs/guides/routing/model-fallbacks) | `-M "models=anthropic/claude-sonnet-5.5, gryphe/mythomax-l2-13b"` |
 | [`provider`](https://openrouter.ai/docs/features/provider-routing) | `-M "provider={ 'quantizations': ['int8'] }"` |
 | [`transforms`](https://openrouter.ai/docs/features/message-transforms) | `-M "transforms=['middle-out']"` |
 | [`reasoning_enabled`](https://openrouter.ai/docs/use-cases/reasoning-tokens) | `-M "reasoning_enabled=false"` |
@@ -1692,9 +1703,9 @@ To use models served by a [LiteLLM proxy](https://docs.litellm.ai/docs/simple_pr
 
 ``` yaml
 model_list:
-  - model_name: claude-sonnet-5
+  - model_name: claude-sonnet-5-5
     litellm_params:
-      model: anthropic/claude-sonnet-5
+      model: anthropic/claude-sonnet-5-5
       api_key: os.environ/ANTHROPIC_API_KEY
 ```
 
@@ -1702,7 +1713,7 @@ model_list:
 pip install openai
 export LITELLM_PROXY_BASE_URL=https://litellm.example.com
 export LITELLM_PROXY_API_KEY=your-litellm-key
-inspect eval arc.py --model litellm-proxy/claude-sonnet-5
+inspect eval arc.py --model litellm-proxy/claude-sonnet-5-5
 ```
 
 The `model_name` is chosen by the proxy's operator and need not be a model id. Inspect reads the proxy's `/model/info` listing to find the upstream model behind it (`litellm_params.model`, or `model_info.base_model` when set), and uses that model to look up the context window and cost and to shape requests. Virtual keys work; the listing shows only the models a key may use. Aliases defined on your key or its team are resolved to the model they route to.

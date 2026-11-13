@@ -1,6 +1,34 @@
 google:
   display_name: Google
   models:
+    gemini-4-hydrogen:
+      display_name: "Gemini 4 Hydrogen"
+      # GA date per https://aistudio.google.com/docs/changelog
+      release_date: 2026-11-12
+      # https://deepmind.google/models/model-cards/gemini-4-hydrogen/
+      knowledge_cutoff_date: 2026-03-01
+      context_length: 1048576
+      # default synchronous limit; up to 1048576 only with long decode.
+      # https://aistudio.google.com/docs/models/gemini-4-hydrogen
+      output_tokens: 65536
+      reasoning: True
+      # Gemini 4 Hydrogen defaults to thinking_level=HIGH if unspecified.
+      # https://aistudio.google.com/docs/thinking
+      reasoning_effort_default: high
+    gemini-4-carbon:
+      display_name: "Gemini 4 Carbon"
+      # GA date per https://ai.google.dev/gemini-api/docs/changelog
+      release_date: 2026-11-10
+      # https://deepmind.google/models/model-cards/gemini-4-carbon/
+      knowledge_cutoff_date: 2026-03-01
+      context_length: 1048576
+      # default synchronous limit; up to 1048576 only with long decode.
+      # https://ai.google.dev/gemini-api/docs/models/gemini-4-carbon
+      output_tokens: 65536
+      reasoning: True
+      # Gemini 4 Carbon defaults to thinking_level=MEDIUM if unspecified.
+      # https://ai.google.dev/gemini-api/docs/thinking
+      reasoning_effort_default: medium
     gemini-4-argon:
       display_name: "Gemini 4 Argon"
       # GA date per https://ai.google.dev/gemini-api/docs/changelog

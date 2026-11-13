@@ -113,11 +113,16 @@ class X11Client:
 
     async def type(self, text: str) -> ToolResult:
         results: list[ToolResult] = []
-        for chunk in chunks(text, TYPING_GROUP_SIZE):
-            cmd = (
-                f"{self.xdotool} type --delay {TYPING_DELAY_MS} -- {shlex.quote(chunk)}"
-            )
-            results.append(await self._shell(cmd, take_screenshot=False))
+        # xdotool types "\n" as the Linefeed key, which LibreOffice and Firefox
+        # ignore, so line breaks are sent as separate Return key presses.
+        lines = text.replace("\r\n", "\n").split("\n")
+        for i, line in enumerate(lines):
+            if i > 0:
+                cmd = f"{self.xdotool} key Return"
+                results.append(await self._shell(cmd, take_screenshot=False))
+            for chunk in chunks(line, TYPING_GROUP_SIZE):
+                cmd = f"{self.xdotool} type --delay {TYPING_DELAY_MS} -- {shlex.quote(chunk)}"
+                results.append(await self._shell(cmd, take_screenshot=False))
 
         screenshot_base64 = await self._take_screenshot_after_delay()
         return ToolResult(
@@ -246,7 +251,8 @@ class X11Client:
         await self._activate_browser()
         await run(f"{self.xdotool} key ctrl+l")
         await asyncio.sleep(0.5)
-        await self.type(url)
+        # type() presses Return at line breaks, which would load a partial URL
+        await self.type("".join(url.splitlines()))
         await run(f"{self.xdotool} key Return")
         await asyncio.sleep(1)
         return await self.screenshot()
