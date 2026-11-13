@@ -284,3 +284,9 @@
     Deterministic numeric-grounding scorer — flags numbers in model output that do not appear in the input, tool results or metadata. No judge model or API calls.
   author: "[Yanheng Li](https://github.com/Chris316-git)"
   categories: ["Analysis"]
+
+- name: "[inspect-oscal](https://github.com/Johnbjoseph-cybersec/inspect-oscal)"
+  description: |
+    Converts Inspect eval logs into validated OSCAL assessment-results, mapping scores to NIST AI RMF subcategories, with each log's SHA-256 as evidence. Evidence for GRC teams, not a compliance verdict.
+  author: "[John B Joseph](https://github.com/Johnbjoseph-cybersec)"
+  categories: ["Analysis"]
