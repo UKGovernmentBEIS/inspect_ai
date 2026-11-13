@@ -781,7 +781,7 @@ def _wrap_prior_run(events: list[Event], parent_span_id: str | None) -> list[Eve
     # Slice the tail to its first *new* `checkpoint` span, dropping the
     # resumed session's own structural scaffolding (`init` / `solvers` /
     # `solver` / `agent` spans + setup execs). The new checkpoint span's
-    # `parent_id` points at the (now-dropped) `agent` span; the depth-0
+    # `parent_id` points at the (now-dropped) `agent` span; the
     # reparenting below rewrites it to the new wrap.
     first_new_ckpt = next(
         (
