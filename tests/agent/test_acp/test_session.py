@@ -457,6 +457,31 @@ async def test_turn_active_is_snapshotted_when_transport_binds_mid_turn() -> Non
             assert acp.turn_active is False
 
 
+async def test_turn_active_clears_when_turn_raises() -> None:
+    """A turn left by an exception reads inactive and publishes "ended"."""
+    from inspect_ai.agent._acp.transport import TurnStateUpdate
+    from inspect_ai.agent._channel import agent_channel
+
+    async with acp_session() as acp:
+        stream = acp.attach()
+        async with agent_channel() as ch:
+            assert acp.maybe_bind(ch, ch._ref()) is True
+            with pytest.raises(ValueError):
+                with ch.turn_scope():
+                    raise ValueError("limit")
+            assert acp.turn_active is False
+            updates = []
+            while True:
+                try:
+                    updates.append(stream.receive_nowait())
+                except anyio.WouldBlock:
+                    break
+            assert [u.state for u in updates if isinstance(u, TurnStateUpdate)] == [
+                "started",
+                "ended",
+            ]
+
+
 async def test_turn_state_unbind_drops_channel_subscription() -> None:
     """After ``unbind`` the transport no longer relays the channel's turn state."""
     from inspect_ai.agent._channel import agent_channel
