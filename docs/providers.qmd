@@ -211,7 +211,7 @@ To use the [Anthropic](https://www.anthropic.com/api) provider, install the `ant
 ``` bash
 pip install anthropic
 export ANTHROPIC_API_KEY=your-anthropic-api-key
-inspect eval arc.py --model anthropic/claude-sonnet-4-0
+inspect eval arc.py --model anthropic/claude-sonnet-5-5
 ```
 
 For the `anthropic` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncAnthropic` class.
@@ -229,11 +229,17 @@ The following environment variables are supported by the Anthropic provider
 
 Some Anthropic features require that you include a beta identifier in the `betas` field of model requests. Inspect automatically includes the requisite identifier for beta features it utilizes (e.g. "mcp-client-2025-04-04", "computer-use-2025-01-24", etc.).
 
-If there are other beta features you want to enable, use the `betas` model arg (`-M`). For example, to enable [1M token context windows](https://platform.claude.com/docs/en/build-with-claude/context-windows) for Sonnet 4.5 and Opus 4.6 models:
+If there are other beta features you want to enable, use the `betas` model arg (`-M`), as in the cache diagnostics example below.
+
+#### Cache Diagnostics {#anthropic-cache-diagnostics}
+
+Include the `cache-diagnosis-2026-04-07` beta header to produce diagnostics for prompt caching. Diagnostics are automatically included in `ChatMessageAssistant.metadata["diagnostics"]` (which you can see in the viewer) and a warning message is printed for cache misses. For example:
 
 ``` bash
-inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025-08-07
+inspect eval arc.py --model anthropic/claude-sonnet-5-5 -M betas=cache-diagnosis-2026-04-07
 ```
+
+Learn more about cache diagnostics at <https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics>.
 
 ### Refusal Fallback {#anthropic-refusal-fallback}
 
@@ -253,16 +259,6 @@ This is a feature of the first-party Anthropic API only — it is not supported 
 
 See the [Fallbacks](fallbacks.qmd) article for complete documentation, including what gets recorded in logs, dataframes, and the viewer when fallbacks occur.
 
-#### Cache Diagnostics {#anthropic-cache-diagnostics}
-
-Include the `cache-diagnosis-2026-04-07` beta header to produce diagnostics for prompt caching. Diagnostics are automatically included in `ChatMessageAssistant.metadata["diagnostics"]` (which you can see in the viewer) and a warning message is printed for cache misses. For example:
-
-``` bash
-inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M betas=cache-diagnosis-2026-04-07
-```
-
-Learn more about cache diagnostics at <https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics>.
-
 ### Cache TTL {#anthropic-cache-ttl}
 
 Inspect enables Anthropic [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) by default. Use the `cache_ttl` model arg (`-M`) to control the cache TTL. Valid values are:
@@ -272,7 +268,7 @@ Inspect enables Anthropic [prompt caching](https://platform.claude.com/docs/en/b
 - "5m" or "1h": pin the TTL for all requests (disables automatic escalation).
 
 ``` bash
-inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M cache_ttl=1h
+inspect eval arc.py --model anthropic/claude-sonnet-5-5 -M cache_ttl=1h
 ```
 
 Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1.25x for 5-minute writes), so the longer TTL pays off only when requests sharing a prefix arrive more than 5 minutes apart. Automatic escalation applies only on the first-party Claude API (not Bedrock, Vertex, or Azure) and does not apply in [batch mode](models-batch.qmd).
@@ -282,7 +278,7 @@ Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1
 The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default ("auto") will automatically use streaming when the caller passes an `on_stream` callback to `generate()`, when thinking is enabled, or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with \>= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
 
 ``` bash
-inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
+inspect eval arc.py --model anthropic/claude-sonnet-5-5 -M streaming=true
 ```
 
 ### Computer Use {#anthropic-computer-use}
@@ -305,19 +301,19 @@ To use Anthropic models on Bedrock, use the normal `anthropic` provider with the
 export AWS_ACCESS_KEY_ID=your-aws-access-key-id
 export AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
 export AWS_DEFAULT_REGION=us-east-1
-inspect eval arc.py --model anthropic/bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0
+inspect eval arc.py --model anthropic/bedrock/global.anthropic.claude-sonnet-4-6
 ```
 
 You can also optionally set the `ANTHROPIC_BEDROCK_BASE_URL` environment variable to set a custom base URL for Bedrock API requests.
 
 ### Anthropic on Vertex AI {#anthropic-on-vertex-ai}
 
-To use Anthropic models on Vertex, you can use the standard `anthropic` model provider with the `vertex` qualifier (e.g. `anthropic/vertex/claude-3-5-sonnet-v2@20241022`). You should also set two environment variables indicating your project ID and region. Here is a complete example:
+To use Anthropic models on Vertex, you can use the standard `anthropic` model provider with the `vertex` qualifier (e.g. `anthropic/vertex/claude-sonnet-5-5`). You should also set two environment variables indicating your project ID and region. Regional endpoints (e.g. `us-east5`) serve Claude Sonnet 4.6 and earlier models only, so for newer models set the region to `global` or a multi-region (`us` or `eu`). Here is a complete example:
 
 ``` bash
 export ANTHROPIC_VERTEX_PROJECT_ID=project-12345
-export ANTHROPIC_VERTEX_REGION=us-east5
-inspect eval ctf.py --model anthropic/vertex/claude-3-5-sonnet-v2@20241022
+export ANTHROPIC_VERTEX_REGION=global
+inspect eval ctf.py --model anthropic/vertex/claude-sonnet-5-5
 ```
 
 Authentication is doing using the standard Google Cloud CLI (i.e. if you have authorised the CLI then no additional auth is needed for the model API).
@@ -1664,7 +1660,7 @@ For the `openrouter` provider, the following custom model args (`-M`) are suppor
 
 | Argument | Example |
 |------------------------------------|------------------------------------|
-| [`models`](https://openrouter.ai/docs/guides/routing/model-fallbacks) | `-M "models=anthropic/claude-3.5-sonnet, gryphe/mythomax-l2-13b"` |
+| [`models`](https://openrouter.ai/docs/guides/routing/model-fallbacks) | `-M "models=anthropic/claude-sonnet-5.5, gryphe/mythomax-l2-13b"` |
 | [`provider`](https://openrouter.ai/docs/features/provider-routing) | `-M "provider={ 'quantizations': ['int8'] }"` |
 | [`transforms`](https://openrouter.ai/docs/features/message-transforms) | `-M "transforms=['middle-out']"` |
 | [`reasoning_enabled`](https://openrouter.ai/docs/use-cases/reasoning-tokens) | `-M "reasoning_enabled=false"` |
@@ -1692,9 +1688,9 @@ To use models served by a [LiteLLM proxy](https://docs.litellm.ai/docs/simple_pr
 
 ``` yaml
 model_list:
-  - model_name: claude-sonnet-5
+  - model_name: claude-sonnet-5-5
     litellm_params:
-      model: anthropic/claude-sonnet-5
+      model: anthropic/claude-sonnet-5-5
       api_key: os.environ/ANTHROPIC_API_KEY
 ```
 
@@ -1702,7 +1698,7 @@ model_list:
 pip install openai
 export LITELLM_PROXY_BASE_URL=https://litellm.example.com
 export LITELLM_PROXY_API_KEY=your-litellm-key
-inspect eval arc.py --model litellm-proxy/claude-sonnet-5
+inspect eval arc.py --model litellm-proxy/claude-sonnet-5-5
 ```
 
 The `model_name` is chosen by the proxy's operator and need not be a model id. Inspect reads the proxy's `/model/info` listing to find the upstream model behind it (`litellm_params.model`, or `model_info.base_model` when set), and uses that model to look up the context window and cost and to shape requests. Virtual keys work; the listing shows only the models a key may use. Aliases defined on your key or its team are resolved to the model they route to.

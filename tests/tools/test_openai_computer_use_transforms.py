@@ -1,3 +1,7 @@
+import base64
+import struct
+import zlib
+
 import pytest
 from openai.types.responses import ResponseComputerToolCall
 from openai.types.responses.computer_action import (
@@ -14,9 +18,12 @@ from openai.types.responses.computer_action import (
     Wait,
 )
 
+from inspect_ai.model import ChatMessageTool
 from inspect_ai.model._providers._openai_computer_use import (
     _PIXELS_PER_SCROLL_CLICK,
+    _PLACEHOLDER_IMAGE,
     _parse_computer_tool_call_arguments,
+    computer_call_output,
     maybe_computer_use_tool,
     tool_call_arguments_to_actions,
     tool_call_from_openai_computer_tool_call,
@@ -470,3 +477,41 @@ def test_back_and_forward_click():
 
     assert isinstance(action, Click)
     assert action.button == "forward"
+
+
+def test_placeholder_image_is_a_valid_png():
+    """The screenshot sent for a tool result that has no image must decode.
+
+    OpenAI rejects a corrupt image in a computer_call_output with "The image
+    data you provided does not represent a valid image."
+    """
+    prefix = "data:image/png;base64,"
+    assert _PLACEHOLDER_IMAGE.startswith(prefix)
+    data = base64.b64decode(_PLACEHOLDER_IMAGE.removeprefix(prefix), validate=True)
+
+    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    chunks: dict[bytes, bytes] = {}
+    position = 8
+    while position < len(data):
+        length, kind = struct.unpack(">I4s", data[position : position + 8])
+        body = data[position + 8 : position + 8 + length]
+        (crc,) = struct.unpack(
+            ">I", data[position + 8 + length : position + 12 + length]
+        )
+        assert crc == zlib.crc32(kind + body)
+        chunks[kind] = body
+        position += 12 + length
+    assert list(chunks) == [b"IHDR", b"IDAT", b"IEND"]
+
+    width, height, bit_depth, color_type = struct.unpack(">IIBB", chunks[b"IHDR"][:10])
+    assert (width, height, bit_depth, color_type) == (1, 1, 8, 6)
+    # one scanline: a filter byte and a single transparent RGBA pixel
+    assert zlib.decompress(chunks[b"IDAT"]) == bytes(5)
+
+
+def test_computer_call_output_without_image_uses_placeholder():
+    message = ChatMessageTool(
+        content="Error: invalid key name", tool_call_id="call_id", function="computer"
+    )
+    output = computer_call_output(message, "call_id")
+    assert output["output"]["image_url"] == _PLACEHOLDER_IMAGE

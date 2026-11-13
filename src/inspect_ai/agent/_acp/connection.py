@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
+import anyio
 from acp.connection import Connection, StreamDirection, StreamEvent
 from acp.exceptions import RequestError
 from acp.meta import AGENT_METHODS, CLIENT_METHODS, PROTOCOL_VERSION
@@ -227,6 +228,9 @@ class ConnectionHandler:
         # setup path, so re-entrant lock acquisition cannot occur.
         self._bind_lock: asyncio.Lock = asyncio.Lock()
         self._bind_generation: int = 0
+        # Cancel scopes of permission / elicitation requests awaiting this
+        # client's answer. See ``_send_bound_request``.
+        self._bound_requests: set[anyio.CancelScope] = set()
 
     # ------------------------------------------------------------------
     # ACP Agent surface — implemented methods
@@ -1061,6 +1065,10 @@ class ConnectionHandler:
           between the approval shim snapshotting the driver chain
           and this method being called.
 
+        The binding must also hold until the client answers: an unbind
+        while the request is pending raises :class:`ConnectionError`
+        (see :meth:`_send_bound_request`).
+
         The outbound payload's ``sessionId`` is rewritten to the
         connection's ``wire_session_id``. In auto-bind /
         direct-loadSession this is a no-op (wire == target); in
@@ -1093,8 +1101,39 @@ class ConnectionHandler:
         if binding.wire_session_id != request.session_id:
             request = request.model_copy(update={"session_id": binding.wire_session_id})
         payload = request.model_dump(mode="json", by_alias=True, exclude_none=True)
-        raw = await self.connection.send_request("session/request_permission", payload)
+        raw = await self._send_bound_request("session/request_permission", payload)
         return RequestPermissionResponse.model_validate(raw)
+
+    async def _send_bound_request(self, method: str, payload: dict[str, Any]) -> Any:
+        """Send a request whose answer only counts while this binding lasts.
+
+        Permission and elicitation requests go to this client because it
+        is attached to the request's session. When the connection
+        unbinds (a rebind to another sample, or close), it leaves that
+        session's client registries, and :meth:`_stop_forwarders` cancels
+        the wait here. The connection itself may stay open, so without
+        the cancel the shim would keep waiting on a client that left
+        while another client could answer.
+
+        Raises:
+            ConnectionError: The connection unbound before the client
+                answered, so the shim's fallback loop moves on.
+        """
+        assert self.connection is not None
+        with anyio.CancelScope() as scope:
+            self._bound_requests.add(scope)
+            try:
+                return await self.connection.send_request(method, payload)
+            finally:
+                self._bound_requests.discard(scope)
+        # The scope also absorbs a task cancel that lands in the same loop
+        # iteration as the unbind; that cancel must still propagate.
+        task = asyncio.current_task()
+        if task is not None and task.cancelling():
+            raise asyncio.CancelledError
+        raise ConnectionError(
+            f"{method}: connection unbound before the client answered"
+        )
 
     async def drain_notifications(self) -> None:
         """Wait until pending ``session/update`` notifications have been sent.
@@ -1183,7 +1222,7 @@ class ConnectionHandler:
         }
         if request.tool_call_id is not None:
             payload["toolCallId"] = request.tool_call_id
-        raw = await self.connection.send_request("elicitation/create", payload)
+        raw = await self._send_bound_request("elicitation/create", payload)
         return _parse_elicitation_response(raw)
 
     # ------------------------------------------------------------------
@@ -1260,12 +1299,20 @@ class ConnectionHandler:
         producing ``AttributeError: 'NoneType' object has no
         attribute 'done'`` when the second caller resumed past its
         await and checked the task again.
+
+        Also cancels this client's pending permission / elicitation
+        requests (see :meth:`_send_bound_request`). That runs after
+        ``Forwarders.stop``, which detaches the client from the session's
+        registries and then awaits: a request can start in that window
+        while the old binding is still in place. It runs when there are
+        no forwarders too, so a second caller still cancels.
         """
         forwarders = self._forwarders
-        if forwarders is None:
-            return
         self._forwarders = None
-        await forwarders.stop(graceful=graceful)
+        if forwarders is not None:
+            await forwarders.stop(graceful=graceful)
+        for scope in list(self._bound_requests):
+            scope.cancel()
 
     async def _post_bind_setup(self, target: PickerTarget, gen: int) -> None:
         """Deferred post-response binding work: acquires lock, checks generation.
