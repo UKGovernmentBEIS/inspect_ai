@@ -7668,6 +7668,121 @@ async def test_host_media_result_sent_as_text_links_its_answer(
     assert event.message_id == (sent if answered == "reply" else None)
 
 
+async def _host_result_link(
+    dialect: HostDialect, result: ToolResult, answer: Callable[[str], str]
+) -> bool:
+    """Whether a host call returning `result` links the answer `answer` makes of the text the scaffold received."""
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(
+                ToolCall(id="call_read", function="read_file", arguments={"path": "p"})
+            ),
+            ModelOutput.from_content("mockllm/model", "Noted."),
+        ],
+    )
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={
+            "host": {"read_file": read_file(AsyncMock(return_value=result))}
+        },
+    )
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read p.", info)
+    with recorded_transcript() as recorded:
+        [(_, arguments)] = calls = await conversation.request(bridge)
+        reply = await call_host_tool(bridge)("host", "read_file", arguments)
+        conversation.results(calls, [answer(_scaffold_text(reply))])
+        await conversation.request(bridge)
+
+    [event] = [e for e in recorded.events if isinstance(e, ToolEvent)]
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [sent] = [m.id for m in model_events[-1].input if m.role == "tool"]
+    assert event.message_id in (sent, None)
+    return event.message_id == sent
+
+
+EMPTY_ANSWERS = {
+    "empty": ("", True),
+    "empty in json": (json.dumps({"output": ""}), True),
+    "empty content block": (json.dumps([{"type": "text", "text": ""}]), True),
+    "client timeout": (CLIENT_TIMEOUT, False),
+    "empty beside a timeout in json": (
+        json.dumps({"output": "", "error": CLIENT_TIMEOUT}),
+        False,
+    ),
+    "empty content block beside a timeout": (
+        json.dumps(
+            [{"type": "text", "text": ""}, {"type": "text", "text": CLIENT_TIMEOUT}]
+        ),
+        False,
+    ),
+}
+"""Answers to a host call returning empty text, and whether each holds its result."""
+
+
+@pytest.mark.parametrize("answer", list(EMPTY_ANSWERS))
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_empty_host_result_links_only_an_empty_answer(
+    dialect: HostDialect, answer: str
+) -> None:
+    """An empty host result links an answer holding no text, however wrapped, but not one with a timeout beside an empty field."""
+    text, links = EMPTY_ANSWERS[answer]
+    assert await _host_result_link(dialect, "", lambda _: text) is links
+
+
+UNICODE_RESULT = "café menu\n" + "\n".join(
+    f"{n}. crème brûlée, «tarte»" for n in range(60)
+)
+"""A long host result that default `json.dumps` writes with ASCII escapes."""
+
+UNICODE_CUT = 1000
+"""Where a scaffold cuts its JSON holding `UNICODE_RESULT`, after more than `_RESULT_EVIDENCE` of its characters."""
+
+
+def _cut_ascii_json(value: JsonValue) -> str:
+    """`value` as default (ASCII-escaped) JSON, cut short of its end."""
+    text = json.dumps(value)
+    assert len(text) > UNICODE_CUT
+    return text[:UNICODE_CUT]
+
+
+UNICODE_WRAPPERS: dict[str, tuple[ToolResult, Callable[[str], str]]] = {
+    "object": (UNICODE_RESULT, lambda text: _cut_ascii_json({"output": text})),
+    "content block": (
+        UNICODE_RESULT,
+        lambda text: _cut_ascii_json([{"type": "text", "text": text}]),
+    ),
+    "nested content": (
+        [ContentText(text=UNICODE_RESULT)],
+        lambda text: _cut_ascii_json([{"type": "text", "text": text}]),
+    ),
+}
+"""Host results, and scaffold JSON holding what the scaffold received for each, cut short."""
+
+
+def _reply_text(result: ToolResult) -> str:
+    """The text the scaffold receives for a host tool's `result`."""
+    output, _ = _recorded_result("read_file", result, None)
+    return _scaffold_text(_reply(output, result))
+
+
+@pytest.mark.parametrize("wrapper", list(UNICODE_WRAPPERS))
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_host_result_in_ascii_escaped_json_cut_short_links(
+    dialect: HostDialect, wrapper: str
+) -> None:
+    """A host result holding non-ASCII text links an answer of ASCII-escaped JSON cut short, which doesn't parse."""
+    result, answer = UNICODE_WRAPPERS[wrapper]
+    assert await _host_result_link(dialect, result, answer)
+
+
 @pytest.mark.parametrize("answered", ["error", "denied call's error", "client timeout"])
 @pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
 async def test_host_error_links_the_answer_holding_the_error_raised(
@@ -8008,6 +8123,27 @@ DENIED = (
         pytest.param("", None, "", True, id="empty"),
         pytest.param("", None, "[]", True, id="empty json"),
         pytest.param("", None, CLIENT_TIMEOUT, False, id="empty answered by a timeout"),
+        *[
+            pytest.param("", None, text, holds, id=f"empty answered by {name}")
+            for name, (text, holds) in EMPTY_ANSWERS.items()
+        ],
+        pytest.param(
+            "",
+            None,
+            [ContentText(text=""), ContentText(text=CLIENT_TIMEOUT)],
+            False,
+            id="empty answered by an empty part beside a timeout",
+        ),
+        *[
+            pytest.param(
+                result,
+                None,
+                answer(_reply_text(result)),
+                True,
+                id=f"unicode in ascii {name} json cut short",
+            )
+            for name, (result, answer) in UNICODE_WRAPPERS.items()
+        ],
         pytest.param(
             "", MISSING_FILE, MCP_ERROR + MISSING_FILE, True, id="error as raised"
         ),

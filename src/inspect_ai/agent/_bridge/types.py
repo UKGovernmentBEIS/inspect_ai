@@ -1414,13 +1414,14 @@ def _holds_result(answer: ChatMessageTool, received: _Received) -> bool:
     reformat, wrap and truncate results, so the evidence is the start of the
     received text (`_RESULT_EVIDENCE`) within the answer, within a string of
     JSON the answer holds (`_answer_texts`), or JSON-escaped once or twice
-    within the answer's text (a scaffold may cut its JSON so it no longer
-    parses, and a content result is JSON inside the scaffold's JSON). An
-    error with no text links nothing. A text shorter than
-    `_MIN_CONTAINED_RESULT` may appear in any message by chance, so it must be
-    a whole text of the answer. With no text, the answer must be empty or, for
-    media, hold media. Linear in the answer's size: one bounded text is
-    compared.
+    within the answer's text, with or without ASCII escapes (a scaffold may
+    cut its JSON so it no longer parses, and a content result is JSON inside
+    the scaffold's JSON). An error with no text links nothing. A text shorter
+    than `_MIN_CONTAINED_RESULT` may appear in any message by chance, so it
+    must be a whole text of the answer. With no text, every innermost text of
+    the answer must be empty (`_innermost_texts`: a timeout beside an empty
+    field is not empty) or, for media, the answer must hold media. Linear in
+    the answer's size: a few escapings of one bounded text are compared.
     """
     if received.error and not received.text:
         return False
@@ -1430,16 +1431,18 @@ def _holds_result(answer: ChatMessageTool, received: _Received) -> bool:
         if len(expected) < _MIN_CONTAINED_RESULT:
             return expected in texts
         evidence = expected[:_RESULT_EVIDENCE]
-        escaped = json.dumps(evidence, ensure_ascii=False)[1:-1]
-        twice = json.dumps(escaped, ensure_ascii=False)[1:-1]
-        return any(
-            evidence in text or escaped in text or twice in text for text in texts
-        )
+        forms = {evidence}
+        for ascii_once in (False, True):
+            escaped = json.dumps(evidence, ensure_ascii=ascii_once)[1:-1]
+            forms.add(escaped)
+            for ascii_twice in (False, True):
+                forms.add(json.dumps(escaped, ensure_ascii=ascii_twice)[1:-1])
+        return any(form in text for form in forms for text in texts)
     if received.media:
         return not isinstance(answer.content, str) and any(
             content.type != "text" for content in answer.content
         )
-    return "" in texts
+    return not any(_innermost_texts(answer))
 
 
 def _answer_texts(answer: ChatMessageTool) -> set[str]:
@@ -1454,18 +1457,33 @@ def _answer_texts(answer: ChatMessageTool) -> set[str]:
     above, so the work stays linear. A lone surrogate is compared in its
     escaped form, as a JSON round trip may leave it (`_escape_surrogates`).
     """
-    parts = (
-        [answer.content]
-        if isinstance(answer.content, str)
-        else [content.text for content in answer.content if content.type == "text"]
-    )
     texts = {answer.text.strip()}
-    for part in parts:
+    for part in _text_parts(answer):
         texts.add(part.strip())
         for string in _json_strings(part) or []:
             texts.add(string)
             texts.update(_json_strings(string) or [])
     return {_escape_surrogates(text) for text in texts}
+
+
+def _innermost_texts(answer: ChatMessageTool) -> list[str]:
+    """The texts of `answer` (`_answer_texts`) with the JSON wrapping them removed, stripped.
+
+    Per text part: the strings of JSON it holds, or of JSON such a string
+    holds, in place of that JSON; else the part.
+    """
+    texts: list[str] = []
+    for part in _text_parts(answer):
+        for string in _json_strings(part) or [part.strip()]:
+            texts.extend(_json_strings(string) or [string])
+    return texts
+
+
+def _text_parts(answer: ChatMessageTool) -> list[str]:
+    """The text of `answer`, or each of its text parts."""
+    if isinstance(answer.content, str):
+        return [answer.content]
+    return [content.text for content in answer.content if content.type == "text"]
 
 
 def _json_strings(text: str) -> list[str] | None:
