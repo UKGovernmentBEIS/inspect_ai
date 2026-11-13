@@ -239,6 +239,13 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
             note_reviews(received, result)
             state = result.get("state")
             if state == "decided":
+                listed = result.get("reviews")
+                if reviews and isinstance(listed, list) and listed:
+                    # A person was asked about the call, though every
+                    # question had closed before Inspect asked: the sidecar
+                    # keeps it as one model call all the same, with the reply
+                    # it holds for it.
+                    received.reviewed_id = received.request_id
                 _ended(received)
                 judgment = result.get("judgment")
                 if not isinstance(judgment, dict):

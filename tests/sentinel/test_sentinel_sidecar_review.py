@@ -126,6 +126,8 @@ class ReviewingSidecar(StandInSidecar):
     """The judge model's usage, added up over the call, that every `request_result` about a paused call gives, as the sidecar does."""
     error_lost: bool = False
     """Whether the try that is sent on is answered with the sidecar's own "pending review" when the provider fails it, and not with the provider's error: what Inspect holds when a try of its was answered while another was with the provider."""
+    closed_before_asked: bool = False
+    """Whether the question about a call paused at its reply times out before Inspect first asks about the call, and the sentinel's cautious answer still lets the turn go on."""
     sdk_retries: bool = True
     """Whether the provider's SDK may retry a provider's error on a try that is sent on. Without, the error comes back to Inspect, as `x-should-retry: false` makes it."""
     holds: list[tuple[float, float]] = field(default_factory=list)
@@ -180,6 +182,21 @@ class ReviewingSidecar(StandInSidecar):
             if paused.stage == "tool_call":
                 # the provider replied, and the stand-in holds the reply
                 paused.turn = self.turns.pop(0) if self.turns else Turn()
+                if self.closed_before_asked:
+                    now = time.time()
+                    paused.reviews.append(
+                        {
+                            "id": f"question_{irid}",
+                            "try_number": 1,
+                            "stage": "tool_call",
+                            "call": "call_1",
+                            "asked": now,
+                            "resolution": "timed_out",
+                            "resolved": now,
+                        }
+                    )
+                    paused.state = "decided"
+                    paused.judgment = {"outcome": "proceed", "steps": []}
             return self._pending(request)
         paused.tries += 1
         if paused.state != "awaiting_request":
@@ -834,6 +851,28 @@ def test_a_call_paused_at_its_request_is_sent_again_on_the_model_path(
     assert event.error is None
     assert event.output.message.text == "Sunny."
     assert sample.output.completion == "Sunny."
+
+
+def test_a_call_whose_question_closed_before_inspect_asked_gets_its_held_reply(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    person = Person("approve")
+    person.install(monkeypatch)
+    # the question timed out before Inspect first asked about the call, and
+    # the sidecar decided to let the turn go on
+    stand_in = ReviewingSidecar(
+        pauses=["tool_call"], turns=[_OSLO, Turn()], closed_before_asked=True
+    )
+
+    sample = _sample(_run(stand_in))
+
+    # nobody here was asked, and the turn the sidecar held is the call's
+    assert person.asked == []
+    [got] = stand_in.held_reply_requests
+    assert got.headers["x-irid"] == stand_in.model_calls[0].headers["x-irid"]
+    event = _model_events(sample)[0]
+    assert event.error is None
+    assert _LOOKED_UP == ["Oslo"]
 
 
 def test_a_provider_error_after_a_review_is_inspects_to_retry_under_the_same_id(
