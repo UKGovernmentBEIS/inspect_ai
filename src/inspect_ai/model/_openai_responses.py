@@ -2453,6 +2453,46 @@ def _output_message_role(item: ResponseOutputMessage) -> str:
     return str(getattr(item, "role", "assistant"))
 
 
+def _content_from_compact_user_item(
+    item: ResponseOutputText | ResponseOutputRefusal,
+) -> Content:
+    """Convert one content item of a user message echoed by the compact endpoint.
+
+    The endpoint returns user messages with their original `input_*` items, but
+    the SDK types them as output text or refusal: it parses an `input_image` or
+    `input_file` as a `ResponseOutputText` with that `type` and the remaining
+    fields as extra attributes, so branch on `type` rather than the class.
+    Media must be inline (the form Inspect sends); file references are rejected.
+    """
+    item_type = getattr(item, "type", None)
+    if item_type in ("output_text", "input_text"):
+        return ContentText(text=cast(ResponseOutputText, item).text)
+    elif item_type == "refusal":
+        return ContentText(text=cast(ResponseOutputRefusal, item).refusal, refusal=True)
+    elif item_type == "input_image":
+        image_url = getattr(item, "image_url", None)
+        if not image_url:
+            raise ValueError(
+                "Compacted user message has an input_image without image_url"
+            )
+        return ContentImage(
+            image=image_url, detail=getattr(item, "detail", None) or "auto"
+        )
+    elif item_type == "input_file":
+        file_data = getattr(item, "file_data", None)
+        if not file_data:
+            raise ValueError(
+                "Compacted user message has an input_file without file_data"
+            )
+        return ContentDocument(
+            document=file_data, filename=getattr(item, "filename", None) or ""
+        )
+    else:
+        raise ValueError(
+            f"Unsupported content type in compacted user message: {item_type!r}"
+        )
+
+
 def chat_messages_from_compact_response(
     response: CompactedResponse,
     model: str | None = None,
@@ -2546,13 +2586,7 @@ def chat_messages_from_compact_response(
             # Flush any pending assistant items first
             flush_pending_items()
             # Convert user message content to ChatMessageUser
-            # Content items are ResponseOutputText or ResponseOutputRefusal
-            user_content: list[Content] = [
-                ContentText(text=c.text)
-                if isinstance(c, ResponseOutputText)
-                else ContentText(text=c.refusal, refusal=True)
-                for c in item.content
-            ]
+            user_content = [_content_from_compact_user_item(c) for c in item.content]
             if user_content:
                 messages.append(
                     ChatMessageUser(content=user_content, source="generate")
