@@ -110,7 +110,7 @@ uv sync --locked
 
 [DEPENDENCIES.md](https://github.com/meridianlabs-ai/actions/blob/main/DEPENDENCIES.md) in the meridianlabs-ai/actions repository tells how Inspect and the other Inspect repositories install and change dependencies. It covers the lock file, the seven-day cooldown and its six-hour exception, emergency entries, Dependabot, the canaries, and the procedures to add or update a dependency. Follow it. This file does not repeat it. For this repository:
 
-- The six-hour packages are in `[tool.uv.exclude-newer-package]` in `pyproject.toml`.
+- Model provider SDKs have a six-hour cooldown (`"6 hours"`), and Inspect's own packages (`inspect-*`) have no cooldown (`false`). Both are in `[tool.uv.exclude-newer-package]` in `pyproject.toml`.
 - `src/inspect_sandbox_tools/tests/requirements.txt` is a separate hashed lock for the `sandbox-tools-unit` CI job. Its header is the command that makes it again.
 - `src/inspect_ai/model/_model_data/sync_models.py` has its own lock. Its workflow runs uv with `--no-config`, so it does not read `pyproject.toml`. If the script locks a package that gets an emergency entry, add the same entry to the script's inline metadata. Then run `uv lock --script src/inspect_ai/model/_model_data/sync_models.py --no-config --upgrade-package <package>`. When you remove the emergency entry, put back the previous setting in the script and run that command again.
 
