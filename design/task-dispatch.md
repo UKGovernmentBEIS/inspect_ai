@@ -696,8 +696,15 @@ Today `task_run`'s `except TaskRetryAbandonedError:` handler re-raises
 without completing the row, and Rich and Textual count a task complete only
 once its row has a result, so the run would end with completed one short of
 the total. So that handler, which is inside the row's `with` block, first
-calls `td.complete(TaskCancelled(logger.samples_completed, EvalStats()))`,
-once, then re-raises as today. It runs for every stamp-stopped attempt
+completes the row once and then re-raises as today. It completes it with
+the attempt's own `stats`, which `task_run` creates with `started_at` set
+before the row opens: it calls `collect_eval_data(stats)`, which sets
+`completed_at`, as the run's end does, and then
+`td.complete(TaskCancelled(logger.samples_completed, stats))`. A fresh
+`EvalStats()` would not do: both its timestamps are empty, and the Rich
+task report parses them as dates (`task_stats` in
+`src/inspect_ai/_display/core/results.py`) when the task screen closes, so
+the run would end in a `ValueError`. It runs for every stamp-stopped attempt
 whose row opened: a first attempt cancelled before it registers, and a
 stopped retry, whose row today is left without a result. An attempt stopped
 at the earlier checks has no row and takes one off the total, as above.
@@ -1555,7 +1562,9 @@ test that waits on a run is bounded with `fail_after`.
   `logger.log_start()` is held on an event (its row open) ends the record
   with the cancelled-before-start log, completes that row once with a
   cancelled result and leaves the total unchanged, so completed and total
-  match once the run ends, under Rich and under Textual; with Textual's app load held on an event, one of two seed
+  match once the run ends, under Rich and under Textual; the run reaches
+  the task screen's teardown and returns the expected logs with no
+  rendering error (and the same under `display="none"`); with Textual's app load held on an event, one of two seed
   tasks cancelled during the load leaves 1/1 once the survivor completes,
   and the same cancel after the screen opened (the control) does too.
 - `tests/test_eval_set.py`: a seed task cancelled while queued under
@@ -1596,8 +1605,9 @@ state in the single `eval_run`), so the setup fixes come first.
    `resolve_task_file_sandbox` through the helper),
    `_eval/task/sandbox.py` (`resolve_sandbox` through the helper; no `chdir`
    in key resolution; the non-Docker `task_init_environment` refusal), `_eval/run.py` (`SandboxManager` without `chdir` and
-   `environ_vars`), `docs/extensions-sandboxes.qmd`. Tests: `test_sandbox_setup.py`,
-   `test_retry.py`, the Docker tests.
+   `environ_vars`), `docs/extensions-sandboxes.qmd`. Tests:
+   `test_sandbox_setup.py` (the directory, environment and
+   `resolve_config_paths` cases), `test_retry.py`, the Docker tests.
 2. **Provider state per setup.** `_eval/run.py` (`SandboxManager` runs each
    `task_init` in the chained context and records each configuration's
    bindings against the run's root context, and its context), `_eval/task/sandbox.py`
@@ -1605,7 +1615,11 @@ state in the single `eval_run`), so the setup fixes come first.
    spec and task directory and applies its bindings where the root value
    holds), `_eval/task/run.py`. Fixes the E2B, Modal and Daytona
    leaks and `LookupError` with no inspect_sandboxes release. Independent of
-   step 1.
+   step 1. Tests: `test_sandbox_setup.py` (the per-setup binding cases:
+   bindings reaching `sample_init`, `sample_cleanup` and the matching
+   `task_cleanup` for two configurations, the shared k8s-style object, a
+   sample's own binding kept, a failed `task_init`'s bindings reaching no
+   later setup, and the empty `SampleSource` seed).
 3. **One queue and one dispatcher; logs start with their attempt; queued
    tasks in the control channel.** `_eval/task/enqueue.py` (`RunQueue`,
    `TaskRecord`, async `enqueue_task()` still returning `None`),
