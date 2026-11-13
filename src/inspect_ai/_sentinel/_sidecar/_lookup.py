@@ -97,7 +97,7 @@ async def record_unasked_usage(received: ReceivedCall) -> None:
         return
     if not received.unasked:
         return
-    with suspend_token_limit(), suspend_turn_limit(), suspend_working_limit():
+    with suspend_limits():
         while received.unasked:
             request_id = received.unasked[0]
             try:
