@@ -553,7 +553,7 @@ with suspend_limits():
     await run_monitor()
 ```
 
-Inspect suspends these limits while an in-process sentinel, a tool approver or a tool result reviewer runs. Their model calls are reported in model and role usage but do not count towards any limit, so a sample's reported cost can exceed its `cost_limit`.
+Inspect suspends these limits while an in-process sentinel, a tool approver or a tool result reviewer runs. Their model calls are reported in model and role usage but don't count towards cost, token, turn or working limits, so a sample's reported cost can exceed its `cost_limit`. Time and message limits still apply (e.g. a slow model approver still uses up the sample's time limit).
 
 ::: callout-important
 Using `cost_limit()` requires model cost data to be configured via `set_model_cost()` or `--model-cost-config`. See [Model Cost](#model-cost) for details.
