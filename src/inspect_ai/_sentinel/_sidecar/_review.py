@@ -488,7 +488,12 @@ async def ask_person(received: ReceivedCall) -> None:
     for question in questions:
         id = question["id"]
         if id not in received.decisions:
-            received.decisions[id] = await _decision(received, question)
+            # the time the person takes is theirs, not the model call's
+            shown = time.monotonic()
+            try:
+                received.decisions[id] = await _decision(received, question)
+            finally:
+                received.person_time += time.monotonic() - shown
             call = question.get("call")
             function = call.get("function") if isinstance(call, dict) else None
             received.asked_about[id] = (str(function or "a tool"), time.time())

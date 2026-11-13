@@ -24,6 +24,7 @@ from ._received import (
     note_judging_time,
     parse_judging_usage,
     parse_judgment,
+    timeout_left,
 )
 
 RESULT_WAIT = 30.0
@@ -32,8 +33,11 @@ RESULT_WAIT = 30.0
 UNHELD_PAUSE = 0.5
 """How long to wait before asking again when the sidecar answered that it is still judging without holding the answer, in seconds."""
 
-AWAITED_REPLY_ASKS = 10
-"""How many times the sidecar is asked again, `UNHELD_PAUSE` apart, about a call a person was asked about whose try came back as an error while the sidecar still awaits the provider's reply. The sidecar says the provider failed only once the error's whole body has arrived, which takes a moment."""
+AWAITED_REPLY_PAUSE = 0.5
+"""How long to wait before first asking the sidecar again about a call a person was asked about, while a try the sidecar sent on is still with the provider, in seconds. Each later wait is twice the one before, up to `AWAITED_REPLY_PAUSE_MAX`."""
+
+AWAITED_REPLY_PAUSE_MAX = 5.0
+"""The longest wait between two such asks, in seconds."""
 
 
 class SidecarNotJudgedError(RuntimeError):
@@ -207,7 +211,7 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
         return Looked("unavailable", "the call's request id is not known")
     # a sidecar that puts no question to the eval is read as before it could
     reviews = bool(getattr(sidecar, "review", False)) and not replied
-    awaited = 0
+    awaited_pause = AWAITED_REPLY_PAUSE
     with suspend_token_limit(), suspend_turn_limit(), suspend_working_limit():
         while True:
             asked = time.monotonic()
@@ -286,19 +290,35 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
             # the sidecar is judging it from then: a call that came back with
             # a reply the sidecar still awaits got past the sidecar
             if state == "awaiting_reply":
-                if (
-                    reviews
-                    and received.reviewed_id is not None
-                    and awaited < AWAITED_REPLY_ASKS
-                ):
+                if reviews and received.reviewed_id is not None:
                     # A call a person was asked about, whose try came back as
                     # an error while a try the sidecar sent on is still with
                     # the provider, or the provider's answer to it is still
-                    # passing: the body of its error, which the sidecar tells
-                    # of only once it is whole. It is asked again shortly, a
-                    # bounded number of times.
-                    awaited += 1
-                    await anyio.sleep(UNHELD_PAUSE)
+                    # passing. Inspect's own try may have timed out, which
+                    # doesn't say the provider stopped: the sidecar holds the
+                    # call, and the reply once it comes. So the call is
+                    # followed until it comes to something, and nothing more
+                    # is sent to the provider meanwhile. The call's `timeout`
+                    # bounds the wait, as it bounds the call's retries, and
+                    # the sample's time limit and its cancellation end it too.
+                    left = timeout_left(received)
+                    if left is not None and left <= 0:
+                        # out of time: the sidecar is told the call is given
+                        # up, so it holds nothing for it any longer
+                        from ._review import cancel_open_call
+
+                        await cancel_open_call(received)
+                        return _judging(
+                            Looked(
+                                "unavailable",
+                                "the call's timeout passed while the provider still had its request",
+                            ),
+                            result,
+                        )
+                    await anyio.sleep(
+                        awaited_pause if left is None else min(awaited_pause, left)
+                    )
+                    awaited_pause = min(awaited_pause * 2, AWAITED_REPLY_PAUSE_MAX)
                     continue
                 return _judging(
                     Looked(

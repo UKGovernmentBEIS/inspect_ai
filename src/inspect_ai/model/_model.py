@@ -1146,6 +1146,7 @@ class Model:
                         through_sidecar.registered_beforehand,
                         through_sidecar.mode,
                         prepared.input,
+                        config.timeout,
                     )
                     if through_sidecar is not None
                     else contextlib.nullcontext()

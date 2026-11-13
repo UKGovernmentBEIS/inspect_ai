@@ -25,6 +25,7 @@ from test_helpers.stand_in_sidecar import (
 from inspect_ai import Task
 from inspect_ai import eval as inspect_eval
 from inspect_ai._control.pause import pause_process, process_paused, resume_process
+from inspect_ai._sentinel._sidecar import _lookup as lookup_module
 from inspect_ai._sentinel._sidecar import _review as review_module
 from inspect_ai._sentinel._sidecar._act import refused_output
 from inspect_ai._sentinel._sidecar._endpoint import QUESTION_ANSWERED
@@ -128,6 +129,8 @@ class ReviewingSidecar(StandInSidecar):
     """The judge model's usage, added up over the call, that every `request_result` about a paused call gives, as the sidecar does."""
     error_lost: bool = False
     """Whether the try that is sent on is answered with the sidecar's own "pending review" when the provider fails it, and not with the provider's error: what Inspect holds when a try of its was answered while another was with the provider."""
+    provider_takes_asks: int = 0
+    """How many times `request_result` still says the sidecar awaits the reply of the try it sent on to the provider, before the reply has come and been judged. That try's own connection is held far longer, so Inspect's attempt at it times out first."""
     closed_before_asked: bool = False
     """Whether the question about a call paused at its reply times out before Inspect first asks about the call, and the sentinel's cautious answer still lets the turn go on."""
     sdk_retries: bool = True
@@ -218,6 +221,11 @@ class ReviewingSidecar(StandInSidecar):
             }
             if self.error_lost:
                 return _refusal("pending review")
+        elif self.provider_takes_asks > 0:
+            # with the provider, whose reply the sidecar will hold
+            paused.turn = turn
+            paused.state = "awaiting_reply"
+            self._holds[id(request)] = 60.0
         else:
             paused.turn = turn
             paused.state = "decided"
@@ -371,6 +379,12 @@ class ReviewingSidecar(StandInSidecar):
         if paused.failure is not None and self.error_passing_asks > 0:
             self.error_passing_asks -= 1
             return {"id": params["id"], "records": "held", "state": "awaiting_reply"}
+        if paused.state == "awaiting_reply":
+            self.provider_takes_asks -= 1
+            if self.provider_takes_asks <= 0:
+                # the provider's reply has come, and was judged
+                paused.state = "decided"
+                paused.judgment = {"outcome": "proceed", "steps": []}
         result: dict[str, Any] = {
             "id": params["id"],
             "records": "held",
@@ -1470,6 +1484,85 @@ def test_a_request_sent_again_waits_for_an_operators_hard_pause(
     assert not process_paused()
     [_, sent_on_at] = stand_in.held_at
     assert sent_on_at - paused_at[0] >= 0.4
+
+
+# --- a call's timeout ---------------------------------------------------------
+
+
+def test_the_time_a_person_takes_isnt_counted_toward_the_calls_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the person takes longer than the call's whole timeout
+    Person("approve", takes=1.5).install(monkeypatch)
+    # Inspect retries at once, so the test needn't wait
+    monkeypatch.setattr(AnthropicAPI, "retry_wait", lambda self: wait_none())
+    # the provider fails the request the sidecar sends on, then answers
+    stand_in = ReviewingSidecar(
+        pauses=["tool_result"],
+        turns=[Turn(status=529), Turn(text="Sunny.")],
+        sdk_retries=False,
+    )
+
+    sample = _sample(_run(stand_in, solver=generate(), timeout=1))
+
+    # the provider's failure is retried, as it would be had nobody been asked
+    assert sample.output.completion == "Sunny."
+
+
+def test_a_try_that_times_out_while_the_provider_works_is_followed_to_its_reply(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The person takes 2.5 seconds, and Inspect's attempt at the request the
+    # sidecar sends on times out after another second: more than the call's
+    # timeout of 3 with the person's time, and well within it without.
+    Person("approve", takes=2.5).install(monkeypatch)
+    monkeypatch.setattr(lookup_module, "AWAITED_REPLY_PAUSE", 0.01)
+    monkeypatch.setattr(lookup_module, "AWAITED_REPLY_PAUSE_MAX", 0.01)
+    # the provider is still working for 25 asks of the sidecar
+    stand_in = ReviewingSidecar(
+        pauses=["tool_result"],
+        turns=[Turn(text="Sunny.")],
+        provider_takes_asks=25,
+    )
+
+    sample = _sample(_run(stand_in, solver=generate(), timeout=3, attempt_timeout=1))
+
+    # Inspect went on asking until the reply had come, got it from the
+    # sidecar, and sent nothing more to the provider meanwhile
+    assert sample.output.completion == "Sunny."
+    assert len(stand_in.model_calls) == 2
+    assert len(stand_in.held_reply_requests) == 1
+    assert stand_in.cancelled == []
+
+
+def test_a_call_whose_timeout_passes_while_the_provider_works_is_closed_at_the_sidecar(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Person("approve").install(monkeypatch)
+    # the provider never answers the request the sidecar sent on
+    stand_in = ReviewingSidecar(
+        pauses=["tool_result"],
+        turns=[Turn(text="Sunny.")],
+        provider_takes_asks=1_000_000,
+    )
+
+    began = time.monotonic()
+    log = _run(
+        stand_in,
+        solver=generate(),
+        fail_on_error=False,
+        timeout=2,
+        attempt_timeout=1,
+    )
+
+    # the call fails once its timeout has passed, and not before or long
+    # after, and the sidecar is told it is given up
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None
+    assert 1.9 <= time.monotonic() - began < 4.5
+    [first, _] = stand_in.model_calls
+    assert stand_in.cancelled == [first.headers["x-irid"]]
 
 
 # --- a call Inspect gives up on -----------------------------------------------

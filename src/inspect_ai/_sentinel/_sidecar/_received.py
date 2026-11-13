@@ -2,6 +2,7 @@
 
 import hashlib
 import math
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -137,8 +138,15 @@ class ReceivedCall:
         registered_beforehand: bool = False,
         mode: "SentinelProxy" = "auto",
         history: "list[ChatMessage] | None" = None,
+        timeout: int | None = None,
     ) -> None:
         self.sidecar = sidecar
+        self.timeout = timeout
+        """The call's `timeout`, the limit on its time with its retries, in seconds, or None for no limit."""
+        self.began: float | None = None
+        """When the call's first attempt began, on the monotonic clock, from which its `timeout` runs."""
+        self.person_time = 0.0
+        """How long people took to answer the questions a sentinel asked about the call, in seconds. It is not the model call's time, so the call's `timeout` doesn't count it."""
         """The sidecar the call goes through, which `request_result` asks."""
         self.history: "list[ChatMessage]" = history if history is not None else []
         """The conversation the call is sent with, as Inspect holds it, for a person who is asked about the call to be shown. It never leaves the eval's process."""
@@ -210,6 +218,7 @@ def receiving_call(
     registered_beforehand: bool = False,
     mode: "SentinelProxy" = "auto",
     history: "list[ChatMessage] | None" = None,
+    timeout: int | None = None,
 ) -> Iterator[ReceivedCall]:
     """Keep what is learned of an agent call through a sidecar, for the providers to report its request id into.
 
@@ -218,8 +227,9 @@ def receiving_call(
         registered_beforehand: Whether the sidecar's admin registered the call's task beforehand.
         mode: Whether the task requires a sidecar.
         history: The conversation the call is sent with, which a person asked about the call is shown.
+        timeout: The call's `timeout`, in seconds, or None for no limit.
     """
-    received = ReceivedCall(sidecar, registered_beforehand, mode, history)
+    received = ReceivedCall(sidecar, registered_beforehand, mode, history, timeout)
     token = _received.set(received)
     try:
         yield received
@@ -234,6 +244,8 @@ def begin_attempt() -> None:
     """
     received = _received.get()
     if received is not None:
+        if received.began is None:
+            received.began = time.monotonic()
         if (
             received.sent
             and received.request_id is not None
@@ -311,6 +323,25 @@ def _body_digest(request: Any) -> bytes:
     except Exception:
         content = b""
     return hashlib.sha256(content).digest()
+
+
+def time_with_a_person() -> float:
+    """How long people took to answer a sentinel's questions about the current agent call, in seconds, which the call's `timeout` doesn't count. Zero for any call nobody was asked about."""
+    received = _received.get()
+    return received.person_time if received is not None else 0.0
+
+
+def timeout_left(received: ReceivedCall) -> float | None:
+    """How much of the call's `timeout` is left, in seconds, or None where it has none.
+
+    It is the time Inspect's retry loop compares with `timeout` when it decides whether to retry: the time since the call's first attempt began, without the time a person took to answer. A `timeout` changed while the eval runs applies, as it does there.
+    """
+    from inspect_ai.model._generate_overrides import generate_config_override
+
+    timeout = generate_config_override("timeout", received.timeout)
+    if timeout is None or received.began is None:
+        return None
+    return timeout - (time.monotonic() - received.began - received.person_time)
 
 
 def current_receiving() -> ReceivedCall | None:
