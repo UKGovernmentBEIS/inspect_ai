@@ -10008,6 +10008,7 @@ def test_a_call_that_raised_after_running_keeps_its_result_check_without_a_call_
     # the result check names the reviewed call, so the reviewer's call under
     # its id, which ended first, can't take it
     [result] = [step for step in replayed(log) if step.stage == "tool_result"]
+    assert isinstance(result.step, AfterToolCall)
     assert result.step.call.function == "fails_after_running"
     assert dict(result.recorded_answers) == {
         "human": HumanAnswer(decision="approve", reason="reviewed the tool error")
@@ -10019,6 +10020,7 @@ def test_a_call_that_raised_after_running_keeps_its_result_check_without_a_call_
         for step in replay_events(log, without_execution_ids(events))
         if step.stage == "tool_result"
     ]
+    assert isinstance(old.step, AfterToolCall)
     assert old.step.call.function == "addition"
 
 
