@@ -13,12 +13,17 @@ bookkeeping directly so the isolation guarantees are easy to verify.
 
 from __future__ import annotations
 
+from contextlib import AsyncExitStack
 from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
 
-from inspect_ai.tool._mcp._local import MCPServerLocal, MCPServerLocalSession
+from inspect_ai.tool._mcp._local import (
+    MCPServerLocal,
+    MCPServerLocalSession,
+    _Connection,
+)
 
 
 def _make_server(name: str = "s") -> MCPServerLocal:
@@ -82,19 +87,15 @@ async def test_cached_tool_list_cleared_on_close() -> None:
     # Simulate an active session with a populated cache.
     sentinel_tools: list[Any] = [object()]
     session._cached_tool_list = sentinel_tools
-    session._refcount = 1
-    fake_exit_stack = AsyncMock()
-    fake_exit_stack.aclose = AsyncMock(return_value=None)
-    session._exit_stack = fake_exit_stack
-    session._session = (
-        AsyncMock()
-    )  # any non-None placeholder satisfying ClientSession | None
+    exit_stack = AsyncExitStack()
+    closed = AsyncMock()
+    exit_stack.push_async_callback(closed)
+    session._conn = _Connection(AsyncMock(), exit_stack)
 
     await session.__aexit__(None, None, None)
 
-    assert session._refcount == 0
-    assert session._session is None
-    assert session._exit_stack is None
+    closed.assert_awaited_once()
+    assert session._conn is None
     assert session._cached_tool_list is None, (
         "cache must be dropped on close so a reused session re-fetches tools"
     )
@@ -113,11 +114,13 @@ async def test_cached_tool_list_preserved_when_still_referenced() -> None:
     )
     sentinel_tools: list[Any] = [object()]
     session._cached_tool_list = sentinel_tools
-    session._refcount = 2  # two holders
+    conn = _Connection(AsyncMock(), AsyncExitStack(), refcount=2)  # two holders
+    session._conn = conn
 
     await session.__aexit__(None, None, None)
 
-    assert session._refcount == 1
+    assert session._conn is conn
+    assert conn.refcount == 1
     assert session._cached_tool_list is sentinel_tools
 
 

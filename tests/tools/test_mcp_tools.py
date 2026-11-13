@@ -6,7 +6,7 @@ import sys
 import weakref
 from pathlib import Path
 from types import SimpleNamespace, TracebackType
-from typing import Any, AsyncIterator, Callable, cast
+from typing import Any, AsyncIterator, Awaitable, Callable, cast
 from uuid import uuid4
 
 import anyio
@@ -88,6 +88,8 @@ def _make_simulated_mcp_client(
     on_tool_call: Callable[[Any], Any],
     *,
     unexpected_methods: list[str],
+    on_initialize: Callable[[int], Awaitable[bool]] | None = None,
+    received: list[tuple[int, str]] | None = None,
 ):
     """Build a fake MCP transport context manager.
 
@@ -96,6 +98,11 @@ def _make_simulated_mcp_client(
     send back), accepts notifications, and records anything else into
     ``unexpected_methods`` (asserted by callers — raising from the writer
     task wraps the failure in an ExceptionGroup, which obscures the message).
+
+    Each opened transport is a numbered connection, from 0. ``on_initialize``
+    is awaited with that number before the handshake reply, and an error is
+    sent instead when it returns False. ``received`` records every request and
+    notification as ``(connection, method)``.
     """
     from anyio.streams.memory import (
         MemoryObjectReceiveStream,
@@ -103,8 +110,11 @@ def _make_simulated_mcp_client(
     )
     from mcp.shared.message import SessionMessage
     from mcp.types import (
+        INTERNAL_ERROR,
+        ErrorData,
         Implementation,
         InitializeResult,
+        JSONRPCError,
         JSONRPCNotification,
         JSONRPCRequest,
         JSONRPCResponse,
@@ -124,8 +134,13 @@ def _make_simulated_mcp_client(
         or importlib.import_module("mcp.types").LATEST_PROTOCOL_VERSION
     )
 
+    connections = 0
+
     @contextlib.asynccontextmanager
     async def client() -> AsyncIterator[Any]:
+        nonlocal connections
+        connection = connections
+        connections += 1
         read_stream_writer: MemoryObjectSendStream
         read_stream: MemoryObjectReceiveStream
         write_stream: MemoryObjectSendStream
@@ -139,8 +154,30 @@ def _make_simulated_mcp_client(
                 async with write_stream_reader:
                     async for message in write_stream_reader:
                         root = jsonrpc_message_root(message.message)
+                        if received is not None and isinstance(
+                            root, JSONRPCRequest | JSONRPCNotification
+                        ):
+                            received.append((connection, root.method))
                         if isinstance(root, JSONRPCRequest):
                             if root.method == "initialize":
+                                if on_initialize is not None and not (
+                                    await on_initialize(connection)
+                                ):
+                                    await read_stream_writer.send(
+                                        SessionMessage(
+                                            message=jsonrpc_message(
+                                                JSONRPCError(
+                                                    jsonrpc="2.0",
+                                                    id=root.id,
+                                                    error=ErrorData(
+                                                        code=INTERNAL_ERROR,
+                                                        message="initialize failed",
+                                                    ),
+                                                )
+                                            )
+                                        )
+                                    )
+                                    continue
                                 # model_validate because keyword construction
                                 # is version-specific (camelCase on 1.x,
                                 # snake_case on 2.x); the camelCase spelling
@@ -288,11 +325,13 @@ async def _execute_mcp_tool(
     from inspect_ai.log._transcript import Transcript, init_transcript
     from inspect_ai.model._call_tools import execute_tools
     from inspect_ai.model._chat_message import ChatMessageAssistant
-    from inspect_ai.tool._mcp._local import MCPServerLocalSession
+    from inspect_ai.tool._mcp._local import MCPServerLocalSession, _Connection
     from inspect_ai.tool._tool_call import ToolCall
 
     session = MCPServerLocalSession(_no_transport_client, name="grouped", events=False)
-    session._session = cast(ClientSession, _RaisingSession(leaves))
+    session._conn = _Connection(
+        cast(ClientSession, _RaisingSession(leaves)), contextlib.AsyncExitStack()
+    )
     tool_def = session._tool_def_from_mcp_tool(
         MCPTool.model_validate(
             {
@@ -654,6 +693,206 @@ async def test_mcp_connection_refcount():
         assert len(tools_reopen) > 0
 
 
+def _answer_tool_call(root: Any) -> Any:
+    """Answer a tool call with an error naming who answered it.
+
+    An error result avoids the `tools/list` that mcp sends to validate a
+    successful result, which the simulated transport doesn't serve.
+    """
+    from mcp.shared.message import SessionMessage
+    from mcp.types import INTERNAL_ERROR, ErrorData, JSONRPCError
+
+    from inspect_ai.tool._mcp._compat import jsonrpc_message
+
+    return SessionMessage(
+        message=jsonrpc_message(
+            JSONRPCError(
+                jsonrpc="2.0",
+                id=root.id,
+                error=ErrorData(code=INTERNAL_ERROR, message="answered"),
+            )
+        )
+    )
+
+
+def _mcp_tool(name: str) -> Any:
+    from mcp.types import Tool as MCPTool
+
+    return MCPTool.model_validate(
+        {
+            "name": name,
+            "description": "",
+            "inputSchema": {"type": "object", "properties": {}},
+        }
+    )
+
+
+@skip_if_no_mcp_package
+@pytest.mark.parametrize("initialize_succeeds", [True, False])
+async def test_mcp_tool_call_during_connect_opens_its_own_connection(
+    initialize_succeeds: bool,
+) -> None:
+    """A tool call must not use a connection whose handshake hasn't finished.
+
+    Tools close over their session, so another task can call one while the
+    task that owns the session is still connecting it. That call must see the
+    session as not connected and open its own connection, rather than send
+    ahead of the handshake or fail when a failed handshake closes the
+    connection under it.
+    """
+    from inspect_ai.model._call_tools import decisive_tool_exception
+    from inspect_ai.tool._mcp._local import MCPServerLocalSession
+
+    initializing = anyio.Event()
+    release = anyio.Event()
+
+    async def on_initialize(connection: int) -> bool:
+        if connection > 0:
+            return True
+        initializing.set()
+        await release.wait()
+        return initialize_succeeds
+
+    unexpected: list[str] = []
+    received: list[tuple[int, str]] = []
+    client = _make_simulated_mcp_client(
+        _answer_tool_call,
+        unexpected_methods=unexpected,
+        on_initialize=on_initialize,
+        received=received,
+    )
+    session = MCPServerLocalSession(client, name="connecting", events=False)
+    tool = session._tool_def_from_mcp_tool(_mcp_tool("probe"))
+    connect_errors: list[Exception] = []
+    call_errors: list[Exception] = []
+
+    async def connect() -> None:
+        try:
+            async with session:
+                pass
+        except Exception as ex:
+            connect_errors.append(ex)
+
+    async def call() -> None:
+        await initializing.wait()
+        try:
+            # a call queued on the held handshake never returns
+            with anyio.fail_after(5):
+                await tool.tool()
+        except Exception as ex:
+            call_errors.append(ex)
+        finally:
+            release.set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(connect)
+        tg.start_soon(call)
+
+    assert not unexpected, f"writer saw unexpected methods: {unexpected}"
+    assert len(call_errors) == 1
+    error = decisive_tool_exception(call_errors[0])
+    assert isinstance(error, ToolError), repr(call_errors[0])
+    assert "answered" in str(error)
+    assert (0, "tools/call") not in received, received
+    assert (1, "tools/call") in received, received
+    assert bool(connect_errors) is not initialize_succeeds
+
+
+@skip_if_no_mcp_package
+@pytest.mark.parametrize("outcome", ["error", "cancel"])
+async def test_mcp_failed_connect_closes_transport_and_allows_retry(
+    outcome: str,
+) -> None:
+    """A connect that fails or is cancelled during the handshake is undone.
+
+    Its transport is closed, and the next entry opens a fresh connection
+    rather than adopting the half-built one.
+    """
+    from inspect_ai.tool._mcp._local import MCPServerLocalSession
+
+    initializing = anyio.Event()
+
+    async def on_initialize(connection: int) -> bool:
+        if connection > 0:
+            return True
+        initializing.set()
+        if outcome == "cancel":
+            await anyio.sleep_forever()
+        return False
+
+    simulated = _make_simulated_mcp_client(
+        _answer_tool_call, unexpected_methods=[], on_initialize=on_initialize
+    )
+    opened = 0
+    closed = 0
+
+    @contextlib.asynccontextmanager
+    async def client() -> AsyncIterator[Any]:
+        nonlocal opened, closed
+        opened += 1
+        try:
+            async with simulated() as streams:
+                yield streams
+        finally:
+            closed += 1
+
+    session = MCPServerLocalSession(client, name="failing", events=False)
+
+    if outcome == "cancel":
+        with anyio.CancelScope() as scope:
+            async with anyio.create_task_group() as tg:
+
+                async def cancel_when_initializing() -> None:
+                    await initializing.wait()
+                    scope.cancel()
+
+                tg.start_soon(cancel_when_initializing)
+                await session.__aenter__()
+        assert scope.cancelled_caught
+    else:
+        with pytest.raises(Exception):
+            await session.__aenter__()
+
+    assert (opened, closed) == (1, 1)
+
+    async with session:
+        assert (opened, closed) == (2, 1)
+    assert (opened, closed) == (2, 2)
+
+
+@skip_if_no_mcp_package
+async def test_mcp_exit_from_another_task_raises() -> None:
+    """Exiting from a task that didn't enter must fail, even under `python -O`.
+
+    Connections are per task, so the exiting task has no connection to
+    close. Failing silently would drive its refcount negative and leave the
+    entering task's connection open.
+    """
+    from inspect_ai.tool._mcp._local import MCPServerLocal
+
+    client = _make_simulated_mcp_client(_answer_tool_call, unexpected_methods=[])
+    server = MCPServerLocal(client, name=f"cross-task-{uuid4()}", events=False)
+    entered = anyio.Event()
+    checked = anyio.Event()
+
+    async def owner() -> None:
+        async with server:
+            entered.set()
+            await checked.wait()
+
+    async def other() -> None:
+        await entered.wait()
+        try:
+            with pytest.raises(RuntimeError, match="same task"):
+                await server.__aexit__(None, None, None)
+        finally:
+            checked.set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(owner)
+        tg.start_soon(other)
+
+
 class _FakeToolServer(MCPServer):
     """Minimal MCPServer stand-in for exercising MCPToolSourceLocal.tools()."""
 
@@ -721,10 +960,11 @@ async def test_mcp_task_session_reused_after_close() -> None:
     """
     from inspect_ai.tool._mcp._local import MCPServerLocal
 
-    server = MCPServerLocal(_no_transport_client, name=f"reuse-{uuid4()}", events=False)
+    client = _make_simulated_mcp_client(_answer_tool_call, unexpected_methods=[])
+    server = MCPServerLocal(client, name=f"reuse-{uuid4()}", events=False)
 
-    s1 = server._task_session()
-    await s1._close()
+    async with server:
+        s1 = server._task_session()
     s2 = server._task_session()
     assert s2 is s1, "closing a session should not force a new object for the same task"
 
