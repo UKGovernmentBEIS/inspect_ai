@@ -168,7 +168,8 @@ def test_events_from_logs_without_an_execution_id_read_as_none() -> None:
         restored = adapter.validate_json(json.dumps(logged))
         assert isinstance(restored, SentinelEvent | ApprovalEvent | ToolEvent)
         assert restored.execution_id is None
-    for event in [approval, tool]:
+    logged_events: list[Event] = [approval, tool]
+    for event in logged_events:
         assert adapter.validate_json(adapter.dump_json(event)) == event
 
 
