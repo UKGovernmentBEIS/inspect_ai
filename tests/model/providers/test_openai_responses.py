@@ -1,7 +1,8 @@
 import json
 from contextlib import nullcontext
+from dataclasses import replace
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from test_helpers.utils import skip_if_no_openai
@@ -11,7 +12,7 @@ from inspect_ai._util.constants import NO_CONTENT
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.dataset import Sample
 from inspect_ai.model import GenerateConfig, ModelOutput, get_model
-from inspect_ai.model._chat_message import ChatMessageAssistant
+from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._openai_responses import (
     MESSAGE_ID,
     MESSAGE_PHASE,
@@ -209,6 +210,55 @@ def test_tool_call_arguments_within_limit_cached_verbatim():
     _process_response_output_items(outputs, [])
 
     assert assistant_internal().tool_calls["call_1"]["arguments"] == raw_arguments
+
+
+def test_each_message_replays_a_call_id_with_its_own_arguments():
+    from openai.types.responses import ResponseFunctionToolCall
+
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        _process_response_output_items,
+        _tool_call_items_from_assistant_message,
+    )
+
+    init_sample_assistant_internal()
+    _, [generated], _, _ = _process_response_output_items(
+        [
+            ResponseFunctionToolCall(
+                type="function_call",
+                id="fc_1",
+                call_id="call_1",
+                name="bash",
+                arguments='{"command": "ls old"}',
+            )
+        ],
+        [],
+    )
+    # an earlier message's call under the id, which approval changed
+    changed = replace(generated, arguments={"command": "ls safe"})
+
+    replayed = [
+        _tool_call_items_from_assistant_message(
+            ChatMessageAssistant(content="", tool_calls=[call])
+        )[0]
+        for call in (changed, generated)
+    ]
+
+    assert replayed == [
+        {
+            "type": "function_call",
+            "call_id": "call_1",
+            "name": "bash",
+            "arguments": '{"command": "ls safe"}',
+        },
+        {
+            "type": "function_call",
+            "id": "fc_1",
+            "call_id": "call_1",
+            "name": "bash",
+            "arguments": '{"command": "ls old"}',
+        },
+    ]
 
 
 def test_oversized_tool_call_arguments_truncated_on_cache_miss():
@@ -2942,3 +2992,157 @@ def test_responses_api_provider_ids_logged_without_raw_calls(tmp_path) -> None:
         ModelRequestId(id="req_rate_limited", header="x-request-id", status=429),
         ModelRequestId(id="req_ok", header="x-request-id", status=200),
     ]
+
+
+def test_tool_call_id_repeated_in_a_response_caches_no_item():
+    from openai.types.responses import ResponseFunctionToolCall
+
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        _process_response_output_items,
+        assistant_internal,
+    )
+
+    init_sample_assistant_internal()
+    outputs = [
+        ResponseFunctionToolCall(
+            type="function_call",
+            id=f"fc_{n}",
+            call_id="call_shared",
+            name="bash",
+            arguments=f'{{"command": "ls {n}"}}',
+        )
+        for n in range(2)
+    ]
+    _process_response_output_items(outputs, [])
+
+    assert "call_shared" not in assistant_internal().tool_calls
+
+
+def test_an_unchanged_computer_call_replays_its_item_without_safety_checks():
+    from inspect_ai.model._openai_responses import _replayed_item
+    from inspect_ai.tool._tool_call import ToolCall
+
+    # as a live response dumps it: no `pending_safety_checks` or `status`
+    item: Any = {
+        "type": "computer_call",
+        "id": "cu_1",
+        "call_id": "call_computer",
+        "actions": [{"type": "screenshot"}],
+    }
+    call = ToolCall(
+        id="call_computer",
+        function="computer",
+        arguments={"actions": [{"action": "screenshot"}]},
+    )
+
+    assert _replayed_item(dict(item), call) == item
+
+
+@pytest.mark.parametrize(
+    "raw", ['{"command":   "ls"}', '{"command": "ls"', "ls -la", "2024-01-01"]
+)
+def test_an_unchanged_function_call_replays_its_item(raw: str) -> None:
+    from inspect_ai.model._call_tools import parse_tool_call
+    from inspect_ai.model._openai_responses import _replayed_item
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    item: Any = {
+        "type": "function_call",
+        "id": "fc_1",
+        "call_id": "call_1",
+        "name": "bash",
+        "arguments": raw,
+    }
+
+    # as the Responses parse makes the call, with its tools
+    bash = ToolInfo(
+        name="bash",
+        description="Run a command.",
+        parameters=ToolParams(properties={"command": ToolParam(type="string")}),
+    )
+    call = parse_tool_call("call_1", "bash", raw, [bash])
+
+    assert _replayed_item(dict(item), call) == item
+
+
+def test_a_changed_call_whose_arguments_json_cant_encode_replays_no_item() -> None:
+    import datetime
+
+    from inspect_ai.model._openai_responses import _replayed_item
+    from inspect_ai.tool._tool_call import ToolCall
+
+    item: Any = {
+        "type": "function_call",
+        "id": "fc_1",
+        "call_id": "call_1",
+        "name": "bash",
+        "arguments": "2024-01-01",
+    }
+    call = ToolCall(
+        id="call_1", function="bash", arguments={"day": datetime.date(2024, 1, 2)}
+    )
+
+    # the call replays from itself
+    assert _replayed_item(item, call) is None
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        # int() rejects the coordinate
+        {"actions": [{"action": "left_click", "coordinate": ["10px", "20"]}]},
+        # no `actions` list
+        {"action": "left_click", "coordinate": [1, 2]},
+    ],
+    ids=["coordinate", "no_actions"],
+)
+async def test_a_computer_call_that_cant_replay_natively_replays_with_its_result_as_a_function(
+    arguments: dict[str, Any],
+) -> None:
+    from openai.types.responses import ResponseComputerToolCall
+
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        assistant_internal,
+        openai_responses_inputs,
+    )
+    from inspect_ai.model._providers._openai_computer_use import (
+        tool_call_from_openai_computer_tool_call,
+    )
+    from inspect_ai.tool._tool_call import ToolCall
+
+    init_sample_assistant_internal()
+    item: Any = {
+        "type": "computer_call",
+        "id": "cu_1",
+        "call_id": "call_c",
+        "actions": [{"type": "click", "button": "left", "x": 1, "y": 2}],
+        "pending_safety_checks": [],
+        "status": "completed",
+    }
+    assistant_internal().tool_calls["call_c"] = cast(Any, dict(item))
+    generated = tool_call_from_openai_computer_tool_call(
+        ResponseComputerToolCall.model_validate(item)
+    )
+    # arguments approval or a filter gave the call, then the call proposed again
+    changed = ToolCall(id="call_c", function="computer", arguments=arguments)
+    result = ChatMessageTool(content="ok", tool_call_id="call_c", function="computer")
+
+    items: list[Any] = await openai_responses_inputs(
+        [
+            ChatMessageAssistant(content="", tool_calls=[changed]),
+            result,
+            ChatMessageAssistant(content="", tool_calls=[generated]),
+            result,
+        ]
+    )
+
+    assert [item["type"] for item in items] == [
+        "function_call",
+        "function_call_output",
+        "computer_call",
+        "computer_call_output",
+    ]
+    # serializing leaves the sample's replay state as it was
+    assert assistant_internal().tool_calls["call_c"] == item

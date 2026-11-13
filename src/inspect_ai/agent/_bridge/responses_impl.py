@@ -70,11 +70,11 @@ from inspect_ai._util.content import (
     ContentText,
     ContentToolUse,
 )
-from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.json import jsonable_python, to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge._errors import BridgePolicyError
 from inspect_ai.agent._bridge.types import AgentBridge
-from inspect_ai.model._call_tools import parse_tool_call
+from inspect_ai.model._call_tools import parse_tool_call, repeated_call_ids
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -96,7 +96,6 @@ from inspect_ai.model._openai_responses import (
     TOOL_SEARCH_NAME,
     TOOL_SEARCH_OPTIONS_MARKER,
     assistant_internal,
-    cached_tool_call,
     code_interpreter_to_tool_use,
     content_from_response_input_content_param,
     is_additional_tools,
@@ -418,9 +417,6 @@ async def inspect_responses_api_request_impl(
 
     debug_log("INSPECT OUTPUT", output.message)
 
-    # update state if we have more messages than the last generation
-    await bridge._track_state(messages, output)
-
     # return response
     response = Response(
         id=output.message.id or uuid(),
@@ -437,6 +433,20 @@ async def inspect_responses_api_request_impl(
         usage=responses_model_usage(output.usage),
     )
     debug_log("SCAFFOLD RESPONSE", response)
+    transported = messages_from_responses_input(
+        [
+            cast(
+                ResponseInputItemParam,
+                item.model_dump(mode="json", exclude_none=True),
+            )
+            for item in response.output
+        ],
+        tools,
+        model_name,
+    )
+
+    # update state if we have more messages than the last generation
+    await bridge._track_state(messages, output, [transported])
 
     return response
 
@@ -550,11 +560,12 @@ def _declarations_in_input(
     declares nothing, just as the model is then told nothing; no entry is
     salvaged for grants alone.
     """
+    cached_calls = assistant_internal().tool_calls
     declarations: list[ToolInfo] = []
     for message in messages:
         if not isinstance(message, ChatMessageTool) or message.error is not None:
             continue
-        call = cached_tool_call(message.tool_call_id or "")
+        call = cached_calls.get(message.tool_call_id or "")
         if call is None or call["type"] != "tool_search_call":
             continue
         for discovered in tool_search_output_tools(message):
@@ -628,40 +639,43 @@ def _harvest_tool_namespaces(
             tool_namespaces[inner_name] = ns_name
 
 
-def _seed_function_call_namespace(param: ResponseFunctionToolCallParam) -> None:
+def _seed_function_call_namespace(param: ResponseFunctionToolCallParam) -> bool:
     """Cache an inbound namespaced function call for verbatim replay to the real model.
 
     Only seeds when the call carries a `namespace` and isn't already cached
     (in-sample generations are cached by the provider with richer detail, so we
-    never clobber those).
+    never clobber those). Returns whether it seeded.
     """
     namespace = param.get("namespace")
     if not namespace:
-        return
+        return False
     call_id = param["call_id"]
-    if cached_tool_call(call_id) is not None:
-        return
-    assistant_internal().tool_calls[call_id] = ResponseFunctionToolCallParam(
+    cache = assistant_internal().tool_calls
+    if call_id in cache:
+        return False
+    cache[call_id] = ResponseFunctionToolCallParam(
         type="function_call",
         call_id=call_id,
         name=param["name"],
         arguments=param["arguments"],
         namespace=namespace,
     )
+    return True
 
 
-def _seed_tool_search_call(call_id: str, arguments: dict[str, Any]) -> None:
+def _seed_tool_search_call(call_id: str, arguments: dict[str, Any]) -> bool:
     """Cache an inbound tool_search call so cross-process replay stays native.
 
     Within a sample the provider already caches the parsed call; seeding only
     matters when replaying scaffold-provided history in a fresh process (e.g.
     codex --resume), so the result replays as a native tool_search_output rather
     than a function_call_output. The `call_id in cache` guard ensures we never
-    clobber a richer in-sample entry.
+    clobber a richer in-sample entry. Returns whether it seeded.
     """
-    if cached_tool_call(call_id) is not None:
-        return
-    assistant_internal().tool_calls[call_id] = ToolSearchCall(
+    cache = assistant_internal().tool_calls
+    if call_id in cache:
+        return False
+    cache[call_id] = ToolSearchCall(
         type="tool_search_call",
         id=call_id,
         call_id=call_id,
@@ -669,6 +683,7 @@ def _seed_tool_search_call(call_id: str, arguments: dict[str, Any]) -> None:
         execution="client",
         status="completed",
     )
+    return True
 
 
 def debug_log(caption: str, o: Any) -> None:
@@ -1047,6 +1062,7 @@ def messages_from_responses_input(
         if len(pending_assistant_message_params) > 0:
             content: list[Content] = []
             tool_calls: list[ToolCall] = []
+            seeded: set[str] = set()
             for param in pending_assistant_message_params:
                 # convert simple assistant message to standard format
                 if is_simple_assistant_message(param):
@@ -1164,7 +1180,8 @@ def messages_from_responses_input(
                     # checkpoint restore) arrives with an empty cache, so the
                     # namespace would otherwise be dropped. Seed the cache here
                     # when missing so the existing warm-path replay carries it.
-                    _seed_function_call_namespace(param)
+                    if _seed_function_call_namespace(param):
+                        seeded.add(param["call_id"])
                     tool_calls.append(
                         parse_tool_call(
                             id=param["call_id"],
@@ -1196,7 +1213,8 @@ def messages_from_responses_input(
                     function_calls_by_id[tool_call.id] = TOOL_SEARCH_NAME
                     # seed the provider cache so replay (incl. fresh-process
                     # resume) emits native tool_search items, not function calls
-                    _seed_tool_search_call(tool_call.id, tool_call.arguments)
+                    if _seed_tool_search_call(tool_call.id, tool_call.arguments):
+                        seeded.add(tool_call.id)
                     tool_calls.append(tool_call)
 
                 elif is_response_reasoning_item(param):
@@ -1231,6 +1249,11 @@ def messages_from_responses_input(
 
             # some scaffolds (e.g. codex) can present duplicate assistant content
             content = filter_duplicate_assistant_content(content)
+
+            # an id the message repeats keeps no seeded item, as the provider's
+            # parse keeps none, so no call replays another's
+            for call_id in repeated_call_ids(tool_calls) & seeded:
+                assistant_internal().tool_calls.pop(call_id, None)
 
             messages.append(
                 ChatMessageAssistant(
@@ -1377,10 +1400,8 @@ def messages_from_responses_input(
             pass
         else:
             # ImageGenerationCall
-            # ResponseCodeInterpreterToolCallParam
             # McpApprovalRequest
             # McpApprovalResponse
-            # ResponseCustomToolCallParam
             # LocalShellCall
             # LocalShellCallOutput
             # ResponseFileSearchToolCallParam
@@ -1426,7 +1447,7 @@ def filter_duplicate_assistant_content(
     messages_ids: Set[str] = set()
     for c in reversed(input):
         if c.type == "text" and c.internal:
-            internal = to_json_str_safe(c.internal)
+            internal = json.dumps(jsonable_python(c.internal))
             if internal not in messages_ids:
                 filtered_input.append(c)
                 messages_ids.add(internal)

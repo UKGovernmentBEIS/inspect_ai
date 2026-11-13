@@ -58,7 +58,7 @@ class SentinelEvent(BaseEvent):
     """The step examined: at the generate stages (`model_input`, `model_output`) the generate's id, the `uuid` of its first `ModelEvent`, shared by both stages and by the generate's retried attempts; at the tool stages the tool call id."""
 
     execution_id: str | None = Field(default=None)
-    """At the tool stages, the id of the call's execution when an agent bridge executed it under an id other than `step_id`: the id the bridge handed the call to its scaffold under (a bridged host tool's `ToolEvent.id`, unless the scaffold runs the handed call more than once), or at the `tool_result` stage of a bridged host call, that call's `ToolEvent.id`. `None` when the call was executed under `step_id` or never handed over, and at the generate stages."""
+    """When set, the execution this step belongs to: which run of a bridged call it examined, for a call that ran more than once."""
 
     conversation: str
     """The agent conversation this step belongs to."""

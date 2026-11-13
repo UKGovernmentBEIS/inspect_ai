@@ -373,6 +373,8 @@ With `epochs=Epochs(5, "mode")`, `accuracy()` receives one mode-reduced score pe
 
 If you disable reducers with `Epochs(n, [])` or `--no-epochs-reducer`, legacy `scores="auto"` metrics receive unreduced sample-epoch scores, preserving existing behavior. Metrics that explicitly declare `scores="reduced"` require a reducer when multiple epochs are present.
 
+An epoch whose score has the reason `excluded` and a `NaN` value is left out before the reducer runs, so the sample reduces as if that epoch had not run. If every epoch of a sample is excluded, the reducer is not called and the sample's reduced score is unscored. Other `NaN` scores still reach the reducer.
+
 ### Built-in Reducers
 
 Inspect includes several built in reducers which are summarised below.

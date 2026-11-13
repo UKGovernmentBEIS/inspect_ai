@@ -13,6 +13,7 @@ from test_helpers.utils import skip_if_no_openai, skip_if_no_openai_model
 from inspect_ai import Task, eval
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
+    ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
     Model,
@@ -21,7 +22,7 @@ from inspect_ai.model import (
 from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._internal import parse_content_with_internal
 from inspect_ai.model._openai import openai_completion_params
-from inspect_ai.tool import tool
+from inspect_ai.tool import ToolFunction, computer, tool
 
 
 def _openai_model_with_status_response(status_code: int, path: str) -> Model:
@@ -258,20 +259,63 @@ invalid_utf8_b64 = base64.b64encode(invalid_utf8_bytes).decode("utf-8")
 
 
 @pytest.mark.parametrize(
-    "s,expected_exception",
+    "s",
     [
         # Valid base64 that decodes to invalid UTF-8 (e.g., bytes that are not valid UTF-8)
-        ("<internal>" + invalid_utf8_b64 + "</internal>content", UnicodeDecodeError),
+        "<internal>" + invalid_utf8_b64 + "</internal>content",
         # Invalid JSON after base64 decoding
-        (
-            f"<internal>{base64.b64encode(b'invalid json').decode('utf-8')}</internal>content",
-            json.JSONDecodeError,
-        ),
+        f"<internal>{base64.b64encode(b'invalid json').decode('utf-8')}</internal>content",
+        # Not base64 (a quoted example of the marker)
+        "The marker is <internal>example</internal>.",
     ],
 )
-def test_parse_content_with_internal_invalid_encoding(s, expected_exception):
-    with pytest.raises(expected_exception):
-        parse_content_with_internal(s, "internal")
+def test_parse_content_with_internal_undecodable_is_literal(s):
+    assert parse_content_with_internal(s, "internal") == (s, None)
+
+
+def test_parse_content_with_internal_deeply_nested_body_is_literal():
+    s = f"<internal>{base64.b64encode(b'[' * 200_000).decode('utf-8')}</internal>"
+    assert parse_content_with_internal(s, "internal") == (s, None)
+
+
+@pytest.mark.parametrize("depth", [101, 250, 300])
+def test_parse_content_with_internal_body_that_cannot_be_content_is_literal(depth):
+    """A body that decodes but nests deeper than `internal` may stays text."""
+    deep = base64.b64encode(("[" * depth + "]" * depth).encode()).decode("utf-8")
+    s = f"see <internal>{deep}</internal>\n<internal>{encode_internal({'a': 1})}</internal>"
+    assert parse_content_with_internal(s, "internal") == (
+        f"see <internal>{deep}</internal>",
+        {"a": 1},
+    )
+
+
+def test_parse_content_with_internal_body_at_the_depth_limit_is_internal():
+    value = json.loads("[" * 100 + "]" * 100)
+    assert parse_content_with_internal(
+        f"text <internal>{encode_internal(value)}</internal>", "internal"
+    ) == ("text", value)
+
+
+def test_parse_content_with_internal_quoted_opening_marker_keeps_encoded():
+    s = f"Use the <internal> marker.\n<internal>{encode_internal({'a': 1})}</internal>"
+    assert parse_content_with_internal(s, "internal") == (
+        "Use the <internal> marker.",
+        {"a": 1},
+    )
+
+
+def test_parse_content_with_internal_body_wrapped_across_lines():
+    encoded = encode_internal({"a": 1})
+    s = f"text\n<internal>{encoded[:4]}\n{encoded[4:]}</internal>"
+    assert parse_content_with_internal(s, "internal") == ("text", {"a": 1})
+
+
+def test_parse_content_with_internal_keeps_literal_beside_encoded():
+    s = f"see <internal>example</internal>\n<internal>{encode_internal({'a': 1})}</internal>\n"
+    assert parse_content_with_internal(s, "internal") == (
+        "see <internal>example</internal>",
+        {"a": 1},
+    )
 
 
 async def test_chat_completions_forwards_config_extra_headers():
@@ -1049,3 +1093,30 @@ async def test_skip_if_no_openai_model_propagates_other_errors(
         with pytest.raises(type(error)):
             await gated()
     assert [c.closed for c in clients] == [True, True]
+
+
+@skip_if_no_openai
+async def test_openai_computer_tool_result_without_screenshot() -> None:
+    """A computer tool result with no image (e.g. a tool error) must not 400.
+
+    OpenAI's computer_call_output can only carry a screenshot, so a placeholder
+    is sent in its place. A corrupt placeholder was rejected with "The image
+    data you provided does not represent a valid image."
+    """
+    model = get_model("openai/gpt-5.4")
+    tools = [computer()]
+    user = ChatMessageUser(content="Take a screenshot of the desktop.")
+
+    output = await model.generate(
+        [user], tools=tools, tool_choice=ToolFunction(name="computer")
+    )
+    assert output.message.tool_calls
+    tool_call = output.message.tool_calls[0]
+
+    error = ChatMessageTool(
+        content="Error: the display is not available",
+        tool_call_id=tool_call.id,
+        function=tool_call.function,
+    )
+    output = await model.generate([user, output.message, error], tools=tools)
+    assert output.error is None

@@ -1,12 +1,12 @@
 const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AnsiDisplayRich.js","./rolldown-runtime.js","./compiler-runtime.js","./ToolButton.js","./ToolButton.css","./AnsiDisplayRich.css","./AsciinemaPlayerImpl.js","./useLatestRef.js","./AsciinemaPlayerImpl.css","./prismHighlighter.js","./type.js","./markdownPipeline.js","./markdownText.js","./preload-helper.js","./markdownPipeline.css"])))=>i.map(i=>d[i]);
 import { i as __toESM, t as __commonJSMin } from "./rolldown-runtime.js";
 import { n as require_react, r as require_jsx_runtime, t as require_compiler_runtime } from "./compiler-runtime.js";
-import { i as toArray, n as isReadonlyArray, r as isRecord, t as isNumeric } from "./type.js";
-import { a as base64DataUriMimeType, c as isRenderableImageSource, d as parseDataUri, i as truncationWindow, l as normalizedImageMimeType, n as escapeHtmlCharacters, r as simpleMarkdownTruncate, s as isRasterImageMimeType, u as parseAbsoluteHttpUrl } from "./markdownText.js";
 import { a as logLevelIcon, c as nullProtoRecord, i as iconForMimeType, l as printObject, n as AnsiDisplay_module_default, o as clsx, r as Icon, s as getOwn, t as ToolButton } from "./ToolButton.js";
 import { t as useLatestRef } from "./useLatestRef.js";
 import { t as __vitePreload } from "./preload-helper.js";
-//#region \0vite/modulepreload-polyfill.js
+import { i as toArray, n as isReadonlyArray, r as isRecord, t as isNumeric } from "./type.js";
+import { a as base64DataUriMimeType, c as isRenderableImageSource, d as parseDataUri, i as truncationWindow, l as normalizedImageMimeType, n as escapeHtmlCharacters, r as simpleMarkdownTruncate, s as isRasterImageMimeType, u as parseAbsoluteHttpUrl } from "./markdownText.js";
+// \0vite/modulepreload-polyfill.js
 (function polyfill() {
 	const relList = document.createElement("link").relList;
 	if (relList && relList.supports && relList.supports("modulepreload")) return;
@@ -36,8 +36,7 @@ import { t as __vitePreload } from "./preload-helper.js";
 		fetch(link.href, fetchOpts);
 	}
 })();
-//#endregion
-//#region ../../node_modules/.pnpm/scheduler@0.28.0/node_modules/scheduler/cjs/scheduler.production.js
+// ../../node_modules/.pnpm/scheduler@0.28.0/node_modules/scheduler/cjs/scheduler.production.js
 /**
 * @license React
 * scheduler.production.js
@@ -291,13 +290,11 @@ var require_scheduler_production = /* @__PURE__ */ __commonJSMin(((exports) => {
 		};
 	};
 }));
-//#endregion
-//#region ../../node_modules/.pnpm/scheduler@0.28.0/node_modules/scheduler/index.js
+// ../../node_modules/.pnpm/scheduler@0.28.0/node_modules/scheduler/index.js
 var require_scheduler = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = require_scheduler_production();
 }));
-//#endregion
-//#region ../../node_modules/.pnpm/react-dom@19.3.1_react@19.3.1/node_modules/react-dom/cjs/react-dom.production.js
+// ../../node_modules/.pnpm/react-dom@19.3.1_react@19.3.1/node_modules/react-dom/cjs/react-dom.production.js
 /**
 * @license React
 * react-dom.production.js
@@ -449,8 +446,7 @@ var require_react_dom_production = /* @__PURE__ */ __commonJSMin(((exports) => {
 	};
 	exports.version = "19.3.1";
 }));
-//#endregion
-//#region ../../node_modules/.pnpm/react-dom@19.3.1_react@19.3.1/node_modules/react-dom/index.js
+// ../../node_modules/.pnpm/react-dom@19.3.1_react@19.3.1/node_modules/react-dom/index.js
 var require_react_dom = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	function checkDCE() {
 		if (typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ === "undefined" || typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.checkDCE !== "function") return;
@@ -463,8 +459,7 @@ var require_react_dom = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	checkDCE();
 	module.exports = require_react_dom_production();
 }));
-//#endregion
-//#region ../../node_modules/.pnpm/react-dom@19.3.1_react@19.3.1/node_modules/react-dom/cjs/react-dom-client.production.js
+// ../../node_modules/.pnpm/react-dom@19.3.1_react@19.3.1/node_modules/react-dom/cjs/react-dom-client.production.js
 /**
 * @license React
 * react-dom-client.production.js
@@ -11038,8 +11033,7 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		return new ReactDOMRoot(options);
 	};
 }));
-//#endregion
-//#region ../../node_modules/.pnpm/react-dom@19.3.1_react@19.3.1/node_modules/react-dom/client.js
+// ../../node_modules/.pnpm/react-dom@19.3.1_react@19.3.1/node_modules/react-dom/client.js
 var require_client = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	function checkDCE() {
 		if (typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ === "undefined" || typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.checkDCE !== "function") return;
@@ -11052,8 +11046,7 @@ var require_client = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	checkDCE();
 	module.exports = require_react_dom_client_production();
 }));
-//#endregion
-//#region ../../packages/util/src/api-error.ts
+// ../../packages/util/src/api-error.ts
 var ApiError = class extends Error {
 	status;
 	constructor(status, message) {
@@ -11061,8 +11054,7 @@ var ApiError = class extends Error {
 		this.status = status;
 	}
 };
-//#endregion
-//#region ../../packages/util/src/ansi.ts
+// ../../packages/util/src/ansi.ts
 var kAnsiEscapePattern = /\x1b(?:\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]|\][^\x07\x1b\n\r\u2028\u2029]*(?:\x07|\x1b\\)|[^[\]>])/;
 /**
 * Detects if text contains ANSI escape sequences.
@@ -11077,8 +11069,7 @@ var kAnsiEscapePattern = /\x1b(?:\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]|\][^\x07\
 */ var isAnsiOutput = (text) => kAnsiEscapePattern.test(text);
 var kAnsiEscapesGlobal = new RegExp(kAnsiEscapePattern.source, "g");
 /** `text` with its ANSI escape sequences removed. */ var stripAnsi = (text) => text.replace(kAnsiEscapesGlobal, "");
-//#endregion
-//#region ../../packages/util/src/array.ts
+// ../../packages/util/src/array.ts
 var printArray = (arr, size = 50) => {
 	const envelope = ["[", "]"];
 	const ellipsis = "…";
@@ -11119,8 +11110,7 @@ var printArray = (arr, size = 50) => {
 	const allItems = [...headItems, ...tailItems];
 	return envelope[0] + allItems.join(separator) + envelope[1];
 };
-//#endregion
-//#region ../../packages/util/src/autosizeTextarea.ts
+// ../../packages/util/src/autosizeTextarea.ts
 function autosizeTextarea(el, config) {
 	const cs = getComputedStyle(el);
 	const fontSize = parseFloat(cs.fontSize);
@@ -11136,8 +11126,7 @@ function autosizeTextarea(el, config) {
 	el.style.height = `${next}px`;
 	el.style.overflowY = desired > maxH ? "auto" : "hidden";
 }
-//#endregion
-//#region ../../packages/util/src/brand.ts
+// ../../packages/util/src/brand.ts
 /**
 * Branded types for nominal typing in TypeScript.
 *
@@ -11173,8 +11162,7 @@ function autosizeTextarea(el, config) {
 */ function make() {
 	return (value) => value;
 }
-//#endregion
-//#region ../../packages/util/src/asyncData.ts
+// ../../packages/util/src/asyncData.ts
 /**
 * The `compose` function allows a set of `AsyncData` values to be combined into
 * a single `AsyncData`. The complex type of the function represents a transformation
@@ -11233,8 +11221,7 @@ function map(asyncData, fn) {
 * The `loading` constant is an instance of `AsyncDataLoading` that can be shared
 * to provide identity stability. It represents the state when the data is loading.
 */ var loading$2 = make()({ loading: true });
-//#endregion
-//#region ../../packages/util/src/base64.ts
+// ../../packages/util/src/base64.ts
 var base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 /**
 * Determines whether a string is a base64 encoded string.
@@ -11243,8 +11230,7 @@ var base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{
 * Determines whether a string is likely base64 encoded,
 * rejecting strings shorter than minLen to avoid false positives.
 */ var maybeBase64 = (str, minLen = 256) => str.length > minLen && isBase64(str);
-//#endregion
-//#region ../../packages/util/src/base64url.ts
+// ../../packages/util/src/base64url.ts
 /**
 * Encodes a UTF-8 string to base64url format (RFC 4648 Section 5).
 *
@@ -11270,8 +11256,7 @@ var base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{
 	});
 	return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 };
-//#endregion
-//#region ../../packages/util/src/browser.ts
+// ../../packages/util/src/browser.ts
 /**
 * Clears the current text selection in the document.
 */ var clearDocumentSelection = () => {
@@ -11308,8 +11293,7 @@ var base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{
 * Whether an element is attached and rendered. Where `checkVisibility` is
 * unavailable (jsdom, Safari before 17.4) an attached element counts as shown.
 */ var isElementShown = (el) => el.isConnected && el.checkVisibility?.() !== false;
-//#endregion
-//#region ../../packages/util/src/date.ts
+// ../../packages/util/src/date.ts
 /**
 * Parses a date or datetime string from native HTML5 inputs and returns an ISO string.
 * Handles both date (YYYY-MM-DD) and datetime-local (YYYY-MM-DDTHH:mm) formats.
@@ -11322,8 +11306,7 @@ var base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{
 	if (isNaN(date.getTime())) return;
 	return date.toISOString();
 }
-//#endregion
-//#region ../../packages/util/src/format.ts
+// ../../packages/util/src/format.ts
 /**
 * Converts an array or a single value to a comma-separated string.
 */ var arrayToString = (val) => {
@@ -11489,8 +11472,7 @@ var base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{
 */ function valueAsString(value) {
 	return value !== null && typeof value === "object" ? JSON.stringify(value) : String(value);
 }
-//#endregion
-//#region ../../packages/util/src/git.ts
+// ../../packages/util/src/git.ts
 /**
 * Builds a GitHub commit URL from a repository origin and commit hash.
 *
@@ -11505,8 +11487,7 @@ var base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{
 	const [, owner, repo] = match;
 	return `https://github.com/${owner}/${repo}/commit/${commit}`;
 };
-//#endregion
-//#region ../../packages/util/src/http.ts
+// ../../packages/util/src/http.ts
 /**
 * Request options for every fetch the browser issues directly to a log
 * location. That location is data (a link param, a listing entry, a
@@ -11527,8 +11508,7 @@ var base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{
 	})).arrayBuffer();
 	return new Uint8Array(arrayBuffer);
 };
-//#endregion
-//#region ../../packages/util/src/hiddenCharacters.ts
+// ../../packages/util/src/hiddenCharacters.ts
 var HIDDEN_RANGES = [
 	[0, 31],
 	[127, 159],
@@ -11588,13 +11568,11 @@ var isHidden = (codePoint, prev, next) => {
 	const codePoint = match.codePointAt(0) ?? 0;
 	return isHidden(codePoint, codePointBefore(text, offset), text.codePointAt(offset + match.length)) ? `⟨U+${hex(codePoint).toUpperCase().padStart(4, "0")}⟩` : match;
 });
-//#endregion
-//#region ../../packages/util/src/html.ts
+// ../../packages/util/src/html.ts
 var decodeHtmlEntities = (text) => {
 	return new DOMParser().parseFromString(text, "text/html").documentElement.textContent || text;
 };
-//#endregion
-//#region ../../packages/util/src/json.ts
+// ../../packages/util/src/json.ts
 var isJson = (text) => {
 	text = text.trim();
 	if (text.startsWith("{") && text.endsWith("}")) try {
@@ -11646,22 +11624,21 @@ function estimateSize(list, frequency = .2) {
 		return size + JSON.stringify(list[index]).length;
 	}, 0) / sampleSize * list.length;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/json5@2.2.3/node_modules/json5/dist/index.js
-var require_dist = /* @__PURE__ */ __commonJSMin(((exports, module) => {
+// ../../node_modules/.pnpm/json5@2.2.3/node_modules/json5/dist/index.js
+var require_dist = /* @__PURE__ */ __commonJSMin(((exports, module, this$2) => {
 	(function(global, factory) {
 		typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory() : typeof define === "function" && define.amd ? define(factory) : global.JSON5 = factory();
-	})(exports, (function() {
+	})(this$2, (function() {
 		"use strict";
-		function createCommonjsModule(fn, module$1) {
-			return module$1 = { exports: {} }, fn(module$1, module$1.exports), module$1.exports;
+		function createCommonjsModule(fn, module) {
+			return module = { exports: {} }, fn(module, module.exports), module.exports;
 		}
-		var _global = createCommonjsModule(function(module$2) {
-			var global = module$2.exports = typeof window != "undefined" && window.Math == Math ? window : typeof self != "undefined" && self.Math == Math ? self : Function("return this")();
+		var _global = createCommonjsModule(function(module) {
+			var global = module.exports = typeof window != "undefined" && window.Math == Math ? window : typeof self != "undefined" && self.Math == Math ? self : Function("return this")();
 			if (typeof __g == "number") __g = global;
 		});
-		var _core = createCommonjsModule(function(module$3) {
-			var core = module$3.exports = { version: "2.6.5" };
+		var _core = createCommonjsModule(function(module) {
+			var core = module.exports = { version: "2.6.5" };
 			if (typeof __e == "number") __e = core;
 		});
 		_core.version;
@@ -11738,10 +11715,10 @@ var require_dist = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			return "Symbol(".concat(key === void 0 ? "" : key, ")_", (++id + px).toString(36));
 		};
 		var _library = false;
-		var _functionToString = createCommonjsModule(function(module$4) {
+		var _functionToString = createCommonjsModule(function(module) {
 			var SHARED = "__core-js_shared__";
 			var store = _global[SHARED] || (_global[SHARED] = {});
-			(module$4.exports = function(key, value) {
+			(module.exports = function(key, value) {
 				return store[key] || (store[key] = value !== void 0 ? value : {});
 			})("versions", []).push({
 				version: _core.version,
@@ -11749,14 +11726,14 @@ var require_dist = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 				copyright: "© 2019 Denis Pushkarev (zloirock.ru)"
 			});
 		})("native-function-to-string", Function.toString);
-		var _redefine = createCommonjsModule(function(module$5) {
+		var _redefine = createCommonjsModule(function(module) {
 			var SRC = _uid("src");
 			var TO_STRING = "toString";
 			var TPL = ("" + _functionToString).split(TO_STRING);
 			_core.inspectSource = function(it) {
 				return _functionToString.call(it);
 			};
-			(module$5.exports = function(O, key, val, safe) {
+			(module.exports = function(O, key, val, safe) {
 				var isFunction = typeof val == "function";
 				if (isFunction) _has(val, "name") || _hide(val, "name", key);
 				if (O[key] === val) return;
@@ -11801,8 +11778,8 @@ var require_dist = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			var IS_PROTO = type & $export.P;
 			var IS_BIND = type & $export.B;
 			var target = IS_GLOBAL ? _global : IS_STATIC ? _global[name] || (_global[name] = {}) : (_global[name] || {})[PROTOTYPE];
-			var exports$1 = IS_GLOBAL ? _core : _core[name] || (_core[name] = {});
-			var expProto = exports$1[PROTOTYPE] || (exports$1[PROTOTYPE] = {});
+			var exports = IS_GLOBAL ? _core : _core[name] || (_core[name] = {});
+			var expProto = exports[PROTOTYPE] || (exports[PROTOTYPE] = {});
 			var key, own, out, exp;
 			if (IS_GLOBAL) source = name;
 			for (key in source) {
@@ -11810,7 +11787,7 @@ var require_dist = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 				out = (own ? target : source)[key];
 				exp = IS_BIND && own ? _ctx(out, _global) : IS_PROTO && typeof out == "function" ? _ctx(Function.call, out) : out;
 				if (target) _redefine(target, key, out, type & $export.U);
-				if (exports$1[key] != out) _hide(exports$1, key, exp);
+				if (exports[key] != out) _hide(exports, key, exp);
 				if (IS_PROTO && expProto[key] != out) expProto[key] = out;
 			}
 		};
@@ -12800,8 +12777,7 @@ var require_dist = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 		};
 	}));
 }));
-//#endregion
-//#region ../../packages/util/src/json-parse-shared.ts
+// ../../packages/util/src/json-parse-shared.ts
 /**
 * JSON parsing helpers shared by the main-thread parser in json-worker.ts and
 * the worker side in json-parse-worker-scope.ts, plus the message shapes the two
@@ -12924,8 +12900,7 @@ var replaceSentinelsInPlace = (root, sentinels) => {
 		}
 	}
 };
-//#endregion
-//#region ../../packages/util/src/worker.ts
+// ../../packages/util/src/worker.ts
 /**
 * How to start dedicated workers from a bundled worker script URL (a
 * `?worker&url` import).
@@ -12952,8 +12927,7 @@ var replaceSentinelsInPlace = (root, sentinels) => {
 		release: () => URL.revokeObjectURL(blobUrl)
 	};
 };
-//#endregion
-//#region ../../packages/util/src/json-worker.ts
+// ../../packages/util/src/json-worker.ts
 var import_dist = /* @__PURE__ */ __toESM(require_dist(), 1);
 var workerScriptUrl = null;
 /**
@@ -13237,8 +13211,7 @@ function asJsonRpcResponse(data) {
 	if (message) return message;
 	return null;
 }
-//#endregion
-//#region ../../packages/util/src/jsonrpc-fetch.ts
+// ../../packages/util/src/jsonrpc-fetch.ts
 /**
 * HTTP proxy for the VS Code webview environment.
 * Routes fetch requests through a single `http_request` JSON-RPC method so the
@@ -13287,8 +13260,7 @@ function toHttpMethod(method) {
 		});
 	};
 }
-//#endregion
-//#region ../../packages/util/src/logger.ts
+// ../../packages/util/src/logger.ts
 var loggingFilter = "*";
 var getEnabledNamespaces = () => {
 	return loggingFilter.split(",").map((ns) => ns.trim()).filter(Boolean);
@@ -13305,8 +13277,7 @@ var createLogger = (namespace) => {
 		debugIf: (fn) => {}
 	};
 };
-//#endregion
-//#region ../../packages/util/src/numeric.ts
+// ../../packages/util/src/numeric.ts
 function compareWithNan(a, b) {
 	const aIsNaN = Number.isNaN(a);
 	const bIsNaN = Number.isNaN(b);
@@ -13315,13 +13286,11 @@ function compareWithNan(a, b) {
 	if (bIsNaN) return -1;
 	return a - b;
 }
-//#endregion
-//#region ../../packages/util/src/mime.ts
+// ../../packages/util/src/mime.ts
 var isImage = (mimeType) => {
 	return mimeType.trim().toLowerCase().startsWith("image/");
 };
-//#endregion
-//#region ../../packages/util/src/path.ts
+// ../../packages/util/src/path.ts
 /**
 * Extracts the filename without extension from a given path.
 */ var filename = (path) => {
@@ -13360,8 +13329,7 @@ var ensureTrailingSlash = (path) => {
 	if (!path) return "";
 	return path.endsWith("/") ? path : path + "/";
 };
-//#endregion
-//#region ../../packages/util/src/python.ts
+// ../../packages/util/src/python.ts
 /**
 * Extracts the package and module names from a fully qualified Python module path
 *
@@ -13380,8 +13348,7 @@ var ensureTrailingSlash = (path) => {
 		module: name
 	};
 };
-//#endregion
-//#region ../../packages/util/src/queue.ts
+// ../../packages/util/src/queue.ts
 /**
 * A class that manages asynchronous task execution with a limit on concurrent tasks.
 */ var AsyncQueue = class {
@@ -13418,11 +13385,9 @@ var ensureTrailingSlash = (path) => {
 		}
 	}
 };
-//#endregion
-//#region ../../packages/util/src/retry.ts
+// ../../packages/util/src/retry.ts
 var isRetryableHttpStatus = (status) => status === 408 || status === 429 || status >= 500 && status < 600;
-//#endregion
-//#region ../../packages/util/src/sync.ts
+// ../../packages/util/src/sync.ts
 /**
 * Creates a throttled version of a function that only invokes the original function
 * at most once per every `wait` milliseconds. The throttled function will run as much
@@ -13497,8 +13462,7 @@ var isRetryableHttpStatus = (status) => status === 408 || status === 429 || stat
 	};
 	return debounced;
 }
-//#endregion
-//#region ../../packages/util/src/uri.ts
+// ../../packages/util/src/uri.ts
 /** First segment of a relative path ("" when empty). */ var rootName = (relativePath) => relativePath.split("/")[0] ?? "";
 var encodePathSegments = (path) => path.split("/").map((segment) => encodeURIComponent(segment)).join("/");
 var directoryRelativeUrl = (file, dir) => {
@@ -13566,8 +13530,7 @@ var prettyDirUri = (uri) => {
 	if (uri.startsWith("file://")) return uri.replace("file://", "");
 	else return uri;
 };
-//#endregion
-//#region ../../packages/util/src/vscode.ts
+// ../../packages/util/src/vscode.ts
 /**
 * Type definition for the VS Code API object
 * Note: This is a minimal definition - expand based on your needs
@@ -13595,8 +13558,7 @@ var isVscode = () => {
 */ var isHostedEnvironment = () => {
 	return location.hostname !== "localhost" && location.hostname !== "127.0.0.1" && location.protocol !== "vscode-webview:";
 };
-//#endregion
-//#region ../../packages/util/src/webviewStorage.ts
+// ../../packages/util/src/webviewStorage.ts
 /** Named, independent snapshots within VS Code's single webview state slot. */ function createWebviewStorage(api, legacyKey) {
 	const read = () => {
 		const state = api.getState();
@@ -13622,17 +13584,14 @@ var isVscode = () => {
 		}
 	};
 }
-//#endregion
-//#region src/client/json-parse.worker.ts?worker&url
+// src/client/json-parse.worker.ts?worker&url
 var import_jsx_runtime = require_jsx_runtime();
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var import_client = require_client();
 var json_parse_worker_default = new URL("json-parse.worker.js", import.meta.url).href;
-//#endregion
-//#region src/client/jsonParseWorker.ts
+// src/client/jsonParseWorker.ts
 configureJsonParseWorker(json_parse_worker_default);
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.5_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
+// ../../node_modules/.pnpm/@tanstack+react-query@5.105.2_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
 /**
 * The context that `useQueryClient` reads from. `QueryClientProvider` is the normal way to set it.
 */
@@ -13681,8 +13640,7 @@ var QueryClientProvider = ({ client, children }) => {
 		children
 	});
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
 var defaultTimeoutProvider = {
 	setTimeout: (callback, delay) => setTimeout(callback, delay),
 	clearTimeout: (timeoutId) => clearTimeout(timeoutId),
@@ -13834,8 +13792,7 @@ var timeoutManager = new TimeoutManager();
 function systemSetTimeoutZero(callback) {
 	setTimeout(callback, 0);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/utils.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/utils.js
 /**
 * @deprecated use `environmentManager.isServer()` instead.
 */
@@ -14018,7 +13975,7 @@ function replaceEqualDeep(a, b, depth = 0) {
 */
 function shallowEqualObjects(a, b) {
 	if (!b || Object.keys(a).length !== Object.keys(b).length) return false;
-	for (const key in a) if (a[key] !== b[key]) return false;
+	for (const key of Object.keys(a)) if (!hasOwn$1.call(b, key) || a[key] !== b[key]) return false;
 	return true;
 }
 /**
@@ -14100,29 +14057,27 @@ function keepPreviousData(previousData) {
 }
 /**
 * Returns a new array with `item` added at the end. If that makes the array longer than `max`,
-* the first item is dropped. Only one item is dropped, so the result can still exceed `max` if
-* `items` already did.
+* excess items are removed from the start.
 * @param items - The current items.
 * @param item - The value to append.
-* @param max - The length above which an item is dropped. `0` (the default) means no limit.
+* @param max - The maximum number of items to keep. `0` (the default) means no limit.
 * @returns A new array with `item` added.
 */
 function addToEnd(items, item, max = 0) {
 	const newItems = [...items, item];
-	return max && newItems.length > max ? newItems.slice(1) : newItems;
+	return max && newItems.length > max ? newItems.slice(-max) : newItems;
 }
 /**
 * Returns a new array with `item` added at the start. If that makes the array longer than `max`,
-* the last item is dropped. Only one item is dropped, so the result can still exceed `max` if
-* `items` already did.
+* excess items are removed from the end.
 * @param items - The current items.
 * @param item - The value to prepend.
-* @param max - The length above which an item is dropped. `0` (the default) means no limit.
+* @param max - The maximum number of items to keep. `0` (the default) means no limit.
 * @returns A new array with `item` added.
 */
 function addToStart(items, item, max = 0) {
 	const newItems = [item, ...items];
-	return max && newItems.length > max ? newItems.slice(0, -1) : newItems;
+	return max && newItems.length > max ? newItems.slice(0, max) : newItems;
 }
 /**
 * Sentinel value that can be passed as a query's `queryFn` to conditionally disable the query (equivalent
@@ -14172,6 +14127,7 @@ function shouldThrowError(throwOnError, params) {
 	if (typeof throwOnError === "function") return throwOnError(...params);
 	return !!throwOnError;
 }
+var fetchSignal = Symbol();
 /**
 * Adds a lazy `signal` getter to an object, such as a query function context. The first time
 * `signal` is read, `onCancelled` is registered for the signal's `abort` event (or called right
@@ -14179,34 +14135,36 @@ function shouldThrowError(throwOnError, params) {
 * @param object - The object to add the `signal` property to.
 * @param getSignal - Returns the `AbortSignal`. Called once, when `signal` is first read.
 * @param onCancelled - Called when the signal is aborted, if `signal` was read.
+* @param internalSignal - The fetch signal to forward without consuming the getter.
 * @returns The same object, with the `signal` property added.
 */
-function addConsumeAwareSignal(object, getSignal, onCancelled) {
+function addConsumeAwareSignal(object, getSignal, onCancelled, internalSignal) {
 	let consumed = false;
 	let signal;
-	Object.defineProperty(object, "signal", {
-		enumerable: true,
-		get: () => {
-			signal ??= getSignal();
-			if (consumed) return signal;
-			consumed = true;
-			if (signal.aborted) onCancelled();
-			else signal.addEventListener("abort", onCancelled, { once: true });
-			return signal;
+	Object.defineProperties(object, {
+		[fetchSignal]: { value: internalSignal },
+		signal: {
+			enumerable: true,
+			get: () => {
+				signal ??= getSignal();
+				if (consumed) return signal;
+				consumed = true;
+				if (signal.aborted) onCancelled();
+				else signal.addEventListener("abort", onCancelled, { once: true });
+				return signal;
+			}
 		}
 	});
 	return object;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/environmentManager.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/environmentManager.js
 var isServerFn = () => isServer$1;
 /**
 * Returns whether the current runtime should be treated as a server environment.
 * @returns `true` if the runtime is treated as a server.
 */
 var isServer = () => isServerFn();
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/subscribable.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/subscribable.js
 /**
 * The base class behind everything in Query that you can subscribe to: `QueryCache`, `MutationCache`,
 * the observers, and the `FocusManager`/`OnlineManager` behind `focusManager` and `onlineManager`.
@@ -14258,8 +14216,7 @@ var Subscribable = class {
 	*/
 	onUnsubscribe() {}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/focusManager.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/focusManager.js
 /**
 * The `FocusManager` manages the focus state within TanStack Query.
 *
@@ -14370,8 +14327,7 @@ var FocusManager = class extends Subscribable {
 * Singleton instance of {@link FocusManager}, used to manage and observe the focus state within TanStack Query.
 */
 var focusManager = new FocusManager();
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/notifyManager.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/notifyManager.js
 /**
 * Default scheduling function used by the notify manager.
 * Schedules the callback with the system's `setTimeout(callback, 0)`.
@@ -14497,8 +14453,7 @@ function createNotifyManager() {
 * Handles scheduling and batching callbacks in TanStack Query.
 */
 var notifyManager = createNotifyManager();
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/onlineManager.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/onlineManager.js
 /**
 * The `OnlineManager` manages the online state within TanStack Query. It can
 * be used to change the default event listeners or to manually change the
@@ -14594,8 +14549,7 @@ var OnlineManager = class extends Subscribable {
 * Singleton instance of {@link OnlineManager}, used to manage and observe the online state within TanStack Query.
 */
 var onlineManager = new OnlineManager();
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/retryer.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/retryer.js
 /**
 * The default `retryDelay`: doubles with every failure, starting at 1 second, up to 30 seconds.
 * @param failureCount - The number of failures so far.
@@ -14746,8 +14700,7 @@ function createRetryer(config) {
 		}
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/removable.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/removable.js
 /**
 * The base class for cache entries that are garbage collected once nothing is using them —
 * `Query` and `Mutation` both extend it. `gcTime` controls how long an unused entry is kept.
@@ -14790,8 +14743,7 @@ var Removable = class {
 		}
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
 /**
 * Creates the behavior that fetches the pages of an infinite query: the next or previous page for
 * `fetchNextPage`/`fetchPreviousPage`, or all pages again from the start on a refetch.
@@ -14813,8 +14765,9 @@ function infiniteQueryBehavior(pages) {
 		let currentPage = 0;
 		const fetchFn = async () => {
 			let cancelled = false;
+			const signalContext = context;
 			const addSignalProperty = (object) => {
-				addConsumeAwareSignal(object, () => context.signal, () => cancelled = true);
+				addConsumeAwareSignal(object, () => context.signal, () => cancelled = true, signalContext[fetchSignal]);
 			};
 			const queryFn = ensureQueryFn(context.options, context.fetchOptions);
 			const fetchPage = async (data, param, previous) => {
@@ -14912,8 +14865,7 @@ function hasPreviousPage(options, data) {
 	if (!data || !options.getPreviousPageParam) return false;
 	return getPreviousPageParam(options, data) != null;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/query.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/query.js
 /**
 * Represents a single cached query. A `Query` holds the query's key, options,
 * state (data/error/status), and the observers currently subscribed to it.
@@ -14939,6 +14891,7 @@ var Query = class extends Removable {
 	#cache;
 	#client;
 	#retryer;
+	#fetchPromise;
 	#defaultOptions;
 	#abortSignalConsumed;
 	constructor(config) {
@@ -15147,7 +15100,7 @@ var Query = class extends Removable {
 	* @see {@link Query#isStale}
 	* @example
 	* ```ts
-	* const isStale = query.isStaleByTime(1000 * 60)
+	* const isStale = query.isStaleByTime(60 * 1000)
 	* ```
 	*/
 	isStaleByTime(staleTime = 0) {
@@ -15261,9 +15214,9 @@ var Query = class extends Removable {
 	async fetch(options, fetchOptions) {
 		if (this.state.fetchStatus !== "idle" && this.#retryer?.status() !== "rejected") {
 			if (this.state.data !== void 0 && fetchOptions?.cancelRefetch) this.cancel({ silent: true });
-			else if (this.#retryer) {
+			else if (this.#retryer && this.#fetchPromise) {
 				this.#retryer.continueRetry();
-				return this.#retryer.promise;
+				return this.#fetchPromise;
 			}
 		}
 		if (options) this.setOptions(options);
@@ -15273,11 +15226,17 @@ var Query = class extends Removable {
 		}
 		const abortController = new AbortController();
 		const addSignalProperty = (object) => {
-			Object.defineProperty(object, "signal", {
-				enumerable: true,
-				get: () => {
-					this.#abortSignalConsumed = true;
-					return abortController.signal;
+			Object.defineProperties(object, {
+				[fetchSignal]: {
+					value: abortController.signal,
+					enumerable: true
+				},
+				signal: {
+					enumerable: true,
+					get: () => {
+						this.#abortSignalConsumed = true;
+						return abortController.signal;
+					}
 				}
 			});
 		};
@@ -15344,32 +15303,42 @@ var Query = class extends Removable {
 			networkMode: context.options.networkMode,
 			canRun: () => true
 		});
-		try {
-			const data = await retryer.start();
-			if (data === void 0) throw new Error(`${this.queryHash} data is undefined`);
-			this.setData(data);
-			this.#cache.config.onSuccess?.(data, this);
-			this.#cache.config.onSettled?.(data, this.state.error, this);
-			return data;
-		} catch (error) {
-			if (error instanceof CancelledError) {
-				if (error.silent) return this.#retryer.promise;
-				else if (error.revert) {
-					if (this.state.data === void 0) throw error;
-					return this.state.data;
+		const fetchPromise = (async () => {
+			try {
+				const data = await retryer.promise;
+				if (data === void 0) throw new Error(`${this.queryHash} data is undefined`);
+				this.setData(data);
+				this.#cache.config.onSuccess?.(data, this);
+				this.#cache.config.onSettled?.(data, this.state.error, this);
+				return data;
+			} catch (error) {
+				if (error instanceof CancelledError) {
+					if (error.silent) {
+						if (this.#retryer !== retryer && this.#fetchPromise) return this.#fetchPromise;
+						throw error;
+					} else if (error.revert) {
+						if (this.state.data === void 0) throw error;
+						return this.state.data;
+					}
 				}
+				this.#dispatch({
+					type: "error",
+					error
+				});
+				this.#cache.config.onError?.(error, this);
+				this.#cache.config.onSettled?.(this.state.data, error, this);
+				throw error;
+			} finally {
+				if (this.#retryer === retryer) {
+					this.#retryer = void 0;
+					this.#fetchPromise = void 0;
+				}
+				this.scheduleGc();
 			}
-			this.#dispatch({
-				type: "error",
-				error
-			});
-			this.#cache.config.onError?.(error, this);
-			this.#cache.config.onSettled?.(this.state.data, error, this);
-			throw error;
-		} finally {
-			if (this.#retryer === retryer) this.#retryer = void 0;
-			this.scheduleGc();
-		}
+		})();
+		this.#fetchPromise = fetchPromise;
+		retryer.start();
+		return fetchPromise;
 	}
 	#dispatch(action) {
 		const reducer = (state) => {
@@ -15500,8 +15469,7 @@ function getDefaultState$1(options) {
 		fetchStatus: "idle"
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/queryObserver.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/queryObserver.js
 /**
 * A `QueryObserver` watches a single query in the `QueryCache` and computes a
 * `QueryObserverResult` from its state, recomputing and notifying subscribers
@@ -15919,12 +15887,9 @@ var QueryObserver = class extends Subscribable {
 			const { notifyOnChangeProps } = this.options;
 			const notifyOnChangePropsValue = typeof notifyOnChangeProps === "function" ? notifyOnChangeProps() : notifyOnChangeProps;
 			if (notifyOnChangePropsValue === "all" || !notifyOnChangePropsValue && !this.#trackedProps.size) return true;
-			const includedProps = new Set(notifyOnChangePropsValue ?? this.#trackedProps);
-			if (this.options.throwOnError) includedProps.add("error");
-			return Object.keys(this.#currentResult).some((key) => {
-				const typedKey = key;
-				return this.#currentResult[typedKey] !== prevResult[typedKey] && includedProps.has(typedKey);
-			});
+			if (this.options.throwOnError && this.#currentResult.error !== prevResult.error) return true;
+			for (const key of notifyOnChangePropsValue ?? this.#trackedProps) if (this.#currentResult[key] !== prevResult[key]) return true;
+			return false;
 		};
 		const notifyListeners = shouldNotifyListeners();
 		notifyManager.batch(() => {
@@ -16015,8 +15980,7 @@ function shouldFetchOptionally(query, prevQuery, options, prevOptions) {
 function isStale(query, options) {
 	return resolveQueryValue(options.enabled, query) !== false && query.isStaleByTime(resolveQueryValue(options.staleTime, query));
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
 /**
 * An `InfiniteQueryObserver` extends `QueryObserver` to observe and switch
 * between infinite queries. It augments the base `QueryObserverResult` with
@@ -16143,8 +16107,7 @@ var InfiniteQueryObserver = class extends QueryObserver {
 		};
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/mutation.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/mutation.js
 /**
 * Represents a single mutation attempt. A `Mutation` holds the mutation's
 * options, state (data/error/status), and the `MutationObserver`s currently
@@ -16332,6 +16295,7 @@ var Mutation = class extends Removable {
 					isPaused
 				});
 			}
+			if (this.state.isPaused && retryer.canStart()) onContinue();
 			const data = await retryer.start();
 			await this.#mutationCache.config.onSuccess?.(data, variables, this.state.context, this, mutationFnContext);
 			await this.options.onSuccess?.(data, variables, this.state.context, mutationFnContext);
@@ -16451,8 +16415,7 @@ function getDefaultState() {
 		submittedAt: 0
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/mutationCache.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/mutationCache.js
 /**
 * The `MutationCache` is the storage for mutations.
 *
@@ -16674,8 +16637,7 @@ var MutationCache = class extends Subscribable {
 function scopeFor(mutation) {
 	return mutation.options.scope?.id;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
 /**
 * Observes a single mutation and derives a `MutationObserverResult` from it.
 * A framework hook like `useMutation` creates one `MutationObserver` per hook
@@ -16866,8 +16828,7 @@ var MutationObserver$1 = class extends Subscribable {
 		});
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/queryCache.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/queryCache.js
 /**
 * The `QueryCache` is the storage mechanism for TanStack Query. It stores all the data, meta
 * information, and state of the queries it contains.
@@ -17099,8 +17060,7 @@ var QueryCache = class extends Subscribable {
 		});
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.104.5/node_modules/@tanstack/query-core/build/modern/queryClient.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/queryClient.js
 /**
 * `QueryClient` is used to interact with a cache of queries and mutations. It owns a
 * `QueryCache` and a `MutationCache` (creating default ones if none are passed in) and holds
@@ -17440,13 +17400,17 @@ var QueryClient = class {
 	* have observers with a static `staleTime`), are never refetched.
 	*
 	* By default (`cancelRefetch: true`), a currently running fetch is cancelled before the new
-	* one starts. The returned promise resolves once all matching queries have settled; it does
-	* not reject on individual query failures unless `throwOnError` is set.
+	* one starts. The returned promise does not reject on individual query failures unless
+	* `throwOnError` is `true`.
+	*
+	* Initially paused fetches do not delay the returned promise. Their later errors are handled
+	* even when `throwOnError` is `true`.
 	* @param filters - The filters that select which queries to refetch. Without filters, every query
 	* in the cache is included.
 	* @param options - Set `cancelRefetch` to `false` to keep a running fetch instead of cancelling
-	* it, and `throwOnError` to `true` to reject when a refetch fails.
-	* @returns A promise that resolves once every matched query has settled.
+	* it, and `throwOnError` to `true` to reject when a refetch that was not initially paused fails.
+	* @returns A promise that resolves once all matching refetches that were not initially paused
+	* have settled.
 	* @example
 	* ```ts
 	* // refetch all active queries partially matching a query key:
@@ -17460,8 +17424,9 @@ var QueryClient = class {
 		};
 		const promises = notifyManager.batch(() => this.#queryCache.findAll(filters).filter((query) => !query.isDisabled() && !query.isStatic()).map((query) => {
 			let promise = query.fetch(void 0, fetchOptions);
-			if (!fetchOptions.throwOnError) promise = promise.catch(noop);
-			return query.state.fetchStatus === "paused" ? Promise.resolve() : promise;
+			const isPaused = query.state.fetchStatus === "paused";
+			if (!fetchOptions.throwOnError || isPaused) promise = promise.catch(noop);
+			return isPaused ? Promise.resolve() : promise;
 		}));
 		return Promise.all(promises).then(noop);
 	}
@@ -17815,8 +17780,7 @@ var QueryClient = class {
 		this.#mutationCache.clear();
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.5_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
+// ../../node_modules/.pnpm/@tanstack+react-query@5.105.2_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
 var IsRestoringContext = import_react.createContext(false);
 /**
 * If you are using `PersistQueryClientProvider`, you can also use the `useIsRestoring` hook alongside it to
@@ -17826,8 +17790,7 @@ var IsRestoringContext = import_react.createContext(false);
 */
 var useIsRestoring = () => import_react.useContext(IsRestoringContext);
 IsRestoringContext.Provider;
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.5_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
+// ../../node_modules/.pnpm/@tanstack+react-query@5.105.2_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
 /**
 * Creates the value shared through the boundary's context, which tracks whether a reset was
 * requested.
@@ -17887,8 +17850,7 @@ var QueryErrorResetBoundaryContext = import_react.createContext(createValue());
 * ```
 */
 var useQueryErrorResetBoundary = () => import_react.useContext(QueryErrorResetBoundaryContext);
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.5_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
+// ../../node_modules/.pnpm/@tanstack+react-query@5.105.2_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
 /**
 * Turns off `retryOnMount` for a query that throws its errors (with `suspense` or `throwOnError`),
 * unless the error boundary has been reset, so a remount doesn't retry the failed query before the
@@ -17924,8 +17886,7 @@ var useClearResetErrorBoundary = (errorResetBoundary) => {
 var getHasError = ({ result, errorResetBoundary, throwOnError, query, suspense }) => {
 	return result.isError && !errorResetBoundary.isReset() && !result.isFetching && query && (suspense && result.data === void 0 || shouldThrowError(throwOnError, [result.error, query]));
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.5_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/suspense.js
+// ../../node_modules/.pnpm/@tanstack+react-query@5.105.2_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/suspense.js
 /**
 * Raises `staleTime` and a numeric `gcTime` to at least 1000ms when `suspense` is enabled, so a
 * component that remounts after suspending doesn't refetch right away or find the query garbage
@@ -17959,8 +17920,7 @@ var shouldSuspend = (defaultedOptions, result) => defaultedOptions?.suspense && 
 var fetchOptimistic = (defaultedOptions, observer, errorResetBoundary) => observer.fetchOptimistic(defaultedOptions).catch(() => {
 	errorResetBoundary.clearReset();
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.5_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
+// ../../node_modules/.pnpm/@tanstack+react-query@5.105.2_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
 /**
 * Base implementation shared by `useQuery`, `useInfiniteQuery`, `useSuspenseQuery`, and
 * `useSuspenseInfiniteQuery`.
@@ -17987,15 +17947,15 @@ function useBaseQuery(options, Observer, queryClient) {
 	useClearResetErrorBoundary(errorResetBoundary);
 	const [observer] = import_react.useState(() => new Observer(client, defaultedOptions));
 	const result = observer.getOptimisticResult(defaultedOptions);
+	import_react.useEffect(() => {
+		observer.setOptions(defaultedOptions);
+	}, [defaultedOptions, observer]);
 	const shouldSubscribe = !isRestoring && subscribed;
 	import_react.useSyncExternalStore(import_react.useCallback((onStoreChange) => {
 		const unsubscribe = shouldSubscribe ? observer.subscribe(notifyManager.batchCalls(onStoreChange)) : noop;
 		observer.updateResult();
 		return unsubscribe;
 	}, [observer, shouldSubscribe]), () => observer.getCurrentResult(), () => observer.getCurrentResult());
-	import_react.useEffect(() => {
-		observer.setOptions(defaultedOptions);
-	}, [defaultedOptions, observer]);
 	if (shouldSuspend(defaultedOptions, result)) throw fetchOptimistic(defaultedOptions, observer, errorResetBoundary);
 	if (getHasError({
 		result,
@@ -18006,13 +17966,11 @@ function useBaseQuery(options, Observer, queryClient) {
 	})) throw result.error;
 	return !defaultedOptions.notifyOnChangeProps ? observer.trackResult(result) : result;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.5_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/useQuery.js
+// ../../node_modules/.pnpm/@tanstack+react-query@5.105.2_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/useQuery.js
 function useQuery(options, queryClient) {
 	return useBaseQuery(options, QueryObserver, queryClient);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.5_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/useMutation.js
+// ../../node_modules/.pnpm/@tanstack+react-query@5.105.2_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/useMutation.js
 /**
 * Unlike queries, mutations are typically used to create/update/delete data or perform server side-effects.
 * `useMutation` is the hook for that.
@@ -18198,13 +18156,11 @@ function useMutation(options, queryClient) {
 		mutateAsync: result.mutate
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.104.5_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
+// ../../node_modules/.pnpm/@tanstack+react-query@5.105.2_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
 function useInfiniteQuery(options, queryClient) {
 	return useBaseQuery(options, InfiniteQueryObserver, queryClient);
 }
-//#endregion
-//#region ../../packages/react/src/components/AsyncGate.module.css
+// ../../packages/react/src/components/AsyncGate.module.css
 var import_compiler_runtime = require_compiler_runtime();
 var AsyncGate_module_default = { gate: "_gate_111wv_1" };
 var PulsingDots_module_default = {
@@ -18219,8 +18175,7 @@ var PulsingDots_module_default = {
 	primary: "_primary_4p85e_40",
 	visuallyHidden: "_visuallyHidden_4p85e_59"
 };
-//#endregion
-//#region ../../packages/react/src/components/PulsingDots.tsx
+// ../../packages/react/src/components/PulsingDots.tsx
 var PulsingDots = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(14);
 	const { text: t1, dotsCount: t2, subtle: t3, size: t4, className } = t0;
@@ -18278,8 +18233,7 @@ var PulsingDots = (t0) => {
 	} else t9 = $[13];
 	return t9;
 };
-//#endregion
-//#region ../../packages/react/src/components/AsyncGate.tsx
+// ../../packages/react/src/components/AsyncGate.tsx
 /**
 * Gates a subtree on an `AsyncData` value: renders `children` once it has
 * resolved, a centered loading indicator while pending, or a centered error
@@ -18328,8 +18282,7 @@ var PulsingDots = (t0) => {
 	} else t1 = $[6];
 	return t1;
 };
-//#endregion
-//#region ../../packages/react/src/hooks/useEventListener.ts
+// ../../packages/react/src/hooks/useEventListener.ts
 var import_react_dom = /* @__PURE__ */ __toESM(require_react_dom(), 1);
 function useEventListener(target, type, listener, options) {
 	const $ = (0, import_compiler_runtime.c)(10);
@@ -18386,8 +18339,7 @@ var AutocompleteInput_module_default = {
 	suggestionItem: "_suggestionItem_uf0p9_64",
 	highlighted: "_highlighted_uf0p9_74"
 };
-//#endregion
-//#region ../../packages/react/src/components/AutocompleteInput.tsx
+// ../../packages/react/src/components/AutocompleteInput.tsx
 var AutocompleteInput = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(74);
 	const { id, value, onChange, onCommit, onCancel, disabled, suggestions, placeholder: t1, ariaLabel, maxSuggestions: t2, charactersBeforeSuggesting: t3, maxSuggestionWidth: t4, autoFocus, className, allowBrowse: t5, required: t6 } = t0;
@@ -18410,7 +18362,7 @@ var AutocompleteInput = (t0) => {
 		if (isBrowseMode) {
 			let t8;
 			if ($[0] !== suggestions) {
-				t8 = suggestions.filter(_temp$113);
+				t8 = suggestions.filter(_temp$116);
 				$[0] = suggestions;
 				$[1] = t8;
 			} else t8 = $[1];
@@ -18561,7 +18513,7 @@ var AutocompleteInput = (t0) => {
 					e_1.stopPropagation();
 					onCommit?.();
 				} else if (e_1.key === "ArrowDown" || e_1.key === "ArrowUp") {
-					const hasOptions = suggestions.some(_temp2$63);
+					const hasOptions = suggestions.some(_temp2$64);
 					if (filteredSuggestions.length > 0 || hasOptions) {
 						e_1.preventDefault();
 						e_1.stopPropagation();
@@ -18580,7 +18532,7 @@ var AutocompleteInput = (t0) => {
 				case "ArrowUp":
 					e_1.preventDefault();
 					e_1.stopPropagation();
-					setHighlightedIndex(_temp3$43);
+					setHighlightedIndex(_temp3$44);
 					break bb147;
 				case "Tab":
 					if (highlightedIndex >= 0 && filteredSuggestions[highlightedIndex] !== void 0) {
@@ -18754,17 +18706,16 @@ var AutocompleteInput = (t0) => {
 	} else t27 = $[73];
 	return t27;
 };
-function _temp$113(s) {
+function _temp$116(s) {
 	return s !== null;
 }
-function _temp2$63(s_1) {
+function _temp2$64(s_1) {
 	return s_1 !== null;
 }
-function _temp3$43(prev) {
+function _temp3$44(prev) {
 	return Math.max(prev - 1, -1);
 }
-//#endregion
-//#region ../../packages/react/src/hooks/onDemandModule.ts
+// ../../packages/react/src/hooks/onDemandModule.ts
 var onDemandModule = (importer) => {
 	let value;
 	let pending = null;
@@ -18806,7 +18757,7 @@ var onDemandModule = (importer) => {
 			let cancelled = false;
 			module.load().then((loaded) => {
 				if (!cancelled) setValue(() => loaded);
-			}).catch(_temp$112);
+			}).catch(_temp$115);
 			return () => {
 				cancelled = true;
 			};
@@ -18828,7 +18779,7 @@ var onDemandModule = (importer) => {
 	(0, import_react.useEffect)(t2, t3);
 	return value;
 };
-function _temp$112(error) {
+function _temp$115(error) {
 	console.error("Unable to load module", error);
 }
 var ContentTrust_module_default = {
@@ -18836,8 +18787,7 @@ var ContentTrust_module_default = {
 	untrustedInlineText: "_untrustedInlineText_tpj36_11",
 	placeholder: "_placeholder_tpj36_15"
 };
-//#endregion
-//#region ../../packages/react/src/components/contentRenderingPolicy.ts
+// ../../packages/react/src/components/contentRenderingPolicy.ts
 /**
 * Rendering operations permitted on log content, independent of display
 * preferences. Only the all-or-nothing policies below are configurable
@@ -18865,8 +18815,7 @@ var isRichContentPolicy = (policy) => Object.values(policy).every(Boolean);
 	media: a.media && b.media,
 	links: a.links && b.links
 };
-//#endregion
-//#region ../../packages/react/src/components/ContentTrustContext.tsx
+// ../../packages/react/src/components/ContentTrustContext.tsx
 var ContentPolicyContext = /*#__PURE__*/ (0, import_react.createContext)(plainContentPolicy);
 var ContentPolicyCeilingContext = /*#__PURE__*/ (0, import_react.createContext)(richContentPolicy);
 var ContentPolicyProvider = (t0) => {
@@ -18966,8 +18915,7 @@ var ContentTrustProvider = (t0) => {
 	} else t1 = $[1];
 	return t1;
 };
-//#endregion
-//#region ../../packages/react/src/components/ContentTrust.tsx
+// ../../packages/react/src/components/ContentTrust.tsx
 /** The text form untrusted content is shown in, hidden characters revealed. */ var untrustedText = (text) => revealHiddenCharacters(text);
 /**
 * Class for the element that holds `untrustedText` output: isolates its bidi
@@ -18981,7 +18929,7 @@ var ContentTrustProvider = (t0) => {
 */ var usePlainText = () => {
 	return useHasAllContentPermissions() ? {
 		trusted: true,
-		present: _temp$111,
+		present: _temp$114,
 		className: void 0
 	} : {
 		trusted: false,
@@ -19076,11 +19024,10 @@ var UntrustedText = (t0) => {
 	} else t2 = $[4];
 	return t2;
 };
-function _temp$111(text) {
+function _temp$114(text) {
 	return text;
 }
-//#endregion
-//#region ../../packages/react/src/components/AnsiDisplay.tsx
+// ../../packages/react/src/components/AnsiDisplay.tsx
 var richRenderer = onDemandModule(() => __vitePreload(() => import("./AnsiDisplayRich.js"), __vite__mapDeps([0,1,2,3,4,5]), import.meta.url));
 var ANSIDisplay = (props) => {
 	return useContentPolicy().ansi ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TrustedANSIDisplay, { ...props }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(UntrustedANSIDisplay, { ...props });
@@ -19190,8 +19137,7 @@ var ErrorPanel_module_default = {
 	centeredFlex: "_centeredFlex_13pj6_28",
 	errorIcon: "_errorIcon_13pj6_35"
 };
-//#endregion
-//#region ../../packages/react/src/components/ErrorPanel.tsx
+// ../../packages/react/src/components/ErrorPanel.tsx
 var ErrorPanel = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(14);
 	const { title, error } = t0;
@@ -19259,8 +19205,7 @@ var ErrorPanel = (t0) => {
 	} else t9 = $[13];
 	return t9;
 };
-//#endregion
-//#region ../../packages/react/src/components/AppErrorBoundary.tsx
+// ../../packages/react/src/components/AppErrorBoundary.tsx
 var AppErrorBoundary = class extends import_react.Component {
 	constructor(props) {
 		super(props);
@@ -19299,8 +19244,7 @@ var Card_module_default = {
 	card: "_card_19525_33",
 	noPadding: "_noPadding_19525_40"
 };
-//#endregion
-//#region ../../packages/react/src/components/Card.tsx
+// ../../packages/react/src/components/Card.tsx
 var CardHeader = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(11);
 	const { id, icon, type, label, className, children } = t0;
@@ -19393,8 +19337,7 @@ var Card$1 = (t0) => {
 	} else t2 = $[5];
 	return t2;
 };
-//#endregion
-//#region ../../packages/react/src/hooks/useUnmount.ts
+// ../../packages/react/src/hooks/useUnmount.ts
 /**
 * Runs `fn` once when the component unmounts. Always calls the latest `fn`,
 * so it can close over current state/props without dependency plumbing.
@@ -19415,8 +19358,7 @@ var Card$1 = (t0) => {
 	}
 	(0, import_react.useEffect)(t0, t1);
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useCopyToClipboard.ts
+// ../../packages/react/src/hooks/useCopyToClipboard.ts
 /**
 * Clipboard write with a transient "copied" flag for confirm-icon feedback.
 * The flag flips only after the write resolves (it can reject in an unfocused
@@ -19440,7 +19382,7 @@ var Card$1 = (t0) => {
 				setCopied(true);
 				window.clearTimeout(timer.current);
 				timer.current = window.setTimeout(() => setCopied(false), confirmMs);
-			}).catch(_temp$110);
+			}).catch(_temp$113);
 		};
 		$[1] = confirmMs;
 		$[2] = t2;
@@ -19458,12 +19400,11 @@ var Card$1 = (t0) => {
 	} else t3 = $[5];
 	return t3;
 }
-function _temp$110(error) {
+function _temp$113(error) {
 	console.error("Failed to copy:", error);
 }
 var CopyButton_module_default = { copyButton: "_copyButton_1goi8_1" };
-//#endregion
-//#region ../../packages/react/src/components/CopyButton.tsx
+// ../../packages/react/src/components/CopyButton.tsx
 var CopyButton = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(15);
 	const { icon, title, value, className: t1, ariaLabel: t2 } = t0;
@@ -19516,8 +19457,7 @@ var CopyButton = (t0) => {
 	} else t8 = $[14];
 	return t8;
 };
-//#endregion
-//#region ../../packages/react/src/components/AsciinemaPlayer.tsx
+// ../../packages/react/src/components/AsciinemaPlayer.tsx
 var player = onDemandModule(() => __vitePreload(() => import("./AsciinemaPlayerImpl.js"), __vite__mapDeps([6,1,2,7,8]), import.meta.url));
 var AsciinemaPlayer = (props) => {
 	const $ = (0, import_compiler_runtime.c)(4);
@@ -19544,8 +19484,7 @@ var TrustedAsciinemaPlayer = (props) => {
 	} else t0 = $[2];
 	return t0;
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@lit+react@1.0.8_@types+react@19.3.0/node_modules/@lit/react/create-component.js
+// ../../node_modules/.pnpm/@lit+react@1.0.8_@types+react@19.3.0/node_modules/@lit/react/create-component.js
 /**
 * @license
 * Copyright 2018 Google LLC
@@ -19589,8 +19528,7 @@ var o$7 = ({ react: n, tagName: o, elementClass: l, events: a, displayName: s })
 	}));
 	return r.displayName = s ?? l.name, r;
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/css-tag.js
+// ../../node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/css-tag.js
 /**
 * @license
 * Copyright 2019 Google LLC
@@ -19638,8 +19576,7 @@ var c$5 = e$10 ? (t) => t : (t) => t instanceof CSSStyleSheet ? ((t) => {
 	for (const s of t.cssRules) e += s.cssText;
 	return r$6(e);
 })(t) : t;
-//#endregion
-//#region ../../node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/reactive-element.js
+// ../../node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/reactive-element.js
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -19868,8 +19805,7 @@ var y$1 = class extends HTMLElement {
 	firstUpdated(t) {}
 };
 y$1.elementStyles = [], y$1.shadowRootOptions = { mode: "open" }, y$1[d$2("elementProperties")] = /* @__PURE__ */ new Map(), y$1[d$2("finalized")] = /* @__PURE__ */ new Map(), p$2?.({ ReactiveElement: y$1 }), (a$1.reactiveElementVersions ??= []).push("2.1.2");
-//#endregion
-//#region ../../node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/lit-html.js
+// ../../node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/lit-html.js
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -20163,8 +20099,7 @@ var D = (t, i, s) => {
 	}
 	return h._$AI(t), h;
 };
-//#endregion
-//#region ../../node_modules/.pnpm/lit-element@4.2.2/node_modules/lit-element/lit-element.js
+// ../../node_modules/.pnpm/lit-element@4.2.2/node_modules/lit-element/lit-element.js
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -20196,8 +20131,7 @@ i$5._$litElement$ = !0, i$5["finalized"] = !0, s$4.litElementHydrateSupport?.({ 
 var o$3 = s$4.litElementPolyfillSupport;
 o$3?.({ LitElement: i$5 });
 (s$4.litElementVersions ??= []).push("4.2.2");
-//#endregion
-//#region ../../node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/decorators/property.js
+// ../../node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/decorators/property.js
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -20239,8 +20173,7 @@ function n$4(t) {
 		return e.constructor.createProperty(o, t), r ? Object.getOwnPropertyDescriptor(e, o) : void 0;
 	})(t, e, o);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/decorators/state.js
+// ../../node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/decorators/state.js
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -20252,16 +20185,14 @@ function n$4(t) {
 		attribute: !1
 	});
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/decorators/base.js
+// ../../node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/decorators/base.js
 /**
 * @license
 * Copyright 2017 Google LLC
 * SPDX-License-Identifier: BSD-3-Clause
 */
 var e$7 = (e, t, c) => (c.configurable = !0, c.enumerable = !0, Reflect.decorate && "object" != typeof t && Object.defineProperty(e, t, c), c);
-//#endregion
-//#region ../../node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/decorators/query.js
+// ../../node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/decorators/query.js
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -20291,8 +20222,7 @@ var e$7 = (e, t, c) => (c.configurable = !0, c.enumerable = !0, Reflect.decorate
 		} });
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/decorators/query-all.js
+// ../../node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/decorators/query-all.js
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -20304,8 +20234,7 @@ function r$1(r) {
 		return (this.renderRoot ?? (e$5 ??= document.createDocumentFragment())).querySelectorAll(r);
 	} });
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/decorators/query-assigned-elements.js
+// ../../node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/decorators/query-assigned-elements.js
 /**
 * @license
 * Copyright 2021 Google LLC
@@ -20319,8 +20248,7 @@ function r$1(r) {
 		} });
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/decorators/query-assigned-nodes.js
+// ../../node_modules/.pnpm/@lit+reactive-element@2.1.2/node_modules/@lit/reactive-element/decorators/query-assigned-nodes.js
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -20333,8 +20261,7 @@ function r$1(r) {
 		} });
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/VscElement.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/VscElement.js
 var VERSION = "2.5.1";
 var CONFIG_KEY = "__vscodeElements_disableRegistryWarning__";
 var warn = (message, componentInstance) => {
@@ -20371,8 +20298,7 @@ var customElement = (tagName) => {
 		warn(`The custom element "${tagName}" ${message}\nTo suppress this warning, set window.${CONFIG_KEY} to true`);
 	};
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/default.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/default.styles.js
 var default_styles_default = i$8`
   :host([hidden]) {
     display: none;
@@ -20442,8 +20368,7 @@ var styles$35 = [default_styles_default, i$8`
       padding: 3px 5px;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-badge/vscode-badge.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-badge/vscode-badge.js
 var __decorate$40 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -20480,8 +20405,7 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeBadge"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directive.js
+// ../../node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directive.js
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -20514,8 +20438,7 @@ var i$4 = class {
 		return this.render(...e);
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/class-map.js
+// ../../node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/class-map.js
 /**
 * @license
 * Copyright 2018 Google LLC
@@ -20542,15 +20465,13 @@ var i$4 = class {
 		return E;
 	}
 });
-//#endregion
-//#region ../../node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/if-defined.js
+// ../../node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/if-defined.js
 /**
 * @license
 * Copyright 2018 Google LLC
 * SPDX-License-Identifier: BSD-3-Clause
 */ var o = (o) => o ?? A;
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/style-property-map.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/style-property-map.js
 var StylePropertyMap = class extends i$4 {
 	constructor(partInfo) {
 		super(partInfo);
@@ -20578,8 +20499,7 @@ var StylePropertyMap = class extends i$4 {
 * [MDN Reference](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy#unsafe-inline)
 */
 var stylePropertyMap = e$4(StylePropertyMap);
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-icon/vscode-icon.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-icon/vscode-icon.styles.js
 var styles$34 = [default_styles_default, i$8`
     :host {
       color: var(--vscode-icon-foreground, #cccccc);
@@ -20641,8 +20561,7 @@ var styles$34 = [default_styles_default, i$8`
       animation-iteration-count: infinite;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-icon/vscode-icon.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-icon/vscode-icon.js
 var __decorate$39 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -20962,8 +20881,7 @@ var styles$33 = [default_styles_default, i$8`
       margin-left: 3px;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-button/vscode-button.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-button/vscode-button.js
 var __decorate$38 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -21204,8 +21122,7 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeButton"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-button-group/vscode-button-group.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-button-group/vscode-button-group.styles.js
 var styles$32 = [default_styles_default, i$8`
     :host {
       display: inline-block;
@@ -21240,8 +21157,7 @@ var styles$32 = [default_styles_default, i$8`
       width: 100%;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-button-group/vscode-button-group.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-button-group/vscode-button-group.js
 var __decorate$37 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -21278,8 +21194,7 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeButtonGroup"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/form-button-widget/FormButtonWidgetBase.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/form-button-widget/FormButtonWidgetBase.js
 var __decorate$36 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -21320,8 +21235,7 @@ __decorate$36([n$4({
 	type: Boolean,
 	reflect: true
 })], FormButtonWidgetBase.prototype, "focused", void 0);
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/form-button-widget/LabelledCheckboxOrRadio.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/form-button-widget/LabelledCheckboxOrRadio.js
 var __decorate$35 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -21353,8 +21267,7 @@ var LabelledCheckboxOrRadioMixin = (superClass) => {
 	__decorate$35([n$4()], LabelledCheckboxOrRadio.prototype, "label", null);
 	return LabelledCheckboxOrRadio;
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/form-button-widget/base.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/form-button-widget/base.styles.js
 var base_styles_default = [i$8`
     :host {
       display: inline-block;
@@ -21444,8 +21357,7 @@ var base_styles_default = [i$8`
       cursor: default;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-checkbox/vscode-checkbox.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-checkbox/vscode-checkbox.styles.js
 var styles$31 = [
 	default_styles_default,
 	base_styles_default,
@@ -21544,8 +21456,7 @@ var styles$31 = [
     }
   `
 ];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-checkbox/vscode-checkbox.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-checkbox/vscode-checkbox.js
 var __decorate$34 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -21809,8 +21720,7 @@ o$7({
 	displayName: "VscodeCheckbox",
 	events: { onChange: "change" }
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-checkbox-group/vscode-checkbox-group.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-checkbox-group/vscode-checkbox-group.styles.js
 var styles$30 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -21842,8 +21752,7 @@ var styles$30 = [default_styles_default, i$8`
       margin-bottom: 0;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-checkbox-group/vscode-checkbox-group.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-checkbox-group/vscode-checkbox-group.js
 var __decorate$33 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -21880,8 +21789,7 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeCheckboxGroup"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-collapsible/vscode-collapsible.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-collapsible/vscode-collapsible.styles.js
 var styles$29 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -21977,8 +21885,7 @@ var styles$29 = [default_styles_default, i$8`
       display: block;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-collapsible/vscode-collapsible.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-collapsible/vscode-collapsible.js
 var __decorate$32 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -22110,16 +22017,14 @@ __decorate$32([n$4({
 	reflect: true
 })], VscodeCollapsible$1.prototype, "open", void 0);
 VscodeCollapsible$1 = __decorate$32([customElement("vscode-collapsible")], VscodeCollapsible$1);
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_02e419efff47087d8cbea8401cb5f496/node_modules/@vscode-elements/react-elements/dist/components/VscodeCollapsible.js
+// ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_02e419efff47087d8cbea8401cb5f496/node_modules/@vscode-elements/react-elements/dist/components/VscodeCollapsible.js
 var VscodeCollapsible = o$7({
 	tagName: "vscode-collapsible",
 	elementClass: VscodeCollapsible$1,
 	react: import_react.default,
 	displayName: "VscodeCollapsible"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-context-menu-item/vscode-context-menu-item.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-context-menu-item/vscode-context-menu-item.styles.js
 var styles$28 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -22190,8 +22095,7 @@ var styles$28 = [default_styles_default, i$8`
       text-align: right;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-context-menu-item/vscode-context-menu-item.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-context-menu-item/vscode-context-menu-item.js
 var __decorate$31 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -22263,8 +22167,7 @@ __decorate$31([n$4({
 })], VscodeContextMenuItem$1.prototype, "separator", void 0);
 __decorate$31([n$4({ type: Number })], VscodeContextMenuItem$1.prototype, "tabindex", void 0);
 VscodeContextMenuItem$1 = __decorate$31([customElement("vscode-context-menu-item")], VscodeContextMenuItem$1);
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-context-menu/vscode-context-menu.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-context-menu/vscode-context-menu.styles.js
 var styles$27 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -22291,8 +22194,7 @@ var styles$27 = [default_styles_default, i$8`
       outline: 0;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-context-menu/vscode-context-menu.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-context-menu/vscode-context-menu.js
 var __decorate$30 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -22475,8 +22377,7 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeContextMenuItem"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-divider/vscode-divider.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-divider/vscode-divider.styles.js
 var styles$26 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -22490,8 +22391,7 @@ var styles$26 = [default_styles_default, i$8`
       opacity: 0.4;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-divider/vscode-divider.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-divider/vscode-divider.js
 var __decorate$29 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -22521,16 +22421,14 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeDivider"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-container/vscode-form-container.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-container/vscode-form-container.styles.js
 var styles$25 = [default_styles_default, i$8`
     :host {
       display: block;
       max-width: 727px;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-container/vscode-form-container.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-container/vscode-form-container.js
 var __decorate$28 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -22621,8 +22519,7 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeFormContainer"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-group/vscode-form-group.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-group/vscode-form-group.styles.js
 var styles$24 = [default_styles_default, i$8`
     :host {
       --label-right-margin: 14px;
@@ -22709,8 +22606,7 @@ var styles$24 = [default_styles_default, i$8`
       margin-right: 4px;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-group/vscode-form-group.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-group/vscode-form-group.js
 var __decorate$27 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -22745,8 +22641,7 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeFormGroup"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-helper/vscode-form-helper.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-helper/vscode-form-helper.styles.js
 var styles$23 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -22761,8 +22656,7 @@ var styles$23 = [default_styles_default, i$8`
       margin-left: 0;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-helper/vscode-form-helper.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-form-helper/vscode-form-helper.js
 var __decorate$26 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -22816,15 +22710,13 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeIcon"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/uniqueId.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/uniqueId.js
 var counter = 0;
 var uniqueId = (prefix = "") => {
 	counter++;
 	return `${prefix}${counter}`;
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-label/vscode-label.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-label/vscode-label.styles.js
 var styles$22 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -22854,8 +22746,7 @@ var styles$22 = [default_styles_default, i$8`
       opacity: 0.9;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-label/vscode-label.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-label/vscode-label.js
 var __decorate$25 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -22958,8 +22849,7 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeLabel"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/vscode-select/template-elements.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/vscode-select/template-elements.js
 var chevronDownIcon = b`
   <span class="icon">
     <svg
@@ -23015,8 +22905,7 @@ var checkIcon = w`<svg
 }, u$1 = (o, t, i = o) => (o._$AI(t, i), o), m = {}, p = (o, t = m) => o._$AH = t, M = (o) => o._$AH, h = (o) => {
 	o._$AR(), o._$AA.remove();
 };
-//#endregion
-//#region ../../node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/repeat.js
+// ../../node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/repeat.js
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -23076,8 +22965,7 @@ var c$1 = e$4(class extends i$4 {
 		return this.ut = a, p(s, v$2), E;
 	}
 });
-//#endregion
-//#region ../../node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/when.js
+// ../../node_modules/.pnpm/lit-html@3.3.3/node_modules/lit-html/directives/when.js
 /**
 * @license
 * Copyright 2021 Google LLC
@@ -23086,11 +22974,9 @@ var c$1 = e$4(class extends i$4 {
 function n$1(n, r, t) {
 	return n ? r(n) : t?.(n);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-option/vscode-option.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-option/vscode-option.styles.js
 var vscode_option_styles_default = default_styles_default;
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-option/vscode-option.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-option/vscode-option.js
 var __decorate$24 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -23140,8 +23026,7 @@ __decorate$24([n$4({
 	reflect: true
 })], VscodeOption$1.prototype, "disabled", void 0);
 VscodeOption$1 = __decorate$24([customElement("vscode-option")], VscodeOption$1);
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/vscode-select/helpers.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/vscode-select/helpers.js
 var startsWithPerTermSearch = (subject, pattern) => {
 	const result = {
 		match: false,
@@ -23255,8 +23140,7 @@ var highlightRanges = (text, ranges) => {
 	});
 	return res;
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/vscode-select/OptionListController.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/vscode-select/OptionListController.js
 var OptionListController = class {
 	constructor(host) {
 		this._activeIndex = -1;
@@ -23554,8 +23438,7 @@ var OptionListController = class {
 		this._host.requestUpdate();
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-scrollable/vscode-scrollable.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-scrollable/vscode-scrollable.styles.js
 var styles$21 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -23660,8 +23543,7 @@ var styles$21 = [default_styles_default, i$8`
       overflow: hidden;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-scrollable/vscode-scrollable.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-scrollable/vscode-scrollable.js
 var __decorate$23 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -23969,8 +23851,7 @@ __decorate$23([e$6(".scrollbar-thumb", true)], VscodeScrollable$1.prototype, "_s
 __decorate$23([e$6(".scrollable-container")], VscodeScrollable$1.prototype, "_scrollableContainer", void 0);
 __decorate$23([o$1()], VscodeScrollable$1.prototype, "_assignedElements", void 0);
 VscodeScrollable$1 = __decorate$23([customElement("vscode-scrollable")], VscodeScrollable$1);
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/vscode-select/vscode-select-base.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/vscode-select/vscode-select-base.js
 var __decorate$22 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -24513,8 +24394,7 @@ __decorate$22([r$2()], VscodeSelectBase.prototype, "_values", void 0);
 __decorate$22([r$2()], VscodeSelectBase.prototype, "_isPlaceholderOptionActive", void 0);
 __decorate$22([r$2()], VscodeSelectBase.prototype, "_isBeingFiltered", void 0);
 __decorate$22([r$2()], VscodeSelectBase.prototype, "_optionListScrollPos", void 0);
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/vscode-select/styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/vscode-select/styles.js
 var styles_default = [default_styles_default, i$8`
     :host {
       display: inline-block;
@@ -24924,11 +24804,9 @@ var styles_default = [default_styles_default, i$8`
       border-width: 0 0 1px;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-multi-select/vscode-multi-select.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-multi-select/vscode-multi-select.styles.js
 var vscode_multi_select_styles_default = styles_default;
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-multi-select/vscode-multi-select.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-multi-select/vscode-multi-select.js
 var __decorate$21 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -25289,16 +25167,14 @@ o$7({
 		onVscMultiSelectCreateOption: "vsc-multi-select-create-option"
 	}
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_02e419efff47087d8cbea8401cb5f496/node_modules/@vscode-elements/react-elements/dist/components/VscodeOption.js
+// ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_02e419efff47087d8cbea8401cb5f496/node_modules/@vscode-elements/react-elements/dist/components/VscodeOption.js
 var VscodeOption = o$7({
 	tagName: "vscode-option",
 	elementClass: VscodeOption$1,
 	react: import_react.default,
 	displayName: "VscodeOption"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-progress-bar/vscode-progress-bar.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-progress-bar/vscode-progress-bar.styles.js
 var styles$20 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -25374,8 +25250,7 @@ var styles$20 = [default_styles_default, i$8`
       }
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-progress-bar/vscode-progress-bar.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-progress-bar/vscode-progress-bar.js
 var __decorate$20 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -25499,8 +25374,7 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeProgressBar"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-progress-ring/vscode-progress-ring.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-progress-ring/vscode-progress-ring.styles.js
 var styles$19 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -25547,8 +25421,7 @@ var styles$19 = [default_styles_default, i$8`
       }
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-progress-ring/vscode-progress-ring.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-progress-ring/vscode-progress-ring.js
 var __decorate$19 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -25603,8 +25476,7 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeProgressRing"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-radio/vscode-radio.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-radio/vscode-radio.styles.js
 var styles$18 = [
 	default_styles_default,
 	base_styles_default,
@@ -25637,8 +25509,7 @@ var styles$18 = [
     }
   `
 ];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-radio/vscode-radio.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-radio/vscode-radio.js
 var __decorate$18 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -25890,8 +25761,7 @@ o$7({
 		onInvalid: "invalid"
 	}
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-radio-group/vscode-radio-group.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-radio-group/vscode-radio-group.styles.js
 var styles$17 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -25923,8 +25793,7 @@ var styles$17 = [default_styles_default, i$8`
       margin-bottom: 0;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-radio-group/vscode-radio-group.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-radio-group/vscode-radio-group.js
 var __decorate$17 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -26046,11 +25915,9 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeScrollable"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-single-select/vscode-single-select.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-single-select/vscode-single-select.styles.js
 var vscode_single_select_styles_default = styles_default;
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-single-select/vscode-single-select.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-single-select/vscode-single-select.js
 var __decorate$16 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -26357,8 +26224,7 @@ __decorate$16([n$4({
 })], VscodeSingleSelect$1.prototype, "required", void 0);
 __decorate$16([e$6(".face")], VscodeSingleSelect$1.prototype, "_face", void 0);
 VscodeSingleSelect$1 = __decorate$16([customElement("vscode-single-select")], VscodeSingleSelect$1);
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_02e419efff47087d8cbea8401cb5f496/node_modules/@vscode-elements/react-elements/dist/components/VscodeSingleSelect.js
+// ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_02e419efff47087d8cbea8401cb5f496/node_modules/@vscode-elements/react-elements/dist/components/VscodeSingleSelect.js
 var VscodeSingleSelect = o$7({
 	tagName: "vscode-single-select",
 	elementClass: VscodeSingleSelect$1,
@@ -26370,8 +26236,7 @@ var VscodeSingleSelect = o$7({
 		onVscSingleSelectCreateOption: "vsc-single-select-create-option"
 	}
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-split-layout/vscode-split-layout.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-split-layout/vscode-split-layout.styles.js
 var styles$16 = [default_styles_default, i$8`
     :host {
       --separator-border: var(--vscode-editorWidget-border, #454545);
@@ -26480,8 +26345,7 @@ var styles$16 = [default_styles_default, i$8`
       width: 100%;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-split-layout/vscode-split-layout.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-split-layout/vscode-split-layout.js
 var __decorate$15 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -26879,8 +26743,7 @@ o$7({
 	displayName: "VscodeSplitLayout",
 	events: { onVscSplitLayoutChange: "vsc-split-layout-change" }
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tab-header/vscode-tab-header.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tab-header/vscode-tab-header.styles.js
 var styles$15 = [default_styles_default, i$8`
     :host {
       cursor: pointer;
@@ -26981,8 +26844,7 @@ var styles$15 = [default_styles_default, i$8`
       margin-left: 8px;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tab-header/vscode-tab-header.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tab-header/vscode-tab-header.js
 var __decorate$14 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -27070,8 +26932,7 @@ o$7({
 	react: import_react.default,
 	displayName: "VscTabHeader"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/sizes.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/includes/sizes.js
 var px = (value) => value;
 var percent$1 = (value) => value;
 var toPercent = (px, container) => percent$1(px / container * 100);
@@ -27232,8 +27093,7 @@ var styles$14 = [default_styles_default, i$8`
       width: ${5}px;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table/calculations.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table/calculations.js
 function calculateColumnWidths(widths, splitterIndex, delta, minWidths) {
 	const result = [...widths];
 	if (delta === 0 || splitterIndex < 0 || splitterIndex >= widths.length - 1) return result;
@@ -27266,8 +27126,7 @@ function calculateColumnWidths(widths, splitterIndex, delta, minWidths) {
 	}
 	return result;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table/ColumnResizeController.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table/ColumnResizeController.js
 var ColumnResizeController = class {
 	constructor(host) {
 		this._hostWidth = px(0);
@@ -27386,8 +27245,7 @@ var ColumnResizeController = class {
 		return toPx(percent, this._hostWidth);
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table/vscode-table.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table/vscode-table.js
 var __decorate$13 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -27866,8 +27724,7 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeTable"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-body/vscode-table-body.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-body/vscode-table-body.styles.js
 var styles$13 = [default_styles_default, i$8`
     :host {
       display: table;
@@ -27883,8 +27740,7 @@ var styles$13 = [default_styles_default, i$8`
       background-color: var(--vsc-row-odd-background);
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-body/vscode-table-body.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-body/vscode-table-body.js
 var __decorate$12 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -27913,8 +27769,7 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeTableBody"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-cell/vscode-table-cell.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-cell/vscode-table-cell.styles.js
 var styles$12 = [default_styles_default, i$8`
     :host {
       border-bottom-color: var(
@@ -27962,8 +27817,7 @@ var styles$12 = [default_styles_default, i$8`
       font-weight: bold;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-cell/vscode-table-cell.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-cell/vscode-table-cell.js
 var __decorate$11 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -28017,8 +27871,7 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeTableCell"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-header/vscode-table-header.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-header/vscode-table-header.styles.js
 var styles$11 = [default_styles_default, i$8`
     :host {
       background-color: var(
@@ -28030,8 +27883,7 @@ var styles$11 = [default_styles_default, i$8`
       width: 100%;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-header/vscode-table-header.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-header/vscode-table-header.js
 var __decorate$10 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -28062,8 +27914,7 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeTableHeader"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-header-cell/vscode-table-header-cell.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-header-cell/vscode-table-header-cell.styles.js
 var styles$10 = [default_styles_default, i$8`
     :host {
       box-sizing: border-box;
@@ -28090,8 +27941,7 @@ var styles$10 = [default_styles_default, i$8`
       width: 100%;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-header-cell/vscode-table-header-cell.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-header-cell/vscode-table-header-cell.js
 var __decorate$9 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -28144,8 +27994,7 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeTableHeaderCell"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-row/vscode-table-row.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-row/vscode-table-row.styles.js
 var styles$9 = [default_styles_default, i$8`
     :host {
       border-top-color: var(
@@ -28158,8 +28007,7 @@ var styles$9 = [default_styles_default, i$8`
       width: 100%;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-row/vscode-table-row.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-table-row/vscode-table-row.js
 var __decorate$8 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -28190,8 +28038,7 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeTableRow"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tab-panel/vscode-tab-panel.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tab-panel/vscode-tab-panel.styles.js
 var styles$8 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -28209,8 +28056,7 @@ var styles$8 = [default_styles_default, i$8`
       background-color: var(--vscode-panel-background, #181818);
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tab-panel/vscode-tab-panel.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tab-panel/vscode-tab-panel.js
 var __decorate$7 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -28267,8 +28113,7 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeTabPanel"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tabs/vscode-tabs.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tabs/vscode-tabs.styles.js
 var styles$7 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -28307,8 +28152,7 @@ var styles$7 = [default_styles_default, i$8`
       margin-left: auto;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tabs/vscode-tabs.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tabs/vscode-tabs.js
 var __decorate$6 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -28465,8 +28309,7 @@ o$7({
 	events: { onVscTabsSelect: "vsc-tabs-select" },
 	displayName: "VscodeTabs"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-textarea/vscode-textarea.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-textarea/vscode-textarea.styles.js
 var styles$6 = [default_styles_default, i$8`
     :host {
       display: inline-block;
@@ -28599,8 +28442,7 @@ var styles$6 = [default_styles_default, i$8`
       background-position: right bottom;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-textarea/vscode-textarea.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-textarea/vscode-textarea.js
 var __decorate$5 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -28867,8 +28709,7 @@ __decorate$5([r$2()], VscodeTextarea$1.prototype, "_value", void 0);
 __decorate$5([r$2()], VscodeTextarea$1.prototype, "_textareaPointerCursor", void 0);
 __decorate$5([r$2()], VscodeTextarea$1.prototype, "_shadow", void 0);
 VscodeTextarea$1 = __decorate$5([customElement("vscode-textarea")], VscodeTextarea$1);
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_02e419efff47087d8cbea8401cb5f496/node_modules/@vscode-elements/react-elements/dist/components/VscodeTextarea.js
+// ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_02e419efff47087d8cbea8401cb5f496/node_modules/@vscode-elements/react-elements/dist/components/VscodeTextarea.js
 var VscodeTextarea = o$7({
 	tagName: "vscode-textarea",
 	elementClass: VscodeTextarea$1,
@@ -28880,8 +28721,7 @@ var VscodeTextarea = o$7({
 		onInvalid: "invalid"
 	}
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-textfield/vscode-textfield.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-textfield/vscode-textfield.styles.js
 var defaultFontStack = r$6(getDefaultFontStack());
 var styles$5 = [default_styles_default, i$8`
     :host {
@@ -28988,8 +28828,7 @@ var styles$5 = [default_styles_default, i$8`
       background-color: var(--vscode-button-hoverBackground, #026ec1);
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-textfield/vscode-textfield.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-textfield/vscode-textfield.js
 var __decorate$4 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -29304,8 +29143,7 @@ o$7({
 		onInvalid: "invalid"
 	}
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-toolbar-button/vscode-toolbar-button.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-toolbar-button/vscode-toolbar-button.styles.js
 var styles$4 = [default_styles_default, i$8`
     :host {
       display: inline-flex;
@@ -29376,8 +29214,7 @@ var styles$4 = [default_styles_default, i$8`
       padding: 0 5px;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-toolbar-button/vscode-toolbar-button.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-toolbar-button/vscode-toolbar-button.js
 var __decorate$3 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -29450,8 +29287,7 @@ o$7({
 	displayName: "VscodeToolbarButton",
 	events: { onChange: "change" }
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-toolbar-container/vscode-toolbar-container.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-toolbar-container/vscode-toolbar-container.styles.js
 var styles$3 = [default_styles_default, i$8`
     :host {
       display: block;
@@ -29463,8 +29299,7 @@ var styles$3 = [default_styles_default, i$8`
       align-items: center;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-toolbar-container/vscode-toolbar-container.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-toolbar-container/vscode-toolbar-container.js
 var __decorate$2 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -29489,8 +29324,7 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeToolbarContainer"
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@lit+context@1.1.6/node_modules/@lit/context/lib/context-request-event.js
+// ../../node_modules/.pnpm/@lit+context@1.1.6/node_modules/@lit/context/lib/context-request-event.js
 /**
 * @license
 * Copyright 2021 Google LLC
@@ -29504,8 +29338,7 @@ var s$2 = class extends Event {
 		}), this.context = s, this.contextTarget = t, this.callback = e, this.subscribe = o ?? !1;
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@lit+context@1.1.6/node_modules/@lit/context/lib/create-context.js
+// ../../node_modules/.pnpm/@lit+context@1.1.6/node_modules/@lit/context/lib/create-context.js
 /**
 * @license
 * Copyright 2021 Google LLC
@@ -29514,8 +29347,7 @@ var s$2 = class extends Event {
 function n(n) {
 	return n;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@lit+context@1.1.6/node_modules/@lit/context/lib/controllers/context-consumer.js
+// ../../node_modules/.pnpm/@lit+context@1.1.6/node_modules/@lit/context/lib/controllers/context-consumer.js
 /**
 * @license
 * Copyright 2021 Google LLC
@@ -29540,8 +29372,7 @@ function n(n) {
 		this.host.dispatchEvent(new s$2(this.context, this.host, this.t, this.subscribe));
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@lit+context@1.1.6/node_modules/@lit/context/lib/value-notifier.js
+// ../../node_modules/.pnpm/@lit+context@1.1.6/node_modules/@lit/context/lib/value-notifier.js
 /**
 * @license
 * Copyright 2021 Google LLC
@@ -29578,8 +29409,7 @@ var s = class {
 		this.subscriptions.clear();
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@lit+context@1.1.6/node_modules/@lit/context/lib/controllers/context-provider.js
+// ../../node_modules/.pnpm/@lit+context@1.1.6/node_modules/@lit/context/lib/controllers/context-provider.js
 /**
 * @license
 * Copyright 2021 Google LLC
@@ -29613,8 +29443,7 @@ var i$2 = class extends s {
 		this.host.dispatchEvent(new e$1(this.context, this.host));
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@lit+context@1.1.6/node_modules/@lit/context/lib/decorators/provide.js
+// ../../node_modules/.pnpm/@lit+context@1.1.6/node_modules/@lit/context/lib/decorators/provide.js
 /**
 * @license
 * Copyright 2017 Google LLC
@@ -29668,8 +29497,7 @@ var i$2 = class extends s {
 		}
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@lit+context@1.1.6/node_modules/@lit/context/lib/decorators/consume.js
+// ../../node_modules/.pnpm/@lit+context@1.1.6/node_modules/@lit/context/lib/decorators/consume.js
 /**
 * @license
 * Copyright 2022 Google LLC
@@ -29695,8 +29523,7 @@ var i$2 = class extends s {
 		}));
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree/vscode-tree.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree/vscode-tree.styles.js
 var styles$2 = [default_styles_default, i$8`
     :host {
       --vsc-tree-item-arrow-display: flex;
@@ -29751,12 +29578,10 @@ var styles$2 = [default_styles_default, i$8`
       --internal-highlightedIndentGuideDisplay: block;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree/tree-context.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree/tree-context.js
 var treeContext = n("vscode-list");
 var configContext = n(Symbol("configContext"));
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree/helpers.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree/helpers.js
 var isTreeItem = (item) => item instanceof Element && item.matches("vscode-tree-item");
 var isTreeRoot = (item) => item instanceof Element && item.matches("vscode-tree");
 var initPathTrackerProps = (parentElement, items) => {
@@ -29821,8 +29646,7 @@ function findParentItem(childItem) {
 	if (!isTreeItem(childItem.parentElement)) return null;
 	return childItem.parentElement;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree/vscode-tree.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree/vscode-tree.js
 var __decorate$1 = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -30179,8 +30003,7 @@ o$7({
 	displayName: "VscodeTree",
 	events: { onVscTreeSelect: "vsc-tree-select" }
 });
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree-item/vscode-tree-item.styles.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree-item/vscode-tree-item.styles.js
 var styles$1 = [default_styles_default, i$8`
     :host {
       --hover-outline-color: transparent;
@@ -30470,8 +30293,7 @@ var styles$1 = [default_styles_default, i$8`
       display: block;
     }
   `];
-//#endregion
-//#region ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree-item/vscode-tree-item.js
+// ../../node_modules/.pnpm/@vscode-elements+elements@2.5.1_@vscode+codicons@0.0.45/node_modules/@vscode-elements/elements/dist/vscode-tree-item/vscode-tree-item.js
 var __decorate = function(decorators, target, key, desc) {
 	var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
 	if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -31016,8 +30838,7 @@ var Modal_module_default = {
 	noPadding: "_noPadding_1hn8l_82",
 	footer: "_footer_1hn8l_86"
 };
-//#endregion
-//#region ../../packages/react/src/components/Modal.tsx
+// ../../packages/react/src/components/Modal.tsx
 var TABBABLE_SELECTOR = "a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex=\"-1\"])";
 var tabbableElements = (container) => Array.from(container.querySelectorAll(TABBABLE_SELECTOR)).filter((el) => el.getAttribute("aria-hidden") !== "true");
 var TEXT_INPUT_SELECTOR = "input:not([type=\"button\"]):not([type=\"checkbox\"]):not([type=\"color\"]):not([type=\"file\"]):not([type=\"image\"]):not([type=\"radio\"]):not([type=\"range\"]):not([type=\"reset\"]):not([type=\"submit\"]),textarea,vscode-textfield";
@@ -31227,8 +31048,7 @@ var Modal = (t0) => {
 	} else t19 = $[41];
 	return t19;
 };
-//#endregion
-//#region ../../packages/react/src/components/EmptyPanel.tsx
+// ../../packages/react/src/components/EmptyPanel.tsx
 var EmptyPanel = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(2);
 	const { children } = t0;
@@ -31246,8 +31066,7 @@ var EmptyPanel = (t0) => {
 	} else t1 = $[1];
 	return t1;
 };
-//#endregion
-//#region ../../packages/react/src/components/ExtendedFindContext.tsx
+// ../../packages/react/src/components/ExtendedFindContext.tsx
 var ExtendedFindContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 var ExtendedFindProvider = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(10);
@@ -31365,8 +31184,7 @@ var useExtendedFind = () => {
 *  that integrate with find when available but must not require it. */ var useExtendedFindOptional = () => {
 	return (0, import_react.useContext)(ExtendedFindContext);
 };
-//#endregion
-//#region ../../packages/react/src/hooks/usePrismHighlight.ts
+// ../../packages/react/src/hooks/usePrismHighlight.ts
 var kPrismRenderMaxSize = 25e4;
 var prism = onDemandModule(() => __vitePreload(() => import("./prismHighlighter.js"), __vite__mapDeps([9,1,10]), import.meta.url));
 var highlightCodeBlocks = (container, highlightElement) => {
@@ -31397,13 +31215,13 @@ var usePrismHighlight = (containerRef, contentLength) => {
 					if (!cancelled) highlightCodeBlocks(container, highlightElement);
 				});
 				observer = new MutationObserver((mutations) => {
-					if (mutations.some(_temp2$62)) highlightCodeBlocks(container, highlightElement);
+					if (mutations.some(_temp2$63)) highlightCodeBlocks(container, highlightElement);
 				});
 				observer.observe(container, {
 					childList: true,
 					subtree: true
 				});
-			}).catch(_temp3$42);
+			}).catch(_temp3$43);
 			return () => {
 				cancelled = true;
 				observer?.disconnect();
@@ -31425,23 +31243,22 @@ var usePrismHighlight = (containerRef, contentLength) => {
 	}
 	(0, import_react.useLayoutEffect)(t0, t1);
 };
-function _temp$109(node) {
+function _temp$112(node) {
 	if (node instanceof Element) return node.querySelector("pre code") || node.matches("pre code");
 	return false;
 }
-function _temp2$62(mutation) {
-	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$109);
+function _temp2$63(mutation) {
+	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$112);
 	return false;
 }
-function _temp3$42(error) {
+function _temp3$43(error) {
 	console.error("Unable to load syntax highlighting", error);
 }
 var JsonPanel_module_default = {
 	jsonPanel: "_jsonPanel_1ssvw_1",
 	simple: "_simple_1ssvw_6"
 };
-//#endregion
-//#region ../../packages/react/src/components/JsonPanel.tsx
+// ../../packages/react/src/components/JsonPanel.tsx
 var kMaxStringValueDisplay = 1048576;
 var JSONPanel = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(13);
@@ -31532,8 +31349,7 @@ var LabeledValue_module_default = {
 	column: "_column_6obbb_10",
 	labeledValueLabel: "_labeledValueLabel_6obbb_14"
 };
-//#endregion
-//#region ../../packages/react/src/components/LabeledValue.tsx
+// ../../packages/react/src/components/LabeledValue.tsx
 var LabeledValue = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(18);
 	const { layout: t1, style, label, children, valueStyle, className } = t0;
@@ -31602,8 +31418,7 @@ var LoadingBar_module_default = {
 	animate: "_animate_1tajk_21",
 	leftToRight: "_leftToRight_1tajk_1"
 };
-//#endregion
-//#region ../../packages/react/src/components/LoadingBar.tsx
+// ../../packages/react/src/components/LoadingBar.tsx
 var LoadingBar = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(7);
 	const { loading } = t0;
@@ -31645,8 +31460,7 @@ var LoadingBar = (t0) => {
 	} else t5 = $[6];
 	return t5;
 };
-//#endregion
-//#region ../../packages/react/src/components/MarkdownDiv.tsx
+// ../../packages/react/src/components/MarkdownDiv.tsx
 var markdownPipeline = onDemandModule(() => __vitePreload(() => import("./markdownPipeline.js"), __vite__mapDeps([11,1,12,13,14]), import.meta.url));
 var sanitizeMarkdown = (md) => {
 	return escapeHtmlCharacters(md).replace(/\n/g, "<br/>");
@@ -31803,7 +31617,7 @@ var RichMarkdownDiv = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 				(0, import_react.startTransition)(() => {
 					setRenderedHtml(applyPostProcess(sanitizedResult));
 				});
-			}).catch(_temp$108);
+			}).catch(_temp$111);
 			return () => {
 				cancel();
 			};
@@ -31919,7 +31733,7 @@ var MarkdownRenderQueue = class {
 	}
 };
 var renderQueue = new MarkdownRenderQueue(10);
-function _temp$108(error) {
+function _temp$111(error) {
 	console.error("Markdown rendering error:", error);
 }
 var NoContentsPanel_module_default = {
@@ -31928,8 +31742,7 @@ var NoContentsPanel_module_default = {
 	ellipsis: "_ellipsis_tison_14",
 	"ncp-ellipsis": "_ncp-ellipsis_tison_1"
 };
-//#endregion
-//#region ../../packages/react/src/components/NoContentsPanel.tsx
+// ../../packages/react/src/components/NoContentsPanel.tsx
 var NoContentsPanel = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(13);
 	const { text, icon, busy } = t0;
@@ -31987,8 +31800,7 @@ var NoContentsPanel = (t0) => {
 	} else t6 = $[12];
 	return t6;
 };
-//#endregion
-//#region ../../node_modules/.pnpm/react-popper@2.3.0_@popperjs+core@2.11.8_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/react-popper/lib/esm/utils.js
+// ../../node_modules/.pnpm/react-popper@2.3.0_@popperjs+core@2.11.8_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/react-popper/lib/esm/utils.js
 /**
 * Simple ponyfill for Object.fromEntries
 */
@@ -32039,13 +31851,11 @@ var modifierPhases = [
 	"write",
 	"afterWrite"
 ];
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getNodeName.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getNodeName.js
 function getNodeName(element) {
 	return element ? (element.nodeName || "").toLowerCase() : null;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getWindow.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getWindow.js
 function getWindow(node) {
 	if (node == null) return window;
 	if (node.toString() !== "[object Window]") {
@@ -32054,8 +31864,7 @@ function getWindow(node) {
 	}
 	return node;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/instanceOf.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/instanceOf.js
 function isElement(node) {
 	return node instanceof getWindow(node).Element || node instanceof Element;
 }
@@ -32066,8 +31875,7 @@ function isShadowRoot(node) {
 	if (typeof ShadowRoot === "undefined") return false;
 	return node instanceof getWindow(node).ShadowRoot || node instanceof ShadowRoot;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/applyStyles.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/applyStyles.js
 function applyStyles(_ref) {
 	var state = _ref.state;
 	Object.keys(state.elements).forEach(function(name) {
@@ -32122,18 +31930,15 @@ var applyStyles_default = {
 	effect: effect$3,
 	requires: ["computeStyles"]
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getBasePlacement.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getBasePlacement.js
 function getBasePlacement(placement) {
 	return placement.split("-")[0];
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/math.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/math.js
 var max$1 = Math.max;
 var min = Math.min;
 var round = Math.round;
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/userAgent.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/userAgent.js
 function getUAString() {
 	var uaData = navigator.userAgentData;
 	if (uaData != null && uaData.brands && Array.isArray(uaData.brands)) return uaData.brands.map(function(item) {
@@ -32141,13 +31946,11 @@ function getUAString() {
 	}).join(" ");
 	return navigator.userAgent;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/isLayoutViewport.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/isLayoutViewport.js
 function isLayoutViewport() {
 	return !/^((?!chrome|android).)*safari/i.test(getUAString());
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getBoundingClientRect.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getBoundingClientRect.js
 function getBoundingClientRect(element, includeScale, isFixedStrategy) {
 	if (includeScale === void 0) includeScale = false;
 	if (isFixedStrategy === void 0) isFixedStrategy = false;
@@ -32175,8 +31978,7 @@ function getBoundingClientRect(element, includeScale, isFixedStrategy) {
 		y
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getLayoutRect.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getLayoutRect.js
 function getLayoutRect(element) {
 	var clientRect = getBoundingClientRect(element);
 	var width = element.offsetWidth;
@@ -32190,8 +31992,7 @@ function getLayoutRect(element) {
 		height
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/contains.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/contains.js
 function contains$1(parent, child) {
 	var rootNode = child.getRootNode && child.getRootNode();
 	if (parent.contains(child)) return true;
@@ -32204,13 +32005,11 @@ function contains$1(parent, child) {
 	}
 	return false;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getComputedStyle.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getComputedStyle.js
 function getComputedStyle$1(element) {
 	return getWindow(element).getComputedStyle(element);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/isTableElement.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/isTableElement.js
 function isTableElement(element) {
 	return [
 		"table",
@@ -32218,19 +32017,16 @@ function isTableElement(element) {
 		"th"
 	].indexOf(getNodeName(element)) >= 0;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getDocumentElement.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getDocumentElement.js
 function getDocumentElement(element) {
 	return ((isElement(element) ? element.ownerDocument : element.document) || window.document).documentElement;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getParentNode.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getParentNode.js
 function getParentNode(element) {
 	if (getNodeName(element) === "html") return element;
 	return element.assignedSlot || element.parentNode || (isShadowRoot(element) ? element.host : null) || getDocumentElement(element);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getOffsetParent.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getOffsetParent.js
 function getTrueOffsetParent(element) {
 	if (!isHTMLElement(element) || getComputedStyle$1(element).position === "fixed") return null;
 	return element.offsetParent;
@@ -32256,13 +32052,11 @@ function getOffsetParent(element) {
 	if (offsetParent && (getNodeName(offsetParent) === "html" || getNodeName(offsetParent) === "body" && getComputedStyle$1(offsetParent).position === "static")) return window;
 	return offsetParent || getContainingBlock(element) || window;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getMainAxisFromPlacement.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getMainAxisFromPlacement.js
 function getMainAxisFromPlacement(placement) {
 	return ["top", "bottom"].indexOf(placement) >= 0 ? "x" : "y";
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/within.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/within.js
 function within(min$2, value, max) {
 	return max$1(min$2, min(value, max));
 }
@@ -32270,8 +32064,7 @@ function withinMaxClamp(min, value, max) {
 	var v = within(min, value, max);
 	return v > max ? max : v;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getFreshSideObject.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getFreshSideObject.js
 function getFreshSideObject() {
 	return {
 		top: 0,
@@ -32280,21 +32073,18 @@ function getFreshSideObject() {
 		left: 0
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/mergePaddingObject.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/mergePaddingObject.js
 function mergePaddingObject(paddingObject) {
 	return Object.assign({}, getFreshSideObject(), paddingObject);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/expandToHashMap.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/expandToHashMap.js
 function expandToHashMap(value, keys) {
 	return keys.reduce(function(hashMap, key) {
 		hashMap[key] = value;
 		return hashMap;
 	}, {});
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/arrow.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/arrow.js
 var toPaddingObject = function toPaddingObject(padding, state) {
 	padding = typeof padding === "function" ? padding(Object.assign({}, state.rects, { placement: state.placement })) : padding;
 	return mergePaddingObject(typeof padding !== "number" ? padding : expandToHashMap(padding, basePlacements));
@@ -32344,13 +32134,11 @@ var arrow_default = {
 	requires: ["popperOffsets"],
 	requiresIfExists: ["preventOverflow"]
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getVariation.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getVariation.js
 function getVariation(placement) {
 	return placement.split("-")[1];
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/computeStyles.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/computeStyles.js
 var unsetSides = {
 	top: "auto",
 	right: "auto",
@@ -32456,8 +32244,7 @@ var computeStyles_default = {
 	fn: computeStyles,
 	data: {}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/eventListeners.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/eventListeners.js
 var passive = { passive: true };
 function effect$1(_ref) {
 	var state = _ref.state, instance = _ref.instance, options = _ref.options;
@@ -32483,8 +32270,7 @@ var eventListeners_default = {
 	effect: effect$1,
 	data: {}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getOppositePlacement.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getOppositePlacement.js
 var hash$1 = {
 	left: "right",
 	right: "left",
@@ -32496,8 +32282,7 @@ function getOppositePlacement(placement) {
 		return hash$1[matched];
 	});
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getOppositeVariationPlacement.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getOppositeVariationPlacement.js
 var hash = {
 	start: "end",
 	end: "start"
@@ -32507,8 +32292,7 @@ function getOppositeVariationPlacement(placement) {
 		return hash[matched];
 	});
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getWindowScroll.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getWindowScroll.js
 function getWindowScroll(node) {
 	var win = getWindow(node);
 	return {
@@ -32516,13 +32300,11 @@ function getWindowScroll(node) {
 		scrollTop: win.pageYOffset
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getWindowScrollBarX.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getWindowScrollBarX.js
 function getWindowScrollBarX(element) {
 	return getBoundingClientRect(getDocumentElement(element)).left + getWindowScroll(element).scrollLeft;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getViewportRect.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getViewportRect.js
 function getViewportRect(element, strategy) {
 	var win = getWindow(element);
 	var html = getDocumentElement(element);
@@ -32547,8 +32329,7 @@ function getViewportRect(element, strategy) {
 		y
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getDocumentRect.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getDocumentRect.js
 function getDocumentRect(element) {
 	var _element$ownerDocumen;
 	var html = getDocumentElement(element);
@@ -32566,14 +32347,12 @@ function getDocumentRect(element) {
 		y
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/isScrollParent.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/isScrollParent.js
 function isScrollParent(element) {
 	var _getComputedStyle = getComputedStyle$1(element), overflow = _getComputedStyle.overflow, overflowX = _getComputedStyle.overflowX, overflowY = _getComputedStyle.overflowY;
 	return /auto|scroll|overlay|hidden/.test(overflow + overflowY + overflowX);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getScrollParent.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getScrollParent.js
 function getScrollParent(node) {
 	if ([
 		"html",
@@ -32583,8 +32362,7 @@ function getScrollParent(node) {
 	if (isHTMLElement(node) && isScrollParent(node)) return node;
 	return getScrollParent(getParentNode(node));
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/listScrollParents.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/listScrollParents.js
 function listScrollParents(element, list) {
 	var _element$ownerDocumen;
 	if (list === void 0) list = [];
@@ -32595,8 +32373,7 @@ function listScrollParents(element, list) {
 	var updatedList = list.concat(target);
 	return isBody ? updatedList : updatedList.concat(listScrollParents(getParentNode(target)));
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/rectToClientRect.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/rectToClientRect.js
 function rectToClientRect(rect) {
 	return Object.assign({}, rect, {
 		left: rect.x,
@@ -32605,8 +32382,7 @@ function rectToClientRect(rect) {
 		bottom: rect.y + rect.height
 	});
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getClippingRect.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getClippingRect.js
 function getInnerBoundingClientRect(element, strategy) {
 	var rect = getBoundingClientRect(element, false, strategy === "fixed");
 	rect.top = rect.top + element.clientTop;
@@ -32648,8 +32424,7 @@ function getClippingRect(element, boundary, rootBoundary, strategy) {
 	clippingRect.y = clippingRect.top;
 	return clippingRect;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/computeOffsets.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/computeOffsets.js
 function computeOffsets(_ref) {
 	var reference = _ref.reference, element = _ref.element, placement = _ref.placement;
 	var basePlacement = placement ? getBasePlacement(placement) : null;
@@ -32699,8 +32474,7 @@ function computeOffsets(_ref) {
 	}
 	return offsets;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/detectOverflow.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/detectOverflow.js
 function detectOverflow(state, options) {
 	if (options === void 0) options = {};
 	var _options = options, _options$placement = _options.placement, placement = _options$placement === void 0 ? state.placement : _options$placement, _options$strategy = _options.strategy, strategy = _options$strategy === void 0 ? state.strategy : _options$strategy, _options$boundary = _options.boundary, boundary = _options$boundary === void 0 ? clippingParents : _options$boundary, _options$rootBoundary = _options.rootBoundary, rootBoundary = _options$rootBoundary === void 0 ? viewport : _options$rootBoundary, _options$elementConte = _options.elementContext, elementContext = _options$elementConte === void 0 ? popper : _options$elementConte, _options$altBoundary = _options.altBoundary, altBoundary = _options$altBoundary === void 0 ? false : _options$altBoundary, _options$padding = _options.padding, padding = _options$padding === void 0 ? 0 : _options$padding;
@@ -32735,8 +32509,7 @@ function detectOverflow(state, options) {
 	}
 	return overflowOffsets;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/computeAutoPlacement.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/computeAutoPlacement.js
 function computeAutoPlacement(state, options) {
 	if (options === void 0) options = {};
 	var _options = options, placement = _options.placement, boundary = _options.boundary, rootBoundary = _options.rootBoundary, padding = _options.padding, flipVariations = _options.flipVariations, _options$allowedAutoP = _options.allowedAutoPlacements, allowedAutoPlacements = _options$allowedAutoP === void 0 ? placements : _options$allowedAutoP;
@@ -32761,8 +32534,7 @@ function computeAutoPlacement(state, options) {
 		return overflows[a] - overflows[b];
 	});
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/flip.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/flip.js
 function getExpandedFallbackPlacements(placement) {
 	if (getBasePlacement(placement) === "auto") return [];
 	var oppositePlacement = getOppositePlacement(placement);
@@ -32852,8 +32624,7 @@ var flip_default = {
 	requiresIfExists: ["offset"],
 	data: { _skip: false }
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/hide.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/hide.js
 function getSideOffsets(overflow, rect, preventedOffsets) {
 	if (preventedOffsets === void 0) preventedOffsets = {
 		x: 0,
@@ -32905,8 +32676,7 @@ var hide_default = {
 	requiresIfExists: ["preventOverflow"],
 	fn: hide
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/offset.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/offset.js
 function distanceAndSkiddingToXY(placement, rects, offset) {
 	var basePlacement = getBasePlacement(placement);
 	var invertDistance = ["left", "top"].indexOf(basePlacement) >= 0 ? -1 : 1;
@@ -32942,8 +32712,7 @@ var offset_default = {
 	requires: ["popperOffsets"],
 	fn: offset
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/popperOffsets.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/popperOffsets.js
 function popperOffsets(_ref) {
 	var state = _ref.state, name = _ref.name;
 	state.modifiersData[name] = computeOffsets({
@@ -32960,13 +32729,11 @@ var popperOffsets_default = {
 	fn: popperOffsets,
 	data: {}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getAltAxis.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getAltAxis.js
 function getAltAxis(axis) {
 	return axis === "x" ? "y" : "x";
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/preventOverflow.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/preventOverflow.js
 function preventOverflow(_ref) {
 	var state = _ref.state, options = _ref.options, name = _ref.name;
 	var _options$mainAxis = options.mainAxis, checkMainAxis = _options$mainAxis === void 0 ? true : _options$mainAxis, _options$altAxis = options.altAxis, checkAltAxis = _options$altAxis === void 0 ? false : _options$altAxis, boundary = options.boundary, rootBoundary = options.rootBoundary, altBoundary = options.altBoundary, padding = options.padding, _options$tether = options.tether, tether = _options$tether === void 0 ? true : _options$tether, _options$tetherOffset = options.tetherOffset, tetherOffset = _options$tetherOffset === void 0 ? 0 : _options$tetherOffset;
@@ -33054,22 +32821,19 @@ var preventOverflow_default = {
 	fn: preventOverflow,
 	requiresIfExists: ["offset"]
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getHTMLElementScroll.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getHTMLElementScroll.js
 function getHTMLElementScroll(element) {
 	return {
 		scrollLeft: element.scrollLeft,
 		scrollTop: element.scrollTop
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getNodeScroll.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getNodeScroll.js
 function getNodeScroll(node) {
 	if (node === getWindow(node) || !isHTMLElement(node)) return getWindowScroll(node);
 	else return getHTMLElementScroll(node);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getCompositeRect.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getCompositeRect.js
 function isElementScaled(element) {
 	var rect = element.getBoundingClientRect();
 	var scaleX = round(rect.width) / element.offsetWidth || 1;
@@ -33105,8 +32869,7 @@ function getCompositeRect(elementOrVirtualElement, offsetParent, isFixed) {
 		height: rect.height
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/orderModifiers.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/orderModifiers.js
 function order(modifiers) {
 	var map = /* @__PURE__ */ new Map();
 	var visited = /* @__PURE__ */ new Set();
@@ -33137,8 +32900,7 @@ function orderModifiers(modifiers) {
 		}));
 	}, []);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/debounce.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/debounce.js
 function debounce$2(fn) {
 	var pending;
 	return function() {
@@ -33151,8 +32913,7 @@ function debounce$2(fn) {
 		return pending;
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/mergeByName.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/mergeByName.js
 function mergeByName(modifiers) {
 	var merged = modifiers.reduce(function(merged, current) {
 		var existing = merged[current.name];
@@ -33166,8 +32927,7 @@ function mergeByName(modifiers) {
 		return merged[key];
 	});
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/createPopper.js
+// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/createPopper.js
 var DEFAULT_OPTIONS = {
 	placement: "bottom",
 	modifiers: [],
@@ -33292,8 +33052,7 @@ var createPopper = /*#__PURE__*/ popperGenerator({ defaultModifiers: [
 	arrow_default,
 	hide_default
 ] });
-//#endregion
-//#region ../../node_modules/.pnpm/react-popper@2.3.0_@popperjs+core@2.11.8_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/react-popper/lib/esm/usePopper.js
+// ../../node_modules/.pnpm/react-popper@2.3.0_@popperjs+core@2.11.8_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/react-popper/lib/esm/usePopper.js
 var import_react_fast_compare = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var hasElementType = typeof Element !== "undefined";
 	var hasMap = typeof Map === "function";
@@ -33449,8 +33208,7 @@ var usePopper = function usePopper(referenceElement, popperElement, options) {
 		forceUpdate: popperInstanceRef.current ? popperInstanceRef.current.forceUpdate : null
 	};
 };
-//#endregion
-//#region ../../packages/react/src/components/PopOver.tsx
+// ../../packages/react/src/components/PopOver.tsx
 /**
 * A controlled Popper component for displaying content relative to a reference element
 */ var PopOver = ({ id, isOpen, setIsOpen, positionEl, children, placement = "bottom", showArrow = true, offset = [0, 8], className = "", arrowClassName = "", usePortal = true, hoverDelay = 250, closeOnMouseLeave = true, styles = {} }) => {
@@ -33863,8 +33621,7 @@ var usePopper = function usePopper(referenceElement, popperElement, options) {
 	if (usePortal && portalContainer) return /*#__PURE__*/ (0, import_react_dom.createPortal)(popperContent, portalContainer);
 	return popperContent;
 };
-//#endregion
-//#region ../../packages/react/src/components/prepareSearchTerm.ts
+// ../../packages/react/src/components/prepareSearchTerm.ts
 /**
 * Normalize a user-entered search term into the lower-cased variants the
 * extended-find subsystem matches against. Quoted/JSON-ish source text
@@ -33880,8 +33637,7 @@ var usePopper = function usePopper(referenceElement, popperElement, options) {
 	};
 }
 var Preformatted_module_default = { content: "_content_13ihw_1" };
-//#endregion
-//#region ../../packages/react/src/components/Preformatted.tsx
+// ../../packages/react/src/components/Preformatted.tsx
 var Preformatted = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 	const $ = (0, import_compiler_runtime.c)(7);
 	const { text, style, className } = t0;
@@ -33914,8 +33670,7 @@ var ProgressBar_module_default = {
 	outer: "_outer_1n7pm_11",
 	inner: "_inner_1n7pm_20"
 };
-//#endregion
-//#region ../../packages/react/src/components/ProgressBar.tsx
+// ../../packages/react/src/components/ProgressBar.tsx
 var ProgressBar = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(18);
 	const { min, max, value, label, width: t1 } = t0;
@@ -34003,8 +33758,7 @@ var RailDock_module_default = {
 	rail: "_rail_ts678_6",
 	railSticky: "_railSticky_ts678_11"
 };
-//#endregion
-//#region ../../packages/react/src/hooks/useElementHeight.ts
+// ../../packages/react/src/hooks/useElementHeight.ts
 /**
 * Tracks an element's on-screen height via ResizeObserver (plus a window
 * resize listener for viewport-driven changes the observer can miss).
@@ -34056,8 +33810,7 @@ var ResizablePanel_module_default = {
 	resizer: "_resizer_1538e_10",
 	panel: "_panel_1538e_47"
 };
-//#endregion
-//#region ../../packages/react/src/components/ResizablePanel.tsx
+// ../../packages/react/src/components/ResizablePanel.tsx
 /**
 * A side panel with a draggable left-edge resizer and independent sticky
 * scroll. Renders as a fragment — a full-height 1px divider hosting the
@@ -34174,8 +33927,7 @@ var ResizablePanel_module_default = {
 	} else t13 = $[21];
 	return t13;
 };
-//#endregion
-//#region ../../packages/react/src/components/RailDock.tsx
+// ../../packages/react/src/components/RailDock.tsx
 /**
 * An always-visible vertical rail with an optional resizable panel docked to
 * its left, separated from the content by a 1px divider. Renders as a
@@ -34272,8 +34024,7 @@ var ActivityRail_module_default = {
 	icon: "_icon_1llfi_41",
 	label: "_label_1llfi_46"
 };
-//#endregion
-//#region ../../packages/react/src/components/ActivityRail.tsx
+// ../../packages/react/src/components/ActivityRail.tsx
 /**
 * Vertical activity bar (VS Code style) hosting sidebar entries. Always
 * visible; the active item's panel opens to its left.
@@ -34333,8 +34084,7 @@ var ActivityRail_module_default = {
 	} else t3 = $[11];
 	return t3;
 };
-//#endregion
-//#region ../../packages/react/src/components/inAppLink.tsx
+// ../../packages/react/src/components/inAppLink.tsx
 /**
 * True for a click the browser turns into "open link in a new tab/window"
 * (cmd/ctrl/shift-click, middle-click). An in-app link leaves these to the
@@ -34415,8 +34165,7 @@ var SegmentedControl_module_default = {
 	compact: "_compact_116ql_42",
 	disabled: "_disabled_116ql_51"
 };
-//#endregion
-//#region ../../packages/react/src/components/SegmentedControl.tsx
+// ../../packages/react/src/components/SegmentedControl.tsx
 var SegmentedControl = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(15);
 	const { id, segments, onSegmentChange, selectedId, compact: t1 } = t0;
@@ -34496,8 +34245,7 @@ var SidebarHeader_module_default = {
 	headerActions: "_headerActions_2b98m_29",
 	closeButton: "_closeButton_2b98m_35"
 };
-//#endregion
-//#region ../../packages/react/src/components/SidebarHeader.tsx
+// ../../packages/react/src/components/SidebarHeader.tsx
 var SidebarHeader = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(15);
 	const { icon, title, secondary, actions, onClose } = t0;
@@ -34564,8 +34312,7 @@ var SidebarHeader = (t0) => {
 	} else t5 = $[14];
 	return t5;
 };
-//#endregion
-//#region ../../packages/react/src/hooks/useMapAsyncData.ts
+// ../../packages/react/src/hooks/useMapAsyncData.ts
 function useMapAsyncData(input, transform, errorTransform) {
 	const $ = (0, import_compiler_runtime.c)(10);
 	let t0;
@@ -34623,22 +34370,18 @@ function useMapAsyncData(input, transform, errorTransform) {
 	}
 	return t0;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/_freeGlobal.js
+// ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/_freeGlobal.js
 /** Detect free variable `global` from Node.js. */
 var freeGlobal = typeof global == "object" && global && global.Object === Object && global;
-//#endregion
-//#region ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/_root.js
+// ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/_root.js
 /** Detect free variable `self`. */
 var freeSelf = typeof self == "object" && self && self.Object === Object && self;
 /** Used as a reference to the global object. */
 var root$7 = freeGlobal || freeSelf || Function("return this")();
-//#endregion
-//#region ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/_Symbol.js
+// ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/_Symbol.js
 /** Built-in value references. */
 var Symbol$1 = root$7.Symbol;
-//#endregion
-//#region ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/_getRawTag.js
+// ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/_getRawTag.js
 /** Used for built-in method references. */
 var objectProto = Object.prototype;
 /** Used to check objects for own properties. */
@@ -34671,8 +34414,7 @@ function getRawTag(value) {
 	}
 	return result;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/_objectToString.js
+// ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/_objectToString.js
 /**
 * Used to resolve the
 * [`toStringTag`](http://ecma-international.org/ecma-262/7.0/#sec-object.prototype.tostring)
@@ -34689,8 +34431,7 @@ var nativeObjectToString = Object.prototype.toString;
 function objectToString(value) {
 	return nativeObjectToString.call(value);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/_baseGetTag.js
+// ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/_baseGetTag.js
 /** `Object#toString` result references. */
 var nullTag = "[object Null]";
 var undefinedTag = "[object Undefined]";
@@ -34707,8 +34448,7 @@ function baseGetTag(value) {
 	if (value == null) return value === void 0 ? undefinedTag : nullTag;
 	return symToStringTag && symToStringTag in Object(value) ? getRawTag(value) : objectToString(value);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/isObjectLike.js
+// ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/isObjectLike.js
 /**
 * Checks if `value` is object-like. A value is object-like if it's not `null`
 * and has a `typeof` result of "object".
@@ -34736,8 +34476,7 @@ function baseGetTag(value) {
 function isObjectLike(value) {
 	return value != null && typeof value == "object";
 }
-//#endregion
-//#region ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/isSymbol.js
+// ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/isSymbol.js
 /** `Object#toString` result references. */
 var symbolTag = "[object Symbol]";
 /**
@@ -34760,8 +34499,7 @@ var symbolTag = "[object Symbol]";
 function isSymbol(value) {
 	return typeof value == "symbol" || isObjectLike(value) && baseGetTag(value) == symbolTag;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/_trimmedEndIndex.js
+// ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/_trimmedEndIndex.js
 /** Used to match a single whitespace character. */
 var reWhitespace = /\s/;
 /**
@@ -34777,8 +34515,7 @@ function trimmedEndIndex(string) {
 	while (index-- && reWhitespace.test(string.charAt(index)));
 	return index;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/_baseTrim.js
+// ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/_baseTrim.js
 /** Used to match leading whitespace. */
 var reTrimStart = /^\s+/;
 /**
@@ -34791,8 +34528,7 @@ var reTrimStart = /^\s+/;
 function baseTrim(string) {
 	return string ? string.slice(0, trimmedEndIndex(string) + 1).replace(reTrimStart, "") : string;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/isObject.js
+// ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/isObject.js
 /**
 * Checks if `value` is the
 * [language type](http://www.ecma-international.org/ecma-262/7.0/#sec-ecmascript-language-types)
@@ -34822,8 +34558,7 @@ function isObject(value) {
 	var type = typeof value;
 	return value != null && (type == "object" || type == "function");
 }
-//#endregion
-//#region ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/toNumber.js
+// ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/toNumber.js
 /** Used as references for various `Number` constants. */
 var NAN = NaN;
 /** Used to detect bad signed hexadecimal string values. */
@@ -34869,8 +34604,7 @@ function toNumber(value) {
 	var isBinary = reIsBinary.test(value);
 	return isBinary || reIsOctal.test(value) ? freeParseInt(value.slice(2), isBinary ? 2 : 8) : reIsBadHex.test(value) ? NAN : +value;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/now.js
+// ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/now.js
 /**
 * Gets the timestamp of the number of milliseconds that have elapsed since
 * the Unix epoch (1 January 1970 00:00:00 UTC).
@@ -34890,8 +34624,7 @@ function toNumber(value) {
 var now = function() {
 	return root$7.Date.now();
 };
-//#endregion
-//#region ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/debounce.js
+// ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/debounce.js
 /** Error message constants. */
 var FUNC_ERROR_TEXT = "Expected a function";
 var nativeMax = Math.max;
@@ -35019,8 +34752,7 @@ function debounce$1(func, wait, options) {
 	debounced.flush = flush;
 	return debounced;
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useDebouncedCallback.ts
+// ../../packages/react/src/hooks/useDebouncedCallback.ts
 /**
 * Creates a debounced version of a callback that always calls the latest version.
 *
@@ -35053,8 +34785,7 @@ function debounce$1(func, wait, options) {
 	}, [debouncedFn]);
 	return debouncedFn;
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useAsyncDataFromQuery.ts
+// ../../packages/react/src/hooks/useAsyncDataFromQuery.ts
 /**
 * Custom hook that retrieves data using `useQuery` from the `@tanstack/react-query`
 * library. It wraps the `QueryResult` from the hook in a simpler `AsyncData`.
@@ -35099,8 +34830,7 @@ function debounce$1(func, wait, options) {
 	}
 	return t0;
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useDocumentTitle.ts
+// ../../packages/react/src/hooks/useDocumentTitle.ts
 /** Sets the document title to `title` verbatim, for apps that build their own. */ function useDocumentTitleText(title) {
 	const $ = (0, import_compiler_runtime.c)(3);
 	let t0;
@@ -35119,8 +34849,7 @@ function debounce$1(func, wait, options) {
 	}
 	(0, import_react.useEffect)(t0, t1);
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useScrollDirection.ts
+// ../../packages/react/src/hooks/useScrollDirection.ts
 var asArray$1 = (v) => isReadonlyArray(v) ? v : [v];
 var sameItems = (a, b) => a.length === b.length && a.every((item, i) => item === b[i]);
 /**
@@ -35273,10 +35002,9 @@ var sameItems = (a, b) => a.length === b.length && a.every((item, i) => item ===
 		}, [engageLock])
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/router/url.js
+// ../../node_modules/.pnpm/react-router@8.5.1_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6c099e31281b954d9a4affa1fd691044/node_modules/react-router/dist/production/lib/router/url.js
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -35290,10 +35018,9 @@ var PROTOCOL_RELATIVE_URL_REGEX = /^[\\/]{2}/;
 function normalizeProtocolRelativeUrl(url, protocol) {
 	return protocol + url.replace(/\\/g, "/");
 }
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/router/history.js
+// ../../node_modules/.pnpm/react-router@8.5.1_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6c099e31281b954d9a4affa1fd691044/node_modules/react-router/dist/production/lib/router/history.js
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -35529,7 +35256,7 @@ function createBrowserURLImpl(windowImpl, to, isAbsolute = false) {
 	return new URL(href, base);
 }
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -36105,10 +35832,9 @@ function parseToInfo(_to, basename) {
 		to
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/router/instrumentation.js
+// ../../node_modules/.pnpm/react-router@8.5.1_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6c099e31281b954d9a4affa1fd691044/node_modules/react-router/dist/production/lib/router/instrumentation.js
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -36364,10 +36090,9 @@ function getReadonlyRequest(request) {
 function getReadonlyContext(context) {
 	return { get: (ctx) => context.get(ctx) };
 }
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/router/matcher.js
+// ../../node_modules/.pnpm/react-router@8.5.1_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6c099e31281b954d9a4affa1fd691044/node_modules/react-router/dist/production/lib/router/matcher.js
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -36380,19 +36105,24 @@ var V6RegExMatcher = class {
 	#routes = [];
 	#branches = [];
 	#basename;
+	#matchCost = 0;
 	constructor(basename) {
 		this.#basename = basename;
 	}
 	update(routes) {
 		this.#routes = routes;
 		this.#branches = flattenAndRankRoutes(routes);
+		this.#matchCost = this.#branches.reduce((total, branch) => total + branch.routesMeta.length, 0);
+	}
+	get matchCost() {
+		return this.#matchCost;
 	}
 	match(locationArg, allowPartial = false) {
 		return matchRoutesImpl(this.#routes, locationArg, this.#basename, allowPartial, this.#branches);
 	}
 };
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -36401,10 +36131,9 @@ var V6RegExMatcher = class {
 *
 * @license MIT
 */
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/router/navigation.js
+// ../../node_modules/.pnpm/react-router@8.5.1_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6c099e31281b954d9a4affa1fd691044/node_modules/react-router/dist/production/lib/router/navigation.js
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -36445,10 +36174,9 @@ function validateNavigationTarget(original, resolved, currentUrl, externalPolicy
 		if (originalUrl == null || !isExplicitUrl(original, originalUrl) || !isSameOrigin(originalUrl, resolvedUrl)) throw new Error("External navigation is not allowed");
 	}
 }
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/router/router.js
+// ../../node_modules/.pnpm/react-router@8.5.1_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6c099e31281b954d9a4affa1fd691044/node_modules/react-router/dist/production/lib/router/router.js
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -36849,7 +36577,7 @@ function createRouter(init) {
 		pendingPreventScrollReset = false;
 		pendingViewTransitionEnabled = false;
 		isUninterruptedRevalidation = false;
-		isRevalidationRequired = false;
+		isRevalidationRequired = fetchReloadIds.size > 0;
 	}
 	async function navigate(to, opts) {
 		if (pendingDiscoveryCancellation) await pendingDiscoveryCancellation;
@@ -36887,8 +36615,9 @@ function createRouter(init) {
 		validateNavigationTarget(to == null ? init.history.createHref(state.location) : typeof to === "string" ? to : createPath(to), init.history.createHref(nextLocation.mask || nextLocation), init.history.createURL("/"), "reject");
 		let userReplace = opts && opts.replace != null ? opts.replace : void 0;
 		let historyAction = "PUSH";
+		let currentPath = state.location.pathname + state.location.search;
 		if (userReplace === true) historyAction = "REPLACE";
-		else if (userReplace === false) {} else if (submission != null && isMutationMethod(submission.formMethod) && submission.formAction === state.location.pathname + state.location.search) historyAction = "REPLACE";
+		else if (userReplace === false) {} else if (submission != null && isMutationMethod(submission.formMethod) && (submission.formAction === currentPath || nextLocation.pathname + nextLocation.search === currentPath)) historyAction = "REPLACE";
 		let preventScrollReset = opts && "preventScrollReset" in opts ? opts.preventScrollReset === true : void 0;
 		let flushSync = (opts && opts.flushSync) === true;
 		let blockerKey = shouldBlockNavigation({
@@ -37230,12 +36959,16 @@ function createRouter(init) {
 			abortFetcher(rf.key);
 			if (rf.controller) fetchControllers.set(rf.key, rf.controller);
 		});
-		let abortPendingFetchRevalidations = () => revalidatingFetchers.forEach((f) => abortFetcher(f.key));
+		let abortPendingFetchRevalidations = () => revalidatingFetchers.forEach((rf) => {
+			if (fetchControllers.get(rf.key) === rf.controller) abortFetcher(rf.key);
+		});
 		if (pendingNavigationController) pendingNavigationController.signal.addEventListener("abort", abortPendingFetchRevalidations);
 		let { loaderResults, fetcherResults } = await callLoadersAndMaybeResolveData(dsMatches, revalidatingFetchers, request, location, scopedContext, dataStrategyInitiator, historyAction);
 		if (request.signal.aborted) return { shortCircuited: true };
 		if (pendingNavigationController) pendingNavigationController.signal.removeEventListener("abort", abortPendingFetchRevalidations);
-		revalidatingFetchers.forEach((rf) => fetchControllers.delete(rf.key));
+		revalidatingFetchers.forEach((rf) => {
+			if (fetchControllers.get(rf.key) === rf.controller) fetchControllers.delete(rf.key);
+		});
 		let redirect = findRedirect(loaderResults);
 		if (redirect) {
 			await startRedirectNavigation(request, redirect.result, true, dataStrategyInitiator, { replace });
@@ -37364,30 +37097,39 @@ function createRouter(init) {
 			return;
 		}
 		if (fetchersQueuedForDeletion.has(key)) {
-			if (isRedirectResult(actionResult) || isErrorResult(actionResult)) {
+			if (isErrorResult(actionResult)) {
 				updateFetcherState(key, getDoneFetcher(void 0));
 				return;
 			}
-		} else {
 			if (isRedirectResult(actionResult)) {
+				isRevalidationRequired = true;
+				actionResult = {
+					type: "data",
+					data: void 0
+				};
+			}
+		} else {
+			if (isRedirectResult(actionResult)) if (pendingNavigationLoadId > originatingLoadId) {
+				isRevalidationRequired = true;
+				actionResult = {
+					type: "data",
+					data: void 0
+				};
+			} else {
 				fetchControllers.delete(key);
-				if (pendingNavigationLoadId > originatingLoadId) {
-					updateFetcherState(key, getDoneFetcher(void 0));
-					return;
-				} else {
-					fetchRedirectIds.add(key);
-					updateFetcherState(key, getLoadingFetcher(submission));
-					return startRedirectNavigation(fetchRequest, actionResult, false, "fetcher", {
-						fetcherSubmission: submission,
-						preventScrollReset
-					});
-				}
+				fetchRedirectIds.add(key);
+				updateFetcherState(key, getLoadingFetcher(submission));
+				return startRedirectNavigation(fetchRequest, actionResult, false, "fetcher", {
+					fetcherSubmission: submission,
+					preventScrollReset
+				});
 			}
 			if (isErrorResult(actionResult)) {
 				setFetcherError(key, routeId, actionResult.error);
 				return;
 			}
 		}
+		isRevalidationRequired = true;
 		let nextLocation = state.navigation.location || state.location;
 		let revalidationRequest = createClientSideRequest(init.history, nextLocation, abortController.signal);
 		let matches = state.navigation.state !== "idle" ? dataRouteMatcher.match(state.navigation.location) : state.matches;
@@ -37407,7 +37149,9 @@ function createRouter(init) {
 			if (rf.controller) fetchControllers.set(staleKey, rf.controller);
 		});
 		updateState({ fetchers: workingFetchers });
-		let abortPendingFetchRevalidations = () => revalidatingFetchers.forEach((rf) => abortFetcher(rf.key));
+		let abortPendingFetchRevalidations = () => revalidatingFetchers.forEach((rf) => {
+			if (fetchControllers.get(rf.key) === rf.controller) abortFetcher(rf.key);
+		});
 		abortController.signal.addEventListener("abort", abortPendingFetchRevalidations);
 		let { loaderResults, fetcherResults } = await callLoadersAndMaybeResolveData(dsMatches, revalidatingFetchers, revalidationRequest, nextLocation, scopedContext, "fetcher");
 		if (abortController.signal.aborted) {
@@ -37417,7 +37161,9 @@ function createRouter(init) {
 		abortController.signal.removeEventListener("abort", abortPendingFetchRevalidations);
 		fetchReloadIds.delete(key);
 		fetchControllers.delete(key);
-		revalidatingFetchers.forEach((r) => fetchControllers.delete(r.key));
+		revalidatingFetchers.forEach((r) => {
+			if (fetchControllers.get(r.key) === r.controller) fetchControllers.delete(r.key);
+		});
 		let fetcherIsMounted = state.fetchers.has(key);
 		let getRedirectStateWithDoneFetcher = (s) => {
 			if (!fetcherIsMounted) return s;
@@ -37446,6 +37192,7 @@ function createRouter(init) {
 		if (state.navigation.state === "loading" && loadId > pendingNavigationLoadId) {
 			invariant$1(pendingAction, "Expected pending action");
 			pendingNavigationController && pendingNavigationController.abort();
+			markFetchRedirectsDone(finalFetchers);
 			completeNavigation(state.navigation.location, {
 				matches,
 				loaderData,
@@ -37458,7 +37205,7 @@ function createRouter(init) {
 				loaderData: mergeLoaderData(state.loaderData, loaderData, matches, errors),
 				fetchers: finalFetchers
 			});
-			isRevalidationRequired = false;
+			isRevalidationRequired = fetchReloadIds.size > 0;
 		}
 	}
 	async function handleFetcherLoader(key, loadMatch, matches, scopedContext, flushSync, preventScrollReset, submission) {
@@ -38279,6 +38026,9 @@ var loadLazyRouteProperty = ({ key, route, manifest, mapRouteProperties }) => {
 		}
 	})();
 	cache[key] = propertyPromise;
+	propertyPromise.catch(() => {
+		if (cache[key] === propertyPromise) delete cache[key];
+	});
 	return propertyPromise;
 };
 var lazyRouteFunctionCache = /* @__PURE__ */ new WeakMap();
@@ -38320,7 +38070,9 @@ function loadLazyRoute(route, type, manifest, mapRouteProperties, lazyRoutePrope
 			});
 		})();
 		lazyRouteFunctionCache.set(routeToUpdate, lazyRoutePromise);
-		lazyRoutePromise.catch(() => {});
+		lazyRoutePromise.catch(() => {
+			if (lazyRouteFunctionCache.get(routeToUpdate) === lazyRoutePromise) lazyRouteFunctionCache.delete(routeToUpdate);
+		});
 		return {
 			lazyRoutePromise,
 			lazyHandlerPromise: lazyRoutePromise
@@ -38591,10 +38343,13 @@ async function callLoaderOrAction({ request, path, pattern, match, lazyHandlerPr
 					pathname,
 					routeId: match.route.id
 				});
-			} else return {
-				type: "data",
-				result: void 0
-			};
+			} else {
+				await lazyRoutePromise;
+				return {
+					type: "data",
+					result: void 0
+				};
+			}
 		}
 		else if (!handler) {
 			let url = new URL(request.url);
@@ -38789,12 +38544,12 @@ function processRouteLoaderData(matches, results, pendingActionResult, isStaticH
 function processLoaderData(state, matches, results, pendingActionResult, revalidatingFetchers, fetcherResults, workingFetchers) {
 	let { loaderData, errors } = processRouteLoaderData(matches, results, pendingActionResult);
 	revalidatingFetchers.filter((f) => !f.matches || f.matches.some((m) => m.shouldLoad)).forEach((rf) => {
-		let { key, match, controller } = rf;
+		let { key, routeId, controller } = rf;
 		if (controller && controller.signal.aborted) return;
 		let result = fetcherResults[key];
 		invariant$1(result, "Did not find corresponding fetcher result");
 		if (isErrorResult(result)) {
-			let boundaryMatch = findNearestBoundary(state.matches, match?.route.id);
+			let boundaryMatch = findNearestBoundary(state.matches, routeId);
 			if (!(errors && errors[boundaryMatch.route.id])) errors = {
 				...errors,
 				[boundaryMatch.route.id]: result.error
@@ -39098,10 +38853,9 @@ function createDeferred() {
 		reject
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/context.js
+// ../../node_modules/.pnpm/react-router@8.5.1_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6c099e31281b954d9a4affa1fd691044/node_modules/react-router/dist/production/lib/context.js
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -39144,10 +38898,9 @@ var RouteIdContext = import_react.createContext(void 0);
 RouteIdContext.displayName = "RouteId";
 var RouteErrorContext = import_react.createContext(null);
 RouteErrorContext.displayName = "RouteError";
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/errors.js
+// ../../node_modules/.pnpm/react-router@8.5.1_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6c099e31281b954d9a4affa1fd691044/node_modules/react-router/dist/production/lib/errors.js
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -39171,10 +38924,9 @@ function decodeRouteErrorResponseDigest(digest) {
 		if (typeof parsed === "object" && parsed && typeof parsed.status === "number" && typeof parsed.statusText === "string") return new ErrorResponseImpl(parsed.status, parsed.statusText, parsed.data);
 	} catch {}
 }
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/hooks.js
+// ../../node_modules/.pnpm/react-router@8.5.1_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6c099e31281b954d9a4affa1fd691044/node_modules/react-router/dist/production/lib/hooks.js
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -39351,9 +39103,6 @@ var navigateEffectWarning = "You should call navigate() in a React.useEffect(), 
 * ### Prevent Scroll Reset
 *
 * [MODES: framework, data]
-*
-* <br/>
-* <br/>
 *
 * To prevent {@link ScrollRestoration | `<ScrollRestoration>`} from resetting
 * the scroll position, use the `preventScrollReset` option.
@@ -39862,10 +39611,9 @@ function warningOnce(key, cond, message) {
 		warning$1(false, message);
 	}
 }
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/dom/ssr/invariant.js
+// ../../node_modules/.pnpm/react-router@8.5.1_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6c099e31281b954d9a4affa1fd691044/node_modules/react-router/dist/production/lib/dom/ssr/invariant.js
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -39877,10 +39625,9 @@ function warningOnce(key, cond, message) {
 function invariant(value, message) {
 	if (value === false || value === null || typeof value === "undefined") throw new Error(message);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/dom/ssr/markup.js
+// ../../node_modules/.pnpm/react-router@8.5.1_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6c099e31281b954d9a4affa1fd691044/node_modules/react-router/dist/production/lib/dom/ssr/markup.js
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -39900,10 +39647,9 @@ var ESCAPE_REGEX = /[&><\u2028\u2029]/g;
 function escapeHtml(html) {
 	return html.replace(ESCAPE_REGEX, (match) => ESCAPE_LOOKUP[match]);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/dom/ssr/single-fetch.js
+// ../../node_modules/.pnpm/react-router@8.5.1_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6c099e31281b954d9a4affa1fd691044/node_modules/react-router/dist/production/lib/dom/ssr/single-fetch.js
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -39919,10 +39665,9 @@ function singleFetchUrl(reqUrl, extension, serverOrigin) {
 	else url.pathname = `${url.pathname}.${extension}`;
 	return url;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/dom/ssr/routeModules.js
+// ../../node_modules/.pnpm/react-router@8.5.1_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6c099e31281b954d9a4affa1fd691044/node_modules/react-router/dist/production/lib/dom/ssr/routeModules.js
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -39934,11 +39679,11 @@ function singleFetchUrl(reqUrl, extension, serverOrigin) {
 async function loadRouteModule(route, routeModulesCache) {
 	if (route.id in routeModulesCache) return routeModulesCache[route.id];
 	try {
-		let routeModule = await __vitePreload(() => import(
+		let routeModule = await import(
 			/* @vite-ignore */
 			/* webpackIgnore: true */
 			route.module
-), [], import.meta.url);
+);
 		routeModulesCache[route.id] = routeModule;
 		return routeModule;
 	} catch (error) {
@@ -39949,10 +39694,9 @@ async function loadRouteModule(route, routeModulesCache) {
 		return new Promise(() => {});
 	}
 }
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/dom/ssr/links.js
+// ../../node_modules/.pnpm/react-router@8.5.1_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6c099e31281b954d9a4affa1fd691044/node_modules/react-router/dist/production/lib/dom/ssr/links.js
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -40050,10 +39794,9 @@ function dedupeLinkDescriptors(descriptors, preloads) {
 		return deduped;
 	}, []);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/server-runtime/warnings.js
+// ../../node_modules/.pnpm/react-router@8.5.1_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6c099e31281b954d9a4affa1fd691044/node_modules/react-router/dist/production/lib/server-runtime/warnings.js
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -40069,10 +39812,9 @@ function warnOnce(condition, message) {
 		console.warn(message);
 	}
 }
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/dom/ssr/components.js
+// ../../node_modules/.pnpm/react-router@8.5.1_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6c099e31281b954d9a4affa1fd691044/node_modules/react-router/dist/production/lib/dom/ssr/components.js
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -40322,10 +40064,19 @@ function mergeRefs(...refs) {
 		});
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/components.js
 /**
-* react-router v8.5.0
+* react-router v8.5.1
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
+// ../../node_modules/.pnpm/react-router@8.5.1_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6c099e31281b954d9a4affa1fd691044/node_modules/react-router/dist/production/lib/components.js
+/**
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -40357,6 +40108,11 @@ var Deferred = class {
 		});
 	}
 };
+function handleSkippedViewTransition(transition, document) {
+	transition.ready.catch((reason) => {
+		if (!(document.visibilityState === "hidden" || typeof reason === "object" && reason !== null && "name" in reason && reason.name === "AbortError")) throw reason;
+	});
+}
 /**
 * Render the UI for the given {@link DataRouter}. This component should
 * typically be at the top of an app's element tree. The router prop should
@@ -40444,6 +40200,7 @@ function RouterProvider({ router, flushSync: reactDomFlushSyncImpl, onError, use
 			let t = router.window.document.startViewTransition(() => {
 				reactDomFlushSyncImpl(() => setStateImpl(newState));
 			});
+			handleSkippedViewTransition(t, router.window.document);
 			t.finished.finally(() => {
 				reactDomFlushSyncImpl(() => {
 					setRenderDfd(void 0);
@@ -40506,6 +40263,7 @@ function RouterProvider({ router, flushSync: reactDomFlushSyncImpl, onError, use
 				});
 				await renderPromise;
 			});
+			handleSkippedViewTransition(transition, router.window.document);
 			transition.finished.finally(() => {
 				setRenderDfd(void 0);
 				setTransition(void 0);
@@ -40786,10 +40544,9 @@ function Router({ basename: basenameProp = "/", children = null, location: locat
 	}));
 }
 import_react.Component;
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/dom/dom.js
+// ../../node_modules/.pnpm/react-router@8.5.1_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6c099e31281b954d9a4affa1fd691044/node_modules/react-router/dist/production/lib/dom/dom.js
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -40927,10 +40684,9 @@ function getFormSubmissionInfo(target, basename) {
 		body
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/dom/lib.js
+// ../../node_modules/.pnpm/react-router@8.5.1_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6c099e31281b954d9a4affa1fd691044/node_modules/react-router/dist/production/lib/dom/lib.js
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -41840,8 +41596,7 @@ function useViewTransitionState(to, { relative } = {}) {
 	let nextPath = stripBasename(vtContext.nextLocation.pathname, basename) || vtContext.nextLocation.pathname;
 	return matchPath(path.pathname, nextPath) != null || matchPath(path.pathname, currentPath) != null;
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useResizeObserver.ts
+// ../../packages/react/src/hooks/useResizeObserver.ts
 var useResizeObserver = (callback) => {
 	const $ = (0, import_compiler_runtime.c)(3);
 	const elementRef = (0, import_react.useRef)(null);
@@ -41871,8 +41626,7 @@ var useResizeObserver = (callback) => {
 	(0, import_react.useEffect)(t0, t1);
 	return elementRef;
 };
-//#endregion
-//#region ../../packages/react/src/hooks/usePreviousValue.ts
+// ../../packages/react/src/hooks/usePreviousValue.ts
 /**
 * Custom hook that tracks the previous value of a given input.
 *
@@ -41905,8 +41659,7 @@ var useResizeObserver = (callback) => {
 	}
 	return previous;
 };
-//#endregion
-//#region ../../packages/react/src/state/ComponentStateContext.tsx
+// ../../packages/react/src/state/ComponentStateContext.tsx
 var ComponentStateContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 var ComponentStateProvider = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(3);
@@ -41928,8 +41681,7 @@ var useComponentStateHooks = () => {
 	if (!hooks) throw new Error("useComponentStateHooks must be used within a ComponentStateProvider");
 	return hooks;
 };
-//#endregion
-//#region ../../packages/react/src/hooks/useProperty.ts
+// ../../packages/react/src/hooks/useProperty.ts
 function useProperty(id, propertyName, options) {
 	const { useValue, useSetValue, useRemoveValue } = useComponentStateHooks();
 	const defaultValue = options?.defaultValue;
@@ -41954,8 +41706,7 @@ function useProperty(id, propertyName, options) {
 		])
 	];
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useCollapsedState.ts
+// ../../packages/react/src/hooks/useCollapsedState.ts
 var useCollapsedState = (id, defaultValue, scope) => {
 	const { useValue, useSetValue } = useComponentStateHooks();
 	const resolvedScope = scope || "collapse-state-scope";
@@ -41975,8 +41726,7 @@ var useCollapsedState = (id, defaultValue, scope) => {
 		id
 	]);
 };
-//#endregion
-//#region ../../packages/react/src/hooks/useCollapsibleIds.ts
+// ../../packages/react/src/hooks/useCollapsibleIds.ts
 var useCollapsibleIds = (key) => {
 	const { useEntries, useSetValue, useRemoveAll } = useComponentStateHooks();
 	const entries = useEntries(key);
@@ -42000,8 +41750,7 @@ var useCollapsibleIds = (key) => {
 		clearIds
 	]);
 };
-//#endregion
-//#region ../../packages/react/src/hooks/useStatefulScrollPosition.ts
+// ../../packages/react/src/hooks/useStatefulScrollPosition.ts
 var log$6 = createLogger("scrolling");
 function useStatefulScrollPosition(elementRef, elementKey, t0, t1) {
 	const $ = (0, import_compiler_runtime.c)(21);
@@ -42133,8 +41882,7 @@ function useStatefulScrollPosition(elementRef, elementKey, t0, t1) {
 	} else t10 = $[20];
 	return t10;
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useVisitId.ts
+// ../../packages/react/src/hooks/useVisitId.ts
 var visitCounter = 0;
 /**
 * A key identifying one VISIT: this mount's continuous engagement with
@@ -42157,8 +41905,7 @@ var visitCounter = 0;
 	});
 	return `${visit.identity}@v${visit.nonce}`;
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useScrubberProgress.ts
+// ../../packages/react/src/hooks/useScrubberProgress.ts
 /**
 * Returns the scroll progress (0-1) of a scroll container.
 *
@@ -42217,8 +41964,7 @@ var visitCounter = 0;
 	} else t3 = $[7];
 	return t3;
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useRafThrottle.ts
+// ../../packages/react/src/hooks/useRafThrottle.ts
 /**
 * Throttle a callback to fire at most once per animation frame.
 */ function useRafThrottle(callback) {
@@ -42266,8 +42012,7 @@ var visitCounter = 0;
 	(0, import_react.useEffect)(t2, t3);
 	return throttledCallback;
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useScrollTrack.ts
+// ../../packages/react/src/hooks/useScrollTrack.ts
 var kScrollTrackTolerancePx = 24;
 function scrollTrackDetectionPoint(viewportTop, viewportBottom, remainingScroll) {
 	if (remainingScroll === void 0) return viewportTop;
@@ -42422,8 +42167,7 @@ function selectTrackedElement(rects, elementIds, viewportTop, viewportBottom, de
 	}
 	(0, import_react.useEffect)(t5, t6);
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useListKeyboardNavigation.ts
+// ../../packages/react/src/hooks/useListKeyboardNavigation.ts
 /**
 * Generic list keyboard navigation: modifier+ArrowUp/Home jumps to the start,
 * modifier+ArrowDown/End to the end. Domain-specific keys (e.g. the
@@ -42482,8 +42226,7 @@ function selectTrackedElement(rects, elementIds, viewportTop, viewportBottom, de
 	} else t2 = $[8];
 	(0, import_react.useEffect)(t1, t2);
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useBreadcrumbTruncation.ts
+// ../../packages/react/src/hooks/useBreadcrumbTruncation.ts
 var replaceMeasurementItems = (element, labels) => {
 	const items = labels.map((label) => {
 		const item = document.createElement("li");
@@ -42529,7 +42272,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 				testElement.style.margin = "0";
 				testElement.style.padding = "0";
 				container.appendChild(testElement);
-				replaceMeasurementItems(testElement, segments.map(_temp$107));
+				replaceMeasurementItems(testElement, segments.map(_temp$110));
 				if (testElement.scrollWidth <= containerWidth) {
 					container.removeChild(testElement);
 					setTruncatedData({
@@ -42555,7 +42298,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 					replaceMeasurementItems(testElement, [
 						firstSegment.text,
 						"...",
-						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$61),
+						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$62),
 						lastSegment.text
 					]);
 					if (testElement.scrollWidth <= containerWidth) {
@@ -42593,14 +42336,13 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 	(0, import_react.useEffect)(t1, t2);
 	return truncatedData;
 };
-function _temp$107(segment) {
+function _temp$110(segment) {
 	return segment.text;
 }
-function _temp2$61(segment_0) {
+function _temp2$62(segment_0) {
 	return segment_0.text;
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useChromeNavOwnership.ts
+// ../../packages/react/src/hooks/useChromeNavOwnership.ts
 var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 	"ArrowUp",
 	"ArrowDown",
@@ -42722,8 +42464,7 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 		])
 	};
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useArrowStepper.ts
+// ../../packages/react/src/hooks/useArrowStepper.ts
 /**
 * Global ArrowLeft/ArrowRight prev/next stepping for a "one of a sequence"
 * surface (e.g. the previous/next sample or result chevrons).
@@ -42782,8 +42523,7 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 	}
 	(0, import_react.useEffect)(t1, t2);
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useEventUrlSync.ts
+// ../../packages/react/src/hooks/useEventUrlSync.ts
 /**
 * Reflect an explicit turn navigation (j/k, header chevrons, go-to-turn bar)
 * in the URL via `?event=` so the position is shareable — the keyboard
@@ -42831,8 +42571,7 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 	} else t0 = $[3];
 	return t0;
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useInterval.ts
+// ../../packages/react/src/hooks/useInterval.ts
 /**
 * Declarative `setInterval`: calls the latest `callback` every `delayMs`
 * milliseconds. Pass `null` to pause. Changing `delayMs` resets the interval.
@@ -42858,8 +42597,7 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 	}
 	(0, import_react.useEffect)(t0, t1);
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useMirrorToStore.ts
+// ../../packages/react/src/hooks/useMirrorToStore.ts
 /**
 * Mirrors `value` into an external store each time it changes, so the store
 * remembers the last value seen even after the source stops providing one
@@ -42888,8 +42626,7 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 	}
 	(0, import_react.useEffect)(t0, t1);
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useMountEffect.ts
+// ../../packages/react/src/hooks/useMountEffect.ts
 /**
 * Runs `effect` once when the component mounts; its returned cleanup runs on
 * unmount. For one-time setup/teardown of something external — a library
@@ -42907,8 +42644,7 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 	} else t0 = $[0];
 	(0, import_react.useEffect)(effect, t0);
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useTimeout.ts
+// ../../packages/react/src/hooks/useTimeout.ts
 /**
 * Declarative `setTimeout`: calls the latest `callback` once, `delayMs`
 * milliseconds after mount. Pass `null` to cancel. Changing `delayMs`
@@ -42935,8 +42671,7 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 	}
 	(0, import_react.useEffect)(t0, t1);
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useAnimationFrameLoop.ts
+// ../../packages/react/src/hooks/useAnimationFrameLoop.ts
 /**
 * Calls the latest `callback` once per animation frame while `active`, with
 * the seconds elapsed since the previous frame (0 on the first frame after
@@ -42955,8 +42690,7 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 		return () => cancelAnimationFrame(id);
 	}, [active, callbackRef]);
 }
-//#endregion
-//#region ../../packages/react/src/hooks/useSpaceBelow.ts
+// ../../packages/react/src/hooks/useSpaceBelow.ts
 /**
 * The height from an element's top to the bottom of its scroll container's
 * visible area, so the element can fill what's left on screen. Tracks
@@ -43010,8 +42744,7 @@ var SourceCodePanel_module_default = {
 	simple: "_simple_bat6y_6",
 	code: "_code_bat6y_11"
 };
-//#endregion
-//#region ../../packages/react/src/components/SourceCodePanel.tsx
+// ../../packages/react/src/components/SourceCodePanel.tsx
 var SourceCodePanel = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(13);
 	const { id, code, language, simple: t1, style, className } = t0;
@@ -43062,8 +42795,7 @@ var SourceCodePanel = (t0) => {
 	} else t7 = $[12];
 	return t7;
 };
-//#endregion
-//#region ../../packages/react/src/components/StickyScroll.tsx
+// ../../packages/react/src/components/StickyScroll.tsx
 var StickyScroll = /*#__PURE__*/ (0, import_react.forwardRef)((t0, forwardedRef) => {
 	const $ = (0, import_compiler_runtime.c)(28);
 	const { children, scrollRef, offsetTop: t1, zIndex: t2, className: t3, stickyClassName: t4, onStickyChange, preserveHeight: t5 } = t0;
@@ -43204,8 +42936,7 @@ var StickyScroll = /*#__PURE__*/ (0, import_react.forwardRef)((t0, forwardedRef)
 	return t16;
 });
 StickyScroll.displayName = "StickyScroll";
-//#endregion
-//#region ../../packages/react/src/components/StickyScrollContext.tsx
+// ../../packages/react/src/components/StickyScrollContext.tsx
 var StickyScrollContext = /*#__PURE__*/ (0, import_react.createContext)({ stickyTop: 0 });
 var StickyScrollProvider = StickyScrollContext.Provider;
 var useStickyScroll = () => {
@@ -43219,8 +42950,7 @@ var TextInput_module_default = {
 	clearText: "_clearText_hqi3c_33",
 	hidden: "_hidden_hqi3c_47"
 };
-//#endregion
-//#region ../../packages/react/src/components/TextInput.tsx
+// ../../packages/react/src/components/TextInput.tsx
 var TextInput = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 	const $ = (0, import_compiler_runtime.c)(27);
 	const { value, onChange, onFocus, icon, placeholder, className } = t0;
@@ -43334,8 +43064,7 @@ var ToolDropdownButton_module_default = {
 	noMargin: "_noMargin_1nbeo_103",
 	collapsibleLabel: "_collapsibleLabel_1nbeo_107"
 };
-//#endregion
-//#region ../../packages/react/src/components/ToolDropdownButton.tsx
+// ../../packages/react/src/components/ToolDropdownButton.tsx
 var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 	const $ = (0, import_compiler_runtime.c)(60);
 	let className;
@@ -43619,8 +43348,7 @@ var NavPills_module_default = {
 	pills: "_pills_tm52u_9",
 	pill: "_pill_tm52u_9"
 };
-//#endregion
-//#region ../../packages/react/src/components/NavPills.tsx
+// ../../packages/react/src/components/NavPills.tsx
 var NavPills = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(20);
 	const { id, children } = t0;
@@ -43762,8 +43490,7 @@ var TabSet_module_default = {
 	tabTools: "_tabTools_mmxoy_61",
 	tabStyle: "_tabStyle_mmxoy_75"
 };
-//#endregion
-//#region ../../packages/react/src/components/TabSet.tsx
+// ../../packages/react/src/components/TabSet.tsx
 var TabSet = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(41);
 	const { id, type: t1, className, tabPanelsClassName, tabControlsClassName, tools, tabsRef, children } = t0;
@@ -43955,7 +43682,7 @@ var Tab = (t0) => {
 				"aria-controls": tabContentsId,
 				"aria-selected": isActive,
 				onClick: inAppLinkClick(tab.props.onSelected),
-				onKeyDown: _temp$106,
+				onKeyDown: _temp$109,
 				children: content
 			}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 				id: tabId,
@@ -43993,7 +43720,7 @@ var TabPanels = (t0) => {
 	const t2 = `${id}-content`;
 	let t3;
 	if ($[2] !== tabs) {
-		t3 = tabs.map(_temp2$60);
+		t3 = tabs.map(_temp2$61);
 		$[2] = tabs;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -44085,33 +43812,32 @@ var flattenChildren$1 = (children) => {
 		return [];
 	});
 };
-function _temp$106(e) {
+function _temp$109(e) {
 	if (e.key === " ") {
 		e.preventDefault();
 		e.currentTarget.click();
 	}
 }
-function _temp2$60(tab, index) {
+function _temp2$61(tab, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
 		...tab.props,
 		index
 	}, tab.props.id);
 }
 var ExpandablePanel_module_default = {
-	outer: "_outer_i2ek3_1",
-	expandablePanel: "_expandablePanel_i2ek3_17",
-	expandableBordered: "_expandableBordered_i2ek3_21",
-	expandableTruncated: "_expandableTruncated_i2ek3_38",
-	moreToggle: "_moreToggle_i2ek3_47",
-	bordered: "_bordered_i2ek3_57",
-	moreToggleButton: "_moreToggleButton_i2ek3_64",
-	inlineToggleHolder: "_inlineToggleHolder_i2ek3_75",
-	inlineToggleSticky: "_inlineToggleSticky_i2ek3_92",
-	blockLeft: "_blockLeft_i2ek3_98",
-	collapsedContent: "_collapsedContent_i2ek3_113"
+	outer: "_outer_6cugq_1",
+	expandablePanel: "_expandablePanel_6cugq_17",
+	expandableBordered: "_expandableBordered_6cugq_21",
+	expandableTruncated: "_expandableTruncated_6cugq_38",
+	moreToggle: "_moreToggle_6cugq_42",
+	bordered: "_bordered_6cugq_52",
+	moreToggleButton: "_moreToggleButton_6cugq_59",
+	inlineToggleHolder: "_inlineToggleHolder_6cugq_70",
+	inlineToggleSticky: "_inlineToggleSticky_6cugq_87",
+	blockLeft: "_blockLeft_6cugq_93",
+	collapsedContent: "_collapsedContent_6cugq_108"
 };
-//#endregion
-//#region ../../packages/react/src/components/FindTargetContext.tsx
+// ../../packages/react/src/components/FindTargetContext.tsx
 var FindTargetContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 /** Returns the active find target, or null. Consumers: ExpandablePanel and
 *  any other UI that should react to find navigation. */ var useFindTarget = () => {
@@ -44123,7 +43849,7 @@ var FindTargetContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 	const ctx = (0, import_react.useContext)(FindTargetContext);
 	let t0;
 	if ($[0] !== ctx?.setTarget) {
-		t0 = ctx?.setTarget ?? _temp$105;
+		t0 = ctx?.setTarget ?? _temp$108;
 		$[0] = ctx?.setTarget;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -44156,9 +43882,8 @@ var FindTargetProvider = (t0) => {
 	} else t2 = $[4];
 	return t2;
 };
-function _temp$105() {}
-//#endregion
-//#region ../../packages/react/src/components/ExpandablePanel.tsx
+function _temp$108() {}
+// ../../packages/react/src/components/ExpandablePanel.tsx
 var kNestedToggleStep = 24;
 var PanelNestingContext = /*#__PURE__*/ (0, import_react.createContext)({
 	rightToggles: 0,
@@ -44521,8 +44246,7 @@ var LightboxCarousel_module_default = {
 	next: "_next_1dfia_78",
 	prev: "_prev_1dfia_82"
 };
-//#endregion
-//#region ../../packages/react/src/components/LightboxCarousel.tsx
+// ../../packages/react/src/components/LightboxCarousel.tsx
 /**
 * LightboxCarousel component provides a carousel with lightbox functionality.
 */ var LightboxCarousel = (t0) => {
@@ -44734,8 +44458,7 @@ var HumanBaselineView_module_default = {
 	asciinemaHeaderRight: "_asciinemaHeaderRight_1doob_27",
 	asciinemaBody: "_asciinemaBody_1doob_32"
 };
-//#endregion
-//#region ../../packages/react/src/components/HumanBaselineView.tsx
+// ../../packages/react/src/components/HumanBaselineView.tsx
 /**
 * Renders the HumanBaselineView component.
 */ var HumanBaselineView = (t0) => {
@@ -44899,8 +44622,7 @@ var StatusMessage = (t0) => {
 	if (size) return parseInt(size);
 	else return defaultValue;
 };
-//#endregion
-//#region ../../packages/react/src/components/ComponentNavigationContext.tsx
+// ../../packages/react/src/components/ComponentNavigationContext.tsx
 var ComponentNavigationContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 var ComponentNavigationProvider = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(3);
@@ -44922,8 +44644,7 @@ var useComponentNavigation = () => {
 	if (!navigation) throw new Error("useComponentNavigation must be used within a ComponentNavigationProvider");
 	return navigation;
 };
-//#endregion
-//#region ../../packages/react/src/components/findBandDom.ts
+// ../../packages/react/src/components/findBandDom.ts
 /**
 * Finds the nearest scrollable ancestor with enough overflow to benefit from
 * programmatic scrolling.
@@ -44967,8 +44688,7 @@ var FindBandUI_module_default = {
 	prev: "_prev_oh7be_49",
 	close: "_close_oh7be_55"
 };
-//#endregion
-//#region ../../packages/react/src/components/FindBandUI.tsx
+// ../../packages/react/src/components/FindBandUI.tsx
 var FindBandUI = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(37);
 	const { onClose, onNext, onPrevious, onKeyDown, onChange, onBeforeInput, value, matchCount, matchIndex, noResults: t1, disableNav, inputRef: externalRef } = t0;
@@ -45130,16 +44850,14 @@ var FindBandUI = (t0) => {
 	} else t18 = $[36];
 	return t18;
 };
-//#endregion
-//#region ../../packages/react/src/components/findShortcuts.ts
+// ../../packages/react/src/components/findShortcuts.ts
 function isFindShortcut(e) {
 	return (e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "f";
 }
 function isFindNextShortcut(e) {
 	return (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "g";
 }
-//#endregion
-//#region ../../packages/react/src/components/FindBand.tsx
+// ../../packages/react/src/components/FindBand.tsx
 var findConfig = {
 	caseSensitive: false,
 	wrapAround: false,
@@ -45504,26 +45222,26 @@ function selectionParentElement(range) {
 		check();
 	});
 }
-//#endregion
-//#region ../../packages/react/src/components/useFindBandShortcut.ts
+// ../../packages/react/src/components/useFindBandShortcut.ts
 /**
 * Global Ctrl/Cmd+F shortcut companion to `FindBand`: opens the band
 * (blocking the browser's own find dialog) and optionally closes it on
 * Escape.
 */ function useFindBandShortcut(onOpen, options) {
-	const $ = (0, import_compiler_runtime.c)(7);
+	const $ = (0, import_compiler_runtime.c)(8);
 	let t0;
 	if ($[0] !== options) {
 		t0 = options ?? {};
 		$[0] = options;
 		$[1] = t0;
 	} else t0 = $[1];
-	const { onClose, isOpen: t1, enabled: t2 } = t0;
+	const { onClose, isOpen: t1, enabled: t2, preempt: t3 } = t0;
 	const isOpen = t1 === void 0 ? false : t1;
 	const enabled = t2 === void 0 ? true : t2;
-	let t3;
+	const preempt = t3 === void 0 ? false : t3;
+	let t4;
 	if ($[2] !== isOpen || $[3] !== onClose || $[4] !== onOpen) {
-		t3 = (e) => {
+		t4 = (e) => {
 			if (isFindShortcut(e)) {
 				e.preventDefault();
 				e.stopPropagation();
@@ -45533,18 +45251,24 @@ function selectionParentElement(range) {
 		$[2] = isOpen;
 		$[3] = onClose;
 		$[4] = onOpen;
-		$[5] = t3;
-	} else t3 = $[5];
-	let t4;
+		$[5] = t4;
+	} else t4 = $[5];
+	const handleKeyDown = t4;
+	let t5;
 	if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
-		t4 = { capture: true };
-		$[6] = t4;
-	} else t4 = $[6];
-	useEventListener(enabled ? document : null, "keydown", t3, t4);
+		t5 = { capture: true };
+		$[6] = t5;
+	} else t5 = $[6];
+	useEventListener(enabled && !preempt ? document : null, "keydown", handleKeyDown, t5);
+	let t6;
+	if ($[7] === Symbol.for("react.memo_cache_sentinel")) {
+		t6 = { capture: true };
+		$[7] = t6;
+	} else t6 = $[7];
+	useEventListener(enabled && preempt ? window : null, "keydown", handleKeyDown, t6);
 }
 var MarkdownDivWithReferences_module_default = { cite: "_cite_1t1bm_1" };
-//#endregion
-//#region ../../packages/react/src/components/MarkdownDivWithReferences.tsx
+// ../../packages/react/src/components/MarkdownDivWithReferences.tsx
 var MarkdownDivWithReferences = /*#__PURE__*/ (0, import_react.forwardRef)((props, ref) => {
 	const $ = (0, import_compiler_runtime.c)(34);
 	const { markdown, references, options, className, style, renderer } = props;
@@ -45554,7 +45278,7 @@ var MarkdownDivWithReferences = /*#__PURE__*/ (0, import_react.forwardRef)((prop
 	const [visibleKey, setVisibleKey, clearVisibleKey] = useProperty("popover", "visibleKey");
 	let t0;
 	if ($[0] !== references) {
-		t0 = new Map(references?.map(_temp$104));
+		t0 = new Map(references?.map(_temp$107));
 		$[0] = references;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -45756,7 +45480,7 @@ var findCiteLink = (target) => {
 	}
 	return emitted === 0 ? html : out + html.slice(emitted);
 }
-function _temp$104(r) {
+function _temp$107(r) {
 	return [r.id, r];
 }
 var NextPreviousNav_module_default = {
@@ -45765,8 +45489,7 @@ var NextPreviousNav_module_default = {
 	disabled: "_disabled_f9jlf_17",
 	center: "_center_f9jlf_28"
 };
-//#endregion
-//#region ../../packages/react/src/components/NextPreviousNav.tsx
+// ../../packages/react/src/components/NextPreviousNav.tsx
 /**
 * Prev/next chevron pair with an optional center slot, wired to the
 * ArrowLeft/ArrowRight stepper (see useArrowStepper). Shared by scout's
@@ -45997,19 +45720,16 @@ var NextPreviousNav_module_default = {
 	} else t8 = $[39];
 	return t8;
 };
-//#endregion
-//#region ../../packages/react/src/react-query.ts
+// ../../packages/react/src/react-query.ts
 var defaultRetry = (failureCount, error) => !globalThis.__TEST_DISABLE_RETRY && failureCount < 3 && !(error instanceof ApiError && !isRetryableHttpStatus(error.status));
-//#endregion
-//#region src/state/queryClient.ts
+// src/state/queryClient.ts
 /**
 * Shared react-query client singleton. Used both by the `<QueryClientProvider>`
 * in App.tsx and by non-React code (the replication sync) that writes into the
 * cache via `queryClient.setQueryData`. Mirrors the singleton store created in
 * main.tsx.
 */ var queryClient = new QueryClient({ defaultOptions: { queries: { retry: defaultRetry } } });
-//#endregion
-//#region src/app_config/hooks.ts
+// src/app_config/hooks.ts
 var APP_CONFIG_KEY = ["app-config"];
 /**
 * Resolves the full app config into the `["app-config"]` cache. The resolution
@@ -46049,8 +45769,7 @@ var APP_CONFIG_KEY = ["app-config"];
 /** The absolute log directory (dir mode only; single-file leaves it unset). */ var useAbsLogDir = () => {
 	return useAppConfig().absLogDir;
 };
-//#endregion
-//#region src/app_config/logLocationTrust.ts
+// src/app_config/logLocationTrust.ts
 var proposeLogLocation = (source, page = new URL(document.baseURI)) => {
 	if (source.kind === "none") return void 0;
 	const location = source.kind === "dir" ? source.logDir : source.logFile;
@@ -46092,8 +45811,7 @@ var isUnderDir = (file, dir) => {
 	if (browserDirect && !isUnderDir(resolved, logDir)) throw new Error(`Refusing to load a log outside the configured log directory: ${logFile}`);
 	return resolved;
 };
-//#endregion
-//#region src/app/shared/sample.ts
+// src/app/shared/sample.ts
 var sampleIdsEqual = (id, otherId) => {
 	if (id === void 0 && otherId === void 0) return true;
 	if (id === void 0 || otherId === void 0) return false;
@@ -46111,8 +45829,7 @@ var sampleHandlesEqual = (sample1, sample2) => {
 	if (!sample1 || !sample2) return false;
 	return sampleIdsEqual(sample1.id, sample2.id) && sample1.epoch === sample2.epoch && sample1.logFile === sample2.logFile;
 };
-//#endregion
-//#region ../../packages/inspect-common/src/normalize/events.ts
+// ../../packages/inspect-common/src/normalize/events.ts
 /**
 * Fill pydantic token defaults on one raw ModelUsage record
 * (`input_tokens`/`output_tokens`/`total_tokens` default to 0 upstream).
@@ -46241,17 +45958,57 @@ var normalizeScore = (raw) => {
 	}
 	return changed ? changes : raw;
 };
+var isStringList = (raw) => Array.isArray(raw) && raw.every((item) => typeof item === "string");
+var stringList = (raw) => isStringList(raw) ? raw : Array.isArray(raw) ? raw.filter((item) => typeof item === "string") : [];
+var isOptionalString$1 = (raw) => raw === void 0 || raw === null || typeof raw === "string";
+var isOptionalNumber = (raw) => raw === void 0 || raw === null || typeof raw === "number";
+var withFixes = (raw, fixes) => Object.keys(fixes).length > 0 ? {
+	...raw,
+	...fixes
+} : raw;
+var fixFields = (raw, lists, optionalStrings) => {
+	const fixes = {};
+	for (const field of lists) {
+		const list = stringList(raw[field]);
+		if (list !== raw[field]) fixes[field] = list;
+	}
+	for (const field of optionalStrings) if (!isOptionalString$1(raw[field])) fixes[field] = null;
+	return withFixes(raw, fixes);
+};
 /**
-* Fill the given list fields (`default_factory=list` upstream) on a raw
-* record. Non-records pass through; identity-preserving when complete.
-*/ var fillLists = (raw, fields) => {
-	if (!isRecord(raw)) return raw;
-	const missing = fields.filter((field) => !Array.isArray(raw[field]));
-	if (missing.length === 0) return raw;
-	return {
+* A communication event's `send`, `delivery` or `wait`. A structure pydantic
+* would refuse (not an object, or missing a required field) becomes null,
+* so the event reads as one without it; list and optional fields are filled
+* as pydantic fills them. Identity-preserving when well-formed.
+*/ var normalizeCommunicationSend = (raw) => {
+	if (raw === void 0 || raw === null) return raw;
+	if (!isRecord(raw)) return null;
+	const record = raw["record"];
+	const rejected = raw["rejected"];
+	if (!isRecord(record) || typeof record["kind"] !== "string" || typeof record["sender"] !== "string" || !(rejected === void 0 || rejected === null || isRecord(rejected) && typeof rejected["control"] === "string" && typeof rejected["reason"] === "string")) return null;
+	const fixed = fixFields(record, ["to", "recipients"], [
+		"id",
+		"content",
+		"reply_to"
+	]);
+	return fixed === record ? raw : {
 		...raw,
-		...Object.fromEntries(missing.map((field) => [field, []]))
+		record: fixed
 	};
+};
+var normalizeCommunicationDelivery = (raw) => {
+	if (raw === void 0 || raw === null) return raw;
+	if (!isRecord(raw)) return null;
+	const fixed = fixFields(raw, ["recipients"], []);
+	return isOptionalNumber(raw["seq"]) ? fixed : {
+		...fixed,
+		seq: null
+	};
+};
+var normalizeCommunicationWait = (raw) => {
+	if (raw === void 0 || raw === null) return raw;
+	if (!isRecord(raw) || typeof raw["outcome"] !== "string" || typeof raw["duration"] !== "number") return null;
+	return fixFields(raw, ["channels"], ["id"]);
 };
 /**
 * Per-event-type defaults for required fields pydantic defaults at read
@@ -46357,21 +46114,19 @@ var normalizeScore = (raw) => {
 			if (typeof raw["id"] !== "string") fix("id", "");
 			break;
 		case "communication":
+			if (typeof raw["agent"] !== "string") fix("agent", "");
+			if (typeof raw["source"] !== "string") fix("source", "");
+			if (!isOptionalString$1(raw["channel"])) fix("channel", null);
 			if (typeof raw["nested"] !== "boolean") fix("nested", false);
-			if (!Array.isArray(raw["record_ids"])) fix("record_ids", []);
 			if (!isRecord(raw["data"])) fix("data", {});
 			{
-				const send = raw["send"];
-				if (isRecord(send)) {
-					const record = fillLists(send["record"], ["to", "recipients"]);
-					if (record !== send["record"]) fix("send", {
-						...send,
-						record
-					});
-				}
-				const delivery = fillLists(raw["delivery"], ["recipients"]);
+				const recordIds = stringList(raw["record_ids"]);
+				if (recordIds !== raw["record_ids"]) fix("record_ids", recordIds);
+				const send = normalizeCommunicationSend(raw["send"]);
+				if (send !== raw["send"]) fix("send", send);
+				const delivery = normalizeCommunicationDelivery(raw["delivery"]);
 				if (delivery !== raw["delivery"]) fix("delivery", delivery);
-				const wait = fillLists(raw["wait"], ["channels"]);
+				const wait = normalizeCommunicationWait(raw["wait"]);
 				if (wait !== raw["wait"]) fix("wait", wait);
 			}
 			break;
@@ -46417,8 +46172,7 @@ var normalizeScore = (raw) => {
 	}
 	return changed ? events : raw;
 };
-//#endregion
-//#region ../../packages/inspect-common/src/normalize/log.ts
+// ../../packages/inspect-common/src/normalize/log.ts
 /**
 * Normalize a raw EvalSpec: apply the same legacy migrations as pydantic's
 * `EvalSpec.read_sandbox_spec` / `migrate_values`, then fill fields the
@@ -46545,8 +46299,7 @@ var normalizeEvalMetrics = (raw) => {
 	}
 	return updates;
 };
-//#endregion
-//#region ../../packages/inspect-common/src/normalize/scores.ts
+// ../../packages/inspect-common/src/normalize/scores.ts
 var hasUsableValue = (value) => isRecord(value) && value["value"] != null;
 var kScoreTextFields = [
 	"answer",
@@ -46576,8 +46329,7 @@ var isCleanScoreMap = (value) => Object.values(value).every((score) => hasUsable
 	}
 	return nullProtoRecord(scores);
 };
-//#endregion
-//#region ../../packages/inspect-common/src/normalize/summary.ts
+// ../../packages/inspect-common/src/normalize/summary.ts
 /**
 * Normalize a raw model-usage map (model name → ModelUsage): token defaults
 * filled per entry, non-record entries dropped, non-record input becomes {}.
@@ -46722,8 +46474,7 @@ var isModelFallback = (value) => isRecord(value) && typeof value["model"] === "s
 	}
 	return changed ? summaries : raw;
 };
-//#endregion
-//#region ../../packages/inspect-common/src/normalize/timeline.ts
+// ../../packages/inspect-common/src/normalize/timeline.ts
 /**
 * A timeline is the only sample/transcript field shaped as a record with a
 * `root` record; this is the same claim the surrounding parse already made.
@@ -46745,8 +46496,7 @@ var normalizeTimeline = (raw) => ({
 	root: normalizeTimelineSpan(raw.root)
 });
 var normalizeTimelines = (raw) => raw.map(normalizeTimeline);
-//#endregion
-//#region ../../packages/inspect-common/src/normalize/sample.ts
+// ../../packages/inspect-common/src/normalize/sample.ts
 /**
 * Normalize a raw EvalSample of any vintage into the current shape:
 * legacy migrations (mirroring pydantic's `EvalSample.migrate_deprecated`),
@@ -46796,8 +46546,7 @@ var normalizeTimelines = (raw) => raw.map(normalizeTimeline);
 	});
 	return sample;
 };
-//#endregion
-//#region ../../packages/inspect-common/src/normalize/stats.ts
+// ../../packages/inspect-common/src/normalize/stats.ts
 var normalizeConnectionHistory = (raw) => {
 	if (raw === void 0 || raw === null) return { connection_limit_history: [] };
 	if (!Array.isArray(raw)) return {
@@ -46833,8 +46582,7 @@ var normalizeConnectionHistory = (raw) => {
 		...normalizeConnectionHistory(raw["connection_limit_history"])
 	};
 };
-//#endregion
-//#region src/utils/clear-events-preprocessor.ts
+// src/utils/clear-events-preprocessor.ts
 /**
 * JSON preprocessor that clears large events arrays at the byte level.
 * Works directly with Uint8Array to avoid creating gigabyte-sized strings.
@@ -46914,8 +46662,7 @@ var MAX_TOTAL_SIZE = 536870912;
 	result.set(after, offset);
 	return result;
 }
-//#endregion
-//#region src/client/utils/normalize.ts
+// src/client/utils/normalize.ts
 /**
 * Normalize a raw log header (`header.json` in a `.eval` zip, or the header
 * portion of a whole `.json` log): eval/plan/results run through the shared
@@ -47033,8 +46780,7 @@ var stringOr = (value, fallback) => typeof value === "string" ? value : fallback
 		samples
 	};
 };
-//#endregion
-//#region ../../packages/inspect-common/src/utils/effectiveConfig.ts
+// ../../packages/inspect-common/src/utils/effectiveConfig.ts
 var EVAL_CONFIG_KEYS = {
 	acp_server: true,
 	approval: true,
@@ -47175,8 +46921,7 @@ var changesFor = (updates, family, knownKeys) => {
 /**
 * Per-knob final change state for generate-config knobs, keyed by field name.
 */ var generateConfigChanges = (updates) => changesFor(updates, "generate", GENERATE_CONFIG_KEYS);
-//#endregion
-//#region ../../packages/inspect-common/src/utils/expandEvents.ts
+// ../../packages/inspect-common/src/utils/expandEvents.ts
 /**
 * Expand range-encoded refs against a pool.
 * Each ref is [start, endExclusive] → pool.slice(start, endExclusive).
@@ -47228,16 +46973,14 @@ function isModelEvent(event) {
 		} : event;
 	});
 }
-//#endregion
-//#region ../../packages/inspect-common/src/utils/formatConfigValue.ts
+// ../../packages/inspect-common/src/utils/formatConfigValue.ts
 /** Scalar-ish config values render plain; structures fall back to JSON. */ var formatConfigValue = (value, nullLabel = "none") => {
 	if (value === null || value === void 0) return nullLabel;
 	if (typeof value === "string") return value;
 	if (typeof value === "number" || typeof value === "boolean") return value.toString();
 	return JSON.stringify(value);
 };
-//#endregion
-//#region ../../packages/inspect-common/src/utils/inputString.ts
+// ../../packages/inspect-common/src/utils/inputString.ts
 /**
 * Gets a string for a sample input.
 */ var inputString = (input) => {
@@ -47254,8 +46997,7 @@ function isModelEvent(event) {
 		}
 	});
 };
-//#endregion
-//#region ../../packages/inspect-common/src/utils/modelCost.ts
+// ../../packages/inspect-common/src/utils/modelCost.ts
 /** Per-model usage as the viewer reads it — structural so the generated
 *  `ModelUsage` satisfies it. Also exported as `ModelUsageData` from
 *  `@tsmono/inspect-components/usage`. */ var tokenTotal = (usage) => usage.total_tokens || (usage.input_tokens ?? 0) + (usage.input_tokens_cache_read ?? 0) + (usage.input_tokens_cache_write ?? 0) + (usage.output_tokens ?? 0) + (usage.reasoning_tokens ?? 0);
@@ -47274,16 +47016,14 @@ function isModelEvent(event) {
 		partial
 	} : void 0;
 };
-//#endregion
-//#region ../../packages/inspect-common/src/utils/modelFallbacks.ts
+// ../../packages/inspect-common/src/utils/modelFallbacks.ts
 /**
 * Total requests served via fallback across a sample's rollup.
 */ var totalModelFallbacks = (fallbacks) => (fallbacks ?? []).reduce((sum, f) => sum + f.count, 0);
 /**
 * One "requested → served (×N)" line per fallback rollup entry.
 */ var modelFallbackLines = (fallbacks) => (fallbacks ?? []).map((f) => `${f.model} → ${f.fallback_model}${f.count > 1 ? ` (×${f.count})` : ""}`);
-//#endregion
-//#region ../../packages/inspect-common/src/utils/modelRoles.ts
+// ../../packages/inspect-common/src/utils/modelRoles.ts
 var kModelNameSeparator = ", ";
 /**
 * Normalize a model role binding to a list of model configs. A role may be
@@ -47316,15 +47056,13 @@ var kModelNameSeparator = ", ";
 	}
 	return roles.size > 0 ? nullProtoRecord(roles) : void 0;
 };
-//#endregion
-//#region ../../packages/inspect-common/src/utils/time.ts
+// ../../packages/inspect-common/src/utils/time.ts
 /** ISO timestamp → epoch seconds (the timeline/connection-history unit). */ var isoToEpoch = (iso) => {
 	if (!iso) return void 0;
 	const ms = new Date(iso).getTime();
 	return Number.isFinite(ms) ? ms / 1e3 : void 0;
 };
-//#endregion
-//#region src/scoring/headline.ts
+// src/scoring/headline.ts
 /**
 * The score and metric that best summarise an eval.
 *
@@ -47367,8 +47105,7 @@ var headlineMetric = (results, declared) => resolveHeadlineMetric(results, decla
 	if (lead === void 0) return items;
 	return [lead, ...items.filter((_, i) => i !== index)];
 };
-//#endregion
-//#region src/client/utils/derive.ts
+// src/client/utils/derive.ts
 var deriveLogFields = (header) => {
 	let total_tokens;
 	if (header.stats?.model_usage) {
@@ -47445,8 +47182,7 @@ var deriveSampleFields = (summary) => {
 		scores
 	};
 };
-//#endregion
-//#region src/client/utils/type-utils.ts
+// src/client/utils/type-utils.ts
 var kDepthOrder = {
 	listed: 0,
 	previewed: 1,
@@ -47513,8 +47249,7 @@ var toLogPreview = (header) => {
 		primary_metric: headlineMetric(header.results, header.eval.headline_metric)
 	};
 };
-//#endregion
-//#region ../../node_modules/.pnpm/fzstd@0.1.1/node_modules/fzstd/esm/index.mjs
+// ../../node_modules/.pnpm/fzstd@0.1.1/node_modules/fzstd/esm/index.mjs
 var ab = ArrayBuffer;
 var u8$1 = Uint8Array;
 var u16$1 = Uint16Array;
@@ -48121,11 +47856,9 @@ var Decompress = /* @__PURE__ */ function() {
 	};
 	return Decompress;
 }();
-//#endregion
-//#region src/client/remote/decompression.worker.ts?worker&url
+// src/client/remote/decompression.worker.ts?worker&url
 var decompression_worker_default = new URL("decompression.worker.js", import.meta.url).href;
-//#endregion
-//#region ../../node_modules/.pnpm/fflate@0.8.3/node_modules/fflate/esm/browser.js
+// ../../node_modules/.pnpm/fflate@0.8.3/node_modules/fflate/esm/browser.js
 var u8 = Uint8Array;
 var u16 = Uint16Array;
 var i32 = Int32Array;
@@ -48482,8 +48215,7 @@ var td = typeof TextDecoder != "undefined" && /*#__PURE__*/ new TextDecoder();
 try {
 	td.decode(et, { stream: true });
 } catch (e) {}
-//#endregion
-//#region src/client/remote/inflate.ts
+// src/client/remote/inflate.ts
 var kChunkSize = 8192;
 /**
 * Inflates a DEFLATE ZIP entry, enforcing its directory size as output
@@ -48515,8 +48247,7 @@ var kChunkSize = 8192;
 	}
 	return output;
 }
-//#endregion
-//#region src/client/remote/zstd-decoder.ts
+// src/client/remote/zstd-decoder.ts
 function createZstdDecoder(Decompress) {
 	/**
 	* Maximum history allocation allowed by the viewer (2^25 = 32 MiB).
@@ -48653,8 +48384,7 @@ function createZstdDecoder(Decompress) {
 		ZstdWindowSizeError
 	};
 }
-//#endregion
-//#region src/client/remote/decompression-worker.ts
+// src/client/remote/decompression-worker.ts
 /**
 * ZIP entry decompression (zstd and DEFLATE) via Web Worker.
 *
@@ -48789,8 +48519,7 @@ var isSmall = (data, expectedSize) => data.length < WORKER_THRESHOLD && expected
 	if (isSmall(data, expectedSize)) return inflateBounded(data, expectedSize);
 	return decompressInWorker("deflate", data, expectedSize);
 }
-//#endregion
-//#region src/client/remote/decompression.ts
+// src/client/remote/decompression.ts
 /** Supported ZIP compression methods */ var CompressionMethod = {
 	STORED: 0,
 	DEFLATE: 8,
@@ -48826,8 +48555,7 @@ var isSmall = (data, expectedSize) => data.length < WORKER_THRESHOLD && expected
 		default: throw new UnsupportedCompressionError(compressionMethod, filename);
 	}
 }
-//#endregion
-//#region src/client/remote/remoteZipFile.ts
+// src/client/remote/remoteZipFile.ts
 /**
 * Represents an error thrown when a file exceeds the maximum allowed size.
 */ var FileSizeLimitError = class FileSizeLimitError extends Error {
@@ -49019,8 +48747,7 @@ function parseCentralDirectory(buffer) {
 	}
 	return entries;
 }
-//#endregion
-//#region src/client/remote/remoteLogFile.ts
+// src/client/remote/remoteLogFile.ts
 var OPEN_RETRY_LIMIT = 5;
 var SampleNotFoundError$1 = class SampleNotFoundError$1 extends Error {
 	constructor(message) {
@@ -49292,8 +49019,7 @@ var applyCursorFilter = (out, cursors) => {
 	out.call_pool = out.call_pool.filter((c) => c.id > lastCallPool);
 	return out;
 };
-//#endregion
-//#region src/client/api/client-api.ts
+// src/client/api/client-api.ts
 var isEvalFile = (file) => {
 	return file.endsWith(".eval");
 };
@@ -49605,8 +49331,7 @@ var createMiddlewareWrapper = (middlewares) => {
 		return applyMiddleware(name, fn, middlewares);
 	};
 };
-//#endregion
-//#region src/client/api/shared/api-shared.ts
+// src/client/api/shared/api-shared.ts
 /**
 * Downloads the provided content as a file using the browser's DOM API
 */ function download_file(filename, filecontents) {
@@ -49630,8 +49355,7 @@ var dataUrlBlob = (url) => {
 	const bytes = parameters.some((parameter) => parameter.trim().toLowerCase() === "base64") ? Uint8Array.from(atob(payload), (char) => char.charCodeAt(0)) : new TextEncoder().encode(decodeURIComponent(payload));
 	return new Blob([bytes], { type: mimeType.trim() || "text/plain" });
 };
-//#endregion
-//#region src/client/api/static-http/fetch.ts
+// src/client/api/static-http/fetch.ts
 /**
 * Fetches a file from the specified URL as a string
 */ async function fetchTextFile(url, handleError) {
@@ -49700,8 +49424,7 @@ var dataUrlBlob = (url) => {
 */ function joinURI(...segments) {
 	return segments.map((segment) => segment.replace(/(^\/+|\/+$)/g, "")).join("/");
 }
-//#endregion
-//#region src/client/api/static-http/api-static-http.ts
+// src/client/api/static-http/api-static-http.ts
 /** The canonical, origin-unique URL of a deployment's log dir. A relative
 *  configured log_dir is page-relative for fetching, but page-relative
 *  strings are not identities: two bundles at different paths on one origin
@@ -49830,8 +49553,7 @@ var kFallbackAppConfig = {
 		open_log_file
 	};
 }
-//#endregion
-//#region src/client/api/view-server/request.ts
+// src/client/api/view-server/request.ts
 var VIEW_REQUEST_HEADER = "X-Inspect-View-Request";
 var VIEW_REQUEST_HEADER_VALUE = "true";
 /**
@@ -49969,8 +49691,7 @@ function serverRequestApi(baseUrl, getHeaders, customFetch) {
 		fetchType
 	};
 }
-//#endregion
-//#region src/client/api/view-server/api-view-server.ts
+// src/client/api/view-server/api-view-server.ts
 var LOADED_TIME = Date.now();
 var lastEvalTime = 0;
 var transportRequestApi = (transport) => serverRequestApi(transport.apiBaseUrl || "/api", transport.headerProvider, transport.customFetch);
@@ -50271,8 +49992,7 @@ async function fetchViewServerLogRoot(transport = {}, logDir) {
 		get_search_result
 	};
 }
-//#endregion
-//#region src/client/api/vscode/api-vscode.ts
+// src/client/api/vscode/api-vscode.ts
 /**
 * The `fetch` that rides the extension's generic `http_request` JSON-RPC
 * proxy. The JSON-RPC client registers a window message listener, so build
@@ -50316,8 +50036,7 @@ async function fetchViewServerLogRoot(transport = {}, logDir) {
 		download_file
 	};
 }
-//#endregion
-//#region src/client/api/vscode/host-capabilities.ts
+// src/client/api/vscode/host-capabilities.ts
 /**
 * Transport capabilities the VS Code extension host advertises via a
 * `<script id="inspect-host-capabilities">` JSON block injected into the
@@ -50406,8 +50125,7 @@ var staticBackend = (log_dir, abs_log_dir, app_config) => ({
 	};
 	return viewServerBackend();
 };
-//#endregion
-//#region src/app_config/singleFileMode.ts
+// src/app_config/singleFileMode.ts
 /**
 * Single-file mode is set when the viewer is opened against a specific log
 * rather than a directory listing — e.g. an embedded iframe deep-link. We
@@ -50454,8 +50172,7 @@ var staticBackend = (log_dir, abs_log_dir, app_config) => ({
 	const own = dirname(fileRef);
 	return own !== "" ? own : pageBaseDir(fileRef);
 };
-//#endregion
-//#region src/app_config/urlLogSource.ts
+// src/app_config/urlLogSource.ts
 /**
 * The log source named at viewer *invocation time* — the URL the page was opened
 * with: `?log_dir=` (a directory), `?log_file=` (a single file), or neither
@@ -50484,8 +50201,7 @@ var staticBackend = (log_dir, abs_log_dir, app_config) => ({
 	};
 	return { kind: "none" };
 };
-//#endregion
-//#region src/app_config/appConfig.ts
+// src/app_config/appConfig.ts
 /**
 * Resolve the bootstrap from the invocation-time log source. The single place the
 * URL log source is parsed (see `app_config/urlLogSource.ts`).
@@ -50601,8 +50317,7 @@ var appConfig;
 	};
 	queryClient.setQueryData(APP_CONFIG_KEY, appConfig);
 };
-//#endregion
-//#region src/app_config/AppConfigGate.tsx
+// src/app_config/AppConfigGate.tsx
 var AppConfigGate = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(3);
 	const { children } = t0;
@@ -50629,8 +50344,7 @@ var LogLocationGate_module_default = {
 	location: "_location_fvpnz_30",
 	actions: "_actions_fvpnz_40"
 };
-//#endregion
-//#region src/app_config/LogLocationGate.tsx
+// src/app_config/LogLocationGate.tsx
 /**
 * Refuses a link-named log location on another origin. Mounted above
 * `AppConfigGate`, so no api exists and nothing is requested from that
@@ -50754,10 +50468,9 @@ var LogLocationRefusal = (t0) => {
 	} else t7 = $[12];
 	return t7;
 };
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@8.5.0_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6cb9623782d1813d65fa0efb9041c376/node_modules/react-router/dist/production/lib/dom-export/dom-router-provider.js
+// ../../node_modules/.pnpm/react-router@8.5.1_@types+react-dom@19.3.0_@types+react@19.3.0__@types+react@19.3.0_rea_6c099e31281b954d9a4affa1fd691044/node_modules/react-router/dist/production/lib/dom-export/dom-router-provider.js
 /**
-* react-router v8.5.0
+* react-router v8.5.1
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -50772,8 +50485,7 @@ function RouterProvider$1(props) {
 		...props
 	});
 }
-//#endregion
-//#region ../../packages/zustand-devtools/src/entries.ts
+// ../../packages/zustand-devtools/src/entries.ts
 var isExpandable = (value) => typeof value === "object" && value !== null;
 var objectEntries = (o) => Object.entries(o).map(([key, value]) => ({
 	id: key,
@@ -50870,8 +50582,7 @@ var TreeNode_module_default = {
 	empty: "_empty_1xt2m_113",
 	flash: "_flash_1xt2m_119"
 };
-//#endregion
-//#region ../../packages/zustand-devtools/src/TreeNode.tsx
+// ../../packages/zustand-devtools/src/TreeNode.tsx
 var kindClass = {
 	string: TreeNode_module_default.string,
 	number: TreeNode_module_default.number,
@@ -50915,7 +50626,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	let t4;
 	if ($[4] !== expandable) {
 		t4 = () => {
-			if (expandable) setExpanded(_temp$103);
+			if (expandable) setExpanded(_temp$106);
 		};
 		$[4] = expandable;
 		$[5] = t4;
@@ -50927,7 +50638,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 			Promise.resolve().then(() => navigator.clipboard.writeText(toClipboardJson(value))).then(() => {
 				setCopied(true);
 				setTimeout(() => setCopied(false), COPIED_FEEDBACK_MS);
-			}).catch(_temp2$59);
+			}).catch(_temp2$60);
 		};
 		$[6] = value;
 		$[7] = t5;
@@ -51025,11 +50736,11 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 					className: TreeNode_module_default.empty,
 					children: "empty"
 				}),
-				entries.slice(0, limit).map(_temp3$41),
+				entries.slice(0, limit).map(_temp3$42),
 				entries.length > limit && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 					type: "button",
 					className: TreeNode_module_default.showMore,
-					onClick: () => setLimit(_temp4$30),
+					onClick: () => setLimit(_temp4$31),
 					children: [
 						"Show",
 						" ",
@@ -51056,23 +50767,22 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	return t6;
 });
 TreeNode$1.displayName = "TreeNode";
-function _temp$103(e) {
+function _temp$106(e) {
 	return !e;
 }
-function _temp2$59(error) {
+function _temp2$60(error) {
 	console.error("Failed to copy:", error);
 }
-function _temp3$41(entry) {
+function _temp3$42(entry) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TreeNode$1, {
 		name: entry.key,
 		value: entry.value
 	}, entry.id);
 }
-function _temp4$30(l) {
+function _temp4$31(l) {
 	return l + CHUNK_SIZE;
 }
-//#endregion
-//#region src/client/storage/index.ts
+// src/client/storage/index.ts
 var vscode$1 = getVscodeApi();
 var webviewStorage = vscode$1 ? createWebviewStorage(vscode$1, "app-storage") : void 0;
 var storage = webviewStorage ? {
@@ -51085,8 +50795,7 @@ var storage = webviewStorage ? {
 	},
 	removeItem: (name) => webviewStorage.removeItem(name)
 } : void 0;
-//#endregion
-//#region src/utils/workQueue.ts
+// src/utils/workQueue.ts
 var WorkPriority = /*#__PURE__*/ function(WorkPriority) {
 	WorkPriority[WorkPriority["Low"] = 0] = "Low";
 	WorkPriority[WorkPriority["Medium"] = 1] = "Medium";
@@ -51216,8 +50925,7 @@ var WorkQueue = class {
 		return this.activeWorkers > 0;
 	}
 };
-//#endregion
-//#region src/log_data/fetchEngine.ts
+// src/log_data/fetchEngine.ts
 var toWorkPriority = (priority) => {
 	switch (priority) {
 		case "user": return WorkPriority.User;
@@ -51890,12 +51598,11 @@ var FetchEngine = class {
 * lives as a module singleton (like `queryClient`). Born inert; `start(deps)`
 * injects its dependencies at the composition root.
 */ var fetchEngine = new FetchEngine();
-//#endregion
-//#region ../../node_modules/.pnpm/dexie@4.4.7/node_modules/dexie/import-wrapper.mjs
-var import_dexie = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((exports, module) => {
+// ../../node_modules/.pnpm/dexie@4.4.7/node_modules/dexie/import-wrapper.mjs
+var import_dexie = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((exports, module, this$1) => {
 	(function(global, factory) {
 		typeof exports === "object" && typeof module !== "undefined" ? module.exports = factory() : typeof define === "function" && define.amd ? define(factory) : (global = typeof globalThis !== "undefined" ? globalThis : global || self, global.Dexie = factory());
-	})(exports, (function() {
+	})(this$1, (function() {
 		"use strict";
 		var extendStatics = function(d, b) {
 			extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d, b) {
@@ -57509,8 +57216,7 @@ var DexieSymbol = Symbol.for("Dexie");
 var Dexie = globalThis[DexieSymbol] || (globalThis[DexieSymbol] = import_dexie.default);
 if (import_dexie.default.semVer !== Dexie.semVer) throw new Error(`Two different versions of Dexie loaded in the same app: ${import_dexie.default.semVer} and ${Dexie.semVer}`);
 var { liveQuery, mergeRanges, rangesOverlap, RangeSet: RangeSet$1, cmp, Entity, PropModification, replacePrefix, add: add$1, remove: remove$2, DexieYProvider } = Dexie;
-//#endregion
-//#region src/client/database/schema.ts
+// src/client/database/schema.ts
 var toLogRecord = (log, id, cached_at) => {
 	const { name, ...rest } = log;
 	return {
@@ -57578,8 +57284,7 @@ var AppDatabase = class extends Dexie {
 */ var deleteLegacyDatabases = () => {
 	Promise.resolve().then(() => indexedDB.databases()).then((databases) => Promise.all(databases.map((info) => info.name).filter((name) => !!name?.startsWith(`${DB_NAME}_`)).map((name) => Dexie.delete(name).catch(() => {})))).catch(() => {});
 };
-//#endregion
-//#region src/client/database/service.ts
+// src/client/database/service.ts
 var log$5 = createLogger("OpenDatabase");
 var newRow$1 = (handle) => ({
 	...handle,
@@ -57860,8 +57565,7 @@ var newRow$1 = (handle) => ({
 		};
 	}
 };
-//#endregion
-//#region src/log_data/databaseInstance.ts
+// src/log_data/databaseInstance.ts
 var current$1 = null;
 var opening = null;
 /**
@@ -57885,8 +57589,7 @@ var opening = null;
 * first successful open, and forever in single-file sessions (which never
 * open one; their reads miss and writes stay cache-only).
 */ var currentDatabase = () => current$1;
-//#endregion
-//#region src/log_data/listingSync.ts
+// src/log_data/listingSync.ts
 /**
 * Directory discovery: list the log dir, diff it against the engine's known
 * listing (new / changed / deleted), and produce the result into the engine —
@@ -57938,8 +57641,7 @@ var opening = null;
 		epoch
 	});
 };
-//#endregion
-//#region src/log_data/databaseListings.ts
+// src/log_data/databaseListings.ts
 var databaseLogsListingKeyRoot = [
 	"log_data",
 	"dexie-listing",
@@ -57963,8 +57665,7 @@ var databaseLogsListingKey = (universe, accessorsKey, filter, orderBy, paginatio
 */ var invalidateDatabaseLogsListings = throttle(() => {
 	queryClient.invalidateQueries({ queryKey: databaseLogsListingKeyRoot });
 }, 100, { leading: false });
-//#endregion
-//#region src/log_data/samplesListing.ts
+// src/log_data/samplesListing.ts
 var EMPTY_ROWS = [];
 /** The whole key family for a dir — the invalidation target. */ var samplesListingDirKey = (logDir) => [
 	"log_data",
@@ -58093,8 +57794,7 @@ var readSamplesListing = async (params) => {
 /** Drop every samples listing entry under the dir (clear-all path). */ var removeSamplesListings = (logDir) => {
 	queryClient.removeQueries({ queryKey: samplesListingDirKey(logDir) });
 };
-//#endregion
-//#region src/log_data/logsContent.ts
+// src/log_data/logsContent.ts
 /**
 * The Log entity content backed by IndexedDB — one ordered row collection per
 * directory plus one per-entity key per log — mirrored into the react-query
@@ -58409,8 +58109,7 @@ var useLogs = (logDir) => {
 */ var resolveLogKey = (logDir, logFile) => {
 	return getLogRows(logDir).find((row) => row.name.endsWith(logFile))?.name ?? logFile;
 };
-//#endregion
-//#region src/log_data/replicationControl.ts
+// src/log_data/replicationControl.ts
 var openLogDirDatabase = async (logDir) => {
 	try {
 		const database = await acquireDatabase();
@@ -58557,8 +58256,7 @@ var serializedSyncListing = async (logDir) => {
 	await engineReady(logDir);
 	return serializedSyncListing(logDir);
 };
-//#endregion
-//#region src/log_data/useFetchEngineStatus.ts
+// src/log_data/useFetchEngineStatus.ts
 /**
 * The fetch engine's status (background syncing activity + local database
 * stats), read reactively from the engine's own external store — it's
@@ -58577,8 +58275,7 @@ var serializedSyncListing = async (logDir) => {
 *  options popover's refresh-failure note). */ var useLastSyncedAt = () => {
 	return useFetchEngineStatus().lastSyncedAt;
 };
-//#endregion
-//#region src/log_data/useLogsSync.ts
+// src/log_data/useLogsSync.ts
 var logsSyncKey = ["log_data", "sync"];
 var kRefreshEvent = "refresh-evals";
 var kClientEventsIntervalMs = 5e3;
@@ -58707,8 +58404,7 @@ var clientEventsKey = (logDir) => [
 */ var invalidateLogListing = () => {
 	queryClient.invalidateQueries({ queryKey: logsSyncKey });
 };
-//#endregion
-//#region src/log_data/imperativeLogData.ts
+// src/log_data/imperativeLogData.ts
 var imperativeLogData = {
 	invalidateLogDetail: (logDir, logFile) => {
 		if (logFile === void 0) return;
@@ -58720,8 +58416,7 @@ var imperativeLogData = {
 		invalidateLogListing();
 	}
 };
-//#endregion
-//#region src/client/database/listing.ts
+// src/client/database/listing.ts
 /** Slice one page (with its continuation cursor) off filtered+sorted rows. */ var pageRows = (rows, pagination) => {
 	if (!pagination) return {
 		items: rows,
@@ -58734,8 +58429,7 @@ var imperativeLogData = {
 		next_cursor: end < rows.length ? { offset: end } : null
 	};
 };
-//#endregion
-//#region src/log_data/logListing.ts
+// src/log_data/logListing.ts
 /**
 * The listing read: one row per log file in the directory — the Log entity
 * row with retried runs marked. Content fills in as depth increases; that
@@ -58784,8 +58478,7 @@ var useLogListing = (logDir) => {
 	const logs = useLogs(logDir);
 	return useMapAsyncData((0, import_react.useDeferredValue)(logs), computeLogsWithRetried);
 };
-//#endregion
-//#region src/log_data/logsListingRead.ts
+// src/log_data/logsListingRead.ts
 /**
 * Where listing queries for `logDir` read their rows — an explicit,
 * scope-level decision rather than a per-query fallback:
@@ -58919,8 +58612,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	for (const row of rows) if (find.rowText(row).includes(term)) ids.push(find.getRowId(row));
 	return ids;
 };
-//#endregion
-//#region src/log_data/log.ts
+// src/log_data/log.ts
 /**
 * One log's entity row as a per-entity, db-backed cache entry. The `queryFn`
 * is the re-seed path only (an evicted/unmounted entry re-reads its
@@ -58992,7 +58684,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	let t2;
 	if ($[3] !== demand || $[4] !== logDir || $[5] !== logFile) {
 		t1 = () => {
-			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$102);
+			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$105);
 		};
 		t2 = [
 			logDir,
@@ -59081,9 +58773,8 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	} else t0 = $[1];
 	return t0;
 };
-function _temp$102() {}
-//#endregion
-//#region src/log_data/pendingSamples.ts
+function _temp$105() {}
+// src/log_data/pendingSamples.ts
 var kDefaultRefreshSeconds = 2;
 var pendingSamplesKey = (logDir, logFile) => [
 	"log_data",
@@ -59186,7 +58877,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 		t4 = {
 			queryKey: t2,
 			queryFn: t3,
-			refetchInterval: _temp$101,
+			refetchInterval: _temp$104,
 			refetchIntervalInBackground: true,
 			staleTime: 0,
 			refetchOnWindowFocus: false,
@@ -59199,7 +58890,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 	const result = useAsyncDataFromQuery(t4);
 	let t5;
 	if ($[14] !== enabled || $[15] !== result) {
-		t5 = enabled ? map(result, _temp2$58) : data(void 0);
+		t5 = enabled ? map(result, _temp2$59) : data(void 0);
 		$[14] = enabled;
 		$[15] = result;
 		$[16] = t5;
@@ -59215,7 +58906,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 	const pending = usePendingSamples(logDir, logFile);
 	let t0;
 	if ($[0] !== pending) {
-		t0 = map(pending, _temp3$40);
+		t0 = map(pending, _temp3$41);
 		$[0] = pending;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -59226,17 +58917,16 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 * finalize decision). Returns
 * `undefined` when there's no resolved dir.
 */ var getPendingSamples = (logDir, logFile) => logDir === void 0 ? void 0 : queryClient.getQueryData(pendingSamplesKey(logDir, logFile)) ?? void 0;
-function _temp$101(query) {
+function _temp$104(query) {
 	return query.state.status === "error" ? false : pendingSamplesIntervalMs(query.state.data);
 }
-function _temp2$58(data) {
+function _temp2$59(data) {
 	return data ?? void 0;
 }
-function _temp3$40(data) {
+function _temp3$41(data) {
 	return data?.metrics;
 }
-//#endregion
-//#region src/log_data/chunked/format.ts
+// src/log_data/chunked/format.ts
 /**
 * Entry naming and chunk math for the chunked per-sample log format — the TS
 * twin of inspect_ai's `log/_recorders/chunked/format.py`.
@@ -59302,8 +58992,7 @@ var statsEntryName = (id, epoch) => `${samplePrefix(id, epoch)}/events/${STATS_J
 	}
 	return lo;
 };
-//#endregion
-//#region src/log_data/chunked/log.ts
+// src/log_data/chunked/log.ts
 /**
 * Unconditional console logging for the chunked read path: every member
 * fetch/cache-hit/eviction, chunk parse, sidecar read, attachment
@@ -59323,8 +59012,7 @@ var statsEntryName = (id, epoch) => `${samplePrefix(id, epoch)}/events/${STATS_J
 		console.error(`[chunked] ${message}`);
 	}
 };
-//#endregion
-//#region src/log_data/chunked/chunkStore.ts
+// src/log_data/chunked/chunkStore.ts
 /**
 * The framework-free chunk-byte store and per-sequence readers for chunked
 * samples (design/large-samples.md, "Data-loading architecture").
@@ -59435,7 +59123,7 @@ var decoder$1 = new TextDecoder();
 		if (!pending) {
 			const name = this.entryNameFor(start);
 			pending = this.bytes.read(name).then((bytes) => {
-				const items = JSON.parse(decoder$1.decode(bytes));
+				const items = jsonParse(decoder$1.decode(bytes));
 				log$3.debug(`parse ${name}: ${items.length} items`);
 				return items;
 			}).then((items) => this.transform?.(items, start) ?? items);
@@ -59470,8 +59158,7 @@ var decoder$1 = new TextDecoder();
 		return chunks.flat().slice(lo - base, hi - base);
 	}
 };
-//#endregion
-//#region src/log_data/chunked/skeletonIndex.ts
+// src/log_data/chunked/skeletonIndex.ts
 /**
 * Query layer over a sample skeleton: span-by-begin-ordinal, ancestor
 * stacks, and filter visibility — all answered from span extents and
@@ -59532,8 +59219,7 @@ var SkeletonIndex = class {
 		return at(this.childrenOf, spanIdx).length > 0;
 	}
 };
-//#endregion
-//#region src/log_data/chunked/chunkedSample.ts
+// src/log_data/chunked/chunkedSample.ts
 /**
 * The open path for a chunked sample: parse the shell + sidecars and build
 * per-sequence readers over one shared chunk-byte store. Everything here is
@@ -59545,7 +59231,7 @@ var readJson = async (source, name) => {
 	const startedAt = performance.now();
 	const bytes = await source.readFile(name);
 	log$3.info(`fetch ${name} — ${(bytes.byteLength / 1024).toFixed(1)}KB in ${(performance.now() - startedAt).toFixed(0)}ms (sidecar, uncached)`);
-	return JSON.parse(decoder.decode(bytes));
+	return jsonParse(decoder.decode(bytes));
 };
 /**
 * Open a chunked sample. `entryNames` is the log's central-directory name
@@ -59588,8 +59274,7 @@ var readJson = async (source, name) => {
 		...entryNames.has(metadataEntry) ? { readMetadata: () => readJson(source, metadataEntry) } : {}
 	};
 };
-//#endregion
-//#region src/log_data/chunked/cursor.ts
+// src/log_data/chunked/cursor.ts
 /**
 * Layer 1 of view-row pagination (design/large-samples.md, "View-row
 * pagination"): the filtered cursor primitive. Reads surviving events from
@@ -59674,8 +59359,7 @@ var FilteredCursor = class {
 		this.from = Math.max(this.from, ordinal);
 	}
 };
-//#endregion
-//#region src/log_data/chunked/decode.ts
+// src/log_data/chunked/decode.ts
 /**
 * Layer 2 of view-row pagination (design/large-samples.md, "View-row
 * pagination"): the decode walk. Produces view rows by walking surviving
@@ -59811,8 +59495,7 @@ function rowDepth(ctx, ordinal, ev, structuralIds) {
 		last
 	};
 }
-//#endregion
-//#region src/log_data/chunked/pyTimestamp.ts
+// src/log_data/chunked/pyTimestamp.ts
 /**
 * Timestamp twin of the Python skeleton producer's datetime handling.
 *
@@ -59848,8 +59531,7 @@ function rowDepth(ctx, ordinal, ev, structuralIds) {
 	const fraction = micros === 0 ? "" : `.${pad(micros, 6)}`;
 	return `${pad(date.getUTCFullYear(), 4)}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}T${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}${fraction}+00:00`;
 };
-//#endregion
-//#region src/log_data/chunked/outlineRows.ts
+// src/log_data/chunked/outlineRows.ts
 /** `kSandboxSignalName` (inspect-components `transform/fixups.ts`). */ var SANDBOX_SIGNAL_NAME = "53787D8A-D3FC-426D-B383-9F880B70E4AA";
 var defaultCollapsed = (span) => {
 	if (span.type === "solver" && span.name === "system_message") return true;
@@ -59860,8 +59542,7 @@ var defaultCollapsed = (span) => {
 * Span ids the default-collapse policy collapses — for seeding transcript
 * collapse state to match `candidateOutlineRows(skeleton, "default")`.
 */ var defaultCollapsedSpanIds = (skeleton) => new Set(skeleton.spans.filter(defaultCollapsed).map((span) => span.id));
-//#endregion
-//#region src/log_data/chunked/syntheticEvents.ts
+// src/log_data/chunked/syntheticEvents.ts
 /**
 * Synthesize a minimal event stream from a `SampleSkeleton`.
 *
@@ -60149,8 +59830,7 @@ var syntheticEventsFromSkeleton = (skel) => {
 		ordinals
 	};
 };
-//#endregion
-//#region src/log_data/chunked/rowSpace.ts
+// src/log_data/chunked/rowSpace.ts
 /**
 * The estimate-then-correct global view-row index space
 * (design/large-samples.md, "View-row pagination", amendment 1). Row
@@ -60316,8 +59996,7 @@ var RowSpace = class {
 		return this.materializedRows.size;
 	}
 };
-//#endregion
-//#region src/utils/attachments.ts
+// src/utils/attachments.ts
 var CONTENT_PROTOCOL$1 = "tc://";
 var ATTACHMENT_PROTOCOL$1 = "attachment://";
 var resolveString = (value, attachments, onFailedResolve) => {
@@ -60362,8 +60041,7 @@ var resolveValue = (value, attachments, onFailedResolve) => {
 * and this is where the shape is handed back.
 * Attachment values are untrusted; only own string entries resolve.
 */ var resolveAttachments = (value, attachments, onFailedResolve) => resolveValue(value, attachments, onFailedResolve);
-//#endregion
-//#region src/log_data/sampleFetch.ts
+// src/log_data/sampleFetch.ts
 /**
 * The backend has no EvalSample for the sample (e.g. a running sample whose buffer
 * was flushed but whose log hasn't landed yet). A typed error rather than an
@@ -60445,8 +60123,7 @@ var resolveValue = (value, attachments, onFailedResolve) => {
 		store: {}
 	});
 };
-//#endregion
-//#region src/log_data/chunkedHydrate.ts
+// src/log_data/chunkedHydrate.ts
 /**
 * Full hydration of a chunked sample into a resolved `EvalSample`
 * (design/large-samples.md, change log 2026-07-22, "Fidelity plan").
@@ -60509,8 +60186,7 @@ var resolveValue = (value, attachments, onFailedResolve) => {
 		metadata
 	});
 };
-//#endregion
-//#region src/log_data/sampleQuery.ts
+// src/log_data/sampleQuery.ts
 var kSampleGcTimeMs = 3e4;
 var sampleQueryKey = (handle) => [
 	"log_data",
@@ -60596,8 +60272,7 @@ var sampleQueryKey = (handle) => [
 	} else t1 = $[3];
 	return useAsyncDataFromQuery(t1);
 };
-//#endregion
-//#region src/log_data/chunkedSampleQuery.ts
+// src/log_data/chunkedSampleQuery.ts
 var chunkedSampleQueryKey = (handle) => [
 	"log_data",
 	"chunked-sample",
@@ -60674,8 +60349,7 @@ var shellEvalSample = async (chunked) => {
 	} else t2 = $[6];
 	return useAsyncDataFromQuery(t2);
 };
-//#endregion
-//#region src/log_data/sampleStream.ts
+// src/log_data/sampleStream.ts
 var log$2 = createLogger("sampleStream");
 var kNoId = -1;
 var initialStreamState = () => ({
@@ -60832,8 +60506,7 @@ function resolvePoolRefs(event, state) {
 	};
 }
 var findMaxId = (items, currentMax) => items.length > 0 ? Math.max(...items.map((i) => i.id), currentMax) : currentMax;
-//#endregion
-//#region src/log_data/sampleSummaries.ts
+// src/log_data/sampleSummaries.ts
 var mergeSampleSummaries = (logSamples, pendingSamples) => {
 	const existingSampleIds = new Set(logSamples.map((sample) => `${sample.id}-${sample.epoch}`));
 	const uniquePendingSamples = pendingSamples.filter((sample) => !existingSampleIds.has(`${sample.id}-${sample.epoch}`)).map((sample) => {
@@ -60884,7 +60557,7 @@ var mergeSampleSummaries = (logSamples, pendingSamples) => {
 		t3 = rows.data?.some((row_0) => row_0.logFile !== logKey) ? loading$2 : map(compose({
 			rows,
 			pending
-		}), _temp2$57);
+		}), _temp2$58);
 		$[8] = logKey;
 		$[9] = pending;
 		$[10] = rows;
@@ -60896,14 +60569,13 @@ var mergeSampleSummaries = (logSamples, pendingSamples) => {
 * Non-React snapshot of {@link useSampleSummaries} (for the running-sample
 * query's tick decisions). Empty when there's no resolved dir.
 */ var getSampleSummaries = async (logDir, logFile) => logDir === void 0 ? [] : mergeSampleSummaries(await readSettledSummaries(logDir, resolveLogKey(logDir, logFile)), getPendingSamples(logDir, logFile)?.samples ?? []);
-function _temp$100(row) {
+function _temp$103(row) {
 	return row.summary;
 }
-function _temp2$57(settled) {
-	return mergeSampleSummaries(settled.rows.map(_temp$100), settled.pending?.samples ?? []);
+function _temp2$58(settled) {
+	return mergeSampleSummaries(settled.rows.map(_temp$103), settled.pending?.samples ?? []);
 }
-//#endregion
-//#region src/log_data/runningSampleQuery.ts
+// src/log_data/runningSampleQuery.ts
 var kRunningSampleIntervalMs = 2e3;
 var kCatchupIntervalMs = 10;
 var runningSampleQueryKey = (logDir, handle) => [
@@ -61039,7 +60711,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 			queryKey: t2,
 			queryFn: t3,
 			structuralSharing: false,
-			refetchInterval: _temp$99,
+			refetchInterval: _temp$102,
 			refetchIntervalInBackground: true,
 			gcTime: kSampleGcTimeMs,
 			refetchOnWindowFocus: false,
@@ -61051,11 +60723,10 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 	} else t4 = $[13];
 	return useAsyncDataFromQuery(t4);
 };
-function _temp$99(query) {
+function _temp$102(query) {
 	return query.state.status === "error" || query.state.data?.finalized === true ? false : query.state.data?.catchup === true ? kCatchupIntervalMs : kRunningSampleIntervalMs;
 }
-//#endregion
-//#region src/log_data/sampleData.ts
+// src/log_data/sampleData.ts
 var kNoRunningEvents = [];
 var settledSampleData = (sample) => ({
 	sample,
@@ -61201,8 +60872,7 @@ var settledSampleData = (sample) => ({
 */ var usePassiveEvalSampleData = (handle) => {
 	return useMapAsyncData(usePassiveEvalSample(handle), settledSampleData);
 };
-//#endregion
-//#region src/log_data/chunkedAttachments.ts
+// src/log_data/chunkedAttachments.ts
 /**
 * Attachment resolution for chunked samples: event chunks are materialized
 * with their `attachment://<index>` refs substituted before anything
@@ -61257,8 +60927,7 @@ var collectRefs = (value, into) => {
 * (impossible from our own chunker) pass through unchanged rather than
 * being dropped.
 */ var resolvedEventsReader = (chunked) => chunked.events.withTransform((items, start) => withAttachmentsResolved(items.map((item) => normalizeEvent(item) ?? item), chunked, `events chunk ${start}`));
-//#endregion
-//#region ../../packages/inspect-components/src/chat/messages.ts
+// ../../packages/inspect-components/src/chat/messages.ts
 /** Whether an assistant message carries server-side tool calls (provider
 * executed `tool_use` content blocks) — these render as flush rows of the
 * assistant turn container rather than as message body. */ var hasServerToolUse = (message) => {
@@ -61356,8 +61025,7 @@ var resolveMessages = (messages) => {
 	};
 	else return content;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/rowsModel.ts
+// ../../packages/inspect-components/src/chat/rowsModel.ts
 /**
 * Whether a row renders the message with this id — as its head message or
 * as one of its folded tool messages. The deep-link target scan and the
@@ -61524,8 +61192,7 @@ var hasVisibleContent = (message) => {
 	const hasToolCalls = message.role === "assistant" && !!message.tool_calls?.length;
 	return (hasToolCalls && !hasVisibleContent(message) ? 0 : 1) + (hasToolCalls ? message.tool_calls.length : 0);
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/messagesToStr.ts
+// ../../packages/inspect-components/src/chat/messagesToStr.ts
 var messagesToStr = (messages, options) => {
 	const opts = options || {};
 	return messages.map((msg) => messageToStr(msg, opts)).filter((str) => str !== null).join("\n");
@@ -61577,8 +61244,7 @@ var betterContentText = (content, excludeToolUsage, excludeReasoning) => {
 	if (typeof content === "string") return content;
 	return content.map((c) => textFromContent(c, excludeToolUsage, excludeReasoning)).filter((text) => text !== null).join("\n");
 };
-//#endregion
-//#region ../../packages/inspect-components/src/content/markdownBlocks.ts
+// ../../packages/inspect-components/src/content/markdownBlocks.ts
 var longestBacktickRun = (value) => {
 	let longest = 0;
 	for (const run of value.matchAll(/`+/g)) longest = Math.max(longest, run[0].length);
@@ -61594,8 +61260,7 @@ var fenced = (value) => {
 	return `${fence}\n${value}\n${fence}`;
 };
 var quoted = (value) => value.split("\n").map((line) => `> ${line}`).join("\n");
-//#endregion
-//#region ../../packages/inspect-components/src/chat/messagesToMarkdown.ts
+// ../../packages/inspect-components/src/chat/messagesToMarkdown.ts
 /**
 * Converts selected messages to a Markdown document suitable for reports
 * and other review artifacts. One section per message, titled by role;
@@ -61654,8 +61319,7 @@ var toolUseMarkdown = (item) => {
 	const withError = item.error ? `${invocation}\n${item.error}` : invocation;
 	return `**Tool use: ${item.name}**\n\n${fenced(withError)}`;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/selection/messageSelection.ts
+// ../../packages/inspect-components/src/chat/selection/messageSelection.ts
 var isSystemMessage = (message) => message.role === "system";
 /**
 * Id → messages for every selectable row, in the order the chat renders
@@ -61693,8 +61357,7 @@ var isSystemMessage = (message) => message.role === "system";
 	}, ...rows] : rows;
 	return new Map(ordered.map((row) => [row.id, row.messages]));
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/messageSearchText.ts
+// ../../packages/inspect-components/src/chat/messageSearchText.ts
 /**
 * Extracts searchable text from a ResolvedMessage for find-in-page functionality.
 */ var messageSearchText = (resolved) => {
@@ -61737,8 +61400,7 @@ var isSystemMessage = (message) => message.role === "system";
 	}
 	return texts;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/tools/tool.ts
+// ../../packages/inspect-components/src/chat/tools/tool.ts
 var kToolTodoContentType = "agent/todo-list";
 var kToolIcons = nullProtoRecord(new Map(Object.entries({
 	bash: "terminal",
@@ -62157,8 +61819,7 @@ var extractInput = (args, inputDescriptor) => {
 		return formatArg(key, args[key]);
 	}) };
 };
-//#endregion
-//#region ../../packages/inspect-components/src/content/DisplayModeContext.tsx
+// ../../packages/inspect-components/src/content/DisplayModeContext.tsx
 var DisplayModeContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 /**
 * Hook to access display mode. Returns default "rendered" if no provider exists.
@@ -62174,8 +61835,7 @@ var DisplayModeContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 	return useDisplayMode() === "rendered" && trusted;
 };
 var cappedText_module_default = { notice: "_notice_mpxkz_1" };
-//#endregion
-//#region ../../packages/inspect-components/src/content/cappedText.tsx
+// ../../packages/inspect-components/src/content/cappedText.tsx
 var MAX_INLINE_CHARS = 25e4;
 /**
 * Caps very large text so a single huge DOM node never enters the layout/paint
@@ -62204,8 +61864,7 @@ var formatSize = (n) => {
 	if (n >= 1e3) return `${Math.round(n / 1e3)} KB`;
 	return `${n} chars`;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/content/RenderedText.tsx
+// ../../packages/inspect-components/src/content/RenderedText.tsx
 var RenderedText = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 	const $ = (0, import_compiler_runtime.c)(19);
 	const { markdown, references, style, className, forceRender, renderer, options, truncateAt } = t0;
@@ -62269,8 +61928,7 @@ var RenderedText = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 });
 RenderedText.displayName = "RenderedText";
 var MediaReference_module_default = { reference: "_reference_7p4hu_1" };
-//#endregion
-//#region ../../packages/inspect-components/src/media/MediaReference.tsx
+// ../../packages/inspect-components/src/media/MediaReference.tsx
 var MediaReference = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(7);
 	const { source, className } = t0;
@@ -62305,8 +61963,7 @@ var MediaReference = (t0) => {
 	} else t2 = $[6];
 	return t2;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/media/mediaSource.ts
+// ../../packages/inspect-components/src/media/mediaSource.ts
 var primaryAudioMimeTypes = {
 	mp3: "audio/mpeg",
 	wav: "audio/wav"
@@ -62347,8 +62004,7 @@ var isRenderableImageDocument = (source, declaredMimeType) => {
 	const normalizedDeclared = normalizedImageMimeType(declaredMimeType);
 	return isRasterImageMimeType(normalizedSource) && normalizedSource === normalizedDeclared;
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.6/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
+// ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.10/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
 function getMeasurementKey(item) {
 	return typeof item === "object" ? item.key : item;
 }
@@ -62380,8 +62036,7 @@ function createLazyMeasurementsView(cache, flat) {
 		return Reflect.get(target, prop, receiver);
 	} });
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.6/node_modules/@tanstack/virtual-core/dist/esm/utils.js
+// ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.10/node_modules/@tanstack/virtual-core/dist/esm/utils.js
 function memo$9(getDeps, fn, opts) {
 	let deps = opts.initialDeps ?? [];
 	let result;
@@ -62414,8 +62069,7 @@ var debounce = (targetWindow, fn, ms) => {
 		targetWindow.clearTimeout(timeoutId);
 	} });
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.6/node_modules/@tanstack/virtual-core/dist/esm/scroll-classifier.js
+// ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.10/node_modules/@tanstack/virtual-core/dist/esm/scroll-classifier.js
 function classifyScrollEvent({ offset, isScrolling, elementMax, holdOffset, scrollOffset, pendingWrite, clampedMaxAtWrite }) {
 	var _a;
 	if (isScrolling && pendingWrite === null && offset === scrollOffset) return "spurious";
@@ -62454,8 +62108,7 @@ function flingCaught(samples) {
 	const from = samples[j];
 	return Math.abs(last.offset - from.offset) / (last.t - from.t) >= .05;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.6/node_modules/@tanstack/virtual-core/dist/esm/ios-gesture.js
+// ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.10/node_modules/@tanstack/virtual-core/dist/esm/ios-gesture.js
 var _isIOSResult;
 var isIOSWebKit = () => {
 	if (_isIOSResult !== void 0) return _isIOSResult;
@@ -62469,6 +62122,7 @@ var iosMomentumOverridesWrites = () => {
 	if (_iosMomentumOverridesWritesResult !== void 0) return _iosMomentumOverridesWritesResult;
 	return _iosMomentumOverridesWritesResult = isIOSWebKit() && typeof CSS !== "undefined" && typeof CSS.supports === "function" && CSS.supports("overflow-anchor: auto");
 };
+var momentumOverridesWrites = () => !isIOSWebKit() || iosMomentumOverridesWrites();
 var touchListenerOptions = {
 	capture: true,
 	passive: true
@@ -62533,7 +62187,7 @@ var IosGesture = class {
 		};
 		this._openTail = (moved, awaitingFling) => {
 			const win = this.host.getWindow();
-			if (!isIOSWebKit() || win == null) return;
+			if (win == null) return;
 			this.end();
 			const tail = {
 				phase: "tail",
@@ -62558,8 +62212,7 @@ var IosGesture = class {
 		return this._touch;
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.6/node_modules/@tanstack/virtual-core/dist/esm/index.js
+// ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.10/node_modules/@tanstack/virtual-core/dist/esm/index.js
 var getRect = (element) => {
 	const { clientWidth, clientHeight } = element;
 	return {
@@ -62735,6 +62388,7 @@ var Virtualizer = class {
 				if ((state == null ? void 0 : state.phase) === "queued" && flingCaught(state.samples ?? [])) this.scrollState = null;
 				this._flushHoldIfReady(true);
 				this._writeAwaitingCommand();
+				this._retryClampedAdjustment();
 			}
 		});
 		this._lastElementOffset = null;
@@ -62749,6 +62403,9 @@ var Virtualizer = class {
 		this.observer = /* @__PURE__ */ (() => {
 			let _ro = null;
 			let _frames = null;
+			let delivering = false;
+			let observeQueued = false;
+			const pendingObservations = /* @__PURE__ */ new Set();
 			const get = () => {
 				if (_ro) return _ro;
 				const targetWindow = this.targetWindow;
@@ -62767,10 +62424,19 @@ var Virtualizer = class {
 								this._noteClampMax();
 								this._flushHoldIfReady(true);
 								this._retryClampedAdjustment();
+								this.measureElement(null);
 							}
 						}
 					};
-					this.options.useAnimationFrameWithResizeObserver ? frames.schedule(run) : run();
+					if (this.options.useAnimationFrameWithResizeObserver) frames.schedule(run);
+					else {
+						delivering = true;
+						try {
+							run();
+						} finally {
+							delivering = false;
+						}
+					}
 				});
 			};
 			const measureEntry = (entry) => {
@@ -62792,16 +62458,34 @@ var Virtualizer = class {
 					var _a;
 					(_a = get()) == null || _a.disconnect();
 					_frames?.cancel();
+					pendingObservations.clear();
+					observeQueued = false;
 					_ro = null;
 					_frames = null;
 				},
 				observe: (target) => {
-					var _a;
-					return (_a = get()) == null ? void 0 : _a.observe(target, { box: "border-box" });
+					const observer = get();
+					if (!observer) return;
+					if (!delivering) {
+						observer.observe(target, { box: "border-box" });
+						return;
+					}
+					pendingObservations.add(target);
+					if (!observeQueued) {
+						observeQueued = true;
+						_frames?.schedule(() => {
+							observeQueued = false;
+							pendingObservations.forEach((node) => {
+								if (node.isConnected) _ro?.observe(node, { box: "border-box" });
+							});
+							pendingObservations.clear();
+						});
+					}
 				},
 				unobserve: (target) => {
 					var _a;
-					return (_a = get()) == null ? void 0 : _a.unobserve(target);
+					pendingObservations.delete(target);
+					(_a = get()) == null || _a.unobserve(target);
 				}
 			};
 		})();
@@ -63054,7 +62738,7 @@ var Virtualizer = class {
 			});
 		};
 		this._retryClampedAdjustment = () => {
-			if (this._clampedAdjustment === null || !this.scrollElement || !this.options.enabled) return;
+			if (this._clampedAdjustment === null || !this.scrollElement || !this.options.enabled || !this._canWriteScroll()) return;
 			const { target, maxAtWrite } = this._clampedAdjustment;
 			const max = this.getMaxScrollOffset();
 			if (max > maxAtWrite + .5) {
@@ -63272,13 +62956,15 @@ var Virtualizer = class {
 			this.getMeasurements(),
 			this.getSize(),
 			this.getScrollOffset(),
-			this.options.lanes
-		], (measurements, outerSize, scrollOffset, lanes) => {
+			this.options.lanes,
+			this._getLayoutTotalSize() + this.options.scrollMargin
+		], (measurements, outerSize, scrollOffset, lanes, listEnd) => {
 			if (measurements.length === 0 || outerSize === 0) {
 				this.range = null;
 				return null;
 			}
-			this.range = calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, lanes === 1 && this._singleLaneMeasurements !== null ? this._singleLaneMeasurements.flat : null);
+			const maxScrollOffset = Math.max(listEnd - outerSize, 0);
+			this.range = calculateRangeImpl(measurements, outerSize, Math.min(scrollOffset, maxScrollOffset), lanes, lanes === 1 && this._singleLaneMeasurements !== null ? this._singleLaneMeasurements.flat : null);
 			return this.range;
 		}, {
 			key: false,
@@ -63481,7 +63167,13 @@ var Virtualizer = class {
 			const property = this.options.horizontal ? "overflow-x" : "overflow-y";
 			const value = style.getPropertyValue(property);
 			const priority = style.getPropertyPriority(property);
+			const crossSize = () => this.options.horizontal ? scroller.clientHeight : scroller.clientWidth;
+			const crossSizeBefore = crossSize();
 			style.setProperty(property, "hidden", "important");
+			if (crossSize() !== crossSizeBefore) {
+				style.setProperty(property, value, priority);
+				return;
+			}
 			const stop = {
 				restore: () => {
 					if (style.getPropertyValue(property) !== "hidden" || style.getPropertyPriority(property) !== "important") return false;
@@ -63507,7 +63199,7 @@ var Virtualizer = class {
 			} : null;
 		};
 		this.getVirtualDistanceFromEnd = () => {
-			return Math.max(this._getLayoutTotalSize() - this.getSize() - this.getScrollOffset(), 0);
+			return Math.max(this._getLayoutTotalSize() + this.options.scrollMargin - this.getSize() - this.getScrollOffset(), 0);
 		};
 		this.getDistanceFromEnd = () => {
 			return Math.max(this.getMaxScrollOffset() - this.getScrollOffset(), 0);
@@ -63735,9 +63427,11 @@ var Virtualizer = class {
 		this.scheduleScrollReconcile();
 	}
 	_startScroll(target, offset, behavior, kind) {
+		this.pendingScrollAnchor = null;
+		this._clampedAdjustment = null;
 		const tail = this._iosGesture.tail();
 		if (kind === "absolute" && tail !== null) {
-			if (tail === "fling" && iosMomentumOverridesWrites()) {
+			if (tail === "fling" && momentumOverridesWrites()) {
 				this._stopMomentum(() => {
 					const state = this.scrollState;
 					if ((state == null ? void 0 : state.phase) !== "queued" || this._iosGesture.tail() !== "fling" || this._reportedOverscroll) return;
@@ -63834,8 +63528,7 @@ function calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, flat) 
 		endIndex
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.21_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-virtual/dist/esm/index.js
+// ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.25_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-virtual/dist/esm/index.js
 var useIsomorphicLayoutEffect$1 = typeof document !== "undefined" ? import_react.useLayoutEffect : import_react.useEffect;
 function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, directDomUpdatesMode = "transform", ...options }) {
 	const rerender = import_react.useReducer((x) => x + 1, 0)[1];
@@ -63946,8 +63639,7 @@ function useVirtualizer(options) {
 		...options
 	});
 }
-//#endregion
-//#region ../../packages/react/src/virtual/scale-coordinate-space.ts
+// ../../packages/react/src/virtual/scale-coordinate-space.ts
 var SAFE_MAX_SPACER = 16e6;
 function computeScale(contentTotal, safeMax) {
 	if (contentTotal <= safeMax) return 1;
@@ -63959,8 +63651,7 @@ function toContent(spacerScroll, s) {
 function toSpacer(contentScroll, s) {
 	return contentScroll / s;
 }
-//#endregion
-//#region ../../packages/react/src/virtual/use-scaled-virtualizer.ts
+// ../../packages/react/src/virtual/use-scaled-virtualizer.ts
 function useScaledVirtualizer(opts) {
 	const scaleRef = (0, import_react.useRef)(1);
 	const scaledObserveElementOffset = (0, import_react.useMemo)(() => (instance, cb) => {
@@ -64012,8 +63703,7 @@ function useScaledVirtualizer(opts) {
 		toSpacerScroll: (0, import_react.useCallback)((contentScroll) => toSpacer(contentScroll, scaleRef.current), [])
 	};
 }
-//#endregion
-//#region ../../packages/react/src/virtual/use-virtual-list-state.ts
+// ../../packages/react/src/virtual/use-virtual-list-state.ts
 var CURRENT_VERSION = 1;
 var isCurrentSnapshot = (value) => isRecord(value) && value["version"] === CURRENT_VERSION && typeof value["scrollOffset"] === "number" && typeof value["totalCount"] === "number";
 function useVirtualListState(persistenceKey, t0) {
@@ -64059,8 +63749,7 @@ function useVirtualListState(persistenceKey, t0) {
 	return t4;
 }
 var VirtualList_module_default = { scroller: "_scroller_1uwiu_1" };
-//#endregion
-//#region ../../packages/react/src/virtual/VirtualList.tsx
+// ../../packages/react/src/virtual/VirtualList.tsx
 var BOTTOM_THRESHOLD_PX = 30;
 var USER_INTERACTION_WINDOW_MS = 400;
 var SMOOTH_SCROLL_MAX_S = 10;
@@ -64706,8 +64395,7 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 		]
 	});
 }
-//#endregion
-//#region ../../packages/inspect-components/src/content/copyText.ts
+// ../../packages/inspect-components/src/content/copyText.ts
 /**
 * Plain-text form of a metadata value for clipboard copy.
 *
@@ -64725,8 +64413,7 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 		return "";
 	}
 };
-//#endregion
-//#region ../../packages/inspect-components/src/content/record_processors/store.ts
+// ../../packages/inspect-components/src/content/record_processors/store.ts
 var kStoreInstanceKey = /^(.+)?:([a-zA-Z0-9]{22}):instance$/;
 var kStoreKey = /^(.+)?:([a-zA-Z0-9]{22}):(.+)$/;
 var resolveStoreKeys = (record) => {
@@ -64798,8 +64485,7 @@ var RecordTree_module_default = {
 	pre: "_pre_1u1d5_43",
 	treeIcon: "_treeIcon_1u1d5_47"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/content/ExternalLink.tsx
+// ../../packages/inspect-components/src/content/ExternalLink.tsx
 /**
 * Renders a log-supplied URL as a new-tab link when it is an absolute http(s)
 * URL, and as inert text otherwise. Log content is the only source of these
@@ -64888,8 +64574,7 @@ var RecordTree_module_default = {
 	} else t2 = $[22];
 	return t2;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/content/htmlEscape.ts
+// ../../packages/inspect-components/src/content/htmlEscape.ts
 /**
 * Whether `v` is the `{ _html: <ReactElement> }` escape hatch callers build
 * to render bespoke JSX inside an otherwise data-driven grid. Only a real
@@ -64914,8 +64599,7 @@ var MetaDataGrid_module_default = {
 	toggleContainer: "_toggleContainer_17hbv_164",
 	toggleButton: "_toggleButton_17hbv_175"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/content/MetaDataGrid.tsx
+// ../../packages/inspect-components/src/content/MetaDataGrid.tsx
 var isNonEmptyObject = (v) => isRecord(v) && Object.keys(v).length > 0;
 /**
 * Renders structured metadata as a grid with section cards.
@@ -64929,8 +64613,8 @@ var isNonEmptyObject = (v) => isRecord(v) && Object.keys(v).length > 0;
 	const depth = t1 === void 0 ? 0 : t1;
 	const baseId = id ?? "metadata-grid";
 	const allEntries = entryRecords(entries);
-	const scalars = allEntries.filter(_temp$98);
-	const groups = allEntries.filter(_temp2$56);
+	const scalars = allEntries.filter(_temp$101);
+	const groups = allEntries.filter(_temp2$57);
 	const [expanded, setExpanded] = (0, import_react.useState)(false);
 	const isCollapsible = maxRows != null && scalars.length > maxRows;
 	const visibleScalars = isCollapsible && !expanded ? scalars.slice(0, maxRows) : scalars;
@@ -64993,7 +64677,7 @@ var isNonEmptyObject = (v) => isRecord(v) && Object.keys(v).length > 0;
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 			type: "button",
 			className: clsx(MetaDataGrid_module_default.toggleButton, "text-size-smallest"),
-			onClick: () => setExpanded(_temp3$39),
+			onClick: () => setExpanded(_temp3$40),
 			children: [expanded ? "less" : `${scalars.length - visibleScalars.length} more`, "..."]
 		})
 	});
@@ -65056,13 +64740,13 @@ var entryRecords = (entries) => {
 	});
 	else return entries;
 };
-function _temp$98(e) {
+function _temp$101(e) {
 	return !isNonEmptyObject(e.value) || isHtmlEscape(e.value);
 }
-function _temp2$56(e_0) {
+function _temp2$57(e_0) {
 	return isNonEmptyObject(e_0.value) && !isHtmlEscape(e_0.value);
 }
-function _temp3$39(prev) {
+function _temp3$40(prev) {
 	return !prev;
 }
 var RenderedContent_module_default = {
@@ -65071,15 +64755,13 @@ var RenderedContent_module_default = {
 	preWrap: "_preWrap_seqs2_10",
 	preCompact: "_preCompact_seqs2_15"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/content/types.ts
+// ../../packages/inspect-components/src/content/types.ts
 var Buckets = {
 	first: 0,
 	intermediate: 10,
 	final: 1e3
 };
-//#endregion
-//#region ../../packages/inspect-components/src/content/RenderedContent.tsx
+// ../../packages/inspect-components/src/content/RenderedContent.tsx
 var isModelValue = (v) => isRecord(v) && (typeof v._model === "string" || typeof v._model === "number");
 var isOptionalString = (v) => v == null || typeof v === "string";
 var isWebSearchResult = (v) => isRecord(v) && typeof v.url === "string" && isOptionalString(v.summary);
@@ -65110,7 +64792,7 @@ var isWebSearchValue = (v) => isRecord(v) && isOptionalString(v.query) && Array.
 				$[7] = entry;
 				$[8] = t3;
 			} else t3 = $[8];
-			const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$97).find(t3);
+			const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$100).find(t3);
 			if (renderer_0) {
 				const { rendered } = renderer_0.render(id, entry, renderOptions, references);
 				if (rendered !== void 0 && /*#__PURE__*/ (0, import_react.isValidElement)(rendered)) {
@@ -65338,12 +65020,11 @@ var isWebSearchValue = (v) => isRecord(v) && isOptionalString(v.query) && Array.
 	};
 	return contentRenderers;
 };
-function _temp$97(a, b) {
+function _temp$100(a, b) {
 	if (!a || !b) return 0;
 	return a.bucket - b.bucket;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/content/RecordTree.tsx
+// ../../packages/inspect-components/src/content/RecordTree.tsx
 var kRecordTreeKey = "record-tree-key";
 /** VirtualList persistence-key prefix for record trees. Exported so the app's
 *  per-sample reset can clear the persisted snapshots by this prefix. */ var kMetadataGridKeyPrefix = "metadata-grid-";
@@ -65648,8 +65329,7 @@ var CompactionData_module_default = {
 	content: "_content_1pwo3_11",
 	grid: "_grid_1pwo3_16"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/content-data/CompactionData.tsx
+// ../../packages/inspect-components/src/chat/content-data/CompactionData.tsx
 var kCompactionMetadata = "compaction_metadata";
 var CompactionData = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(9);
@@ -65705,8 +65385,7 @@ var CompactionData = (t0) => {
 	return t5;
 };
 var ContentDataView_module_default = { contentData: "_contentData_1lrx1_1" };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/content-data/FallbackData.tsx
+// ../../packages/inspect-components/src/chat/content-data/FallbackData.tsx
 var kFallbackMetadata = "fallback_metadata";
 var modelName$2 = (side) => {
 	if (!isRecord(side)) return "unknown";
@@ -65766,8 +65445,7 @@ var WebSearch_module_default = {
 	webSearch: "_webSearch_1376z_1",
 	query: "_query_1376z_8"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/content-data/WebSearch.tsx
+// ../../packages/inspect-components/src/chat/content-data/WebSearch.tsx
 var WebSearch = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(5);
 	const { query } = t0;
@@ -65804,8 +65482,7 @@ var WebSearch = (t0) => {
 	return t4;
 };
 var WebSearchResults_module_default = { result: "_result_svtwi_1" };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/content-data/WebSearchResults.tsx
+// ../../packages/inspect-components/src/chat/content-data/WebSearchResults.tsx
 /** Shallow: results come from a tool payload; title and url are what render. */ var isWebSearchContentData = (value) => isRecord(value) && typeof value["title"] === "string" && typeof value["url"] === "string";
 var WebSearchResults$1 = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(6);
@@ -65826,7 +65503,7 @@ var WebSearchResults$1 = (t0) => {
 	}
 	let t3;
 	if ($[2] !== results) {
-		t3 = results.map(_temp$96);
+		t3 = results.map(_temp$99);
 		$[2] = results;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -65841,7 +65518,7 @@ var WebSearchResults$1 = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$96(result, index) {
+function _temp$99(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: clsx(WebSearchResults_module_default.result, "text-style-secondary"),
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
@@ -65851,8 +65528,7 @@ function _temp$96(result, index) {
 		})
 	}, index);
 }
-//#endregion
-//#region ../../packages/inspect-components/src/chat/content-data/ContentDataView.tsx
+// ../../packages/inspect-components/src/chat/content-data/ContentDataView.tsx
 var ContentDataView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(17);
 	const { id, contentData } = t0;
@@ -65993,8 +65669,7 @@ var ContentDocumentView_module_default = {
 	downloadLink: "_downloadLink_66um0_16",
 	imageDocument: "_imageDocument_66um0_30"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/documents/ContentDocumentView.tsx
+// ../../packages/inspect-components/src/chat/documents/ContentDocumentView.tsx
 var ContentDocumentView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(12);
 	const { id, document, onDownloadFile } = t0;
@@ -66115,8 +65790,7 @@ var ContentDocumentFrame = (t0) => {
 	return t9;
 };
 var JsonMessageContent_module_default = { jsonMessage: "_jsonMessage_oxf8d_1" };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/JsonMessageContent.tsx
+// ../../packages/inspect-components/src/chat/JsonMessageContent.tsx
 var JsonMessageContent = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(6);
 	const { id, json, className } = t0;
@@ -66145,8 +65819,7 @@ var MessageCitations_module_default = {
 	citations: "_citations_1gzkd_1",
 	citationLink: "_citationLink_1gzkd_9"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/MessageCitations.tsx
+// ../../packages/inspect-components/src/chat/MessageCitations.tsx
 var MessageCitations = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(5);
 	const { citations } = t0;
@@ -66158,7 +65831,7 @@ var MessageCitations = (t0) => {
 	} else t1 = $[0];
 	let t2;
 	if ($[1] !== citations) {
-		t2 = citations.map(_temp$95);
+		t2 = citations.map(_temp$98);
 		$[1] = citations;
 		$[2] = t2;
 	} else t2 = $[2];
@@ -66232,7 +65905,7 @@ var OtherCitation = (t0) => {
 	} else t1 = $[1];
 	return t1;
 };
-function _temp$95(citation, index) {
+function _temp$98(citation, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: index + 1 }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageCitation, { citation })] }, index);
 }
 var MessageContent_module_default = {
@@ -66255,8 +65928,7 @@ var ToolBlock_module_default = {
 	inputInsetZone: "_inputInsetZone_1ib8l_123",
 	outputInsetZone: "_outputInsetZone_1ib8l_124"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/tools/ToolBlock.tsx
+// ../../packages/inspect-components/src/chat/tools/ToolBlock.tsx
 /**
 * The shared tool-call block grammar: a tinted header row (tool icon · mono
 * tool name · optional pill · args summary) with the tool's input/output
@@ -66406,8 +66078,7 @@ var ToolCallErrorView_module_default = {
 	error: "_error_wtrgp_1",
 	message: "_message_wtrgp_11"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/tools/ToolCallErrorView.tsx
+// ../../packages/inspect-components/src/chat/tools/ToolCallErrorView.tsx
 var ToolCallErrorView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(7);
 	const { error, className } = t0;
@@ -66442,8 +66113,7 @@ var TodoWriteInput_module_default = {
 	todoList: "_todoList_1t8rx_1",
 	inProgress: "_inProgress_1t8rx_9"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/tools/tool-input/TodoWriteInput.tsx
+// ../../packages/inspect-components/src/chat/tools/tool-input/TodoWriteInput.tsx
 var kTodoStatuses = [
 	"pending",
 	"in_progress",
@@ -66473,7 +66143,7 @@ var TodoWriteInput = (t0) => {
 			t2 = clsx(TodoWriteInput_module_default.todoList);
 			$[5] = t2;
 		} else t2 = $[5];
-		t3 = todoItems.map(_temp$94);
+		t3 = todoItems.map(_temp$97);
 		$[0] = contents;
 		$[1] = parentRef;
 		$[2] = t1;
@@ -66498,7 +66168,7 @@ var TodoWriteInput = (t0) => {
 	} else t4 = $[9];
 	return t4;
 };
-function _temp$94(todo) {
+function _temp$97(todo) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
 		name: todo.status === "completed" ? "checkboxChecked" : "checkboxUnchecked",
 		className: "text-size-smallest"
@@ -66512,8 +66182,7 @@ var ToolInput_module_default = {
 	toolView: "_toolView_7phrr_7",
 	outputCode: "_outputCode_7phrr_20"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/tools/ToolInput.tsx
+// ../../packages/inspect-components/src/chat/tools/ToolInput.tsx
 var ToolInput = (props) => {
 	const $ = (0, import_compiler_runtime.c)(15);
 	const { contentType, contents, toolCallView, className } = props;
@@ -66651,8 +66320,7 @@ var ServerToolCall_module_default = {
 	execOutput: "_execOutput_13xcg_5",
 	execError: "_execError_13xcg_16"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/server-tools/ServerToolCall.tsx
+// ../../packages/inspect-components/src/chat/server-tools/ServerToolCall.tsx
 /**
 * Renders a server-side tool call (web_search, web_fetch, provider-executed
 * MCP tools) as a flush row of the assistant turn: the shared tool block
@@ -66840,7 +66508,7 @@ var WebSearchResults = (t0) => {
 	const t1 = `${id}-output`;
 	let t2;
 	if ($[0] !== results) {
-		t2 = results.map(_temp$93);
+		t2 = results.map(_temp$96);
 		$[0] = results;
 		$[1] = t2;
 	} else t2 = $[1];
@@ -67021,7 +66689,7 @@ var maybeListTools = (content) => {
 };
 /** Shallow: the list below renders title and url, and skips entries lacking them. */ var isWebResult = (value) => isRecord(value) && typeof value["title"] === "string" && typeof value["url"] === "string";
 /** Shallow: the list below keys on name and renders description. */ var isToolInfo = (value) => isRecord(value) && typeof value["name"] === "string";
-function _temp$93(result, index) {
+function _temp$96(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
 		href: result.url,
 		title: result.url,
@@ -67034,8 +66702,7 @@ var ToolOutput_module_default = {
 	textOutput: "_textOutput_1cvly_10",
 	textCode: "_textCode_1cvly_19"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/tools/ToolOutput.tsx
+// ../../packages/inspect-components/src/chat/tools/ToolOutput.tsx
 /**
 * Renders the ToolOutput component.
 */ var ToolOutput = (t0) => {
@@ -67211,8 +66878,7 @@ var ToolOutput_module_default = {
 	} else t7 = $[26];
 	return t7;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/MessageContent.tsx
+// ../../packages/inspect-components/src/chat/MessageContent.tsx
 /**
 * Renders message content based on its type.
 * Supports rendering strings, images, and tools using specific renderers.
@@ -67489,8 +67155,7 @@ var AnnotatedScreenshot_module_default = {
 	type: "_type_nfqzf_39",
 	key: "_key_nfqzf_45"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/tools/browserActionUtils.ts
+// ../../packages/inspect-components/src/chat/tools/browserActionUtils.ts
 /**
 * Tools whose actions can be annotated onto a screenshot. Membership requires
 * the tool's coordinate arguments to be in screenshot-pixel space and its
@@ -67533,8 +67198,7 @@ function asCoordinate(value) {
 		scrollDirection: asString(args.scroll_direction)
 	};
 }
-//#endregion
-//#region ../../packages/inspect-components/src/chat/tools/AnnotatedScreenshot.tsx
+// ../../packages/inspect-components/src/chat/tools/AnnotatedScreenshot.tsx
 /**
 * Renders a tool result's content with the action annotation drawn over its
 * screenshot. Only the last renderable image is annotated: results may carry
@@ -67545,7 +67209,7 @@ function asCoordinate(value) {
 	const { contents, annotation } = t0;
 	let t1;
 	if ($[0] !== contents) {
-		t1 = contents.findLastIndex(_temp$92);
+		t1 = contents.findLastIndex(_temp$95);
 		$[0] = contents;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -67719,7 +67383,7 @@ function renderHtmlAnnotation(annotation) {
 	}
 	return null;
 }
-function _temp$92(c) {
+function _temp$95(c) {
 	return c.type === "image" && isRenderableImageSource(c.image);
 }
 var customToolRendering_module_default = { submitView: "_submitView_1ru17_1" };
@@ -67733,8 +67397,7 @@ var ToolSearchView_module_default = {
 	toolNoDetails: "_toolNoDetails_gx8eg_38",
 	description: "_description_gx8eg_42"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/tools/ToolSearchView.tsx
+// ../../packages/inspect-components/src/chat/tools/ToolSearchView.tsx
 /**
 * Renders a Codex `tool_search` catalog: each namespace lists its tools, with
 * each tool a collapsible `<details>` — the signature in the summary, the
@@ -67744,7 +67407,7 @@ var ToolSearchView_module_default = {
 	const { namespaces } = t0;
 	let t1;
 	if ($[0] !== namespaces) {
-		t1 = namespaces.map(_temp2$55);
+		t1 = namespaces.map(_temp2$56);
 		$[0] = namespaces;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -67759,7 +67422,7 @@ var ToolSearchView_module_default = {
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$91(tool, toolIdx) {
+function _temp$94(tool, toolIdx) {
 	return tool.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("details", {
 		className: ToolSearchView_module_default.tool,
 		children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("summary", {
@@ -67774,7 +67437,7 @@ function _temp$91(tool, toolIdx) {
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("code", { children: tool.signature })
 	}, `tool-${toolIdx}`);
 }
-function _temp2$55(namespace, nsIdx) {
+function _temp2$56(namespace, nsIdx) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 		className: ToolSearchView_module_default.namespace,
 		children: [namespace.name ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
@@ -67783,7 +67446,7 @@ function _temp2$55(namespace, nsIdx) {
 		}), namespace.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: ToolSearchView_module_default.namespaceDescription,
 			children: [" — ", namespace.description]
-		}) : null] }) : null, namespace.tools.map(_temp$91)]
+		}) : null] }) : null, namespace.tools.map(_temp$94)]
 	}, `ns-${nsIdx}`);
 }
 var ToolTitle_module_default = {
@@ -67791,8 +67454,7 @@ var ToolTitle_module_default = {
 	toolTitle: "_toolTitle_1evla_6",
 	description: "_description_1evla_11"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/tools/ToolTitle.tsx
+// ../../packages/inspect-components/src/chat/tools/ToolTitle.tsx
 /**
 * Renders the ToolCallView component.
 */ var ToolTitle = (t0) => {
@@ -67843,8 +67505,7 @@ var ToolTitle_module_default = {
 	} else t5 = $[8];
 	return t5;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/tools/customToolRendering.tsx
+// ../../packages/inspect-components/src/chat/tools/customToolRendering.tsx
 /**
 * Default custom tool views built into the shared package.
 * Apps can provide additional custom views via the getCustomToolView prop.
@@ -67921,8 +67582,7 @@ var SubmitToolCallView = (props) => {
 	return t5;
 };
 var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/tools/ToolCallView.tsx
+// ../../packages/inspect-components/src/chat/tools/ToolCallView.tsx
 /**
 * Renders the ToolCallView component.
 */ var ToolCallView = (t0) => {
@@ -67967,7 +67627,7 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 	const normalizedContent = t6;
 	let t7;
 	if ($[8] !== normalizedContent) {
-		t7 = normalizedContent.find(_temp$90);
+		t7 = normalizedContent.find(_temp$93);
 		$[8] = normalizedContent;
 		$[9] = t7;
 	} else t7 = $[9];
@@ -68143,7 +67803,7 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 	const { contents } = t0;
 	let t1;
 	if ($[0] !== contents) {
-		t1 = contents.flatMap(_temp2$54).map(_temp3$38);
+		t1 = contents.flatMap(_temp2$55).map(_temp3$39);
 		$[0] = contents;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -68168,7 +67828,7 @@ var normalizeContent = (output) => {
 		}]
 	}];
 };
-function _temp$90(c) {
+function _temp$93(c) {
 	if (c.type === "tool") {
 		for (const t of c.content) if (t.type === "text") {
 			if (t.text) return true;
@@ -68176,16 +67836,15 @@ function _temp$90(c) {
 		return false;
 	} else return true;
 }
-function _temp2$54(c) {
+function _temp2$55(c) {
 	return c.type === "tool" ? c.content : [c];
 }
-function _temp3$38(item, i) {
+function _temp3$39(item, i) {
 	if (item.type === "text" && item.text) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: item.text }, `md-${i}`);
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContent, { contents: [item] }, `content-${i}`);
 }
 var ClientToolCall_module_default = { custom: "_custom_wwbdp_4" };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/tools/ClientToolCall.tsx
+// ../../packages/inspect-components/src/chat/tools/ClientToolCall.tsx
 /**
 * A client tool call rendered with the shared tool block grammar: collapsible
 * header (terminal icon · mono tool name · args summary), the input zone
@@ -68385,8 +68044,7 @@ var ClientToolCall_module_default = { custom: "_custom_wwbdp_4" };
 		return true;
 	});
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/MessageContents.tsx
+// ../../packages/inspect-components/src/chat/MessageContents.tsx
 var MessageContents = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(5);
 	const { message, references } = t0;
@@ -68424,8 +68082,7 @@ var ChatMessage_module_default = {
 	metadataLabel: "_metadataLabel_a3ae9_82",
 	hover: "_hover_a3ae9_86"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/ChatMessage.tsx
+// ../../packages/inspect-components/src/chat/ChatMessage.tsx
 var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) {
 	const $ = (0, import_compiler_runtime.c)(79);
 	const { id, message, display, linking, references, label, headerLeading } = t0;
@@ -68662,7 +68319,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	const t16 = message.role === "tool" ? 30 : message.role === "assistant" ? 25 : 15;
 	let t17;
 	if ($[58] !== id || $[59] !== isNonSubagentTool || $[60] !== message || $[61] !== references || $[62] !== subagentNotifications || $[63] !== toolMarkdown || $[64] !== toolSearchNamespaces) {
-		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$89) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
+		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$92) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
 			message,
 			references
 		}, `${id}-contents`);
@@ -68738,15 +68395,14 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	}
 	return segments;
 };
-function _temp$89(c) {
+function _temp$92(c) {
 	return c.type === "text" || c.type === "image";
 }
 var RowSelectCheckbox_module_default = {
 	selectBox: "_selectBox_19rqv_1",
 	selectBoxChecked: "_selectBoxChecked_19rqv_19"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/selection/RowSelectionContext.tsx
+// ../../packages/inspect-components/src/selection/RowSelectionContext.tsx
 /** Toggle for the whole list while selection mode is on (stable identity). */ var RowToggleContext = /*#__PURE__*/ (0, import_react.createContext)(void 0);
 /**
 * The id of the row being rendered, set only for selectable rows. A primitive
@@ -68781,8 +68437,7 @@ var RowSelectCheckbox_module_default = {
 	} else t2 = $[5];
 	return t2;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/selection/RowSelectCheckbox.tsx
+// ../../packages/inspect-components/src/selection/RowSelectCheckbox.tsx
 /** The row's selection when selection mode is on and this view IS the row. */ var useSelectableRow = (rowId) => {
 	const $ = (0, import_compiler_runtime.c)(5);
 	const onToggle = (0, import_react.useContext)(RowToggleContext);
@@ -68843,7 +68498,7 @@ var RowSelectCheckbox_module_default = {
 			"aria-label": label,
 			title: label,
 			className: t2,
-			onMouseDown: _temp$88,
+			onMouseDown: _temp$91,
 			onClick: t3,
 			children: t4
 		});
@@ -68856,7 +68511,7 @@ var RowSelectCheckbox_module_default = {
 	} else t5 = $[12];
 	return t5;
 };
-function _temp$88(e) {
+function _temp$91(e) {
 	if (e.shiftKey) e.preventDefault();
 }
 var ChatMessageRow_module_default = {
@@ -68880,8 +68535,7 @@ var MessageLabel_module_default = {
 	inline: "_inline_1c7cn_2",
 	interactive: "_interactive_1c7cn_25"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/MessageLabel.tsx
+// ../../packages/inspect-components/src/chat/MessageLabel.tsx
 /**
 * Badge display form of a label: strips the surrounding cite brackets but
 * keeps the type letter, so "[M4]" → "M4" and "[E58]" → "E58". The full
@@ -68947,8 +68601,7 @@ var MessageLabel_module_default = {
 	} else t6 = $[15];
 	return t6;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/ChatMessageRow.tsx
+// ../../packages/inspect-components/src/chat/ChatMessageRow.tsx
 /**
 * Renders the ChatMessage component.
 */ var ChatMessageRow = /*#__PURE__*/ (0, import_react.memo)(function ChatMessageRow(t0) {
@@ -69109,7 +68762,7 @@ var MessageLabel_module_default = {
 		viewKinds = $[18];
 		views = $[19];
 	}
-	const hasTools = viewKinds.some(_temp$87);
+	const hasTools = viewKinds.some(_temp$90);
 	if (useLabels || hasTools) {
 		let t2;
 		if ($[42] !== hasTools || $[43] !== highlightLabeled || $[44] !== highlightUserMessage || $[45] !== index || $[46] !== messageChip || $[47] !== resolvedMessage || $[48] !== viewChips || $[49] !== viewKinds || $[50] !== views) {
@@ -69272,11 +68925,10 @@ var ToolCallViewCompact = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$87(k) {
+function _temp$90(k) {
 	return k !== "message";
 }
-//#endregion
-//#region ../../packages/inspect-components/src/chat/labelLength.ts
+// ../../packages/inspect-components/src/chat/labelLength.ts
 /**
 * Compute the maximum label length from a label map.
 * Hoisted out of ChatMessageRow so it runs once per message list,
@@ -69296,8 +68948,7 @@ function _temp$87(k) {
 	}
 	return max;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/chat/ChatView.tsx
+// ../../packages/inspect-components/src/chat/ChatView.tsx
 /**
 * Renders the ChatView component.
 */ var ChatView = (t0) => {
@@ -69386,16 +69037,15 @@ function _temp$87(k) {
 	return t6;
 };
 var GeneratingIndicator_module_default = {
-	bar: "_bar_pg4l8_1",
-	"gen-sweep": "_gen-sweep_pg4l8_1",
-	barLabelOnly: "_barLabelOnly_pg4l8_34",
-	label: "_label_pg4l8_38",
-	ell: "_ell_pg4l8_47",
-	"gen-ell": "_gen-ell_pg4l8_1",
-	attempt: "_attempt_pg4l8_64"
+	bar: "_bar_1wkhg_1",
+	"gen-sweep": "_gen-sweep_1wkhg_1",
+	barLabelOnly: "_barLabelOnly_1wkhg_34",
+	label: "_label_1wkhg_38",
+	ell: "_ell_1wkhg_47",
+	"gen-ell": "_gen-ell_1wkhg_1",
+	attempt: "_attempt_1wkhg_64"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/indicators/GeneratingIndicator.tsx
+// ../../packages/inspect-components/src/indicators/GeneratingIndicator.tsx
 var GeneratingIndicator = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(12);
 	const { label: t1, attempt, className } = t0;
@@ -69454,8 +69104,7 @@ var GeneratingIndicator = (t0) => {
 	} else t7 = $[11];
 	return t7;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/indicators/livePlaceholder.ts
+// ../../packages/inspect-components/src/indicators/livePlaceholder.ts
 function isLivePlaceholderMessage(message) {
 	if (message.role !== "assistant") return false;
 	if (message.tool_calls && message.tool_calls.length > 0) return false;
@@ -69486,17 +69135,16 @@ function messageHasVisibleContent(message) {
 	});
 }
 var LoadingEventsIndicator_module_default = {
-	bar: "_bar_q6epo_1",
-	"le-sweep": "_le-sweep_q6epo_1",
-	compact: "_compact_q6epo_33",
-	spinner: "_spinner_q6epo_44",
-	"le-spin": "_le-spin_q6epo_1",
-	label: "_label_q6epo_55",
-	ell: "_ell_q6epo_68",
-	"le-ell": "_le-ell_q6epo_1"
+	bar: "_bar_14x5r_1",
+	"le-sweep": "_le-sweep_14x5r_1",
+	compact: "_compact_14x5r_33",
+	spinner: "_spinner_14x5r_44",
+	"le-spin": "_le-spin_14x5r_1",
+	label: "_label_14x5r_55",
+	ell: "_ell_14x5r_68",
+	"le-ell": "_le-ell_14x5r_1"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/indicators/LoadingEventsIndicator.tsx
+// ../../packages/inspect-components/src/indicators/LoadingEventsIndicator.tsx
 var LoadingEventsIndicator = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(10);
 	const { label, compact: t1, className } = t0;
@@ -69552,8 +69200,7 @@ var LoadingEventsIndicator = (t0) => {
 	} else t7 = $[9];
 	return t7;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/selection/rowSelection.ts
+// ../../packages/inspect-components/src/selection/rowSelection.ts
 /**
 * Toggle `id`. With `extend` (shift-click) every id between the anchor and
 * `id` in `visibleIds` takes the clicked row's new state, so a range can be
@@ -69586,8 +69233,7 @@ var LoadingEventsIndicator = (t0) => {
 		onClick: onClear
 	}
 });
-//#endregion
-//#region ../../packages/inspect-components/src/selection/useListRowSelection.ts
+// ../../packages/inspect-components/src/selection/useListRowSelection.ts
 /**
 * The per-list selection a list hands its rows: the host's selected ids and a
 * toggle that applies click / shift-click ranges over `visibleIds()`, the rows
@@ -69634,8 +69280,7 @@ var ChatViewVirtualList_module_default = {
 	list: "_list_zuqui_1",
 	generatingRow: "_generatingRow_zuqui_7"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/ChatViewVirtualList.tsx
+// ../../packages/inspect-components/src/chat/ChatViewVirtualList.tsx
 var ChatItem = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(9);
 	let children;
@@ -69718,7 +69363,7 @@ var kLoadMoreMarginRows = 20;
 	useListKeyboardNavigation(t5);
 	let t6;
 	if ($[8] !== rows) {
-		t6 = () => rows.map(_temp$86).filter(_temp2$53);
+		t6 = () => rows.map(_temp$89).filter(_temp2$54);
 		$[8] = rows;
 		$[9] = t6;
 	} else t6 = $[9];
@@ -69815,7 +69460,7 @@ var kLoadMoreMarginRows = 20;
 		$[33] = t11;
 	} else t11 = $[33];
 	const renderRow = t11;
-	const rowSearchText = _temp3$37;
+	const rowSearchText = _temp3$38;
 	if (rows.length === 0) {
 		if (backfilling) {
 			let t12;
@@ -69891,17 +69536,16 @@ var kLoadMoreMarginRows = 20;
 	} else t16 = $[54];
 	return t16;
 });
-function _temp$86(row) {
+function _temp$89(row) {
 	return row.resolved.message.id;
 }
-function _temp2$53(rowId) {
+function _temp2$54(rowId) {
 	return typeof rowId === "string";
 }
-function _temp3$37(item_0) {
+function _temp3$38(item_0) {
 	return messageSearchText(item_0.resolved);
 }
-//#endregion
-//#region src/log_data/messageRows.ts
+// src/log_data/messageRows.ts
 /**
 * Resolve a `Pagination` to the half-open row range it requests against a
 * known total: `limit` rows starting AT the cursor's offset (or the start).
@@ -69940,8 +69584,7 @@ var kDefaultMessageRowOptions = messageRowOptions();
 		}
 	};
 };
-//#endregion
-//#region src/log_data/conversation.ts
+// src/log_data/conversation.ts
 /**
 * The version-agnostic read seam over a sample's final conversation — the
 * message-space layer beneath the Messages tab's row-space seam
@@ -69996,8 +69639,7 @@ var kDefaultMessageRowOptions = messageRowOptions();
 		getMessagesRaw: (start, end) => readRanges(start, end, false)
 	};
 };
-//#endregion
-//#region src/log_data/messageRowsWindowed.ts
+// src/log_data/messageRowsWindowed.ts
 /**
 * The windowed SampleMessagesData source: folded rows served from
 * conversation windows, with a lazy row index scanned only as far as
@@ -70108,8 +69750,7 @@ var LazyRowIndex = class {
 		}
 	};
 };
-//#endregion
-//#region src/log_data/sampleMessagesSource.ts
+// src/log_data/sampleMessagesSource.ts
 /**
 * Feed selection for a settled sample's conversation: which
 * SampleMessagesData backs reads and exports. Chunked samples get the
@@ -70134,8 +69775,7 @@ var chunkedMessageRows = (chunked) => {
 	const messages = sampleData.sample?.messages;
 	return messages ? inMemoryMessageRows(messages) : void 0;
 };
-//#endregion
-//#region src/log_data/messagesExport.ts
+// src/log_data/messagesExport.ts
 /**
 * Copy/Download > Messages: the settled conversation's text parts, produced
 * on demand through the same source the Messages tab reads (chunked samples
@@ -70175,8 +69815,7 @@ var collectExportText = async (source) => {
 	for await (const part of source.exportText()) parts.push(part);
 	return parts;
 };
-//#endregion
-//#region src/log_data/messagesFromEvents.ts
+// src/log_data/messagesFromEvents.ts
 var isSuccessfulModelEvent = (e) => e.event === "model" && !e.error;
 var createState = () => ({
 	messages: [],
@@ -70331,7 +69970,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 			queryKey: t4,
 			queryFn: t5,
 			initialPageParam: 0,
-			getNextPageParam: _temp$85,
+			getNextPageParam: _temp$88,
 			gcTime: kSampleGcTimeMs,
 			staleTime: Infinity,
 			retry: false,
@@ -70347,7 +69986,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	const pages = data?.pages;
 	let t7;
 	if ($[14] !== pages) {
-		t7 = pages?.flatMap(_temp2$52);
+		t7 = pages?.flatMap(_temp2$53);
 		$[14] = pages;
 		$[15] = t7;
 	} else t7 = $[15];
@@ -70355,7 +69994,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	let t8;
 	if ($[16] !== fetchNextPage || $[17] !== hasNextPage || $[18] !== isFetchingNextPage) {
 		t8 = () => {
-			if (hasNextPage && !isFetchingNextPage) fetchNextPage({ cancelRefetch: false }).catch(_temp3$36);
+			if (hasNextPage && !isFetchingNextPage) fetchNextPage({ cancelRefetch: false }).catch(_temp3$37);
 		};
 		$[16] = fetchNextPage;
 		$[17] = hasNextPage;
@@ -70455,15 +70094,14 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	}
 	return t12;
 };
-function _temp$85(last) {
+function _temp$88(last) {
 	return last.nextCursor?.offset;
 }
-function _temp2$52(page) {
+function _temp2$53(page) {
 	return page.rows;
 }
-function _temp3$36() {}
-//#endregion
-//#region src/log_data/sampleMessages.ts
+function _temp3$37() {}
+// src/log_data/sampleMessages.ts
 var kNoRows$1 = [];
 /**
 * The streaming rows: derived from the event stream each poll while the
@@ -70583,8 +70221,7 @@ var kNoRows$1 = [];
 	}
 	return t1;
 };
-//#endregion
-//#region src/app/shared/useStableValue.ts
+// src/app/shared/useStableValue.ts
 /**
 * Keep the previous reference when a newly computed value is content-equal.
 *
@@ -70603,8 +70240,7 @@ var kNoRows$1 = [];
 	if (ref.current !== value && !isEqual(ref.current, value)) ref.current = value;
 	return ref.current;
 }
-//#endregion
-//#region src/log_data/scoreSchema.ts
+// src/log_data/scoreSchema.ts
 /**
 * Build a stable, unique column key for a (scorer, metric) pair. The reducer
 * is intentionally omitted so the same logical metric is one column regardless
@@ -70666,8 +70302,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	} else t0 = $[1];
 	return useStableValue(useMapAsyncData(logs, t0), asyncScorerMapsEqual);
 };
-//#endregion
-//#region src/log_data/FetchEngineController.tsx
+// src/log_data/FetchEngineController.tsx
 /**
 * Owns the fetch engine's lifetime — a render-null controller mounted once,
 * directly below the config gate. Starts the engine from the resolved config
@@ -70684,7 +70319,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	if ($[0] !== config) {
 		t0 = () => {
 			activateFetchEngine(config);
-			return _temp$84;
+			return _temp$87;
 		};
 		t1 = [config];
 		$[0] = config;
@@ -70697,11 +70332,10 @@ var useScoreSchema = (logDir, scopeDir) => {
 	(0, import_react.useEffect)(t0, t1);
 	return null;
 };
-function _temp$84() {
+function _temp$87() {
 	return deactivateFetchEngine();
 }
-//#endregion
-//#region ../../node_modules/.pnpm/immer@11.1.21/node_modules/immer/dist/immer.mjs
+// ../../node_modules/.pnpm/immer@11.2.9/node_modules/immer/dist/immer.mjs
 var NOTHING = Symbol.for("immer-nothing");
 var DRAFTABLE = Symbol.for("immer-draftable");
 var DRAFT_STATE = Symbol.for("immer-state");
@@ -71120,7 +70754,7 @@ function peek$1(draft, prop) {
 	return (state ? latest$1(state) : draft)[prop];
 }
 function isRelocatedBaseRef(state, prop, value) {
-	if (state.type_ !== 1 || !state.allIndicesReassigned_ || state.assigned_?.get(prop) || !isDraftable(value) || value[DRAFT_STATE]) return false;
+	if (state.type_ !== 1 || !state.allIndicesReassigned_ || !isDraftable(value) || value[DRAFT_STATE]) return false;
 	return state.baseRefs_.has(value);
 }
 function readPropFromProto(state, source, prop) {
@@ -71317,7 +70951,9 @@ function currentImpl(value) {
 		copy = shallowCopy(value, state.scope_.immer_.useStrictShallowCopy_);
 		strict = state.scope_.immer_.shouldUseStrictIteration();
 	} else copy = shallowCopy(value, true);
-	each(copy, (key, childValue) => {
+	const source = copy;
+	if (isSet(copy)) copy = /* @__PURE__ */ new Set();
+	each(source, (key, childValue) => {
 		set(copy, key, currentImpl(childValue));
 	}, strict);
 	if (state) state.finalized_ = false;
@@ -71394,6 +71030,7 @@ function enableMapSet() {
 		forEach(cb, thisArg) {
 			const state = this[DRAFT_STATE];
 			assertUnrevoked(state);
+			prepareMapCopy(state);
 			latest$1(state).forEach((_value, key, _map) => {
 				cb.call(thisArg, this.get(key), key, this);
 			});
@@ -71412,6 +71049,7 @@ function enableMapSet() {
 		keys() {
 			const state = this[DRAFT_STATE];
 			assertUnrevoked(state);
+			prepareMapCopy(state);
 			return latest$1(state).keys();
 		}
 		values() {
@@ -71583,8 +71221,7 @@ function enableMapSet() {
 	});
 }
 var produce = new Immer2().produce;
-//#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.3.0_immer@11.1.21_react@19.3.1_use-sync-external-store@1.7.0_react@19.3.1_/node_modules/zustand/esm/vanilla.mjs
+// ../../node_modules/.pnpm/zustand@5.0.16_@types+react@19.3.0_immer@11.2.9_react@19.3.1_use-sync-external-store@1.7.0_react@19.3.1_/node_modules/zustand/esm/vanilla.mjs
 var createStoreImpl = (createState) => {
 	let state;
 	const listeners = /* @__PURE__ */ new Set();
@@ -71612,11 +71249,10 @@ var createStoreImpl = (createState) => {
 	return api;
 };
 var createStore = ((createState) => createState ? createStoreImpl(createState) : createStoreImpl);
-//#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.3.0_immer@11.1.21_react@19.3.1_use-sync-external-store@1.7.0_react@19.3.1_/node_modules/zustand/esm/react.mjs
+// ../../node_modules/.pnpm/zustand@5.0.16_@types+react@19.3.0_immer@11.2.9_react@19.3.1_use-sync-external-store@1.7.0_react@19.3.1_/node_modules/zustand/esm/react.mjs
 var identity$1 = (arg) => arg;
 function useStore$1(api, selector = identity$1) {
-	const slice = import_react.useSyncExternalStore(api.subscribe, import_react.useCallback(() => selector(api.getState()), [api, selector]), import_react.useCallback(() => selector(api.getInitialState()), [api, selector]));
+	const slice = import_react.useSyncExternalStore(api.subscribe, import_react.useCallback(() => selector(api.getState()), [api, selector]), () => selector(api.getInitialState()));
 	import_react.useDebugValue(slice);
 	return slice;
 }
@@ -71627,8 +71263,7 @@ var createImpl = (createState) => {
 	return useBoundStore;
 };
 var create = ((createState) => createState ? createImpl(createState) : createImpl);
-//#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.3.0_immer@11.1.21_react@19.3.1_use-sync-external-store@1.7.0_react@19.3.1_/node_modules/zustand/esm/middleware.mjs
+// ../../node_modules/.pnpm/zustand@5.0.16_@types+react@19.3.0_immer@11.2.9_react@19.3.1_use-sync-external-store@1.7.0_react@19.3.1_/node_modules/zustand/esm/middleware.mjs
 var shouldDispatchFromDevtools = (api) => !!api.dispatchFromDevtools && typeof api.dispatch === "function";
 var trackedConnections = /* @__PURE__ */ new Map();
 var getTrackedConnectionState = (name) => {
@@ -71658,10 +71293,10 @@ var extractConnectionInformation = (store, extensionConnector, options) => {
 		...newConnection
 	};
 };
-var removeStoreFromTrackedConnections = (name, store) => {
+var removeStoreFromTrackedConnections = (name, store, api) => {
 	if (store === void 0) return;
 	const connectionInfo = trackedConnections.get(name);
-	if (!connectionInfo) return;
+	if ((connectionInfo == null ? void 0 : connectionInfo.stores[store]) !== api) return;
 	delete connectionInfo.stores[store];
 	if (Object.keys(connectionInfo.stores).length === 0) trackedConnections.delete(name);
 };
@@ -71702,9 +71337,12 @@ var devtoolsImpl = (fn, devtoolsOptions = {}) => (set, get, api) => {
 		});
 		return r;
 	});
+	let unsubscribeFromStore;
 	api.devtools = { cleanup: () => {
-		if (connection && typeof connection.unsubscribe === "function") connection.unsubscribe();
-		removeStoreFromTrackedConnections(options.name, store);
+		unsubscribeFromStore?.();
+		unsubscribeFromStore = void 0;
+		removeStoreFromTrackedConnections(options.name, store, api);
+		if ((store === void 0 || !trackedConnections.has(options.name)) && connection && typeof connection.unsubscribe === "function") connection.unsubscribe();
 	} };
 	const setStateFromDevtools = (...a) => {
 		const originalIsRecording = isRecording;
@@ -71729,15 +71367,16 @@ var devtoolsImpl = (fn, devtoolsOptions = {}) => (set, get, api) => {
 			originalDispatch(...args);
 		};
 	}
-	connection.subscribe((message) => {
+	unsubscribeFromStore = connection.subscribe((message) => {
 		var _a;
+		const reviver = typeof options.serialize === "object" ? options.serialize.reviver : void 0;
 		switch (message.type) {
 			case "ACTION":
 				if (typeof message.payload !== "string") {
 					console.error("[zustand devtools middleware] Unsupported action format");
 					return;
 				}
-				return parseJsonThen(message.payload, (action) => {
+				return parseJsonThen(message.payload, reviver, (action) => {
 					if (action.type === "__setState") {
 						if (store === void 0) {
 							setStateFromDevtools(action.state);
@@ -71767,7 +71406,7 @@ var devtoolsImpl = (fn, devtoolsOptions = {}) => (set, get, api) => {
 							return;
 						}
 						return connection == null ? void 0 : connection.init(getTrackedConnectionState(options.name));
-					case "ROLLBACK": return parseJsonThen(message.state, (state) => {
+					case "ROLLBACK": return parseJsonThen(message.state, reviver, (state) => {
 						if (store === void 0) {
 							setStateFromDevtools(state);
 							connection?.init(api.getState());
@@ -71777,7 +71416,7 @@ var devtoolsImpl = (fn, devtoolsOptions = {}) => (set, get, api) => {
 						connection?.init(getTrackedConnectionState(options.name));
 					});
 					case "JUMP_TO_STATE":
-					case "JUMP_TO_ACTION": return parseJsonThen(message.state, (state) => {
+					case "JUMP_TO_ACTION": return parseJsonThen(message.state, reviver, (state) => {
 						if (store === void 0) {
 							setStateFromDevtools(state);
 							return;
@@ -71801,10 +71440,10 @@ var devtoolsImpl = (fn, devtoolsOptions = {}) => (set, get, api) => {
 	return initialState;
 };
 var devtools = devtoolsImpl;
-var parseJsonThen = (stringified, fn) => {
+var parseJsonThen = (stringified, reviver, fn) => {
 	let parsed;
 	try {
-		parsed = JSON.parse(stringified);
+		parsed = JSON.parse(stringified, reviver);
 	} catch (e) {
 		console.error("[zustand devtools middleware] Could not parse the received json", e);
 	}
@@ -71883,8 +71522,8 @@ var persistImpl = (config, baseOptions) => (set, get, api) => {
 		});
 	};
 	const savedSetState = api.setState;
-	api.setState = (state, replace) => {
-		savedSetState(state, replace);
+	api.setState = (...args) => {
+		savedSetState(...args);
 		return setItem();
 	};
 	const configResult = config((...args) => {
@@ -71965,8 +71604,7 @@ var persistImpl = (config, baseOptions) => (set, get, api) => {
 	return stateFromStorage || configResult;
 };
 var persist = persistImpl;
-//#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.15_@types+react@19.3.0_immer@11.1.21_react@19.3.1_use-sync-external-store@1.7.0_react@19.3.1_/node_modules/zustand/esm/middleware/immer.mjs
+// ../../node_modules/.pnpm/zustand@5.0.16_@types+react@19.3.0_immer@11.2.9_react@19.3.1_use-sync-external-store@1.7.0_react@19.3.1_/node_modules/zustand/esm/middleware/immer.mjs
 var immerImpl = (initializer) => (set, get, store) => {
 	store.setState = (updater, replace, ...args) => {
 		return set(typeof updater === "function" ? produce(updater) : updater, replace, ...args);
@@ -71992,6 +71630,7 @@ var kWorkspaceTabs = [
 ];
 var kSampleMessagesTabId = `messages`;
 var kSampleTranscriptTabId = `transcript`;
+var kSampleCommunicationTabId = `communication`;
 var kSampleTerminalsTabId = `terminals`;
 var kSampleScoringTabId = `scoring`;
 var kSampleActivityTabId = `activity`;
@@ -72003,10 +71642,11 @@ var kSampleRetriesTabId = `retries`;
 var kSampleErrorRetriesTabId = `retry-errors`;
 var kSampleJsonTabId = `json`;
 var kSampleEventTabId = `event`;
-/** Resolve a legacy sample tab id to the tab that now shows its content. */ var sampleTabAlias = (tabId) => tabId === kSampleUsageTabId || tabId === kSampleMetdataTabId ? kSampleInfoTabId : tabId;
+/** Resolve a legacy sample tab id to the tab that now shows its content. */ var sampleTabAlias = (tabId) => tabId === "usage" || tabId === "metadata" ? kSampleInfoTabId : tabId;
 var kSampleTabIds = [
 	kSampleMessagesTabId,
 	kSampleTranscriptTabId,
+	kSampleCommunicationTabId,
 	kSampleTerminalsTabId,
 	kSampleScoringTabId,
 	kSampleActivityTabId,
@@ -72025,8 +71665,7 @@ var kScoreTypeOther = "other";
 var kScoreTypeObject = "object";
 var kScoreTypeBoolean = "boolean";
 var kScoreTypeList = "list";
-//#endregion
-//#region src/state/appSlice.ts
+// src/state/appSlice.ts
 var kDefaultWorkspaceTab = kLogViewSamplesTabId;
 var kDefaultSampleTab = kSampleTranscriptTabId;
 var initialState$3 = {
@@ -72253,8 +71892,7 @@ var initializeAppSlice = (set, capabilities) => {
 		if (!state.app) state.app = initialState$3;
 	});
 };
-//#endregion
-//#region src/state/logSlice.ts
+// src/state/logSlice.ts
 var initialState$2 = {
 	filter: "",
 	filterError: void 0,
@@ -72335,8 +71973,7 @@ var initalializeLogSlice = (set) => {
 		if ("loadedLog" in state.log) delete state.log.loadedLog;
 	});
 };
-//#endregion
-//#region src/state/logsSlice.ts
+// src/state/logsSlice.ts
 var initialState$1 = {
 	listing: {
 		columnVisibility: {},
@@ -72429,8 +72066,7 @@ var displaySamplesEqual = (a, b) => {
 	}
 	return true;
 };
-//#endregion
-//#region src/state/sampleSlice.ts
+// src/state/sampleSlice.ts
 var kNoEvidenceSelection = {
 	key: null,
 	active: false,
@@ -72600,8 +72236,7 @@ var SearchPanel_module_default = {
 	searchingText: "_searchingText_1sdtt_267",
 	searchingElapsed: "_searchingElapsed_1sdtt_271"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript-search/searchPanelState.ts
+// ../../packages/inspect-components/src/transcript-search/searchPanelState.ts
 var createInitialSearchPanelState = () => ({
 	searchType: "llm",
 	searches: {
@@ -72686,8 +72321,7 @@ var normalizeSearchPanelState = (state) => {
 		}
 	};
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript-search/searchRequest.ts
+// ../../packages/inspect-components/src/transcript-search/searchRequest.ts
 var buildSearchScope = (scope) => {
 	return scope === "messages" ? { messages: "all" } : { events: "all" };
 };
@@ -72822,8 +72456,7 @@ var useCachedSearchResult = (t0) => {
 	} else t3 = $[10];
 	return useQuery(t3);
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript-search/SearchPanel.tsx
+// ../../packages/inspect-components/src/transcript-search/SearchPanel.tsx
 function hasStringValue$1(target) {
 	return target !== null && "value" in target && typeof target.value === "string";
 }
@@ -73612,8 +73245,7 @@ var SearchResult = (t0) => {
 function _temp5$16() {
 	return performance.now();
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript-search/referenceLabels.ts
+// ../../packages/inspect-components/src/transcript-search/referenceLabels.ts
 /**
 * Projects a search result's citations onto transcript labels: `message`
 * references become `messageLabels`, `event` references become `eventLabels`,
@@ -73670,8 +73302,7 @@ function _temp5$16() {
 	} else t4 = $[7];
 	return t4;
 };
-//#endregion
-//#region src/state/searchSlice.ts
+// src/state/searchSlice.ts
 var createSearchSlice = (set) => {
 	return {
 		search: { panelStates: {} },
@@ -73691,8 +73322,7 @@ var createSearchSlice = (set) => {
 		}
 	};
 };
-//#endregion
-//#region src/state/store.ts
+// src/state/store.ts
 var log$1 = createLogger("store");
 var storeImplementation = null;
 var useStore = (selector) => {
@@ -73747,11 +73377,9 @@ var initializeStore = (capabilities, storage) => {
 	store.getState().initialize(capabilities);
 	store.getState().appActions.removeBagsByPrefix("listPosition");
 };
-//#endregion
-//#region src/theme/constants.ts
+// src/theme/constants.ts
 var SETTINGS_STORAGE_KEY = "inspect-view-user-settings";
-//#endregion
-//#region src/state/userSettings.ts
+// src/state/userSettings.ts
 var MAX_SEARCH_MODEL_HISTORY = 25;
 var useUserSettings = create()(persist((set) => ({
 	themePreference: "readable-system",
@@ -73776,8 +73404,7 @@ var useUserSettings = create()(persist((set) => ({
 	name: SETTINGS_STORAGE_KEY,
 	storage: createJSONStorage(() => localStorage)
 }));
-//#endregion
-//#region src/state/componentStateAdapter.ts
+// src/state/componentStateAdapter.ts
 var inspectStateHooks = {
 	useValue: (id, prop, defaultValue) => useStore((0, import_react.useCallback)((state) => state.appActions.getPropertyValue(id, prop, defaultValue), [
 		id,
@@ -73790,8 +73417,7 @@ var inspectStateHooks = {
 	useRemoveAll: () => useStore((state) => state.appActions.removeAllProperties),
 	useRemoveByPrefix: () => useStore((state) => state.appActions.removeByPrefix)
 };
-//#endregion
-//#region src/app/AppProviders.tsx
+// src/app/AppProviders.tsx
 /**
 * The component-level context every inspect view renders under: component
 * state backed by the store. The app and the test harness
@@ -73810,8 +73436,7 @@ var inspectStateHooks = {
 	} else t1 = $[1];
 	return t1;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/content/logContentTrust.ts
+// ../../packages/inspect-components/src/content/logContentTrust.ts
 /**
 * The trust of a log's content, from its header's `eval.viewer.trust_content`.
 *
@@ -73834,8 +73459,7 @@ var inspectStateHooks = {
 * is trusted; anything else — `false`, or a value a newer format might
 * introduce — is untrusted.
 */ var trustContentSetting = (value) => value === void 0 || value === null || value === true ? "trusted" : "untrusted";
-//#endregion
-//#region ../../packages/react/src/routing.ts
+// ../../packages/react/src/routing.ts
 var isAppPath = (value) => typeof value === "string" && value.startsWith("/") && !value.startsWith("//");
 /** Restore before creating the router; checkpoint committed locations outside React. */ function createRestorableHashRouter(routes, { storage, key, initialPath }, options) {
 	const target = options?.window ?? window;
@@ -73879,8 +73503,7 @@ var isAppPath = (value) => typeof value === "string" && value.startsWith("/") &&
 /** Opens a hash route in a new tab (see `openHrefInNewTab`). */ function openRouteInNewTab(route) {
 	openHrefInNewTab(hashRouteUrl(route));
 }
-//#endregion
-//#region src/state/actions.ts
+// src/state/actions.ts
 var state = () => {
 	if (!storeImplementation) throw new Error("Store accessed before initialization.");
 	return storeImplementation.getState();
@@ -73900,8 +73523,7 @@ var state = () => {
 	if (title.length === 0) title.push("Inspect View");
 	return title.join(" - ");
 };
-//#endregion
-//#region src/app/routing/routeParams.ts
+// src/app/routing/routeParams.ts
 /**
 * Decodes a URL parameter that may be URL-encoded.
 * Safely handles already decoded strings.
@@ -74091,8 +73713,7 @@ var useLogOrSampleRouteParams = () => {
 	} else t0 = $[1];
 	return t0;
 };
-//#endregion
-//#region src/app/routing/currentSelection.tsx
+// src/app/routing/currentSelection.tsx
 var SelectionContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 function routeLogFile(pathname, params) {
 	const path = params.logPath;
@@ -74159,7 +73780,7 @@ function useRouteSelection(pathname) {
 	const { children } = t0;
 	const { pathname } = useLocation();
 	const { logFile, sample } = useRouteSelection(pathname);
-	useMirrorToStore(sample, _temp$83);
+	useMirrorToStore(sample, _temp$86);
 	let t1;
 	if ($[0] !== logFile || $[1] !== sample) {
 		t1 = {
@@ -74182,7 +73803,7 @@ function useRouteSelection(pathname) {
 	} else t2 = $[5];
 	return t2;
 }
-function _temp$83(handle) {
+function _temp$86(handle) {
 	return highlightSample(handle.id, handle.epoch, handle.logFile);
 }
 function useCurrentSelection() {
@@ -74196,8 +73817,7 @@ var useCurrentLogFile = () => {
 var useCurrentSampleHandle = () => {
 	return useCurrentSelection().sample;
 };
-//#endregion
-//#region src/app/samples/error/error.ts
+// src/app/samples/error/error.ts
 /**
 * Extracts the error type from a given message.
 * If the message contains parentheses, it returns the substring before the first parenthesis.
@@ -74212,8 +73832,7 @@ var BooleanScoreDescriptor_module_default = {
 	green: "_green_17gxn_10",
 	red: "_red_17gxn_16"
 };
-//#endregion
-//#region src/app/samples/descriptor/score/BooleanScoreDescriptor.tsx
+// src/app/samples/descriptor/score/BooleanScoreDescriptor.tsx
 var booleanScoreDescriptor = () => {
 	return {
 		scoreType: "boolean",
@@ -74228,8 +73847,7 @@ var booleanScoreDescriptor = () => {
 		}
 	};
 };
-//#endregion
-//#region src/app/samples/descriptor/score/CategoricalScoreDescriptor.tsx
+// src/app/samples/descriptor/score/CategoricalScoreDescriptor.tsx
 var categoricalScoreDescriptor = (values) => {
 	return {
 		scoreType: kScoreTypeCategorical,
@@ -74242,8 +73860,7 @@ var categoricalScoreDescriptor = (values) => {
 		}
 	};
 };
-//#endregion
-//#region src/app/samples/descriptor/score/ListScoreDescriptor.tsx
+// src/app/samples/descriptor/score/ListScoreDescriptor.tsx
 var formatListEntry = (value) => {
 	if (typeof value === "number" && value) return formatPrettyDecimal(value);
 	if (typeof value === "string" && value && isNumeric(value)) return formatPrettyDecimal(parseFloat(value));
@@ -74271,8 +73888,7 @@ var listScoreDescriptor = (_values) => {
 		}
 	};
 };
-//#endregion
-//#region src/app/samples/descriptor/score/NumericScoreDescriptor.tsx
+// src/app/samples/descriptor/score/NumericScoreDescriptor.tsx
 var numericScoreDescriptor = (values) => {
 	const onlyNumeric = values.filter((val) => {
 		return typeof val === "number";
@@ -74297,8 +73913,7 @@ var ObjectScoreDescriptor_module_default = {
 	key: "_key_7a6bv_8",
 	value: "_value_7a6bv_16"
 };
-//#endregion
-//#region src/app/samples/descriptor/score/ObjectScoreDescriptor.tsx
+// src/app/samples/descriptor/score/ObjectScoreDescriptor.tsx
 var objectScoreDescriptor = (values) => {
 	const buckets = values.map((val) => {
 		return JSON.stringify(val);
@@ -74340,8 +73955,7 @@ var objectScoreDescriptor = (values) => {
 		}
 	};
 };
-//#endregion
-//#region src/app/samples/descriptor/score/OtherScoreDescriptor.tsx
+// src/app/samples/descriptor/score/OtherScoreDescriptor.tsx
 var otherScoreDescriptor = () => {
 	return {
 		scoreType: kScoreTypeOther,
@@ -74365,8 +73979,7 @@ var PassFailScoreDescriptor_module_default = {
 	red: "_red_1seo2_16",
 	orange: "_orange_1seo2_22"
 };
-//#endregion
-//#region src/app/samples/descriptor/score/PassFailScoreDescriptor.tsx
+// src/app/samples/descriptor/score/PassFailScoreDescriptor.tsx
 var passFailScoreDescriptor = (values) => {
 	const categories = [];
 	if (values.includes("C")) categories.push({
@@ -74421,8 +74034,7 @@ var passFailScoreDescriptor = (values) => {
 		}
 	};
 };
-//#endregion
-//#region src/app/samples/descriptor/score/ScoreDescriptor.tsx
+// src/app/samples/descriptor/score/ScoreDescriptor.tsx
 var getScoreDescriptorForValues = (uniqScoreValues, uniqScoreTypes) => {
 	for (const categorizer of scoreCategorizers) {
 		const scoreDescriptor = categorizer.describe(uniqScoreValues, uniqScoreTypes);
@@ -74459,8 +74071,7 @@ var scoreCategorizers = [
 		return otherScoreDescriptor();
 	} }
 ];
-//#endregion
-//#region src/app/samples/descriptor/samplesDescriptor.tsx
+// src/app/samples/descriptor/samplesDescriptor.tsx
 var createEvalDescriptor = (scores, samples) => {
 	if (!samples) return;
 	const scoreValue = (sample, scoreLabel) => {
@@ -74618,8 +74229,7 @@ var createSamplesDescriptor = (samples, evalDescriptor, selectedScores) => {
 var scoreLabelKey = (scoreLabel) => {
 	return `${scoreLabel.scorer}.${scoreLabel.name}`;
 };
-//#endregion
-//#region ../../packages/filter-expression/src/expressionParser.ts
+// ../../packages/filter-expression/src/expressionParser.ts
 /**
 * Parser for the sample filter expression language: the grammar of
 * filtrex 3.1 (`generateParser.mjs`), reimplemented so expressions can be
@@ -75006,8 +74616,7 @@ var Parser$2 = class {
 * "Parse error" or "Lexical error" (with jison's position marker) for
 * malformed input, exactly where filtrex's `compileExpression` would.
 */ var parseExpression = (input) => new Parser$2(input, new Lexer(input)).parse();
-//#endregion
-//#region ../../packages/filter-expression/src/expressionEvaluator.ts
+// ../../packages/filter-expression/src/expressionEvaluator.ts
 /**
 * Tree-walking evaluator for sample filter expressions, a drop-in for
 * filtrex 3.1's `compileExpression` that never generates or evaluates
@@ -75279,8 +74888,7 @@ var SAMPLE_FUNCTIONS = [
 	["error_contains", "Checks if error contains a regular expression"],
 	["is_nan", "Checks if a numeric value is NaN (e.g. is_nan(score))"]
 ];
-//#endregion
-//#region src/app/samples/sample-tools/filters.ts
+// src/app/samples/sample-tools/filters.ts
 /**
 * Coerces a value to the type expected by the score.
 */ var coerceValue = (value, descriptor) => {
@@ -75568,8 +75176,7 @@ var filterSamples = (samplesDescriptor, samples, filterValue) => {
 		allErrors: errorCount === samples.length
 	};
 };
-//#endregion
-//#region src/state/scoring.ts
+// src/state/scoring.ts
 /**
 * Extracts scorer information from sample summaries
 */ var getScorersFromSamples = (samples) => {
@@ -75600,8 +75207,7 @@ var filterSamples = (samplesDescriptor, samples, filterValue) => {
 	const sampleScorers = getScorersFromSamples(sampleSummaries);
 	if (sampleScorers.length > 0) return sampleScorers;
 };
-//#endregion
-//#region src/state/hooks.ts
+// src/state/hooks.ts
 var kScorePanelViewBag = "score-panel-view";
 var kScorePanelViewKey = "view";
 var kScorePanelSortBag = "score-panel-sort";
@@ -75619,8 +75225,8 @@ var kDefaultScorePanelSort = {
 * own default (typically `chips` for ≤ 6 scores, `grid` for 7+).
 */ var useScorePanelView = () => {
 	const $ = (0, import_compiler_runtime.c)(5);
-	const stored = useStore(_temp$82);
-	const setPropertyValue = useStore(_temp2$51);
+	const stored = useStore(_temp$85);
+	const setPropertyValue = useStore(_temp2$52);
 	let t0;
 	if ($[0] !== setPropertyValue) {
 		t0 = (view) => {
@@ -75650,8 +75256,8 @@ var kDefaultScorePanelSort = {
 * value; callers resolve their own default via `resolveScorePanelSort`.
 */ var useScorePanelSort = () => {
 	const $ = (0, import_compiler_runtime.c)(5);
-	const stored = useStore(_temp3$35);
-	const setPropertyValue = useStore(_temp4$29);
+	const stored = useStore(_temp3$36);
+	const setPropertyValue = useStore(_temp4$30);
 	let t0;
 	if ($[0] !== setPropertyValue) {
 		t0 = (sort) => {
@@ -76141,18 +75747,18 @@ var useLogsListing = () => {
 	} else t0 = $[3];
 	return t0;
 };
-function _temp$82(state) {
+function _temp$85(state) {
 	const value = state.app.propertyBags[kScorePanelViewBag]?.[kScorePanelViewKey];
 	return isScoreView(value) ? value : void 0;
 }
-function _temp2$51(state_0) {
+function _temp2$52(state_0) {
 	return state_0.appActions.setPropertyValue;
 }
-function _temp3$35(state) {
+function _temp3$36(state) {
 	const value = state.app.propertyBags[kScorePanelSortBag]?.[kScorePanelSortKey];
 	return isScorePanelSortState(value) ? value : void 0;
 }
-function _temp4$29(state_0) {
+function _temp4$30(state_0) {
 	return state_0.appActions.setPropertyValue;
 }
 function _temp5$15(state) {
@@ -76182,8 +75788,7 @@ function _temp17$2(state_0) {
 function _temp18$2(state_1) {
 	return state_1.logsActions.clearLogsGridState;
 }
-//#endregion
-//#region src/app/routing/url.ts
+// src/app/routing/url.ts
 var kLogsRoutUrlPattern = "/logs";
 var kLogRouteUrlPattern = "/logs/*";
 var kTasksRouteUrlPattern = "/tasks";
@@ -76379,8 +75984,7 @@ var FlowButton_module_default = {
 	button: "_button_mrm1o_1",
 	viewerOptions: "_viewerOptions_mrm1o_12"
 };
-//#endregion
-//#region src/app/flow/FlowButton.tsx
+// src/app/flow/FlowButton.tsx
 var FlowButton = () => {
 	const $ = (0, import_compiler_runtime.c)(10);
 	const navigateRouter = useNavigate();
@@ -76431,8 +76035,7 @@ var FlowButton = () => {
 	} else t4 = $[9];
 	return t4;
 };
-//#endregion
-//#region src/app/flow/hooks.ts
+// src/app/flow/hooks.ts
 /**
 * The flow definition for `dir`. Keyed on the dir so navigation re-fetches,
 * and on the log root because the root is part of the data's identity. `api`
@@ -76466,7 +76069,7 @@ var FlowButton = () => {
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$81,
+			select: _temp$84,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -76475,7 +76078,7 @@ var FlowButton = () => {
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$81(flow) {
+function _temp$84(flow) {
 	return flow ?? void 0;
 }
 var ThemeToggle_module_default = {
@@ -76489,8 +76092,7 @@ var ThemeToggle_module_default = {
 	resetButton: "_resetButton_1jsd7_67",
 	option: "_option_1jsd7_82"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/theme/ThemeToggle.tsx
+// ../../packages/inspect-components/src/theme/ThemeToggle.tsx
 /**
 * Header control: clicking opens the full theme menu. Purely presentational —
 * the host owns persistence.
@@ -76719,8 +76321,7 @@ var ThemeToggle_module_default = {
 	} else t22 = $[51];
 	return t22;
 };
-//#endregion
-//#region ../../packages/theme/src/bootstrap.ts
+// ../../packages/theme/src/bootstrap.ts
 /**
 * Resolved dark/light for a preference — drives the toggle's icon and
 * flip direction. For `system` it reads the OS color scheme. (Host
@@ -76744,8 +76345,7 @@ var hostIsDarkFromBody = () => {
 	if (cls.contains("vscode-light")) return false;
 	return null;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/theme/useResolvedIsDark.ts
+// ../../packages/inspect-components/src/theme/useResolvedIsDark.ts
 var subscribe = (onChange) => {
 	if (typeof MutationObserver === "undefined" || typeof document === "undefined") return () => {};
 	const observer = new MutationObserver(onChange);
@@ -76767,13 +76367,12 @@ var subscribe = (onChange) => {
 		$[0] = preference;
 		$[1] = t0;
 	} else t0 = $[1];
-	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$80);
+	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$83);
 };
-function _temp$80() {
+function _temp$83() {
 	return false;
 }
-//#endregion
-//#region src/state/selectedLogDetails.ts
+// src/state/selectedLogDetails.ts
 /** Selection binding: the selected log's details — the fetch trigger and
 *  loading/error surface (see `useLogHeader`). Active demand: this is the ONE
 *  consumer declaring "someone is looking at this log" — see
@@ -76795,8 +76394,7 @@ var ViewerOptionsButton_module_default = {
 	viewerOptions: "_viewerOptions_v9bc5_8",
 	errorAdornment: "_errorAdornment_v9bc5_12"
 };
-//#endregion
-//#region src/app/log-list/ViewerOptionsButton.tsx
+// src/app/log-list/ViewerOptionsButton.tsx
 var ViewerOptionsButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 	const $ = (0, import_compiler_runtime.c)(12);
 	const { showing, setShowing, error } = t0;
@@ -76866,8 +76464,7 @@ var ViewerOptionsPopover_module_default = {
 	syncErrorIcon: "_syncErrorIcon_1udqz_53",
 	syncErrorDetail: "_syncErrorDetail_1udqz_58"
 };
-//#endregion
-//#region src/app/log-list/ViewerOptionsPopover.tsx
+// src/app/log-list/ViewerOptionsPopover.tsx
 var ViewerOptionsPopover = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(58);
 	const { showing, positionEl, setShowing, error } = t0;
@@ -77217,8 +76814,7 @@ var Navbar_module_default = {
 	toolbarButton: "_toolbarButton_1u3sd_50",
 	pathContainer: "_pathContainer_1u3sd_58"
 };
-//#endregion
-//#region src/app/navbar/Navbar.tsx
+// src/app/navbar/Navbar.tsx
 var Navbar = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(60);
 	const { fnNavigationUrl, bordered, children, currentPath, backUrl: backUrlOverride, homeUrl: homeUrlOverride, breadcrumbsEnabled } = t0;
@@ -77450,19 +77046,18 @@ var Navbar = (t0) => {
 	} else t24 = $[59];
 	return t24;
 };
-//#endregion
-//#region src/app/navbar/ApplicationNavbar.tsx
+// src/app/navbar/ApplicationNavbar.tsx
 var ApplicationNavbar = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(30);
 	const { currentPath, fnNavigationUrl, backUrl, homeUrl, bordered, children, breadcrumbsEnabled, loading: t1, viewerOptionsError } = t0;
 	const loadingProp = t1 === void 0 ? false : t1;
 	const [optionsEl, setOptionsEl] = (0, import_react.useState)(null);
-	const themePreference = useUserSettings(_temp$79);
-	const setThemePreference = useUserSettings(_temp2$50);
+	const themePreference = useUserSettings(_temp$82);
+	const setThemePreference = useUserSettings(_temp2$51);
 	const isDark = useResolvedIsDark(themePreference);
 	const loading = useSelectedLogLoading() || loadingProp;
-	const isShowing = useStore(_temp3$34);
-	const setShowing = useStore(_temp4$28);
+	const isShowing = useStore(_temp3$35);
+	const setShowing = useStore(_temp4$29);
 	let t2;
 	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
 		t2 = isVscode();
@@ -77551,24 +77146,23 @@ var ApplicationNavbar = (t0) => {
 	} else t8 = $[29];
 	return t8;
 };
-function _temp$79(s) {
+function _temp$82(s) {
 	return s.themePreference;
 }
-function _temp2$50(s_0) {
+function _temp2$51(s_0) {
 	return s_0.setThemePreference;
 }
-function _temp3$34(state) {
+function _temp3$35(state) {
 	return state.app.dialogs.options;
 }
-function _temp4$28(state_0) {
+function _temp4$29(state_0) {
 	return state_0.appActions.setShowingOptionsDialog;
 }
 var NavbarButton_module_default = {
 	navbarButton: "_navbarButton_i4zyi_1",
 	dropdownChevron: "_dropdownChevron_i4zyi_9"
 };
-//#endregion
-//#region src/app/navbar/NavbarButton.tsx
+// src/app/navbar/NavbarButton.tsx
 var NavbarButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 	const $ = (0, import_compiler_runtime.c)(21);
 	let className;
@@ -77637,8 +77231,7 @@ var NavbarButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 	return t3;
 });
 NavbarButton.displayName = "NavbarButton";
-//#endregion
-//#region src/app/navbar/ViewSegmentedControl.tsx
+// src/app/navbar/ViewSegmentedControl.tsx
 var segments = [
 	{
 		id: "tasks",
@@ -77712,8 +77305,7 @@ var ViewSegmentedControl = (t0) => {
 	} else t3 = $[11];
 	return t3;
 };
-//#endregion
-//#region src/app/server/useEvalSet.ts
+// src/app/server/useEvalSet.ts
 /**
 * Resolve the eval-set for `dir`, a subdir RELATIVE to the log root ("" at
 * the listing root) — passing an absolute dir doubles the path server-side.
@@ -77749,7 +77341,7 @@ var ViewSegmentedControl = (t0) => {
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$78,
+			select: _temp$81,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -77758,11 +77350,10 @@ var ViewSegmentedControl = (t0) => {
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$78(evalSet) {
+function _temp$81(evalSet) {
 	return evalSet ?? void 0;
 }
-//#endregion
-//#region src/app/shared/gridUtils.ts
+// src/app/shared/gridUtils.ts
 /**
 * Minimal column descriptor shared by the column-selector popover and the
 * grid view-state layer: enough to identify a column, label it, and carry
@@ -77793,8 +77384,7 @@ var ColumnSelectorPopover_module_default = {
 	button: "_button_cdanu_57",
 	columnsLayout: "_columnsLayout_cdanu_76"
 };
-//#endregion
-//#region src/app/shared/ColumnSelectorPopover.tsx
+// src/app/shared/ColumnSelectorPopover.tsx
 var isColumnScoresViewMode = (value) => value === "by-metric" || value === "per-scorer";
 var isScoreField = (field) => field.startsWith("score_") || field.startsWith("metric_");
 var ColumnSelectorPopover = (t0) => {
@@ -77867,13 +77457,13 @@ var ColumnSelectorPopover = (t0) => {
 		}
 		let t10;
 		if ($[13] !== columns) {
-			t10 = columns.filter(_temp$77);
+			t10 = columns.filter(_temp$80);
 			$[13] = columns;
 			$[14] = t10;
 		} else t10 = $[14];
 		let t11;
 		if ($[15] !== columns) {
-			t11 = columns.filter(_temp2$49);
+			t11 = columns.filter(_temp2$50);
 			$[15] = columns;
 			$[16] = t11;
 		} else t11 = $[16];
@@ -77895,7 +77485,7 @@ var ColumnSelectorPopover = (t0) => {
 		t10 = () => {
 			onVisibilityChange({
 				...currentVisibility,
-				...Object.fromEntries(columnGroups.base.map(_temp3$33))
+				...Object.fromEntries(columnGroups.base.map(_temp3$34))
 			});
 		};
 		$[20] = columnGroups.base;
@@ -77909,7 +77499,7 @@ var ColumnSelectorPopover = (t0) => {
 		t11 = () => {
 			onVisibilityChange({
 				...currentVisibility,
-				...Object.fromEntries(columnGroups.base.map(_temp4$27))
+				...Object.fromEntries(columnGroups.base.map(_temp4$28))
 			});
 		};
 		$[24] = columnGroups.base;
@@ -78191,16 +77781,16 @@ var ColumnSelectorPopover = (t0) => {
 	} else t32 = $[88];
 	return t32;
 };
-function _temp$77(col_0) {
+function _temp$80(col_0) {
 	return !isScoreField(getFieldKey(col_0));
 }
-function _temp2$49(col_1) {
+function _temp2$50(col_1) {
 	return isScoreField(getFieldKey(col_1));
 }
-function _temp3$33(col_2) {
+function _temp3$34(col_2) {
 	return [getFieldKey(col_2), true];
 }
-function _temp4$27(col_3) {
+function _temp4$28(col_3) {
 	return [getFieldKey(col_3), false];
 }
 function _temp5$14(col_4) {
@@ -78209,8 +77799,7 @@ function _temp5$14(col_4) {
 function _temp6$7(col_5) {
 	return [getFieldKey(col_5), false];
 }
-//#endregion
-//#region src/app/log-list/fileLogItem.ts
+// src/app/log-list/fileLogItem.ts
 /**
 * The path-derived part of a file item — id, display name, and url — or
 * `undefined` when the path isn't a file row of the view (folder mode: not
@@ -78256,8 +77845,7 @@ function _temp6$7(col_5) {
 		log: logFile
 	};
 };
-//#endregion
-//#region src/utils/evallog.ts
+// src/utils/evallog.ts
 var kLogFilePattern = /^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}[-+]\d{2}-\d{2})_(.+)_([0-9A-Za-z]+)\.(eval|json)$/;
 /** Log file names carry a filesystem-safe ISO timestamp (colons replaced
 *  with dashes: `2026-07-04T19-37-16-00-00`); restore the colons so the
@@ -78281,8 +77869,7 @@ var parseLogFileName = (logFileName) => {
 		extension: extension === "json" ? "json" : "eval"
 	};
 };
-//#endregion
-//#region src/utils/format.ts
+// src/utils/format.ts
 /**
 * Formats a duration given in seconds into a human-readable string.
 */ var formatTime = (seconds) => {
@@ -78333,8 +77920,7 @@ var columns_module_default = {
 	statusCell: "_statusCell_8fyml_57",
 	dateCell: "_dateCell_8fyml_68"
 };
-//#endregion
-//#region src/app/shared/gridComparators.ts
+// src/app/shared/gridComparators.ts
 var isMissingNumber$1 = (v) => v === null || v === void 0 || v === "" || typeof v === "number" && Number.isNaN(v);
 /**
 * Common value-comparison functions for client-side grid sorting.
@@ -78363,8 +77949,7 @@ var comparators = {
 	},
 	/** Compare values as dates */ date: (a, b) => toTime(a) - toTime(b)
 };
-//#endregion
-//#region src/app/log-list/grid/columns/comparators.ts
+// src/app/log-list/grid/columns/comparators.ts
 var isMissingNumber = (v) => v === null || v === void 0 || v === "" || typeof v === "number" && Number.isNaN(v);
 var numberCompare$1 = (a, b) => {
 	const aMissing = isMissingNumber(a);
@@ -78375,8 +77960,7 @@ var numberCompare$1 = (a, b) => {
 	return Number(a) - Number(b);
 };
 var dateCompare$1 = (a, b) => comparators.date(a, b);
-//#endregion
-//#region src/app/log-list/grid/columns/completedAt.ts
+// src/app/log-list/grid/columns/completedAt.ts
 /**
 * Sort/filter value for the Completed column. Never-completed logs (status
 * `started`, including currently-running evals) have no completion date —
@@ -78385,8 +77969,7 @@ var dateCompare$1 = (a, b) => comparators.date(a, b);
 * by recency — a just-started eval surfaces at the top — instead of
 * coercing the missing date to epoch 0 and sinking them to the bottom.
 */ var completedAtValue = (row) => row.completedAt || parseLogFileName(basename(row.name)).timestamp?.toISOString();
-//#endregion
-//#region src/app/log-list/grid/columns/hooks.tsx
+// src/app/log-list/grid/columns/hooks.tsx
 var styles = {
 	...gridCells_module_default$1,
 	...columns_module_default
@@ -79002,8 +78585,7 @@ var useLogListColumns = (mode = "logs", scopeDir, viewMode = "by-metric") => {
 		setColumnVisibility
 	};
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-table/dist/FlexRender.js
+// ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-table/dist/FlexRender.js
 function isReactComponent(component) {
 	return isClassComponent(component) || typeof component === "function" || isExoticComponent(component);
 }
@@ -79055,8 +78637,7 @@ function FlexRender(props) {
 	if ("footer" in props && props.footer) return flexRender(props.footer.column.columnDef.footer, props.footer.getContext());
 	return null;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+store@0.11.1/node_modules/@tanstack/store/dist/alien.js
+// ../../node_modules/.pnpm/@tanstack+store@0.11.1/node_modules/@tanstack/store/dist/alien.js
 /* @__NO_SIDE_EFFECTS__ */
 function createReactiveSystem({ update, notify, unwatched }) {
 	return {
@@ -79226,8 +78807,7 @@ function createReactiveSystem({ update, notify, unwatched }) {
 		return false;
 	}
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+store@0.11.1/node_modules/@tanstack/store/dist/atom.js
+// ../../node_modules/.pnpm/@tanstack+store@0.11.1/node_modules/@tanstack/store/dist/atom.js
 function toObserver(nextHandler, errorHandler, completionHandler) {
 	const isObserver = typeof nextHandler === "object";
 	const self = isObserver ? nextHandler : void 0;
@@ -79392,8 +78972,7 @@ function effect(fn) {
 	run();
 	return effectObj;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+store@0.11.1/node_modules/@tanstack/store/dist/shallow.js
+// ../../node_modules/.pnpm/@tanstack+store@0.11.1/node_modules/@tanstack/store/dist/shallow.js
 function shallow(objA, objB) {
 	if (Object.is(objA, objB)) return true;
 	if (typeof objA !== "object" || objA === null || typeof objB !== "object" || objB === null) return false;
@@ -79419,8 +78998,7 @@ function shallow(objA, objB) {
 function getOwnKeys(obj) {
 	return Object.keys(obj).concat(Object.getOwnPropertySymbols(obj));
 }
-//#endregion
-//#region ../../node_modules/.pnpm/use-sync-external-store@1.7.0_react@19.3.1/node_modules/use-sync-external-store/cjs/use-sync-external-store-shim.production.js
+// ../../node_modules/.pnpm/use-sync-external-store@1.7.0_react@19.3.1/node_modules/use-sync-external-store/cjs/use-sync-external-store-shim.production.js
 /**
 * @license React
 * use-sync-external-store-shim.production.js
@@ -79479,13 +79057,11 @@ var require_use_sync_external_store_shim_production = /* @__PURE__ */ __commonJS
 	var shim = "undefined" === typeof window || "undefined" === typeof window.document || "undefined" === typeof window.document.createElement ? useSyncExternalStore$1 : useSyncExternalStore$2;
 	exports.useSyncExternalStore = void 0 !== React.useSyncExternalStore ? React.useSyncExternalStore : shim;
 }));
-//#endregion
-//#region ../../node_modules/.pnpm/use-sync-external-store@1.7.0_react@19.3.1/node_modules/use-sync-external-store/shim/index.js
+// ../../node_modules/.pnpm/use-sync-external-store@1.7.0_react@19.3.1/node_modules/use-sync-external-store/shim/index.js
 var require_shim = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = require_use_sync_external_store_shim_production();
 }));
-//#endregion
-//#region ../../node_modules/.pnpm/use-sync-external-store@1.7.0_react@19.3.1/node_modules/use-sync-external-store/cjs/use-sync-external-store-shim/with-selector.production.js
+// ../../node_modules/.pnpm/use-sync-external-store@1.7.0_react@19.3.1/node_modules/use-sync-external-store/cjs/use-sync-external-store-shim/with-selector.production.js
 /**
 * @license React
 * use-sync-external-store-shim/with-selector.production.js
@@ -79556,8 +79132,7 @@ var require_with_selector_production = /* @__PURE__ */ __commonJSMin(((exports) 
 		return value;
 	};
 }));
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-store@0.11.1_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-store/dist/useSelector.js
+// ../../node_modules/.pnpm/@tanstack+react-store@0.11.1_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-store/dist/useSelector.js
 var import_with_selector = (/* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = require_with_selector_production();
 })))();
@@ -79593,14 +79168,12 @@ function useSelector(source, selector = (s) => s, options) {
 	const getSnapshot = (0, import_react.useCallback)(() => source.get(), [source]);
 	return (0, import_with_selector.useSyncExternalStoreWithSelector)(subscribe, getSnapshot, getSnapshot, selector, compare);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-table/dist/Subscribe.js
+// ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-table/dist/Subscribe.js
 function Subscribe(props) {
 	const selected = useSelector(props.source, props.selector, { compare: shallow });
 	return typeof props.children === "function" ? props.children(selected) : props.children;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/reactivity/coreReactivityFeature.utils.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/reactivity/coreReactivityFeature.utils.js
 /**
 * Bridges atom instances to the `Store`/`ReadonlyStore` API by exposing
 * a `state` getter backed by `atom.get()`, and wiring `setState` for
@@ -79619,8 +79192,7 @@ function atomToStore(atom) {
 	if ("set" in atom) store.setState = atom.set.bind(atom);
 	return store;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/reactivity/renderPhaseReactivity.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/reactivity/renderPhaseReactivity.js
 /**
 * Creates reactivity bindings for render-phase adapters (React, Preact, Lit):
 * frameworks with plain, non-reactive options that are re-synchronized during
@@ -79712,8 +79284,7 @@ function createRenderPhaseSource(source, compare = Object.is) {
 		})
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-table/dist/reactivity.js
+// ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-table/dist/reactivity.js
 /**
 * Creates the table-core reactivity bindings used by the React adapter.
 *
@@ -79729,8 +79300,7 @@ function reactReactivity() {
 		batch
 	});
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/utils.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/utils.js
 /**
 * Applies a TanStack updater to a value.
 *
@@ -80035,8 +79605,7 @@ function assignPrototypeAPIs(feature, prototype, table, apis) {
 function callMemoOrStaticFn(obj, fnKey, staticFn, ...args) {
 	return obj[fnKey]?.(...args) ?? staticFn(obj, ...args);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/cells/coreCellsFeature.utils.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/cells/coreCellsFeature.utils.js
 /**
 * Reads this cell's accessor value from its owning row and column.
 *
@@ -80086,8 +79655,7 @@ function cell_getContext(cell) {
 		renderValue: () => cell.renderValue()
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/cells/coreCellsFeature.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/cells/coreCellsFeature.js
 /**
 * Core feature that adds cell value, render, and context APIs.
 */
@@ -80101,8 +79669,7 @@ var coreCellsFeature = { assignCellPrototype: (prototype, table) => {
 		}
 	});
 } };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/headers/constructHeader.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/headers/constructHeader.js
 /**
 * Creates or retrieves the header prototype for a table.
 * The prototype is cached on the table and shared by all header instances.
@@ -80137,8 +79704,7 @@ function constructHeader(table, column, options) {
 	for (let i = 0; i < initFns.length; i++) initFns[i](header);
 	return header;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-pinning/columnPinningFeature.utils.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-pinning/columnPinningFeature.utils.js
 /**
 * Creates the default column pinning state.
 *
@@ -80684,8 +80250,7 @@ function table_getCenterVisibleLeafColumns(table) {
 function table_getPinnedVisibleLeafColumns(table, position) {
 	return !position ? callMemoOrStaticFn(table, "getVisibleLeafColumns", table_getVisibleLeafColumns) : position === "start" ? callMemoOrStaticFn(table, "getStartVisibleLeafColumns", table_getStartVisibleLeafColumns) : position === "end" ? callMemoOrStaticFn(table, "getEndVisibleLeafColumns", table_getEndVisibleLeafColumns) : callMemoOrStaticFn(table, "getCenterVisibleLeafColumns", table_getCenterVisibleLeafColumns);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-visibility/columnVisibilityFeature.utils.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-visibility/columnVisibilityFeature.utils.js
 /**
 * Creates the default column visibility state.
 *
@@ -80955,8 +80520,7 @@ function table_getToggleAllColumnsVisibilityHandler(table) {
 		table_toggleAllColumnsVisible(table, e.target.checked);
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/headers/buildHeaderGroups.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/headers/buildHeaderGroups.js
 function getMaxHeaderDepth(columns, depth = 1) {
 	let maxDepth = depth;
 	for (let i = 0; i < columns.length; i++) {
@@ -81066,8 +80630,7 @@ function buildHeaderGroups(allColumns, columnsToGroup, table, headerFamily) {
 	updateHeaderSpans(headerGroups[0]?.headers ?? []);
 	return headerGroups;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/columns/constructColumn.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/columns/constructColumn.js
 /**
 * Creates or retrieves the column prototype for a table.
 * The prototype is cached on the table and shared by all column instances.
@@ -81119,8 +80682,7 @@ function constructColumn(table, columnDef, depth, parent) {
 	for (let i = 0; i < initFns.length; i++) initFns[i](column);
 	return column;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-ordering/columnOrderingFeature.utils.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-ordering/columnOrderingFeature.utils.js
 /**
 * Creates the default column order state.
 *
@@ -81297,8 +80859,7 @@ function orderColumns(table, leafColumns) {
 	}
 	return [...groupingColumns, ...nonGroupingColumns];
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/columns/coreColumnsFeature.utils.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/columns/coreColumnsFeature.utils.js
 /**
 * Flattens this column and every descendant column into a single array.
 *
@@ -81467,8 +81028,7 @@ function table_getAllLeafColumnsById(table) {
 function table_getColumn(table, columnId) {
 	return table.getAllFlatColumnsById()[columnId];
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/columns/coreColumnsFeature.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/columns/coreColumnsFeature.js
 /**
 * Core feature that builds the column tree and exposes table/column APIs.
 */
@@ -81525,8 +81085,7 @@ var coreColumnsFeature = {
 		});
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/headers/coreHeadersFeature.utils.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/headers/coreHeadersFeature.utils.js
 function collectLeafHeaders(header, leafHeaders) {
 	for (let i = 0; i < header.subHeaders.length; i++) collectLeafHeaders(header.subHeaders[i], leafHeaders);
 	leafHeaders.push(header);
@@ -81652,8 +81211,7 @@ function table_getLeafHeaders(table) {
 	}
 	return result;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/headers/coreHeadersFeature.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/headers/coreHeadersFeature.js
 /**
 * Core feature that builds header groups and exposes header context APIs.
 */
@@ -81698,8 +81256,7 @@ var coreHeadersFeature = {
 		});
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/rows/constructRow.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/rows/constructRow.js
 /**
 * Creates or retrieves the row prototype for a table.
 * The prototype is cached on the table and shared by all row instances.
@@ -81733,8 +81290,7 @@ var constructRow = (table, id, original, rowIndex, depth, subRows, parentId) => 
 	for (let i = 0; i < initFns.length; i++) initFns[i](row);
 	return row;
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/row-sorting/sortFns.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/row-sorting/sortFns.js
 /**
 * Regular expression used to split mixed text and numeric chunks.
 *
@@ -81911,8 +81467,7 @@ function countRemainingChunks(str, start) {
 	}
 	return count;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/cell-selection/cellSelectionFeature.utils.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/cell-selection/cellSelectionFeature.utils.js
 /**
 * Creates the default cell selection state.
 *
@@ -81961,8 +81516,7 @@ function table_autoResetCellSelection(table) {
 	if (!table.atoms.cellSelection) return;
 	if (table.options.autoResetAll ?? table.options.autoResetCellSelection ?? true) table._reactivity.schedule(() => table_resetCellSelection(table));
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/row-expanding/rowExpandingFeature.utils.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/row-expanding/rowExpandingFeature.utils.js
 /**
 * Schedules an expanded-state reset after row-structure changes.
 *
@@ -81995,8 +81549,7 @@ function table_resetExpanded(table, defaultState) {
 	const initialExpanded = table.initialState.expanded;
 	setStateSlice(table, "expanded", defaultState ? makeObjectMap() : initialExpanded === true ? true : Object.assign(makeObjectMap(), cloneState(initialExpanded ?? {})));
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/row-pagination/rowPaginationFeature.utils.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/row-pagination/rowPaginationFeature.utils.js
 var defaultPageIndex = 0;
 /**
 * Resets the page index when a page-altering change should return to page 0.
@@ -82068,8 +81621,7 @@ function table_setPageIndex(table, updater) {
 function table_resetPageIndex(table, defaultState) {
 	table_setPageIndex(table, defaultState ? defaultPageIndex : table.initialState.pagination?.pageIndex ?? defaultPageIndex);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/row-sorting/rowSortingFeature.utils.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/row-sorting/rowSortingFeature.utils.js
 /**
 * Creates the default sorting state.
 *
@@ -82386,8 +81938,7 @@ function column_getToggleSortingHandler(column) {
 		column_toggleSorting(column, void 0, column_getCanMultiSort(column) ? column.table.options.isMultiSortEvent?.(e) : false);
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/row-models/createCoreRowModel.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/row-models/createCoreRowModel.js
 /**
 * Creates a memoized core row model factory.
 *
@@ -82434,8 +81985,7 @@ function _createCoreRowModel(table, data) {
 	rowModel.rows = accessRows(table, rowModel, data);
 	return rowModel;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/row-models/coreRowModelsFeature.utils.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/row-models/coreRowModelsFeature.utils.js
 /**
 * Resolves the table's unmodified core row model.
 *
@@ -82615,8 +82165,7 @@ function table_getPaginatedRowModel(table) {
 function table_getRowModel(table) {
 	return table.getPaginatedRowModel();
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/row-models/coreRowModelsFeature.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/row-models/coreRowModelsFeature.js
 /**
 * Core feature that wires table row-model accessors and row-model caches.
 */
@@ -82636,8 +82185,7 @@ var coreRowModelsFeature = { constructTableAPIs: (table) => {
 		table_getRowModel: { fn: () => table_getRowModel(table) }
 	});
 } };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/cells/constructCell.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/cells/constructCell.js
 /**
 * Creates or retrieves the cell prototype for a table.
 * The prototype is cached on the table and shared by all cell instances.
@@ -82665,8 +82213,7 @@ function constructCell(column, row, table) {
 	for (let i = 0; i < initFns.length; i++) initFns[i](cell);
 	return cell;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/rows/coreRowsFeature.utils.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/rows/coreRowsFeature.utils.js
 /**
 * Returns this row's zero-based position in the current pre-pagination row
 * model. Rows outside that model return `-1`.
@@ -82891,8 +82438,7 @@ function table_getRow(table, rowId, searchAll) {
 	}
 	return row;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/rows/coreRowsFeature.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/rows/coreRowsFeature.js
 /**
 * Core feature that creates row APIs for values, cells, and tree traversal.
 */
@@ -82938,8 +82484,7 @@ var coreRowsFeature = {
 		});
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/table/coreTablesFeature.utils.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/table/coreTablesFeature.utils.js
 /**
 * Synchronizes externally controlled state slices into the table's base atoms.
 *
@@ -83073,8 +82618,7 @@ function table_setOptions(table, updater, options) {
 	else table.options = mergedOptions;
 	if (options?.syncExternalState !== false) table_publishExternalState(table, mergedOptions.state ?? null);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/coreFeatures.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/coreFeatures.js
 /**
 * The built-in core feature set required by every table.
 *
@@ -83093,8 +82637,7 @@ var coreFeatures = {
 		});
 	} }
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/helpers/tableFeatures.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/helpers/tableFeatures.js
 /**
 * A helper function to help define the features that are to be imported and applied to a table instance.
 * Use this utility to make it easier to have the correct type inference for the features that are being imported.
@@ -83138,8 +82681,7 @@ var coreFeatures = {
 function tableFeatures(features) {
 	return features;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/table/constructTable.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/core/table/constructTable.js
 /**
 * Builds the initial table state from registered features and user initial state.
 *
@@ -83258,8 +82800,7 @@ function constructTable(tableOptions) {
 	}
 	return table;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-ordering/columnOrderingFeature.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-ordering/columnOrderingFeature.js
 /**
 * Feature that adds column ordering state and APIs for ordering leaf columns.
 */
@@ -83306,8 +82847,7 @@ var columnOrderingFeature = {
 		});
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-pinning/columnPinningFeature.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-pinning/columnPinningFeature.js
 /**
 * Feature that adds column pinning state and APIs for logical start, center,
 * and end regions.
@@ -83501,8 +83041,7 @@ var columnPinningFeature = {
 		});
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-sizing/columnSizingFeature.utils.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-sizing/columnSizingFeature.utils.js
 /**
 * Creates the default committed column sizing state.
 *
@@ -83780,8 +83319,7 @@ function table_getEndTotalSize(table) {
 		return sum + header_getSize(header);
 	}, 0) ?? 0;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-resizing/columnResizingFeature.utils.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-resizing/columnResizingFeature.utils.js
 /**
 * Creates the default transient column resizing state.
 *
@@ -84052,8 +83590,7 @@ function passiveEventSupported() {
 function isTouchStartEvent(e) {
 	return e.type === "touchstart";
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-resizing/columnResizingFeature.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-resizing/columnResizingFeature.js
 /**
 * Feature that adds column resizing state, options, and resize handlers.
 */
@@ -84087,8 +83624,7 @@ var columnResizingFeature = {
 		});
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-sizing/columnSizingFeature.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-sizing/columnSizingFeature.js
 /**
 * Feature that adds column sizing state, defaults, and size measurement APIs.
 */
@@ -84171,8 +83707,7 @@ var columnSizingFeature = {
 		});
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-visibility/columnVisibilityFeature.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/column-visibility/columnVisibilityFeature.js
 /**
 * Feature that adds column visibility state and APIs for hiding and showing columns.
 */
@@ -84248,8 +83783,7 @@ var columnVisibilityFeature = {
 		});
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/row-sorting/rowSortingFeature.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/row-sorting/rowSortingFeature.js
 /**
 * Feature that adds row sorting state, defaults, and column/table sorting APIs.
 */
@@ -84298,8 +83832,7 @@ var rowSortingFeature = {
 		});
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/row-sorting/createSortedRowModel.js
+// ../../node_modules/.pnpm/@tanstack+table-core@9.1.2/node_modules/@tanstack/table-core/dist/features/row-sorting/createSortedRowModel.js
 /**
 * Creates a memoized sorted row model factory.
 *
@@ -84407,8 +83940,7 @@ function _createSortedRowModel(table) {
 		rowsById: preSortedRowModel.rowsById
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-table/dist/useTable.js
+// ../../node_modules/.pnpm/@tanstack+react-table@9.1.2_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-table/dist/useTable.js
 var useIsomorphicLayoutEffect = typeof window === "undefined" ? import_react.useEffect : import_react.useLayoutEffect;
 /**
 * Creates a React table instance backed by TanStack Store atoms.
@@ -84480,8 +84012,7 @@ var ColumnFilterButton_module_default = {
 	filterButton: "_filterButton_b38ko_1",
 	filterButtonActive: "_filterButtonActive_b38ko_13"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/columnFilter/ColumnFilterButton.tsx
+// ../../packages/inspect-components/src/columnFilter/ColumnFilterButton.tsx
 var ColumnFilterButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 	const $ = (0, import_compiler_runtime.c)(8);
 	const { columnId, isActive, onClick } = t0;
@@ -84535,8 +84066,7 @@ var DurationInput_module_default = {
 	durationInputWrapper: "_durationInputWrapper_tdbd6_1",
 	durationHelper: "_durationHelper_tdbd6_8"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/columnFilter/DurationInput.tsx
+// ../../packages/inspect-components/src/columnFilter/DurationInput.tsx
 var DurationInput = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(14);
 	const { id, value, onChange, disabled, autoFocus, ariaLabel } = t0;
@@ -84601,8 +84131,7 @@ var DurationInput = (t0) => {
 	} else t4 = $[13];
 	return t4;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/columnFilter/operators.ts
+// ../../packages/inspect-components/src/columnFilter/operators.ts
 var STRING_OPERATORS = [
 	"contains",
 	"does not contain",
@@ -84676,8 +84205,7 @@ var DATE_OPERATORS = [
 	"is blank": "Is blank",
 	"is not blank": "Is not blank"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/columnFilter/types.ts
+// ../../packages/inspect-components/src/columnFilter/types.ts
 var UI_OPERATORS = [
 	"contains",
 	"does not contain",
@@ -84722,8 +84250,7 @@ var isConditionShaped = (value) => {
 	if (hasSecond && !isConditionShaped(spec.second)) return false;
 	return true;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/columnFilter/ColumnFilterEditor.tsx
+// ../../packages/inspect-components/src/columnFilter/ColumnFilterEditor.tsx
 /** Renders the type-appropriate value control, shared by both conditions'
 *  value and range-end inputs. */ var FilterValueInput = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(40);
@@ -84894,7 +84421,7 @@ var isConditionShaped = (value) => {
 	const t3 = `${columnId}-op${idSuffix}`;
 	let t4;
 	if ($[2] !== operatorOptions) {
-		t4 = operatorOptions.map(_temp$76);
+		t4 = operatorOptions.map(_temp$79);
 		$[2] = operatorOptions;
 		$[3] = t4;
 	} else t4 = $[3];
@@ -85152,14 +84679,13 @@ var ColumnFilterEditor = (t0) => {
 	} else t10 = $[32];
 	return t10;
 };
-function _temp$76(option) {
+function _temp$79(option) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
 		value: option,
 		children: OPERATOR_LABELS[option]
 	}, option);
 }
-//#endregion
-//#region ../../packages/inspect-components/src/columnFilter/editorConditionProps.ts
+// ../../packages/inspect-components/src/columnFilter/editorConditionProps.ts
 /**
 * Map filter-popover state to `ColumnFilterEditor`'s `condition`/`second`/
 * `join` props, so the editor's call sites don't each hand-wire the ~20
@@ -85190,12 +84716,10 @@ function _temp$76(option) {
 		onJoinChange: state.setJoin
 	};
 }
-//#endregion
-//#region ../../packages/inspect-common/src/query/types.ts
+// ../../packages/inspect-common/src/query/types.ts
 var isScalarArray = (val) => Array.isArray(val) && !isTuple(val);
 var isTuple = (val) => Array.isArray(val) && val.length === 2;
-//#endregion
-//#region ../../packages/inspect-common/src/query/conditionBuilder.ts
+// ../../packages/inspect-common/src/query/conditionBuilder.ts
 var serializeValue = (value) => {
 	if (value === null) return null;
 	if (isScalarArray(value)) return value;
@@ -85267,8 +84791,7 @@ var CompoundConditionBuilder = class extends ConditionBuilderBase {
 		return new CompoundConditionBuilder(left, operator, right);
 	}
 };
-//#endregion
-//#region ../../packages/inspect-components/src/columnFilter/specToCondition.ts
+// ../../packages/inspect-components/src/columnFilter/specToCondition.ts
 /**
 * Escape `%`, `_` and `\` so user text matches literally inside a LIKE
 * pattern. Consumers evaluating LIKE must treat `\` as an escape (the client
@@ -85365,8 +84888,7 @@ var parseList = (filterType, raw) => {
 	}
 	return primary;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/columnFilter/useColumnFilter.ts
+// ../../packages/inspect-components/src/columnFilter/useColumnFilter.ts
 /** Assemble a condition from editor state, normalizing a no-value operator to
 *  `value: ""` and dropping `value2` for non-range operators. */ var buildCondition = (operator, value, value2) => NO_VALUE_OPERATORS.has(operator) ? {
 	operator,
@@ -85538,8 +85060,7 @@ function useColumnFilter(t0) {
 	} else t10 = $[53];
 	return t10;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/columnFilter/useColumnFilterPopover.ts
+// ../../packages/inspect-components/src/columnFilter/useColumnFilterPopover.ts
 function useColumnFilterPopover(t0) {
 	const $ = (0, import_compiler_runtime.c)(33);
 	const { columnId, filterType, spec, onChange, operators } = t0;
@@ -85636,8 +85157,7 @@ function useColumnFilterPopover(t0) {
 	} else t4 = $[32];
 	return t4;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/columnFilter/ColumnFilterControl.tsx
+// ../../packages/inspect-components/src/columnFilter/ColumnFilterControl.tsx
 var ColumnFilterControl = ({ columnId, filterType, spec, onChange, operators, suggestions = [], onOpenChange, anchorEl, placement = "bottom-end" }) => {
 	const buttonRef = (0, import_react.useRef)(null);
 	const popover = useColumnFilterPopover({
@@ -85692,8 +85212,7 @@ var ColumnFilterControl = ({ columnId, filterType, spec, onChange, operators, su
 		})]
 	});
 };
-//#endregion
-//#region ../../packages/inspect-components/src/columnFilter/combineFilters.ts
+// ../../packages/inspect-components/src/columnFilter/combineFilters.ts
 /**
 * AND-combine a scope's per-column filter specs into a single `Condition`
 * (`undefined` when none are active). Entries are `unknown` because they come
@@ -85715,8 +85234,7 @@ var ColumnFilterControl = ({ columnId, filterType, spec, onChange, operators, su
 	const fit = Math.ceil(Math.max(widestCell, headerWidth + 40));
 	return Math.min(Math.max(fit, minSize ?? 20), maxSize ?? Infinity);
 }
-//#endregion
-//#region src/app/shared/data-grid/columnFit.ts
+// src/app/shared/data-grid/columnFit.ts
 /**
 * Pure fit-to-width layout for DataGrid columns, kept free of React/DOM so
 * the distribution rules are unit-testable (same split as columnReorder.ts).
@@ -85813,8 +85331,7 @@ var clampWidth = (w, c) => Math.min(Math.max(w, baseWidth(c)), hi(c));
 		}
 	}
 }
-//#endregion
-//#region src/app/shared/data-grid/columnReorder.ts
+// src/app/shared/data-grid/columnReorder.ts
 /**
 * Pure helpers for drag-to-reorder columns, kept free of React/DOM so the
 * splice logic is unit-testable (same split as keyboardNav.ts).
@@ -85891,8 +85408,7 @@ var DataGrid_module_default = {
 	resizeHandleTall: "_resizeHandleTall_1k6n1_486",
 	resizeHandleRotated: "_resizeHandleRotated_1k6n1_498"
 };
-//#endregion
-//#region src/app/shared/data-grid/keyboardNav.ts
+// src/app/shared/data-grid/keyboardNav.ts
 /**
 * Resolve the destination row index for a navigation key press, matching the
 * prior AG-grid keyboard behavior (`gridKeyboardNavigation.ts`): arrows move by
@@ -85920,8 +85436,7 @@ var DataGrid_module_default = {
 		default: return null;
 	}
 }
-//#endregion
-//#region src/app/shared/data-grid/tableFeatures.ts
+// src/app/shared/data-grid/tableFeatures.ts
 var dataGridFeatures = tableFeatures({
 	columnOrderingFeature,
 	columnPinningFeature,
@@ -85930,11 +85445,10 @@ var dataGridFeatures = tableFeatures({
 	columnVisibilityFeature,
 	rowSortingFeature
 });
-//#endregion
-//#region src/app/shared/data-grid/DataGrid.tsx
+// src/app/shared/data-grid/DataGrid.tsx
 var kRowHeight$1 = 30;
 var kPageJump = 10;
-var kHeaderHeight = 25;
+var kHeaderHeight$1 = 25;
 var kRotatedHeaderHeight = 115;
 /** Full-text header tooltip (native `title`), shown on hover — useful when the
 *  header label is truncated (regular ellipsis or a narrow rotated label).
@@ -86047,7 +85561,7 @@ function isSameColumnLayout(a, b) {
 *
 * Sorting, filtering, keyboard navigation, column resizing (drag +
 * double-click auto-size), pinning, reordering, and find are wired up.
-*/ function DataGrid({ data, columns, getRowId, columnVisibility, sorting, onSortingChange, columnSizing, onColumnSizingChange, columnOrder, onColumnOrderChange, columnFilters, onColumnFilterChange, hideColumnFilters, selectedRowId, onSelectedRowChange, scrollRef, onRowActivate, getRowHref: getRowHrefProp, rowHeight = kRowHeight$1, headerHeight = kHeaderHeight, multiline = false, loading = false, emptyMessage = "No matching items", className, autoFocus = false, ariaLabel }) {
+*/ function DataGrid({ data, columns, getRowId, columnVisibility, sorting, onSortingChange, columnSizing, onColumnSizingChange, columnOrder, onColumnOrderChange, columnFilters, onColumnFilterChange, hideColumnFilters, selectedRowId, onSelectedRowChange, scrollRef, onRowActivate, getRowHref: getRowHrefProp, rowHeight = kRowHeight$1, headerHeight = kHeaderHeight$1, multiline = false, loading = false, emptyMessage = "No matching items", className, autoFocus = false, ariaLabel }) {
 	const containerRef = (0, import_react.useRef)(null);
 	const getRowHref = isVscode() ? void 0 : getRowHrefProp;
 	const setContainerRef = (0, import_react.useCallback)((el) => {
@@ -86759,7 +86273,7 @@ function GridRowInner(t0) {
 		t18 = columnDef.meta?.filterable && filterType && !hideColumnFilters && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: DataGrid_module_default.rotatedFilter,
 			role: "presentation",
-			onClick: _temp$75,
+			onClick: _temp$78,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ColumnFilterControl, {
 				columnId: header.column.id,
 				filterType,
@@ -86860,11 +86374,10 @@ function GridRowInner(t0) {
 	} else t22 = $[62];
 	return t22;
 }
-function _temp$75(e_2) {
+function _temp$78(e_2) {
 	return e_2.stopPropagation();
 }
-//#endregion
-//#region src/app/shared/data-grid/findMatches.ts
+// src/app/shared/data-grid/findMatches.ts
 /** Objects/arrays are skipped rather than stringified ("[object Object]"
 *  must never be searchable text). */ function primitiveText(value) {
 	switch (typeof value) {
@@ -86905,8 +86418,7 @@ function _temp$75(e_2) {
 	for (const [id, text] of index) if (text.includes(lowerTerm)) ids.push(id);
 	return ids;
 }
-//#endregion
-//#region src/app/log-list/listing/evaluator.ts
+// src/app/log-list/listing/evaluator.ts
 /**
 * TRANSITIONAL: client-side evaluation of a `Condition` / `OrderBy` against
 * in-memory rows. Inspect will eventually filter/sort server-side (like scout),
@@ -87039,8 +86551,7 @@ var defaultCompare = (a, b) => {
 		return 0;
 	};
 }
-//#endregion
-//#region src/app/log-list/listing/planner.ts
+// src/app/log-list/listing/planner.ts
 /**
 * Compile the wire filter and ordering into record-level listing operations.
 *
@@ -87055,8 +86566,7 @@ var defaultCompare = (a, b) => {
 		pagination
 	};
 };
-//#endregion
-//#region src/app/log-list/listing/applyListingQuery.ts
+// src/app/log-list/listing/applyListingQuery.ts
 /**
 * Merge two individually-sorted row lists into one sorted list; ties place
 * `base` rows first. Without a comparator the overlay is appended (the
@@ -87089,8 +86599,7 @@ var defaultCompare = (a, b) => {
 		total_count
 	};
 }
-//#endregion
-//#region src/app/log-list/listing/useLogsListingQuery.ts
+// src/app/log-list/listing/useLogsListingQuery.ts
 /** TanStack `SortingState` → API `OrderBy[]`. Mirrors scout's helper. */ var sortingStateToOrderBy = (sorting) => sorting.map((s) => ({
 	column: s.id,
 	direction: s.desc ? "DESC" : "ASC"
@@ -87325,8 +86834,7 @@ var defaultCompare = (a, b) => {
 	} else t11 = $[38];
 	return t11;
 }
-//#endregion
-//#region src/app/log-list/grid/LogListGrid.tsx
+// src/app/log-list/grid/LogListGrid.tsx
 var LogListGrid = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(109);
 	const { rows, totalRowCount, sorting, columnFilters, filter, orderBy, currentPath, scopeKey, mode: t1, busy, listing } = t0;
@@ -87443,7 +86951,7 @@ var LogListGrid = (t0) => {
 	const searchColumns = t10;
 	let t11;
 	if ($[26] !== searchColumns) {
-		t11 = searchColumns.map(_temp$74);
+		t11 = searchColumns.map(_temp$77);
 		$[26] = searchColumns;
 		$[27] = t11;
 	} else t11 = $[27];
@@ -87455,7 +86963,7 @@ var LogListGrid = (t0) => {
 		$[29] = t12;
 	} else t12 = $[29];
 	const rowText = t12;
-	const getRowId = _temp2$48;
+	const getRowId = _temp2$49;
 	let t13;
 	if ($[30] !== accessorsKey || $[31] !== filter || $[32] !== findTerm || $[33] !== getComparator || $[34] !== getFilterType || $[35] !== getValue || $[36] !== listing || $[37] !== orderBy || $[38] !== rowText || $[39] !== searchKey || $[40] !== showFind) {
 		t13 = {
@@ -87489,7 +86997,7 @@ var LogListGrid = (t0) => {
 	const { reset: resetMatches } = fileMatches;
 	let t14;
 	if ($[42] !== rows || $[43] !== searchColumns || $[44] !== showFind) {
-		t14 = showFind ? buildSearchIndex(rows.filter(_temp3$32), searchColumns, _temp4$26) : void 0;
+		t14 = showFind ? buildSearchIndex(rows.filter(_temp3$33), searchColumns, _temp4$27) : void 0;
 		$[42] = rows;
 		$[43] = searchColumns;
 		$[44] = showFind;
@@ -87734,16 +87242,16 @@ var LogListGrid = (t0) => {
 	} else t32 = $[108];
 	return t32;
 };
-function _temp$74(col_0) {
+function _temp$77(col_0) {
 	return col_0.id ?? "";
 }
-function _temp2$48(row_2) {
+function _temp2$49(row_2) {
 	return row_2.id;
 }
-function _temp3$32(row_3) {
+function _temp3$33(row_3) {
 	return row_3.type !== "file";
 }
-function _temp4$26(row_4) {
+function _temp4$27(row_4) {
 	return row_4.id;
 }
 function _temp5$13(row_6) {
@@ -87755,8 +87263,7 @@ function _temp6$6(row_7) {
 function _temp7$5(row_8) {
 	return toFullUrlMaybe(row_8.url);
 }
-//#endregion
-//#region src/app/log-list/grid/logListRow.ts
+// src/app/log-list/grid/logListRow.ts
 var rowForItem = (item) => item.type === "file" ? item.log : void 0;
 var buildLogListRow = (item) => {
 	const log = rowForItem(item);
@@ -87795,8 +87302,7 @@ var buildLogListRow = (item) => {
 	if (derived?.scores) for (const [scorerName, metrics] of Object.entries(derived.scores)) for (const [metricName, value] of Object.entries(metrics)) row[`score_${scorerName}/${metricName}`] = value;
 	return row;
 };
-//#endregion
-//#region src/app/shared/useKeyedMemo.ts
+// src/app/shared/useKeyedMemo.ts
 var shallowEqual = (a, b) => {
 	if (a.length !== b.length) return false;
 	for (let i = 0; i < a.length; i++) if (!Object.is(a[i], b[i])) return false;
@@ -87839,8 +87345,7 @@ var shallowEqual = (a, b) => {
 	if (changed) resultRef.current = result;
 	return resultRef.current;
 }
-//#endregion
-//#region src/app/log-list/grid/useLogListData.ts
+// src/app/log-list/grid/useLogListData.ts
 var kNoRows = [];
 /** Pending rows minus the tasks that already have a file row in `fileRows`
 *  (pending row ids are task ids; file rows carry their record's task_id). */ var dropSettledPendingRows = (pendingRows, fileRows) => {
@@ -87863,7 +87368,7 @@ var kNoRows = [];
 	const $ = (0, import_compiler_runtime.c)(45);
 	const { overlayItems, scopeKey, getValue, getComparator, getFilterType, accessorsKey, listing } = t0;
 	const { gridStateByScope } = useLogsListing();
-	const overlayData = useKeyedMemo(overlayItems, _temp$73, _temp2$47, _temp3$31);
+	const overlayData = useKeyedMemo(overlayItems, _temp$76, _temp2$48, _temp3$32);
 	let t1;
 	if ($[0] !== overlayData) {
 		const folders = [];
@@ -88002,10 +87507,10 @@ var kNoRows = [];
 	} else t12 = $[44];
 	return t12;
 };
-function _temp$73(item) {
+function _temp$76(item) {
 	return item.id;
 }
-function _temp2$47(item_0) {
+function _temp2$48(item_0) {
 	return [
 		item_0.id,
 		item_0.type,
@@ -88016,7 +87521,7 @@ function _temp2$47(item_0) {
 		item_0.type === "pending-task" ? item_0.model : void 0
 	];
 }
-function _temp3$31(item_1) {
+function _temp3$32(item_1) {
 	return buildLogListRow(item_1);
 }
 var LogListFooter_module_default = {
@@ -88028,8 +87533,7 @@ var LogListFooter_module_default = {
 	left: "_left_14uod_39",
 	center: "_center_14uod_48"
 };
-//#endregion
-//#region src/app/log-list/LogListFooter.tsx
+// src/app/log-list/LogListFooter.tsx
 var LogListFooter = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(19);
 	const { itemCount, itemCountLabel, filteredCount, progressText, progressBar } = t0;
@@ -88125,8 +87629,7 @@ var LogsPanel_module_default = {
 	panel: "_panel_16dj8_1",
 	list: "_list_16dj8_8"
 };
-//#endregion
-//#region src/app/log-list/useLogsOverview.ts
+// src/app/log-list/useLogsOverview.ts
 /**
 * The page-level aggregates beside the row query (see `readLogsOverview`).
 * Keyed under the listing root so the write path's throttled invalidation
@@ -88171,16 +87674,15 @@ var LogsPanel_module_default = {
 	} else t4 = $[9];
 	return useAsyncDataFromQuery(t4);
 };
-//#endregion
-//#region src/app/log-list/LogsPanel.tsx
+// src/app/log-list/LogsPanel.tsx
 var LogsPanel = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(123);
 	const { maybeShowSingleLog, mode: t1 } = t0;
 	const mode = t1 === void 0 ? "logs" : t1;
 	const [showColumnSelector, setShowColumnSelector] = (0, import_react.useState)(false);
 	const [columnButtonEl, setColumnButtonEl] = (0, import_react.useState)(null);
-	const showRetriedLogs = useUserSettings(_temp$72);
-	const setShowRetriedLogs = useUserSettings(_temp2$46);
+	const showRetriedLogs = useUserSettings(_temp$75);
+	const setShowRetriedLogs = useUserSettings(_temp2$47);
 	const logDir = useLogDir();
 	const { gridStateByScope, patchGridState } = useLogsListing();
 	const { logPath } = useLogRouteParams();
@@ -88354,7 +87856,7 @@ var LogsPanel = (t0) => {
 	const totalRowCount = (overview?.fileCount ?? 0) + logItems.length;
 	const listBusy = busy || listData.pending || overviewQuery.loading;
 	const error = sync.error ?? overviewQuery.error ?? listData.error;
-	const currentColumnVisibility = useStore(_temp3$30);
+	const currentColumnVisibility = useStore(_temp3$31);
 	let t18;
 	if ($[50] !== listData.columnFilters) {
 		t18 = Object.keys(listData.columnFilters ?? {});
@@ -88405,7 +87907,7 @@ var LogsPanel = (t0) => {
 	const handleColumnVisibilityChange = t20;
 	let t21;
 	if ($[62] !== logItems) {
-		t21 = logItems.filter(_temp4$25);
+		t21 = logItems.filter(_temp4$26);
 		$[62] = logItems;
 		$[63] = t21;
 	} else t21 = $[63];
@@ -88639,23 +88141,22 @@ var appendPendingItems = (evalSet, tasksWithLogFiles, items) => {
 	items.push(...pendingTasks);
 	return items;
 };
-function _temp$72(state) {
+function _temp$75(state) {
 	return state.showRetriedLogs;
 }
-function _temp2$46(state_0) {
+function _temp2$47(state_0) {
 	return state_0.setShowRetriedLogs;
 }
-function _temp3$30(state_1) {
+function _temp3$31(state_1) {
 	return state_1.logs.listing.columnVisibility;
 }
-function _temp4$25(item_0) {
+function _temp4$26(item_0) {
 	return item_0.type === "pending-task";
 }
 function _temp5$12(prev) {
 	return !prev;
 }
-//#endregion
-//#region src/app/routing/sampleNavigation.ts
+// src/app/routing/sampleNavigation.ts
 /**
 * Resolves a `sampleUuid` route to its canonical id/epoch sample URL once the
 * selected log's summaries have loaded. Returns undefined while unresolvable
@@ -88940,20 +88441,20 @@ var InlineSampleDisplay_module_default = {
 	container: "_container_ly812_1",
 	scroller: "_scroller_ly812_7"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/transform/utils.ts
+// ../../packages/inspect-components/src/transcript/transform/utils.ts
 var STEP = "step";
 var SPAN_BEGIN = "span_begin";
 var SPAN_END = "span_end";
 var TYPE_TOOL = "tool";
 var TYPE_SUBTASK = "subtask";
+var TYPE_SOLVER = "solver";
+var TYPE_AGENT = "agent";
 var TYPE_SCORERS = "scorers";
 /** Span/step events group the rows below them; they are structure, not content. */ var isStructuralEvent = (event) => event.event === "span_begin" || event.event === "span_end" || event.event === "step";
 var hasSpans = (events) => {
 	return events.some((event) => event.event === SPAN_BEGIN);
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/types.ts
+// ../../packages/inspect-components/src/transcript/types.ts
 var kTranscriptCollapseScope = "transcript-collapse";
 var kTranscriptOutlineCollapseScope = "transcript-outline";
 /** Event types whose *children* can be collapsed (tree collapse). */ var kCollapsibleEventTypes = [
@@ -89030,10 +88531,158 @@ var isEventNodeOf = (node, type) => node.event.event === type;
 	if (!isEventNodeOf(node, type)) throw new Error(`expected a "${type}" event node, got "${node.event.event}"`);
 	return node;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/transform/toolSentinels.ts
+// ../../packages/inspect-components/src/transcript/transform/toolSentinels.ts
 /** The span a sentinel's dispatch runs in; it holds the step's events and the model calls its monitors made. */ var isSentinelSpan = (node) => node.event.event === "span_begin" && node.event.type === "sentinel";
+var kConversationSpanTypes$1 = /* @__PURE__ */ new Set([
+	TYPE_AGENT,
+	TYPE_SUBTASK,
+	TYPE_SOLVER
+]);
+/**
+* A node that opens a conversation, as the Activity view keys its rows: an
+* agent, subtask or solver span, or the subtask event the tree puts in place
+* of a subtask's span. Agents reuse call ids, so a call pairs only with the
+* proposals, approvals and checks of its own conversation: a delegated or
+* sibling agent's `call_1` is not its parent's.
+*/ var isConversationNode = (node) => node.event.event === "subtask" || node.event.event === "span_begin" && node.event.type != null && kConversationSpanTypes$1.has(node.event.type);
 /** Whether a sandbox agent bridge ran the call on the host, which records it with `metadata.bridge`. */ var isBridgeTool = (event) => event.metadata != null && "bridge" in event.metadata;
+/**
+* The model's id for the call a ToolEvent ran, which its proposal carries: a
+* bridge records it as `metadata.bridge.proposal_id`, which differs from the
+* event's id when the bridge handed the call to its scaffold under a new id
+* (inspect_ai#6369). Otherwise the event's id.
+*/ var proposalIdOf = (event) => recordedProposalId(event) ?? event.id;
+/** The `metadata.bridge.proposal_id` a bridge recorded for its run, if any. */ var recordedProposalId = (event) => {
+	const bridge = event.metadata?.bridge;
+	return isRecord(bridge) && typeof bridge.proposal_id === "string" ? bridge.proposal_id : void 0;
+};
+/**
+* The id of the execution a tool-stage sentinel event or an approval judged,
+* which is that execution's `ToolEvent.id`: the `execution_id` a bridge
+* records when it handed the call over under an id other than the model's
+* (inspect_ai#6370), else the model's id.
+*/ var executionIdOf = (event) => event.execution_id ?? (event.event === "sentinel" ? event.step_id : event.call.id);
+/** Whether a ToolEvent records a call that failed or never ran. */ var toolFailed = (event) => event.error != null || event.failed === true;
+/** An approval decision that kept its call from running. */ var approvalStopped = (approval) => approval.decision !== "approve" && approval.decision !== "modify";
+/** A `tool_call` step that kept its call from running. */ var stopsCall = (step) => !!step.effective && step.verdict !== "proceed" && step.verdict !== "modify";
+/**
+* An approval decision that rejected its call. A bridge then discards the
+* whole output that proposed it (`apply_bridge_tool_approval` in inspect_ai),
+* and approval stops at that decision, so no other decision follows it.
+*/ var approvalRejects = (approval) => approval.decision === "reject" || approval.decision === "terminate";
+var bridgeOutputs = () => {
+	const byId = /* @__PURE__ */ new Map();
+	const discarded = /* @__PURE__ */ new Set();
+	const key = (conversation, id) => `${conversation}\u0000${id}`;
+	return {
+		propose: (conversation, output, bridged, ids, order) => {
+			for (const id of new Set(ids)) {
+				const proposals = byId.get(key(conversation, id)) ?? [];
+				proposals.push({
+					order,
+					output: bridged ? output : void 0
+				});
+				byId.set(key(conversation, id), proposals);
+			}
+		},
+		outputOf: (conversation, id, order) => {
+			const proposals = byId.get(key(conversation, id)) ?? [];
+			let lo = 0;
+			let hi = proposals.length;
+			while (lo < hi) {
+				const mid = lo + hi >> 1;
+				if (proposals[mid].order < order) lo = mid + 1;
+				else hi = mid;
+			}
+			return proposals[lo - 1]?.output;
+		},
+		discard: (output) => {
+			if (output !== void 0) discarded.add(output);
+		},
+		discarded: (output) => output !== void 0 && discarded.has(output)
+	};
+};
+var recordsExecutionId = (event) => (event.event === "sentinel" || event.event === "approval") && event.execution_id != null;
+/**
+* Whether a sample's log records `execution_id` (inspect_ai#6370) on any
+* sentinel step or approval. Only such logs pair by execution; older ones
+* keep the pairing they always had, since their records cannot say which run
+* of a reused id a check or approval judged. Inspect leaves null fields out
+* of a log, so a null counts as absent, as it does in a store that fills
+* every missing field with null.
+*/ var recordsExecutionIds = (events) => events.some(recordsExecutionId);
+/** `recordsExecutionIds` over an event tree or flat node list. */ var treeRecordsExecutionIds = (nodes) => {
+	const seen = /* @__PURE__ */ new Set();
+	const stack = [...nodes];
+	for (let n = stack.pop(); n; n = stack.pop()) {
+		if (seen.has(n.id)) continue;
+		seen.add(n.id);
+		if (recordsExecutionId(n.event)) return true;
+		for (const child of n.children) stack.push(child);
+	}
+	return false;
+};
+var sameJson = (a, b) => {
+	if (a === b) return true;
+	if (Array.isArray(a) || Array.isArray(b)) return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((value, i) => sameJson(value, b[i]));
+	if (!isRecord(a) || !isRecord(b)) return false;
+	const keys = Object.keys(a);
+	return keys.length === Object.keys(b).length && keys.every((key) => key in b && sameJson(a[key], b[key]));
+};
+var sameCall = (a, b) => a.function === b.function && sameJson(a.arguments, b.arguments);
+/** Records a proposal, comparing it with the key's first call only, so building an index is linear. */ var addProposal = (index, key, call, output, order) => {
+	const proposed = index.get(key);
+	if (!proposed) index.set(key, {
+		call,
+		order,
+		conflicting: false,
+		outputs: [{
+			output,
+			order
+		}]
+	});
+	else if (proposed.conflicting) return;
+	else if (!sameCall(proposed.call, call)) proposed.conflicting = true;
+	else if (proposed.outputs.length < 2 && proposed.outputs[0]?.output !== output) proposed.outputs.push({
+		output,
+		order
+	});
+};
+/** The call every one of `calls` names, or none when they differ. */ var agreedCall = (calls) => {
+	const [first, ...rest] = calls;
+	return first && rest.every((call) => sameCall(call, first)) ? first : void 0;
+};
+/**
+* The call a bridge's approval reviewed for this run, joined by its
+* `execution_id`. Approval runs before any check, and every approver of a
+* call sees the call as proposed (renamed to the bridged tool it runs), so
+* it records the proposal even when a check or approver then replaced it.
+* A call several bridged tools share is reviewed once per tool, so only the
+* approvals of the tool the run executed name it: another tool's approval
+* reviewed a call the run is not.
+*/ var approvedProposal = ({ tool, approvals }) => {
+	if (!tool) return void 0;
+	return agreedCall(approvals.filter((approval) => approval.execution_id === tool.id && approval.call.function === tool.function).map((approval) => approval.call));
+};
+/**
+* The call a run ran as proposed, from what its conversation's outputs
+* proposed under its `proposalIdOf` (`proposed`), only when nothing could be
+* confused: the one call proposed under the id (with the output that
+* proposed it, when one output did before the run), else the call the run's
+* own approval recorded (`approvedProposal`). Otherwise unknown: outputs can
+* be outstanding together and a scaffold may rewrite a call's arguments, so
+* neither order nor argument equality identifies a proposal.
+*/ var findProposal = (proposed, run) => {
+	if (proposed && !proposed.conflicting && proposed.order < run.order) {
+		const [first, second] = proposed.outputs;
+		return {
+			call: proposed.call,
+			output: second && second.order < run.order ? void 0 : first?.output
+		};
+	}
+	const approved = approvedProposal(run);
+	return approved ? { call: approved } : void 0;
+};
 var reported = (node, kind) => node.event.status === "reported" && node.event.kind === kind;
 var pathSegments = (path) => path === "" ? [] : path.split("/");
 /**
@@ -89182,6 +88831,7 @@ var isInactive$1 = (status) => status !== "reported";
 		id: first?.id ?? "",
 		stage: first?.event.stage ?? "tool_call",
 		stepId: first?.event.step_id ?? "",
+		executionId: first?.event.execution_id ?? void 0,
 		rows: tree.map((entry) => ({
 			node: entry.node,
 			depth: entry.depth,
@@ -89251,7 +88901,7 @@ var isInactive$1 = (status) => status !== "reported";
 			nodes.push(node);
 			return;
 		}
-		const key = `${event.conversation}\u0000${event.stage}\u0000${event.step_id}`;
+		const key = `${event.conversation}\u0000${event.stage}\u0000${executionIdOf(event)}`;
 		let step = spanless.get(key);
 		if (!step || step.done && event.status !== "superseded") {
 			step = {
@@ -89266,7 +88916,233 @@ var isInactive$1 = (status) => status !== "reported";
 	});
 	return new Map(groups.map((nodes) => [nodes[0].event, buildSentinelStep(nodes)]));
 }
+var kRootConversation = { key: "" };
+/**
+* The calls a sentinel span's monitors and approvers make run inside it, so
+* the nearest enclosing sentinel span ("" outside any) keeps them apart from
+* the agent's calls, whose ids they may share.
+*/ var scopeOf = (span) => span?.node.id ?? "";
 var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
+/**
+* The conversation of the calls a step judges: the one its span sits in, or
+* for an agent bridge's check routed out of it, the one it recorded. A model
+* event sink can run a bridged generation, and the host calls it makes, in a
+* sub-agent while the check's span stays under the outer agent. The recorded
+* conversation is the nearest agent span, so it decides only when the check
+* sits outside it, which keeps a check under a subtask with the subtask's
+* calls (as `bridgeConversationSpan` in sample-activity/activityData.ts).
+*/ var conversationOfStep = ({ nodes, conversation }, bridge, bySpan) => {
+	const recorded = nodes[0]?.event.conversation;
+	if (!bridge || recorded === void 0) return conversation.key;
+	for (let c = conversation; c; c = c.parent) if (c.spanId === recorded) return conversation.key;
+	return bySpan.get(recorded)?.key ?? conversation.key;
+};
+/** Keys the tools a step may judge: by id, scope, conversation and whether a bridge ran them on the host. */ var runKey = (id, scope, conversation, bridge) => `${id}\u0000${scope}\u0000${conversation}\u0000${bridge ? "host" : "native"}`;
+/**
+* The ToolEvent a tool-stage step judged, among those in the step's scope
+* and conversation whose id is the step's execution id, skipping tools that
+* already host a step of the same stage. A bridge's check judges only a call
+* the bridge ran on the host, and a native check only a native call, though
+* they share ids (a call the bridged agent inherited, for example).
+*
+* A step that records its `execution_id` names its tool: the one such tool,
+* or none. Otherwise the step's id is the model's:
+* - A bridge hands over only a call nothing stopped, and records no
+*   `execution_id` for an attempt it never handed over, so a bridge step
+*   with none judged the one run under the model's id, in any recording
+*   order, or none. One its check stopped judged no run: a rejected
+*   attempt's check precedes the accepted retry's run under the same id.
+*   Nor did a `tool_call` check of an output the bridge discarded
+*   (`discarded`, see `BridgeOutputs`), whatever it decided.
+* - Each native attempt records its ToolEvent, a stopped one as failed, so
+*   native steps pair in order: a `tool_call` step judges the first such
+*   tool recorded after it (none when no such tool follows), a
+*   `tool_result` step the last one before it.
+*/ var hostTool = (toolsByRun, step, { order, scope }, conversation, claimed, bridge, discarded) => {
+	const unclaimed = (t) => !claimed.has(`${step.stage}\u0000${t.node.id}`);
+	const candidates = toolsByRun.get(runKey(step.executionId ?? step.stepId, scope, conversation, bridge)) ?? [];
+	const sole = () => {
+		const [only, other] = candidates;
+		return only && !other && unclaimed(only) ? only : void 0;
+	};
+	if (step.executionId !== void 0) return sole();
+	const stopped = step.stage === "tool_call" && stopsCall(step);
+	if (bridge) return stopped || discarded ? void 0 : sole();
+	const open = candidates.filter((t) => unclaimed(t) && (!stopped || toolFailed(t.node.event)));
+	const after = open.find((t) => t.order > order);
+	if (step.stage === "tool_call") return after;
+	return open.findLast((t) => t.order < order) ?? after;
+};
+/**
+* Groups SentinelEvents by the step they judged and pairs tool-stage steps to
+* their ToolEvent, so the tool panel renders them inline. A sample whose log
+* records `execution_id` (`recordsExecutionIds`) pairs by execution
+* (`pairToolSentinelsByExecution`); any other pairs exactly as before the
+* field (`pairToolSentinelsLegacy`). Callers that render part of a sample
+* pass the sample's answer, so every view of it pairs the same way.
+*/ function pairToolSentinels(eventNodes, recordsExecutions = treeRecordsExecutionIds(eventNodes)) {
+	return recordsExecutions ? pairToolSentinelsByExecution(eventNodes) : pairToolSentinelsLegacy(eventNodes);
+}
+/**
+* Pairs tool-stage steps to their ToolEvent (`executionIdOf` ==
+* `ToolEvent.id`, see `hostTool`), so the
+* tool panel renders them inline. Each sentinel span holds one step; events
+* outside a span group by conversation, stage and execution id. Steps with no tool render
+* as one row at their span or first event. A tool shows the call it ran as
+* proposed under its `proposalIdOf` in its conversation, when nothing could
+* be confused (`findProposal`).
+* Proposals, approvals and steps pair only within a conversation
+* (`isConversationNode`), since agents reuse each other's call ids.
+*
+* The Activity view pairs the same way in `collectSentinelDecisions`
+* (sample-activity/activityData.ts), over the flat event list; a change to
+* these pairing rules belongs in both.
+*/ function pairToolSentinelsByExecution(eventNodes) {
+	const tools = [];
+	const proposals = /* @__PURE__ */ new Map();
+	const nativeProposals = /* @__PURE__ */ new Map();
+	const approvals = /* @__PURE__ */ new Map();
+	const outputs = bridgeOutputs();
+	const conversationKey = (conversation, id) => `${conversation.key}\u0000${id}`;
+	const steps = /* @__PURE__ */ new Map();
+	const conversationsBySpan = /* @__PURE__ */ new Map();
+	const seen = /* @__PURE__ */ new Set();
+	let order = 0;
+	const walk = (nodes, span, conversation) => {
+		for (const n of nodes) {
+			if (seen.has(n.id)) continue;
+			seen.add(n.id);
+			const at = order++;
+			span?.members.push(n);
+			if (n.event.event === "tool") tools.push({
+				node: eventNodeOf(n, "tool"),
+				order: at,
+				scope: scopeOf(span),
+				conversation: conversation.key,
+				proposals: span ? void 0 : conversationKey(conversation, proposalIdOf(n.event))
+			});
+			else if (n.event.event === "approval") {
+				if (!span) {
+					const key = conversationKey(conversation, executionIdOf(n.event));
+					const recorded = approvals.get(key) ?? [];
+					recorded.push(n.event);
+					approvals.set(key, recorded);
+				}
+			} else if (n.event.event === "sentinel") {
+				const key = span ? span.node.id : `${conversation.key}\u0000${n.event.stage}\u0000${executionIdOf(n.event)}`;
+				const step = steps.get(key) ?? {
+					nodes: [],
+					order: span?.order ?? at,
+					span,
+					scope: scopeOf(span?.parent),
+					conversation: span?.conversation ?? conversation
+				};
+				step.nodes.push(eventNodeOf(n, "sentinel"));
+				steps.set(key, step);
+			} else if (n.event.event === "model") {
+				if (span) span.modelCalls.push(eventNodeOf(n, "model"));
+				else {
+					const proposed = n.event.output.choices.flatMap((choice) => choice.message.tool_calls ?? []);
+					for (const call of proposed) {
+						const key = conversationKey(conversation, call.id);
+						addProposal(proposals, key, call, void 0, at);
+						if (!n.event.requested_model) addProposal(nativeProposals, key, call, void 0, at);
+					}
+					outputs.propose(conversation.key, n.id, !!n.event.requested_model, proposed.map((call) => call.id), at);
+				}
+			}
+			let inner = span;
+			if (isSentinelSpan(n)) inner = {
+				node: n,
+				parent: span,
+				conversation,
+				members: [],
+				modelCalls: [],
+				order: at
+			};
+			let innerConversation = conversation;
+			if (isConversationNode(n)) {
+				const spanId = n.event.event === "span_begin" ? n.event.id : void 0;
+				innerConversation = {
+					key: n.id,
+					spanId,
+					parent: conversation
+				};
+				if (spanId !== void 0) conversationsBySpan.set(spanId, innerConversation);
+			}
+			if (n.children.length) walk(n.children, inner, innerConversation);
+		}
+	};
+	walk(eventNodes, void 0, kRootConversation);
+	const toolSentinels = /* @__PURE__ */ new Map();
+	const standaloneSentinels = /* @__PURE__ */ new Map();
+	const hiddenSentinelIds = /* @__PURE__ */ new Set();
+	const sentinelScrollRedirects = /* @__PURE__ */ new Map();
+	const claimed = /* @__PURE__ */ new Set();
+	const toolsByRun = /* @__PURE__ */ new Map();
+	for (const entry of tools) {
+		const key = runKey(entry.node.event.id, entry.scope, entry.conversation, isBridgeTool(entry.node.event));
+		const runs = toolsByRun.get(key);
+		if (runs) runs.push(entry);
+		else toolsByRun.set(key, [entry]);
+	}
+	const built = [...steps.values()].sort((a, b) => a.order - b.order).map((events) => {
+		const step = buildSentinelStep(events.nodes, events.span?.modelCalls);
+		const bridge = events.span?.node.event.event === "span_begin" && events.span.node.event.name === "sentinel_bridge";
+		const conversation = conversationOfStep(events, bridge, conversationsBySpan);
+		const output = bridge && step.stage === "tool_call" && step.executionId === void 0 ? outputs.outputOf(conversation, step.stepId, events.order) : void 0;
+		if (stopsCall(step)) outputs.discard(output);
+		return {
+			events,
+			step,
+			bridge,
+			conversation,
+			output
+		};
+	});
+	for (const { events, step, bridge, conversation, output } of built) {
+		const { nodes, span } = events;
+		const tool = kToolStages.has(step.stage) ? hostTool(toolsByRun, step, events, conversation, claimed, bridge, outputs.discarded(output)) : void 0;
+		const hostId = tool?.node.id ?? span?.node.id ?? nodes[0].id;
+		if (tool) {
+			claimed.add(`${step.stage}\u0000${tool.node.id}`);
+			const paired = toolSentinels.get(tool.node.id) ?? {};
+			if (step.stage === "tool_call") paired.before = step;
+			else paired.after = step;
+			toolSentinels.set(tool.node.id, paired);
+		} else standaloneSentinels.set(hostId, step);
+		const hidden = span ? [span.node, ...span.members] : nodes;
+		for (const node of hidden) {
+			if (node.id === hostId) continue;
+			hiddenSentinelIds.add(node.id);
+			sentinelScrollRedirects.set(node.id, hostId);
+		}
+	}
+	const runsById = /* @__PURE__ */ new Map();
+	for (const { node, conversation, proposals: key } of tools) {
+		if (key === void 0) continue;
+		const runKey = `${conversation}\u0000${node.event.id}`;
+		runsById.set(runKey, (runsById.get(runKey) ?? 0) + 1);
+	}
+	for (const { node, order: at, conversation, proposals: key } of tools) {
+		const paired = toolSentinels.get(node.id);
+		if (key === void 0 || !paired) continue;
+		const tool = node.event;
+		const runKey = `${conversation}\u0000${tool.id}`;
+		const found = findProposal((isBridgeTool(tool) ? proposals : nativeProposals).get(key), {
+			tool,
+			approvals: runsById.get(runKey) === 1 ? approvals.get(runKey) ?? [] : [],
+			order: at
+		});
+		if (found) paired.proposed = found.call;
+	}
+	return {
+		toolSentinels,
+		standaloneSentinels,
+		hiddenSentinelIds,
+		sentinelScrollRedirects
+	};
+}
 /**
 * The ToolEvent a tool-stage step judged: the first one with the step's id
 * recorded after a `tool_call` step (none when no such tool follows), the last
@@ -89274,7 +89150,7 @@ var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
 * the same stage. A bridge's check judges only a call the bridge ran on the
 * host: a native call under the same id (one the bridged agent inherited, for
 * example) is not the one it checked.
-*/ var hostTool = (tools, step, order, claimed, bridge) => {
+*/ var legacyHostTool = (tools, step, order, claimed, bridge) => {
 	const candidates = tools.filter((t) => t.node.event.id === step.stepId && (!bridge || isBridgeTool(t.node.event)) && !claimed.has(`${step.stage}\u0000${t.node.id}`));
 	const after = candidates.find((t) => t.order > order);
 	if (step.stage === "tool_call") return after;
@@ -89287,10 +89163,9 @@ var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
 * stage and step id. Steps with no tool render as one row at their span or
 * first event.
 *
-* The Activity view pairs the same way in `collectSentinelDecisions`
-* (sample-activity/activityData.ts), over the flat event list; a change to
-* these pairing rules belongs in both.
-*/ function pairToolSentinels(eventNodes) {
+* The Activity view pairs the same way in `collectSentinelDecisionsLegacy`
+* (sample-activity/activityData.ts), over the flat event list.
+*/ function pairToolSentinelsLegacy(eventNodes) {
 	const tools = [];
 	const proposals = /* @__PURE__ */ new Map();
 	const steps = /* @__PURE__ */ new Map();
@@ -89343,7 +89218,7 @@ var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
 	for (const { nodes, order: at, span } of ordered) {
 		const step = buildSentinelStep(nodes, span?.modelCalls);
 		const bridge = span?.node.event.event === "span_begin" && span.node.event.name === "sentinel_bridge";
-		const tool = kToolStages.has(step.stage) ? hostTool(tools, step, at, claimed, bridge) : void 0;
+		const tool = kToolStages.has(step.stage) ? legacyHostTool(tools, step, at, claimed, bridge) : void 0;
 		const hostId = tool?.node.id ?? span?.node.id ?? nodes[0].id;
 		if (tool) {
 			claimed.add(`${step.stage}\u0000${tool.node.id}`);
@@ -89391,8 +89266,7 @@ var formatScore = (value) => String(Math.round(value * 100) / 100);
 };
 /** A suspicion's dimensions, highest score first. */ var sortedScores = (suspicion) => Object.entries(suspicion).sort(([, a], [, b]) => b - a);
 /** A modify decision's replacement call, with every argument spelled out. */ var formatModifiedCall = (call) => `${call.function}(${Object.entries(call.arguments).map(([key, value]) => `${key}=${JSON.stringify(value)}`).join(", ")})`;
-//#endregion
-//#region ../../packages/inspect-components/src/usage/timeFormat.ts
+// ../../packages/inspect-components/src/usage/timeFormat.ts
 var fmtCompactDuration = (s) => {
 	const t = Math.round(s);
 	if (t < 60) return `${t}s`;
@@ -89439,16 +89313,14 @@ var fmtClock = (iso, showDate = false) => {
 		return iso;
 	}
 };
-//#endregion
-//#region ../../packages/inspect-components/src/usage/tokenTotals.ts
+// ../../packages/inspect-components/src/usage/tokenTotals.ts
 /** Sum of the individual token categories — the fallback when a record
 *  carries no total. */ var compositionTotal = (usage) => (usage.input_tokens ?? 0) + (usage.input_tokens_cache_read ?? 0) + (usage.input_tokens_cache_write ?? 0) + (usage.output_tokens ?? 0) + (usage.reasoning_tokens ?? 0);
 /** One total for every token surface (Usage tab, Activity tab): prefer the
 *  recorded total_tokens — providers disagree on composition (OpenAI's
 *  input_tokens already includes cached reads, so summing categories
 *  double-counts) — falling back to the composition when absent/zero. */ var usageTotal = (usage) => usage.total_tokens || compositionTotal(usage);
-//#endregion
-//#region ../../packages/inspect-components/src/sample-activity/activityData.ts
+// ../../packages/inspect-components/src/sample-activity/activityData.ts
 var kActivityCategories = [
 	"error",
 	"limit",
@@ -89627,7 +89499,6 @@ var valueText = (value) => typeof value === "string" ? value : JSON.stringify(va
 	for (const part of parts) if (part.type === "text") size += part.text.length;
 	return size;
 };
-var toolFailed = (event) => event.error != null || event.failed === true;
 /** Wall completion for duration-bearing events (model/tool/subtask/sandbox). */ var completedEpoch = (event) => "completed" in event && typeof event.completed === "string" ? isoToEpoch(event.completed) : void 0;
 var scoreText = (score) => {
 	const value = score.value;
@@ -89689,19 +89560,329 @@ var scoreText = (score) => {
 *  it; a stage with no proposal left takes a fresh slot. */ var takeSlot = (chain, stage, skip) => {
 	let slot = chain.slots[chain[stage]];
 	while (slot && skip?.(slot)) slot = chain.slots[++chain[stage]];
+	if (!slot) chain.slots.push(slot = {
+		key: chain.key,
+		approvals: []
+	});
+	chain[stage] += 1;
+	return slot;
+};
+var approvalsStopped = (slot) => slot.approvals.some(approvalStopped);
+/** Records an event of the slot at `at`, which places a slot with no
+*  ToolEvent. */ var place = (slot, at) => {
+	if (!slot.tool) slot.order = Math.min(slot.order ?? at, at);
+};
+/** A call stopped before it ran, or whose arguments never parsed, has no
+*  result; an escalation older builds let through ran despite its step. */ var didNotRun = (slot) => !slot.tool || toolFailed(slot.tool) && (slot.stopped === true || slot.tool.error?.type === "parsing");
+/** A call a bridge ran on the host, which only the bridge's checks judge. */ var ranOnHost = (slot) => !!slot.tool && isBridgeTool(slot.tool);
+/** The span an agent bridge's check belongs to. The conversation it records
+*  is the nearest agent span, while rows key on the nearest agent, subtask
+*  or solver span, so it only settles which agent the check belongs to when
+*  the check's own span is outside that agent: a model event sink's
+*  `on_start` can run the bridged generation in a sub-agent while the
+*  check's span stays under the outer agent. Inside it (a subtask under the
+*  agent), or when the conversation names no span (the sample's uuid), the
+*  check's span decides. */ var bridgeConversationSpan = (event, spans) => {
+	if (!spans.has(event.conversation)) return event.span_id;
+	const visited = /* @__PURE__ */ new Set();
+	for (let id = event.span_id; id && !visited.has(id);) {
+		if (id === event.conversation) return event.span_id;
+		visited.add(id);
+		id = spans.get(id)?.parentId;
+	}
+	return event.conversation;
+};
+/** Each sentinel step counts once, by the decision that took effect —
+*  nested configurations record a decision per layer. Pairing runs in
+*  recording order within each conversation: `conversationOf` keys an
+*  event's span, or for an agent bridge's check the conversation it
+*  recorded (`bridgeConversationSpan`). Only a sample whose log records
+*  `execution_id` (`recordsExecutionIds`) pairs here; any other pairs in
+*  `collectSentinelDecisionsLegacy`, as before the field.
+*
+*  This pairs separately from `pairToolSentinels`, which works on the event
+*  tree; this pass also needs approvals and each call's proposing model
+*  call, in one pass over a flat list. Both name a run's proposal with
+*  `findProposal`, given every approval joined to the run. Keep the rules
+*  in sync: a run under its `proposalIdOf` names the call proposed under it
+*  only when nothing could be confused (`findProposal`); an approval or
+*  step that records its `execution_id` judges the execution under that id
+*  and nothing else; otherwise a `tool_call` step judges the next tool with
+*  its id, a `tool_result` step one that ran before it; an agent bridge's
+*  check judges only a call the bridge ran on the host, and a native check
+*  never does; a bridge's check with no host run in the chain it took
+*  judges, in a log that records `execution_id`, the one host run under the
+*  model's id, else takes a slot of the latest output proposing its id
+*  before it, which a retry after a rejection replaces, and names its call
+*  the same way; a `tool_call` check with none of an output the bridge
+*  discarded judges no run (`BridgeOutputs`). Calls made inside a sentinel span (a monitor's or
+*  approver's own) pair only with events in that span. */ var collectSentinelDecisions = (events, spans, conversationOf) => {
+	const steps = buildSentinelSteps(events);
+	const chains = /* @__PURE__ */ new Map();
+	/** The nearest sentinel span enclosing a span, or "" outside any. */ const scopeOf = (spanId) => {
+		const visited = /* @__PURE__ */ new Set();
+		for (let id = spanId; id && !visited.has(id);) {
+			visited.add(id);
+			const span = spans.get(id);
+			if (span?.type === "sentinel") return id;
+			id = span?.parentId;
+		}
+		return "";
+	};
+	/** The scope of the calls a step judges: the one its own span is in. */ const scopeOfStep = (event) => {
+		const span = spans.get(event.span_id ?? "");
+		return scopeOf(span?.type === "sentinel" ? span.parentId : event.span_id);
+	};
+	const chainKey = (spanId, id) => `${conversationOf(spanId)}\u0000${id}`;
+	const newChain = (key, slots, output) => ({
+		key,
+		slots,
+		output,
+		approvals: 0,
+		checks: 0,
+		tools: 0,
+		hostTools: 0,
+		results: 0
+	});
+	const chainFor = (spanId, scope, id) => {
+		const key = chainKey(spanId, `${scope}\u0000${id}`);
+		let chain = chains.get(key);
+		if (!chain) chains.set(key, chain = newChain(key, []));
+		return chain;
+	};
+	/** Whether the slot is free for, or held by, the run under `id`. */ const openTo = (slot, id) => slot.execution === void 0 || slot.execution === id;
+	/** The next slot `stage` has not taken that no other run holds, which the
+	*  run under `id` then holds. */ const takeRun = (chain, stage, id, skip = () => false) => {
+		const slot = takeSlot(chain, stage, (s) => !openTo(s, id) || skip(s));
+		slot.execution ??= id;
+		return slot;
+	};
+	/** Slots of runs under an id other than the model's, by that id. */ const executions = /* @__PURE__ */ new Map();
+	/** The slot of the run under `id`, which is not the model's id in
+	*  `chain`: the one an earlier event naming it took, else a new one. */ const executionSlot = (spanId, scope, id, chain, stage, skip) => {
+		const key = chainKey(spanId, `${scope}\u0000${id}`);
+		let slot = executions.get(key);
+		if (!slot) executions.set(key, slot = takeRun(chain, stage, id, skip));
+		return slot;
+	};
+	/** By chain key, the host runs whose bridge recorded the model's id as
+	*  both their id and their proposal's (`recordedProposalId`). */ const modelIdRuns = /* @__PURE__ */ new Map();
+	/** By chain key, the calls the conversation's outputs proposed: all of
+	*  them, those of bridge generations, whose calls only a scaffold runs,
+	*  and the rest, whose calls a native run may have run. */ const proposals = /* @__PURE__ */ new Map();
+	const bridgedProposals = /* @__PURE__ */ new Map();
+	const nativeProposals = /* @__PURE__ */ new Map();
+	const latestModel = /* @__PURE__ */ new Map();
+	const slotOfStep = /* @__PURE__ */ new Map();
+	const producerOfStep = /* @__PURE__ */ new Map();
+	const overruledApprovals = /* @__PURE__ */ new Set();
+	const blockedTools = /* @__PURE__ */ new Set();
+	const discardedOutputs = /* @__PURE__ */ new Set();
+	const discard = (chain) => {
+		if (chain.output) discardedOutputs.add(chain.output);
+	};
+	const bridgeChecks = [];
+	const spanOfBridgeStep = /* @__PURE__ */ new Map();
+	const nativeCalls = [];
+	/** Steps that judged a call with no slot of their own: the bridge's own
+	*  call it never ran on the host, or a native call no native run holds. */ const unslotted = /* @__PURE__ */ new Map();
+	const holdNativeCall = (step, slot, at) => {
+		place(slot, at);
+		slotOfStep.set(step, slot);
+		if (stopsCall(step)) slot.stopped = true;
+	};
+	const isBridgeCheck = (event) => {
+		const span = spans.get(event.span_id ?? "");
+		return span?.type === "sentinel" && span.name === "sentinel_bridge";
+	};
+	for (const [index, event] of events.entries()) if (event.event === "model") {
+		if (spans.get(event.span_id ?? "")?.type === "sentinel") continue;
+		latestModel.set(conversationOf(event.span_id), event);
+		const fresh = /* @__PURE__ */ new Map();
+		for (const choice of event.output.choices) for (const call of choice.message.tool_calls ?? []) {
+			let calls = fresh.get(call.id);
+			if (!calls) fresh.set(call.id, calls = []);
+			calls.push(call);
+		}
+		for (const [id, calls] of fresh) {
+			const key = chainKey(event.span_id, `${scopeOf(event.span_id)}\u0000${id}`);
+			const bridged = !!event.requested_model;
+			chains.set(key, newChain(key, calls.map(() => ({
+				key,
+				bridged,
+				approvals: []
+			})), bridged ? event : void 0));
+			for (const call of calls) {
+				addProposal(proposals, key, call, event, index);
+				addProposal(bridged ? bridgedProposals : nativeProposals, key, call, event, index);
+			}
+		}
+	} else if (event.event === "approval") {
+		const scope = scopeOf(event.span_id);
+		const chain = chainFor(event.span_id, scope, event.call.id);
+		const slot = event.execution_id != null ? executionSlot(event.span_id, scope, event.execution_id, chain, "approvals") : takeRun(chain, "approvals", event.call.id);
+		place(slot, index);
+		slot.approvals.push(event);
+		if (approvalStopped(event)) slot.stopped = true;
+	} else if (event.event === "tool") {
+		const scope = scopeOf(event.span_id);
+		const proposalId = proposalIdOf(event);
+		const chain = chainFor(event.span_id, scope, proposalId);
+		const stage = isBridgeTool(event) ? "hostTools" : "tools";
+		const filled = (s) => s.tool !== void 0;
+		const slot = proposalId !== event.id ? executionSlot(event.span_id, scope, event.id, chain, stage, filled) : takeRun(chain, stage, event.id, filled);
+		slot.tool = event;
+		slot.order = index;
+		if (recordedProposalId(event) === event.id) {
+			const runs = modelIdRuns.get(chain.key);
+			if (runs) runs.push(slot);
+			else modelIdRuns.set(chain.key, [slot]);
+		}
+	} else if (event.event === "sentinel") {
+		const step = steps.get(event);
+		if (!step) continue;
+		const toolStage = step.stage === "tool_call" || step.stage === "tool_result";
+		const scope = scopeOfStep(event);
+		if (toolStage && isBridgeCheck(event)) {
+			const spanId = bridgeConversationSpan(event, spans);
+			spanOfBridgeStep.set(step, spanId);
+			bridgeChecks.push({
+				step,
+				chain: chainFor(spanId, scope, step.stepId),
+				execution: step.executionId === void 0 ? void 0 : chainKey(spanId, `${scope}\u0000${step.executionId}`),
+				order: index
+			});
+		} else if (step.stage === "tool_call") {
+			const chain = chainFor(event.span_id, scope, step.stepId);
+			holdNativeCall(step, takeRun(chain, "checks", step.stepId, (slot) => slot.stopped === true || ranOnHost(slot)), index);
+			nativeCalls.push({
+				step,
+				chain,
+				order: index
+			});
+		} else if (step.stage === "tool_result") {
+			const chain = chainFor(event.span_id, scope, step.stepId);
+			slotOfStep.set(step, takeRun(chain, "results", step.stepId, (slot) => didNotRun(slot) || ranOnHost(slot)));
+		} else {
+			const producer = latestModel.get(conversationOf(event.span_id));
+			if (producer) producerOfStep.set(step, producer);
+		}
+	}
+	const nativeHeld = new Set(nativeCalls.map(({ step }) => slotOfStep.get(step)));
+	for (const { step, chain, order } of nativeCalls) {
+		const held = slotOfStep.get(step);
+		if (!held || !ranOnHost(held)) continue;
+		nativeHeld.delete(held);
+		slotOfStep.delete(step);
+		held.stopped = approvalsStopped(held);
+		const slot = chain.slots.find((s) => !!s.tool && !ranOnHost(s) && !nativeHeld.has(s) && s.stopped !== true && openTo(s, step.stepId));
+		if (slot) {
+			nativeHeld.add(slot);
+			holdNativeCall(step, slot, order);
+		} else unslotted.set(step, {
+			slot: {
+				key: chain.key,
+				order,
+				approvals: []
+			},
+			bridgedOnly: false
+		});
+	}
+	const bridgeTaken = /* @__PURE__ */ new Map();
+	const takenFor = (stage) => {
+		let taken = bridgeTaken.get(stage);
+		if (!taken) bridgeTaken.set(stage, taken = /* @__PURE__ */ new Set());
+		return taken;
+	};
+	const judges = (step, s) => ranOnHost(s) && !takenFor(step.stage).has(s) && (step.stage === "tool_call" || !didNotRun(s));
+	const pairBridgeCheck = (step, slot, at) => {
+		takenFor(step.stage).add(slot);
+		place(slot, at);
+		slotOfStep.set(step, slot);
+		if (step.stage === "tool_call" && step.executionId !== void 0) slot.checkedAs = step.executionId;
+		if (step.stage === "tool_call" && stopsCall(step)) slot.stopped = true;
+	};
+	for (const { step, chain, execution } of bridgeChecks) if (step.stage === "tool_call" && execution === void 0 && stopsCall(step)) discard(chain);
+	/** A `tool_call` check of an output the bridge discarded, which judged a
+	*  call that never ran: it never takes the run under the model's id. Only
+	*  the check that stopped its own call still pairs with a host run in its
+	*  output's chain, as it always has. */ const ofDiscarded = ({ step, chain, execution }) => step.stage === "tool_call" && execution === void 0 && !!chain.output && discardedOutputs.has(chain.output);
+	const unpairedBridgeChecks = [];
+	for (const check of bridgeChecks) {
+		const { step, chain, execution, order } = check;
+		if (ofDiscarded(check) && !stopsCall(step)) {
+			unpairedBridgeChecks.push(check);
+			continue;
+		}
+		const named = execution === void 0 ? void 0 : executions.get(execution);
+		const slot = execution === void 0 ? chain.slots.find((s) => openTo(s, step.stepId) && judges(step, s)) : named && judges(step, named) ? named : void 0;
+		if (slot) pairBridgeCheck(step, slot, order);
+		else unpairedBridgeChecks.push(check);
+	}
+	for (const check of unpairedBridgeChecks) {
+		const { step, chain, execution, order } = check;
+		const taken = takenFor(step.stage);
+		const named = execution === void 0 ? void 0 : executions.get(execution);
+		const [only, other] = execution === void 0 && !ofDiscarded(check) ? modelIdRuns.get(chain.key) ?? [] : [];
+		if (only && !other && judges(step, only)) {
+			pairBridgeCheck(step, only, order);
+			continue;
+		}
+		const ownCall = (s) => !s.tool && s.bridged === true && !taken.has(s);
+		const proposal = step.stage !== "tool_call" ? void 0 : named ? ownCall(named) ? named : void 0 : chain.slots.find((s) => openTo(s, step.stepId) && ownCall(s));
+		if (proposal) {
+			taken.add(proposal);
+			place(proposal, order);
+			unslotted.set(step, {
+				slot: proposal,
+				bridgedOnly: true
+			});
+		}
+	}
+	const proposalOf = (slot, index) => slot.order === void 0 ? void 0 : findProposal(index.get(slot.key), {
+		order: slot.order,
+		tool: slot.tool,
+		approvals: slot.approvals
+	});
+	const byOutcome = /* @__PURE__ */ new Map();
+	for (const step of steps.values()) {
+		const { effective: decider, outcome } = step;
+		if (!decider || !outcome || !kCountedVerdicts.has(step.verdict)) continue;
+		const slot = slotOfStep.get(step);
+		const tool = slot?.tool;
+		const ghost = step.stage === "tool_call" && step.verdict !== "modify" && (!tool || toolFailed(tool));
+		for (const approval of slot?.approvals ?? []) overruledApprovals.add(approval);
+		if (ghost && tool) blockedTools.add(tool);
+		const other = unslotted.get(step);
+		const proposal = slot ? proposalOf(slot, tool && isBridgeTool(tool) ? proposals : nativeProposals) : other && proposalOf(other.slot, other.bridgedOnly ? bridgedProposals : nativeProposals);
+		byOutcome.set(outcome.event, {
+			step,
+			decider,
+			call: proposal?.call ?? slot?.tool ?? agreedCall((slot ?? other?.slot)?.approvals.map((approval) => approval.call) ?? []),
+			producer: proposal?.output ?? producerOfStep.get(step),
+			ghost,
+			spanId: spanOfBridgeStep.has(step) ? spanOfBridgeStep.get(step) : outcome.event.span_id
+		});
+	}
+	return {
+		byOutcome,
+		overruledApprovals,
+		blockedTools
+	};
+};
+/** The next slot `stage` has not taken, past those `skip` says never reached
+*  it; a stage with no proposal left takes a fresh slot. */ var takeLegacySlot = (chain, stage, skip) => {
+	let slot = chain.slots[chain[stage]];
+	while (slot && skip?.(slot)) slot = chain.slots[++chain[stage]];
 	if (!slot) chain.slots.push(slot = {});
 	chain[stage] += 1;
 	return slot;
 };
-var approvalStopped = (approval) => approval.decision !== "approve" && approval.decision !== "modify";
-/** A call stopped before it ran, or whose arguments never parsed, has no
-*  result; an escalation older builds let through ran despite its step. */ var didNotRun = (slot) => !slot.tool || toolFailed(slot.tool) && (slot.stopped === true || slot.tool.error?.type === "parsing");
-/** A call a bridge ran on the host, which only the bridge's checks judge. */ var ranOnHost = (slot) => !!slot.tool && isBridgeTool(slot.tool);
-/** A `tool_call` step that kept its call from running. */ var stopsCall = (step) => !!step.effective && step.verdict !== "proceed" && step.verdict !== "modify";
 /** Each sentinel step counts once, by the decision that took effect —
 *  nested configurations record a decision per layer. Pairing runs in
 *  recording order within each conversation: `conversationOf` keys an
-*  event's span.
+*  event's span, or for an agent bridge's check the conversation it
+*  recorded (`bridgeConversationSpan`).
 *
 *  This pairs separately from `pairToolSentinels`, which works on the event
 *  tree and scans tools per step; this pass also needs approvals and each
@@ -89710,7 +89891,8 @@ var approvalStopped = (approval) => approval.decision !== "approve" && approval.
 *  tools take in order; a `tool_call` step judges the next tool with its id,
 *  a `tool_result` step one that ran before it; an agent bridge's check
 *  judges only a call the bridge ran on the host, and a native check never
-*  does. */ var collectSentinelDecisions = (events, spans, conversationOf) => {
+*  does; a bridge's check judges the call of the latest output proposing
+*  its id before it, which a retry after a rejection replaces. */ var collectSentinelDecisionsLegacy = (events, spans, conversationOf) => {
 	const steps = buildSentinelSteps(events);
 	const chains = /* @__PURE__ */ new Map();
 	const chainKey = (spanId, id) => `${conversationOf(spanId)}\u0000${id}`;
@@ -89733,6 +89915,7 @@ var approvalStopped = (approval) => approval.decision !== "approve" && approval.
 	const overruledApprovals = /* @__PURE__ */ new Set();
 	const blockedTools = /* @__PURE__ */ new Set();
 	const bridgeChecks = [];
+	const spanOfBridgeStep = /* @__PURE__ */ new Map();
 	const isBridgeCheck = (event) => {
 		const span = spans.get(event.span_id ?? "");
 		return span?.type === "sentinel" && span.name === "sentinel_bridge";
@@ -89751,24 +89934,27 @@ var approvalStopped = (approval) => approval.decision !== "approve" && approval.
 		}
 		for (const [id, slots] of fresh) chains.set(chainKey(event.span_id, id), newChain(slots));
 	} else if (event.event === "approval") {
-		const slot = takeSlot(chainFor(event.span_id, event.call.id), "approvals");
+		const slot = takeLegacySlot(chainFor(event.span_id, event.call.id), "approvals");
 		slot.approval = event;
 		if (approvalStopped(event)) slot.stopped = true;
-	} else if (event.event === "tool") takeSlot(chainFor(event.span_id, event.id), "tools").tool = event;
+	} else if (event.event === "tool") takeLegacySlot(chainFor(event.span_id, event.id), "tools").tool = event;
 	else if (event.event === "sentinel") {
 		const step = steps.get(event);
 		if (!step) continue;
-		if ((step.stage === "tool_call" || step.stage === "tool_result") && isBridgeCheck(event)) bridgeChecks.push({
-			step,
-			chain: chainFor(event.span_id, step.stepId)
-		});
-		else if (step.stage === "tool_call") {
-			const slot = takeSlot(chainFor(event.span_id, step.stepId), "checks", (slot) => slot.stopped === true || ranOnHost(slot));
+		if ((step.stage === "tool_call" || step.stage === "tool_result") && isBridgeCheck(event)) {
+			const spanId = bridgeConversationSpan(event, spans);
+			spanOfBridgeStep.set(step, spanId);
+			bridgeChecks.push({
+				step,
+				chain: chainFor(spanId, step.stepId)
+			});
+		} else if (step.stage === "tool_call") {
+			const slot = takeLegacySlot(chainFor(event.span_id, step.stepId), "checks", (slot) => slot.stopped === true || ranOnHost(slot));
 			slotOfStep.set(step, slot);
 			if (stopsCall(step)) slot.stopped = true;
 		} else if (step.stage === "tool_result") {
 			const chain = chainFor(event.span_id, step.stepId);
-			slotOfStep.set(step, takeSlot(chain, "results", (slot) => didNotRun(slot) || ranOnHost(slot)));
+			slotOfStep.set(step, takeLegacySlot(chain, "results", (slot) => didNotRun(slot) || ranOnHost(slot)));
 		} else {
 			const producer = latestModel.get(conversationOf(event.span_id));
 			if (producer) producerOfStep.set(step, producer);
@@ -89807,7 +89993,8 @@ var approvalStopped = (approval) => approval.decision !== "approve" && approval.
 			decider,
 			call: slot ? slot.call ?? tool : callOfStep.get(step),
 			producer: slot ? slot.producer : producerOfStep.get(step),
-			ghost
+			ghost,
+			spanId: spanOfBridgeStep.has(step) ? spanOfBridgeStep.get(step) : outcome.event.span_id
 		});
 	}
 	return {
@@ -89968,7 +90155,7 @@ var inertData = (inputs) => ({
 		}
 		return id;
 	};
-	const sentinelDecisions = collectSentinelDecisions(events, spans, (spanId) => conversationForSpan(outsideSentinelSpans(spanId)).id);
+	const sentinelDecisions = (recordsExecutionIds(events) ? collectSentinelDecisions : collectSentinelDecisionsLegacy)(events, spans, (spanId) => conversationForSpan(outsideSentinelSpans(spanId)).id);
 	const rowFor = (conversation) => {
 		let row = rowsById.get(conversation.id);
 		if (!row) {
@@ -90229,13 +90416,13 @@ var inertData = (inputs) => ({
 			case "sentinel": {
 				const decision = sentinelDecisions.byOutcome.get(event);
 				if (!decision) break;
-				const { step, decider, call, producer, ghost } = decision;
+				const { step, decider, call, producer, ghost, spanId } = decision;
 				rejectedCount += 1;
 				const word = decisionWord(step.verdict);
 				const lead = kSentinelStageLead.get(step.stage) ?? "Sentinel step";
 				const args = call ? callArgsText(call.arguments) : "";
 				if (step.stage !== "model_input") {
-					const turn = (producer && turnOfModel.get(producer)) ?? currentTurnByRow.get(conversationForEvent(outsideSentinelSpans(event.span_id)).id);
+					const turn = (producer && turnOfModel.get(producer)) ?? currentTurnByRow.get(conversationForEvent(outsideSentinelSpans(spanId)).id);
 					if (turn) {
 						if (ghost) turn.rejected += 1;
 						turn.end = Math.max(turn.end, t);
@@ -90662,8 +90849,7 @@ var ActivityTooltip_module_default = {
 	note: "_note_1y9z1_138",
 	footer: "_footer_1y9z1_142"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/sample-activity/ActivityTooltip.tsx
+// ../../packages/inspect-components/src/sample-activity/ActivityTooltip.tsx
 /** Stable identity for a hover target — the show-delay compares it. */ var hoverTargetKey = (target) => {
 	if (!target) return null;
 	switch (target.kind) {
@@ -90789,7 +90975,7 @@ var Grid = (t0) => {
 	const { rows } = t0;
 	let t1;
 	if ($[0] !== rows) {
-		t1 = rows.slice(0, 4).map(_temp$71);
+		t1 = rows.slice(0, 4).map(_temp$74);
 		$[0] = rows;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -91184,7 +91370,7 @@ var BurstBody = (t0) => {
 			$[20] = t10;
 		} else t10 = $[20];
 		members = row.spans.filter(t10);
-		const firstUuid = members.find(_temp2$45)?.uuid;
+		const firstUuid = members.find(_temp2$46)?.uuid;
 		T0 = Card;
 		let t11;
 		if ($[21] !== burst.label) {
@@ -91350,7 +91536,7 @@ var ContextPointBody = (t0) => {
 		const rows = [];
 		const collapsed = parallel !== void 0 && !turnsMode;
 		const first = parallel?.[0];
-		const values = parallel?.map(_temp3$29) ?? [];
+		const values = parallel?.map(_temp3$30) ?? [];
 		if (point.delta !== void 0) {
 			let t2;
 			if ($[7] !== point.delta) {
@@ -91671,7 +91857,7 @@ var MarkerBody = (t0) => {
 		} else t5 = $[11];
 		return t5;
 	}
-	const firstUuid = members.find(_temp4$24)?.uuid;
+	const firstUuid = members.find(_temp4$25)?.uuid;
 	const t1 = `${members.length} events`;
 	let t2;
 	if ($[12] !== head.time) {
@@ -92070,7 +92256,7 @@ var CurveBody = (t0) => {
 	} else t3 = $[43];
 	return t3;
 };
-function _temp$71(row) {
+function _temp$74(row) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ActivityTooltip_module_default.key,
 		children: row.key
@@ -92079,13 +92265,13 @@ function _temp$71(row) {
 		children: row.value
 	})] }, row.key);
 }
-function _temp2$45(m) {
+function _temp2$46(m) {
 	return m.uuid !== void 0;
 }
-function _temp3$29(p) {
+function _temp3$30(p) {
 	return p.value;
 }
-function _temp4$24(m) {
+function _temp4$25(m) {
 	return m.uuid !== void 0;
 }
 function _temp5$11(member, i) {
@@ -92127,8 +92313,7 @@ function _temp6$5(t0) {
 		]
 	}, row.id);
 }
-//#endregion
-//#region ../../packages/inspect-components/src/sample-activity/ActivityChart.tsx
+// ../../packages/inspect-components/src/sample-activity/ActivityChart.tsx
 var kBandLabelY$1 = 14;
 var kPlotTop$2 = 22;
 var kPlotBottom$1 = 72;
@@ -93821,8 +94006,7 @@ var ModelTokenTable_module_default = {
 	catOutput: "_catOutput_14pl5_238",
 	catReasoning: "_catReasoning_14pl5_242"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/usage/ModelTokenTable.tsx
+// ../../packages/inspect-components/src/usage/ModelTokenTable.tsx
 var CAT_ORDER$1 = [
 	"input",
 	"cacheRead",
@@ -93939,10 +94123,10 @@ var ModelTokenTable = (t0) => {
 								(() => {
 									const cfg = model_configs?.[modelId];
 									const args = model_args?.[modelId];
-									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$70) : [];
-									const argEntries = args ? Object.entries(args).filter(_temp2$44) : [];
+									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$73) : [];
+									const argEntries = args ? Object.entries(args).filter(_temp2$45) : [];
 									if (cfgEntries.length === 0 && argEntries.length === 0) return null;
-									const renderSection = _temp4$23;
+									const renderSection = _temp4$24;
 									return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 										className: ModelTokenTable_module_default.configSection,
 										children: [cfgEntries.length > 0 && renderSection("config", cfgEntries), argEntries.length > 0 && renderSection("args", argEntries)]
@@ -94054,15 +94238,15 @@ var ModelTokenTable = (t0) => {
 	} else t11 = $[37];
 	return t11;
 };
-function _temp$70(t0) {
+function _temp$73(t0) {
 	const [, v] = t0;
 	return v != null;
 }
-function _temp2$44(t0) {
+function _temp2$45(t0) {
 	const [, v_0] = t0;
 	return v_0 != null;
 }
-function _temp3$28(t0) {
+function _temp3$29(t0) {
 	const [k_0, v_1] = t0;
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("dt", {
 		className: ModelTokenTable_module_default.configKey,
@@ -94072,13 +94256,13 @@ function _temp3$28(t0) {
 		children: formatConfigValue(v_1, "null")
 	})] }, k_0);
 }
-function _temp4$23(label, entries) {
+function _temp4$24(label, entries) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 		className: ModelTokenTable_module_default.configSectionLabel,
 		children: label
 	}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("dl", {
 		className: ModelTokenTable_module_default.configTable,
-		children: entries.map(_temp3$28)
+		children: entries.map(_temp3$29)
 	})] });
 }
 var ModelUsagePanel_module_default = {
@@ -94102,8 +94286,7 @@ var ModelUsagePanel_module_default = {
 	catOutput: "_catOutput_c99qp_152",
 	catReasoning: "_catReasoning_c99qp_155"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/usage/ModelUsagePanel.tsx
+// ../../packages/inspect-components/src/usage/ModelUsagePanel.tsx
 var CAT_ORDER = [
 	"input",
 	"cacheRead",
@@ -94231,7 +94414,7 @@ var ModelUsagePanel = (t0) => {
 	let t7;
 	if ($[0] !== className || $[1] !== timing || $[2] !== usage) {
 		const categories = buildCategories(usage);
-		const composeTotal = categories.reduce(_temp$69, 0);
+		const composeTotal = categories.reduce(_temp$72, 0);
 		const total = usage.total_tokens || composeTotal;
 		const inputAll = (usage.input_tokens ?? 0) + (usage.input_tokens_cache_read ?? 0) + (usage.input_tokens_cache_write ?? 0);
 		const denom = inputAll + ((usage.output_tokens ?? 0) + (usage.reasoning_tokens ?? 0)) || total || 1;
@@ -94308,7 +94491,7 @@ var ModelUsagePanel = (t0) => {
 			}, c_0.key))
 		});
 		t1 = ModelUsagePanel_module_default.breakdown;
-		t2 = categories.map(_temp2$43);
+		t2 = categories.map(_temp2$44);
 		$[0] = className;
 		$[1] = timing;
 		$[2] = usage;
@@ -94419,10 +94602,10 @@ var ModelUsagePanel = (t0) => {
 	} else t11 = $[40];
 	return t11;
 };
-function _temp$69(a, c) {
+function _temp$72(a, c) {
 	return a + c.value;
 }
-function _temp2$43(c_1) {
+function _temp2$44(c_1) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [
 		/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { className: clsx(ModelUsagePanel_module_default.swatch, c_1.swatchClass) }),
 		/*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: formatNumber(c_1.value) }),
@@ -94430,8 +94613,7 @@ function _temp2$43(c_1) {
 		c_1.label
 	] }, c_1.key);
 }
-//#endregion
-//#region ../../packages/inspect-components/src/usage/connectionHistory.ts
+// ../../packages/inspect-components/src/usage/connectionHistory.ts
 var kAdaptiveDefaultMax = 100;
 var connectionWindow = (history, startedAt, completedAt) => {
 	if (!history || history.length === 0) return void 0;
@@ -94613,8 +94795,7 @@ var ConfigChangedChip_module_default = {
 	timelineLink: "_timelineLink_1etak_135",
 	changeList: "_changeList_1etak_158"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/config/ConfigChangedChip.tsx
+// ../../packages/inspect-components/src/config/ConfigChangedChip.tsx
 var formatTimestamp = (timestamp) => {
 	const date = new Date(timestamp);
 	if (isNaN(date.getTime())) return timestamp;
@@ -95082,7 +95263,7 @@ var ProvenanceGrid = (t0) => {
 	} else t4 = $[3];
 	let t5;
 	if ($[4] !== changes) {
-		t5 = changes.map(_temp$68);
+		t5 = changes.map(_temp$71);
 		$[4] = changes;
 		$[5] = t5;
 	} else t5 = $[5];
@@ -95129,7 +95310,7 @@ var ProvenanceGrid = (t0) => {
 	} else t9 = $[17];
 	return t9;
 };
-function _temp$68(change) {
+function _temp$71(change) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [
 		change.name,
 		" ",
@@ -95168,8 +95349,7 @@ var ConnectionChange_module_default = {
 	badgeRateLimit: "_badgeRateLimit_1sx4b_46",
 	badgeManual: "_badgeManual_1sx4b_51"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/usage/ConnectionChange.tsx
+// ../../packages/inspect-components/src/usage/ConnectionChange.tsx
 /** One wording per controller reason — shared by the badge here and the
 *  Timeline History rows so the two surfaces cannot drift. */ var kConnectionReasonLabel = {
 	slow_start: "slow start",
@@ -95278,8 +95458,7 @@ var ConnectionLogModal_module_default = {
 	filterChipActive: "_filterChipActive_136xr_111",
 	footerLink: "_footerLink_136xr_118"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/usage/ConnectionLogModal.tsx
+// ../../packages/inspect-components/src/usage/ConnectionLogModal.tsx
 var ConnectionLogModal = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(36);
 	const { model, events, show, onHide, shared_roles, retunes, onViewTimeline, timelineHref } = t0;
@@ -95292,7 +95471,7 @@ var ConnectionLogModal = (t0) => {
 			$[3] = retunes;
 			$[4] = t2;
 		} else t2 = $[4];
-		t1 = [...events.map(_temp$67), ...t2.map(_temp2$42)].sort(_temp3$27);
+		t1 = [...events.map(_temp$70), ...t2.map(_temp2$43)].sort(_temp3$28);
 		$[0] = events;
 		$[1] = retunes;
 		$[2] = t1;
@@ -95355,7 +95534,7 @@ var ConnectionLogModal = (t0) => {
 					shared_roles.length > 1 ? "shared" : "used",
 					" by",
 					" ",
-					shared_roles.map(_temp4$22)
+					shared_roles.map(_temp4$23)
 				]
 			}), showFilters && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 				className: ConnectionLogModal_module_default.filters,
@@ -95431,24 +95610,24 @@ var ConnectionLogModal = (t0) => {
 	} else t12 = $[35];
 	return t12;
 };
-function _temp$67(event) {
+function _temp$70(event) {
 	return {
 		kind: "controller",
 		time: event.timestamp,
 		event
 	};
 }
-function _temp2$42(retune) {
+function _temp2$43(retune) {
 	return {
 		kind: "config",
 		time: retune.timestamp,
 		retune
 	};
 }
-function _temp3$27(a, b) {
+function _temp3$28(a, b) {
 	return a.time - b.time || (a.kind === b.kind ? 0 : a.kind === "config" ? -1 : 1);
 }
-function _temp4$22(role, i) {
+function _temp4$23(role, i) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [i > 0 ? ", " : "", /*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: role })] }, role);
 }
 function _temp5$10(row_0, i_0) {
@@ -95531,15 +95710,13 @@ var ConnectionsView_module_default = {
 	legendRateLimit: "_legendRateLimit_13lh4_184",
 	legendGuide: "_legendGuide_13lh4_191"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/usage/roleAliases.ts
+// ../../packages/inspect-components/src/usage/roleAliases.ts
 /**
 * Roles whose alias resolves to `model` (the reverse role_aliases lookup).
 * An alias is a display string that names every model bound to the role
 * (comma-separated for list roles), so match by membership, not equality.
 */ var rolesForModel = (role_aliases, model) => Object.entries(role_aliases ?? {}).filter(([, aliased]) => splitModelRoleNames(aliased).includes(model)).map(([role]) => role);
-//#endregion
-//#region ../../packages/inspect-components/src/usage/ConnectionsView.tsx
+// ../../packages/inspect-components/src/usage/ConnectionsView.tsx
 /** The legend for the Connections view header row (◆ / rate limit / max). */ var ConnectionsLegend = () => {
 	const $ = (0, import_compiler_runtime.c)(3);
 	let t0;
@@ -95646,7 +95823,7 @@ var ConnectionsView_module_default = {
 									children: model_0
 								}), roles.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 									className: ConnectionsView_module_default.roles,
-									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$66)]
+									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$69)]
 								})]
 							}),
 							/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -95803,7 +95980,7 @@ var kBaselineY = 60;
 					y1: y(seg.value),
 					y2: y(seg.value)
 				}, `cap-${i}`)),
-				data.events.filter(_temp2$41).map((e_1, i_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("line", {
+				data.events.filter(_temp2$42).map((e_1, i_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("line", {
 					className: ConnectionsView_module_default.rateLimitLine,
 					x1: x(e_1.timestamp),
 					x2: x(e_1.timestamp),
@@ -95924,13 +96101,13 @@ var kBaselineY = 60;
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$66(role) {
+function _temp$69(role) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ConnectionsView_module_default.roleChip,
 		children: role
 	}, role);
 }
-function _temp2$41(e_0) {
+function _temp2$42(e_0) {
 	return e_0.reason === "rate_limit";
 }
 var UsagePanel_module_default = {
@@ -95945,8 +96122,7 @@ var UsagePanel_module_default = {
 	metaSep: "_metaSep_ald9k_57",
 	tableNoTop: "_tableNoTop_ald9k_64"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/usage/UsagePanel.tsx
+// ../../packages/inspect-components/src/usage/UsagePanel.tsx
 var kModes = [
 	"model",
 	"role",
@@ -96080,8 +96256,7 @@ var UsagePanel = ({ label, model_usage, role_usage, configs_by_model, configs_by
 		]
 	});
 };
-//#endregion
-//#region ../../packages/inspect-components/src/usage/configsForUsage.ts
+// ../../packages/inspect-components/src/usage/configsForUsage.ts
 var mergeDefined = (target, source) => {
 	for (const [k, v] of Object.entries(source)) if (v !== null && v !== void 0) target.set(k, v);
 };
@@ -96164,8 +96339,7 @@ var ActivityHistoryList_module_default = {
 	by: "_by_143e5_220",
 	openEvent: "_openEvent_143e5_339"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/sample-activity/ActivityHistoryList.tsx
+// ../../packages/inspect-components/src/sample-activity/ActivityHistoryList.tsx
 var kPillClass$1 = {
 	error: ActivityHistoryList_module_default.pillError,
 	limit: ActivityHistoryList_module_default.pillLimit,
@@ -96484,8 +96658,7 @@ var SampleActivityPanel_module_default = {
 	bandChipOn: "_bandChipOn_pqeak_41",
 	axisToggle: "_axisToggle_pqeak_52"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/sample-activity/SampleActivityPanel.tsx
+// ../../packages/inspect-components/src/sample-activity/SampleActivityPanel.tsx
 /** Property bag for the Activity tab's durable UI state, keyed per sample. */ var kSampleActivityBag = "sample-activity";
 var kNoKeys$1 = [];
 var kNoCategories$1 = [];
@@ -96903,8 +97076,7 @@ var SelectTool_module_default = {
 	splitMain: "_splitMain_1cexi_6",
 	splitClear: "_splitClear_1cexi_13"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/selection/SelectTool.tsx
+// ../../packages/inspect-components/src/selection/SelectTool.tsx
 /**
 * Toolbar toggle for evidence selection: `Select` (off), a latched
 * `Select` (on, nothing selected) or a latched split `Select · N | ×`, where
@@ -96973,14 +97145,12 @@ var SelectTool_module_default = {
 	} else t7 = $[16];
 	return t7;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/chat/types.ts
+// ../../packages/inspect-components/src/chat/types.ts
 /**
 * Shallow guard for messages read out of unvalidated state blobs. ChatView
 * dispatches on `role` and tolerates the rest, so that is what it checks.
 */ var isChatMessage = (value) => isRecord(value) && typeof value["role"] === "string";
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/state/changeDiff.ts
+// ../../packages/inspect-components/src/transcript/state/changeDiff.ts
 var newNode = () => ({ children: /* @__PURE__ */ new Map() });
 /** RFC 6901 segments; empty segments are dropped as before. */ var parsePointer = (path) => path.split("/").filter(Boolean).map((segment) => segment.replace(/~1/g, "/").replace(/~0/g, "~"));
 var nodeAt = (root, path) => {
@@ -97195,8 +97365,7 @@ var StateEventRenderers_module_default = {
 	tools: "_tools_1qqm2_1",
 	tool: "_tool_1qqm2_1"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/state/StateEventRenderers.tsx
+// ../../packages/inspect-components/src/transcript/state/StateEventRenderers.tsx
 var system_msg_added_sig = {
 	type: "system_message",
 	signature: {
@@ -97386,7 +97555,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	const { toolDefinitions } = t0;
 	let t1;
 	if ($[0] !== toolDefinitions) {
-		t1 = toolDefinitions.map(_temp$65);
+		t1 = toolDefinitions.map(_temp$68);
 		$[0] = toolDefinitions;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -97430,7 +97599,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	} else t3 = $[5];
 	return t3;
 };
-function _temp$65(toolDefinition, idx) {
+function _temp$68(toolDefinition, idx) {
 	const name = toolDefinition.name;
 	const toolArgs = toolDefinition.parameters?.properties ? Object.keys(toolDefinition.parameters.properties) : [];
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Tool, {
@@ -97438,8 +97607,7 @@ function _temp$65(toolDefinition, idx) {
 		toolArgs
 	}, `${name}-${idx}`);
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/eventFilter.ts
+// ../../packages/inspect-components/src/transcript/eventFilter.ts
 /**
 * The Default event-filter exclusions for a transcript, computed from its
 * events: an event type is not excluded when one of its instances has a
@@ -97449,15 +97617,13 @@ function _temp$65(toolDefinition, idx) {
 */ var dynamicDefaultExcludeEvents = (events) => {
 	return events?.some((event) => event.event === "store" && storeEventHasDefaultVisiblePreview(event.changes)) ? kDefaultExcludeEvents.filter((type) => type !== "store") : [...kDefaultExcludeEvents];
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/citeReferences.ts
+// ../../packages/inspect-components/src/transcript/citeReferences.ts
 /** References as markdown cite links; one with no cite has nothing in the text to link. */ var citeReferences = (references, makeCiteUrl) => references.flatMap((ref) => ref.cite ? [{
 	id: ref.id,
 	cite: ref.cite,
 	citeUrl: makeCiteUrl?.(ref.id, ref.type)
 }] : []);
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/transform/fixups.ts
+// ../../packages/inspect-components/src/transcript/transform/fixups.ts
 var kSandboxSignalName = "53787D8A-D3FC-426D-B383-9F880B70E4AA";
 /**
 * Normalizes event content
@@ -97588,8 +97754,7 @@ var createSpanEnd = (name, timestamp) => {
 		metadata: null
 	};
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/transform/flatten.ts
+// ../../packages/inspect-components/src/transcript/transform/flatten.ts
 /**
 * Find the IDs of all ancestors of `eventId` in the EventNode tree.
 * Returns an empty array if `eventId` is not found.
@@ -97686,8 +97851,7 @@ var GoToTurnBar_module_default = {
 	hintKey: "_hintKey_1hs1n_75",
 	close: "_close_1hs1n_79"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/GoToTurnBar.tsx
+// ../../packages/inspect-components/src/transcript/GoToTurnBar.tsx
 /**
 * Floating find-style "Go to turn" bar, top-center of the events column.
 * Opened by Ctrl/Cmd+G or imperatively (turn-label click, prefilled). Enter
@@ -97715,7 +97879,7 @@ var GoToTurnBar_module_default = {
 			} else if (prefillTurn !== void 0) setValue(String(prefillTurn));
 			openRef.current = true;
 			setOpen(true);
-			setFocusEpoch(_temp$64);
+			setFocusEpoch(_temp$67);
 		};
 		$[0] = t2;
 	} else t2 = $[0];
@@ -97901,7 +98065,7 @@ var GoToTurnBar_module_default = {
 	} else t14 = $[29];
 	return t14;
 });
-function _temp$64(epoch) {
+function _temp$67(epoch) {
 	return epoch + 1;
 }
 var TimelineSelector_module_default = {
@@ -97920,8 +98084,7 @@ var EventRow_module_default = {
 	selected: "_selected_9b4ex_13",
 	below: "_below_9b4ex_26"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/event/EventRow.tsx
+// ../../packages/inspect-components/src/transcript/event/EventRow.tsx
 /**
 * Renders the EventRow component.
 */ var EventRow = (t0) => {
@@ -97980,8 +98143,7 @@ var EventRow_module_default = {
 	} else t4 = $[12];
 	return t4;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/AnchorEventView.tsx
+// ../../packages/inspect-components/src/transcript/AnchorEventView.tsx
 var AnchorEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(9);
 	const { eventNode, className } = t0;
@@ -98067,8 +98229,7 @@ var ToolCheckInset_module_default = {
 	message: "_message_1g4dt_259",
 	messageText: "_messageText_1g4dt_275"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/ToolCheckInset.tsx
+// ../../packages/inspect-components/src/transcript/ToolCheckInset.tsx
 /** The panel that holds one stage's checks inside a tool block region. */ var CheckInset = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(7);
 	const { region, tone, children } = t0;
@@ -98164,7 +98325,7 @@ var ToolCheckInset_module_default = {
 	} else t6 = $[14];
 	let t7;
 	if ($[15] !== scores) {
-		t7 = scores?.map(_temp$63);
+		t7 = scores?.map(_temp$66);
 		$[15] = scores;
 		$[16] = t7;
 	} else t7 = $[16];
@@ -98363,14 +98524,13 @@ var ToolCheckInset_module_default = {
 	label: ToolCheckInset_module_default.label,
 	mono: ToolCheckInset_module_default.mono
 };
-function _temp$63(score, i) {
+function _temp$66(score, i) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ToolCheckInset_module_default.scores,
 		children: score
 	}, i);
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/ApprovalEventView.tsx
+// ../../packages/inspect-components/src/transcript/ApprovalEventView.tsx
 /**
 * Renders the ApprovalEventView component.
 */ var ApprovalEventView = (t0) => {
@@ -98517,7 +98677,7 @@ var decisionIcon$1 = (decision) => {
 	const [collapsed, setCollapsed] = useCollapsedState(`${chain[0].id}-approval-chain`, true);
 	const event = final.event;
 	const look = decisionLook(event.decision);
-	const escalated = chain.slice(0, -1).some(_temp$62);
+	const escalated = chain.slice(0, -1).some(_temp$65);
 	let t1;
 	if ($[0] !== chain.length || $[1] !== collapsed || $[2] !== setCollapsed) {
 		t1 = chain.length > 1 ? {
@@ -98534,7 +98694,7 @@ var decisionIcon$1 = (decision) => {
 	if ($[4] !== chain || $[5] !== collapsed) {
 		t2 = chain.length > 1 && !collapsed ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: ApprovalEventView_module_default.chain,
-			children: chain.map(_temp2$40)
+			children: chain.map(_temp2$41)
 		}) : null;
 		$[4] = chain;
 		$[5] = collapsed;
@@ -98583,10 +98743,10 @@ var decisionLook = (decision) => {
 		};
 	}
 };
-function _temp$62(n) {
+function _temp$65(n) {
 	return n.event.decision === "escalate";
 }
-function _temp2$40(node, index) {
+function _temp2$41(node, index) {
 	const step = decisionLook(node.event.decision);
 	const explanation = node.event.explanation?.trim();
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [
@@ -98609,11 +98769,9 @@ function _temp2$40(node, index) {
 	] }, node.id);
 }
 var BranchEventView_module_default = { panel: "_panel_8zdtn_1" };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/EventLabelContext.ts
+// ../../packages/inspect-components/src/transcript/EventLabelContext.ts
 var EventLabelContext = (0, import_react.createContext)(void 0);
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/hooks/useStickyStuck.ts
+// ../../packages/inspect-components/src/transcript/hooks/useStickyStuck.ts
 var kStuckAttribute = "data-sticky-stuck";
 var registries = /* @__PURE__ */ new Map();
 function updateElementStuckState(containerTop, el, stickyTop) {
@@ -98694,8 +98852,7 @@ function getRegistry(container) {
 	(0, import_react.useEffect)(t0, t1);
 }
 var EventNav_module_default = { tab: "_tab_1je38_1" };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/event/EventNav.tsx
+// ../../packages/inspect-components/src/transcript/event/EventNav.tsx
 /**
 * Component to render a single navigation item.
 */ var EventNav = (t0) => {
@@ -98757,8 +98914,7 @@ var EventNavsPicker_module_default = {
 	item: "_item_nqyxq_55",
 	selected: "_selected_nqyxq_76"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/event/EventNavsPicker.tsx
+// ../../packages/inspect-components/src/transcript/event/EventNavsPicker.tsx
 /**
 * Compact replacement for {@link EventNavs} when the tab row is too narrow
 * to display all pills inline. Renders the active tab title as a single
@@ -98829,7 +98985,7 @@ var EventNavsPicker_module_default = {
 	let t8;
 	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
 		t7 = clsx("nav-link", "active", "text-style-label", "text-size-small", EventNavsPicker_module_default.trigger);
-		t8 = () => setOpen(_temp$61);
+		t8 = () => setOpen(_temp$64);
 		$[9] = t7;
 		$[10] = t8;
 	} else {
@@ -98925,11 +99081,10 @@ var EventNavsPicker_module_default = {
 	} else t15 = $[28];
 	return t15;
 };
-function _temp$61(v) {
+function _temp$64(v) {
 	return !v;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/event/EventNavs.tsx
+// ../../packages/inspect-components/src/transcript/event/EventNavs.tsx
 var SWITCH_TOLERANCE = 4;
 /**
 * Renders the event panel's tab navigation. When the available width is
@@ -99019,7 +99174,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t5 = $[10];
 	let t6;
 	if ($[11] !== navs) {
-		t6 = navs.map(_temp$60);
+		t6 = navs.map(_temp$63);
 		$[11] = navs;
 		$[12] = t6;
 	} else t6 = $[12];
@@ -99048,7 +99203,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t8 = $[18];
 	return t8;
 };
-function _temp$60(nav_1) {
+function _temp$63(nav_1) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: "nav-item",
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
@@ -99084,8 +99239,7 @@ var EventPanel_module_default = {
 	bottomDongle: "_bottomDongle_loteg_214",
 	dongleIcon: "_dongleIcon_loteg_232"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/event/EventPanel.tsx
+// ../../packages/inspect-components/src/transcript/event/EventPanel.tsx
 /**
 * Renders a collapsible event panel with optional tabs, icons, and deep linking.
 */ var EventPanel = ({ eventNodeId, className, title, subTitle, text, icon, children, childIds, collapsibleContent, collapseControl = "top", muted, depth, turnNav, headerExtra, eventCallbacks }) => {
@@ -99323,8 +99477,7 @@ var EventPanel_module_default = {
 function hasDataDefault(node) {
 	return /*#__PURE__*/ (0, import_react.isValidElement)(node) && node.props !== null && typeof node.props === "object" && "data-default" in node.props;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/event/utils.ts
+// ../../packages/inspect-components/src/transcript/event/utils.ts
 var sampleLimitTitles = {
 	custom: "Custom Limit Exceeded",
 	time: "Time Limit Exceeded",
@@ -99408,8 +99561,7 @@ var formatTitle = (title, total_tokens, working_start, role) => {
 	if (working_start) subItems.push(`${formatTime$1(working_start)}`);
 	return `${titleWithRole}${subItems.length > 0 ? ` (${subItems.join(", ")})` : ""}`;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/BranchEventView.tsx
+// ../../packages/inspect-components/src/transcript/BranchEventView.tsx
 var BranchEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(14);
 	const { eventNode, className } = t0;
@@ -99471,8 +99623,7 @@ var BranchPoint_module_default = {
 	segment: "_segment_w0zdg_44",
 	continuesGlyph: "_continuesGlyph_w0zdg_87"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/BranchPoint.tsx
+// ../../packages/inspect-components/src/transcript/BranchPoint.tsx
 var BranchPoint = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(14);
 	const { parent, spawned, viewing, onSelect, className } = t0;
@@ -99634,8 +99785,7 @@ var CheckpointEventView_module_default = {
 	file: "_file_1us8t_16",
 	fileOverflow: "_fileOverflow_1us8t_27"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/CheckpointEventView.tsx
+// ../../packages/inspect-components/src/transcript/CheckpointEventView.tsx
 var asNumber = (v) => typeof v === "number" ? v : null;
 var triggerSummary = (event) => {
 	const md = event.trigger_metadata ?? {};
@@ -99724,7 +99874,7 @@ var Snapshot = (t0) => {
 	if ($[7] !== details.additional_files || $[8] !== details.files) {
 		t4 = details.files && details.files.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: CheckpointEventView_module_default.files,
-			children: [details.files.map(_temp$59), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			children: [details.files.map(_temp$62), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: CheckpointEventView_module_default.fileOverflow,
 				children: [
 					"+",
@@ -99879,7 +100029,7 @@ var CheckpointEventView = (t0) => {
 	} else t19 = $[32];
 	return t19;
 };
-function _temp$59(file) {
+function _temp$62(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 		className: CheckpointEventView_module_default.file,
 		children: file
@@ -99890,8 +100040,7 @@ var CommunicationEventView_module_default = {
 	line: "_line_nut6q_7",
 	refused: "_refused_nut6q_21"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/eventText.ts
+// ../../packages/inspect-components/src/transcript/eventText.ts
 var SANITIZED_CONTENT_KEYS = {
 	image: "image",
 	audio: "audio",
@@ -100232,8 +100381,7 @@ var extractToolResultItemText = (item) => {
 		default: return [sanitizeStringify(item)];
 	}
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/CommunicationEventView.tsx
+// ../../packages/inspect-components/src/transcript/CommunicationEventView.tsx
 var kMaxPreviewLength = 200;
 /**
 * Renders a CommunicationEvent as one line (who, which channel, what);
@@ -100241,7 +100389,7 @@ var kMaxPreviewLength = 200;
 * producer text, so they render through the content trust policy as plain
 * text, never Markdown.
 */ var CommunicationEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(30);
+	const $ = (0, import_compiler_runtime.c)(32);
 	const { eventNode, className } = t0;
 	const event = eventNode.event;
 	const [collapsed, setCollapsed] = useCollapsedState(`${eventNode.id}-communication`, true);
@@ -100254,103 +100402,110 @@ var kMaxPreviewLength = 200;
 	} else t1 = $[2];
 	const toggle = t1;
 	const refused = !!event.send?.rejected;
-	const agent = `${event.agent}${event.nested ? " (subagent)" : ""}`;
+	let t2;
+	if ($[3] !== event) {
+		t2 = communicationAgent(event);
+		$[3] = event;
+		$[4] = t2;
+	} else t2 = $[4];
+	const agent = t2;
 	const parts = communicationLine(event);
 	const detailsRef = (0, import_react.useRef)(null);
 	const findOpen = useContainsFindTarget(detailsRef);
 	const expanded = !collapsed || findOpen;
-	const t2 = !expanded;
-	let t3;
-	if ($[3] !== event) {
-		t3 = eventPayload(event);
-		$[3] = event;
-		$[4] = t3;
-	} else t3 = $[4];
+	const t3 = !expanded;
 	let t4;
-	if ($[5] !== t3) {
-		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(JSONPanel, { data: t3 });
-		$[5] = t3;
+	if ($[5] !== event) {
+		t4 = eventPayload(event);
+		$[5] = event;
 		$[6] = t4;
 	} else t4 = $[6];
 	let t5;
-	if ($[7] !== t2 || $[8] !== t4) {
-		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[7] !== t4) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(JSONPanel, { data: t4 });
+		$[7] = t4;
+		$[8] = t5;
+	} else t5 = $[8];
+	let t6;
+	if ($[9] !== t3 || $[10] !== t5) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			ref: detailsRef,
-			hidden: t2,
-			children: t4
+			hidden: t3,
+			children: t5
 		});
-		$[7] = t2;
-		$[8] = t4;
-		$[9] = t5;
-	} else t5 = $[9];
-	const details = t5;
+		$[9] = t3;
+		$[10] = t5;
+		$[11] = t6;
+	} else t6 = $[11];
+	const details = t6;
 	const T0 = EventRow;
-	const t6 = eventNode.id;
-	let t7;
-	if ($[10] !== agent) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: agent });
-		$[10] = agent;
-		$[11] = t7;
-	} else t7 = $[11];
+	const t7 = eventNode.id;
 	let t8;
-	if ($[12] !== t7 || $[13] !== toggle) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+	if ($[12] !== agent) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: agent });
+		$[12] = agent;
+		$[13] = t8;
+	} else t8 = $[13];
+	let t9;
+	if ($[14] !== t8 || $[15] !== toggle) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: CommunicationEventView_module_default.agent,
 			role: "presentation",
 			onClick: toggle,
-			children: t7
+			children: t8
 		});
-		$[12] = t7;
-		$[13] = toggle;
 		$[14] = t8;
-	} else t8 = $[14];
-	const t9 = refused ? "approvalReject" : "info";
-	const t10 = refused ? CommunicationEventView_module_default.refused : void 0;
-	const t11 = expanded ? details : void 0;
-	const t12 = "button";
-	const t13 = CommunicationEventView_module_default;
-	const t14 = parts.map(_temp$58);
-	let t15;
-	if ($[15] !== expanded || $[16] !== t13.line || $[17] !== t14 || $[18] !== toggle) {
-		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-			type: t12,
-			className: t13.line,
+		$[15] = toggle;
+		$[16] = t9;
+	} else t9 = $[16];
+	const t10 = refused ? "approvalReject" : "info";
+	const t11 = refused ? CommunicationEventView_module_default.refused : void 0;
+	const t12 = expanded ? details : void 0;
+	const t13 = "button";
+	const t14 = CommunicationEventView_module_default;
+	const t15 = parts.map(_temp$61);
+	let t16;
+	if ($[17] !== expanded || $[18] !== t14.line || $[19] !== t15 || $[20] !== toggle) {
+		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: t13,
+			className: t14.line,
 			"aria-expanded": expanded,
 			onClick: toggle,
-			children: t14
+			children: t15
 		});
-		$[15] = expanded;
-		$[16] = t13.line;
-		$[17] = t14;
-		$[18] = toggle;
+		$[17] = expanded;
+		$[18] = t14.line;
 		$[19] = t15;
-	} else t15 = $[19];
-	const t16 = expanded ? null : details;
-	let t17;
-	if ($[20] !== T0 || $[21] !== className || $[22] !== eventNode.id || $[23] !== t10 || $[24] !== t11 || $[25] !== t15 || $[26] !== t16 || $[27] !== t8 || $[28] !== t9) {
-		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(T0, {
-			eventNodeId: t6,
-			title: t8,
-			icon: t9,
-			iconClassName: t10,
+		$[20] = toggle;
+		$[21] = t16;
+	} else t16 = $[21];
+	const t17 = expanded ? null : details;
+	let t18;
+	if ($[22] !== T0 || $[23] !== className || $[24] !== eventNode.id || $[25] !== t10 || $[26] !== t11 || $[27] !== t12 || $[28] !== t16 || $[29] !== t17 || $[30] !== t9) {
+		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(T0, {
+			eventNodeId: t7,
+			title: t9,
+			icon: t10,
+			iconClassName: t11,
 			className,
-			below: t11,
-			children: [t15, t16]
+			below: t12,
+			children: [t16, t17]
 		});
-		$[20] = T0;
-		$[21] = className;
-		$[22] = eventNode.id;
-		$[23] = t10;
-		$[24] = t11;
-		$[25] = t15;
-		$[26] = t16;
-		$[27] = t8;
-		$[28] = t9;
+		$[22] = T0;
+		$[23] = className;
+		$[24] = eventNode.id;
+		$[25] = t10;
+		$[26] = t11;
+		$[27] = t12;
+		$[28] = t16;
 		$[29] = t17;
-	} else t17 = $[29];
-	return t17;
+		$[30] = t9;
+		$[31] = t18;
+	} else t18 = $[31];
+	return t18;
 };
-var communicationLine = (event) => {
+/** The agent that acted, marked when one of its subagents acted for it. */ var communicationAgent = (event) => `${event.agent}${event.nested ? " (subagent)" : ""}`;
+/** A communication event as one line: which channel, what, and to whom. */ var communicationLine = (event) => {
 	const channel = event.channel ?? "";
 	switch (event.kind) {
 		case "sent": return sentLine(event, channel);
@@ -100419,15 +100574,14 @@ var firstLine = (text) => {
 	const line = text.slice(skipBlankPrefix(text)).split(/\r?\n/, 1)[0] ?? "";
 	return line.length > kMaxPreviewLength ? `${line.slice(0, kMaxPreviewLength)}…` : line;
 };
-function _temp$58(part, index) {
+function _temp$61(part, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: part.tone === "refused" ? CommunicationEventView_module_default.refused : part.tone === "secondary" ? "text-style-secondary" : void 0,
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: part.text })
 	}, index);
 }
 var CompactionEventView_module_default = { panel: "_panel_8zdtn_1" };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/CompactionEventView.tsx
+// ../../packages/inspect-components/src/transcript/CompactionEventView.tsx
 var CompactionEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(22);
 	const { eventNode, className } = t0;
@@ -100513,8 +100667,7 @@ var EmptyBranchView_module_default = {
 	headline: "_headline_f9al6_6",
 	detail: "_detail_f9al6_12"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/EmptyBranchView.tsx
+// ../../packages/inspect-components/src/transcript/EmptyBranchView.tsx
 /** Shallow: the note below renders branchName and terminator. */ var isEmptyBranchData = (value) => isRecord(value) && typeof value["branchName"] === "string";
 var EmptyBranchView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(8);
@@ -100558,8 +100711,7 @@ var EmptyBranchView = (t0) => {
 	} else t4 = $[7];
 	return t4;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/ErrorEventView.tsx
+// ../../packages/inspect-components/src/transcript/ErrorEventView.tsx
 var ErrorEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(10);
 	const { eventNode, className } = t0;
@@ -100606,8 +100758,7 @@ var ErrorEventView = (t0) => {
 	return t4;
 };
 var InfoEventView_module_default = { panel: "_panel_vz394_1" };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/InfoEventView.tsx
+// ../../packages/inspect-components/src/transcript/InfoEventView.tsx
 var InfoEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(13);
 	const { eventNode, className } = t0;
@@ -100663,8 +100814,7 @@ var InfoEventView = (t0) => {
 	} else t6 = $[12];
 	return t6;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/InputEventView.tsx
+// ../../packages/inspect-components/src/transcript/InputEventView.tsx
 var InputEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(10);
 	const { eventNode, className } = t0;
@@ -100707,8 +100857,7 @@ var InputEventView = (t0) => {
 	} else t4 = $[9];
 	return t4;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/InterruptEventView.tsx
+// ../../packages/inspect-components/src/transcript/InterruptEventView.tsx
 var SOURCE_TITLES = {
 	user_cancel: "Interrupted by user",
 	limit: "Interrupted by limit",
@@ -100778,8 +100927,7 @@ var InterruptEventView = (t0) => {
 	return t7;
 };
 var LoggerEventView_module_default = { grid: "_grid_1pgwi_1" };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/LoggerEventView.tsx
+// ../../packages/inspect-components/src/transcript/LoggerEventView.tsx
 var LoggerEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(24);
 	const { eventNode, className } = t0;
@@ -100873,8 +101021,7 @@ var LoggerEventView = (t0) => {
 	} else t12 = $[23];
 	return t12;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/event/attemptDuration.ts
+// ../../packages/inspect-components/src/transcript/event/attemptDuration.ts
 /**
 * Best-effort duration in seconds for a single ModelEvent attempt.
 *
@@ -100897,8 +101044,7 @@ var EventSection_module_default = {
 	titleRow: "_titleRow_1ww70_5",
 	title: "_title_1ww70_5"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/event/EventSection.tsx
+// ../../packages/inspect-components/src/transcript/event/EventSection.tsx
 /**
 * Renders the Event Section component.
 */ var EventSection = (t0) => {
@@ -100971,8 +101117,7 @@ var RetryChip_module_default = {
 	itemLabel: "_itemLabel_fjhll_104",
 	itemStatus: "_itemStatus_fjhll_112"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/event/summarizeModelError.ts
+// ../../packages/inspect-components/src/transcript/event/summarizeModelError.ts
 /**
 * Short, neutral label for a model error string. Used in the retry-attempt
 * dropdown menu (e.g. "Attempt 1 · 429 rate limit"). Keep wording
@@ -100991,8 +101136,7 @@ var RetryChip_module_default = {
 	const first = s.split(/[\n.:]/)[0] ?? s;
 	return first.length > 40 ? first.slice(0, 37) + "…" : first;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/event/RetryChip.tsx
+// ../../packages/inspect-components/src/transcript/event/RetryChip.tsx
 var RetryChip = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(32);
 	const { attempts, selectedKey, onSelect, keyOf } = t0;
@@ -101047,7 +101191,7 @@ var RetryChip = (t0) => {
 	let t8;
 	let t9;
 	if ($[13] === Symbol.for("react.memo_cache_sentinel")) {
-		t8 = () => setOpen(_temp$57);
+		t8 = () => setOpen(_temp$60);
 		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
 			name: "retry",
 			className: RetryChip_module_default.chipIcon
@@ -101151,7 +101295,7 @@ function formatAttemptDuration(event) {
 	const sec = attemptDurationSec(event);
 	return sec != null ? formatTime$1(sec) : null;
 }
-function _temp$57(v) {
+function _temp$60(v) {
 	return !v;
 }
 var StopReasonBadge_module_default = {
@@ -101165,8 +101309,7 @@ var StopReasonBadge_module_default = {
 	rose: "_rose_8yqw9_46",
 	gray: "_gray_8yqw9_51"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/event/StopReasonBadge.tsx
+// ../../packages/inspect-components/src/transcript/event/StopReasonBadge.tsx
 var TONE_CLASS = {
 	neutral: StopReasonBadge_module_default.neutral,
 	amber: StopReasonBadge_module_default.amber,
@@ -101280,8 +101423,7 @@ var ModelEventView_module_default = {
 	providerIdStatus: "_providerIdStatus_17lir_141",
 	providerIdFailed: "_providerIdFailed_17lir_146"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/recentInputMessages.ts
+// ../../packages/inspect-components/src/transcript/recentInputMessages.ts
 /**
 * The user/system messages which immediately preceded a model call — the
 * "recent messages" panel of ModelEventView. Walks backward from the end of
@@ -101320,8 +101462,7 @@ var shownByToolEvent = (message, options) => {
 	if (message.role !== "user" || typeof message.content === "string") return false;
 	return message.content.some((content) => content.type === "text" && typeof content.internal === "object" && content.internal !== null && !Array.isArray(content.internal) && "agent_message" in content.internal);
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/retryGrouping.ts
+// ../../packages/inspect-components/src/transcript/timeline/retryGrouping.ts
 /**
 * Group consecutive failed-then-successful ModelEvent retries inside the
 * same `span_id` into a single visible event.
@@ -101403,10 +101544,9 @@ function groupRetryAttempts(events) {
 		attempts
 	};
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/ModelEventView.tsx
+// ../../packages/inspect-components/src/transcript/ModelEventView.tsx
 var ModelEventView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(118);
+	const $ = (0, import_compiler_runtime.c)(124);
 	const { eventNode, showToolCalls, className, context, eventCallbacks } = t0;
 	const successEvent = eventNode.event;
 	const attempts = context?.retryAttempts?.get(retryAttemptKey(successEvent));
@@ -101437,7 +101577,7 @@ var ModelEventView = (t0) => {
 	const callTime = event.output.time;
 	let t4;
 	if ($[6] !== event.output.choices) {
-		t4 = event.output.choices.map(_temp$56);
+		t4 = event.output.choices.map(_temp$59);
 		$[6] = event.output.choices;
 		$[7] = t4;
 	} else t4 = $[7];
@@ -101474,127 +101614,151 @@ var ModelEventView = (t0) => {
 	const userMessages = t7;
 	const hasHiddenMessages = event.input.length > userMessages.length;
 	const [showAllMessages, setShowAllMessages] = (0, import_react.useState)(false);
+	const toolEventIds = context?.toolEventIds;
+	const toolProposalIds = context?.toolProposalIds ?? toolEventIds;
 	let t8;
-	if ($[15] !== context?.toolEventIds || $[16] !== event.input || $[17] !== event.pending || $[18] !== isCancelled || $[19] !== outputMessages || $[20] !== showAllMessages || $[21] !== userMessages) {
-		t8 = () => {
-			const outputs = event.pending || isCancelled ? outputMessages.filter(_temp2$39) : outputMessages;
-			const messages = showAllMessages ? [...event.input, ...outputs] : [...userMessages, ...outputs];
-			const toolEventIds = context?.toolEventIds;
-			return toolEventIds ? messages.map((m_0) => withoutToolCallsIn(m_0, toolEventIds)) : messages;
-		};
-		$[15] = context?.toolEventIds;
-		$[16] = event.input;
-		$[17] = event.pending;
-		$[18] = isCancelled;
-		$[19] = outputMessages;
-		$[20] = showAllMessages;
-		$[21] = userMessages;
-		$[22] = t8;
-	} else t8 = $[22];
-	context?.toolEventIds;
-	let t9;
-	if ($[23] !== t8) {
-		t9 = t8();
-		$[23] = t8;
-		$[24] = t9;
-	} else t9 = $[24];
-	const summaryMessages = t9;
-	let t10;
-	if ($[25] !== context?.hasToolEvents || $[26] !== userMessages) {
-		t10 = context?.hasToolEvents !== false && !userMessages.some(_temp3$26);
-		$[25] = context?.hasToolEvents;
-		$[26] = userMessages;
-		$[27] = t10;
-	} else t10 = $[27];
-	const collapseSummaryToolMessages = t10;
-	context?.messageLabels;
-	let t11;
 	bb0: {
-		const map = context?.messageLabels;
-		if (!map) {
-			let t12;
-			if ($[28] === Symbol.for("react.memo_cache_sentinel")) {
-				t12 = { show: false };
-				$[28] = t12;
-			} else t12 = $[28];
-			t11 = t12;
+		let t9;
+		if ($[15] !== event.pending || $[16] !== isCancelled || $[17] !== outputMessages) {
+			t9 = event.pending || isCancelled ? outputMessages.filter(_temp2$40) : outputMessages;
+			$[15] = event.pending;
+			$[16] = isCancelled;
+			$[17] = outputMessages;
+			$[18] = t9;
+		} else t9 = $[18];
+		const outputs = t9;
+		const inputs = showAllMessages ? event.input : userMessages;
+		if (!toolEventIds || !toolProposalIds) {
+			let t10;
+			if ($[19] !== inputs || $[20] !== outputs) {
+				t10 = [...inputs, ...outputs];
+				$[19] = inputs;
+				$[20] = outputs;
+				$[21] = t10;
+			} else t10 = $[21];
+			t8 = t10;
 			break bb0;
 		}
-		let t12;
-		if ($[29] !== map) {
-			t12 = { messageLabels: map };
-			$[29] = map;
-			$[30] = t12;
-		} else t12 = $[30];
-		t11 = t12;
+		let t10;
+		if ($[22] !== inputs || $[23] !== outputs || $[24] !== toolEventIds || $[25] !== toolProposalIds) {
+			let t11;
+			if ($[27] !== toolEventIds) {
+				t11 = (m_0) => withoutToolCallsIn(m_0, toolEventIds);
+				$[27] = toolEventIds;
+				$[28] = t11;
+			} else t11 = $[28];
+			let t12;
+			if ($[29] !== toolProposalIds) {
+				t12 = (m_1) => withoutToolCallsIn(m_1, toolProposalIds);
+				$[29] = toolProposalIds;
+				$[30] = t12;
+			} else t12 = $[30];
+			t10 = [...inputs.map(t11), ...outputs.map(t12)];
+			$[22] = inputs;
+			$[23] = outputs;
+			$[24] = toolEventIds;
+			$[25] = toolProposalIds;
+			$[26] = t10;
+		} else t10 = $[26];
+		t8 = t10;
 	}
-	const summaryLabels = t11;
+	const summaryMessages = t8;
+	let t9;
+	if ($[31] !== context?.hasToolEvents || $[32] !== userMessages) {
+		t9 = context?.hasToolEvents !== false && !userMessages.some(_temp3$27);
+		$[31] = context?.hasToolEvents;
+		$[32] = userMessages;
+		$[33] = t9;
+	} else t9 = $[33];
+	const collapseSummaryToolMessages = t9;
+	context?.messageLabels;
+	let t10;
+	bb1: {
+		const map = context?.messageLabels;
+		if (!map) {
+			let t11;
+			if ($[34] === Symbol.for("react.memo_cache_sentinel")) {
+				t11 = { show: false };
+				$[34] = t11;
+			} else t11 = $[34];
+			t10 = t11;
+			break bb1;
+		}
+		let t11;
+		if ($[35] !== map) {
+			t11 = { messageLabels: map };
+			$[35] = map;
+			$[36] = t11;
+		} else t11 = $[36];
+		t10 = t11;
+	}
+	const summaryLabels = t10;
 	const panelTitle = event.role ? `Model Call (${event.role}): ${event.model}` : `Model Call: ${event.model}`;
-	let t12;
-	if ($[31] !== callTime || $[32] !== event || $[33] !== isCancelled || $[34] !== isFailed || $[35] !== panelTitle || $[36] !== totalUsage) {
-		t12 = isFailed ? `${panelTitle} · FAILED${formatFailureTime(event)}` : isCancelled ? `${panelTitle} · Cancelled${formatFailureTime(event)}` : formatTitle(panelTitle, totalUsage, callTime);
-		$[31] = callTime;
-		$[32] = event;
-		$[33] = isCancelled;
-		$[34] = isFailed;
-		$[35] = panelTitle;
-		$[36] = totalUsage;
-		$[37] = t12;
-	} else t12 = $[37];
-	const titleString = t12;
+	let t11;
+	if ($[37] !== callTime || $[38] !== event || $[39] !== isCancelled || $[40] !== isFailed || $[41] !== panelTitle || $[42] !== totalUsage) {
+		t11 = isFailed ? `${panelTitle} · FAILED${formatFailureTime(event)}` : isCancelled ? `${panelTitle} · Cancelled${formatFailureTime(event)}` : formatTitle(panelTitle, totalUsage, callTime);
+		$[37] = callTime;
+		$[38] = event;
+		$[39] = isCancelled;
+		$[40] = isFailed;
+		$[41] = panelTitle;
+		$[42] = totalUsage;
+		$[43] = t11;
+	} else t11 = $[43];
+	const titleString = t11;
 	const fallback = event.output.fallback;
-	let t13;
-	if ($[38] !== fallback) {
-		t13 = fallback ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+	let t12;
+	if ($[44] !== fallback) {
+		t12 = fallback ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: ModelEventView_module_default.fallbackBadge,
 			children: ["· fallback → ", fallback.fallback_model]
 		}) : void 0;
-		$[38] = fallback;
-		$[39] = t13;
-	} else t13 = $[39];
-	const fallbackBadge = t13;
-	let t14;
-	if ($[40] !== context) {
-		t14 = context?.turnInfo ? {
+		$[44] = fallback;
+		$[45] = t12;
+	} else t12 = $[45];
+	const fallbackBadge = t12;
+	let t13;
+	if ($[46] !== context) {
+		t13 = context?.turnInfo ? {
 			turnNumber: context.turnInfo.turnNumber,
 			totalTurns: context.turnInfo.totalTurns,
 			isAnchor: context.turnIsAnchor ?? true
 		} : void 0;
-		$[40] = context;
-		$[41] = t14;
-	} else t14 = $[41];
-	const turnNav = t14;
-	let t15;
-	if ($[42] !== attempts || $[43] !== selectedAttemptKey || $[44] !== setSelectedAttemptKey) {
-		t15 = attempts ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RetryChip, {
+		$[46] = context;
+		$[47] = t13;
+	} else t13 = $[47];
+	const turnNav = t13;
+	let t14;
+	if ($[48] !== attempts || $[49] !== selectedAttemptKey || $[50] !== setSelectedAttemptKey) {
+		t14 = attempts ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RetryChip, {
 			attempts,
 			selectedKey: selectedAttemptKey,
 			onSelect: setSelectedAttemptKey,
 			keyOf: retryAttemptKey
 		}) : void 0;
-		$[42] = attempts;
-		$[43] = selectedAttemptKey;
-		$[44] = setSelectedAttemptKey;
-		$[45] = t15;
-	} else t15 = $[45];
-	const retryChip = t15;
+		$[48] = attempts;
+		$[49] = selectedAttemptKey;
+		$[50] = setSelectedAttemptKey;
+		$[51] = t14;
+	} else t14 = $[51];
+	const retryChip = t14;
+	let t15;
+	if ($[52] !== event.timestamp || $[53] !== event.working_start) {
+		t15 = event.timestamp ? formatTiming(event.timestamp, event.working_start) : void 0;
+		$[52] = event.timestamp;
+		$[53] = event.working_start;
+		$[54] = t15;
+	} else t15 = $[54];
 	let t16;
-	if ($[46] !== event.timestamp || $[47] !== event.working_start) {
-		t16 = event.timestamp ? formatTiming(event.timestamp, event.working_start) : void 0;
-		$[46] = event.timestamp;
-		$[47] = event.working_start;
-		$[48] = t16;
-	} else t16 = $[48];
+	if ($[55] !== fallbackBadge || $[56] !== retryChip) {
+		t16 = fallbackBadge || retryChip ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [fallbackBadge, retryChip] }) : void 0;
+		$[55] = fallbackBadge;
+		$[56] = retryChip;
+		$[57] = t16;
+	} else t16 = $[57];
 	let t17;
-	if ($[49] !== fallbackBadge || $[50] !== retryChip) {
-		t17 = fallbackBadge || retryChip ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [fallbackBadge, retryChip] }) : void 0;
-		$[49] = fallbackBadge;
-		$[50] = retryChip;
-		$[51] = t17;
-	} else t17 = $[51];
-	let t18;
-	if ($[52] !== context?.inlineExpansionUX || $[53] !== hasHiddenMessages || $[54] !== showAllMessages) {
-		t18 = context?.inlineExpansionUX && hasHiddenMessages && !showAllMessages && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[58] !== context?.inlineExpansionUX || $[59] !== hasHiddenMessages || $[60] !== showAllMessages) {
+		t17 = context?.inlineExpansionUX && hasHiddenMessages && !showAllMessages && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx("text-size-small", ModelEventView_module_default.showAllLink),
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 				type: "button",
@@ -101607,40 +101771,40 @@ var ModelEventView = (t0) => {
 				}), "Show all messages"]
 			})
 		});
-		$[52] = context?.inlineExpansionUX;
-		$[53] = hasHiddenMessages;
-		$[54] = showAllMessages;
-		$[55] = t18;
-	} else t18 = $[55];
-	const t19 = `${eventNode.id}-model-output`;
-	const t20 = context?.toolEventIds || showToolCalls ? "complete" : "omit";
-	let t21;
-	if ($[56] !== collapseSummaryToolMessages || $[57] !== t20) {
-		t21 = {
-			callStyle: t20,
+		$[58] = context?.inlineExpansionUX;
+		$[59] = hasHiddenMessages;
+		$[60] = showAllMessages;
+		$[61] = t17;
+	} else t17 = $[61];
+	const t18 = `${eventNode.id}-model-output`;
+	const t19 = context?.toolEventIds || showToolCalls ? "complete" : "omit";
+	let t20;
+	if ($[62] !== collapseSummaryToolMessages || $[63] !== t19) {
+		t20 = {
+			callStyle: t19,
 			collapseToolMessages: collapseSummaryToolMessages
 		};
-		$[56] = collapseSummaryToolMessages;
-		$[57] = t20;
-		$[58] = t21;
-	} else t21 = $[58];
-	let t22;
-	if ($[59] !== summaryLabels || $[60] !== summaryMessages || $[61] !== t19 || $[62] !== t21) {
-		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
-			id: t19,
+		$[62] = collapseSummaryToolMessages;
+		$[63] = t19;
+		$[64] = t20;
+	} else t20 = $[64];
+	let t21;
+	if ($[65] !== summaryLabels || $[66] !== summaryMessages || $[67] !== t18 || $[68] !== t20) {
+		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
+			id: t18,
 			messages: summaryMessages,
-			tools: t21,
+			tools: t20,
 			labels: summaryLabels
 		});
-		$[59] = summaryLabels;
-		$[60] = summaryMessages;
-		$[61] = t19;
-		$[62] = t21;
-		$[63] = t22;
-	} else t22 = $[63];
-	let t23;
-	if ($[64] !== event.error || $[65] !== event.pending || $[66] !== isCancelled) {
-		t23 = isCancelled ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[65] = summaryLabels;
+		$[66] = summaryMessages;
+		$[67] = t18;
+		$[68] = t20;
+		$[69] = t21;
+	} else t21 = $[69];
+	let t22;
+	if ($[70] !== event.error || $[71] !== event.pending || $[72] !== isCancelled) {
+		t22 = isCancelled ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: ModelEventView_module_default.cancelled,
 			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "cancel" }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: event.error })]
 		}) : event.error ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventSection, {
@@ -101653,30 +101817,30 @@ var ModelEventView = (t0) => {
 			className: clsx(ModelEventView_module_default.progress),
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(GeneratingIndicator, {})
 		}) : void 0;
-		$[64] = event.error;
-		$[65] = event.pending;
-		$[66] = isCancelled;
-		$[67] = t23;
-	} else t23 = $[67];
-	let t24;
-	if ($[68] !== t18 || $[69] !== t22 || $[70] !== t23) {
-		t24 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[70] = event.error;
+		$[71] = event.pending;
+		$[72] = isCancelled;
+		$[73] = t22;
+	} else t22 = $[73];
+	let t23;
+	if ($[74] !== t17 || $[75] !== t21 || $[76] !== t22) {
+		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			"data-name": "Summary",
 			className: ModelEventView_module_default.container,
 			children: [
-				t18,
-				t22,
-				t23
+				t17,
+				t21,
+				t22
 			]
 		});
-		$[68] = t18;
-		$[69] = t22;
-		$[70] = t23;
-		$[71] = t24;
-	} else t24 = $[71];
-	let t25;
-	if ($[72] !== event.completed || $[73] !== event.output.usage || $[74] !== event.timestamp || $[75] !== event.working_time) {
-		t25 = event.output.usage ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModelUsagePanel, {
+		$[74] = t17;
+		$[75] = t21;
+		$[76] = t22;
+		$[77] = t23;
+	} else t23 = $[77];
+	let t24;
+	if ($[78] !== event.completed || $[79] !== event.output.usage || $[80] !== event.timestamp || $[81] !== event.working_time) {
+		t24 = event.output.usage ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModelUsagePanel, {
 			usage: event.output.usage,
 			timing: {
 				timestamp: event.timestamp,
@@ -101684,26 +101848,26 @@ var ModelEventView = (t0) => {
 				working_time: event.working_time
 			}
 		}) : void 0;
-		$[72] = event.completed;
-		$[73] = event.output.usage;
-		$[74] = event.timestamp;
-		$[75] = event.working_time;
-		$[76] = t25;
-	} else t25 = $[76];
-	let t26;
-	if ($[77] !== firstChoice || $[78] !== showStopReason || $[79] !== stopDetails) {
-		t26 = showStopReason && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StopReasonBadge, {
+		$[78] = event.completed;
+		$[79] = event.output.usage;
+		$[80] = event.timestamp;
+		$[81] = event.working_time;
+		$[82] = t24;
+	} else t24 = $[82];
+	let t25;
+	if ($[83] !== firstChoice || $[84] !== showStopReason || $[85] !== stopDetails) {
+		t25 = showStopReason && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StopReasonBadge, {
 			reason: firstChoice.stop_reason,
 			details: stopDetails
 		});
-		$[77] = firstChoice;
-		$[78] = showStopReason;
-		$[79] = stopDetails;
-		$[80] = t26;
-	} else t26 = $[80];
-	let t27;
-	if ($[81] !== entries) {
-		t27 = Object.keys(entries).length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventSection, {
+		$[83] = firstChoice;
+		$[84] = showStopReason;
+		$[85] = stopDetails;
+		$[86] = t25;
+	} else t25 = $[86];
+	let t26;
+	if ($[87] !== entries) {
+		t26 = Object.keys(entries).length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventSection, {
 			title: "Configuration",
 			className: clsx(ModelEventView_module_default.tableSelection, ModelEventView_module_default.config),
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
@@ -101711,76 +101875,76 @@ var ModelEventView = (t0) => {
 				options: { plain: true }
 			})
 		});
-		$[81] = entries;
-		$[82] = t27;
-	} else t27 = $[82];
+		$[87] = entries;
+		$[88] = t26;
+	} else t26 = $[88];
+	let t27;
+	if ($[89] !== event) {
+		t27 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ProviderIds, { event });
+		$[89] = event;
+		$[90] = t27;
+	} else t27 = $[90];
 	let t28;
-	if ($[83] !== event) {
-		t28 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ProviderIds, { event });
-		$[83] = event;
-		$[84] = t28;
-	} else t28 = $[84];
-	let t29;
-	if ($[85] !== t25 || $[86] !== t26 || $[87] !== t27 || $[88] !== t28) {
-		t29 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[91] !== t24 || $[92] !== t25 || $[93] !== t26 || $[94] !== t27) {
+		t28 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			"data-name": "Info",
 			className: ModelEventView_module_default.container,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: ModelEventView_module_default.all,
 				children: [
+					t24,
 					t25,
 					t26,
-					t27,
-					t28
+					t27
 				]
 			})
 		});
-		$[85] = t25;
-		$[86] = t26;
-		$[87] = t27;
-		$[88] = t28;
-		$[89] = t29;
-	} else t29 = $[89];
-	const t30 = `${eventNode.id}-model-input-full`;
-	let t31;
-	if ($[90] !== event.input || $[91] !== outputMessages) {
-		t31 = [...event.input, ...outputMessages];
-		$[90] = event.input;
-		$[91] = outputMessages;
-		$[92] = t31;
-	} else t31 = $[92];
-	const t32 = context?.hasToolEvents !== false;
+		$[91] = t24;
+		$[92] = t25;
+		$[93] = t26;
+		$[94] = t27;
+		$[95] = t28;
+	} else t28 = $[95];
+	const t29 = `${eventNode.id}-model-input-full`;
+	let t30;
+	if ($[96] !== event.input || $[97] !== outputMessages) {
+		t30 = [...event.input, ...outputMessages];
+		$[96] = event.input;
+		$[97] = outputMessages;
+		$[98] = t30;
+	} else t30 = $[98];
+	const t31 = context?.hasToolEvents !== false;
+	let t32;
+	if ($[99] !== t31) {
+		t32 = { collapseToolMessages: t31 };
+		$[99] = t31;
+		$[100] = t32;
+	} else t32 = $[100];
 	let t33;
-	if ($[93] !== t32) {
-		t33 = { collapseToolMessages: t32 };
-		$[93] = t32;
-		$[94] = t33;
-	} else t33 = $[94];
+	if ($[101] === Symbol.for("react.memo_cache_sentinel")) {
+		t33 = { show: false };
+		$[101] = t33;
+	} else t33 = $[101];
 	let t34;
-	if ($[95] === Symbol.for("react.memo_cache_sentinel")) {
-		t34 = { show: false };
-		$[95] = t34;
-	} else t34 = $[95];
-	let t35;
-	if ($[96] !== t30 || $[97] !== t31 || $[98] !== t33) {
-		t35 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[102] !== t29 || $[103] !== t30 || $[104] !== t32) {
+		t34 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			"data-name": "Messages",
 			className: ModelEventView_module_default.container,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
-				id: t30,
-				messages: t31,
-				tools: t33,
-				labels: t34
+				id: t29,
+				messages: t30,
+				tools: t32,
+				labels: t33
 			})
 		});
-		$[96] = t30;
-		$[97] = t31;
-		$[98] = t33;
-		$[99] = t35;
-	} else t35 = $[99];
-	let t36;
-	if ($[100] !== event.tool_choice || $[101] !== event.tools) {
-		t36 = event.tools.length > 1 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[102] = t29;
+		$[103] = t30;
+		$[104] = t32;
+		$[105] = t34;
+	} else t34 = $[105];
+	let t35;
+	if ($[106] !== event.tool_choice || $[107] !== event.tools) {
+		t35 = event.tools.length > 1 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			"data-name": "Tools",
 			className: ModelEventView_module_default.container,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolsConfig, {
@@ -101788,55 +101952,55 @@ var ModelEventView = (t0) => {
 				toolChoice: event.tool_choice
 			})
 		});
-		$[100] = event.tool_choice;
-		$[101] = event.tools;
-		$[102] = t36;
-	} else t36 = $[102];
-	let t37;
-	if ($[103] !== event.call) {
-		t37 = event.call ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(APIView, {
+		$[106] = event.tool_choice;
+		$[107] = event.tools;
+		$[108] = t35;
+	} else t35 = $[108];
+	let t36;
+	if ($[109] !== event.call) {
+		t36 = event.call ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(APIView, {
 			"data-name": "API",
 			call: event.call,
 			className: ModelEventView_module_default.container
 		}) : "";
-		$[103] = event.call;
-		$[104] = t37;
-	} else t37 = $[104];
-	let t38;
-	if ($[105] !== className || $[106] !== eventCallbacks || $[107] !== eventNode.id || $[108] !== t16 || $[109] !== t17 || $[110] !== t24 || $[111] !== t29 || $[112] !== t35 || $[113] !== t36 || $[114] !== t37 || $[115] !== titleString || $[116] !== turnNav) {
-		t38 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(EventPanel, {
+		$[109] = event.call;
+		$[110] = t36;
+	} else t36 = $[110];
+	let t37;
+	if ($[111] !== className || $[112] !== eventCallbacks || $[113] !== eventNode.id || $[114] !== t15 || $[115] !== t16 || $[116] !== t23 || $[117] !== t28 || $[118] !== t34 || $[119] !== t35 || $[120] !== t36 || $[121] !== titleString || $[122] !== turnNav) {
+		t37 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(EventPanel, {
 			eventNodeId: eventNode.id,
 			className,
 			title: titleString,
-			subTitle: t16,
+			subTitle: t15,
 			icon: "model",
 			turnNav,
-			headerExtra: t17,
+			headerExtra: t16,
 			eventCallbacks,
 			collapsibleContent: true,
 			children: [
-				t24,
-				t29,
+				t23,
+				t28,
+				t34,
 				t35,
-				t36,
-				t37
+				t36
 			]
 		});
-		$[105] = className;
-		$[106] = eventCallbacks;
-		$[107] = eventNode.id;
-		$[108] = t16;
-		$[109] = t17;
-		$[110] = t24;
-		$[111] = t29;
-		$[112] = t35;
-		$[113] = t36;
-		$[114] = t37;
-		$[115] = titleString;
-		$[116] = turnNav;
-		$[117] = t38;
-	} else t38 = $[117];
-	return t38;
+		$[111] = className;
+		$[112] = eventCallbacks;
+		$[113] = eventNode.id;
+		$[114] = t15;
+		$[115] = t16;
+		$[116] = t23;
+		$[117] = t28;
+		$[118] = t34;
+		$[119] = t35;
+		$[120] = t36;
+		$[121] = titleString;
+		$[122] = turnNav;
+		$[123] = t37;
+	} else t37 = $[123];
+	return t37;
 };
 var ProviderIds = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(11);
@@ -101872,7 +102036,7 @@ var ProviderIds = (t0) => {
 	} else t4 = $[5];
 	let t5;
 	if ($[6] !== requestIds) {
-		t5 = requestIds.map(_temp4$21);
+		t5 = requestIds.map(_temp4$22);
 		$[6] = requestIds;
 		$[7] = t5;
 	} else t5 = $[7];
@@ -102163,24 +102327,23 @@ var withoutToolCallsIn = (message, toolEventIds) => {
 		tool_calls: toolCalls
 	};
 };
-function _temp$56(choice) {
+function _temp$59(choice) {
 	return choice.message;
 }
-function _temp2$39(m) {
+function _temp2$40(m) {
 	return !isLivePlaceholderMessage(m);
 }
-function _temp3$26(m_1) {
-	return m_1.role === "tool";
+function _temp3$27(m_2) {
+	return m_2.role === "tool";
 }
-function _temp4$21(requestId, index) {
+function _temp4$22(requestId, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ProviderIdRow, {
 		label: requestId.header,
 		id: requestId.id,
 		status: requestId.status
 	}, `${requestId.header}-${requestId.id}-${index}`);
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/ReviewEventView.tsx
+// ../../packages/inspect-components/src/transcript/ReviewEventView.tsx
 /**
 * Renders a ReviewEvent: a reviewer's decision on an executed tool call's
 * result. Shares the approval row's styling; the decision set differs.
@@ -102319,8 +102482,7 @@ var SampleInitEventView_module_default = {
 	section: "_section_1a3fk_14",
 	metadata: "_metadata_1a3fk_21"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/SampleInitEventView.tsx
+// ../../packages/inspect-components/src/transcript/SampleInitEventView.tsx
 var SampleInitEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(43);
 	const { eventNode, className } = t0;
@@ -102346,7 +102508,7 @@ var SampleInitEventView = (t0) => {
 			const t3 = `event-${eventNode.id}`;
 			let t4;
 			if ($[8] !== event.sample.files) {
-				t4 = Object.keys(event.sample.files).map(_temp$55);
+				t4 = Object.keys(event.sample.files).map(_temp$58);
 				$[8] = event.sample.files;
 				$[9] = t4;
 			} else t4 = $[9];
@@ -102410,7 +102572,7 @@ var SampleInitEventView = (t0) => {
 	} else t4 = $[21];
 	let t5;
 	if ($[22] !== event.sample.choices) {
-		t5 = event.sample.choices ? event.sample.choices.map(_temp2$38) : "";
+		t5 = event.sample.choices ? event.sample.choices.map(_temp2$39) : "";
 		$[22] = event.sample.choices;
 		$[23] = t5;
 	} else t5 = $[23];
@@ -102427,7 +102589,7 @@ var SampleInitEventView = (t0) => {
 	if ($[26] !== event.sample.target) {
 		t7 = event.sample.target ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventSection, {
 			title: "Target",
-			children: toArray(event.sample.target).map(_temp3$25)
+			children: toArray(event.sample.target).map(_temp3$26)
 		}) : void 0;
 		$[26] = event.sample.target;
 		$[27] = t7;
@@ -102485,32 +102647,31 @@ var SampleInitEventView = (t0) => {
 	} else t11 = $[42];
 	return t11;
 };
-function _temp$55(file) {
+function _temp$58(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
 		className: SampleInitEventView_module_default.noMargin,
 		children: file
 	}, `sample-init-file-${file}`);
 }
-function _temp2$38(choice, index) {
+function _temp2$39(choice, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [
 		String.fromCharCode(65 + index),
 		") ",
 		choice
 	] }, "$choice-{choice}");
 }
-function _temp3$25(target) {
+function _temp3$26(target) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 		className: clsx("text-size-base"),
 		children: target
 	}, target);
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/SampleLimitEventView.tsx
+// ../../packages/inspect-components/src/transcript/SampleLimitEventView.tsx
 var SampleLimitEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(12);
 	const { eventNode, className } = t0;
-	const resolve_title = _temp$54;
-	const resolve_icon = _temp2$37;
+	const resolve_title = _temp$57;
+	const resolve_icon = _temp2$38;
 	const baseTitle = resolve_title(eventNode.event.type);
 	let t1;
 	if ($[0] !== baseTitle || $[1] !== eventNode.event.timestamp) {
@@ -102554,7 +102715,7 @@ var SampleLimitEventView = (t0) => {
 	} else t5 = $[11];
 	return t5;
 };
-function _temp$54(type) {
+function _temp$57(type) {
 	switch (type) {
 		case "custom": return "Custom Limit Exceeded";
 		case "time": return "Time Limit Exceeded";
@@ -102566,7 +102727,7 @@ function _temp$54(type) {
 		case "cost": return "Cost Limit Exceeded";
 	}
 }
-function _temp2$37(type_0) {
+function _temp2$38(type_0) {
 	switch (type_0) {
 		case "custom": return "limitCustom";
 		case "time": return "limitTime";
@@ -102585,8 +102746,7 @@ var SandboxEventView_module_default = {
 	fileLabel: "_fileLabel_ufsua_15",
 	wrapPre: "_wrapPre_ufsua_20"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/SandboxEventView.tsx
+// ../../packages/inspect-components/src/transcript/SandboxEventView.tsx
 var SandboxEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(12);
 	const { eventNode, className } = t0;
@@ -102869,8 +103029,7 @@ var ScoreEditEventView_module_default = {
 	section: "_section_io1r0_27",
 	spacer: "_spacer_io1r0_31"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/ScoreValue.tsx
+// ../../packages/inspect-components/src/transcript/ScoreValue.tsx
 var ScoreValue = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(9);
 	const { score, className, maxRows, expandable: t1 } = t0;
@@ -102914,8 +103073,7 @@ var renderScore = (value, maxRows, expandable = true) => {
 		});
 	} else return String(value);
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/ScoreEditEventView.tsx
+// ../../packages/inspect-components/src/transcript/ScoreEditEventView.tsx
 var kUnchangedSentinel = "UNCHANGED";
 var ScoreEditEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(36);
@@ -103137,8 +103295,7 @@ var ScoreEventView_module_default = {
 	separator: "_separator_1k2k0_13",
 	metadata: "_metadata_1k2k0_18"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/ScoreEventView.tsx
+// ../../packages/inspect-components/src/transcript/ScoreEventView.tsx
 var ScoreEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(43);
 	const { eventNode, className } = t0;
@@ -103376,8 +103533,7 @@ var SentinelEventView_module_default = {
 	chevron: "_chevron_74x1p_211",
 	modelCalls: "_modelCalls_74x1p_215"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/SentinelEventView.tsx
+// ../../packages/inspect-components/src/transcript/SentinelEventView.tsx
 /**
 * One step's sentinel checks: a summary row naming the result that took
 * effect, expanding to the tree of every check (or a lone check's detail).
@@ -103883,7 +104039,7 @@ var CheckDetail = (t0) => {
 		} else t7 = $[29];
 		t8 = scores ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: SentinelEventView_module_default.scoreGrid,
-			children: scores.map(_temp$53)
+			children: scores.map(_temp$56)
 		}) : null;
 		$[8] = effectTone;
 		$[9] = event.stage;
@@ -104235,15 +104391,14 @@ var decisionClass = (decision) => {
 		case "proceed": return SentinelEventView_module_default.proceed;
 	}
 };
-function _temp$53(t0) {
+function _temp$56(t0) {
 	const [dimension, value] = t0;
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: SentinelEventView_module_default.scoreName,
 		children: dimension
 	}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: Math.round(value * 100) / 100 })] }, dimension);
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/SpanEventView.tsx
+// ../../packages/inspect-components/src/transcript/SpanEventView.tsx
 /**
 * Grouping panel for a span_begin event or its legacy step equivalent,
 * summarizing the child events it contains.
@@ -104267,7 +104422,7 @@ function _temp$53(t0) {
 	const text = t2;
 	let t3;
 	if ($[4] !== childNodes) {
-		t3 = childNodes.map(_temp$52);
+		t3 = childNodes.map(_temp$55);
 		$[4] = childNodes;
 		$[5] = t3;
 	} else t3 = $[5];
@@ -104333,11 +104488,10 @@ var summarize = (children) => {
 	if (children.length === 1) return "1 event";
 	else return `${children.length} events`;
 };
-function _temp$52(child) {
+function _temp$55(child) {
 	return child.id;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/state/StateDiffView.tsx
+// ../../packages/inspect-components/src/transcript/state/StateDiffView.tsx
 /**
 * Renders a view displaying a list of state changes. The diff is built here,
 * not by the event row, so it's only computed while this tab is shown.
@@ -104390,7 +104544,7 @@ var DiffChildren = (t0) => {
 	} else t2 = $[1];
 	let t3;
 	if ($[2] !== entry.children) {
-		t3 = entry.children.map(_temp$51);
+		t3 = entry.children.map(_temp$54);
 		$[2] = entry.children;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -104534,15 +104688,14 @@ var DiffValue = (t0) => {
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$51(child) {
+function _temp$54(child) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(DiffRow, { child }, child.id);
 }
 var StateEventView_module_default = {
 	diff: "_diff_eobja_1",
 	summary: "_summary_eobja_6"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/state/StateEventView.tsx
+// ../../packages/inspect-components/src/transcript/state/StateEventView.tsx
 /**
 * Renders the StateEventView component.
 */ var StateEventView = (t0) => {
@@ -104709,8 +104862,7 @@ var SubtaskEventView_module_default = {
 	subtaskSummary: "_subtaskSummary_ac4z2_10",
 	subtaskLabel: "_subtaskLabel_ac4z2_17"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/SubtaskEventView.tsx
+// ../../packages/inspect-components/src/transcript/SubtaskEventView.tsx
 var SubtaskEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(28);
 	const { eventNode, childNodes, className, eventCallbacks } = t0;
@@ -104789,7 +104941,7 @@ var SubtaskEventView = (t0) => {
 	} else t4 = $[17];
 	let t5;
 	if ($[18] !== childNodes) {
-		t5 = childNodes.map(_temp$50);
+		t5 = childNodes.map(_temp$53);
 		$[18] = childNodes;
 		$[19] = t5;
 	} else t5 = $[19];
@@ -104902,7 +105054,7 @@ var Rendered = (t0) => {
 	if (Array.isArray(values)) {
 		let t1;
 		if ($[0] !== values) {
-			t1 = values.map(_temp2$36);
+			t1 = values.map(_temp2$37);
 			$[0] = values;
 			$[1] = t1;
 		} else t1 = $[1];
@@ -104938,18 +105090,17 @@ var None = () => {
 	} else t0 = $[0];
 	return t0;
 };
-function _temp$50(child) {
+function _temp$53(child) {
 	return child.id;
 }
-function _temp2$36(val, index) {
+function _temp2$37(val, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Rendered, { values: val }, index);
 }
 var SwarmEventView_module_default = {
 	member: "_member_1tvjx_1",
 	panel: "_panel_1tvjx_6"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/SwarmEventView.tsx
+// ../../packages/inspect-components/src/transcript/SwarmEventView.tsx
 /**
 * Renders a SwarmEvent: its kind and member over its fields as JSON, the text
 * search indexes. The swarm owns the kinds and the format of `data`, so no
@@ -105034,8 +105185,7 @@ var SwarmEventView_module_default = {
 	} else t10 = $[21];
 	return t10;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/core.ts
+// ../../packages/inspect-components/src/transcript/timeline/core.ts
 /**
 * Transcript nodes: hierarchical structure for visualization and scanning.
 *
@@ -106065,8 +106215,7 @@ function buildTimeline(events) {
 		root
 	};
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/swimlaneRows.ts
+// ../../packages/inspect-components/src/transcript/timeline/swimlaneRows.ts
 /**
 * Swimlane row computation for the timeline UI.
 *
@@ -106289,8 +106438,7 @@ function buildParentRow(node) {
 	}
 	return result;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/timelineEventNodes.ts
+// ../../packages/inspect-components/src/transcript/timeline/timelineEventNodes.ts
 /**
 * Bridge from timeline spans to raw Event[] for the transcript display pipeline.
 *
@@ -106849,8 +106997,7 @@ function rowSpan(row) {
 		if (node.children.length > 0) attachSourceSpans(node.children, spanMap);
 	}
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/TimelineSelectContext.ts
+// ../../packages/inspect-components/src/transcript/TimelineSelectContext.ts
 var TimelineSelectContext = (0, import_react.createContext)(null);
 function useTimelineSelect() {
 	return (0, import_react.useContext)(TimelineSelectContext);
@@ -106866,8 +107013,7 @@ var ToolEventView_module_default = {
 	labeledToolContent: "_labeledToolContent_ddafu_19",
 	progress: "_progress_ddafu_23"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/ToolEventView.tsx
+// ../../packages/inspect-components/src/transcript/ToolEventView.tsx
 /** The check that stopped the call: the final approval, else the sentinel outcome. */ var blockerOf = (approval, before) => {
 	if (approval?.decision === "reject" || approval?.decision === "terminate") return {
 		decision: approval.decision,
@@ -107006,8 +107152,7 @@ var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks
 		})
 	});
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/hasToolEventsAtDepth.ts
+// ../../packages/inspect-components/src/transcript/hasToolEventsAtDepth.ts
 /**
 * For each event node, compute whether a backward scan from that node reaches a
 * tool event before it reaches any node strictly shallower than itself. This
@@ -107062,6 +107207,17 @@ var noToolEvents = /* @__PURE__ */ new Set();
 * A node's parent is the nearest preceding node strictly shallower than it,
 * found with the same monotonic stack as `computeHasToolEventsAtDepth`.
 */ function computeToolEventIdsAtLevel(eventNodes) {
+	return toolIdsAtLevel(eventNodes, (event) => event.id);
+}
+/**
+* For each event node, the model's ids (`proposalIdOf`) for the calls the
+* tool events at its level ran, which the model's output names them by. A
+* bridge may hand a call to its scaffold under a new id, which the tool event
+* and the scaffold's messages carry (`computeToolEventIdsAtLevel`).
+*/ function computeToolProposalIdsAtLevel(eventNodes) {
+	return toolIdsAtLevel(eventNodes, proposalIdOf);
+}
+function toolIdsAtLevel(eventNodes, idOf) {
 	const levelKeys = new Array(eventNodes.length);
 	const idsByLevel = /* @__PURE__ */ new Map();
 	const shallowerStack = [];
@@ -107083,7 +107239,7 @@ var noToolEvents = /* @__PURE__ */ new Set();
 				ids = /* @__PURE__ */ new Set();
 				idsByLevel.set(levelKey, ids);
 			}
-			ids.add(node.event.id);
+			ids.add(idOf(node.event));
 		}
 	}
 	return eventNodes.map((_node, i) => {
@@ -107091,8 +107247,7 @@ var noToolEvents = /* @__PURE__ */ new Set();
 		return levelKey && idsByLevel.get(levelKey) || noToolEvents;
 	});
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/retryOrdering.ts
+// ../../packages/inspect-components/src/transcript/timeline/retryOrdering.ts
 /**
 * Repair retry-inverted ModelEvent timestamps for display ordering.
 *
@@ -107144,8 +107299,7 @@ var noToolEvents = /* @__PURE__ */ new Set();
 	}
 	return result ?? events;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/transform/collapse.ts
+// ../../packages/inspect-components/src/transcript/transform/collapse.ts
 /**
 * Collapse policy for the transcript event tree: which nodes start collapsed
 * by default, and which nodes are collapsible at all (for bulk collapse).
@@ -107188,8 +107342,7 @@ var noToolEvents = /* @__PURE__ */ new Set();
 	traverse(nodes);
 	return result;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/transform/transform.ts
+// ../../packages/inspect-components/src/transcript/transform/transform.ts
 var transformTree = (roots) => {
 	const treeNodeTransformers = transformers();
 	const visitNode = (node) => {
@@ -107332,8 +107485,7 @@ var setDepth = (nodes, depth) => {
 		return node;
 	});
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/transform/treeify.ts
+// ../../packages/inspect-components/src/transcript/transform/treeify.ts
 /**
 * Node ids are the event uuid. Logs that predate uuids fall back to
 * `fallbackIds` (keyed by event identity; see `eventFallbackIds`) so an id
@@ -107519,8 +107671,7 @@ var injectScorersSpan = (events) => {
 		return node.event.event !== "span_begin" && node.event.event !== "step" || node.children.length > 0;
 	});
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/hooks/useEventNodes.ts
+// ../../packages/inspect-components/src/transcript/hooks/useEventNodes.ts
 /**
 * Shared hook that builds an EventNode tree from raw events.
 *
@@ -107546,7 +107697,8 @@ var injectScorersSpan = (events) => {
 	return {
 		eventNodes,
 		defaultCollapsedIds: computeDefaultCollapsedIds(eventNodes),
-		retryAttempts
+		retryAttempts,
+		recordsExecutionIds: recordsExecutionIds(allEvents)
 	};
 };
 var useEventNodes = (events, running, sourceSpans, allEvents) => {
@@ -107562,8 +107714,7 @@ var useEventNodes = (events, running, sourceSpans, allEvents) => {
 	} else t0 = $[4];
 	return t0;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/selection/transcriptSelection.ts
+// ../../packages/inspect-components/src/transcript/selection/transcriptSelection.ts
 var isSelectableEvent = (event) => eventTypeValues.includes(event.event) && !isStructuralEvent(event);
 /** The selected, selectable nodes of `nodes` (a flattened tree), in order. */ var selectedEventNodes = (nodes, selectedIds) => selectedIds.size === 0 ? [] : nodes.filter((n) => selectedIds.has(n.id) && isSelectableEvent(n.event));
 /**
@@ -107594,8 +107745,7 @@ var TranscriptVirtualListComponent_module_default = {
 	last: "_last_t3xlr_27",
 	runningTool: "_runningTool_t3xlr_31"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/transcriptVisualActions.ts
+// ../../packages/inspect-components/src/transcript/transcriptVisualActions.ts
 function computeVisualActionContext(eventNodes, index) {
 	const node = eventNodes[index];
 	if (!node || node.event.event !== "tool") return {};
@@ -107628,8 +107778,7 @@ function normalizeScreenshotResult(result) {
 		return [result];
 	}
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/outline/tree-visitors.ts
+// ../../packages/inspect-components/src/transcript/outline/tree-visitors.ts
 var kTurnType = "turn";
 var kTurnsType = "turns";
 var kCollapsedScoring = "scorings";
@@ -107827,8 +107976,7 @@ var collapseScoring = (eventNodes) => {
 		anchorIdByTurn
 	};
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/turnNavigation.ts
+// ../../packages/inspect-components/src/transcript/turnNavigation.ts
 var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 	...kDefaultExcludeEvents,
 	"span_begin",
@@ -107956,12 +108104,11 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 	}
 	return flat.slice(start, end);
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/TranscriptVirtualListComponent.tsx
+// ../../packages/inspect-components/src/transcript/TranscriptVirtualListComponent.tsx
 /**
 * Renders the Transcript component.
 */ var TranscriptVirtualListComponent = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(60);
+	const $ = (0, import_compiler_runtime.c)(70);
 	const { id, listHandle, eventNodes, scrollRef, running, backfilling, scrollToTopOnFinish: t1, initialEventId, navOwned, followRequested, className, turnMap, relativeIndent, disableVirtualization, onNativeFindChanged, onAutoCollapse, renderAgentCard, eventCallbacks, eventNodeContext, selection, visibleRangeRef } = t0;
 	const scrollToTopOnFinish = t1 === void 0 ? true : t1;
 	const useVirtualization = !disableVirtualization;
@@ -108001,31 +108148,55 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 	} else t5 = $[8];
 	const hasToolEventsLookup = t5;
 	let t6;
-	if ($[9] !== eventNodes) {
-		t6 = computeToolEventIdsAtLevel(eventNodes);
-		$[9] = eventNodes;
-		$[10] = t6;
-	} else t6 = $[10];
-	const toolEventIdsLookup = t6;
-	const nonVirtualGridRef = (0, import_react.useRef)(null);
+	if ($[9] !== eventNodeContext?.recordsExecutionIds || $[10] !== eventNodes) {
+		t6 = eventNodeContext?.recordsExecutionIds ?? treeRecordsExecutionIds(eventNodes);
+		$[9] = eventNodeContext?.recordsExecutionIds;
+		$[10] = eventNodes;
+		$[11] = t6;
+	} else t6 = $[11];
+	const recordsExecutions = t6;
 	let t7;
+	if ($[12] !== eventNodes) {
+		t7 = computeToolEventIdsAtLevel(eventNodes);
+		$[12] = eventNodes;
+		$[13] = t7;
+	} else t7 = $[13];
 	let t8;
-	if ($[11] !== initialEventId || $[12] !== useVirtualization) {
-		t7 = () => {
+	if ($[14] !== eventNodes) {
+		t8 = computeToolProposalIdsAtLevel(eventNodes);
+		$[14] = eventNodes;
+		$[15] = t8;
+	} else t8 = $[15];
+	let t9;
+	if ($[16] !== t7 || $[17] !== t8) {
+		t9 = {
+			events: t7,
+			proposals: t8
+		};
+		$[16] = t7;
+		$[17] = t8;
+		$[18] = t9;
+	} else t9 = $[18];
+	const toolIdsLookup = t9;
+	const nonVirtualGridRef = (0, import_react.useRef)(null);
+	let t10;
+	let t11;
+	if ($[19] !== initialEventId || $[20] !== useVirtualization) {
+		t10 = () => {
 			if (!useVirtualization && initialEventId) (nonVirtualGridRef.current?.querySelector(`[id="${initialEventId}"]`))?.scrollIntoView({ block: "start" });
 		};
-		t8 = [initialEventId, useVirtualization];
-		$[11] = initialEventId;
-		$[12] = useVirtualization;
-		$[13] = t7;
-		$[14] = t8;
+		t11 = [initialEventId, useVirtualization];
+		$[19] = initialEventId;
+		$[20] = useVirtualization;
+		$[21] = t10;
+		$[22] = t11;
 	} else {
-		t7 = $[13];
-		t8 = $[14];
+		t10 = $[21];
+		t11 = $[22];
 	}
-	(0, import_react.useEffect)(t7, t8);
+	(0, import_react.useEffect)(t10, t11);
 	let map;
-	if ($[15] !== eventNodeContext || $[16] !== eventNodes || $[17] !== hasToolEventsLookup || $[18] !== toolEventIdsLookup || $[19] !== turnMap) {
+	if ($[23] !== eventNodeContext || $[24] !== eventNodes || $[25] !== hasToolEventsLookup || $[26] !== recordsExecutions || $[27] !== toolIdsLookup || $[28] !== turnMap) {
 		map = /* @__PURE__ */ new Map();
 		let prevTurnNumber;
 		for (const [i, node] of eventNodes.entries()) {
@@ -108035,7 +108206,8 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 			const turnIsAnchor = turnInfo !== void 0 && turnInfo.turnNumber !== prevTurnNumber;
 			map.set(node.id, {
 				hasToolEvents,
-				toolEventIds: toolEventIdsLookup[i],
+				toolEventIds: toolIdsLookup.events[i],
+				toolProposalIds: recordsExecutions ? toolIdsLookup.proposals[i] : void 0,
 				turnInfo,
 				turnIsAnchor,
 				...eventNodeContext,
@@ -108044,18 +108216,19 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 			});
 			prevTurnNumber = turnInfo?.turnNumber;
 		}
-		$[15] = eventNodeContext;
-		$[16] = eventNodes;
-		$[17] = hasToolEventsLookup;
-		$[18] = toolEventIdsLookup;
-		$[19] = turnMap;
-		$[20] = map;
-	} else map = $[20];
+		$[23] = eventNodeContext;
+		$[24] = eventNodes;
+		$[25] = hasToolEventsLookup;
+		$[26] = recordsExecutions;
+		$[27] = toolIdsLookup;
+		$[28] = turnMap;
+		$[29] = map;
+	} else map = $[29];
 	const contextMap = map;
 	const eventLabels = eventNodeContext?.eventLabels;
-	let t9;
-	if ($[21] !== contextMap || $[22] !== eventCallbacks || $[23] !== eventLabels || $[24] !== eventNodes || $[25] !== onAutoCollapse || $[26] !== relativeIndent || $[27] !== renderAgentCard || $[28] !== selection) {
-		t9 = (index, item) => {
+	let t12;
+	if ($[30] !== contextMap || $[31] !== eventCallbacks || $[32] !== eventLabels || $[33] !== eventNodes || $[34] !== onAutoCollapse || $[35] !== relativeIndent || $[36] !== renderAgentCard || $[37] !== selection) {
+		t12 = (index, item) => {
 			const depth = relativeIndent ? item.depth - (eventNodes[0]?.depth ?? 0) : item.depth;
 			const previousIndex = index - 1;
 			const nextIndex = index + 1;
@@ -108097,49 +108270,50 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 				children: renderedNode
 			}, item.id);
 		};
-		$[21] = contextMap;
-		$[22] = eventCallbacks;
-		$[23] = eventLabels;
-		$[24] = eventNodes;
-		$[25] = onAutoCollapse;
-		$[26] = relativeIndent;
-		$[27] = renderAgentCard;
-		$[28] = selection;
-		$[29] = t9;
-	} else t9 = $[29];
-	const renderRow = t9;
+		$[30] = contextMap;
+		$[31] = eventCallbacks;
+		$[32] = eventLabels;
+		$[33] = eventNodes;
+		$[34] = onAutoCollapse;
+		$[35] = relativeIndent;
+		$[36] = renderAgentCard;
+		$[37] = selection;
+		$[38] = t12;
+	} else t12 = $[38];
+	const renderRow = t12;
 	const isBackfilling = backfilling === true;
-	let t10;
-	if ($[30] !== eventNodes || $[31] !== isBackfilling || $[32] !== running) {
-		t10 = running === true && !isBackfilling && transcriptToolsRunning(eventNodes);
-		$[30] = eventNodes;
-		$[31] = isBackfilling;
-		$[32] = running;
-		$[33] = t10;
-	} else t10 = $[33];
-	const toolsRunning = t10;
+	let t13;
+	if ($[39] !== eventNodes || $[40] !== isBackfilling || $[41] !== recordsExecutions || $[42] !== running) {
+		t13 = running === true && !isBackfilling && transcriptToolsRunning(eventNodes, recordsExecutions);
+		$[39] = eventNodes;
+		$[40] = isBackfilling;
+		$[41] = recordsExecutions;
+		$[42] = running;
+		$[43] = t13;
+	} else t13 = $[43];
+	const toolsRunning = t13;
 	const showFooter = isBackfilling || toolsRunning;
-	let t11;
-	if ($[34] !== isBackfilling || $[35] !== toolsRunning) {
-		t11 = () => renderTranscriptFooter({
+	let t14;
+	if ($[44] !== isBackfilling || $[45] !== toolsRunning) {
+		t14 = () => renderTranscriptFooter({
 			backfilling: isBackfilling,
 			toolsRunning
 		});
-		$[34] = isBackfilling;
-		$[35] = toolsRunning;
-		$[36] = t11;
-	} else t11 = $[36];
-	const Footer = t11;
-	let t12;
-	if ($[37] !== Footer) {
-		t12 = { Footer };
-		$[37] = Footer;
-		$[38] = t12;
-	} else t12 = $[38];
-	const components = t12;
-	let t13;
-	if ($[39] !== className || $[40] !== components || $[41] !== eventNodes || $[42] !== followRequested || $[43] !== id || $[44] !== initialEventIndex || $[45] !== isBackfilling || $[46] !== listHandle || $[47] !== navOwned || $[48] !== renderRow || $[49] !== running || $[50] !== scrollRef || $[51] !== scrollToTopOnFinish || $[52] !== showFooter || $[53] !== toolsRunning || $[54] !== useVirtualization || $[55] !== visibleRangeRef) {
-		t13 = useVirtualization ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(VirtualList, {
+		$[44] = isBackfilling;
+		$[45] = toolsRunning;
+		$[46] = t14;
+	} else t14 = $[46];
+	const Footer = t14;
+	let t15;
+	if ($[47] !== Footer) {
+		t15 = { Footer };
+		$[47] = Footer;
+		$[48] = t15;
+	} else t15 = $[48];
+	const components = t15;
+	let t16;
+	if ($[49] !== className || $[50] !== components || $[51] !== eventNodes || $[52] !== followRequested || $[53] !== id || $[54] !== initialEventIndex || $[55] !== isBackfilling || $[56] !== listHandle || $[57] !== navOwned || $[58] !== renderRow || $[59] !== running || $[60] !== scrollRef || $[61] !== scrollToTopOnFinish || $[62] !== showFooter || $[63] !== toolsRunning || $[64] !== useVirtualization || $[65] !== visibleRangeRef) {
+		t16 = useVirtualization ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(VirtualList, {
 			ref: listHandle,
 			className,
 			persistenceKey: id,
@@ -108169,38 +108343,38 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 				toolsRunning
 			})]
 		});
-		$[39] = className;
-		$[40] = components;
-		$[41] = eventNodes;
-		$[42] = followRequested;
-		$[43] = id;
-		$[44] = initialEventIndex;
-		$[45] = isBackfilling;
-		$[46] = listHandle;
-		$[47] = navOwned;
-		$[48] = renderRow;
-		$[49] = running;
-		$[50] = scrollRef;
-		$[51] = scrollToTopOnFinish;
-		$[52] = showFooter;
-		$[53] = toolsRunning;
-		$[54] = useVirtualization;
-		$[55] = visibleRangeRef;
-		$[56] = t13;
-	} else t13 = $[56];
-	const list = t13;
-	const t14 = selection?.onToggle;
-	let t15;
-	if ($[57] !== list || $[58] !== t14) {
-		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RowToggleContext.Provider, {
-			value: t14,
+		$[49] = className;
+		$[50] = components;
+		$[51] = eventNodes;
+		$[52] = followRequested;
+		$[53] = id;
+		$[54] = initialEventIndex;
+		$[55] = isBackfilling;
+		$[56] = listHandle;
+		$[57] = navOwned;
+		$[58] = renderRow;
+		$[59] = running;
+		$[60] = scrollRef;
+		$[61] = scrollToTopOnFinish;
+		$[62] = showFooter;
+		$[63] = toolsRunning;
+		$[64] = useVirtualization;
+		$[65] = visibleRangeRef;
+		$[66] = t16;
+	} else t16 = $[66];
+	const list = t16;
+	const t17 = selection?.onToggle;
+	let t18;
+	if ($[67] !== list || $[68] !== t17) {
+		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RowToggleContext.Provider, {
+			value: t17,
 			children: list
 		});
-		$[57] = list;
-		$[58] = t14;
-		$[59] = t15;
-	} else t15 = $[59];
-	return t15;
+		$[67] = list;
+		$[68] = t17;
+		$[69] = t18;
+	} else t18 = $[69];
+	return t18;
 };
 var TranscriptVirtualList = /*#__PURE__*/ (0, import_react.memo)(TranscriptVirtualListComponent);
 TranscriptVirtualList.displayName = "TranscriptVirtualList";
@@ -108215,7 +108389,7 @@ var renderTranscriptFooter = ({ backfilling, toolsRunning }) => {
 	});
 	return null;
 };
-function transcriptToolsRunning(eventNodes) {
+function transcriptToolsRunning(eventNodes, recordsExecutions) {
 	let lastModelIdx = -1;
 	for (let i = eventNodes.length - 1; i >= 0; i--) if (eventNodes[i]?.event.event === "model") {
 		lastModelIdx = i;
@@ -108229,12 +108403,11 @@ function transcriptToolsRunning(eventNodes) {
 	const completedToolIds = /* @__PURE__ */ new Set();
 	for (let i = lastModelIdx + 1; i < eventNodes.length; i++) {
 		const ev = eventNodes[i].event;
-		if (ev.event === "tool" && !ev.pending) completedToolIds.add(ev.id);
+		if (ev.event === "tool" && !ev.pending) completedToolIds.add(recordsExecutions ? proposalIdOf(ev) : ev.id);
 	}
 	return toolCalls.some((call) => !completedToolIds.has(call.id));
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/TranscriptVirtualList.tsx
+// ../../packages/inspect-components/src/transcript/TranscriptVirtualList.tsx
 /**
 * Renders the event based on its type.
 */ var RenderedEventNodeInner = (t0) => {
@@ -108887,8 +109060,7 @@ function transcriptToolsRunning(eventNodes) {
 };
 RenderedEventNodeInner.displayName = "RenderedEventNode";
 var RenderedEventNode = /*#__PURE__*/ (0, import_react.memo)(RenderedEventNodeInner);
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/FocusTurnView.tsx
+// ../../packages/inspect-components/src/transcript/FocusTurnView.tsx
 /**
 * Renders focus mode for a single turn: a fixed secondary header (lane
 * breadcrumb; turn label, turn/lane navigation and exit control on the right)
@@ -109071,8 +109243,7 @@ var RenderedEventNode = /*#__PURE__*/ (0, import_react.memo)(RenderedEventNodeIn
 		]
 	});
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/resolveMessageToEvent.ts
+// ../../packages/inspect-components/src/transcript/resolveMessageToEvent.ts
 /**
 * Resolves a message ID to the best matching event in a TimelineSpan tree.
 *
@@ -109288,8 +109459,7 @@ var PRIORITY_MODEL_INPUT = 4;
 	}
 	return matches;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/findTimelineForDeepLink.ts
+// ../../packages/inspect-components/src/transcript/findTimelineForDeepLink.ts
 /**
 * Locates which root timeline contains a deep-link target (`?event=` /
 * `?message=`), so the view can auto-switch to it when the target is not in
@@ -109313,8 +109483,7 @@ var PRIORITY_MODEL_INPUT = 4;
 /** Index of the first timeline whose events resolve the message id, or -1. */ function findTimelineIndexForMessage(messageId, timelines) {
 	return timelines.findIndex((tl) => resolveMessageToEvent(messageId, tl.root) !== void 0 || resolveMessageInBranches(messageId, tl.root) !== void 0);
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/hooks/useStickySwimLaneHeight.ts
+// ../../packages/inspect-components/src/transcript/hooks/useStickySwimLaneHeight.ts
 /**
 * Tracks the height of a sticky swimlane header via ResizeObserver.
 * Returns 0 when the swimlane is not sticky.
@@ -109368,8 +109537,7 @@ var PRIORITY_MODEL_INPUT = 4;
 	} else t3 = $[6];
 	return t3;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/transform/toolApprovals.ts
+// ../../packages/inspect-components/src/transcript/transform/toolApprovals.ts
 /**
 * Pairs ApprovalEvents to their ToolEvents so the tool panel can render the
 * approvals inline (every approver the call escalated through), and maps
@@ -109377,12 +109545,181 @@ var PRIORITY_MODEL_INPUT = 4;
 * approval still scroll somewhere.
 */
 /**
+* Pairs each approval chain to its ToolEvent. A sample whose log records
+* `execution_id` (`recordsExecutionIds`) pairs by execution
+* (`pairToolApprovalsByExecution`); any other exactly as before the field
+* (`pairToolApprovalsLegacy`). Callers that render part of a sample pass the
+* sample's answer, so every view of it pairs the same way.
+*/ function pairToolApprovals(eventNodes, recordsExecutions = treeRecordsExecutionIds(eventNodes)) {
+	return recordsExecutions ? pairToolApprovalsByExecution(eventNodes) : pairToolApprovalsLegacy(eventNodes);
+}
+/**
+* Splits approvals waiting for one call id into chains: the escalations up
+* to the decision that ends them. A trailing chain may have no such decision.
+*/ var splitChains = (queue) => {
+	const result = [];
+	let chain = [];
+	for (const node of queue) {
+		chain.push(node);
+		if (node.event.decision !== "escalate") {
+			result.push(chain);
+			chain = [];
+		}
+	}
+	if (chain.length) result.push(chain);
+	return result;
+};
+/** Whether the decision that ended a chain kept its call from running. */ var chainStopped = (chain) => {
+	const last = chain.at(-1)?.event;
+	return !!last && last.decision !== "escalate" && approvalStopped(last);
+};
+/** The sentinel events of a sentinel span's own step, outside spans nested in it. */ var stepNodes = (span) => {
+	const nodes = [];
+	const collect = (children) => {
+		for (const child of children) if (child.event.event === "sentinel") nodes.push(eventNodeOf(child, "sentinel"));
+		else if (!isSentinelSpan(child)) collect(child.children);
+	};
+	collect(span.children);
+	return nodes;
+};
+/**
+* Pairs each approval chain to the ToolEvent whose id is its execution id
+* (`executionIdOf`), in the same sentinel span and conversation
+* (`isConversationNode`): an approver's or monitor's own calls run inside the
+* span that called it, and a delegated or sibling agent's calls in its own
+* conversation, under ids the agent's calls may share. A chain that records
+* its `execution_id` pairs with the one such tool, or none.
+*
+* Otherwise its id is the model's, which calls on different turns can share.
+* A chain is the escalations up to the decision that ends them, and is
+* recorded before its ToolEvent:
+* - A bridge hands over only a call nothing stopped, and records no
+*   `execution_id` for an attempt it never handed over. A chain whose
+*   decision stopped its call, or still waiting when the bridge's check of
+*   its id stopped the call, judged no host run: a rejected attempt's
+*   approvals precede the accepted retry's run under the same id. A host
+*   run under the model's id takes the other chains waiting for it (a call
+*   reviewed as several bridged tools is approved once per tool), and none
+*   recorded after it, since a bridge hands a call over once reviewed. No
+*   approval of an output the bridge discarded pairs with a run (see
+*   `BridgeOutputs`): it judged a call that never ran, though it approved.
+* - Each native attempt records its ToolEvent, a stopped one as failed, so a
+*   native ToolEvent takes the oldest chain still waiting for its id, and a
+*   stopped chain only when the ToolEvent failed. Approvals recorded after
+*   every ToolEvent of their id go to the last one when it is native.
+*/ function pairToolApprovalsByExecution(eventNodes) {
+	const chains = /* @__PURE__ */ new Map();
+	const toolsOf = /* @__PURE__ */ new Map();
+	const lastTool = /* @__PURE__ */ new Map();
+	const waiting = /* @__PURE__ */ new Map();
+	const named = [];
+	const unpaired = [];
+	const order = /* @__PURE__ */ new Map();
+	const outputs = bridgeOutputs();
+	/** The output each approval with no `execution_id` judged a call of. */ const outputOf = /* @__PURE__ */ new Map();
+	const take = (key) => {
+		const queue = waiting.get(key) ?? [];
+		waiting.delete(key);
+		return splitChains(queue);
+	};
+	const walk = (nodes, scope) => {
+		for (const n of nodes) {
+			if (order.has(n.id)) continue;
+			const at = order.size;
+			order.set(n.id, at);
+			if (n.event.event === "model") outputs.propose(scope, n.id, !!n.event.requested_model, n.event.output.choices.flatMap((choice) => (choice.message.tool_calls ?? []).map((call) => call.id)), at);
+			else if (n.event.event === "approval") {
+				const node = eventNodeOf(n, "approval");
+				const key = `${scope}\u0000${executionIdOf(n.event)}`;
+				if (n.event.execution_id != null) named.push({
+					node,
+					key
+				});
+				else {
+					const output = outputs.outputOf(scope, n.event.call.id, at);
+					if (output !== void 0) outputOf.set(n.id, output);
+					if (approvalRejects(n.event)) outputs.discard(output);
+					const queue = waiting.get(key) ?? [];
+					queue.push(node);
+					waiting.set(key, queue);
+				}
+			} else if (n.event.event === "tool") {
+				const tool = eventNodeOf(n, "tool");
+				const key = `${scope}\u0000${n.event.id}`;
+				if (isBridgeTool(n.event)) {
+					const own = [];
+					for (const chain of take(key)) (chainStopped(chain) ? unpaired : own).push(...chain);
+					if (own.length) chains.set(n.id, own);
+				} else {
+					const queue = splitChains(waiting.get(key) ?? []);
+					let chain = queue.shift();
+					while (chain && chainStopped(chain) && !toolFailed(n.event)) {
+						unpaired.push(...chain);
+						chain = queue.shift();
+					}
+					if (chain) chains.set(n.id, chain);
+					waiting.set(key, queue.flat());
+				}
+				const tools = toolsOf.get(key);
+				if (tools) tools.push(n.id);
+				else toolsOf.set(key, [n.id]);
+				lastTool.set(key, tool);
+			} else if (isSentinelSpan(n) && n.event.event === "span_begin" && n.event.name === "sentinel_bridge") {
+				const step = buildSentinelStep(stepNodes(n));
+				if (step.stage === "tool_call" && step.executionId === void 0 && stopsCall(step)) {
+					unpaired.push(...take(`${scope}\u0000${step.stepId}`).flat());
+					outputs.discard(outputs.outputOf(scope, step.stepId, at));
+				}
+			}
+			if (n.children.length) walk(n.children, isSentinelSpan(n) || isConversationNode(n) ? `${scope}\u0000${n.id}` : scope);
+		}
+	};
+	walk(eventNodes, "");
+	const append = (toolNodeId, nodes) => {
+		chains.set(toolNodeId, [...chains.get(toolNodeId) ?? [], ...nodes].sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)));
+	};
+	for (const [key, queue] of waiting) {
+		const tool = lastTool.get(key);
+		for (const chain of splitChains(queue)) if (tool && !isBridgeTool(tool.event) && (!chainStopped(chain) || toolFailed(tool.event))) append(tool.id, chain);
+		else unpaired.push(...chain);
+	}
+	for (const { node, key } of named) {
+		const [only, other] = toolsOf.get(key) ?? [];
+		if (only && !other) append(only, [node]);
+		else unpaired.push(node);
+	}
+	const discarded = (node) => outputs.discarded(outputOf.get(node.id));
+	for (const [toolNodeId, chain] of chains) {
+		if (!chain.some(discarded)) continue;
+		const kept = chain.filter((node) => !discarded(node));
+		unpaired.push(...chain.filter(discarded));
+		if (kept.length) chains.set(toolNodeId, kept);
+		else chains.delete(toolNodeId);
+	}
+	const toolApprovals = /* @__PURE__ */ new Map();
+	const hiddenApprovalIds = /* @__PURE__ */ new Set();
+	const approvalScrollRedirects = /* @__PURE__ */ new Map();
+	for (const [toolNodeId, chain] of chains) {
+		if (!chain.every(isAutoApprove)) toolApprovals.set(toolNodeId, chain);
+		for (const node of chain) {
+			hiddenApprovalIds.add(node.id);
+			approvalScrollRedirects.set(node.id, toolNodeId);
+		}
+	}
+	for (const node of unpaired) if (isAutoApprove(node)) hiddenApprovalIds.add(node.id);
+	return {
+		toolApprovals,
+		hiddenApprovalIds,
+		approvalScrollRedirects
+	};
+}
+/**
 * Pairs each approval chain to a ToolEvent with its call id. A chain is the
 * escalations up to the decision that ends them, and is recorded before its
 * ToolEvent, so each ToolEvent takes the oldest chain still waiting for its
 * id; a call id reused by several calls pairs each call with its own chain.
 * Approvals recorded after every ToolEvent of their id go to the last one.
-*/ function pairToolApprovals(eventNodes) {
+*/ function pairToolApprovalsLegacy(eventNodes) {
 	const chains = /* @__PURE__ */ new Map();
 	const lastTool = /* @__PURE__ */ new Map();
 	const waiting = /* @__PURE__ */ new Map();
@@ -109430,8 +109767,7 @@ var PRIORITY_MODEL_INPUT = 4;
 	};
 }
 var isAutoApprove = (node) => node.event.approver === "auto" && node.event.decision === "approve";
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/hooks/useTranscriptKeyboardNavigation.ts
+// ../../packages/inspect-components/src/transcript/hooks/useTranscriptKeyboardNavigation.ts
 /**
 * Transcript keyboard navigation: the vim-style turn/agent keys (j/k, h/l,
 * gg/G) layered on top of the generic list navigation (modifier+arrows /
@@ -109528,8 +109864,7 @@ var isAutoApprove = (node) => node.event.approver === "auto" && node.event.decis
 	} else t3 = $[15];
 	useEventListener(window, "keydown", t2, t3);
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/hooks/useFocusTurnNavigation.ts
+// ../../packages/inspect-components/src/transcript/hooks/useFocusTurnNavigation.ts
 /**
 * The `setParams` both focus pages hand to {@link useFocusTurnNavigation}:
 * applies all updates to the query string in ONE replace navigation (null
@@ -109559,7 +109894,7 @@ var isAutoApprove = (node) => node.event.approver === "auto" && node.event.decis
 * → `useEventNodes`) so "turn N/M" always agrees with the transcript view of
 * that swimlane.
 */ function useFocusTurnNavigation(eventNodes, eventId, tab, setParams, defaultCollapsedIds, laneScope, options) {
-	const $ = (0, import_compiler_runtime.c)(131);
+	const $ = (0, import_compiler_runtime.c)(137);
 	const scrollRef = (0, import_react.useRef)(null);
 	const listHandle = (0, import_react.useRef)(null);
 	let t0;
@@ -109601,114 +109936,126 @@ var isAutoApprove = (node) => node.event.approver === "auto" && node.event.decis
 	} else t4 = $[12];
 	const resolvedEventId = t4;
 	let t5;
-	if ($[13] !== flat) {
-		t5 = pairToolApprovals(flat);
+	if ($[13] !== flat || $[14] !== options?.recordsExecutionIds) {
+		t5 = options?.recordsExecutionIds ?? treeRecordsExecutionIds(flat);
 		$[13] = flat;
-		$[14] = t5;
-	} else t5 = $[14];
+		$[14] = options?.recordsExecutionIds;
+		$[15] = t5;
+	} else t5 = $[15];
+	const recordsExecutions = t5;
 	let t6;
-	if ($[15] !== flat) {
-		t6 = pairToolSentinels(flat);
-		$[15] = flat;
-		$[16] = t6;
-	} else t6 = $[16];
-	let t7;
-	if ($[17] !== t5 || $[18] !== t6) {
-		t7 = {
-			...t5,
-			...t6
-		};
-		$[17] = t5;
+	if ($[16] !== flat || $[17] !== recordsExecutions) {
+		t6 = pairToolApprovals(flat, recordsExecutions);
+		$[16] = flat;
+		$[17] = recordsExecutions;
 		$[18] = t6;
-		$[19] = t7;
-	} else t7 = $[19];
-	const { toolApprovals, hiddenApprovalIds, toolSentinels, standaloneSentinels, hiddenSentinelIds } = t7;
+	} else t6 = $[18];
+	let t7;
+	if ($[19] !== flat || $[20] !== recordsExecutions) {
+		t7 = pairToolSentinels(flat, recordsExecutions);
+		$[19] = flat;
+		$[20] = recordsExecutions;
+		$[21] = t7;
+	} else t7 = $[21];
 	let t8;
-	if ($[20] !== flat || $[21] !== hiddenApprovalIds || $[22] !== hiddenSentinelIds || $[23] !== resolvedEventId || $[24] !== standaloneSentinels) {
-		const nodes = resolvedEventId ? focusedTurnNodes(flat, resolvedEventId, (n) => standaloneSentinels.has(n.id)) : [];
-		let t9;
-		if ($[26] !== hiddenApprovalIds || $[27] !== hiddenSentinelIds) {
-			t9 = (n_0) => !hiddenSentinelIds.has(n_0.id) && !hiddenApprovalIds.has(n_0.id);
-			$[26] = hiddenApprovalIds;
-			$[27] = hiddenSentinelIds;
-			$[28] = t9;
-		} else t9 = $[28];
-		t8 = nodes.filter(t9);
-		$[20] = flat;
-		$[21] = hiddenApprovalIds;
-		$[22] = hiddenSentinelIds;
-		$[23] = resolvedEventId;
-		$[24] = standaloneSentinels;
-		$[25] = t8;
-	} else t8 = $[25];
+	if ($[22] !== t6 || $[23] !== t7) {
+		t8 = {
+			...t6,
+			...t7
+		};
+		$[22] = t6;
+		$[23] = t7;
+		$[24] = t8;
+	} else t8 = $[24];
+	const { toolApprovals, hiddenApprovalIds, toolSentinels, standaloneSentinels, hiddenSentinelIds } = t8;
 	let t9;
-	if ($[29] !== standaloneSentinels || $[30] !== toolApprovals || $[31] !== toolSentinels) {
-		t9 = {
+	if ($[25] !== flat || $[26] !== hiddenApprovalIds || $[27] !== hiddenSentinelIds || $[28] !== resolvedEventId || $[29] !== standaloneSentinels) {
+		const nodes = resolvedEventId ? focusedTurnNodes(flat, resolvedEventId, (n) => standaloneSentinels.has(n.id)) : [];
+		let t10;
+		if ($[31] !== hiddenApprovalIds || $[32] !== hiddenSentinelIds) {
+			t10 = (n_0) => !hiddenSentinelIds.has(n_0.id) && !hiddenApprovalIds.has(n_0.id);
+			$[31] = hiddenApprovalIds;
+			$[32] = hiddenSentinelIds;
+			$[33] = t10;
+		} else t10 = $[33];
+		t9 = nodes.filter(t10);
+		$[25] = flat;
+		$[26] = hiddenApprovalIds;
+		$[27] = hiddenSentinelIds;
+		$[28] = resolvedEventId;
+		$[29] = standaloneSentinels;
+		$[30] = t9;
+	} else t9 = $[30];
+	let t10;
+	if ($[34] !== recordsExecutions || $[35] !== standaloneSentinels || $[36] !== toolApprovals || $[37] !== toolSentinels) {
+		t10 = {
 			toolApprovals,
 			toolSentinels,
-			standaloneSentinels
+			standaloneSentinels,
+			recordsExecutionIds: recordsExecutions
 		};
-		$[29] = standaloneSentinels;
-		$[30] = toolApprovals;
-		$[31] = toolSentinels;
-		$[32] = t9;
-	} else t9 = $[32];
-	let t10;
-	if ($[33] !== t8 || $[34] !== t9) {
-		t10 = {
-			slice: t8,
-			checks: t9
-		};
-		$[33] = t8;
-		$[34] = t9;
-		$[35] = t10;
-	} else t10 = $[35];
-	const { slice, checks } = t10;
+		$[34] = recordsExecutions;
+		$[35] = standaloneSentinels;
+		$[36] = toolApprovals;
+		$[37] = toolSentinels;
+		$[38] = t10;
+	} else t10 = $[38];
 	let t11;
-	let turnInfo;
-	if ($[36] !== anchorIds || $[37] !== resolvedEventId || $[38] !== turnMap) {
-		turnInfo = resolvedEventId ? turnMap.get(resolvedEventId) : void 0;
-		t11 = turnInfo ? anchorIndexForTurn(anchorIds, turnMap, turnInfo.turnNumber) : -1;
-		$[36] = anchorIds;
-		$[37] = resolvedEventId;
-		$[38] = turnMap;
-		$[39] = t11;
-		$[40] = turnInfo;
-	} else {
-		t11 = $[39];
-		turnInfo = $[40];
-	}
-	const turnIndex = t11;
+	if ($[39] !== t10 || $[40] !== t9) {
+		t11 = {
+			slice: t9,
+			checks: t10
+		};
+		$[39] = t10;
+		$[40] = t9;
+		$[41] = t11;
+	} else t11 = $[41];
+	const { slice, checks } = t11;
 	let t12;
-	if ($[41] !== anchorIds[0] || $[42] !== anchorIds.length || $[43] !== turnMap) {
-		t12 = (anchorIds[0] ? turnMap.get(anchorIds[0])?.totalTurns : void 0) ?? anchorIds.length;
-		$[41] = anchorIds[0];
-		$[42] = anchorIds.length;
-		$[43] = turnMap;
-		$[44] = t12;
-	} else t12 = $[44];
-	const totalTurns = t12;
+	let turnInfo;
+	if ($[42] !== anchorIds || $[43] !== resolvedEventId || $[44] !== turnMap) {
+		turnInfo = resolvedEventId ? turnMap.get(resolvedEventId) : void 0;
+		t12 = turnInfo ? anchorIndexForTurn(anchorIds, turnMap, turnInfo.turnNumber) : -1;
+		$[42] = anchorIds;
+		$[43] = resolvedEventId;
+		$[44] = turnMap;
+		$[45] = t12;
+		$[46] = turnInfo;
+	} else {
+		t12 = $[45];
+		turnInfo = $[46];
+	}
+	const turnIndex = t12;
+	let t13;
+	if ($[47] !== anchorIds[0] || $[48] !== anchorIds.length || $[49] !== turnMap) {
+		t13 = (anchorIds[0] ? turnMap.get(anchorIds[0])?.totalTurns : void 0) ?? anchorIds.length;
+		$[47] = anchorIds[0];
+		$[48] = anchorIds.length;
+		$[49] = turnMap;
+		$[50] = t13;
+	} else t13 = $[50];
+	const totalTurns = t13;
 	const running = !!options?.running;
 	const following = !!options?.following;
 	const followingRef = (0, import_react.useRef)(following);
-	let t13;
 	let t14;
-	if ($[45] !== following) {
-		t13 = () => {
+	let t15;
+	if ($[51] !== following) {
+		t14 = () => {
 			followingRef.current = following;
 		};
-		t14 = [following];
-		$[45] = following;
-		$[46] = t13;
-		$[47] = t14;
+		t15 = [following];
+		$[51] = following;
+		$[52] = t14;
+		$[53] = t15;
 	} else {
-		t13 = $[46];
-		t14 = $[47];
+		t14 = $[52];
+		t15 = $[53];
 	}
-	(0, import_react.useEffect)(t13, t14);
-	let t15;
-	if ($[48] !== anchorIds || $[49] !== running || $[50] !== setParams || $[51] !== turnIndex) {
-		t15 = (delta) => {
+	(0, import_react.useEffect)(t14, t15);
+	let t16;
+	if ($[54] !== anchorIds || $[55] !== running || $[56] !== setParams || $[57] !== turnIndex) {
+		t16 = (delta) => {
 			const isFollowing = followingRef.current;
 			const next = anchorIds[turnIndex + delta];
 			if (delta === 1 && next === void 0 && running && !isFollowing) {
@@ -109729,32 +110076,32 @@ var isAutoApprove = (node) => node.event.approver === "auto" && node.event.decis
 				follow: null
 			} : { event: next });
 		};
-		$[48] = anchorIds;
-		$[49] = running;
-		$[50] = setParams;
-		$[51] = turnIndex;
-		$[52] = t15;
-	} else t15 = $[52];
-	const stepTurn = t15;
-	let t16;
-	if ($[53] !== stepTurn) {
-		t16 = () => stepTurn(-1);
-		$[53] = stepTurn;
-		$[54] = t16;
-	} else t16 = $[54];
-	const onPrev = t16;
+		$[54] = anchorIds;
+		$[55] = running;
+		$[56] = setParams;
+		$[57] = turnIndex;
+		$[58] = t16;
+	} else t16 = $[58];
+	const stepTurn = t16;
 	let t17;
-	if ($[55] !== stepTurn) {
-		t17 = () => stepTurn(1);
-		$[55] = stepTurn;
-		$[56] = t17;
-	} else t17 = $[56];
-	const onNext = t17;
+	if ($[59] !== stepTurn) {
+		t17 = () => stepTurn(-1);
+		$[59] = stepTurn;
+		$[60] = t17;
+	} else t17 = $[60];
+	const onPrev = t17;
+	let t18;
+	if ($[61] !== stepTurn) {
+		t18 = () => stepTurn(1);
+		$[61] = stepTurn;
+		$[62] = t18;
+	} else t18 = $[62];
+	const onNext = t18;
 	const canStepNext = turnIndex !== -1 && anchorIds[turnIndex + 1] !== void 0 || anchorIds[turnIndex + 1] === void 0 && running && !following;
 	const canStepPrev = turnIndex !== -1 && anchorIds[turnIndex - 1] !== void 0 || anchorIds[turnIndex - 1] === void 0 && following;
-	let t18;
-	if ($[57] !== anchorIds || $[58] !== following || $[59] !== setParams || $[60] !== turnMap) {
-		t18 = (turnNumber) => {
+	let t19;
+	if ($[63] !== anchorIds || $[64] !== following || $[65] !== setParams || $[66] !== turnMap) {
+		t19 = (turnNumber) => {
 			if (anchorIds.length === 0) return;
 			const anchor = anchorIds[anchorIndexForTurn(anchorIds, turnMap, turnNumber)];
 			if (anchor !== void 0) setParams(following ? {
@@ -109763,207 +110110,207 @@ var isAutoApprove = (node) => node.event.approver === "auto" && node.event.decis
 			} : { event: anchor });
 			else if (following) setParams({ follow: null });
 		};
-		$[57] = anchorIds;
-		$[58] = following;
-		$[59] = setParams;
-		$[60] = turnMap;
-		$[61] = t18;
-	} else t18 = $[61];
-	const goToTurn = t18;
-	let t19;
-	if ($[62] !== laneScope?.lanes) {
-		t19 = laneScope?.lanes ?? [];
-		$[62] = laneScope?.lanes;
-		$[63] = t19;
-	} else t19 = $[63];
-	const lanes = t19;
-	const laneIndex = laneScope?.laneIndex ?? 0;
+		$[63] = anchorIds;
+		$[64] = following;
+		$[65] = setParams;
+		$[66] = turnMap;
+		$[67] = t19;
+	} else t19 = $[67];
+	const goToTurn = t19;
 	let t20;
-	if ($[64] !== following || $[65] !== setParams) {
-		t20 = (lane) => {
+	if ($[68] !== laneScope?.lanes) {
+		t20 = laneScope?.lanes ?? [];
+		$[68] = laneScope?.lanes;
+		$[69] = t20;
+	} else t20 = $[69];
+	const lanes = t20;
+	const laneIndex = laneScope?.laneIndex ?? 0;
+	let t21;
+	if ($[70] !== following || $[71] !== setParams) {
+		t21 = (lane) => {
 			if (!lane?.firstAnchorId) return;
 			setParams(following ? {
 				event: lane.firstAnchorId,
 				follow: null
 			} : { event: lane.firstAnchorId });
 		};
-		$[64] = following;
-		$[65] = setParams;
-		$[66] = t20;
-	} else t20 = $[66];
-	const goToLane = t20;
-	let t21;
-	if ($[67] !== laneIndex || $[68] !== lanes) {
-		t21 = (delta_0) => {
+		$[70] = following;
+		$[71] = setParams;
+		$[72] = t21;
+	} else t21 = $[72];
+	const goToLane = t21;
+	let t22;
+	if ($[73] !== laneIndex || $[74] !== lanes) {
+		t22 = (delta_0) => {
 			for (let i = laneIndex + delta_0; i >= 0 && i < lanes.length; i = i + delta_0) if (lanes[i]?.firstAnchorId) return lanes[i];
 		};
-		$[67] = laneIndex;
-		$[68] = lanes;
-		$[69] = t21;
-	} else t21 = $[69];
-	const nextLane = t21;
-	let t22;
-	if ($[70] !== goToLane || $[71] !== nextLane) {
-		t22 = () => goToLane(nextLane(-1));
-		$[70] = goToLane;
-		$[71] = nextLane;
-		$[72] = t22;
-	} else t22 = $[72];
-	const onPrevAgent = t22;
+		$[73] = laneIndex;
+		$[74] = lanes;
+		$[75] = t22;
+	} else t22 = $[75];
+	const nextLane = t22;
 	let t23;
-	if ($[73] !== goToLane || $[74] !== nextLane) {
-		t23 = () => goToLane(nextLane(1));
-		$[73] = goToLane;
-		$[74] = nextLane;
-		$[75] = t23;
-	} else t23 = $[75];
-	const onNextAgent = t23;
+	if ($[76] !== goToLane || $[77] !== nextLane) {
+		t23 = () => goToLane(nextLane(-1));
+		$[76] = goToLane;
+		$[77] = nextLane;
+		$[78] = t23;
+	} else t23 = $[78];
+	const onPrevAgent = t23;
 	let t24;
+	if ($[79] !== goToLane || $[80] !== nextLane) {
+		t24 = () => goToLane(nextLane(1));
+		$[79] = goToLane;
+		$[80] = nextLane;
+		$[81] = t24;
+	} else t24 = $[81];
+	const onNextAgent = t24;
+	let t25;
 	bb0: {
-		let t25;
-		if ($[76] !== laneScope?.lanePath) {
-			t25 = laneScope?.lanePath ?? [];
-			$[76] = laneScope?.lanePath;
-			$[77] = t25;
-		} else t25 = $[77];
-		const path = t25;
+		let t26;
+		if ($[82] !== laneScope?.lanePath) {
+			t26 = laneScope?.lanePath ?? [];
+			$[82] = laneScope?.lanePath;
+			$[83] = t26;
+		} else t26 = $[83];
+		const path = t26;
 		if (path.length === 0) {
-			let t26;
-			if ($[78] === Symbol.for("react.memo_cache_sentinel")) {
-				t26 = [{ label: "main" }];
-				$[78] = t26;
-			} else t26 = $[78];
-			t24 = t26;
+			let t27;
+			if ($[84] === Symbol.for("react.memo_cache_sentinel")) {
+				t27 = [{ label: "main" }];
+				$[84] = t27;
+			} else t27 = $[84];
+			t25 = t27;
 			break bb0;
 		}
-		let t26;
-		if ($[79] !== goToLane || $[80] !== path) {
-			let t27;
-			if ($[82] !== goToLane || $[83] !== path.length) {
-				t27 = (lane_0, i_0) => {
+		let t27;
+		if ($[85] !== goToLane || $[86] !== path) {
+			let t28;
+			if ($[88] !== goToLane || $[89] !== path.length) {
+				t28 = (lane_0, i_0) => {
 					return !(i_0 === path.length - 1) && lane_0.firstAnchorId ? {
 						label: lane_0.label,
 						onSelect: () => goToLane(lane_0)
 					} : { label: lane_0.label };
 				};
-				$[82] = goToLane;
-				$[83] = path.length;
-				$[84] = t27;
-			} else t27 = $[84];
-			t26 = path.map(t27);
-			$[79] = goToLane;
-			$[80] = path;
-			$[81] = t26;
-		} else t26 = $[81];
-		t24 = t26;
+				$[88] = goToLane;
+				$[89] = path.length;
+				$[90] = t28;
+			} else t28 = $[90];
+			t27 = path.map(t28);
+			$[85] = goToLane;
+			$[86] = path;
+			$[87] = t27;
+		} else t27 = $[87];
+		t25 = t27;
 	}
-	const laneCrumbs = t24;
-	let t25;
-	if ($[85] !== goToLane || $[86] !== lanes) {
-		let t26;
-		if ($[88] !== goToLane) {
-			t26 = (lane_2) => ({
+	const laneCrumbs = t25;
+	let t26;
+	if ($[91] !== goToLane || $[92] !== lanes) {
+		let t27;
+		if ($[94] !== goToLane) {
+			t27 = (lane_2) => ({
 				label: lane_2.label,
 				depth: lane_2.depth,
 				isCurrent: lane_2.isCurrent,
 				onSelect: () => goToLane(lane_2)
 			});
-			$[88] = goToLane;
-			$[89] = t26;
-		} else t26 = $[89];
-		t25 = lanes.filter(_temp$49).map(t26);
-		$[85] = goToLane;
-		$[86] = lanes;
-		$[87] = t25;
-	} else t25 = $[87];
-	const laneOptions = t25;
-	let t26;
-	if ($[90] !== goToTurn) {
-		t26 = () => goToTurn(1);
-		$[90] = goToTurn;
-		$[91] = t26;
-	} else t26 = $[91];
-	const onFirst = t26;
+			$[94] = goToLane;
+			$[95] = t27;
+		} else t27 = $[95];
+		t26 = lanes.filter(_temp$52).map(t27);
+		$[91] = goToLane;
+		$[92] = lanes;
+		$[93] = t26;
+	} else t26 = $[93];
+	const laneOptions = t26;
 	let t27;
-	if ($[92] !== goToTurn || $[93] !== totalTurns) {
-		t27 = () => goToTurn(totalTurns);
-		$[92] = goToTurn;
-		$[93] = totalTurns;
-		$[94] = t27;
-	} else t27 = $[94];
-	const onLast = t27;
-	const t28 = lanes.length > 1 ? onPrevAgent : void 0;
-	const t29 = lanes.length > 1 ? onNextAgent : void 0;
-	const t30 = anchorIds.length > 0 ? onFirst : void 0;
-	const t31 = anchorIds.length > 0 ? onLast : void 0;
-	let t32;
-	if ($[95] !== onNext || $[96] !== onPrev || $[97] !== slice.length || $[98] !== t28 || $[99] !== t29 || $[100] !== t30 || $[101] !== t31) {
-		t32 = {
+	if ($[96] !== goToTurn) {
+		t27 = () => goToTurn(1);
+		$[96] = goToTurn;
+		$[97] = t27;
+	} else t27 = $[97];
+	const onFirst = t27;
+	let t28;
+	if ($[98] !== goToTurn || $[99] !== totalTurns) {
+		t28 = () => goToTurn(totalTurns);
+		$[98] = goToTurn;
+		$[99] = totalTurns;
+		$[100] = t28;
+	} else t28 = $[100];
+	const onLast = t28;
+	const t29 = lanes.length > 1 ? onPrevAgent : void 0;
+	const t30 = lanes.length > 1 ? onNextAgent : void 0;
+	const t31 = anchorIds.length > 0 ? onFirst : void 0;
+	const t32 = anchorIds.length > 0 ? onLast : void 0;
+	let t33;
+	if ($[101] !== onNext || $[102] !== onPrev || $[103] !== slice.length || $[104] !== t29 || $[105] !== t30 || $[106] !== t31 || $[107] !== t32) {
+		t33 = {
 			listHandle,
 			scrollRef,
 			itemCount: slice.length,
 			onPrev,
 			onNext,
-			onPrevAgent: t28,
-			onNextAgent: t29,
-			onFirst: t30,
-			onLast: t31
+			onPrevAgent: t29,
+			onNextAgent: t30,
+			onFirst: t31,
+			onLast: t32
 		};
-		$[95] = onNext;
-		$[96] = onPrev;
-		$[97] = slice.length;
-		$[98] = t28;
-		$[99] = t29;
-		$[100] = t30;
-		$[101] = t31;
-		$[102] = t32;
-	} else t32 = $[102];
-	useTranscriptKeyboardNavigation(t32);
+		$[101] = onNext;
+		$[102] = onPrev;
+		$[103] = slice.length;
+		$[104] = t29;
+		$[105] = t30;
+		$[106] = t31;
+		$[107] = t32;
+		$[108] = t33;
+	} else t33 = $[108];
+	useTranscriptKeyboardNavigation(t33);
 	const lastAnchor = anchorIds[anchorIds.length - 1];
-	let t33;
 	let t34;
-	if ($[103] !== eventId || $[104] !== following || $[105] !== lastAnchor || $[106] !== setParams) {
-		t33 = () => {
+	let t35;
+	if ($[109] !== eventId || $[110] !== following || $[111] !== lastAnchor || $[112] !== setParams) {
+		t34 = () => {
 			if (following && lastAnchor && eventId !== lastAnchor) setParams({ event: lastAnchor });
 		};
-		t34 = [
+		t35 = [
 			following,
 			lastAnchor,
 			eventId,
 			setParams
 		];
-		$[103] = eventId;
-		$[104] = following;
-		$[105] = lastAnchor;
-		$[106] = setParams;
-		$[107] = t33;
-		$[108] = t34;
+		$[109] = eventId;
+		$[110] = following;
+		$[111] = lastAnchor;
+		$[112] = setParams;
+		$[113] = t34;
+		$[114] = t35;
 	} else {
-		t33 = $[107];
-		t34 = $[108];
+		t34 = $[113];
+		t35 = $[114];
 	}
-	(0, import_react.useEffect)(t33, t34);
+	(0, import_react.useEffect)(t34, t35);
 	const followingLatest = following && running;
-	let t35;
-	if ($[109] !== setParams) {
-		t35 = (next_0) => setParams({ tab: next_0 });
-		$[109] = setParams;
-		$[110] = t35;
-	} else t35 = $[110];
 	let t36;
-	if ($[111] !== t35 || $[112] !== tab) {
-		t36 = {
-			tab,
-			setTab: t35
-		};
-		$[111] = t35;
-		$[112] = tab;
-		$[113] = t36;
-	} else t36 = $[113];
-	const focusTab = t36;
+	if ($[115] !== setParams) {
+		t36 = (next_0) => setParams({ tab: next_0 });
+		$[115] = setParams;
+		$[116] = t36;
+	} else t36 = $[116];
 	let t37;
-	if ($[114] !== anchorIds.length || $[115] !== canStepNext || $[116] !== canStepPrev || $[117] !== checks || $[118] !== focusTab || $[119] !== followingLatest || $[120] !== goToTurn || $[121] !== laneCrumbs || $[122] !== laneOptions || $[123] !== onNext || $[124] !== onPrev || $[125] !== resolvedEventId || $[126] !== slice || $[127] !== totalTurns || $[128] !== turnIndex || $[129] !== turnInfo) {
+	if ($[117] !== t36 || $[118] !== tab) {
 		t37 = {
+			tab,
+			setTab: t36
+		};
+		$[117] = t36;
+		$[118] = tab;
+		$[119] = t37;
+	} else t37 = $[119];
+	const focusTab = t37;
+	let t38;
+	if ($[120] !== anchorIds.length || $[121] !== canStepNext || $[122] !== canStepPrev || $[123] !== checks || $[124] !== focusTab || $[125] !== followingLatest || $[126] !== goToTurn || $[127] !== laneCrumbs || $[128] !== laneOptions || $[129] !== onNext || $[130] !== onPrev || $[131] !== resolvedEventId || $[132] !== slice || $[133] !== totalTurns || $[134] !== turnIndex || $[135] !== turnInfo) {
+		t38 = {
 			scrollRef,
 			listHandle,
 			slice,
@@ -109983,31 +110330,30 @@ var isAutoApprove = (node) => node.event.approver === "auto" && node.event.decis
 			laneOptions,
 			focusTab
 		};
-		$[114] = anchorIds.length;
-		$[115] = canStepNext;
-		$[116] = canStepPrev;
-		$[117] = checks;
-		$[118] = focusTab;
-		$[119] = followingLatest;
-		$[120] = goToTurn;
-		$[121] = laneCrumbs;
-		$[122] = laneOptions;
-		$[123] = onNext;
-		$[124] = onPrev;
-		$[125] = resolvedEventId;
-		$[126] = slice;
-		$[127] = totalTurns;
-		$[128] = turnIndex;
-		$[129] = turnInfo;
-		$[130] = t37;
-	} else t37 = $[130];
-	return t37;
+		$[120] = anchorIds.length;
+		$[121] = canStepNext;
+		$[122] = canStepPrev;
+		$[123] = checks;
+		$[124] = focusTab;
+		$[125] = followingLatest;
+		$[126] = goToTurn;
+		$[127] = laneCrumbs;
+		$[128] = laneOptions;
+		$[129] = onNext;
+		$[130] = onPrev;
+		$[131] = resolvedEventId;
+		$[132] = slice;
+		$[133] = totalTurns;
+		$[134] = turnIndex;
+		$[135] = turnInfo;
+		$[136] = t38;
+	} else t38 = $[136];
+	return t38;
 }
-function _temp$49(lane_1) {
+function _temp$52(lane_1) {
 	return lane_1.firstAnchorId;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/swimlaneLayout.ts
+// ../../packages/inspect-components/src/transcript/timeline/swimlaneLayout.ts
 /**
 * Swimlane layout computation for the timeline UI.
 *
@@ -110151,8 +110497,7 @@ function _temp$49(lane_1) {
 	for (const m of allMarkers) if (m.kind === "compaction") m.compactionIndex = compactionIdx++;
 	return allMarkers;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/markers.ts
+// ../../packages/inspect-components/src/transcript/timeline/markers.ts
 /**
 * Marker computation for the timeline UI.
 *
@@ -110302,8 +110647,7 @@ function _temp$49(lane_1) {
 */ function formatCompactTokens(tokens) {
 	return `${formatTokenCount(tokens)} tokens`;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/timeMapping.ts
+// ../../packages/inspect-components/src/transcript/timeline/timeMapping.ts
 /**
 * Piecewise-linear time mapping for gap compression.
 *
@@ -110542,8 +110886,7 @@ function _temp$49(lane_1) {
 	if (hi >= 0) return segments[hi];
 	return null;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/hooks/useActiveTimeline.ts
+// ../../packages/inspect-components/src/transcript/timeline/hooks/useActiveTimeline.ts
 /**
 * Manages which timeline is active when multiple timelines are available.
 *
@@ -110583,8 +110926,7 @@ function _temp$49(lane_1) {
 	} else t1 = $[7];
 	return t1;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/hooks/useTimeline.ts
+// ../../packages/inspect-components/src/transcript/timeline/hooks/useTimeline.ts
 /**
 * Timeline state hook.
 *
@@ -110680,8 +111022,7 @@ function _temp$49(lane_1) {
 	} else t5 = $[16];
 	return t5;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/hooks/useTimelineConfig.ts
+// ../../packages/inspect-components/src/transcript/timeline/hooks/useTimelineConfig.ts
 /**
 * Persistent configuration for timeline options (markers, agents).
 *
@@ -110822,8 +111163,7 @@ function useTimelineConfig(t0) {
 	} else t7 = $[37];
 	return t7;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/hooks/useTimelinesArray.ts
+// ../../packages/inspect-components/src/transcript/timeline/hooks/useTimelinesArray.ts
 /**
 * Builds the array of Timeline objects from events and optional server timelines.
 *
@@ -111041,8 +111381,7 @@ function useTimelinesArray(events, serverTimelines, options) {
 	} else t4 = $[14];
 	return t4;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/hooks/useTranscriptTimeline.ts
+// ../../packages/inspect-components/src/transcript/timeline/hooks/useTranscriptTimeline.ts
 /**
 * Orchestration hook for timeline swimlanes in the transcript view.
 *
@@ -111134,7 +111473,7 @@ function useTranscriptTimeline(options) {
 		t7 = () => {
 			const top = viewStack.at(-1);
 			if (!top) return;
-			setViewStack(_temp$48);
+			setViewStack(_temp$51);
 			timelineProps?.onSelect(top.priorSelected);
 		};
 		$[16] = timelineProps;
@@ -111145,7 +111484,7 @@ function useTranscriptTimeline(options) {
 	const state = useTimeline(timeline, timelineOptions, timelineProps);
 	let t8;
 	if ($[19] !== state.rows) {
-		t8 = state.rows.filter(_temp2$35);
+		t8 = state.rows.filter(_temp2$36);
 		$[19] = state.rows;
 		$[20] = t8;
 	} else t8 = $[20];
@@ -111308,7 +111647,7 @@ function useTranscriptTimeline(options) {
 	const highlightedKeys = t15;
 	let t16;
 	if ($[54] !== timeline.root.branches || $[55] !== timeline.root.content) {
-		t16 = timeline.root.content.length > 0 && (timeline.root.content.some(_temp3$24) || timeline.root.branches.length > 0);
+		t16 = timeline.root.content.length > 0 && (timeline.root.content.some(_temp3$25) || timeline.root.branches.length > 0);
 		$[54] = timeline.root.branches;
 		$[55] = timeline.root.content;
 		$[56] = t16;
@@ -111316,7 +111655,7 @@ function useTranscriptTimeline(options) {
 	const hasTimeline = t16;
 	let t17;
 	if ($[57] !== visibleRows) {
-		t17 = visibleRows.some(_temp4$20);
+		t17 = visibleRows.some(_temp4$21);
 		$[57] = visibleRows;
 		$[58] = t17;
 	} else t17 = $[58];
@@ -111456,20 +111795,20 @@ function useTranscriptTimeline(options) {
 	} else t25 = $[100];
 	return t25;
 }
-function _temp4$20(row_3) {
+function _temp4$21(row_3) {
 	if (row_3.depth < 1) return false;
 	const rowSpan = row_3.spans[0];
 	if (!rowSpan) return false;
 	const span = getAgents(rowSpan)[0];
 	return !!span && !PHASE_SPAN_TYPES.has(span.spanType ?? "");
 }
-function _temp3$24(item_0) {
+function _temp3$25(item_0) {
 	return item_0.type === "span" || item_0.event.event === "span_begin";
 }
-function _temp2$35(row) {
+function _temp2$36(row) {
 	return row.depth === 0 || rowHasEvents(row);
 }
-function _temp$48(s_0) {
+function _temp$51(s_0) {
 	return s_0.slice(0, -1);
 }
 var kBranchKeyPattern$1 = /\/branch-([^/]*)-(\d+)$/;
@@ -111551,8 +111890,7 @@ var AgentCardView_module_default = {
 	description: "_description_fxgye_59",
 	resultPanel: "_resultPanel_fxgye_64"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/components/AgentCardView.tsx
+// ../../packages/inspect-components/src/transcript/timeline/components/AgentCardView.tsx
 var AgentCardView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(56);
 	const { span, className } = t0;
@@ -111567,7 +111905,7 @@ var AgentCardView = (t0) => {
 		$[2] = t1;
 	} else t1 = $[2];
 	const handleClick = t1;
-	const stopPropagation = _temp$47;
+	const stopPropagation = _temp$50;
 	let t2;
 	if ($[3] !== span) {
 		t2 = getSpanToolResult(span);
@@ -111785,7 +112123,7 @@ var AgentCardView = (t0) => {
 	} else t23 = $[55];
 	return t23;
 };
-function _temp$47(e) {
+function _temp$50(e) {
 	e.stopPropagation();
 }
 var TimelineMinimap_module_default = {
@@ -111805,8 +112143,7 @@ var TimelineMinimap_module_default = {
 	scrubberLine: "_scrubberLine_19ndv_157",
 	scrubberCaretUp: "_scrubberCaretUp_19ndv_165"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineMinimap.tsx
+// ../../packages/inspect-components/src/transcript/timeline/components/TimelineMinimap.tsx
 /**
 * Compact minimap showing the selected row's position within the full timeline.
 *
@@ -112122,8 +112459,7 @@ var TimelineOptionsPopover_module_default = {
 	row: "_row_1f23l_8",
 	groupHeader: "_groupHeader_1f23l_29"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineOptionsPopover.tsx
+// ../../packages/inspect-components/src/transcript/timeline/components/TimelineOptionsPopover.tsx
 var kMarkerKindLabels = [{
 	kind: "error",
 	label: "Errors"
@@ -112257,8 +112593,7 @@ var TimelineOptionsPopover = (t0) => {
 	} else t9 = $[23];
 	return t9;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineSelector.tsx
+// ../../packages/inspect-components/src/transcript/timeline/components/TimelineSelector.tsx
 var TimelineSelector = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(18);
 	const { timelines, activeIndex, onSelect } = t0;
@@ -112298,7 +112633,7 @@ var TimelineSelector = (t0) => {
 	if (!active) return null;
 	let t4;
 	if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
-		t4 = () => setIsOpen(_temp$46);
+		t4 = () => setIsOpen(_temp$49);
 		$[4] = t4;
 	} else t4 = $[4];
 	let t5;
@@ -112363,7 +112698,7 @@ var TimelineSelector = (t0) => {
 	} else t8 = $[17];
 	return t8;
 };
-function _temp$46(prev) {
+function _temp$49(prev) {
 	return !prev;
 }
 var TimelineSwimLanes_module_default = {
@@ -112412,8 +112747,7 @@ var TimelineSwimLanes_module_default = {
 	breadcrumbCurrent: "_breadcrumbCurrent_1lr7w_500",
 	tokens: "_tokens_1lr7w_511"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineSwimLanes.tsx
+// ../../packages/inspect-components/src/transcript/timeline/components/TimelineSwimLanes.tsx
 /**
 * Builds breadcrumb segments from the layouts and selected key.
 *
@@ -112489,7 +112823,7 @@ var TimelineSwimLanes = (t0) => {
 	let keys_0;
 	if ($[6] !== layouts || $[7] !== parentKeys) {
 		keys_0 = new Set(parentKeys);
-		for (const layout_0 of layouts) if (layout_0.markers.some(_temp$45)) keys_0.add(layout_0.key);
+		for (const layout_0 of layouts) if (layout_0.markers.some(_temp$48)) keys_0.add(layout_0.key);
 		$[6] = layouts;
 		$[7] = parentKeys;
 		$[8] = keys_0;
@@ -112539,7 +112873,7 @@ var TimelineSwimLanes = (t0) => {
 		t5 = (rowKey_0) => {
 			const current = isRowCollapsed(rowKey_0);
 			if (current && !header?.timelineConfig?.showBranches) {
-				if (layouts.find((l_0) => l_0.key === rowKey_0)?.markers.some(_temp2$34)) header?.timelineConfig?.setShowBranches(true);
+				if (layouts.find((l_0) => l_0.key === rowKey_0)?.markers.some(_temp2$35)) header?.timelineConfig?.setShowBranches(true);
 			}
 			setRowCollapsedById(rowKey_0, !current);
 		};
@@ -112596,7 +112930,7 @@ var TimelineSwimLanes = (t0) => {
 	let t10;
 	if ($[36] !== clearSelection || $[37] !== onSelect || $[38] !== selectedRowKey || $[39] !== visibleLayouts) {
 		t10 = (e) => {
-			const rowKeys = visibleLayouts.map(_temp3$23);
+			const rowKeys = visibleLayouts.map(_temp3$24);
 			const currentIndex = selectedRowKey ? rowKeys.indexOf(selectedRowKey) : -1;
 			bb210: switch (e.key) {
 				case "ArrowDown": {
@@ -113670,17 +114004,16 @@ var MarkerGlyph = (t0) => {
 	} else t6 = $[24];
 	return t6;
 };
-function _temp$45(m) {
+function _temp$48(m) {
 	return m.kind === "branch";
 }
-function _temp2$34(m_0) {
+function _temp2$35(m_0) {
 	return m_0.kind === "branch";
 }
-function _temp3$23(l_1) {
+function _temp3$24(l_1) {
 	return l_1.key;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/hooks/useFocusLaneScope.ts
+// ../../packages/inspect-components/src/transcript/hooks/useFocusLaneScope.ts
 /**
 * Append the sample's trailing terminal events (score/error/limit) to a
 * lane's event set — lane carving scopes to a span, and the sample's outcome
@@ -113870,7 +114203,7 @@ function _temp3$23(l_1) {
 	if ($[18] !== selected) {
 		t8 = {
 			selected,
-			onSelect: _temp$44
+			onSelect: _temp$47
 		};
 		$[18] = selected;
 		$[19] = t8;
@@ -113879,7 +114212,7 @@ function _temp3$23(l_1) {
 	if ($[20] !== activeIndex) {
 		t9 = {
 			activeIndex,
-			onActiveChange: _temp2$33
+			onActiveChange: _temp2$34
 		};
 		$[20] = activeIndex;
 		$[21] = t9;
@@ -113937,10 +114270,9 @@ function _temp3$23(l_1) {
 	} else t14 = $[41];
 	return t14;
 }
-function _temp2$33() {}
-function _temp$44() {}
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/hooks/useListPositionManager.ts
+function _temp2$34() {}
+function _temp$47() {}
+// ../../packages/inspect-components/src/transcript/hooks/useListPositionManager.ts
 /** Strip `/branch-…` segments so all selections within a branch tree share
 *  one list id (in-place VirtualList update, scroll preserved). */ function listIdRoot(selected) {
 	return selected?.replace(/\/branch-[^/]+/g, "") ?? null;
@@ -113999,8 +114331,7 @@ function _temp$44() {}
 	} else t4 = $[9];
 	return t4;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/hooks/useDeepLinkResolution.ts
+// ../../packages/inspect-components/src/transcript/hooks/useDeepLinkResolution.ts
 /**
 * View-model hook for transcript deep links (`?event=` / `?message=`).
 *
@@ -114267,8 +114598,7 @@ function _temp$44() {}
 	} else t15 = $[49];
 	return t15;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/transform/labels.ts
+// ../../packages/inspect-components/src/transcript/transform/labels.ts
 /**
 * Derivation of gutter label maps (message labels, tool labels) from the
 * event stream. Pure functions over Event[]; no React.
@@ -114309,14 +114639,13 @@ function _temp$44() {}
 	for (const [id, label] of Object.entries(messageLabels)) if (present.has(id)) scoped[id] = label;
 	return Object.keys(scoped).length > 0 ? scoped : void 0;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/hooks/useEventNodeData.ts
+// ../../packages/inspect-components/src/transcript/hooks/useEventNodeData.ts
 /**
 * View-model hook producing the EventNode tree and its render context from an
 * EventNodeFeed (see useTimelinePipeline).
 */ var useEventNodeData = (nodeFeed, running, extraContext, allEvents) => {
-	const $ = (0, import_compiler_runtime.c)(15);
-	const { eventNodes, defaultCollapsedIds, retryAttempts } = useEventNodes(nodeFeed.events, running, nodeFeed.sourceSpans, allEvents);
+	const $ = (0, import_compiler_runtime.c)(16);
+	const { eventNodes, defaultCollapsedIds, retryAttempts, recordsExecutionIds } = useEventNodes(nodeFeed.events, running, nodeFeed.sourceSpans, allEvents);
 	let messageLabels;
 	let t0;
 	if ($[0] !== extraContext?.messageLabels || $[1] !== nodeFeed.events) {
@@ -114338,36 +114667,37 @@ function _temp$44() {}
 		$[5] = t1;
 	} else t1 = $[5];
 	let t2;
-	if ($[6] !== extraContext || $[7] !== messageLabels || $[8] !== retryAttempts || $[9] !== t1) {
+	if ($[6] !== extraContext || $[7] !== messageLabels || $[8] !== recordsExecutionIds || $[9] !== retryAttempts || $[10] !== t1) {
 		t2 = {
 			...extraContext,
 			messageLabels,
 			retryAttempts,
+			recordsExecutionIds,
 			...t1
 		};
 		$[6] = extraContext;
 		$[7] = messageLabels;
-		$[8] = retryAttempts;
-		$[9] = t1;
-		$[10] = t2;
-	} else t2 = $[10];
+		$[8] = recordsExecutionIds;
+		$[9] = retryAttempts;
+		$[10] = t1;
+		$[11] = t2;
+	} else t2 = $[11];
 	const eventNodeContext = t2;
 	let t3;
-	if ($[11] !== defaultCollapsedIds || $[12] !== eventNodeContext || $[13] !== eventNodes) {
+	if ($[12] !== defaultCollapsedIds || $[13] !== eventNodeContext || $[14] !== eventNodes) {
 		t3 = {
 			eventNodes,
 			defaultCollapsedIds,
 			eventNodeContext
 		};
-		$[11] = defaultCollapsedIds;
-		$[12] = eventNodeContext;
-		$[13] = eventNodes;
-		$[14] = t3;
-	} else t3 = $[14];
+		$[12] = defaultCollapsedIds;
+		$[13] = eventNodeContext;
+		$[14] = eventNodes;
+		$[15] = t3;
+	} else t3 = $[15];
 	return t3;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/hooks/useOutlineAutoHide.ts
+// ../../packages/inspect-components/src/transcript/hooks/useOutlineAutoHide.ts
 /**
 * View-model hook for outline auto-hide.
 *
@@ -114411,8 +114741,7 @@ function _temp$44() {}
 	} else t1 = $[3];
 	return t1;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/hooks/useSelectionActions.ts
+// ../../packages/inspect-components/src/transcript/hooks/useSelectionActions.ts
 /**
 * View-model hook for user-driven swimlane selection: agent-card clicks
 * (span id → row key) and inline fork-navigator clicks (which preserve the
@@ -114490,8 +114819,7 @@ function _temp$44() {}
 	} else t5 = $[16];
 	return t5;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/hooks/useSidebarScrollCoupling.ts
+// ../../packages/inspect-components/src/transcript/hooks/useSidebarScrollCoupling.ts
 /**
 * Couples sticky sidebars to the main scroll container.
 *
@@ -114510,7 +114838,7 @@ function _temp$44() {}
 	const sidebarsRef = useLatestRef(sidebars);
 	let t0;
 	if ($[0] !== sidebars) {
-		t0 = sidebars.map(_temp$43).join("|");
+		t0 = sidebars.map(_temp$46).join("|");
 		$[0] = sidebars;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -114592,11 +114920,10 @@ function _temp$44() {}
 	} else t4 = $[13];
 	(0, import_react.useEffect)(t3, t4);
 }
-function _temp$43(s) {
+function _temp$46(s) {
 	return String(s.remountKey);
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/hooks/useSwimlaneHeader.ts
+// ../../packages/inspect-components/src/transcript/hooks/useSwimlaneHeader.ts
 /**
 * View-model hook for the swimlane header row: owns the minimap scrubber
 * wiring (progress tracking + headroom anchor reset on scrub) and assembles
@@ -114640,8 +114967,7 @@ function _temp$43(s) {
 	} else t1 = $[11];
 	return t1;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/hooks/useTimelinePipeline.ts
+// ../../packages/inspect-components/src/transcript/hooks/useTimelinePipeline.ts
 /**
 * View-model hook for the transcript's timeline section.
 *
@@ -114678,7 +115004,7 @@ function _temp$43(s) {
 	const timelinesForBranchDetection = useTimelinesArray(eventsForTimeline, serverTimelines);
 	let t2;
 	if ($[5] !== timelinesForBranchDetection) {
-		t2 = timelinesForBranchDetection.some(_temp$42);
+		t2 = timelinesForBranchDetection.some(_temp$45);
 		$[5] = timelinesForBranchDetection;
 		$[6] = t2;
 	} else t2 = $[6];
@@ -114807,11 +115133,10 @@ function _temp$43(s) {
 	} else t11 = $[35];
 	return t11;
 }
-function _temp$42(tl) {
+function _temp$45(tl) {
 	return spanHasBranches(tl.root);
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/hooks/useTranscriptCollapse.ts
+// ../../packages/inspect-components/src/transcript/hooks/useTranscriptCollapse.ts
 /**
 * View-model hook for transcript collapse state.
 *
@@ -114908,8 +115233,7 @@ var OutlineRow_module_default = {
 	"outline-spin": "_outline-spin_dssp9_1",
 	popover: "_popover_dssp9_85"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/outline/OutlineRow.tsx
+// ../../packages/inspect-components/src/transcript/outline/OutlineRow.tsx
 var OutlineRow = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(65);
 	const { node, running, selected, getEventUrl, onSelect, onNavigateToEvent, getCollapsed, setCollapsed, renderLink } = t0;
@@ -115227,8 +115551,7 @@ var labelForNode = (node) => {
 	}
 };
 var TranscriptOutline_module_default = { rootHeader: "_rootHeader_g5gla_1" };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/outline/useOutlineCollapse.ts
+// ../../packages/inspect-components/src/transcript/outline/useOutlineCollapse.ts
 /**
 * View-model hook for outline collapse state (the outline twin of
 * useTranscriptCollapse).
@@ -115293,8 +115616,7 @@ function useOutlineCollapse(defaultCollapsedIds, collapse) {
 	} else t5 = $[10];
 	return t5;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/outline/useOutlineScrollSync.ts
+// ../../packages/inspect-components/src/transcript/outline/useOutlineScrollSync.ts
 /**
 * Scroll↔selection sync for the transcript outline.
 *
@@ -115363,8 +115685,7 @@ function useOutlineScrollSync(options) {
 	]), scrollRef, { topOffset: scrollTrackOffset });
 	return { onOutlineSelect };
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/outline/useOutlineNodes.ts
+// ../../packages/inspect-components/src/transcript/outline/useOutlineNodes.ts
 /**
 * Derivation of the outline's row list from the transcript EventNode tree.
 */
@@ -115416,8 +115737,7 @@ var useOutlineNodes = (eventNodes, collapsedIds) => {
 	} else t2 = $[7];
 	return t2;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/outline/useOutlineWidth.ts
+// ../../packages/inspect-components/src/transcript/outline/useOutlineWidth.ts
 var kMinWidth = 120;
 var kMaxWidth = 600;
 /** Lazily-created off-screen measurement container. Never removed. */ var measureRoot = null;
@@ -115518,8 +115838,7 @@ function getOrCreateMeasureRoot() {
 		default: return node.event.event;
 	}
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/outline/TranscriptOutline.tsx
+// ../../packages/inspect-components/src/transcript/outline/TranscriptOutline.tsx
 var outlineNodeRunning = ({ running, backfilling, isLast }) => running && !backfilling && isLast;
 /** The outline list's DOM id and VirtualList persistence-key prefix (the full
 *  key appends the transcript's listId). Exported so the app's per-sample
@@ -115727,8 +116046,7 @@ var OutlineSidebar_module_default = {
 	sidebarHeaderCloseAnchor: "_sidebarHeaderCloseAnchor_1dbcw_59",
 	sidebarHeaderClose: "_sidebarHeaderClose_1dbcw_59"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/OutlineSidebar.tsx
+// ../../packages/inspect-components/src/transcript/OutlineSidebar.tsx
 /**
 * The transcript's sticky outline sidebar: the expanded panel (header, close
 * button, outline tree) or the collapsed show-outline toggle, pinned below
@@ -115856,8 +116174,7 @@ var OutlineSidebar_module_default = {
 	} else t8 = $[30];
 	return t8;
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/search/sampleSearch.ts
+// ../../packages/inspect-components/src/transcript/search/sampleSearch.ts
 /**
 * Build a map from event ID to the swimlane row key that contains it.
 *
@@ -115956,8 +116273,7 @@ function recordRowEvents(agent, rowKey, out) {
 	}
 	return out;
 }
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/search/useTranscriptSearchSource.ts
+// ../../packages/inspect-components/src/transcript/search/useTranscriptSearchSource.ts
 var DEFAULT_ID = "transcript-sample";
 var SETTLE_LIMIT = 90;
 /**
@@ -116344,13 +116660,23 @@ var TranscriptLayout_module_default = {
 	noOutline: "_noOutline_sou2s_41",
 	eventsList: "_eventsList_sou2s_45"
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/TranscriptViewNodes.tsx
+// ../../packages/inspect-components/src/transcript/TranscriptViewNodes.tsx
 /**
 * Shared component that wraps TranscriptVirtualList with tree flattening,
 * collapse state, turn-map computation, keyboard navigation, and imperative
 * scroll-to-event/index. Apps provide collapse state via callback props.
 */ var escapeAttr = (id) => typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(id) : id.replace(/"/g, "\\\"");
+var followRedirects = (eventId, redirects) => {
+	const seen = /* @__PURE__ */ new Set();
+	let id = eventId;
+	while (!seen.has(id)) {
+		seen.add(id);
+		const next = redirects.find((m) => m.has(id))?.get(id);
+		if (next === void 0) return id;
+		id = next;
+	}
+	return id;
+};
 var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function TranscriptViewNodes({ id, eventNodes, defaultCollapsedIds, running, backfilling, scrollToTopOnFinish, scrollRef, initialEventId, initialMessageId, followRequested, offsetTop = 10, className, renderAgentCard, getEventUrl, linkingEnabled, getEventFocusUrl, onOpenEventFocus, collapsedTranscript, onCollapseTranscript, onExpandNodes, eventNodeContext, onProgrammaticScroll, onHeadroomSetHidden, onPrevAgent, onNextAgent, onNavigatedToEvent, keyboardNavDisabled, selection }, ref) {
 	const listHandle = (0, import_react.useRef)(null);
 	const [navOwned] = (0, import_react.useState)(() => !!(initialEventId || initialMessageId));
@@ -116358,9 +116684,10 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 	const getCollapsed = (0, import_react.useCallback)((nodeId) => {
 		return (collapsedTranscript || defaultCollapsedIds)[nodeId] === true;
 	}, [collapsedTranscript, defaultCollapsedIds]);
-	const { toolApprovals, hiddenApprovalIds, approvalScrollRedirects } = (0, import_react.useMemo)(() => pairToolApprovals(eventNodes), [eventNodes]);
-	const { toolSentinels, standaloneSentinels, hiddenSentinelIds, sentinelScrollRedirects } = (0, import_react.useMemo)(() => pairToolSentinels(eventNodes), [eventNodes]);
-	const redirectEventId = (0, import_react.useCallback)((eventId) => approvalScrollRedirects.get(eventId) ?? sentinelScrollRedirects.get(eventId) ?? eventId, [approvalScrollRedirects, sentinelScrollRedirects]);
+	const recordsExecutions = eventNodeContext?.recordsExecutionIds ?? treeRecordsExecutionIds(eventNodes);
+	const { toolApprovals, hiddenApprovalIds, approvalScrollRedirects } = (0, import_react.useMemo)(() => pairToolApprovals(eventNodes, recordsExecutions), [eventNodes, recordsExecutions]);
+	const { toolSentinels, standaloneSentinels, hiddenSentinelIds, sentinelScrollRedirects } = (0, import_react.useMemo)(() => pairToolSentinels(eventNodes, recordsExecutions), [eventNodes, recordsExecutions]);
+	const redirectEventId = (0, import_react.useCallback)((eventId) => followRedirects(eventId, [approvalScrollRedirects, sentinelScrollRedirects]), [approvalScrollRedirects, sentinelScrollRedirects]);
 	const scrollEventId = initialEventId ? redirectEventId(initialEventId) : initialEventId;
 	const flattenedNodes = (0, import_react.useMemo)(() => {
 		const all = flatTree(eventNodes, collapsedTranscript || defaultCollapsedIds);
@@ -116374,11 +116701,13 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 	]);
 	const mergedEventNodeContext = (0, import_react.useMemo)(() => ({
 		...eventNodeContext,
+		recordsExecutionIds: recordsExecutions,
 		toolApprovals,
 		toolSentinels,
 		standaloneSentinels
 	}), [
 		eventNodeContext,
+		recordsExecutions,
 		toolApprovals,
 		toolSentinels,
 		standaloneSentinels
@@ -116805,8 +117134,7 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 		})] })
 	});
 });
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/TranscriptLayout.tsx
+// ../../packages/inspect-components/src/transcript/TranscriptLayout.tsx
 /**
 * Shared layout for transcript views: timeline swimlanes, transcript outline,
 * and the virtualized event list. Apps provide events, selection state
@@ -116894,7 +117222,7 @@ var TranscriptLayout = (t0) => {
 	const t14 = timelineSelection?.selected ?? null;
 	let t15;
 	if ($[17] !== timelineSelection?.onSelect) {
-		t15 = timelineSelection?.onSelect ?? _temp$41;
+		t15 = timelineSelection?.onSelect ?? _temp$44;
 		$[17] = timelineSelection?.onSelect;
 		$[18] = t15;
 	} else t15 = $[18];
@@ -116950,7 +117278,7 @@ var TranscriptLayout = (t0) => {
 	let keys;
 	if ($[35] !== timelineState.rows) {
 		keys = /* @__PURE__ */ new Set();
-		for (const row of timelineState.rows) if (row.depth === 0 || row.spans.some(_temp3$22)) keys.add(row.key);
+		for (const row of timelineState.rows) if (row.depth === 0 || row.spans.some(_temp3$23)) keys.add(row.key);
 		$[35] = timelineState.rows;
 		$[36] = keys;
 	} else keys = $[36];
@@ -116963,7 +117291,7 @@ var TranscriptLayout = (t0) => {
 			$[40] = agentLaneKeys;
 			$[41] = t21;
 		} else t21 = $[41];
-		t20 = timelineLayouts.filter(t21).map(_temp4$19);
+		t20 = timelineLayouts.filter(t21).map(_temp4$20);
 		$[37] = agentLaneKeys;
 		$[38] = timelineLayouts;
 		$[39] = t20;
@@ -117517,393 +117845,1105 @@ var TranscriptLayout = (t0) => {
 	} else t63 = $[234];
 	return t63;
 };
-function _temp$41() {}
-function _temp2$32(a) {
+function _temp$44() {}
+function _temp2$33(a) {
 	return a.spanType === "agent";
 }
-function _temp3$22(s) {
-	return getAgents(s).some(_temp2$32);
+function _temp3$23(s) {
+	return getAgents(s).some(_temp2$33);
 }
-function _temp4$19(l_0) {
+function _temp4$20(l_0) {
 	return l_0.key;
 }
-//#endregion
-//#region src/utils/cssVars.ts
+// src/utils/cssVars.ts
 /**
 * CSS custom properties for a `style` prop. csstype's `Properties` declares no
 * `--*` index signature, so a custom-property literal can't be written inline;
 * React passes these straight through to the DOM.
 */ var cssVars = (vars) => vars;
-var SampleDisplay_module_default = {
-	tabControls: "_tabControls_6sqvk_1",
-	fullWidth: "_fullWidth_6sqvk_10",
-	metadataPanel: "_metadataPanel_6sqvk_14",
-	padded: "_padded_6sqvk_20",
-	error: "_error_6sqvk_25",
-	ansi: "_ansi_6sqvk_29",
-	noTop: "_noTop_6sqvk_33",
-	chat: "_chat_6sqvk_37",
-	railHost: "_railHost_6sqvk_41",
-	tabContent: "_tabContent_6sqvk_49",
-	overflowVisible: "_overflowVisible_6sqvk_60",
-	toolSeparator: "_toolSeparator_6sqvk_68",
-	retriedErrors: "_retriedErrors_6sqvk_77",
-	fullscreenTool: "_fullscreenTool_6sqvk_88"
-};
-//#endregion
-//#region src/app/samples/SampleJSONView.tsx
-var MAX_JSON_DISPLAY_SIZE = 26214400;
-var SampleJSONView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(3);
-	const { sample, className } = t0;
-	let t1;
-	if ($[0] !== className || $[1] !== sample) {
-		t1 = estimateSize(sample.events) > MAX_JSON_DISPLAY_SIZE ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: "JSON too large to display" }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(JSONPanel, {
-			data: sample,
-			simple: true,
-			className
+// src/app/samples/communication/communicationEntries.ts
+var isCommunicationEvent = (event) => event.event === "communication";
+var hasCommunicationEvents = (events) => events.some(isCommunicationEvent);
+/** The sample's communication events as rows, in time order. */ var communicationEntries = (events) => {
+	const ordered = events.filter(isCommunicationEvent).map((event, index) => ({
+		event,
+		index,
+		time: Date.parse(event.timestamp)
+	})).sort((a, b) => a.time - b.time || 0);
+	const keyOf = (event, index) => event.uuid ?? `communication-${index}`;
+	const starts = /* @__PURE__ */ new Map();
+	const runs = /* @__PURE__ */ new Map();
+	for (const event of events) if (event.event === "swarm" && event.kind === "swarm_start") {
+		const span = event.span_id ?? "";
+		starts.set(span, (starts.get(span) ?? 0) + 1);
+	} else if (event.event === "span_begin") {
+		const parent = event.parent_id ?? "";
+		runs.set(event.id, `${parent}#${starts.get(parent) ?? 0}`);
+	}
+	const recordKey = (event, id) => {
+		const member = event.agent_span_id;
+		return `${member ? runs.get(member) ?? "" : ""}\u0000${id}`;
+	};
+	const sends = /* @__PURE__ */ new Map();
+	const sendsByRecord = /* @__PURE__ */ new Map();
+	for (const { event, index } of ordered) {
+		if (event.kind !== "sent" || !event.send) continue;
+		const entry = {
+			type: "send",
+			key: keyOf(event, index),
+			event,
+			send: event.send,
+			deliveries: []
+		};
+		sends.set(event, entry);
+		for (const id of event.record_ids) {
+			const key = recordKey(event, id);
+			if (!sendsByRecord.has(key)) sendsByRecord.set(key, entry);
+		}
+	}
+	for (const entry of sends.values()) {
+		const replyTo = entry.send.record.reply_to;
+		if (replyTo) entry.replyTo = sendsByRecord.get(recordKey(entry.event, replyTo));
+	}
+	const entries = [];
+	for (const { event, index } of ordered) {
+		const send = sends.get(event);
+		if (send) {
+			entries.push(send);
+			continue;
+		}
+		const joined = event.kind === "delivered" ? event.record_ids.map((id) => sendsByRecord.get(recordKey(event, id))).find((entry) => entry !== void 0) : void 0;
+		if (joined) joined.deliveries.push(event);
+		else entries.push({
+			type: "line",
+			key: keyOf(event, index),
+			event
 		});
-		$[0] = className;
-		$[1] = sample;
-		$[2] = t1;
-	} else t1 = $[2];
-	return t1;
+	}
+	return entries;
 };
-//#endregion
-//#region src/app/samples/retry-display/retryAttempt.ts
-/**
-* Derive the exception class name (e.g. `RuntimeError`) from a Python
-* traceback's final line. `EvalRetryError` has no dedicated field for this.
-* Returns null when the final line doesn't look like `ExceptionClass[: message]`
-* so callers can omit the chip rather than render garbage.
-*/ function deriveErrorType(retry) {
-	const tb = retry.traceback.trimEnd();
-	if (!tb) return null;
-	const lines = tb.split("\n");
-	const last = lines[lines.length - 1]?.trim() ?? "";
-	if (!last) return null;
-	const beforeColon = last.split(":")[0]?.trim() ?? "";
-	if (!beforeColon) return null;
-	const cls = beforeColon.split(".").pop() ?? beforeColon;
-	return /^[A-Za-z_]\w*$/.test(cls) ? cls : null;
-}
-/**
-* Best-effort attempt start time — the earliest event timestamp. `EvalRetryError`
-* carries no top-level timing, so the events are the only source; never
-* fabricate one. Returns null when no event carries a parseable timestamp.
-*/ function attemptStartTime(retry) {
-	const events = retry.events;
-	if (!events || events.length === 0) return null;
-	const times = events.map((e) => "timestamp" in e ? e.timestamp : void 0).filter((t) => typeof t === "string").map((t) => Date.parse(t)).filter((n) => Number.isFinite(n));
-	if (times.length === 0) return null;
-	return new Date(Math.min(...times));
-}
-var RetryAttemptCard_module_default = {
-	card: "_card_1bwn0_1",
-	cardCollapsed: "_cardCollapsed_1bwn0_13",
-	cardOpen: "_cardOpen_1bwn0_17",
-	header: "_header_1bwn0_21",
-	attemptLabel: "_attemptLabel_1bwn0_29",
-	timestamp: "_timestamp_1bwn0_39",
-	errorChip: "_errorChip_1bwn0_49",
-	message: "_message_1bwn0_64",
-	chevron: "_chevron_1bwn0_73",
-	body: "_body_1bwn0_82",
-	dividerBand: "_dividerBand_1bwn0_88",
-	hairline: "_hairline_1bwn0_95",
-	toggle: "_toggle_1bwn0_101",
-	content: "_content_1bwn0_106",
-	errorPanel: "_errorPanel_1bwn0_110",
-	ansi: "_ansi_1bwn0_114"
+/** The channels a row went through; a wait's are the ones it waited on. */ var entryChannels = (entry) => {
+	const { event } = entry;
+	if (event.channel !== null && event.channel !== void 0) return [event.channel];
+	return event.wait?.channels ?? [];
 };
-//#endregion
-//#region src/app/samples/retry-display/RetryAttemptCard.tsx
-var isRetryView = (value) => value === "error" || value === "events";
-var kViewSegments = [{
-	id: "error",
-	label: "Error",
-	icon: "warning"
-}, {
-	id: "events",
-	label: "Events",
-	icon: "listView"
-}];
-var RetryAttemptCard = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(38);
-	const { retry, attemptNumber, isOpen, onToggleOpen, listId, scrollRef } = t0;
-	let t1;
-	if ($[0] !== retry) {
-		t1 = deriveErrorType(retry);
-		$[0] = retry;
-		$[1] = t1;
-	} else t1 = $[1];
-	const errorType = t1;
-	let t2;
-	if ($[2] !== retry) {
-		t2 = attemptStartTime(retry);
-		$[2] = retry;
-		$[3] = t2;
-	} else t2 = $[3];
-	const startTime = t2;
-	const hasEvents = !!retry.events?.length;
-	const [view, setView] = (0, import_react.useState)("error");
-	const t3 = isOpen ? RetryAttemptCard_module_default.cardOpen : RetryAttemptCard_module_default.cardCollapsed;
+/** A row's deliveries: a send's joined ones, or a delivery row itself. */ var entryDeliveries = (entry) => {
+	if (entry.type === "send") return entry.deliveries;
+	return entry.event.kind === "delivered" ? [entry.event] : [];
+};
+/**
+* The members a delivery was news to when it was committed (inspect_swarm's
+* `notify`): a message's recipients, or for a shared-memory write the
+* members that had not seen the written files' current versions.
+*/ var deliveryNotify = (delivery) => {
+	const notify = delivery.data["notify"];
+	return Array.isArray(notify) ? notify.filter((name) => typeof name === "string") : [];
+};
+/** The delivery numbers that ended a wait (inspect_swarm's `woken_by`). */ var waitWokenBy = (wait) => {
+	const wokenBy = wait.data["woken_by"];
+	return Array.isArray(wokenBy) ? wokenBy.filter((seq) => typeof seq === "number") : [];
+};
+/**
+* Shared samples grid: a `DataGrid` wrapper that runs client-side sort over
+* its rows via the same listing query the log list uses. Generic over the
+* row type, so other in-memory grids (a sample's communication) reuse it.
+* Per-column filtering is dual-mode: uncontrolled (no `columnFilters` prop —
+* local state, applied client-side; SamplesPanel's cross-log mode) or
+* controlled (the owner filters upstream — on the samples tab via the filtrex
+* FILTER string, which is also the persistence).
+*/ var SamplesGrid = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(97);
+	const { rowData, columnDefs, columnVisibility, multiline, defaultSorting, sorting: sortingProp, onSortingChange, columnSizing: columnSizingProp, onColumnSizingChange, getRowId, selectedRowId, onRowSelect, scrollRef, onRowOpen, getRowHref, loading, columnFilters, onColumnFilterChange, applyFiltersClientSide, hideColumnFilters, onDisplayedRowsChange, ariaLabel: t1, autoFocus: t2, findable: t3 } = t0;
+	const ariaLabel = t1 === void 0 ? "Samples" : t1;
+	const autoFocus = t2 === void 0 ? true : t2;
+	const findable = t3 === void 0 ? false : t3;
+	const rowHeight = multiline ? 70 : 30;
 	let t4;
-	if ($[4] !== t3) {
-		t4 = clsx(RetryAttemptCard_module_default.card, t3);
-		$[4] = t3;
-		$[5] = t4;
-	} else t4 = $[5];
+	if ($[0] !== defaultSorting) {
+		t4 = defaultSorting ?? [];
+		$[0] = defaultSorting;
+		$[1] = t4;
+	} else t4 = $[1];
+	const [localSorting, setLocalSorting] = (0, import_react.useState)(t4);
 	let t5;
-	if ($[6] !== onToggleOpen) {
-		t5 = (e) => {
-			if (e.key === "Enter" || e.key === " ") {
+	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = {};
+		$[2] = t5;
+	} else t5 = $[2];
+	const [localFilters, setLocalFilters] = (0, import_react.useState)(t5);
+	let t6;
+	if ($[3] === Symbol.for("react.memo_cache_sentinel")) {
+		t6 = {};
+		$[3] = t6;
+	} else t6 = $[3];
+	const [localSizing, setLocalSizing] = (0, import_react.useState)(t6);
+	const controlled = columnFilters !== void 0;
+	const effectiveFilters = controlled ? columnFilters : localFilters;
+	const sorting = sortingProp ?? localSorting;
+	let t7;
+	if ($[4] !== onSortingChange) {
+		t7 = (next) => {
+			if (onSortingChange) onSortingChange(next);
+			else setLocalSorting(next);
+		};
+		$[4] = onSortingChange;
+		$[5] = t7;
+	} else t7 = $[5];
+	const handleSortingChange = t7;
+	const columnSizing = columnSizingProp ?? localSizing;
+	let t8;
+	if ($[6] !== onColumnSizingChange) {
+		t8 = (next_0) => {
+			if (onColumnSizingChange) onColumnSizingChange(next_0);
+			else setLocalSizing(next_0);
+		};
+		$[6] = onColumnSizingChange;
+		$[7] = t8;
+	} else t8 = $[7];
+	const handleColumnSizingChange = t8;
+	let map;
+	if ($[8] !== columnDefs) {
+		map = /* @__PURE__ */ new Map();
+		for (const col of columnDefs) if (col.id) map.set(col.id, col);
+		$[8] = columnDefs;
+		$[9] = map;
+	} else map = $[9];
+	const columnsById = map;
+	let t9;
+	if ($[10] !== columnsById) {
+		t9 = (row, columnId) => {
+			const col_0 = columnsById.get(columnId);
+			if (col_0 && "accessorFn" in col_0 && typeof col_0.accessorFn === "function") return col_0.accessorFn(row, 0);
+		};
+		$[10] = columnsById;
+		$[11] = t9;
+	} else t9 = $[11];
+	const getValue = t9;
+	let t10;
+	if ($[12] !== columnsById) {
+		t10 = (columnId_0) => columnsById.get(columnId_0)?.meta?.sortComparator;
+		$[12] = columnsById;
+		$[13] = t10;
+	} else t10 = $[13];
+	const getComparator = t10;
+	let t11;
+	if ($[14] !== columnsById) {
+		t11 = (columnId_1) => columnsById.get(columnId_1)?.meta?.filterType;
+		$[14] = columnsById;
+		$[15] = t11;
+	} else t11 = $[15];
+	const getFilterType = t11;
+	const filterClientSide = !controlled || !!applyFiltersClientSide;
+	let t12;
+	if ($[16] !== effectiveFilters || $[17] !== filterClientSide) {
+		t12 = filterClientSide ? combineFilters(effectiveFilters) : void 0;
+		$[16] = effectiveFilters;
+		$[17] = filterClientSide;
+		$[18] = t12;
+	} else t12 = $[18];
+	const filter = t12;
+	let t13;
+	if ($[19] !== sorting) {
+		t13 = sortingStateToOrderBy(sorting);
+		$[19] = sorting;
+		$[20] = t13;
+	} else t13 = $[20];
+	const orderBy = t13;
+	let t14;
+	if ($[21] !== filter || $[22] !== getComparator || $[23] !== getFilterType || $[24] !== getValue || $[25] !== orderBy || $[26] !== rowData) {
+		t14 = {
+			rows: rowData,
+			filter,
+			orderBy,
+			getValue,
+			getComparator,
+			getFilterType
+		};
+		$[21] = filter;
+		$[22] = getComparator;
+		$[23] = getFilterType;
+		$[24] = getValue;
+		$[25] = orderBy;
+		$[26] = rowData;
+		$[27] = t14;
+	} else t14 = $[27];
+	const { items } = useLogsListingQuery(t14);
+	let t15;
+	let t16;
+	if ($[28] !== items || $[29] !== onDisplayedRowsChange) {
+		t15 = () => {
+			onDisplayedRowsChange?.(items);
+		};
+		t16 = [items, onDisplayedRowsChange];
+		$[28] = items;
+		$[29] = onDisplayedRowsChange;
+		$[30] = t15;
+		$[31] = t16;
+	} else {
+		t15 = $[30];
+		t16 = $[31];
+	}
+	(0, import_react.useEffect)(t15, t16);
+	let t17;
+	if ($[32] !== onColumnFilterChange) {
+		t17 = (columnId_2, filterType, spec) => {
+			if (onColumnFilterChange) {
+				onColumnFilterChange(columnId_2, filterType, spec);
+				return;
+			}
+			setLocalFilters((prev) => {
+				const next_1 = { ...prev };
+				if (spec === null) delete next_1[columnId_2];
+				else next_1[columnId_2] = {
+					columnId: columnId_2,
+					filterType,
+					spec
+				};
+				return next_1;
+			});
+		};
+		$[32] = onColumnFilterChange;
+		$[33] = t17;
+	} else t17 = $[33];
+	const handleColumnFilterChange = t17;
+	const [findOpen, setFindOpen] = (0, import_react.useState)(false);
+	const [findTerm, setFindTerm] = (0, import_react.useState)("");
+	const findInputRef = (0, import_react.useRef)(null);
+	let matchIds;
+	let matchesOf;
+	let t18;
+	if ($[34] !== columnDefs || $[35] !== columnVisibility || $[36] !== findOpen || $[37] !== findTerm || $[38] !== getRowId || $[39] !== items || $[40] !== selectedRowId) {
+		let t19;
+		if ($[44] !== columnVisibility) {
+			t19 = (col_1) => col_1.id === void 0 || columnVisibility?.[col_1.id] !== false;
+			$[44] = columnVisibility;
+			$[45] = t19;
+		} else t19 = $[45];
+		const searchColumns = columnDefs.filter(t19);
+		matchesOf = (term) => findMatches(buildSearchIndex(items, searchColumns, getRowId), term);
+		matchIds = findOpen ? matchesOf(findTerm) : [];
+		t18 = selectedRowId === void 0 ? -1 : matchIds.indexOf(selectedRowId);
+		$[34] = columnDefs;
+		$[35] = columnVisibility;
+		$[36] = findOpen;
+		$[37] = findTerm;
+		$[38] = getRowId;
+		$[39] = items;
+		$[40] = selectedRowId;
+		$[41] = matchIds;
+		$[42] = matchesOf;
+		$[43] = t18;
+	} else {
+		matchIds = $[41];
+		matchesOf = $[42];
+		t18 = $[43];
+	}
+	const activeMatch = t18;
+	let t19;
+	if ($[46] !== getRowId || $[47] !== items || $[48] !== onRowSelect) {
+		t19 = (ids, index) => {
+			const id = ids[index];
+			const row_0 = items.find((item) => getRowId(item) === id);
+			if (row_0) onRowSelect?.(row_0);
+		};
+		$[46] = getRowId;
+		$[47] = items;
+		$[48] = onRowSelect;
+		$[49] = t19;
+	} else t19 = $[49];
+	const selectMatch = t19;
+	let t20;
+	if ($[50] !== activeMatch || $[51] !== matchIds || $[52] !== selectMatch) {
+		t20 = (back) => {
+			const count = matchIds.length;
+			if (count === 0) return;
+			const next_2 = activeMatch < 0 ? back ? count - 1 : 0 : activeMatch + (back ? -1 : 1);
+			selectMatch(matchIds, (next_2 + count) % count);
+		};
+		$[50] = activeMatch;
+		$[51] = matchIds;
+		$[52] = selectMatch;
+		$[53] = t20;
+	} else t20 = $[53];
+	const stepMatch = t20;
+	let t21;
+	if ($[54] !== matchesOf || $[55] !== selectMatch) {
+		t21 = () => {
+			const term_0 = findInputRef.current?.value ?? "";
+			setFindTerm(term_0);
+			selectMatch(matchesOf(term_0), 0);
+		};
+		$[54] = matchesOf;
+		$[55] = selectMatch;
+		$[56] = t21;
+	} else t21 = $[56];
+	const handleFindTermChange = t21;
+	let t22;
+	if ($[57] === Symbol.for("react.memo_cache_sentinel")) {
+		t22 = () => {
+			setFindOpen(false);
+			setFindTerm("");
+		};
+		$[57] = t22;
+	} else t22 = $[57];
+	const closeFind = t22;
+	let t23;
+	if ($[58] === Symbol.for("react.memo_cache_sentinel")) {
+		t23 = () => {
+			setFindOpen(true);
+			setTimeout(() => {
+				findInputRef.current?.focus();
+				findInputRef.current?.select();
+			});
+		};
+		$[58] = t23;
+	} else t23 = $[58];
+	const openFind = t23;
+	let t24;
+	if ($[59] !== stepMatch) {
+		t24 = (e) => {
+			if (e.key === "Escape") closeFind();
+			else if (e.key === "Enter") {
 				e.preventDefault();
-				onToggleOpen();
+				stepMatch(e.shiftKey);
 			}
 		};
-		$[6] = onToggleOpen;
-		$[7] = t5;
-	} else t5 = $[7];
-	const t6 = `Attempt ${attemptNumber}`;
+		$[59] = stepMatch;
+		$[60] = t24;
+	} else t24 = $[60];
+	const handleFindKeyDown = t24;
+	let t25;
+	if ($[61] !== findOpen || $[62] !== findable) {
+		t25 = {
+			onClose: closeFind,
+			isOpen: findOpen,
+			enabled: findable,
+			preempt: true
+		};
+		$[61] = findOpen;
+		$[62] = findable;
+		$[63] = t25;
+	} else t25 = $[63];
+	useFindBandShortcut(openFind, t25);
+	let t26;
+	if ($[64] !== activeMatch || $[65] !== findOpen || $[66] !== findTerm || $[67] !== handleFindKeyDown || $[68] !== handleFindTermChange || $[69] !== matchIds.length || $[70] !== stepMatch) {
+		t26 = findOpen ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FindBandUI, {
+			inputRef: findInputRef,
+			value: findTerm,
+			onChange: handleFindTermChange,
+			onKeyDown: handleFindKeyDown,
+			onClose: closeFind,
+			onPrevious: () => stepMatch(true),
+			onNext: () => stepMatch(false),
+			disableNav: matchIds.length === 0,
+			noResults: !!findTerm && matchIds.length === 0,
+			matchCount: findTerm ? matchIds.length : void 0,
+			matchIndex: findTerm && activeMatch >= 0 ? activeMatch : void 0
+		}) : null;
+		$[64] = activeMatch;
+		$[65] = findOpen;
+		$[66] = findTerm;
+		$[67] = handleFindKeyDown;
+		$[68] = handleFindTermChange;
+		$[69] = matchIds.length;
+		$[70] = stepMatch;
+		$[71] = t26;
+	} else t26 = $[71];
+	let t27;
+	if ($[72] !== ariaLabel || $[73] !== autoFocus || $[74] !== columnDefs || $[75] !== columnSizing || $[76] !== columnVisibility || $[77] !== effectiveFilters || $[78] !== getRowHref || $[79] !== getRowId || $[80] !== handleColumnFilterChange || $[81] !== handleColumnSizingChange || $[82] !== handleSortingChange || $[83] !== hideColumnFilters || $[84] !== items || $[85] !== loading || $[86] !== multiline || $[87] !== onRowOpen || $[88] !== onRowSelect || $[89] !== rowHeight || $[90] !== scrollRef || $[91] !== selectedRowId || $[92] !== sorting) {
+		t27 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(DataGrid, {
+			data: items,
+			columns: columnDefs,
+			getRowId,
+			columnVisibility,
+			sorting,
+			onSortingChange: handleSortingChange,
+			columnFilters: effectiveFilters,
+			onColumnFilterChange: handleColumnFilterChange,
+			hideColumnFilters,
+			columnSizing,
+			onColumnSizingChange: handleColumnSizingChange,
+			selectedRowId,
+			onSelectedRowChange: onRowSelect,
+			scrollRef,
+			onRowActivate: onRowOpen,
+			getRowHref,
+			rowHeight,
+			multiline,
+			loading,
+			autoFocus,
+			ariaLabel
+		});
+		$[72] = ariaLabel;
+		$[73] = autoFocus;
+		$[74] = columnDefs;
+		$[75] = columnSizing;
+		$[76] = columnVisibility;
+		$[77] = effectiveFilters;
+		$[78] = getRowHref;
+		$[79] = getRowId;
+		$[80] = handleColumnFilterChange;
+		$[81] = handleColumnSizingChange;
+		$[82] = handleSortingChange;
+		$[83] = hideColumnFilters;
+		$[84] = items;
+		$[85] = loading;
+		$[86] = multiline;
+		$[87] = onRowOpen;
+		$[88] = onRowSelect;
+		$[89] = rowHeight;
+		$[90] = scrollRef;
+		$[91] = selectedRowId;
+		$[92] = sorting;
+		$[93] = t27;
+	} else t27 = $[93];
+	let t28;
+	if ($[94] !== t26 || $[95] !== t27) {
+		t28 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t26, t27] });
+		$[94] = t26;
+		$[95] = t27;
+		$[96] = t28;
+	} else t28 = $[96];
+	return t28;
+};
+var communicationColumns_module_default = { contentLines: "_contentLines_1rjek_2" };
+var CommunicationView_module_default = {
+	view: "_view_1pobl_1",
+	grid: "_grid_1pobl_9",
+	send: "_send_1pobl_16",
+	sendRefused: "_sendRefused_1pobl_26",
+	header: "_header_1pobl_30",
+	line: "_line_1pobl_31",
+	time: "_time_1pobl_43",
+	agent: "_agent_1pobl_47",
+	meta: "_meta_1pobl_51",
+	detail: "_detail_1pobl_55",
+	content: "_content_1pobl_59",
+	refused: "_refused_1pobl_64"
+};
+// src/app/samples/communication/communicationColumns.tsx
+var kPreviewLength = 300;
+var preview = (text) => text.length > kPreviewLength ? `${text.slice(0, kPreviewLength)}…` : text;
+var names = (values) => values.join(", ");
+var deliveredTo = (entry) => names([...new Set(entryDeliveries(entry).flatMap(deliveryNotify))]);
+var recordId = (entry) => entry.type === "send" && entry.send.record.id ? entry.send.record.id : names(entry.event.record_ids);
+var recipients = (entry) => entry.type === "send" ? names(entry.send.record.recipients) : names(entry.event.delivery?.recipients ?? []);
+var replyTo = (entry) => {
+	if (entry.type !== "send") return "";
+	const id = entry.send.record.reply_to;
+	if (!id) return "";
+	return entry.replyTo ? `${id} from ${entry.replyTo.event.agent}` : id;
+};
+var label$6 = (word) => {
+	const words = word.replace(/_/g, " ");
+	return words.charAt(0).toUpperCase() + words.slice(1);
+};
+var status$1 = (entry) => {
+	if (entry.type === "send") {
+		const rejected = entry.send.rejected;
+		if (rejected) return `Refused (${rejected.control})`;
+		return entry.deliveries.length > 0 ? "Delivered" : "Sent";
+	}
+	return label$6(entry.event.wait?.outcome ?? "");
+};
+var content$2 = (entry) => entry.type === "send" ? entry.send.record.content ?? "" : "";
+var isRefused = (entry) => entry.type === "send" && !!entry.send.rejected;
+var textColumn = (id, header, value, size, extra = {}) => ({
+	id,
+	header,
+	size,
+	minSize: 50,
+	accessorFn: (entry) => value(entry) || void 0,
+	cell: ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: getValue() ?? "" }) }),
+	meta: {
+		filterable: true,
+		filterType: "string"
+	},
+	...extra
+});
+var columns = (multiline) => [
+	{
+		id: "time",
+		header: "Time",
+		size: 100,
+		minSize: 60,
+		accessorFn: (entry) => entry.event.timestamp,
+		textValue: (entry) => fmtClock(entry.event.timestamp),
+		cell: ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: fmtClock(getValue()) }),
+		meta: {
+			filterable: true,
+			filterType: "datetime",
+			sortComparator: (a, b) => comparators.date(a, b)
+		}
+	},
+	textColumn("agent", "Agent", (entry) => communicationAgent(entry.event), 120),
+	textColumn("event", "Event", (entry) => entry.event.kind, 80),
+	textColumn("to", "To", recipients, 110),
+	textColumn("content", "Content", content$2, 260, {
+		minSize: 120,
+		flex: 1,
+		cell: ({ getValue }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: clsx(multiline && ["three-line-clamp", communicationColumns_module_default.contentLines]),
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: preview(getValue() ?? "") })
+		})
+	}),
+	textColumn("status", "Status", status$1, 150, { cell: ({ getValue, row }) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		className: clsx(isRefused(row.original) && CommunicationView_module_default.refused),
+		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: getValue() ?? "" })
+	}) }),
+	textColumn("channel", "Channel", (entry) => names(entryChannels(entry)), 120),
+	textColumn("kind", "Kind", (entry) => entry.type === "send" ? entry.send.record.kind : "", 80),
+	textColumn("id", "Id", recordId, 70),
+	textColumn("replyTo", "Reply to", replyTo, 110),
+	textColumn("delivered", "Delivered to", deliveredTo, 110)
+];
+var singleLineColumns = columns(false);
+var multilineColumns = columns(true);
+/**
+* The Communication grid's columns, one per attribute a row can have. Every
+* value is log text, so cells render through the content trust policy. In
+* multiline rows, Content shows up to three lines of the message.
+*/ var communicationColumns = (multiline) => multiline ? multilineColumns : singleLineColumns;
+// src/app/samples/communication/CommunicationView.tsx
+var kHeaderHeight = 25;
+var kGridSlack = 20;
+/**
+* A sample's agent communication as a grid, one row per send (with its
+* deliveries joined to it) and per other event (a read, a wait, a delivery
+* whose send is not in the sample), sortable and filterable by column. The
+* selected row is shown in full below the grid. Event strings are model or
+* producer text, so they render through the content trust policy as plain
+* text, never Markdown.
+*/ var CommunicationView = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(25);
+	const { events, multiline: t1, onShown } = t0;
+	const multiline = t1 === void 0 ? false : t1;
+	let t2;
+	if ($[0] !== onShown) {
+		t2 = () => {
+			onShown?.();
+		};
+		$[0] = onShown;
+		$[1] = t2;
+	} else t2 = $[1];
+	useMountEffect(t2);
+	const entries = communicationEntries(events);
+	const [selectedKey, setSelectedKey] = (0, import_react.useState)();
+	let t3;
+	if ($[2] !== selectedKey) {
+		t3 = (entry) => entry.key === selectedKey;
+		$[2] = selectedKey;
+		$[3] = t3;
+	} else t3 = $[3];
+	const selected = entries.find(t3);
+	let t4;
+	if ($[4] !== setSelectedKey) {
+		t4 = (entry_0) => setSelectedKey(entry_0.key);
+		$[4] = setSelectedKey;
+		$[5] = t4;
+	} else t4 = $[5];
+	const select = t4;
+	const rowHeight = multiline ? 70 : 30;
+	const gridHeight = kHeaderHeight + entries.length * rowHeight + kGridSlack;
+	let t5;
+	if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = clsx("text-size-small", CommunicationView_module_default.view);
+		$[6] = t5;
+	} else t5 = $[6];
+	const t6 = `min(60vh, ${gridHeight}px)`;
 	let t7;
-	if ($[8] !== t6) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: RetryAttemptCard_module_default.attemptLabel,
-			children: t6
-		});
-		$[8] = t6;
-		$[9] = t7;
-	} else t7 = $[9];
+	if ($[7] !== t6) {
+		t7 = { height: t6 };
+		$[7] = t6;
+		$[8] = t7;
+	} else t7 = $[8];
 	let t8;
-	if ($[10] !== errorType) {
-		t8 = errorType && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: RetryAttemptCard_module_default.errorChip,
-			children: errorType
-		});
-		$[10] = errorType;
-		$[11] = t8;
-	} else t8 = $[11];
+	if ($[9] !== multiline) {
+		t8 = communicationColumns(multiline);
+		$[9] = multiline;
+		$[10] = t8;
+	} else t8 = $[10];
 	let t9;
-	if ($[12] !== retry.message) {
-		t9 = retry.message && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: RetryAttemptCard_module_default.message,
-			children: retry.message
+	if ($[11] !== entries || $[12] !== multiline || $[13] !== select || $[14] !== selectedKey || $[15] !== t8) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SamplesGrid, {
+			rowData: entries,
+			columnDefs: t8,
+			multiline,
+			getRowId: _temp$43,
+			selectedRowId: selectedKey,
+			onRowSelect: select,
+			onRowOpen: select,
+			ariaLabel: "Communication",
+			autoFocus: false,
+			findable: true
 		});
-		$[12] = retry.message;
-		$[13] = t9;
-	} else t9 = $[13];
+		$[11] = entries;
+		$[12] = multiline;
+		$[13] = select;
+		$[14] = selectedKey;
+		$[15] = t8;
+		$[16] = t9;
+	} else t9 = $[16];
 	let t10;
-	if ($[14] !== startTime) {
-		t10 = startTime && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: RetryAttemptCard_module_default.timestamp,
-			children: formatDateTime$1(startTime)
+	if ($[17] !== t7 || $[18] !== t9) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: CommunicationView_module_default.grid,
+			style: t7,
+			children: t9
 		});
-		$[14] = startTime;
+		$[17] = t7;
+		$[18] = t9;
+		$[19] = t10;
+	} else t10 = $[19];
+	let t11;
+	if ($[20] !== selected) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("section", {
+			"aria-label": "Selected row",
+			children: selected === void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+				className: "text-style-secondary",
+				children: "Select a row to show it in full."
+			}) : selected.type === "send" ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SendRow, { entry: selected }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LineEntry, { event: selected.event })
+		});
+		$[20] = selected;
+		$[21] = t11;
+	} else t11 = $[21];
+	let t12;
+	if ($[22] !== t10 || $[23] !== t11) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t5,
+			children: [t10, t11]
+		});
+		$[22] = t10;
+		$[23] = t11;
+		$[24] = t12;
+	} else t12 = $[24];
+	return t12;
+};
+var SendRow = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(49);
+	const { entry } = t0;
+	const { event, send, deliveries, replyTo } = entry;
+	const record = send.record;
+	const rejected = send.rejected;
+	let t1;
+	if ($[0] !== record.recipients || $[1] !== record.to) {
+		t1 = record.to.length > 0 && record.to.join(", ") !== record.recipients.join(", ") ? record.to.join(", ") : null;
+		$[0] = record.recipients;
+		$[1] = record.to;
+		$[2] = t1;
+	} else t1 = $[2];
+	const toAsWritten = t1;
+	const t2 = rejected && CommunicationView_module_default.sendRefused;
+	let t3;
+	if ($[3] !== t2) {
+		t3 = clsx(CommunicationView_module_default.send, t2);
+		$[3] = t2;
+		$[4] = t3;
+	} else t3 = $[4];
+	const t4 = `${rejected ? "Refused " : ""}${record.kind} from ${event.agent}`;
+	let t5;
+	if ($[5] !== event) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Time, { event });
+		$[5] = event;
+		$[6] = t5;
+	} else t5 = $[6];
+	let t6;
+	if ($[7] !== event) {
+		t6 = communicationAgent(event);
+		$[7] = event;
+		$[8] = t6;
+	} else t6 = $[8];
+	let t7;
+	if ($[9] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: CommunicationView_module_default.agent,
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: t6 })
+		});
+		$[9] = t6;
+		$[10] = t7;
+	} else t7 = $[10];
+	let t8;
+	if ($[11] !== record.recipients) {
+		t8 = record.recipients.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: ["→ ", /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: record.recipients.join(", ") })] }) : null;
+		$[11] = record.recipients;
+		$[12] = t8;
+	} else t8 = $[12];
+	let t9;
+	if ($[13] !== toAsWritten) {
+		t9 = toAsWritten ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: "text-style-secondary",
+			children: [
+				"(to ",
+				/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: toAsWritten }),
+				")"
+			]
+		}) : null;
+		$[13] = toAsWritten;
+		$[14] = t9;
+	} else t9 = $[14];
+	let t10;
+	if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
+		t10 = clsx("text-style-secondary", CommunicationView_module_default.meta);
 		$[15] = t10;
 	} else t10 = $[15];
-	const t11 = isOpen ? "chevronDown" : "chevronRight";
+	const t11 = event.channel ?? "";
 	let t12;
 	if ($[16] !== t11) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
-			name: t11,
-			className: RetryAttemptCard_module_default.chevron
-		});
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: t11 });
 		$[16] = t11;
 		$[17] = t12;
 	} else t12 = $[17];
 	let t13;
-	if ($[18] !== isOpen || $[19] !== onToggleOpen || $[20] !== t10 || $[21] !== t12 || $[22] !== t5 || $[23] !== t7 || $[24] !== t8 || $[25] !== t9) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: RetryAttemptCard_module_default.header,
-			role: "button",
-			tabIndex: 0,
-			"aria-expanded": isOpen,
-			onClick: onToggleOpen,
-			onKeyDown: t5,
+	if ($[18] !== record.kind) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: record.kind });
+		$[18] = record.kind;
+		$[19] = t13;
+	} else t13 = $[19];
+	let t14;
+	if ($[20] !== record.id) {
+		t14 = record.id ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [" · ", /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: record.id })] }) : null;
+		$[20] = record.id;
+		$[21] = t14;
+	} else t14 = $[21];
+	let t15;
+	if ($[22] !== t12 || $[23] !== t13 || $[24] !== t14) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: t10,
 			children: [
+				t12,
+				" · ",
+				t13,
+				t14
+			]
+		});
+		$[22] = t12;
+		$[23] = t13;
+		$[24] = t14;
+		$[25] = t15;
+	} else t15 = $[25];
+	let t16;
+	if ($[26] !== t15 || $[27] !== t5 || $[28] !== t7 || $[29] !== t8 || $[30] !== t9) {
+		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: CommunicationView_module_default.header,
+			children: [
+				t5,
 				t7,
 				t8,
 				t9,
-				t10,
-				t12
+				t15
 			]
 		});
-		$[18] = isOpen;
-		$[19] = onToggleOpen;
-		$[20] = t10;
-		$[21] = t12;
-		$[22] = t5;
-		$[23] = t7;
-		$[24] = t8;
-		$[25] = t9;
-		$[26] = t13;
-	} else t13 = $[26];
-	let t14;
-	if ($[27] !== hasEvents || $[28] !== isOpen || $[29] !== listId || $[30] !== retry || $[31] !== scrollRef || $[32] !== view) {
-		t14 = isOpen && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: RetryAttemptCard_module_default.body,
-			children: [hasEvents && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-				className: RetryAttemptCard_module_default.dividerBand,
-				children: [
-					/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-						className: RetryAttemptCard_module_default.hairline,
-						"aria-hidden": "true"
-					}),
-					/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-						className: RetryAttemptCard_module_default.toggle,
-						children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SegmentedControl, {
-							segments: kViewSegments,
-							selectedId: view,
-							onSegmentChange: (id) => {
-								if (isRetryView(id)) setView(id);
-							}
-						})
-					}),
-					/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-						className: RetryAttemptCard_module_default.hairline,
-						"aria-hidden": "true"
-					})
-				]
-			}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-				className: RetryAttemptCard_module_default.content,
-				children: view === "error" || !hasEvents ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
-					id: `retry-error-${listId}`,
-					collapse: true,
-					className: RetryAttemptCard_module_default.errorPanel,
-					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ANSIDisplay, {
-						output: retry.traceback_ansi,
-						className: RetryAttemptCard_module_default.ansi
-					})
-				}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RetryEventsView, {
-					retry,
-					listId,
-					scrollRef
-				})
-			})]
+		$[26] = t15;
+		$[27] = t5;
+		$[28] = t7;
+		$[29] = t8;
+		$[30] = t9;
+		$[31] = t16;
+	} else t16 = $[31];
+	let t17;
+	if ($[32] !== record.reply_to || $[33] !== replyTo) {
+		t17 = record.reply_to ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: clsx("text-style-secondary", CommunicationView_module_default.detail),
+			children: [
+				"In reply to ",
+				/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: record.reply_to }),
+				replyTo ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [" from ", /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: replyTo.event.agent })] }) : null
+			]
+		}) : null;
+		$[32] = record.reply_to;
+		$[33] = replyTo;
+		$[34] = t17;
+	} else t17 = $[34];
+	let t18;
+	if ($[35] !== record.content) {
+		t18 = record.content === null || record.content === void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: clsx("text-style-secondary", CommunicationView_module_default.detail),
+			children: "Content not recorded."
+		}) : record.content.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: CommunicationView_module_default.content,
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: record.content })
+		}) : null;
+		$[35] = record.content;
+		$[36] = t18;
+	} else t18 = $[36];
+	let t19;
+	if ($[37] !== rejected) {
+		t19 = rejected ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: clsx(CommunicationView_module_default.detail, CommunicationView_module_default.refused),
+			children: [
+				"Refused (",
+				/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: rejected.control }),
+				"): ",
+				/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: rejected.reason })
+			]
+		}) : null;
+		$[37] = rejected;
+		$[38] = t19;
+	} else t19 = $[38];
+	let t20;
+	if ($[39] !== deliveries) {
+		t20 = deliveries.map(_temp2$32);
+		$[39] = deliveries;
+		$[40] = t20;
+	} else t20 = $[40];
+	let t21;
+	if ($[41] !== t16 || $[42] !== t17 || $[43] !== t18 || $[44] !== t19 || $[45] !== t20 || $[46] !== t3 || $[47] !== t4) {
+		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("article", {
+			className: t3,
+			"aria-label": t4,
+			children: [
+				t16,
+				t17,
+				t18,
+				t19,
+				t20
+			]
 		});
-		$[27] = hasEvents;
-		$[28] = isOpen;
-		$[29] = listId;
-		$[30] = retry;
-		$[31] = scrollRef;
-		$[32] = view;
-		$[33] = t14;
-	} else t14 = $[33];
-	let t15;
-	if ($[34] !== t13 || $[35] !== t14 || $[36] !== t4) {
-		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t4,
-			children: [t13, t14]
-		});
-		$[34] = t13;
-		$[35] = t14;
-		$[36] = t4;
-		$[37] = t15;
-	} else t15 = $[37];
-	return t15;
+		$[41] = t16;
+		$[42] = t17;
+		$[43] = t18;
+		$[44] = t19;
+		$[45] = t20;
+		$[46] = t3;
+		$[47] = t4;
+		$[48] = t21;
+	} else t21 = $[48];
+	return t21;
 };
-var RetryEventsView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(19);
-	const { retry, listId, scrollRef } = t0;
-	let ids;
-	if ($[0] !== retry.events) {
-		ids = {};
-		for (const event of retry.events || []) if ((event.event === "state" || event.event === "store") && event.uuid) ids[event.uuid] = true;
-		$[0] = retry.events;
-		$[1] = ids;
-	} else ids = $[1];
-	const initialCollapsed = ids;
-	const [transcriptCollapsed, setTranscriptCollapsed] = (0, import_react.useState)(void 0);
-	const [bulkCollapse, setBulkCollapse] = (0, import_react.useState)("expand");
+var Notified = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(4);
+	const { delivery } = t0;
 	let t1;
-	if ($[2] !== initialCollapsed || $[3] !== transcriptCollapsed) {
-		t1 = transcriptCollapsed ? {
-			...initialCollapsed,
-			...transcriptCollapsed
-		} : Object.keys(initialCollapsed).length > 0 ? initialCollapsed : void 0;
-		$[2] = initialCollapsed;
-		$[3] = transcriptCollapsed;
-		$[4] = t1;
-	} else t1 = $[4];
-	const effectiveCollapsed = t1;
+	if ($[0] !== delivery) {
+		t1 = deliveryNotify(delivery).join(", ");
+		$[0] = delivery;
+		$[1] = t1;
+	} else t1 = $[1];
+	const notify = t1;
+	if (!notify || notify === delivery.delivery?.recipients.join(", ")) return null;
 	let t2;
-	let t3;
-	if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
-		t2 = (nodeId, collapsed) => setTranscriptCollapsed((prev) => ({
-			...prev,
-			[nodeId]: collapsed
-		}));
-		t3 = (ids_0) => {
-			setTranscriptCollapsed(ids_0);
-			setBulkCollapse(void 0);
-		};
-		$[5] = t2;
-		$[6] = t3;
-	} else {
-		t2 = $[5];
-		t3 = $[6];
-	}
-	let t4;
-	if ($[7] !== effectiveCollapsed) {
-		t4 = {
-			transcript: effectiveCollapsed,
-			onCollapseTranscript: t2,
-			onSetTranscriptCollapsed: t3
-		};
-		$[7] = effectiveCollapsed;
-		$[8] = t4;
-	} else t4 = $[8];
-	const collapseState = t4;
-	let t5;
-	if ($[9] !== retry.events) {
-		t5 = retry.events || [];
-		$[9] = retry.events;
-		$[10] = t5;
-	} else t5 = $[10];
-	let t6;
-	if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
-		t6 = { showSwimlanes: false };
-		$[11] = t6;
-	} else t6 = $[11];
-	let t7;
-	if ($[12] === Symbol.for("react.memo_cache_sentinel")) {
-		t7 = { inlineExpansionUX: true };
-		$[12] = t7;
-	} else t7 = $[12];
-	let t8;
-	if ($[13] !== bulkCollapse || $[14] !== collapseState || $[15] !== listId || $[16] !== scrollRef || $[17] !== t5) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: "text-size-small",
-			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptLayout, {
-				events: t5,
-				scrollRef,
-				listId,
-				embedded: true,
-				timeline: t6,
-				collapseState,
-				bulkCollapse,
-				eventNodeContext: t7,
-				keyboardNavDisabled: true
-			})
-		});
-		$[13] = bulkCollapse;
-		$[14] = collapseState;
-		$[15] = listId;
-		$[16] = scrollRef;
-		$[17] = t5;
-		$[18] = t8;
-	} else t8 = $[18];
-	return t8;
+	if ($[2] !== notify) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [" · notified ", /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: notify })] });
+		$[2] = notify;
+		$[3] = t2;
+	} else t2 = $[3];
+	return t2;
 };
+var deliveryText = (delivery) => {
+	const seq = delivery.delivery?.seq;
+	return seq !== null && seq !== void 0 ? `Delivered (#${seq})` : "Delivered";
+};
+var LineEntry = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(6);
+	const { event } = t0;
+	let t1;
+	if ($[0] !== event) {
+		const wokenBy = event.kind === "waited" ? waitWokenBy(event) : [];
+		const t2 = communicationAgent(event);
+		let t3;
+		if ($[2] !== t2) {
+			t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: CommunicationView_module_default.agent,
+				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: t2 })
+			});
+			$[2] = t2;
+			$[3] = t3;
+		} else t3 = $[3];
+		const t4 = communicationLine(event).map(_temp3$22);
+		let t5;
+		if ($[4] !== t4) {
+			t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: t4 });
+			$[4] = t4;
+			$[5] = t5;
+		} else t5 = $[5];
+		t1 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: CommunicationView_module_default.line,
+			children: [
+				/*#__PURE__*/ (0, import_jsx_runtime.jsx)(Time, { event }),
+				t3,
+				t5,
+				wokenBy.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+					className: "text-style-secondary",
+					children: `woken by ${wokenBy.map(_temp4$19).join(", ")}`
+				}) : null
+			]
+		});
+		$[0] = event;
+		$[1] = t1;
+	} else t1 = $[1];
+	return t1;
+};
+var Time = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(6);
+	const { event } = t0;
+	let t1;
+	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+		t1 = clsx("text-style-secondary", CommunicationView_module_default.time);
+		$[0] = t1;
+	} else t1 = $[0];
+	const t2 = event.timestamp;
+	let t3;
+	if ($[1] !== event.timestamp) {
+		t3 = fmtClock(event.timestamp);
+		$[1] = event.timestamp;
+		$[2] = t3;
+	} else t3 = $[2];
+	let t4;
+	if ($[3] !== event.timestamp || $[4] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("time", {
+			className: t1,
+			dateTime: t2,
+			children: t3
+		});
+		$[3] = event.timestamp;
+		$[4] = t3;
+		$[5] = t4;
+	} else t4 = $[5];
+	return t4;
+};
+function _temp$43(entry_1) {
+	return entry_1.key;
+}
+function _temp2$32(delivery, index) {
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		className: clsx("text-style-secondary", CommunicationView_module_default.detail),
+		children: [
+			deliveryText(delivery),
+			(delivery.delivery?.recipients.length ?? 0) > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [" to ", /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: delivery.delivery?.recipients.join(", ") ?? "" })] }) : null,
+			/*#__PURE__*/ (0, import_jsx_runtime.jsx)(Notified, { delivery }),
+			" · ",
+			/*#__PURE__*/ (0, import_jsx_runtime.jsx)(Time, { event: delivery })
+		]
+	}, delivery.uuid ?? index);
+}
+function _temp3$22(part, index) {
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+		className: part.tone === "refused" ? CommunicationView_module_default.refused : part.tone === "secondary" ? "text-style-secondary" : void 0,
+		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: part.text })
+	}, index);
+}
+function _temp4$19(seq) {
+	return `#${seq}`;
+}
+var SamplesViewOptionsPopover_module_default = {
+	container: "_container_1tduz_1",
+	row: "_row_1tduz_8",
+	checkbox: "_checkbox_1tduz_15"
+};
+// src/app/samples/sample-tools/filterSpecRegistry.ts
+var STATIC_ENTRIES = [
+	["sampleUuid", {
+		variable: "uuid",
+		kind: "string"
+	}],
+	["epoch", {
+		variable: "epoch",
+		kind: "number"
+	}],
+	["input", {
+		variable: "input",
+		kind: "string",
+		containsFn: "input_contains"
+	}],
+	["target", {
+		variable: "target",
+		kind: "string",
+		containsFn: "target_contains"
+	}],
+	["answer", {
+		variable: "answer",
+		kind: "string",
+		containsFn: "answer_contains"
+	}],
+	["tokens", {
+		variable: "tokens",
+		kind: "number"
+	}],
+	["duration", {
+		variable: "duration",
+		kind: "number"
+	}],
+	["error", {
+		variable: "error",
+		kind: "string",
+		containsFn: "error_contains"
+	}],
+	["limit", {
+		variable: "limit",
+		kind: "string"
+	}],
+	["retries", {
+		variable: "retries",
+		kind: "number"
+	}],
+	["fallbacks", {
+		variable: "fallbacks",
+		kind: "number"
+	}]
+];
+/** Build the column↔filtrex-variable registry. Score columns are added
+*  dynamically from `evalDescriptor.scores` so the variable name matches
+*  the same short/qualified rule used by `scoreVariables` in filters.ts. */ var buildSampleFilterSpecRegistry = (evalDescriptor) => {
+	const entries = [...STATIC_ENTRIES];
+	if (evalDescriptor) {
+		const banned = bannedShortScoreNames(evalDescriptor.scores);
+		for (const { name, scorer } of evalDescriptor.scores) {
+			const colId = perScorerFieldKey({
+				name,
+				scorer
+			});
+			if (name === scorer && builtinFilterVariables.has(name)) continue;
+			const variable = name === scorer || !banned.has(name) ? name : `${scorer}.${name}`;
+			const scoreType = evalDescriptor.scoreDescriptor({
+				name,
+				scorer
+			})?.scoreType;
+			let kind;
+			if (scoreType === "numeric") kind = "number";
+			else if (scoreType === "categorical" || scoreType === "passfail") kind = "string";
+			else continue;
+			entries.push([colId, {
+				variable,
+				kind
+			}]);
+		}
+	}
+	return {
+		byColId: new Map(entries),
+		byVariable: new Map(entries.map(([colId, m]) => [m.variable, colId]))
+	};
+};
+/**
+* Operator choices offered on the samples tab, narrowed to what round-trips
+* through the filtrex bridge: no `in`/`not in` (the recognizer has no filtrex
+* `in` mapping) and no `not between` (no filtrex form existed on main).
+*/ var samplesOperatorsForKind = (kind) => kind === "number" ? [
+	"=",
+	"!=",
+	"<",
+	"<=",
+	">",
+	">=",
+	"between",
+	"is blank",
+	"is not blank"
+] : [
+	"contains",
+	"does not contain",
+	"starts with",
+	"ends with",
+	"=",
+	"!=",
+	"is blank",
+	"is not blank"
+];
 var status_module_default = {
 	statusCell: "_statusCell_4ypz5_1",
 	error: "_error_4ypz5_11",
 	success: "_success_4ypz5_15",
 	cancelled: "_cancelled_4ypz5_19"
 };
-//#endregion
-//#region src/app/samples/status/status.tsx
+// src/app/samples/status/status.tsx
 var deriveSampleStatus = (completed, error) => {
 	if (error) return errorType(error) === "CancelledError" ? "cancelled" : "error";
 	return completed === false ? "running" : "ok";
@@ -117957,401 +118997,76 @@ var SampleStatusIcon = (t0) => {
 	} else t1 = $[3];
 	return t1;
 };
-var RetryTerminalAnchor_module_default = {
-	row: "_row_5mttp_1",
-	marker: "_marker_5mttp_7",
-	markerSuccess: "_markerSuccess_5mttp_22",
-	markerError: "_markerError_5mttp_26",
-	markerCancelled: "_markerCancelled_5mttp_30",
-	markerLimit: "_markerLimit_5mttp_34",
-	copy: "_copy_5mttp_42",
-	headline: "_headline_5mttp_52",
-	headlineSuccess: "_headlineSuccess_5mttp_58",
-	headlineError: "_headlineError_5mttp_62",
-	headlineCancelled: "_headlineCancelled_5mttp_66",
-	headlineLimit: "_headlineLimit_5mttp_70",
-	detail: "_detail_5mttp_74"
+var gridCells_module_default = {
+	cell: "_cell_8nkqa_2",
+	wrapAnywhere: "_wrapAnywhere_8nkqa_6",
+	noLeft: "_noLeft_8nkqa_10",
+	score: "_score_8nkqa_14"
 };
-//#endregion
-//#region src/app/samples/retry-display/RetryTerminalAnchor.tsx
-var deriveOutcome = (error, limit) => {
-	const status = deriveSampleStatus(true, error?.message);
-	if (status === "error" || status === "cancelled") return status;
-	return limit ? "limit" : "success";
-};
-var markerByOutcome = {
-	success: RetryTerminalAnchor_module_default.markerSuccess,
-	error: RetryTerminalAnchor_module_default.markerError,
-	cancelled: RetryTerminalAnchor_module_default.markerCancelled,
-	limit: RetryTerminalAnchor_module_default.markerLimit
-};
-var headlineByOutcome = {
-	success: RetryTerminalAnchor_module_default.headlineSuccess,
-	error: RetryTerminalAnchor_module_default.headlineError,
-	cancelled: RetryTerminalAnchor_module_default.headlineCancelled,
-	limit: RetryTerminalAnchor_module_default.headlineLimit
-};
-var RetryTerminalAnchor = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(21);
-	const { retryCount, error, limit } = t0;
-	const outcome = deriveOutcome(error, limit);
-	const retriesLabel = retryCount === 1 ? "1 retry" : `${retryCount} retries`;
-	const headline = outcome === "error" ? "This run failed" : outcome === "cancelled" ? "This run was cancelled" : outcome === "limit" ? `This run hit its ${limit?.type} limit` : "This run succeeded";
-	const icon = outcome === "error" ? "close" : outcome === "cancelled" ? "changeRemove" : outcome === "limit" ? "exclamation" : "confirm";
-	const t1 = markerByOutcome[outcome];
+// src/app/shared/samples-grid/cells.tsx
+/** Wraps truncated markdown in a 3-line-clamped cell. Used by list-mode
+*  renderers for `input`, `target`, `answer`. */ var MarkdownCellDiv = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(11);
+	const { semanticClass, text, trimRenderedText, truncateAt: t1 } = t0;
+	const truncateAt = t1 === void 0 ? 250 : t1;
 	let t2;
-	if ($[0] !== t1) {
-		t2 = clsx(RetryTerminalAnchor_module_default.marker, t1);
-		$[0] = t1;
+	if ($[0] !== semanticClass) {
+		t2 = clsx(semanticClass, "three-line-clamp", gridCells_module_default.cell, gridCells_module_default.wrapAnywhere);
+		$[0] = semanticClass;
 		$[1] = t2;
 	} else t2 = $[1];
 	let t3;
-	if ($[2] !== icon) {
-		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: icon });
-		$[2] = icon;
+	if ($[2] !== trimRenderedText) {
+		t3 = trimRenderedText ? clsx("no-last-para-padding", gridCells_module_default.noLeft) : void 0;
+		$[2] = trimRenderedText;
 		$[3] = t3;
 	} else t3 = $[3];
 	let t4;
-	if ($[4] !== t2 || $[5] !== t3) {
-		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: t2,
-			"aria-hidden": "true",
-			children: t3
+	if ($[4] !== t3 || $[5] !== text || $[6] !== truncateAt) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RenderedText, {
+			markdown: text,
+			truncateAt,
+			className: t3,
+			forceRender: true,
+			renderer: "fragment"
 		});
-		$[4] = t2;
-		$[5] = t3;
-		$[6] = t4;
-	} else t4 = $[6];
-	const t5 = headlineByOutcome[outcome];
-	let t6;
-	if ($[7] !== t5) {
-		t6 = clsx(RetryTerminalAnchor_module_default.headline, t5);
-		$[7] = t5;
-		$[8] = t6;
-	} else t6 = $[8];
-	const t7 = limit?.reason ?? void 0;
-	let t8;
-	if ($[9] !== headline || $[10] !== t6 || $[11] !== t7) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: t6,
-			title: t7,
-			children: headline
-		});
-		$[9] = headline;
-		$[10] = t6;
-		$[11] = t7;
-		$[12] = t8;
-	} else t8 = $[12];
-	const t9 = `after ${retriesLabel} — the sample you're viewing`;
-	let t10;
-	if ($[13] !== t9) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: RetryTerminalAnchor_module_default.detail,
-			children: t9
-		});
-		$[13] = t9;
-		$[14] = t10;
-	} else t10 = $[14];
-	let t11;
-	if ($[15] !== t10 || $[16] !== t8) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: RetryTerminalAnchor_module_default.copy,
-			children: [t8, t10]
-		});
-		$[15] = t10;
-		$[16] = t8;
-		$[17] = t11;
-	} else t11 = $[17];
-	let t12;
-	if ($[18] !== t11 || $[19] !== t4) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: RetryTerminalAnchor_module_default.row,
-			children: [t4, t11]
-		});
-		$[18] = t11;
-		$[19] = t4;
-		$[20] = t12;
-	} else t12 = $[20];
-	return t12;
-};
-var SampleRetriedErrors_module_default = {
-	panel: "_panel_1n9ws_1",
-	sectionLabel: "_sectionLabel_1n9ws_5",
-	timeline: "_timeline_1n9ws_14",
-	rail: "_rail_1n9ws_19",
-	items: "_items_1n9ws_28",
-	row: "_row_1n9ws_34",
-	dotGutter: "_dotGutter_1n9ws_41",
-	statusIcon: "_statusIcon_1n9ws_49"
-};
-//#endregion
-//#region src/app/samples/SampleRetriedErrors.tsx
-var SampleRetriedErrors = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(19);
-	const { id, retries, error, limit, scrollRef } = t0;
-	const [expandedIndex, setExpandedIndex] = (0, import_react.useState)(retries.length - 1);
-	let t1;
-	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-		t1 = (index) => {
-			setExpandedIndex((cur) => cur === index ? null : index);
-		};
-		$[0] = t1;
-	} else t1 = $[0];
-	const onToggleOpen = t1;
-	let t2;
-	if ($[1] === Symbol.for("react.memo_cache_sentinel")) {
-		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: SampleRetriedErrors_module_default.sectionLabel,
-			children: "Retry Attempts"
-		});
-		$[1] = t2;
-	} else t2 = $[1];
-	let t3;
-	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
-		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: SampleRetriedErrors_module_default.rail,
-			"aria-hidden": "true"
-		});
-		$[2] = t3;
-	} else t3 = $[2];
-	let t4;
-	if ($[3] !== expandedIndex || $[4] !== id || $[5] !== retries || $[6] !== scrollRef) {
-		let t5;
-		if ($[8] !== expandedIndex || $[9] !== id || $[10] !== scrollRef) {
-			t5 = (retry, index_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-				className: SampleRetriedErrors_module_default.row,
-				children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-					className: SampleRetriedErrors_module_default.dotGutter,
-					"aria-hidden": "true",
-					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
-						name: "error",
-						className: SampleRetriedErrors_module_default.statusIcon
-					})
-				}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RetryAttemptCard, {
-					retry,
-					attemptNumber: index_0 + 1,
-					isOpen: expandedIndex === index_0,
-					onToggleOpen: () => onToggleOpen(index_0),
-					listId: `sample-error-retries-${id}-${index_0}`,
-					scrollRef
-				})]
-			}, index_0);
-			$[8] = expandedIndex;
-			$[9] = id;
-			$[10] = scrollRef;
-			$[11] = t5;
-		} else t5 = $[11];
-		t4 = retries.map(t5);
-		$[3] = expandedIndex;
-		$[4] = id;
-		$[5] = retries;
-		$[6] = scrollRef;
+		$[4] = t3;
+		$[5] = text;
+		$[6] = truncateAt;
 		$[7] = t4;
 	} else t4 = $[7];
 	let t5;
-	if ($[12] !== error || $[13] !== limit || $[14] !== retries.length) {
-		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RetryTerminalAnchor, {
-			retryCount: retries.length,
-			error,
-			limit
+	if ($[8] !== t2 || $[9] !== t4) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t2,
+			children: t4
 		});
-		$[12] = error;
-		$[13] = limit;
-		$[14] = retries.length;
-		$[15] = t5;
-	} else t5 = $[15];
-	let t6;
-	if ($[16] !== t4 || $[17] !== t5) {
-		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: SampleRetriedErrors_module_default.panel,
-			children: [t2, /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-				className: SampleRetriedErrors_module_default.timeline,
-				children: [t3, /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-					className: SampleRetriedErrors_module_default.items,
-					children: [t4, t5]
-				})]
-			})]
-		});
-		$[16] = t4;
-		$[17] = t5;
-		$[18] = t6;
-	} else t6 = $[18];
-	return t6;
+		$[8] = t2;
+		$[9] = t4;
+		$[10] = t5;
+	} else t5 = $[10];
+	return t5;
 };
-//#endregion
-//#region src/utils/evalModel.ts
-/**
-* Format the primary model first, then the named roles.
-*
-* Separate entries with `;` since list-valued roles already use `,`.
-* Omits the `none/none` placeholder and returns `undefined` if both are empty.
-*/ var formatModelText = (evalSpec) => {
-	const { model, roles } = modelDisplayParts(evalSpec);
-	return [model, roles].filter(Boolean).join("; ") || void 0;
-};
-/** Format the primary model followed by parenthesized roles for a title. */ var formatModelTitle = (evalSpec) => {
-	const { model, roles } = modelDisplayParts(evalSpec);
-	return [model, roles ? `(${roles})` : void 0].filter(Boolean).join(" ") || void 0;
-};
-var modelDisplayParts = (evalSpec) => {
-	const model = evalSpec?.model;
-	const roles = Object.entries(evalSpec?.model_roles ?? {}).map(([role, data]) => `${role}: ${modelRoleModelNames(data)}`).join("; ");
-	return {
-		model: model && model !== "none/none" ? model : void 0,
-		roles: roles || void 0
-	};
-};
-//#endregion
-//#region src/app/appearance/fonts.ts
-/**
-* The base font size in rem units.
-*/ var kBaseFontSize = .9;
-/**
-* Scales the base font size by the provided scale factor.
-*/ var ScaleBaseFont = (scale) => {
-	return `${kBaseFontSize + scale}rem`;
-};
-//#endregion
-//#region src/app/appearance/styles.ts
-var ApplicationStyles = {
-	moreButton: {
-		maxHeight: "1.8em",
-		fontSize: {
-			title: ScaleBaseFont(.6),
-			"title-secondary": ScaleBaseFont(.4),
-			larger: ScaleBaseFont(.2),
-			large: ScaleBaseFont(.1),
-			base: ScaleBaseFont(0),
-			small: ScaleBaseFont(-.1),
-			smaller: ScaleBaseFont(-.1)
-		}.smaller,
-		padding: "0 0.2em 0 0.2em",
-		...{
-			label: { textTransform: "uppercase" },
-			secondary: { color: "var(--bs-secondary)" },
-			tertiary: { color: "var(--bs-tertiary-color)" }
-		}.secondary
-	},
-	threeLineClamp: {
-		display: "-webkit-box",
-		WebkitLineClamp: "3",
-		WebkitBoxOrient: "vertical",
-		overflow: "hidden"
-	},
-	lineClamp: (len) => {
-		return {
-			display: "-webkit-box",
-			WebkitLineClamp: `${len}`,
-			WebkitBoxOrient: "vertical",
-			overflow: "hidden"
-		};
-	},
-	wrapText: () => {
-		return {
-			whiteSpace: "nowrap",
-			textOverflow: "ellipsis",
-			overflow: "hidden"
-		};
-	},
-	scoreFills: {
-		green: {
-			backgroundColor: "var(--bs-success)",
-			borderColor: "var(--bs-success)",
-			color: "var(--bs-body-bg)"
-		},
-		red: {
-			backgroundColor: "var(--bs-danger)",
-			borderColor: "var(--bs-danger)",
-			color: "var(--bs-body-bg)"
-		},
-		orange: {
-			backgroundColor: "var(--bs-orange)",
-			borderColor: "var(--bs-orange)",
-			color: "var(--bs-body-bg)"
-		}
-	}
-};
-var SampleErrorView_module_default = {
-	body: "_body_x9ww7_1",
-	safe: "_safe_x9ww7_9",
-	iconSmall: "_iconSmall_x9ww7_13",
-	message: "_message_x9ww7_19"
-};
-//#endregion
-//#region src/app/samples/error/SampleErrorView.tsx
-/**
-* Component to display a styled error message.
-*/ var SampleErrorView = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(16);
-	const { message } = t0;
+/** Centered single-line cell for score values. */ var ScoreCellDiv = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(3);
+	const { children } = t0;
 	let t1;
+	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+		t1 = clsx(gridCells_module_default.cell, gridCells_module_default.score);
+		$[0] = t1;
+	} else t1 = $[0];
 	let t2;
-	let t3;
-	let type;
-	if ($[0] !== message) {
-		type = errorType(message);
-		t1 = clsx;
-		t2 = SampleErrorView_module_default.body;
-		t3 = isCanceledError(type) ? SampleErrorView_module_default.safe : void 0;
-		$[0] = message;
-		$[1] = t1;
+	if ($[1] !== children) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t1,
+			children
+		});
+		$[1] = children;
 		$[2] = t2;
-		$[3] = t3;
-		$[4] = type;
-	} else {
-		t1 = $[1];
-		t2 = $[2];
-		t3 = $[3];
-		type = $[4];
-	}
-	let t4;
-	if ($[5] !== t1 || $[6] !== t2 || $[7] !== t3) {
-		t4 = t1(t2, t3);
-		$[5] = t1;
-		$[6] = t2;
-		$[7] = t3;
-		$[8] = t4;
-	} else t4 = $[8];
-	let t5;
-	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
-		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
-			name: "error",
-			className: SampleErrorView_module_default.iconSmall
-		});
-		$[9] = t5;
-	} else t5 = $[9];
-	let t6;
-	if ($[10] === Symbol.for("react.memo_cache_sentinel")) {
-		t6 = ApplicationStyles.lineClamp(2);
-		$[10] = t6;
-	} else t6 = $[10];
-	let t7;
-	if ($[11] !== type) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: SampleErrorView_module_default.message,
-			style: t6,
-			children: type
-		});
-		$[11] = type;
-		$[12] = t7;
-	} else t7 = $[12];
-	let t8;
-	if ($[13] !== t4 || $[14] !== t7) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t4,
-			children: [t5, t7]
-		});
-		$[13] = t4;
-		$[14] = t7;
-		$[15] = t8;
-	} else t8 = $[15];
-	return t8;
+	} else t2 = $[2];
+	return t2;
 };
-var isCanceledError = (type) => {
-	return type === "CancelledError";
-};
-//#endregion
-//#region src/app/shared/samples-grid/colorScale.ts
+// src/app/shared/samples-grid/colorScale.ts
 /**
 * Pure colour-scale resolver for score-cell backgrounds.
 *
@@ -118462,186 +119177,7 @@ function resolveGradient(palette, min, max) {
 	return scale.colors[key];
 }
 var clamp01 = (n) => n < 0 ? 0 : n > 1 ? 1 : n;
-//#endregion
-//#region src/app/samples/sample-tools/filterSpecRegistry.ts
-var STATIC_ENTRIES = [
-	["sampleUuid", {
-		variable: "uuid",
-		kind: "string"
-	}],
-	["epoch", {
-		variable: "epoch",
-		kind: "number"
-	}],
-	["input", {
-		variable: "input",
-		kind: "string",
-		containsFn: "input_contains"
-	}],
-	["target", {
-		variable: "target",
-		kind: "string",
-		containsFn: "target_contains"
-	}],
-	["answer", {
-		variable: "answer",
-		kind: "string",
-		containsFn: "answer_contains"
-	}],
-	["tokens", {
-		variable: "tokens",
-		kind: "number"
-	}],
-	["duration", {
-		variable: "duration",
-		kind: "number"
-	}],
-	["error", {
-		variable: "error",
-		kind: "string",
-		containsFn: "error_contains"
-	}],
-	["limit", {
-		variable: "limit",
-		kind: "string"
-	}],
-	["retries", {
-		variable: "retries",
-		kind: "number"
-	}],
-	["fallbacks", {
-		variable: "fallbacks",
-		kind: "number"
-	}]
-];
-/** Build the column↔filtrex-variable registry. Score columns are added
-*  dynamically from `evalDescriptor.scores` so the variable name matches
-*  the same short/qualified rule used by `scoreVariables` in filters.ts. */ var buildSampleFilterSpecRegistry = (evalDescriptor) => {
-	const entries = [...STATIC_ENTRIES];
-	if (evalDescriptor) {
-		const banned = bannedShortScoreNames(evalDescriptor.scores);
-		for (const { name, scorer } of evalDescriptor.scores) {
-			const colId = perScorerFieldKey({
-				name,
-				scorer
-			});
-			if (name === scorer && builtinFilterVariables.has(name)) continue;
-			const variable = name === scorer || !banned.has(name) ? name : `${scorer}.${name}`;
-			const scoreType = evalDescriptor.scoreDescriptor({
-				name,
-				scorer
-			})?.scoreType;
-			let kind;
-			if (scoreType === "numeric") kind = "number";
-			else if (scoreType === "categorical" || scoreType === "passfail") kind = "string";
-			else continue;
-			entries.push([colId, {
-				variable,
-				kind
-			}]);
-		}
-	}
-	return {
-		byColId: new Map(entries),
-		byVariable: new Map(entries.map(([colId, m]) => [m.variable, colId]))
-	};
-};
-/**
-* Operator choices offered on the samples tab, narrowed to what round-trips
-* through the filtrex bridge: no `in`/`not in` (the recognizer has no filtrex
-* `in` mapping) and no `not between` (no filtrex form existed on main).
-*/ var samplesOperatorsForKind = (kind) => kind === "number" ? [
-	"=",
-	"!=",
-	"<",
-	"<=",
-	">",
-	">=",
-	"between",
-	"is blank",
-	"is not blank"
-] : [
-	"contains",
-	"does not contain",
-	"starts with",
-	"ends with",
-	"=",
-	"!=",
-	"is blank",
-	"is not blank"
-];
-var gridCells_module_default = {
-	cell: "_cell_8nkqa_2",
-	wrapAnywhere: "_wrapAnywhere_8nkqa_6",
-	noLeft: "_noLeft_8nkqa_10",
-	score: "_score_8nkqa_14"
-};
-//#endregion
-//#region src/app/shared/samples-grid/cells.tsx
-/** Wraps truncated markdown in a 3-line-clamped cell. Used by list-mode
-*  renderers for `input`, `target`, `answer`. */ var MarkdownCellDiv = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(11);
-	const { semanticClass, text, trimRenderedText, truncateAt: t1 } = t0;
-	const truncateAt = t1 === void 0 ? 250 : t1;
-	let t2;
-	if ($[0] !== semanticClass) {
-		t2 = clsx(semanticClass, "three-line-clamp", gridCells_module_default.cell, gridCells_module_default.wrapAnywhere);
-		$[0] = semanticClass;
-		$[1] = t2;
-	} else t2 = $[1];
-	let t3;
-	if ($[2] !== trimRenderedText) {
-		t3 = trimRenderedText ? clsx("no-last-para-padding", gridCells_module_default.noLeft) : void 0;
-		$[2] = trimRenderedText;
-		$[3] = t3;
-	} else t3 = $[3];
-	let t4;
-	if ($[4] !== t3 || $[5] !== text || $[6] !== truncateAt) {
-		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RenderedText, {
-			markdown: text,
-			truncateAt,
-			className: t3,
-			forceRender: true,
-			renderer: "fragment"
-		});
-		$[4] = t3;
-		$[5] = text;
-		$[6] = truncateAt;
-		$[7] = t4;
-	} else t4 = $[7];
-	let t5;
-	if ($[8] !== t2 || $[9] !== t4) {
-		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t2,
-			children: t4
-		});
-		$[8] = t2;
-		$[9] = t4;
-		$[10] = t5;
-	} else t5 = $[10];
-	return t5;
-};
-/** Centered single-line cell for score values. */ var ScoreCellDiv = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(3);
-	const { children } = t0;
-	let t1;
-	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-		t1 = clsx(gridCells_module_default.cell, gridCells_module_default.score);
-		$[0] = t1;
-	} else t1 = $[0];
-	let t2;
-	if ($[1] !== children) {
-		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t1,
-			children
-		});
-		$[1] = children;
-		$[2] = t2;
-	} else t2 = $[2];
-	return t2;
-};
-//#endregion
-//#region src/app/shared/samples-grid/columns.tsx
+// src/app/shared/samples-grid/columns.tsx
 var numberCompare = (a, b, isDescending) => comparators.number(a, b, isDescending);
 var dateCompare = (a, b) => comparators.date(a, b);
 var stringCompare = (a, b) => valueAsString(a ?? "").localeCompare(valueAsString(b ?? ""));
@@ -119076,8 +119612,7 @@ var targetText = (row) => {
 		};
 	});
 }
-//#endregion
-//#region src/app/samples/list/samplesView.ts
+// src/app/samples/list/samplesView.ts
 /**
 * The default view applied when neither the user nor the eval author
 * has specified anything. `columns` and `sort` are intentionally empty —
@@ -119097,8 +119632,7 @@ var targetText = (row) => {
 	colorScalesEnabled: true,
 	userOverrides: {}
 });
-//#endregion
-//#region src/app/samples/list/samplesView.converters.ts
+// src/app/samples/list/samplesView.converters.ts
 /**
 * Pure converters between the on-the-wire `TaskSamplesView` and the runtime
 * `SamplesViewState`.
@@ -119174,8 +119708,7 @@ var targetText = (row) => {
 		colorScalesEnabled: overrides.colorScalesEnabled ?? lifted.colorScalesEnabled
 	};
 };
-//#endregion
-//#region src/app/samples/list/useSamplesView.ts
+// src/app/samples/list/useSamplesView.ts
 /** Single subscription to the eval-author-supplied `task_samples_view`
 *  descriptor (after picking an active variant from a multi-view list).
 *  Backs every hook that reads from the wire side. */ function useEvalDefaultSamplesView() {
@@ -119259,7 +119792,7 @@ var kNoScoreColorScales$1 = Object.freeze({});
 	const evalDefault = useEvalDefaultSamplesView();
 	const view = useResolvedSamplesView();
 	const logFile = useCurrentLogFile();
-	const setSampleListViewAction = useStore(_temp$40);
+	const setSampleListViewAction = useStore(_temp$42);
 	let t1;
 	if ($[2] !== logFile || $[3] !== setSampleListViewAction) {
 		t1 = (next) => {
@@ -119466,9 +119999,965 @@ function _temp3$21(t0) {
 function _temp2$31(c) {
 	return c.id;
 }
-function _temp$40(state) {
+function _temp$42(state) {
 	return state.logsActions.setSampleListView;
 }
+// src/app/samples/list/SamplesViewOptionsPopover.tsx
+/** A view's presentation toggles, one checkbox each, under its View button. */ var ViewOptionsPopover = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(12);
+	const { id, showing, setShowing, positionEl, options } = t0;
+	let t1;
+	let t2;
+	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+		t1 = [0, 1];
+		t2 = clsx(SamplesViewOptionsPopover_module_default.container, "text-size-small");
+		$[0] = t1;
+		$[1] = t2;
+	} else {
+		t1 = $[0];
+		t2 = $[1];
+	}
+	let t3;
+	if ($[2] !== options) {
+		t3 = options.map(_temp$41);
+		$[2] = options;
+		$[3] = t3;
+	} else t3 = $[3];
+	let t4;
+	if ($[4] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t2,
+			children: t3
+		});
+		$[4] = t3;
+		$[5] = t4;
+	} else t4 = $[5];
+	let t5;
+	if ($[6] !== id || $[7] !== positionEl || $[8] !== setShowing || $[9] !== showing || $[10] !== t4) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PopOver, {
+			id,
+			isOpen: showing,
+			setIsOpen: setShowing,
+			positionEl,
+			placement: "bottom-end",
+			showArrow: false,
+			hoverDelay: -1,
+			closeOnMouseLeave: false,
+			offset: t1,
+			children: t4
+		});
+		$[6] = id;
+		$[7] = positionEl;
+		$[8] = setShowing;
+		$[9] = showing;
+		$[10] = t4;
+		$[11] = t5;
+	} else t5 = $[11];
+	return t5;
+};
+var SamplesViewOptionsPopover = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(27);
+	const { showing, setShowing, positionEl } = t0;
+	const { view, setMultiline, setCompactScores, setColorScalesEnabled } = useSamplesView();
+	const scoreColorScales = useSamplesViewScoreColorScales();
+	let t1;
+	if ($[0] !== scoreColorScales) {
+		t1 = Object.keys(scoreColorScales);
+		$[0] = scoreColorScales;
+		$[1] = t1;
+	} else t1 = $[1];
+	const showColorScales = t1.length > 0;
+	let t2;
+	if ($[2] !== setMultiline || $[3] !== view.multiline) {
+		t2 = () => setMultiline(!view.multiline);
+		$[2] = setMultiline;
+		$[3] = view.multiline;
+		$[4] = t2;
+	} else t2 = $[4];
+	let t3;
+	if ($[5] !== t2 || $[6] !== view.multiline) {
+		t3 = {
+			label: "Multiline",
+			checked: view.multiline,
+			onChange: t2
+		};
+		$[5] = t2;
+		$[6] = view.multiline;
+		$[7] = t3;
+	} else t3 = $[7];
+	let t4;
+	if ($[8] !== setCompactScores || $[9] !== view.compactScores) {
+		t4 = () => setCompactScores(!view.compactScores);
+		$[8] = setCompactScores;
+		$[9] = view.compactScores;
+		$[10] = t4;
+	} else t4 = $[10];
+	let t5;
+	if ($[11] !== t4 || $[12] !== view.compactScores) {
+		t5 = {
+			label: "Compact scores",
+			checked: view.compactScores,
+			onChange: t4
+		};
+		$[11] = t4;
+		$[12] = view.compactScores;
+		$[13] = t5;
+	} else t5 = $[13];
+	let t6;
+	if ($[14] !== setColorScalesEnabled || $[15] !== showColorScales || $[16] !== view.colorScalesEnabled) {
+		t6 = showColorScales ? [{
+			label: "Score colors",
+			checked: view.colorScalesEnabled,
+			onChange: () => setColorScalesEnabled(!view.colorScalesEnabled)
+		}] : [];
+		$[14] = setColorScalesEnabled;
+		$[15] = showColorScales;
+		$[16] = view.colorScalesEnabled;
+		$[17] = t6;
+	} else t6 = $[17];
+	let t7;
+	if ($[18] !== t3 || $[19] !== t5 || $[20] !== t6) {
+		t7 = [
+			t3,
+			t5,
+			...t6
+		];
+		$[18] = t3;
+		$[19] = t5;
+		$[20] = t6;
+		$[21] = t7;
+	} else t7 = $[21];
+	let t8;
+	if ($[22] !== positionEl || $[23] !== setShowing || $[24] !== showing || $[25] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ViewOptionsPopover, {
+			id: "samples-view-options-popover",
+			showing,
+			setShowing,
+			positionEl,
+			options: t7
+		});
+		$[22] = positionEl;
+		$[23] = setShowing;
+		$[24] = showing;
+		$[25] = t7;
+		$[26] = t8;
+	} else t8 = $[26];
+	return t8;
+};
+function _temp$41(option) {
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("label", {
+		className: SamplesViewOptionsPopover_module_default.row,
+		children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
+			type: "checkbox",
+			checked: option.checked,
+			onChange: option.onChange,
+			className: SamplesViewOptionsPopover_module_default.checkbox
+		}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: option.label })]
+	}, option.label);
+}
+// src/app/samples/communication/CommunicationViewOptions.tsx
+/** The Communication tab's View button: the samples list's view options. */ var CommunicationViewOptions = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(11);
+	const { multiline, setMultiline } = t0;
+	const [showing, setShowing] = (0, import_react.useState)(false);
+	const [buttonEl, setButtonEl] = (0, import_react.useState)(null);
+	let t1;
+	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+		t1 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
+			ref: setButtonEl,
+			label: "View",
+			icon: "options",
+			onClick: (e) => {
+				e.stopPropagation();
+				setShowing(_temp$40);
+			},
+			subtle: true
+		});
+		$[0] = t1;
+	} else t1 = $[0];
+	let t2;
+	if ($[1] !== multiline || $[2] !== setMultiline) {
+		t2 = () => setMultiline(!multiline);
+		$[1] = multiline;
+		$[2] = setMultiline;
+		$[3] = t2;
+	} else t2 = $[3];
+	let t3;
+	if ($[4] !== multiline || $[5] !== t2) {
+		t3 = [{
+			label: "Multiline",
+			checked: multiline,
+			onChange: t2
+		}];
+		$[4] = multiline;
+		$[5] = t2;
+		$[6] = t3;
+	} else t3 = $[6];
+	let t4;
+	if ($[7] !== buttonEl || $[8] !== showing || $[9] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t1, /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ViewOptionsPopover, {
+			id: "communication-view-options-popover",
+			showing,
+			setShowing,
+			positionEl: buttonEl,
+			options: t3
+		})] });
+		$[7] = buttonEl;
+		$[8] = showing;
+		$[9] = t3;
+		$[10] = t4;
+	} else t4 = $[10];
+	return t4;
+};
+function _temp$40(prev) {
+	return !prev;
+}
+var SampleDisplay_module_default = {
+	tabControls: "_tabControls_6sqvk_1",
+	fullWidth: "_fullWidth_6sqvk_10",
+	metadataPanel: "_metadataPanel_6sqvk_14",
+	padded: "_padded_6sqvk_20",
+	error: "_error_6sqvk_25",
+	ansi: "_ansi_6sqvk_29",
+	noTop: "_noTop_6sqvk_33",
+	chat: "_chat_6sqvk_37",
+	railHost: "_railHost_6sqvk_41",
+	tabContent: "_tabContent_6sqvk_49",
+	overflowVisible: "_overflowVisible_6sqvk_60",
+	toolSeparator: "_toolSeparator_6sqvk_68",
+	retriedErrors: "_retriedErrors_6sqvk_77",
+	fullscreenTool: "_fullscreenTool_6sqvk_88"
+};
+// src/app/samples/SampleJSONView.tsx
+var MAX_JSON_DISPLAY_SIZE = 26214400;
+var SampleJSONView = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(3);
+	const { sample, className } = t0;
+	let t1;
+	if ($[0] !== className || $[1] !== sample) {
+		t1 = estimateSize(sample.events) > MAX_JSON_DISPLAY_SIZE ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: "JSON too large to display" }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(JSONPanel, {
+			data: sample,
+			simple: true,
+			className
+		});
+		$[0] = className;
+		$[1] = sample;
+		$[2] = t1;
+	} else t1 = $[2];
+	return t1;
+};
+// src/app/samples/retry-display/retryAttempt.ts
+/**
+* Derive the exception class name (e.g. `RuntimeError`) from a Python
+* traceback's final line. `EvalRetryError` has no dedicated field for this.
+* Returns null when the final line doesn't look like `ExceptionClass[: message]`
+* so callers can omit the chip rather than render garbage.
+*/ function deriveErrorType(retry) {
+	const tb = retry.traceback.trimEnd();
+	if (!tb) return null;
+	const lines = tb.split("\n");
+	const last = lines[lines.length - 1]?.trim() ?? "";
+	if (!last) return null;
+	const beforeColon = last.split(":")[0]?.trim() ?? "";
+	if (!beforeColon) return null;
+	const cls = beforeColon.split(".").pop() ?? beforeColon;
+	return /^[A-Za-z_]\w*$/.test(cls) ? cls : null;
+}
+/**
+* Best-effort attempt start time — the earliest event timestamp. `EvalRetryError`
+* carries no top-level timing, so the events are the only source; never
+* fabricate one. Returns null when no event carries a parseable timestamp.
+*/ function attemptStartTime(retry) {
+	const events = retry.events;
+	if (!events || events.length === 0) return null;
+	const times = events.map((e) => "timestamp" in e ? e.timestamp : void 0).filter((t) => typeof t === "string").map((t) => Date.parse(t)).filter((n) => Number.isFinite(n));
+	if (times.length === 0) return null;
+	return new Date(Math.min(...times));
+}
+var RetryAttemptCard_module_default = {
+	card: "_card_1bwn0_1",
+	cardCollapsed: "_cardCollapsed_1bwn0_13",
+	cardOpen: "_cardOpen_1bwn0_17",
+	header: "_header_1bwn0_21",
+	attemptLabel: "_attemptLabel_1bwn0_29",
+	timestamp: "_timestamp_1bwn0_39",
+	errorChip: "_errorChip_1bwn0_49",
+	message: "_message_1bwn0_64",
+	chevron: "_chevron_1bwn0_73",
+	body: "_body_1bwn0_82",
+	dividerBand: "_dividerBand_1bwn0_88",
+	hairline: "_hairline_1bwn0_95",
+	toggle: "_toggle_1bwn0_101",
+	content: "_content_1bwn0_106",
+	errorPanel: "_errorPanel_1bwn0_110",
+	ansi: "_ansi_1bwn0_114"
+};
+// src/app/samples/retry-display/RetryAttemptCard.tsx
+var isRetryView = (value) => value === "error" || value === "events";
+var kViewSegments = [{
+	id: "error",
+	label: "Error",
+	icon: "warning"
+}, {
+	id: "events",
+	label: "Events",
+	icon: "listView"
+}];
+var RetryAttemptCard = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(38);
+	const { retry, attemptNumber, isOpen, onToggleOpen, listId, scrollRef } = t0;
+	let t1;
+	if ($[0] !== retry) {
+		t1 = deriveErrorType(retry);
+		$[0] = retry;
+		$[1] = t1;
+	} else t1 = $[1];
+	const errorType = t1;
+	let t2;
+	if ($[2] !== retry) {
+		t2 = attemptStartTime(retry);
+		$[2] = retry;
+		$[3] = t2;
+	} else t2 = $[3];
+	const startTime = t2;
+	const hasEvents = !!retry.events?.length;
+	const [view, setView] = (0, import_react.useState)("error");
+	const t3 = isOpen ? RetryAttemptCard_module_default.cardOpen : RetryAttemptCard_module_default.cardCollapsed;
+	let t4;
+	if ($[4] !== t3) {
+		t4 = clsx(RetryAttemptCard_module_default.card, t3);
+		$[4] = t3;
+		$[5] = t4;
+	} else t4 = $[5];
+	let t5;
+	if ($[6] !== onToggleOpen) {
+		t5 = (e) => {
+			if (e.key === "Enter" || e.key === " ") {
+				e.preventDefault();
+				onToggleOpen();
+			}
+		};
+		$[6] = onToggleOpen;
+		$[7] = t5;
+	} else t5 = $[7];
+	const t6 = `Attempt ${attemptNumber}`;
+	let t7;
+	if ($[8] !== t6) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: RetryAttemptCard_module_default.attemptLabel,
+			children: t6
+		});
+		$[8] = t6;
+		$[9] = t7;
+	} else t7 = $[9];
+	let t8;
+	if ($[10] !== errorType) {
+		t8 = errorType && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: RetryAttemptCard_module_default.errorChip,
+			children: errorType
+		});
+		$[10] = errorType;
+		$[11] = t8;
+	} else t8 = $[11];
+	let t9;
+	if ($[12] !== retry.message) {
+		t9 = retry.message && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: RetryAttemptCard_module_default.message,
+			children: retry.message
+		});
+		$[12] = retry.message;
+		$[13] = t9;
+	} else t9 = $[13];
+	let t10;
+	if ($[14] !== startTime) {
+		t10 = startTime && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: RetryAttemptCard_module_default.timestamp,
+			children: formatDateTime$1(startTime)
+		});
+		$[14] = startTime;
+		$[15] = t10;
+	} else t10 = $[15];
+	const t11 = isOpen ? "chevronDown" : "chevronRight";
+	let t12;
+	if ($[16] !== t11) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
+			name: t11,
+			className: RetryAttemptCard_module_default.chevron
+		});
+		$[16] = t11;
+		$[17] = t12;
+	} else t12 = $[17];
+	let t13;
+	if ($[18] !== isOpen || $[19] !== onToggleOpen || $[20] !== t10 || $[21] !== t12 || $[22] !== t5 || $[23] !== t7 || $[24] !== t8 || $[25] !== t9) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: RetryAttemptCard_module_default.header,
+			role: "button",
+			tabIndex: 0,
+			"aria-expanded": isOpen,
+			onClick: onToggleOpen,
+			onKeyDown: t5,
+			children: [
+				t7,
+				t8,
+				t9,
+				t10,
+				t12
+			]
+		});
+		$[18] = isOpen;
+		$[19] = onToggleOpen;
+		$[20] = t10;
+		$[21] = t12;
+		$[22] = t5;
+		$[23] = t7;
+		$[24] = t8;
+		$[25] = t9;
+		$[26] = t13;
+	} else t13 = $[26];
+	let t14;
+	if ($[27] !== hasEvents || $[28] !== isOpen || $[29] !== listId || $[30] !== retry || $[31] !== scrollRef || $[32] !== view) {
+		t14 = isOpen && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: RetryAttemptCard_module_default.body,
+			children: [hasEvents && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+				className: RetryAttemptCard_module_default.dividerBand,
+				children: [
+					/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+						className: RetryAttemptCard_module_default.hairline,
+						"aria-hidden": "true"
+					}),
+					/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+						className: RetryAttemptCard_module_default.toggle,
+						children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SegmentedControl, {
+							segments: kViewSegments,
+							selectedId: view,
+							onSegmentChange: (id) => {
+								if (isRetryView(id)) setView(id);
+							}
+						})
+					}),
+					/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+						className: RetryAttemptCard_module_default.hairline,
+						"aria-hidden": "true"
+					})
+				]
+			}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+				className: RetryAttemptCard_module_default.content,
+				children: view === "error" || !hasEvents ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
+					id: `retry-error-${listId}`,
+					collapse: true,
+					className: RetryAttemptCard_module_default.errorPanel,
+					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ANSIDisplay, {
+						output: retry.traceback_ansi,
+						className: RetryAttemptCard_module_default.ansi
+					})
+				}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RetryEventsView, {
+					retry,
+					listId,
+					scrollRef
+				})
+			})]
+		});
+		$[27] = hasEvents;
+		$[28] = isOpen;
+		$[29] = listId;
+		$[30] = retry;
+		$[31] = scrollRef;
+		$[32] = view;
+		$[33] = t14;
+	} else t14 = $[33];
+	let t15;
+	if ($[34] !== t13 || $[35] !== t14 || $[36] !== t4) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t4,
+			children: [t13, t14]
+		});
+		$[34] = t13;
+		$[35] = t14;
+		$[36] = t4;
+		$[37] = t15;
+	} else t15 = $[37];
+	return t15;
+};
+var RetryEventsView = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(19);
+	const { retry, listId, scrollRef } = t0;
+	let ids;
+	if ($[0] !== retry.events) {
+		ids = {};
+		for (const event of retry.events || []) if ((event.event === "state" || event.event === "store") && event.uuid) ids[event.uuid] = true;
+		$[0] = retry.events;
+		$[1] = ids;
+	} else ids = $[1];
+	const initialCollapsed = ids;
+	const [transcriptCollapsed, setTranscriptCollapsed] = (0, import_react.useState)(void 0);
+	const [bulkCollapse, setBulkCollapse] = (0, import_react.useState)("expand");
+	let t1;
+	if ($[2] !== initialCollapsed || $[3] !== transcriptCollapsed) {
+		t1 = transcriptCollapsed ? {
+			...initialCollapsed,
+			...transcriptCollapsed
+		} : Object.keys(initialCollapsed).length > 0 ? initialCollapsed : void 0;
+		$[2] = initialCollapsed;
+		$[3] = transcriptCollapsed;
+		$[4] = t1;
+	} else t1 = $[4];
+	const effectiveCollapsed = t1;
+	let t2;
+	let t3;
+	if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
+		t2 = (nodeId, collapsed) => setTranscriptCollapsed((prev) => ({
+			...prev,
+			[nodeId]: collapsed
+		}));
+		t3 = (ids_0) => {
+			setTranscriptCollapsed(ids_0);
+			setBulkCollapse(void 0);
+		};
+		$[5] = t2;
+		$[6] = t3;
+	} else {
+		t2 = $[5];
+		t3 = $[6];
+	}
+	let t4;
+	if ($[7] !== effectiveCollapsed) {
+		t4 = {
+			transcript: effectiveCollapsed,
+			onCollapseTranscript: t2,
+			onSetTranscriptCollapsed: t3
+		};
+		$[7] = effectiveCollapsed;
+		$[8] = t4;
+	} else t4 = $[8];
+	const collapseState = t4;
+	let t5;
+	if ($[9] !== retry.events) {
+		t5 = retry.events || [];
+		$[9] = retry.events;
+		$[10] = t5;
+	} else t5 = $[10];
+	let t6;
+	if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
+		t6 = { showSwimlanes: false };
+		$[11] = t6;
+	} else t6 = $[11];
+	let t7;
+	if ($[12] === Symbol.for("react.memo_cache_sentinel")) {
+		t7 = { inlineExpansionUX: true };
+		$[12] = t7;
+	} else t7 = $[12];
+	let t8;
+	if ($[13] !== bulkCollapse || $[14] !== collapseState || $[15] !== listId || $[16] !== scrollRef || $[17] !== t5) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: "text-size-small",
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptLayout, {
+				events: t5,
+				scrollRef,
+				listId,
+				embedded: true,
+				timeline: t6,
+				collapseState,
+				bulkCollapse,
+				eventNodeContext: t7,
+				keyboardNavDisabled: true
+			})
+		});
+		$[13] = bulkCollapse;
+		$[14] = collapseState;
+		$[15] = listId;
+		$[16] = scrollRef;
+		$[17] = t5;
+		$[18] = t8;
+	} else t8 = $[18];
+	return t8;
+};
+var RetryTerminalAnchor_module_default = {
+	row: "_row_5mttp_1",
+	marker: "_marker_5mttp_7",
+	markerSuccess: "_markerSuccess_5mttp_22",
+	markerError: "_markerError_5mttp_26",
+	markerCancelled: "_markerCancelled_5mttp_30",
+	markerLimit: "_markerLimit_5mttp_34",
+	copy: "_copy_5mttp_42",
+	headline: "_headline_5mttp_52",
+	headlineSuccess: "_headlineSuccess_5mttp_58",
+	headlineError: "_headlineError_5mttp_62",
+	headlineCancelled: "_headlineCancelled_5mttp_66",
+	headlineLimit: "_headlineLimit_5mttp_70",
+	detail: "_detail_5mttp_74"
+};
+// src/app/samples/retry-display/RetryTerminalAnchor.tsx
+var deriveOutcome = (error, limit) => {
+	const status = deriveSampleStatus(true, error?.message);
+	if (status === "error" || status === "cancelled") return status;
+	return limit ? "limit" : "success";
+};
+var markerByOutcome = {
+	success: RetryTerminalAnchor_module_default.markerSuccess,
+	error: RetryTerminalAnchor_module_default.markerError,
+	cancelled: RetryTerminalAnchor_module_default.markerCancelled,
+	limit: RetryTerminalAnchor_module_default.markerLimit
+};
+var headlineByOutcome = {
+	success: RetryTerminalAnchor_module_default.headlineSuccess,
+	error: RetryTerminalAnchor_module_default.headlineError,
+	cancelled: RetryTerminalAnchor_module_default.headlineCancelled,
+	limit: RetryTerminalAnchor_module_default.headlineLimit
+};
+var RetryTerminalAnchor = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(21);
+	const { retryCount, error, limit } = t0;
+	const outcome = deriveOutcome(error, limit);
+	const retriesLabel = retryCount === 1 ? "1 retry" : `${retryCount} retries`;
+	const headline = outcome === "error" ? "This run failed" : outcome === "cancelled" ? "This run was cancelled" : outcome === "limit" ? `This run hit its ${limit?.type} limit` : "This run succeeded";
+	const icon = outcome === "error" ? "close" : outcome === "cancelled" ? "changeRemove" : outcome === "limit" ? "exclamation" : "confirm";
+	const t1 = markerByOutcome[outcome];
+	let t2;
+	if ($[0] !== t1) {
+		t2 = clsx(RetryTerminalAnchor_module_default.marker, t1);
+		$[0] = t1;
+		$[1] = t2;
+	} else t2 = $[1];
+	let t3;
+	if ($[2] !== icon) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: icon });
+		$[2] = icon;
+		$[3] = t3;
+	} else t3 = $[3];
+	let t4;
+	if ($[4] !== t2 || $[5] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: t2,
+			"aria-hidden": "true",
+			children: t3
+		});
+		$[4] = t2;
+		$[5] = t3;
+		$[6] = t4;
+	} else t4 = $[6];
+	const t5 = headlineByOutcome[outcome];
+	let t6;
+	if ($[7] !== t5) {
+		t6 = clsx(RetryTerminalAnchor_module_default.headline, t5);
+		$[7] = t5;
+		$[8] = t6;
+	} else t6 = $[8];
+	const t7 = limit?.reason ?? void 0;
+	let t8;
+	if ($[9] !== headline || $[10] !== t6 || $[11] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: t6,
+			title: t7,
+			children: headline
+		});
+		$[9] = headline;
+		$[10] = t6;
+		$[11] = t7;
+		$[12] = t8;
+	} else t8 = $[12];
+	const t9 = `after ${retriesLabel} — the sample you're viewing`;
+	let t10;
+	if ($[13] !== t9) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: RetryTerminalAnchor_module_default.detail,
+			children: t9
+		});
+		$[13] = t9;
+		$[14] = t10;
+	} else t10 = $[14];
+	let t11;
+	if ($[15] !== t10 || $[16] !== t8) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: RetryTerminalAnchor_module_default.copy,
+			children: [t8, t10]
+		});
+		$[15] = t10;
+		$[16] = t8;
+		$[17] = t11;
+	} else t11 = $[17];
+	let t12;
+	if ($[18] !== t11 || $[19] !== t4) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: RetryTerminalAnchor_module_default.row,
+			children: [t4, t11]
+		});
+		$[18] = t11;
+		$[19] = t4;
+		$[20] = t12;
+	} else t12 = $[20];
+	return t12;
+};
+var SampleRetriedErrors_module_default = {
+	panel: "_panel_1n9ws_1",
+	sectionLabel: "_sectionLabel_1n9ws_5",
+	timeline: "_timeline_1n9ws_14",
+	rail: "_rail_1n9ws_19",
+	items: "_items_1n9ws_28",
+	row: "_row_1n9ws_34",
+	dotGutter: "_dotGutter_1n9ws_41",
+	statusIcon: "_statusIcon_1n9ws_49"
+};
+// src/app/samples/SampleRetriedErrors.tsx
+var SampleRetriedErrors = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(19);
+	const { id, retries, error, limit, scrollRef } = t0;
+	const [expandedIndex, setExpandedIndex] = (0, import_react.useState)(retries.length - 1);
+	let t1;
+	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+		t1 = (index) => {
+			setExpandedIndex((cur) => cur === index ? null : index);
+		};
+		$[0] = t1;
+	} else t1 = $[0];
+	const onToggleOpen = t1;
+	let t2;
+	if ($[1] === Symbol.for("react.memo_cache_sentinel")) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: SampleRetriedErrors_module_default.sectionLabel,
+			children: "Retry Attempts"
+		});
+		$[1] = t2;
+	} else t2 = $[1];
+	let t3;
+	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: SampleRetriedErrors_module_default.rail,
+			"aria-hidden": "true"
+		});
+		$[2] = t3;
+	} else t3 = $[2];
+	let t4;
+	if ($[3] !== expandedIndex || $[4] !== id || $[5] !== retries || $[6] !== scrollRef) {
+		let t5;
+		if ($[8] !== expandedIndex || $[9] !== id || $[10] !== scrollRef) {
+			t5 = (retry, index_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+				className: SampleRetriedErrors_module_default.row,
+				children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+					className: SampleRetriedErrors_module_default.dotGutter,
+					"aria-hidden": "true",
+					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
+						name: "error",
+						className: SampleRetriedErrors_module_default.statusIcon
+					})
+				}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RetryAttemptCard, {
+					retry,
+					attemptNumber: index_0 + 1,
+					isOpen: expandedIndex === index_0,
+					onToggleOpen: () => onToggleOpen(index_0),
+					listId: `sample-error-retries-${id}-${index_0}`,
+					scrollRef
+				})]
+			}, index_0);
+			$[8] = expandedIndex;
+			$[9] = id;
+			$[10] = scrollRef;
+			$[11] = t5;
+		} else t5 = $[11];
+		t4 = retries.map(t5);
+		$[3] = expandedIndex;
+		$[4] = id;
+		$[5] = retries;
+		$[6] = scrollRef;
+		$[7] = t4;
+	} else t4 = $[7];
+	let t5;
+	if ($[12] !== error || $[13] !== limit || $[14] !== retries.length) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RetryTerminalAnchor, {
+			retryCount: retries.length,
+			error,
+			limit
+		});
+		$[12] = error;
+		$[13] = limit;
+		$[14] = retries.length;
+		$[15] = t5;
+	} else t5 = $[15];
+	let t6;
+	if ($[16] !== t4 || $[17] !== t5) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: SampleRetriedErrors_module_default.panel,
+			children: [t2, /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+				className: SampleRetriedErrors_module_default.timeline,
+				children: [t3, /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+					className: SampleRetriedErrors_module_default.items,
+					children: [t4, t5]
+				})]
+			})]
+		});
+		$[16] = t4;
+		$[17] = t5;
+		$[18] = t6;
+	} else t6 = $[18];
+	return t6;
+};
+// src/utils/evalModel.ts
+/**
+* Format the primary model first, then the named roles.
+*
+* Separate entries with `;` since list-valued roles already use `,`.
+* Omits the `none/none` placeholder and returns `undefined` if both are empty.
+*/ var formatModelText = (evalSpec) => {
+	const { model, roles } = modelDisplayParts(evalSpec);
+	return [model, roles].filter(Boolean).join("; ") || void 0;
+};
+/** Format the primary model followed by parenthesized roles for a title. */ var formatModelTitle = (evalSpec) => {
+	const { model, roles } = modelDisplayParts(evalSpec);
+	return [model, roles ? `(${roles})` : void 0].filter(Boolean).join(" ") || void 0;
+};
+var modelDisplayParts = (evalSpec) => {
+	const model = evalSpec?.model;
+	const roles = Object.entries(evalSpec?.model_roles ?? {}).map(([role, data]) => `${role}: ${modelRoleModelNames(data)}`).join("; ");
+	return {
+		model: model && model !== "none/none" ? model : void 0,
+		roles: roles || void 0
+	};
+};
+// src/app/appearance/fonts.ts
+/**
+* The base font size in rem units.
+*/ var kBaseFontSize = .9;
+/**
+* Scales the base font size by the provided scale factor.
+*/ var ScaleBaseFont = (scale) => {
+	return `${kBaseFontSize + scale}rem`;
+};
+// src/app/appearance/styles.ts
+var ApplicationStyles = {
+	moreButton: {
+		maxHeight: "1.8em",
+		fontSize: {
+			title: ScaleBaseFont(.6),
+			"title-secondary": ScaleBaseFont(.4),
+			larger: ScaleBaseFont(.2),
+			large: ScaleBaseFont(.1),
+			base: ScaleBaseFont(0),
+			small: ScaleBaseFont(-.1),
+			smaller: ScaleBaseFont(-.1)
+		}.smaller,
+		padding: "0 0.2em 0 0.2em",
+		...{
+			label: { textTransform: "uppercase" },
+			secondary: { color: "var(--bs-secondary)" },
+			tertiary: { color: "var(--bs-tertiary-color)" }
+		}.secondary
+	},
+	threeLineClamp: {
+		display: "-webkit-box",
+		WebkitLineClamp: "3",
+		WebkitBoxOrient: "vertical",
+		overflow: "hidden"
+	},
+	lineClamp: (len) => {
+		return {
+			display: "-webkit-box",
+			WebkitLineClamp: `${len}`,
+			WebkitBoxOrient: "vertical",
+			overflow: "hidden"
+		};
+	},
+	wrapText: () => {
+		return {
+			whiteSpace: "nowrap",
+			textOverflow: "ellipsis",
+			overflow: "hidden"
+		};
+	},
+	scoreFills: {
+		green: {
+			backgroundColor: "var(--bs-success)",
+			borderColor: "var(--bs-success)",
+			color: "var(--bs-body-bg)"
+		},
+		red: {
+			backgroundColor: "var(--bs-danger)",
+			borderColor: "var(--bs-danger)",
+			color: "var(--bs-body-bg)"
+		},
+		orange: {
+			backgroundColor: "var(--bs-orange)",
+			borderColor: "var(--bs-orange)",
+			color: "var(--bs-body-bg)"
+		}
+	}
+};
+var SampleErrorView_module_default = {
+	body: "_body_x9ww7_1",
+	safe: "_safe_x9ww7_9",
+	iconSmall: "_iconSmall_x9ww7_13",
+	message: "_message_x9ww7_19"
+};
+// src/app/samples/error/SampleErrorView.tsx
+/**
+* Component to display a styled error message.
+*/ var SampleErrorView = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(16);
+	const { message } = t0;
+	let t1;
+	let t2;
+	let t3;
+	let type;
+	if ($[0] !== message) {
+		type = errorType(message);
+		t1 = clsx;
+		t2 = SampleErrorView_module_default.body;
+		t3 = isCanceledError(type) ? SampleErrorView_module_default.safe : void 0;
+		$[0] = message;
+		$[1] = t1;
+		$[2] = t2;
+		$[3] = t3;
+		$[4] = type;
+	} else {
+		t1 = $[1];
+		t2 = $[2];
+		t3 = $[3];
+		type = $[4];
+	}
+	let t4;
+	if ($[5] !== t1 || $[6] !== t2 || $[7] !== t3) {
+		t4 = t1(t2, t3);
+		$[5] = t1;
+		$[6] = t2;
+		$[7] = t3;
+		$[8] = t4;
+	} else t4 = $[8];
+	let t5;
+	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
+			name: "error",
+			className: SampleErrorView_module_default.iconSmall
+		});
+		$[9] = t5;
+	} else t5 = $[9];
+	let t6;
+	if ($[10] === Symbol.for("react.memo_cache_sentinel")) {
+		t6 = ApplicationStyles.lineClamp(2);
+		$[10] = t6;
+	} else t6 = $[10];
+	let t7;
+	if ($[11] !== type) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: SampleErrorView_module_default.message,
+			style: t6,
+			children: type
+		});
+		$[11] = type;
+		$[12] = t7;
+	} else t7 = $[12];
+	let t8;
+	if ($[13] !== t4 || $[14] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t4,
+			children: [t5, t7]
+		});
+		$[13] = t4;
+		$[14] = t7;
+		$[15] = t8;
+	} else t8 = $[15];
+	return t8;
+};
+var isCanceledError = (type) => {
+	return type === "CancelledError";
+};
 var ScorePanel_module_default = {
 	panel: "_panel_h02oy_1",
 	panelHeader: "_panelHeader_h02oy_9",
@@ -119491,8 +120980,7 @@ var ScorePanel_module_default = {
 	chipWarn: "_chipWarn_h02oy_156",
 	chipName: "_chipName_h02oy_160"
 };
-//#endregion
-//#region src/app/samples/header-v2/scoreTone.ts
+// src/app/samples/header-v2/scoreTone.ts
 /**
 * Maps a score value to a visual tone for the V2 sample header.
 *
@@ -119536,8 +121024,7 @@ var ScoreValueDisplay_module_default = {
 	miniPillWarn: "_miniPillWarn_kcau9_90",
 	miniPillNeutral: "_miniPillNeutral_kcau9_95"
 };
-//#endregion
-//#region src/app/samples/header-v2/ScoreValueDisplay.tsx
+// src/app/samples/header-v2/ScoreValueDisplay.tsx
 /**
 * Standalone V2 renderer for a single score value. Bypasses the
 * existing per-descriptor `render()` so we can size grade/bool circles
@@ -119757,8 +121244,7 @@ function formatPlainValue(v) {
 	if (typeof v === "object") return JSON.stringify(v);
 	return String(v);
 }
-//#endregion
-//#region src/app/samples/header-v2/ViewToggle.tsx
+// src/app/samples/header-v2/ViewToggle.tsx
 /**
 * Two-segment Grid / Chips toggle for the V2 score panel header.
 * Built on the shared `SegmentedControl` in compact (icon-only) mode.
@@ -119801,8 +121287,7 @@ function formatPlainValue(v) {
 	} else t3 = $[5];
 	return t3;
 };
-//#endregion
-//#region src/app/samples/header-v2/ScorePanel.tsx
+// src/app/samples/header-v2/ScorePanel.tsx
 /**
 * Score panel for the V2 sample header — the right column when there
 * are 3+ scores. Defaults to chips for ≤ 6 scores, grid for 7+; the
@@ -120237,8 +121722,7 @@ var SampleSummaryView_module_default = {
 	invalidationDetails: "_invalidationDetails_rr9mf_168",
 	invalidationReason: "_invalidationReason_rr9mf_176"
 };
-//#endregion
-//#region src/app/samples/SampleSummaryView.tsx
+// src/app/samples/SampleSummaryView.tsx
 var kBodyTruncate = 360;
 var kTargetTruncate = 160;
 function isEvalSample(sample) {
@@ -120801,8 +122285,7 @@ function _temp4$17(timestamp) {
 		return timestamp;
 	}
 }
-//#endregion
-//#region ../../packages/scout-components/src/scanner-result-detail/Explanation.tsx
+// ../../packages/scout-components/src/scanner-result-detail/Explanation.tsx
 var Explanation = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(4);
 	const { explanation, references, options } = t0;
@@ -120822,8 +122305,7 @@ var Explanation = (t0) => {
 	return t2;
 };
 var Metadata_module_default = { entry: "_entry_a2fxh_1" };
-//#endregion
-//#region ../../packages/scout-components/src/scanner-result-detail/Metadata.tsx
+// ../../packages/scout-components/src/scanner-result-detail/Metadata.tsx
 var Metadata = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(7);
 	const { metadata, references, options, excludeKeys } = t0;
@@ -120944,8 +122426,7 @@ var MetadataValue = (t0) => {
 		}
 	}
 };
-//#endregion
-//#region ../../packages/scout-components/src/sentinels/scannerGlob.ts
+// ../../packages/scout-components/src/sentinels/scannerGlob.ts
 var kMaxNameLength = 4096;
 var kMaxPatternLength = 4096;
 var kMaxMatchingWork = 4e6;
@@ -121091,8 +122572,7 @@ function scannerGlobMatches(pattern, value, budget) {
 	const last = tokens.at(-1);
 	return (last?.kind === "class" || last?.kind === "star" && (pattern.includes("/") || pattern.startsWith("*") || pattern === ".*")) && value.endsWith("/") && matchesSegments(segments, values.slice(0, -1), budget);
 }
-//#endregion
-//#region ../../packages/scout-components/src/sentinels/viewerConfig.ts
+// ../../packages/scout-components/src/sentinels/viewerConfig.ts
 /**
 * Runtime resolver for the ViewerConfig descriptor (declared in Python at
 * `inspect_ai.viewer._config`, surfaced end-to-end via codegen in
@@ -121243,8 +122723,7 @@ var ValidationResult_module_default = {
 	targetValue: "_targetValue_1202h_21",
 	validationTable: "_validationTable_1202h_29"
 };
-//#endregion
-//#region ../../packages/scout-components/src/scanner-result-detail/ValidationResult.tsx
+// ../../packages/scout-components/src/scanner-result-detail/ValidationResult.tsx
 var ValidationResult = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(10);
 	const { result, target, label } = t0;
@@ -121358,8 +122837,7 @@ var valueStr = (target) => {
 	else if (typeof target === "object") return "{Object}";
 	else return "undefined";
 };
-//#endregion
-//#region ../../packages/scout-components/src/scanner-result-detail/types.ts
+// ../../packages/scout-components/src/scanner-result-detail/types.ts
 function isStringValue(r) {
 	return r.valueType === "string";
 }
@@ -121397,8 +122875,7 @@ var Value_module_default = {
 	valueValue: "_valueValue_8citi_38",
 	value: "_value_8citi_25"
 };
-//#endregion
-//#region ../../packages/scout-components/src/scanner-result-detail/Value.tsx
+// ../../packages/scout-components/src/scanner-result-detail/Value.tsx
 var Value = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(21);
 	const { value, valueType, identifier, references, style: t1, maxTableSize: t2, interactive: t3, options } = t0;
@@ -121669,8 +123146,7 @@ var renderValue = (index, val, identifier, references, interactive) => {
 	});
 	else return "Unknown value type";
 };
-//#endregion
-//#region ../../packages/scout-components/src/scanner-result-detail/ScannerResultDetailView.tsx
+// ../../packages/scout-components/src/scanner-result-detail/ScannerResultDetailView.tsx
 var kCollapseScope = "scanner-result-sections";
 var ScannerResultDetailView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(16);
@@ -121883,8 +123359,7 @@ function renderField(field, data, references, options, interactive, config, coll
 		}
 	}
 }
-//#endregion
-//#region ../../packages/scout-components/src/sentinels/scannerReferences.ts
+// ../../packages/scout-components/src/sentinels/scannerReferences.ts
 var kScannerReferencesKey = "scanner_references";
 var kScannerContentKey = "scanner_content";
 function isScannerScore(metadata) {
@@ -121915,8 +123390,7 @@ var SampleScannerPicker_module_default = {
 	picker: "_picker_zkjwy_1",
 	select: "_select_zkjwy_9"
 };
-//#endregion
-//#region src/app/samples/scans/SampleScannerPicker.tsx
+// src/app/samples/scans/SampleScannerPicker.tsx
 function hasStringValue(target) {
 	return target !== null && "value" in target && typeof target.value === "string";
 }
@@ -121968,8 +123442,7 @@ var SampleScansSidebar_module_default = {
 	header: "_header_1ge26_1",
 	singleScanner: "_singleScanner_1ge26_10"
 };
-//#endregion
-//#region src/app/samples/scans/scanReferencePreviews.tsx
+// src/app/samples/scans/scanReferencePreviews.tsx
 var EMPTY_COLLAPSE = {};
 var noopCollapse = () => {};
 var TranscriptPreview = (t0) => {
@@ -122032,8 +123505,7 @@ var TranscriptPreview = (t0) => {
 	}
 	return table;
 }
-//#endregion
-//#region src/app/samples/scans/scanReferences.ts
+// src/app/samples/scans/scanReferences.ts
 function buildScoreMarkdownRefs(metadata, makeUrl, previewTable) {
 	return citeReferences(readScannerReferences(metadata), makeUrl).map((ref) => ({
 		...ref,
@@ -122069,8 +123541,7 @@ function buildScoreMarkdownRefs(metadata, makeUrl, previewTable) {
 	} else t0 = $[6];
 	return t0;
 }
-//#endregion
-//#region src/app/samples/scans/SampleScansSidebar.tsx
+// src/app/samples/scans/SampleScansSidebar.tsx
 var SampleScansSidebar = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(36);
 	const { scores, events, makeCiteUrl, selected, onSelectedChange } = t0;
@@ -122201,8 +123672,7 @@ var ScansSidebarPanel_module_default = {
 	container: "_container_t8xq0_1",
 	body: "_body_t8xq0_8"
 };
-//#endregion
-//#region src/app/samples/scans/ScansSidebarPanel.tsx
+// src/app/samples/scans/ScansSidebarPanel.tsx
 /**
 * Docked scans panel — wraps SampleScansSidebar in the shared SidebarHeader so
 * it presents and closes like the SearchPanel it sits alongside.
@@ -122250,8 +123720,7 @@ var ScansSidebarPanel_module_default = {
 	} else t3 = $[10];
 	return t3;
 };
-//#endregion
-//#region src/app/samples/scans/useSampleScans.ts
+// src/app/samples/scans/useSampleScans.ts
 /**
 * Owns the scanner-scores concern for a sample: filters to scanner scores,
 * tracks the selected scanner, and derives the transcript cite-label context.
@@ -122345,8 +123814,7 @@ var ScansSidebarPanel_module_default = {
 * by default.
 */ var hasScanResults = (scores) => Object.values(scores).some((score) => !isFalsyValue(score.value) || readScannerReferences(score.metadata).length > 0);
 var isFalsyValue = (value) => Array.isArray(value) ? value.length === 0 : typeof value === "object" ? Object.keys(value).length === 0 : !value;
-//#endregion
-//#region src/app/samples/scores/SampleScores.tsx
+// src/app/samples/scores/SampleScores.tsx
 var SampleScores = ({ scores, scorer }) => {
 	const scoreData = scores?.[scorer];
 	if (!scoreData) return;
@@ -122360,8 +123828,7 @@ var SampleScoresGrid_module_default = {
 	separatorPadded: "_separatorPadded_eou6j_24",
 	headerSep: "_headerSep_eou6j_29"
 };
-//#endregion
-//#region src/app/samples/scores/SampleScoresGrid.tsx
+// src/app/samples/scores/SampleScoresGrid.tsx
 var SampleScoresGrid = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(17);
 	const { evalSample, className, scrollRef } = t0;
@@ -122514,8 +123981,7 @@ var SampleScoresView_module_default = {
 	scoreCard: "_scoreCard_148cv_5",
 	scores: "_scores_148cv_9"
 };
-//#endregion
-//#region src/app/samples/scores/SampleScoresView.tsx
+// src/app/samples/scores/SampleScoresView.tsx
 var SampleScoresView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(47);
 	const { sample, className, scrollRef } = t0;
@@ -122754,8 +124220,7 @@ var Terminals_module_default = {
 	agentCount: "_agentCount_1mnpl_739",
 	chipIn: "_chipIn_1mnpl_1"
 };
-//#endregion
-//#region src/app/samples/terminals/AgentPicker.tsx
+// src/app/samples/terminals/AgentPicker.tsx
 /** The Terminals tab's agent menu (brief §9): the sample's agents indented by
 *  spawn depth, each with its terminal count. Render it only when there is
 *  more than one agent. */ var AgentPicker = (t0) => {
@@ -122843,8 +124308,7 @@ var Terminals_module_default = {
 	return t6;
 };
 var terminalCount = (agent) => `${agent.sessions.length} ${agent.sessions.length === 1 ? "term" : "terms"}`;
-//#endregion
-//#region src/app/samples/terminals/asciicast.ts
+// src/app/samples/terminals/asciicast.ts
 var kAsciicastStorePrefix = "asciinema:";
 /** Collect the playable asciicast entries from a sample's store. */ var storeCasts = (store) => Object.entries(store).flatMap(([key, value]) => key.startsWith(kAsciicastStorePrefix) && typeof value === "string" ? [{
 	key,
@@ -123361,8 +124825,7 @@ var kFocusFloor = 8;
 		scrolls
 	};
 };
-//#endregion
-//#region src/app/samples/terminals/playerSync.ts
+// src/app/samples/terminals/playerSync.ts
 var kSeekIntervalMs = 70;
 var kSeekTolerance = .05;
 var kPinLines = 2;
@@ -123547,8 +125010,7 @@ var kGestureEvents = [
 		clip.style.height = `${Math.ceil(top + (last + 1) * this.lineHeight)}px`;
 	}
 };
-//#endregion
-//#region src/app/samples/terminals/terminalClock.ts
+// src/app/samples/terminals/terminalClock.ts
 var createTerminalClock = (initial) => createStore(() => ({ playback: initial }));
 /**
 * What `select` derives from the clock, re-rendering the caller only when
@@ -123563,8 +125025,7 @@ var createTerminalClock = (initial) => createStore(() => ({ playback: initial })
 	} else t0 = $[1];
 	return useStore$1(clock, t0);
 };
-//#endregion
-//#region src/app/samples/terminals/format.ts
+// src/app/samples/terminals/format.ts
 /** A clock readout of seconds: `m:ss`, or `h:mm:ss` from an hour. */ var formatClock = (seconds) => {
 	const total = Math.max(0, Math.round(seconds));
 	const hours = Math.floor(total / 3600);
@@ -123572,8 +125033,7 @@ var createTerminalClock = (initial) => createStore(() => ({ playback: initial })
 	const secs = String(total % 60).padStart(2, "0");
 	return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${secs}` : `${minutes}:${secs}`;
 };
-//#endregion
-//#region src/app/samples/terminals/TerminalControls.tsx
+// src/app/samples/terminals/TerminalControls.tsx
 var kPeekDelayMs = 150;
 /** The shared view's play button, readout, chips, speed and timeline (brief
 *  §6), in one strip under the stage. */ var TerminalControls = (t0) => {
@@ -123863,8 +125323,7 @@ var ClockReadout = (t0) => {
 	} else t6 = $[12];
 	return t6;
 };
-//#endregion
-//#region src/app/samples/terminals/TerminalRow.tsx
+// src/app/samples/terminals/TerminalRow.tsx
 /**
 * One terminal session in the shared view: a bar that names it and its last
 * command, and (when the allocation gives it rows) a bottom-anchored body the
@@ -124241,8 +125700,7 @@ var TerminalBody = (t0) => {
 	} else t13 = $[30];
 	return t13;
 };
-//#endregion
-//#region src/app/samples/terminals/TerminalTimeline.tsx
+// src/app/samples/terminals/TerminalTimeline.tsx
 var kRulerStep = 300;
 var kRulerMinGap = .05;
 /**
@@ -124781,8 +126239,7 @@ function _temp$35(t0) {
 		children: formatClock(time_0)
 	}, time_0);
 }
-//#endregion
-//#region src/app/samples/terminals/TerminalsView.tsx
+// src/app/samples/terminals/TerminalsView.tsx
 var kFocusSwitchMs = 400;
 var kDefaultLineHeight = 19.5;
 var kMinViewHeight = 420;
@@ -125300,8 +126757,7 @@ function _temp$34(state) {
 function _temp2$28(part) {
 	return part !== void 0;
 }
-//#endregion
-//#region src/app/samples/transcript/chunked/ChunkedRowView.tsx
+// src/app/samples/transcript/chunked/ChunkedRowView.tsx
 /** Stable row identity: event uuid when present, else the sequence ordinal. */ var rowNodeId = (row) => {
 	if (row.kind === "span") return row.span.id;
 	const ev = row.kind === "event" ? row.ev : row.sample;
@@ -125418,8 +126874,7 @@ var ChunkedTranscriptPanel_module_default = {
 	placeholder: "_placeholder_6xi98_35",
 	shimmer: "_shimmer_6xi98_1"
 };
-//#endregion
-//#region src/app/samples/transcript/chunked/mainViewOutline.ts
+// src/app/samples/transcript/chunked/mainViewOutline.ts
 /**
 * The chunked transcript's outline: the legacy pipeline fed by a synthetic
 * event stream reconstructed from the skeleton.
@@ -125449,8 +126904,7 @@ var ChunkedTranscriptPanel_module_default = {
 		defaultCollapsedIds
 	};
 };
-//#endregion
-//#region src/app/samples/transcript/chunked/useChunkedRows.ts
+// src/app/samples/transcript/chunked/useChunkedRows.ts
 /**
 * The row-window model for a chunked sample's transcript: a RowSpace
 * (estimate-then-correct row accounting over event chunks) rebuilt when the
@@ -125599,8 +127053,7 @@ var ChunkedTranscriptPanel_module_default = {
 	} else t13 = $[46];
 	return t13;
 };
-//#endregion
-//#region src/app/samples/transcript/chunked/ChunkedTranscriptPanel.tsx
+// src/app/samples/transcript/chunked/ChunkedTranscriptPanel.tsx
 /**
 * The transcript for a chunked-shape sample: a row-window list model over
 * the RowSpace (the forked seam named in design/large-samples.md — shared
@@ -125788,8 +127241,7 @@ var ChunkedTranscriptPanel_module_default = {
 		})]
 	});
 };
-//#endregion
-//#region src/app/samples/transcript/hooks.ts
+// src/app/samples/transcript/hooks.ts
 var eventTypes = {
 	sample_init: "Sample Init",
 	sample_limit: "Sample Limit",
@@ -125947,8 +127399,7 @@ function _temp2$27(state_0) {
 function _temp3$18(col_0) {
 	return col_0.length;
 }
-//#endregion
-//#region src/app/samples/transcript/search/inspectSearchAdapters.ts
+// src/app/samples/transcript/search/inspectSearchAdapters.ts
 /**
 * inspect_scout's search endpoints (proxied by inspect_ai under /scout/...)
 * are backed by transcripts_view(dir), which:
@@ -126178,8 +127629,7 @@ function _temp2$26(s) {
 function _temp3$17(s_0) {
 	return s_0.recordSearchModel;
 }
-//#endregion
-//#region src/app/samples/transcript/search/mergeTranscriptLabelContext.ts
+// src/app/samples/transcript/search/mergeTranscriptLabelContext.ts
 /**
 * Folds search-derived cite labels into an existing transcript event context
 * (e.g. the scanner-cite context). Message labels from both sources combine,
@@ -126207,8 +127657,7 @@ var SearchScoutUnavailable_module_default = {
 	container: "_container_15sk8_1",
 	body: "_body_15sk8_8"
 };
-//#endregion
-//#region src/app/samples/transcript/search/SearchScoutUnavailable.tsx
+// src/app/samples/transcript/search/SearchScoutUnavailable.tsx
 var SCOUT_DOCS_URL = "https://meridianlabs-ai.github.io/inspect_scout/";
 /**
 * Shown in place of the search panel when the backend reports that
@@ -126250,8 +127699,7 @@ var SCOUT_DOCS_URL = "https://meridianlabs-ai.github.io/inspect_scout/";
 	} else t3 = $[4];
 	return t3;
 };
-//#endregion
-//#region src/app/samples/transcript/search/SearchPanelSlot.tsx
+// src/app/samples/transcript/search/SearchPanelSlot.tsx
 /**
 * Renders the shared SearchPanel, or an "install Inspect Scout" notice when
 * the backend reports scout isn't installed (search endpoints proxy to it).
@@ -126336,8 +127784,7 @@ var SCOUT_DOCS_URL = "https://meridianlabs-ai.github.io/inspect_scout/";
 	} else t3 = $[14];
 	return t3;
 };
-//#endregion
-//#region src/app/samples/transcript/search/useInspectSearchReferenceLabels.ts
+// src/app/samples/transcript/search/useInspectSearchReferenceLabels.ts
 /**
 * Derives transcript cite labels from the active search for `scope`, reading
 * the same panel state the SearchPanel writes to. Returns undefined when the
@@ -126398,8 +127845,7 @@ var TranscriptFilter_module_default = {
 	links: "_links_1wuct_22",
 	selected: "_selected_1wuct_44"
 };
-//#endregion
-//#region src/app/samples/transcript/TranscriptFilter.tsx
+// src/app/samples/transcript/TranscriptFilter.tsx
 var TranscriptFilterPopover = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(44);
 	const { showing, positionEl, setShowing, defaultExcludeEvents } = t0;
@@ -126561,8 +128007,7 @@ var TranscriptFilterPopover = (t0) => {
 	} else t18 = $[43];
 	return t18;
 };
-//#endregion
-//#region src/app/samples/transcript/TranscriptPanel.tsx
+// src/app/samples/transcript/TranscriptPanel.tsx
 /**
 * Renders the Transcript Virtual List, with optional timeline swimlanes
 * when the sample provides timeline data.
@@ -126754,8 +128199,7 @@ var TranscriptFilterPopover = (t0) => {
 	});
 });
 TranscriptPanel.displayName = "TranscriptPanel";
-//#endregion
-//#region src/app/samples/useEvidenceSelection.ts
+// src/app/samples/useEvidenceSelection.ts
 /**
 * Evidence selection on the sample's Transcript (events) and Messages tabs.
 * The store holds one selection, keyed by visit of one sample tab, so each
@@ -126764,7 +128208,7 @@ TranscriptPanel.displayName = "TranscriptPanel";
 */ var useEvidenceSelection = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(27);
 	const { handle, tab, selectable, events, running, messages } = t0;
-	const item = tab === kSampleTranscriptTabId ? "event" : tab === kSampleMessagesTabId ? "message" : void 0;
+	const item = tab === "transcript" ? "event" : tab === "messages" ? "message" : void 0;
 	const t1 = tab ?? "";
 	let t2;
 	if ($[0] !== handle || $[1] !== t1) {
@@ -126892,8 +128336,7 @@ function _temp4$16(state_2) {
 function _temp5$9(state_3) {
 	return state_3.sampleActions.resetEvidenceSelection;
 }
-//#endregion
-//#region src/app/samples/SampleDisplay.tsx
+// src/app/samples/SampleDisplay.tsx
 var kNoMessageRows = [];
 /**
 * Component to display a sample with relevant context and visibility control.
@@ -126950,11 +128393,15 @@ var kNoMessageRows = [];
 	]);
 	const { logPath: urlLogPath, id: urlSampleId, epoch: urlEpoch, sampleTabId } = useLogOrSampleRouteParams();
 	const clearSampleTab = useStore((state_2) => state_2.appActions.clearSampleTab);
+	const hideFind = useStore((state_3) => state_3.appActions.hideFind);
+	const [communicationMultiline, setCommunicationMultiline] = useProperty("sample-communication", "multiline", { defaultValue: false });
 	useUnmount(() => {
 		clearSampleTab();
 	});
 	const routedTab = sampleTabId || selectedTab;
-	const effectiveSelectedTab = routedTab ? sampleTabAlias(routedTab) : routedTab;
+	const hasCommunicationTab = hasCommunicationEvents(sampleEvents);
+	const aliasedTab = routedTab ? sampleTabAlias(routedTab) : routedTab;
+	const effectiveSelectedTab = aliasedTab === "communication" && !hasCommunicationTab ? kSampleTranscriptTabId : aliasedTab;
 	const sampleHandle = useCurrentSampleHandle();
 	const defaultExcludeEvents = (0, import_react.useMemo)(() => dynamicDefaultExcludeEvents(sampleEvents), [sampleEvents]);
 	const messagesTabOpen = effectiveSelectedTab === kSampleMessagesTabId;
@@ -126984,7 +128431,7 @@ var kNoMessageRows = [];
 		urlEpoch,
 		navigate
 	]);
-	const setNativeFind = useStore((state_3) => state_3.appActions.setNativeFind);
+	const setNativeFind = useStore((state_4) => state_4.appActions.setNativeFind);
 	const getMessageUrl = useFullSampleMessageUrlBuilder();
 	const chatDisplay = (0, import_react.useMemo)(() => ({
 		indented: true,
@@ -127009,10 +128456,10 @@ var kNoMessageRows = [];
 	const sampleUsages = usageViewsForSample(`${baseId}-${id}`, sample, evalSpec);
 	const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, scrollRef, sample);
 	const tabsetId = `task-sample-details-tab-${id}`;
-	const isShowing = useStore((state_4) => state_4.app.dialogs.transcriptFilter);
-	const setShowing = useStore((state_5) => state_5.appActions.setShowingTranscriptFilterDialog);
-	const displayMode = useStore((state_6) => state_6.app.displayMode);
-	const setDisplayMode = useStore((state_7) => state_7.appActions.setDisplayMode);
+	const isShowing = useStore((state_5) => state_5.app.dialogs.transcriptFilter);
+	const setShowing = useStore((state_6) => state_6.appActions.setShowingTranscriptFilterDialog);
+	const displayMode = useStore((state_7) => state_7.app.displayMode);
+	const setDisplayMode = useStore((state_8) => state_8.appActions.setDisplayMode);
 	const [filterButtonEl, setFilterButtonEl] = (0, import_react.useState)(null);
 	const optionsRef = (0, import_react.useRef)(null);
 	const printLogPath = urlLogPath;
@@ -127021,7 +128468,7 @@ var kNoMessageRows = [];
 	const evidence = useEvidenceSelection({
 		handle: visitHandle,
 		tab: effectiveSelectedTab,
-		selectable: !isChunked && (effectiveSelectedTab === kSampleTranscriptTabId ? sampleEvents.length > 0 : (sampleMessages.rows.data?.length ?? 0) > 0),
+		selectable: !isChunked && (effectiveSelectedTab === "transcript" ? sampleEvents.length > 0 : (sampleMessages.rows.data?.length ?? 0) > 0),
 		events: sampleEvents,
 		running,
 		messages: () => sample?.messages ?? messagesFromEvents(runningSampleData)
@@ -127033,7 +128480,8 @@ var kNoMessageRows = [];
 			ids: selected.printIds()
 		} : void 0));
 	};
-	useEventListener(!isVscode() && !!printLogPath && !!printSampleId && !!printEpoch ? document : null, "keydown", (e_0) => {
+	const printable = !isVscode() && effectiveSelectedTab !== "communication" && !!printLogPath && !!printSampleId && !!printEpoch;
+	useEventListener(printable ? document : null, "keydown", (e_0) => {
 		if ((e_0.metaKey || e_0.ctrlKey) && e_0.key === "p") {
 			e_0.preventDefault();
 			e_0.stopPropagation();
@@ -127046,8 +128494,8 @@ var kNoMessageRows = [];
 	const toggleDisplayMode = (0, import_react.useCallback)(() => {
 		setDisplayMode(displayMode === "rendered" ? "raw" : "rendered");
 	}, [displayMode, setDisplayMode]);
-	const collapsedMode = useStore((state_8) => state_8.sample.collapsedMode);
-	const setCollapsedMode = useStore((state_9) => state_9.sampleActions.setCollapsedMode);
+	const collapsedMode = useStore((state_9) => state_9.sample.collapsedMode);
+	const setCollapsedMode = useStore((state_10) => state_10.sampleActions.setCollapsedMode);
 	const isCollapsed = (mode) => {
 		return mode === "collapsed";
 	};
@@ -127070,7 +128518,7 @@ var kNoMessageRows = [];
 		navigate(url_0);
 	};
 	const api = getApi();
-	const downloadFiles = useStore((state_10) => state_10.capabilities.downloadFiles);
+	const downloadFiles = useStore((state_11) => state_11.capabilities.downloadFiles);
 	const { copied, copy: copyText } = useCopyToClipboard();
 	const icon = copied ? "confirm" : "copy";
 	const downloadFile = (name, content) => {
@@ -127089,10 +128537,10 @@ var kNoMessageRows = [];
 			downloadFile(`${sampleId_0}-${selected.item}s.${ext}`, content_1);
 		}
 	};
-	const setPropertyValue = useStore((state_11) => state_11.appActions.setPropertyValue);
+	const setPropertyValue = useStore((state_12) => state_12.appActions.setPropertyValue);
 	const dockKey = urlLogPath || "na";
-	const storedDock = useStore((state_12) => {
-		const value = state_12.app.propertyBags["rail-dock"]?.[dockKey];
+	const storedDock = useStore((state_13) => {
+		const value = state_13.app.propertyBags["rail-dock"]?.[dockKey];
 		return value === "none" || value === "search" || value === "scans" ? value : void 0;
 	});
 	const scans = useSampleScans({
@@ -127103,13 +128551,13 @@ var kNoMessageRows = [];
 	});
 	const rightDock = storedDock ?? (scans.hasResults ? "scans" : "none");
 	const setRightDock = (0, import_react.useCallback)((value_0) => setPropertyValue("rail-dock", dockKey, value_0), [setPropertyValue, dockKey]);
-	const searchScope = effectiveSelectedTab === kSampleTranscriptTabId ? "events" : effectiveSelectedTab === kSampleMessagesTabId ? "messages" : void 0;
+	const searchScope = effectiveSelectedTab === "transcript" ? "events" : effectiveSelectedTab === "messages" ? "messages" : void 0;
 	const searchContext = useInspectSearchContext(sample);
 	const canSearch = searchContext !== null && searchScope !== void 0;
 	const closeDock = (0, import_react.useCallback)(() => setRightDock("none"), [setRightDock]);
 	const onRailSelect = (0, import_react.useCallback)((id_2) => setRightDock(rightDock === id_2 ? "none" : id_2), [rightDock, setRightDock]);
-	const railPanelWidth = useStore((state_13) => {
-		const value_1 = state_13.app.propertyBags["sidebar-widths"]?.["rail-panel"];
+	const railPanelWidth = useStore((state_14) => {
+		const value_1 = state_14.app.propertyBags["sidebar-widths"]?.["rail-panel"];
 		return typeof value_1 === "number" ? value_1 : void 0;
 	});
 	const setRailPanelWidth = (0, import_react.useCallback)((value_2) => setPropertyValue("sidebar-widths", "rail-panel", value_2), [setPropertyValue]);
@@ -127133,7 +128581,7 @@ var kNoMessageRows = [];
 		selected: terminalAgent,
 		onSelect: setPickedTerminalAgent
 	}, "sample-terminals-agent") : null;
-	if (effectiveSelectedTab === kSampleTerminalsTabId && terminalSample) {
+	if (effectiveSelectedTab === "terminals" && terminalSample) {
 		if (terminalAgentPicker) tools.push(terminalAgentPicker);
 		tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
 			className: SampleDisplay_module_default.fullscreenTool,
@@ -127144,7 +128592,11 @@ var kNoMessageRows = [];
 			collapseLabel: true
 		}, "sample-terminals-fill"));
 	}
-	if (effectiveSelectedTab === kSampleTranscriptTabId) {
+	if (effectiveSelectedTab === "communication") tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CommunicationViewOptions, {
+		multiline: communicationMultiline,
+		setMultiline: setCommunicationMultiline
+	}, "sample-communication-view"));
+	if (effectiveSelectedTab === "transcript") {
 		const label = isNoneFilter ? "None" : isDebugFilter ? "Debug" : isDefaultFilter ? "Default" : "Custom";
 		tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
 			label: `Events: ${label}`,
@@ -127231,7 +128683,7 @@ var kNoMessageRows = [];
 			}
 		}, "sample-download"));
 	}
-	if (!isVscode() && printLogPath && printSampleId && printEpoch) tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
+	if (printable) tools.push(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
 		label: selected ? `Print · ${selected.count}` : "Print",
 		title: selected ? `Print ${selected.count} selected ${selected.item}${selected.count === 1 ? "" : "s"}` : void 0,
 		icon: "print",
@@ -127242,7 +128694,7 @@ var kNoMessageRows = [];
 	const scrollToTopOnFinish = !sample?.error && !selectedSampleSummary?.error && logDetails?.status !== "error" && logDetails?.status !== "cancelled";
 	const displayModeContext = (0, import_react.useMemo)(() => ({ displayMode: displayMode ?? "rendered" }), [displayMode]);
 	const mountsAtDeepLink = !!(sampleDetailNavigation.event || sampleDetailNavigation.message);
-	const onTerminalsTab = effectiveSelectedTab === kSampleTerminalsTabId && !!terminalSample;
+	const onTerminalsTab = effectiveSelectedTab === "terminals" && !!terminalSample;
 	const { hidden: headerCollapsed, resetAnchor: headerResetAnchor, setHidden: headerSetHidden, navOwnsRef: chromeNavOwnsRef } = useChromeNavOwnership(scrollRef, {
 		ownedForKey: () => mountsAtDeepLink,
 		resetKey: visitId,
@@ -127352,7 +128804,7 @@ var kNoMessageRows = [];
 							title: "Transcript",
 							onSelected: onSelectedTab,
 							href: sampleTabHref(kSampleTranscriptTabId),
-							selected: effectiveSelectedTab === kSampleTranscriptTabId || effectiveSelectedTab === kSampleActivityTabId && !hasActivityTab || effectiveSelectedTab === void 0,
+							selected: effectiveSelectedTab === "transcript" || effectiveSelectedTab === "activity" && !hasActivityTab || effectiveSelectedTab === void 0,
 							scrollable: false,
 							children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptFilterPopover, {
 								showing: isShowing,
@@ -127432,6 +128884,19 @@ var kNoMessageRows = [];
 								}, chatListId)
 							})
 						}, kSampleMessagesTabId),
+						hasCommunicationTab ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
+							id: kSampleCommunicationTabId,
+							className: "sample-tab",
+							title: "Communication",
+							onSelected: onSelectedTab,
+							href: sampleTabHref(kSampleCommunicationTabId),
+							selected: effectiveSelectedTab === kSampleCommunicationTabId,
+							children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CommunicationView, {
+								events: sampleEvents,
+								multiline: communicationMultiline,
+								onShown: hideFind
+							}, visitId)
+						}, kSampleCommunicationTabId) : null,
 						terminalSample ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
 							id: kSampleTerminalsTabId,
 							className: "sample-tab",
@@ -127504,12 +128969,12 @@ var kNoMessageRows = [];
 							}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: "No sample usage or metadata available" })
 						}),
 						sample?.error && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
-							id: kSampleErrorTabId,
+							id: "error",
 							className: "sample-tab",
 							title: "Error",
 							onSelected: onSelectedTab,
-							href: sampleTabHref(kSampleErrorTabId),
-							selected: effectiveSelectedTab === kSampleErrorTabId,
+							href: sampleTabHref("error"),
+							selected: effectiveSelectedTab === "error",
 							children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 								className: clsx(SampleDisplay_module_default.error),
 								children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card$1, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, { label: `Sample Error` }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ANSIDisplay, {
@@ -127831,8 +129296,7 @@ var isRunning = (sampleSummary, runningSampleData, status) => {
 	if (runningSampleData && runningSampleData.length > 0) return true;
 	return false;
 };
-//#endregion
-//#region src/app/samples/InlineSampleDisplay.tsx
+// src/app/samples/InlineSampleDisplay.tsx
 /**
 * Inline Sample Display
 */ var InlineSampleDisplay = (t0) => {
@@ -127844,7 +129308,7 @@ var isRunning = (sampleSummary, runningSampleData, status) => {
 	const scrollRef = externalScrollRef ?? localScrollRef;
 	const sampleTab = useStore(_temp$30);
 	const sampleDetailNavigation = useSampleDetailNavigation();
-	const isVirtualizedTab = sampleTab === kSampleTranscriptTabId || sampleTab === kSampleMessagesTabId;
+	const isVirtualizedTab = sampleTab === "transcript" || sampleTab === "messages";
 	const logFile = useCurrentLogFile();
 	const sampleHandle = useCurrentSampleHandle();
 	const visitId = useVisitId(`${logFile}-${sampleHandle?.id}-${sampleHandle?.epoch}`);
@@ -127933,8 +129397,7 @@ var SampleDetailComponent_module_default = {
 	panel: "_panel_s5t7t_7"
 };
 var SampleNavbar_module_default = { sampleInfo: "_sampleInfo_a1yqs_1" };
-//#endregion
-//#region src/app/samples/SampleNavbar.tsx
+// src/app/samples/SampleNavbar.tsx
 /**
 * The global header bar shown above a sample's content: the breadcrumb /
 * theme / options chrome (ApplicationNavbar) plus the prev/next sample
@@ -128012,8 +129475,7 @@ var SampleNavbar_module_default = { sampleInfo: "_sampleInfo_a1yqs_1" };
 	} else t5 = $[20];
 	return t5;
 };
-//#endregion
-//#region src/app/samples/SampleDetailComponent.tsx
+// src/app/samples/SampleDetailComponent.tsx
 /**
 * Shared component for displaying sample details with navigation.
 * Used by both SampleDetailView (for /samples route) and LogSampleDetailView (for /logs route).
@@ -128150,8 +129612,7 @@ function _temp4$15(state_2) {
 function _temp5$8(state_3) {
 	return state_3.appActions.setSampleTab;
 }
-//#endregion
-//#region src/app/log-view/LogSampleDetailView.tsx
+// src/app/log-view/LogSampleDetailView.tsx
 /** Log-relative sample navigation, preserving the current log's filters. */ var LogSampleDetailView = () => {
 	const $ = (0, import_compiler_runtime.c)(20);
 	const { logPath: routeLogPath, sampleId: routeSampleId, epoch: routeEpoch, sampleTabId, sampleUuid } = useLogRouteParams();
@@ -128234,8 +129695,7 @@ function _temp5$8(state_3) {
 	} else t5 = $[19];
 	return t5;
 };
-//#endregion
-//#region src/app/routing/logNavigation.ts
+// src/app/routing/logNavigation.ts
 var useLogNavigationAction = () => {
 	const $ = (0, import_compiler_runtime.c)(10);
 	const navigate = useNavigate();
@@ -128284,8 +129744,7 @@ var TaskErrorPanel_module_default = {
 	"task-error-display": "_task-error-display_1gb2h_1",
 	message: "_message_1gb2h_5"
 };
-//#endregion
-//#region src/app/log-view/error/TaskErrorPanel.tsx
+// src/app/log-view/error/TaskErrorPanel.tsx
 var TaskErrorCard = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(9);
 	const { error } = t0;
@@ -128337,8 +129796,7 @@ var TaskErrorCard = (t0) => {
 	} else t5 = $[8];
 	return t5;
 };
-//#endregion
-//#region src/app/log-view/tabs/ErrorTab.tsx
+// src/app/log-view/tabs/ErrorTab.tsx
 var useErrorTabConfig = (evalError) => {
 	const $ = (0, import_compiler_runtime.c)(2);
 	const scrollRef = (0, import_react.useRef)(null);
@@ -128409,8 +129867,7 @@ var MessageBand_module_default = {
 	error: "_error_1qdgc_24",
 	messageBandBtn: "_messageBandBtn_1qdgc_29"
 };
-//#endregion
-//#region src/components/MessageBand.tsx
+// src/components/MessageBand.tsx
 var typeStyles = {
 	info: MessageBand_module_default.info,
 	warning: MessageBand_module_default.warning,
@@ -128498,8 +129955,7 @@ var EditButton_module_default = {
 	link: "_link_u0dz8_1",
 	pill: "_pill_u0dz8_1"
 };
-//#endregion
-//#region src/app/log-view/title-view/EditButton.tsx
+// src/app/log-view/title-view/EditButton.tsx
 var EditButton = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(8);
 	const { onClick, title, variant: t1, children } = t0;
@@ -128535,8 +129991,7 @@ var EditButton = (t0) => {
 	return t7;
 };
 var AutogrowText_module_default = { textarea: "_textarea_8mbr9_1" };
-//#endregion
-//#region src/app/log-view/title-view/AutogrowText.tsx
+// src/app/log-view/title-view/AutogrowText.tsx
 var AutogrowText = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(12);
 	const { value, onChange, disabled, maxHeightPx } = t0;
@@ -128600,8 +130055,7 @@ var AutogrowText = (t0) => {
 	} else t5 = $[11];
 	return t5;
 };
-//#endregion
-//#region src/app/server/useUserInfo.ts
+// src/app/server/useUserInfo.ts
 /**
 * The server's best-effort identity (git `user.name`, else the OS login),
 * used to prefill Author in the edit dialogs. Fetched on first enabled use
@@ -128648,8 +130102,7 @@ var ChangeSummary_module_default = {
 	accentEditing: "_accentEditing_13ofn_37",
 	accentRemoving: "_accentRemoving_13ofn_41"
 };
-//#endregion
-//#region src/app/log-view/title-view/ChangeSummary.tsx
+// src/app/log-view/title-view/ChangeSummary.tsx
 var ChangeSummary = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(17);
 	const { adding: t1, editing: t2, removing: t3 } = t0;
@@ -128794,8 +130247,7 @@ var EditAnnotationsDialog_module_default = {
 	footer: "_footer_13gwg_62",
 	footerActions: "_footerActions_13gwg_62"
 };
-//#endregion
-//#region src/app/log-view/title-view/editErrors.ts
+// src/app/log-view/title-view/editErrors.ts
 function formatEditError(err) {
 	if (err instanceof ApiError) {
 		if (err.status === 412) return "This log was modified by someone else. Please reload and try again.";
@@ -128805,8 +130257,7 @@ function formatEditError(err) {
 	if (err instanceof Error) return err.message;
 	return String(err);
 }
-//#endregion
-//#region src/app/log-view/title-view/EditAnnotationsDialog.tsx
+// src/app/log-view/title-view/EditAnnotationsDialog.tsx
 /**
 * The provenance fields, change summary, and save flow shared by the tags
 * and metadata editors. The editor itself is `children`.
@@ -129152,8 +130603,7 @@ var EditMetadataDialog_module_default = {
 	typeSelect: "_typeSelect_1i84k_98",
 	addButton: "_addButton_1i84k_102"
 };
-//#endregion
-//#region src/app/log-view/title-view/EditMetadataDialog.tsx
+// src/app/log-view/title-view/EditMetadataDialog.tsx
 var kNewTypes = [
 	"string",
 	"number",
@@ -129639,8 +131089,7 @@ var PlanCard_module_default = {
 	emptyMetadata: "_emptyMetadata_1fn25_10"
 };
 var DatasetDetailView_module_default = { item: "_item_1uzhd_1" };
-//#endregion
-//#region src/app/plan/DatasetDetailView.tsx
+// src/app/plan/DatasetDetailView.tsx
 var DatasetDetailView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(10);
 	const { dataset, style } = t0;
@@ -129709,8 +131158,7 @@ var DetailStep_module_default = {
 	container: "_container_59zaz_5",
 	metadata: "_metadata_59zaz_11"
 };
-//#endregion
-//#region src/app/plan/DetailStep.tsx
+// src/app/plan/DetailStep.tsx
 var DetailStep = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(11);
 	const { icon, name, params, className } = t0;
@@ -129762,8 +131210,7 @@ var DetailStep = (t0) => {
 	return t4;
 };
 var ScorerDetailView_module_default = { item: "_item_leq25_1" };
-//#endregion
-//#region src/app/plan/ScorerDetailView.tsx
+// src/app/plan/ScorerDetailView.tsx
 var ScorerDetailView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(7);
 	let { name, scores, params } = t0;
@@ -129806,8 +131253,7 @@ var SolverDetailView_module_default = {
 	item: "_item_12j2k_7",
 	separator: "_separator_12j2k_11"
 };
-//#endregion
-//#region src/app/plan/SolverDetailView.tsx
+// src/app/plan/SolverDetailView.tsx
 var SolversDetailView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(7);
 	const { steps } = t0;
@@ -129847,8 +131293,7 @@ var SolversDetailView = (t0) => {
 	} else t3 = $[6];
 	return t3;
 };
-//#endregion
-//#region src/app/plan/PlanDetailView.tsx
+// src/app/plan/PlanDetailView.tsx
 var PlanDetailView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(22);
 	const { evaluation, plan, scores } = t0;
@@ -130004,8 +131449,7 @@ function _temp2$22(col) {
 		children: col.contents
 	}, `plan-col-${col.title}`);
 }
-//#endregion
-//#region src/app/plan/PlanCard.tsx
+// src/app/plan/PlanCard.tsx
 /**
 * Renders the plan card
 */ var PlanCard = (t0) => {
@@ -130107,8 +131551,7 @@ function _temp2$22(col) {
 	} else t7 = $[23];
 	return t7;
 };
-//#endregion
-//#region src/app/log-view/tabs/InfoTab.tsx
+// src/app/log-view/tabs/InfoTab.tsx
 var useInfoTabConfig = (evalSpec, evalPlan, evalError, evalResults, evalStatus, metadata) => {
 	const $ = (0, import_compiler_runtime.c)(8);
 	const scrollRef = (0, import_react.useRef)(null);
@@ -130203,8 +131646,7 @@ var InfoTab = (t0) => {
 	return t6;
 };
 var DownloadButton_module_default = { downloadButton: "_downloadButton_skjjg_1" };
-//#endregion
-//#region src/components/DownloadButton.tsx
+// src/components/DownloadButton.tsx
 var DownloadButton = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(8);
 	const { label, fileName, fileContents } = t0;
@@ -130249,8 +131691,7 @@ var DownloadPanel_module_default = {
 	downloadPanel: "_downloadPanel_1ggsq_1",
 	downloadPanelMessage: "_downloadPanelMessage_1ggsq_8"
 };
-//#endregion
-//#region src/components/DownloadPanel.tsx
+// src/components/DownloadPanel.tsx
 var DownloadPanel = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(9);
 	const { message, buttonLabel, fileName, fileContents } = t0;
@@ -130288,8 +131729,7 @@ var DownloadPanel = (t0) => {
 	return t3;
 };
 var JsonTab_module_default = { jsonTab: "_jsonTab_6pq03_1" };
-//#endregion
-//#region src/app/log-view/tabs/JsonTab.tsx
+// src/app/log-view/tabs/JsonTab.tsx
 var kJsonMaxSize = 1e7;
 var useJsonTabConfig = (logDetails) => {
 	const $ = (0, import_compiler_runtime.c)(13);
@@ -130431,8 +131871,7 @@ function _temp$24(state) {
 function _temp2$21(state) {
 	return state.capabilities.downloadFiles;
 }
-//#endregion
-//#region src/app/log-view/useTimelineNavigation.ts
+// src/app/log-view/useTimelineNavigation.ts
 var kTimelineBag = "timeline";
 var kTimelineBandsKey = "bands";
 var timelineBandId = (band, model) => model ? `${band}:${model}` : band;
@@ -130533,8 +131972,7 @@ function _temp$23(state) {
 function _temp2$20(state) {
 	return state.appActions.setPropertyValue;
 }
-//#endregion
-//#region src/app/log-view/tabs/ModelsTab.tsx
+// src/app/log-view/tabs/ModelsTab.tsx
 var useModelsTab = (evalSpec, evalStats, evalStatus, configUpdates) => {
 	const $ = (0, import_compiler_runtime.c)(5);
 	let t0;
@@ -130708,225 +132146,13 @@ var ModelTab = (t0) => {
 	} else t18 = $[33];
 	return t18;
 };
-//#endregion
-//#region src/app/shared/samples-grid/SamplesGrid.tsx
-var kListModeRowHeight = 70;
-var kGridModeRowHeight = 30;
-/**
-* Shared samples grid: a `DataGrid` wrapper that runs client-side sort over
-* its rows via the same listing query the log list uses. Per-column filtering
-* is dual-mode: uncontrolled (no `columnFilters` prop — local state, applied
-* client-side; SamplesPanel's cross-log mode) or controlled (the owner
-* filters upstream — on the samples tab via the filtrex FILTER string, which
-* is also the persistence).
-*/ var SamplesGrid = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(54);
-	const { rowData, columnDefs, columnVisibility, multiline, defaultSorting, sorting: sortingProp, onSortingChange, columnSizing: columnSizingProp, onColumnSizingChange, getRowId, selectedRowId, onRowSelect, scrollRef, onRowOpen, getRowHref, loading, columnFilters, onColumnFilterChange, applyFiltersClientSide, hideColumnFilters, onDisplayedRowsChange } = t0;
-	const rowHeight = multiline ? kListModeRowHeight : kGridModeRowHeight;
-	let t1;
-	if ($[0] !== defaultSorting) {
-		t1 = defaultSorting ?? [];
-		$[0] = defaultSorting;
-		$[1] = t1;
-	} else t1 = $[1];
-	const [localSorting, setLocalSorting] = (0, import_react.useState)(t1);
-	let t2;
-	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
-		t2 = {};
-		$[2] = t2;
-	} else t2 = $[2];
-	const [localFilters, setLocalFilters] = (0, import_react.useState)(t2);
-	let t3;
-	if ($[3] === Symbol.for("react.memo_cache_sentinel")) {
-		t3 = {};
-		$[3] = t3;
-	} else t3 = $[3];
-	const [localSizing, setLocalSizing] = (0, import_react.useState)(t3);
-	const controlled = columnFilters !== void 0;
-	const effectiveFilters = controlled ? columnFilters : localFilters;
-	const sorting = sortingProp ?? localSorting;
-	let t4;
-	if ($[4] !== onSortingChange) {
-		t4 = (next) => {
-			if (onSortingChange) onSortingChange(next);
-			else setLocalSorting(next);
-		};
-		$[4] = onSortingChange;
-		$[5] = t4;
-	} else t4 = $[5];
-	const handleSortingChange = t4;
-	const columnSizing = columnSizingProp ?? localSizing;
-	let t5;
-	if ($[6] !== onColumnSizingChange) {
-		t5 = (next_0) => {
-			if (onColumnSizingChange) onColumnSizingChange(next_0);
-			else setLocalSizing(next_0);
-		};
-		$[6] = onColumnSizingChange;
-		$[7] = t5;
-	} else t5 = $[7];
-	const handleColumnSizingChange = t5;
-	let map;
-	if ($[8] !== columnDefs) {
-		map = /* @__PURE__ */ new Map();
-		for (const col of columnDefs) if (col.id) map.set(col.id, col);
-		$[8] = columnDefs;
-		$[9] = map;
-	} else map = $[9];
-	const columnsById = map;
-	let t6;
-	if ($[10] !== columnsById) {
-		t6 = (row, columnId) => {
-			const col_0 = columnsById.get(columnId);
-			if (col_0 && "accessorFn" in col_0 && typeof col_0.accessorFn === "function") return col_0.accessorFn(row, 0);
-		};
-		$[10] = columnsById;
-		$[11] = t6;
-	} else t6 = $[11];
-	const getValue = t6;
-	let t7;
-	if ($[12] !== columnsById) {
-		t7 = (columnId_0) => columnsById.get(columnId_0)?.meta?.sortComparator;
-		$[12] = columnsById;
-		$[13] = t7;
-	} else t7 = $[13];
-	const getComparator = t7;
-	let t8;
-	if ($[14] !== columnsById) {
-		t8 = (columnId_1) => columnsById.get(columnId_1)?.meta?.filterType;
-		$[14] = columnsById;
-		$[15] = t8;
-	} else t8 = $[15];
-	const getFilterType = t8;
-	const filterClientSide = !controlled || !!applyFiltersClientSide;
-	let t9;
-	if ($[16] !== effectiveFilters || $[17] !== filterClientSide) {
-		t9 = filterClientSide ? combineFilters(effectiveFilters) : void 0;
-		$[16] = effectiveFilters;
-		$[17] = filterClientSide;
-		$[18] = t9;
-	} else t9 = $[18];
-	const filter = t9;
-	let t10;
-	if ($[19] !== sorting) {
-		t10 = sortingStateToOrderBy(sorting);
-		$[19] = sorting;
-		$[20] = t10;
-	} else t10 = $[20];
-	const orderBy = t10;
-	let t11;
-	if ($[21] !== filter || $[22] !== getComparator || $[23] !== getFilterType || $[24] !== getValue || $[25] !== orderBy || $[26] !== rowData) {
-		t11 = {
-			rows: rowData,
-			filter,
-			orderBy,
-			getValue,
-			getComparator,
-			getFilterType
-		};
-		$[21] = filter;
-		$[22] = getComparator;
-		$[23] = getFilterType;
-		$[24] = getValue;
-		$[25] = orderBy;
-		$[26] = rowData;
-		$[27] = t11;
-	} else t11 = $[27];
-	const { items } = useLogsListingQuery(t11);
-	let t12;
-	let t13;
-	if ($[28] !== items || $[29] !== onDisplayedRowsChange) {
-		t12 = () => {
-			onDisplayedRowsChange?.(items);
-		};
-		t13 = [items, onDisplayedRowsChange];
-		$[28] = items;
-		$[29] = onDisplayedRowsChange;
-		$[30] = t12;
-		$[31] = t13;
-	} else {
-		t12 = $[30];
-		t13 = $[31];
-	}
-	(0, import_react.useEffect)(t12, t13);
-	let t14;
-	if ($[32] !== onColumnFilterChange) {
-		t14 = (columnId_2, filterType, spec) => {
-			if (onColumnFilterChange) {
-				onColumnFilterChange(columnId_2, filterType, spec);
-				return;
-			}
-			setLocalFilters((prev) => {
-				const next_1 = { ...prev };
-				if (spec === null) delete next_1[columnId_2];
-				else next_1[columnId_2] = {
-					columnId: columnId_2,
-					filterType,
-					spec
-				};
-				return next_1;
-			});
-		};
-		$[32] = onColumnFilterChange;
-		$[33] = t14;
-	} else t14 = $[33];
-	const handleColumnFilterChange = t14;
-	let t15;
-	if ($[34] !== columnDefs || $[35] !== columnSizing || $[36] !== columnVisibility || $[37] !== effectiveFilters || $[38] !== getRowHref || $[39] !== getRowId || $[40] !== handleColumnFilterChange || $[41] !== handleColumnSizingChange || $[42] !== handleSortingChange || $[43] !== hideColumnFilters || $[44] !== items || $[45] !== loading || $[46] !== multiline || $[47] !== onRowOpen || $[48] !== onRowSelect || $[49] !== rowHeight || $[50] !== scrollRef || $[51] !== selectedRowId || $[52] !== sorting) {
-		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(DataGrid, {
-			data: items,
-			columns: columnDefs,
-			getRowId,
-			columnVisibility,
-			sorting,
-			onSortingChange: handleSortingChange,
-			columnFilters: effectiveFilters,
-			onColumnFilterChange: handleColumnFilterChange,
-			hideColumnFilters,
-			columnSizing,
-			onColumnSizingChange: handleColumnSizingChange,
-			selectedRowId,
-			onSelectedRowChange: onRowSelect,
-			scrollRef,
-			onRowActivate: onRowOpen,
-			getRowHref,
-			rowHeight,
-			multiline,
-			loading,
-			autoFocus: true,
-			ariaLabel: "Samples"
-		});
-		$[34] = columnDefs;
-		$[35] = columnSizing;
-		$[36] = columnVisibility;
-		$[37] = effectiveFilters;
-		$[38] = getRowHref;
-		$[39] = getRowId;
-		$[40] = handleColumnFilterChange;
-		$[41] = handleColumnSizingChange;
-		$[42] = handleSortingChange;
-		$[43] = hideColumnFilters;
-		$[44] = items;
-		$[45] = loading;
-		$[46] = multiline;
-		$[47] = onRowOpen;
-		$[48] = onRowSelect;
-		$[49] = rowHeight;
-		$[50] = scrollRef;
-		$[51] = selectedRowId;
-		$[52] = sorting;
-		$[53] = t15;
-	} else t15 = $[53];
-	return t15;
-};
 var SampleFooter_module_default = {
 	footer: "_footer_vkofn_1",
 	spinnerContainer: "_spinnerContainer_vkofn_11",
 	spinner: "_spinner_vkofn_11",
 	label: "_label_vkofn_25"
 };
-//#endregion
-//#region src/app/samples/list/SampleFooter.tsx
+// src/app/samples/list/SampleFooter.tsx
 var SampleFooter = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(10);
 	const { sampleCount, totalSampleCount, running } = t0;
@@ -130980,8 +132206,7 @@ var SampleFooter = (t0) => {
 	return t6;
 };
 var SampleList_module_default = { mainLayout: "_mainLayout_xvd5i_1" };
-//#endregion
-//#region src/app/samples/list/SampleList.tsx
+// src/app/samples/list/SampleList.tsx
 var makeSampleRowId = (id, epoch) => `${id}-${epoch}`.replace(/\s+/g, "_");
 var SampleList = /*#__PURE__*/ (0, import_react.memo)((props) => {
 	const $ = (0, import_compiler_runtime.c)(59);
@@ -131204,8 +132429,7 @@ function _temp4$13(warning) {
 		type: warning.type === "error" || warning.type === "warning" ? warning.type : "info"
 	}, `sample-warning-message-${warning.type}-${warning.msg}`);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@lezer+common@1.5.3/node_modules/@lezer/common/dist/index.js
+// ../../node_modules/.pnpm/@lezer+common@1.5.3/node_modules/@lezer/common/dist/index.js
 /**
 The default maximum length of a `TreeBuffer` node.
 */
@@ -132724,8 +133948,7 @@ var StringInput = class {
 	}
 };
 new NodeProp({ perNode: true });
-//#endregion
-//#region ../../node_modules/.pnpm/@marijn+find-cluster-break@1.0.4/node_modules/@marijn/find-cluster-break/src/index.js
+// ../../node_modules/.pnpm/@marijn+find-cluster-break@1.0.4/node_modules/@marijn/find-cluster-break/src/index.js
 var rangeFrom = [];
 var rangeTo = [];
 (() => {
@@ -132795,8 +134018,7 @@ function surrogateHigh$1(ch) {
 function codePointSize$1(code) {
 	return code < 65536 ? 1 : 2;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@codemirror+state@6.7.6/node_modules/@codemirror/state/dist/index.js
+// ../../node_modules/.pnpm/@codemirror+state@6.7.6/node_modules/@codemirror/state/dist/index.js
 /**
 The data structure for documents. @nonabstract
 */
@@ -136209,8 +137431,7 @@ function findColumn(string, col, tabSize, strict) {
 	}
 	return strict === true ? -1 : string.length;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/style-mod@4.1.4_patch_hash=8b8994768dcd5295790b5425f0e9f8a8dfaaaea0f61f438744f64f243c5a511b/node_modules/style-mod/src/style-mod.js
+// ../../node_modules/.pnpm/style-mod@4.1.4_patch_hash=8b8994768dcd5295790b5425f0e9f8a8dfaaaea0f61f438744f64f243c5a511b/node_modules/style-mod/src/style-mod.js
 var C = "ͼ";
 var COUNT = typeof Symbol == "undefined" ? "__ͼ" : Symbol.for(C);
 var SET = typeof Symbol == "undefined" ? "__styleSet" + Math.floor(Math.random() * 1e8) : Symbol("styleSet");
@@ -136306,8 +137527,7 @@ var StyleSet = class {
 		if (this.styleTag && this.styleTag.getAttribute("nonce") != nonce) this.styleTag.setAttribute("nonce", nonce);
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/w3c-keyname@2.2.8/node_modules/w3c-keyname/index.js
+// ../../node_modules/.pnpm/w3c-keyname@2.2.8/node_modules/w3c-keyname/index.js
 var base = {
 	8: "Backspace",
 	9: "Tab",
@@ -136407,8 +137627,7 @@ function keyName(event) {
 	if (name == "Down") name = "ArrowDown";
 	return name;
 }
-//#endregion
-//#region ../../node_modules/.pnpm/crelt@1.0.7/node_modules/crelt/index.js
+// ../../node_modules/.pnpm/crelt@1.0.7/node_modules/crelt/index.js
 function crelt() {
 	var elt = arguments[0];
 	if (typeof elt == "string") elt = document.createElement(elt);
@@ -136430,8 +137649,7 @@ function add(elt, child) {
 	else if (Array.isArray(child)) for (var i = 0; i < child.length; i++) add(elt, child[i]);
 	else throw new RangeError("Unsupported child node: " + child);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/@codemirror+view@6.43.15/node_modules/@codemirror/view/dist/index.js
+// ../../node_modules/.pnpm/@codemirror+view@6.43.15/node_modules/@codemirror/view/dist/index.js
 var nav = typeof navigator != "undefined" ? navigator : {
 	userAgent: "",
 	vendor: "",
@@ -145522,8 +146740,7 @@ GutterMarker.prototype.toDOM = void 0;
 GutterMarker.prototype.mapMode = MapMode.TrackBefore;
 GutterMarker.prototype.startSide = GutterMarker.prototype.endSide = -1;
 GutterMarker.prototype.point = true;
-//#endregion
-//#region ../../node_modules/.pnpm/@lezer+highlight@1.2.5/node_modules/@lezer/highlight/dist/index.js
+// ../../node_modules/.pnpm/@lezer+highlight@1.2.5/node_modules/@lezer/highlight/dist/index.js
 var nextTagID = 0;
 /**
 Highlighting tags are markers that denote a highlighting category.
@@ -146395,8 +147612,7 @@ tagHighlighter([
 		class: "tok-punctuation"
 	}
 ]);
-//#endregion
-//#region ../../node_modules/.pnpm/@codemirror+streamparser@6.0.0/node_modules/@codemirror/streamparser/dist/index.js
+// ../../node_modules/.pnpm/@codemirror+streamparser@6.0.0/node_modules/@codemirror/streamparser/dist/index.js
 function countCol(string, end, tabSize, startIndex = 0, startValue = 0) {
 	if (end == null) {
 		end = string.search(/[^\s\u00a0]/);
@@ -146561,8 +147777,7 @@ var StringStream = class {
 		return this.string.slice(this.start, this.pos);
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/@codemirror+language@6.13.1/node_modules/@codemirror/language/dist/index.js
+// ../../node_modules/.pnpm/@codemirror+language@6.13.1/node_modules/@codemirror/language/dist/index.js
 var _a;
 /**
 Node prop stored in a parser's top syntax node to provide the
@@ -148078,8 +149293,7 @@ function docID(data, lang) {
 	return type;
 }
 Direction.RTL, Direction.LTR;
-//#endregion
-//#region src/app/samples/sample-tools/sample-filter/tokenize.ts
+// src/app/samples/sample-tools/sample-filter/tokenize.ts
 var TOKEN_PATTERNS = {
 	STRING: /^"(?:\\"|\\\\|[^"\\])*"/,
 	UNTERMINATED_STRING: /^"(?:\\"|\\\\|[^"\\])*/,
@@ -148137,8 +149351,7 @@ var language = StreamLanguage.define({
 		miscOperator: tags.operator
 	}
 });
-//#endregion
-//#region src/app/samples/sample-tools/filterAst.ts
+// src/app/samples/sample-tools/filterAst.ts
 var ParseFailure = class extends Error {
 	position;
 	constructor(message, position) {
@@ -148425,8 +149638,7 @@ var Parser = class {
 		};
 	}
 }
-//#endregion
-//#region src/app/samples/sample-tools/astToSpecs.ts
+// src/app/samples/sample-tools/astToSpecs.ts
 var REGEX_META = ".*+?^${}()|[]\\";
 var META_FOR_CLASS = ".*+?${}()|[";
 /** Match the between shape the synthesizer emits — `(var >= a and var <= b)`
@@ -148784,8 +149996,7 @@ var binaryToSpec = (ast, registry) => {
 	if (!ast) return null;
 	return astToSpecs(ast, registry);
 }
-//#endregion
-//#region src/app/samples/sample-tools/specsToFilterText.ts
+// src/app/samples/sample-tools/specsToFilterText.ts
 var regexEscape = (s) => s.replace(/[\\^\]]/g, "\\$&").replace(/[.*+?${}()|[]/g, "[$&]");
 var stringLiteral = (s) => `"${s.replace(/[\\"]/g, "\\$&")}"`;
 var numberLiteral = (n) => String(n);
@@ -148850,157 +150061,7 @@ var numberLiteral = (n) => String(n);
 	}
 	return parts.join(" and ");
 }
-var SamplesViewOptionsPopover_module_default = {
-	container: "_container_1tduz_1",
-	row: "_row_1tduz_8",
-	checkbox: "_checkbox_1tduz_15"
-};
-//#endregion
-//#region src/app/samples/list/SamplesViewOptionsPopover.tsx
-var SamplesViewOptionsPopover = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(35);
-	const { showing, setShowing, positionEl } = t0;
-	const { view, setMultiline, setCompactScores, setColorScalesEnabled } = useSamplesView();
-	const scoreColorScales = useSamplesViewScoreColorScales();
-	let t1;
-	if ($[0] !== scoreColorScales) {
-		t1 = Object.keys(scoreColorScales);
-		$[0] = scoreColorScales;
-		$[1] = t1;
-	} else t1 = $[1];
-	const showColorScales = t1.length > 0;
-	let t2;
-	let t3;
-	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
-		t2 = [0, 1];
-		t3 = clsx(SamplesViewOptionsPopover_module_default.container, "text-size-small");
-		$[2] = t2;
-		$[3] = t3;
-	} else {
-		t2 = $[2];
-		t3 = $[3];
-	}
-	let t4;
-	if ($[4] !== setMultiline || $[5] !== view.multiline) {
-		t4 = () => setMultiline(!view.multiline);
-		$[4] = setMultiline;
-		$[5] = view.multiline;
-		$[6] = t4;
-	} else t4 = $[6];
-	let t5;
-	if ($[7] !== t4 || $[8] !== view.multiline) {
-		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
-			type: "checkbox",
-			checked: view.multiline,
-			onChange: t4,
-			className: SamplesViewOptionsPopover_module_default.checkbox
-		});
-		$[7] = t4;
-		$[8] = view.multiline;
-		$[9] = t5;
-	} else t5 = $[9];
-	let t6;
-	if ($[10] === Symbol.for("react.memo_cache_sentinel")) {
-		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: "Multiline" });
-		$[10] = t6;
-	} else t6 = $[10];
-	let t7;
-	if ($[11] !== t5) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("label", {
-			className: SamplesViewOptionsPopover_module_default.row,
-			children: [t5, t6]
-		});
-		$[11] = t5;
-		$[12] = t7;
-	} else t7 = $[12];
-	let t8;
-	if ($[13] !== setCompactScores || $[14] !== view.compactScores) {
-		t8 = () => setCompactScores(!view.compactScores);
-		$[13] = setCompactScores;
-		$[14] = view.compactScores;
-		$[15] = t8;
-	} else t8 = $[15];
-	let t9;
-	if ($[16] !== t8 || $[17] !== view.compactScores) {
-		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
-			type: "checkbox",
-			checked: view.compactScores,
-			onChange: t8,
-			className: SamplesViewOptionsPopover_module_default.checkbox
-		});
-		$[16] = t8;
-		$[17] = view.compactScores;
-		$[18] = t9;
-	} else t9 = $[18];
-	let t10;
-	if ($[19] === Symbol.for("react.memo_cache_sentinel")) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: "Compact scores" });
-		$[19] = t10;
-	} else t10 = $[19];
-	let t11;
-	if ($[20] !== t9) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("label", {
-			className: SamplesViewOptionsPopover_module_default.row,
-			children: [t9, t10]
-		});
-		$[20] = t9;
-		$[21] = t11;
-	} else t11 = $[21];
-	let t12;
-	if ($[22] !== setColorScalesEnabled || $[23] !== showColorScales || $[24] !== view.colorScalesEnabled) {
-		t12 = showColorScales && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("label", {
-			className: SamplesViewOptionsPopover_module_default.row,
-			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
-				type: "checkbox",
-				checked: view.colorScalesEnabled,
-				onChange: () => setColorScalesEnabled(!view.colorScalesEnabled),
-				className: SamplesViewOptionsPopover_module_default.checkbox
-			}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: "Score colors" })]
-		});
-		$[22] = setColorScalesEnabled;
-		$[23] = showColorScales;
-		$[24] = view.colorScalesEnabled;
-		$[25] = t12;
-	} else t12 = $[25];
-	let t13;
-	if ($[26] !== t11 || $[27] !== t12 || $[28] !== t7) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t3,
-			children: [
-				t7,
-				t11,
-				t12
-			]
-		});
-		$[26] = t11;
-		$[27] = t12;
-		$[28] = t7;
-		$[29] = t13;
-	} else t13 = $[29];
-	let t14;
-	if ($[30] !== positionEl || $[31] !== setShowing || $[32] !== showing || $[33] !== t13) {
-		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PopOver, {
-			id: "samples-view-options-popover",
-			isOpen: showing,
-			setIsOpen: setShowing,
-			positionEl,
-			placement: "bottom-end",
-			showArrow: false,
-			hoverDelay: -1,
-			closeOnMouseLeave: false,
-			offset: t2,
-			children: t13
-		});
-		$[30] = positionEl;
-		$[31] = setShowing;
-		$[32] = showing;
-		$[33] = t13;
-		$[34] = t14;
-	} else t14 = $[34];
-	return t14;
-};
-//#endregion
-//#region ../../node_modules/.pnpm/@codemirror+autocomplete@6.20.4/node_modules/@codemirror/autocomplete/dist/index.js
+// ../../node_modules/.pnpm/@codemirror+autocomplete@6.20.4/node_modules/@codemirror/autocomplete/dist/index.js
 /**
 An instance of this is passed to completion source functions.
 */
@@ -150213,8 +151274,7 @@ var completionKeymap = [
 	}
 ];
 var completionKeymapExt = /*@__PURE__*/ Prec.highest(/*@__PURE__*/ keymap.computeN([completionConfig], (state) => state.facet(completionConfig).defaultKeymap ? [completionKeymap] : []));
-//#endregion
-//#region ../../node_modules/.pnpm/@codemirror+lint@6.9.7/node_modules/@codemirror/lint/dist/index.js
+// ../../node_modules/.pnpm/@codemirror+lint@6.9.7/node_modules/@codemirror/lint/dist/index.js
 var SelectedDiagnostic = class {
 	constructor(from, to, diagnostic) {
 		this.from = from;
@@ -150808,8 +151868,7 @@ var lintExtensions = [
 	lintHover,
 	baseTheme
 ];
-//#endregion
-//#region ../../node_modules/.pnpm/@codemirror+commands@6.10.4/node_modules/@codemirror/commands/dist/index.js
+// ../../node_modules/.pnpm/@codemirror+commands@6.10.4/node_modules/@codemirror/commands/dist/index.js
 /**
 Comment or uncomment the current selection. Will use line comments
 if available, otherwise falling back to block comments.
@@ -152520,8 +153579,7 @@ var defaultKeymap = /*@__PURE__*/ [
 		run: toggleTabFocusMode
 	}
 ].concat(standardKeymap);
-//#endregion
-//#region ../../node_modules/.pnpm/codemirror@6.0.2/node_modules/codemirror/dist/index.js
+// ../../node_modules/.pnpm/codemirror@6.0.2/node_modules/codemirror/dist/index.js
 /**
 A minimal set of extensions to create a functional editor. Only
 includes [the default keymap](https://codemirror.net/6/docs/ref/#commands.defaultKeymap), [undo
@@ -152537,8 +153595,7 @@ var minimalSetup = /*@__PURE__*/ (() => [
 	syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
 	keymap.of([...defaultKeymap, ...historyKeymap])
 ])();
-//#endregion
-//#region src/app/samples/sample-tools/sample-filter/completions.ts
+// src/app/samples/sample-tools/sample-filter/completions.ts
 var isLiteral = (token) => [
 	"string",
 	"unterminatedString",
@@ -152937,8 +153994,7 @@ var SampleFilter_module_default = {
 	input: "_input_1dunz_21",
 	help: "_help_1dunz_26"
 };
-//#endregion
-//#region src/app/samples/sample-tools/sample-filter/SampleFilter.tsx
+// src/app/samples/sample-tools/sample-filter/SampleFilter.tsx
 var kNoSamples = [];
 var FILTER_TOOLTIP = `
 Filter samples by:
@@ -153281,8 +154337,7 @@ var SelectScorer_module_default = {
 	selected: "_selected_e52xb_54",
 	bodyColorButton: "_bodyColorButton_e52xb_58"
 };
-//#endregion
-//#region src/app/samples/sample-tools/SelectScorer.tsx
+// src/app/samples/sample-tools/SelectScorer.tsx
 var SelectScorer = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(51);
 	const { scores, selectedScores, setSelectedScores } = t0;
@@ -153562,8 +154617,7 @@ var ScoreCheckboxes = (t0) => {
 function _temp$20(s) {
 	return `${s.scorer}.${s.name}`;
 }
-//#endregion
-//#region src/app/samples/SamplesTools.tsx
+// src/app/samples/SamplesTools.tsx
 var SampleTools = () => {
 	const $ = (0, import_compiler_runtime.c)(5);
 	const [showViewOptions, setShowViewOptions] = (0, import_react.useState)(false);
@@ -153637,8 +154691,7 @@ var RunningNoSamples_module_default = {
 	spinner: "_spinner_1yknn_14",
 	text: "_text_1yknn_20"
 };
-//#endregion
-//#region src/app/log-view/tabs/RunningNoSamples.tsx
+// src/app/log-view/tabs/RunningNoSamples.tsx
 var RunningNoSamples = () => {
 	const $ = (0, import_compiler_runtime.c)(4);
 	let t0;
@@ -153679,8 +154732,7 @@ var RunningNoSamples = () => {
 	} else t3 = $[3];
 	return t3;
 };
-//#endregion
-//#region src/app/log-view/tabs/SamplesTab.tsx
+// src/app/log-view/tabs/SamplesTab.tsx
 var kNoScoreColorScales = Object.freeze({});
 var kNoColumnFilters$1 = Object.freeze({});
 var kNoColumnSizing$1 = Object.freeze({});
@@ -154191,8 +155243,7 @@ var TagChip_module_default = {
 	chipClickable: "_chipClickable_17zs5_48",
 	chipRemove: "_chipRemove_17zs5_61"
 };
-//#endregion
-//#region src/app/log-view/title-view/TagChip.tsx
+// src/app/log-view/title-view/TagChip.tsx
 var TagChip = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(19);
 	const { label, isNew, onRemove, onClick } = t0;
@@ -154265,8 +155316,7 @@ var TagChip = (t0) => {
 	} else t6 = $[18];
 	return t6;
 };
-//#endregion
-//#region src/app/log-view/title-view/EditTagsDialog.tsx
+// src/app/log-view/title-view/EditTagsDialog.tsx
 var EditTagsDialog = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(42);
 	const { showing, setShowing, currentTags, logFile, onSaved } = t0;
@@ -154473,8 +155523,7 @@ var EditTagsDialog = (t0) => {
 	return t12;
 };
 var TagStrip_module_default = { tagRow: "_tagRow_pg3wd_4" };
-//#endregion
-//#region src/app/log-view/title-view/TagStrip.tsx
+// src/app/log-view/title-view/TagStrip.tsx
 var MAX_ROWS = 2;
 /**
 * One trim step: given the offsetTops of the row's flex children (the
@@ -154704,8 +155753,7 @@ function _temp$17(kid) {
 function _temp2$15(k) {
 	return k.offsetTop;
 }
-//#endregion
-//#region src/app/log-view/title-view/TagsField.tsx
+// src/app/log-view/title-view/TagsField.tsx
 /**
 * The full editable-tags surface: chip strip + Edit pill + dialog.
 *
@@ -154769,8 +155817,7 @@ var ConfigCard_module_default = {
 	changeCount: "_changeCount_j84v5_26",
 	headerSep: "_headerSep_j84v5_31"
 };
-//#endregion
-//#region src/app/log-view/tabs/ConfigCard.tsx
+// src/app/log-view/tabs/ConfigCard.tsx
 /**
 * The eval-level Config card (Task tab): effective values with the
 * "changed" affordance on retuned knobs. With no config_updates it renders
@@ -154898,8 +155945,7 @@ var TaskTab_module_default = {
 	grid: "_grid_q7chi_1",
 	tagPillAlign: "_tagPillAlign_q7chi_11"
 };
-//#endregion
-//#region src/app/log-view/tabs/TaskTab.tsx
+// src/app/log-view/tabs/TaskTab.tsx
 var useTaskTabConfig = (evalSpec, evalStats, earlyStopping, tags, configUpdates) => {
 	const $ = (0, import_compiler_runtime.c)(6);
 	let t0;
@@ -155221,8 +156267,7 @@ var HistoryList_module_default = {
 	ordinalBox: "_ordinalBox_1y1ui_310",
 	openSample: "_openSample_1y1ui_327"
 };
-//#endregion
-//#region src/app/log-view/tabs/timeline/OpenSampleLink.tsx
+// src/app/log-view/tabs/timeline/OpenSampleLink.tsx
 /**
 * A link to a sample: plain clicks open it in place, cmd/ctrl/middle-click
 * open it in a new tab. A button inside the VS Code webview.
@@ -155263,8 +156308,7 @@ var HistoryList_module_default = {
 	} else t3 = $[13];
 	return t3;
 };
-//#endregion
-//#region src/app/log-view/tabs/timeline/timelineData.ts
+// src/app/log-view/tabs/timeline/timelineData.ts
 /** One palette for dots, collapsed bands, and legend swatches. */ var kStatusColor = {
 	completed: "#2f7d4f",
 	error: "#b04a3c",
@@ -155669,8 +156713,7 @@ var rowCategory = (row) => {
 		default: return 0;
 	}
 };
-//#endregion
-//#region src/app/log-view/tabs/timeline/HistoryList.tsx
+// src/app/log-view/tabs/timeline/HistoryList.tsx
 var kPillClass = {
 	config: HistoryList_module_default.pillConfig,
 	connections: HistoryList_module_default.pillConnections,
@@ -156121,8 +157164,7 @@ var HistoryList = ({ rows, ordinals, scrollRef, selectedCategories, onToggleCate
 		})]
 	});
 };
-//#endregion
-//#region src/app/log-view/tabs/timeline/timelineAxis.ts
+// src/app/log-view/tabs/timeline/timelineAxis.ts
 var kMaxEpochSeconds = 864e10;
 var kMinTickSpacing = 80;
 var kMaxAxisTicks = 1e3;
@@ -156231,8 +157273,7 @@ var TimelineChart_module_default = {
 	popoverCallout: "_popoverCallout_1we23_385",
 	popoverOpen: "_popoverOpen_1we23_395"
 };
-//#endregion
-//#region src/app/log-view/tabs/timeline/TimelineChart.tsx
+// src/app/log-view/tabs/timeline/TimelineChart.tsx
 var kBandHeight = 84;
 var kBandLabelY = 14;
 var kPlotTop = 22;
@@ -157603,8 +158644,7 @@ var TimelineTab_module_default = {
 	legendDot: "_legendDot_fne0n_71",
 	legendRateLimit: "_legendRateLimit_fne0n_78"
 };
-//#endregion
-//#region src/app/log-view/tabs/timeline/TimelineTab.tsx
+// src/app/log-view/tabs/timeline/TimelineTab.tsx
 var useTimelineTab = (evalSpec, evalStats, evalStatus, configUpdates, logUpdates, earlyStopping) => {
 	const $ = (0, import_compiler_runtime.c)(7);
 	const scrollRef = (0, import_react.useRef)(null);
@@ -158339,8 +159379,7 @@ var LinkButton_module_default = {
 	button: "_button_12472_1",
 	label: "_label_12472_14"
 };
-//#endregion
-//#region src/components/LinkButton.tsx
+// src/components/LinkButton.tsx
 /**
 * LightboxCarousel component provides a carousel with lightbox functionality.
 */ var LinkButton = (t0) => {
@@ -158385,8 +159424,7 @@ var LinkButton_module_default = {
 	} else t4 = $[11];
 	return t4;
 };
-//#endregion
-//#region src/scoring/metrics.ts
+// src/scoring/metrics.ts
 var metricDisplayName = (metric) => {
 	let modifier = void 0;
 	for (const metricModifier of metricModifiers) {
@@ -158498,8 +159536,7 @@ var expandGroupedMetrics = (scorers) => {
 	}
 	return result;
 };
-//#endregion
-//#region src/scoring/scores.ts
+// src/scoring/scores.ts
 /**
 * Partition metrics into runs of consecutive entries sharing the same
 * `group`. Used to render grouped column headers for dict-returning metrics
@@ -158595,8 +159632,7 @@ var ScoreGrid_module_default = {
 	compact: "_compact_1o53x_126"
 };
 var UnscoredSamplesView_module_default = { unscoredSamples: "_unscoredSamples_1h85z_1" };
-//#endregion
-//#region src/app/log-view/title-view/UnscoredSamplesView.tsx
+// src/app/log-view/title-view/UnscoredSamplesView.tsx
 var UnscoredSamples = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(5);
 	const { scoredSamples, unscoredSamples } = t0;
@@ -158628,8 +159664,7 @@ var UnscoredSamples = (t0) => {
 	} else t3 = $[4];
 	return t3;
 };
-//#endregion
-//#region src/app/log-view/title-view/ScoreGrid.tsx
+// src/app/log-view/title-view/ScoreGrid.tsx
 var scoreGridFeatures = tableFeatures({
 	columnVisibilityFeature,
 	rowSortingFeature,
@@ -159077,8 +160112,7 @@ function _temp4$8(t0) {
 		})
 	] });
 }
-//#endregion
-//#region src/app/log-view/title-view/ResultsPanel.tsx
+// src/app/log-view/title-view/ResultsPanel.tsx
 var kMaxPrimaryScoreRows = 3;
 var kMaxPrimaryMetricColumns = 5;
 var displayScorersFromRunningMetrics = (metrics) => {
@@ -159430,8 +160464,7 @@ function _temp8$1(metric_1) {
 function _temp9$1(found, score_1) {
 	return found !== -1 ? found : score_1.metrics.findIndex(_temp8$1);
 }
-//#endregion
-//#region src/app/log-view/title-view/CollapsedTitleBar.tsx
+// src/app/log-view/title-view/CollapsedTitleBar.tsx
 var kInlineMetricLimit = 2;
 var CollapsedTitleBar = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(28);
@@ -159755,8 +160788,7 @@ function _temp4$6(s) {
 	return !!s.reducer;
 }
 var DownloadLogButton_module_default = { downloadLogButton: "_downloadLogButton_fi3zx_1" };
-//#endregion
-//#region src/components/DownloadLogButton.tsx
+// src/components/DownloadLogButton.tsx
 var DownloadLogButton = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(16);
 	const { log_file, className: t1, ariaLabel: t2 } = t0;
@@ -159843,8 +160875,7 @@ var ModelRolesView_module_default = {
 	container: "_container_q17yq_1",
 	grid: "_grid_q17yq_10"
 };
-//#endregion
-//#region src/app/log-view/title-view/ModelRolesView.tsx
+// src/app/log-view/title-view/ModelRolesView.tsx
 /**
 * Renders the Navbar
 */ var ModelRolesView = (t0) => {
@@ -159913,8 +160944,7 @@ var RunningStatusPanel_module_default = {
 	statusText: "_statusText_1nntt_11",
 	icon: "_icon_1nntt_15"
 };
-//#endregion
-//#region src/app/log-view/title-view/RunningStatusPanel.tsx
+// src/app/log-view/title-view/RunningStatusPanel.tsx
 var RunningStatusPanel = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(6);
 	const { sampleCount } = t0;
@@ -159965,8 +160995,7 @@ var StatusPanel_module_default = {
 	statusPanel: "_statusPanel_1o5l7_1",
 	statusIcon: "_statusIcon_1o5l7_11"
 };
-//#endregion
-//#region src/app/log-view/title-view/StatusPanel.tsx
+// src/app/log-view/title-view/StatusPanel.tsx
 var CancelledPanel = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(2);
 	const { sampleCount } = t0;
@@ -160048,8 +161077,7 @@ var StatusPanel = (t0) => {
 	} else t6 = $[12];
 	return t6;
 };
-//#endregion
-//#region src/app/log-view/title-view/PrimaryBar.tsx
+// src/app/log-view/title-view/PrimaryBar.tsx
 var PrimaryBar = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(78);
 	const { status, evalResults, runningMetrics, evalSpec, sampleCount, tags } = t0;
@@ -160357,8 +161385,7 @@ var SecondaryBar_module_default = {
 	invalidationStatus: "_invalidationStatus_pjkwm_30",
 	paramsWithChanges: "_paramsWithChanges_pjkwm_35"
 };
-//#endregion
-//#region src/app/log-view/title-view/SecondaryBar.tsx
+// src/app/log-view/title-view/SecondaryBar.tsx
 /**
 * Renders the SecondaryBar
 */ var SecondaryBar = (t0) => {
@@ -160781,8 +161808,7 @@ var TitleView_module_default = {
 	collapsed: "_collapsed_ujt11_19",
 	expandedInner: "_expandedInner_ujt11_48"
 };
-//#endregion
-//#region src/app/log-view/title-view/TitleView.tsx
+// src/app/log-view/title-view/TitleView.tsx
 /**
 * Renders the Navbar
 */ var TitleView = (t0) => {
@@ -160894,8 +161920,7 @@ var TitleView_module_default = {
 	} else t10 = $[34];
 	return t10;
 };
-//#endregion
-//#region src/app/log-view/LogView.tsx
+// src/app/log-view/LogView.tsx
 var LogView = () => {
 	const $ = (0, import_compiler_runtime.c)(21);
 	const divRef = (0, import_react.useRef)(null);
@@ -161066,8 +162091,7 @@ function _temp5$2(tab_1) {
 	if (tab_1.tools) return tab_1.tools();
 	else return null;
 }
-//#endregion
-//#region src/app/log-view/LogViewLayout.tsx
+// src/app/log-view/LogViewLayout.tsx
 /**
 * AppContent component with the main UI layout
 */ var LogViewLayout = () => {
@@ -161176,8 +162200,7 @@ function _temp3$3(state_1) {
 function _temp4$3(state_2) {
 	return state_2.appActions.hideFind;
 }
-//#endregion
-//#region src/app/log-view/LogViewContainer.tsx
+// src/app/log-view/LogViewContainer.tsx
 /**
 * LogContainer component that handles routing to specific logs and tabs.
 * Sample detail URLs are now handled by LogSampleDetailView.
@@ -161260,8 +162283,7 @@ var SampleEventView_module_default = {
 	ellipsis: "_ellipsis_1hhbn_14",
 	"loading-ellipsis": "_loading-ellipsis_1hhbn_1"
 };
-//#endregion
-//#region src/app/samples/event/SampleEventView.tsx
+// src/app/samples/event/SampleEventView.tsx
 /**
 * Focus-mode page (single focused turn, entered from a transcript event).
 * Renders the focused event (and its turn's tool calls) fully expanded, with
@@ -161270,7 +162292,7 @@ var SampleEventView_module_default = {
 * (also mounted under /tasks and /samples so back/home return to the surface
 * the sample was opened from).
 */ var SampleEventView = () => {
-	const $ = (0, import_compiler_runtime.c)(63);
+	const $ = (0, import_compiler_runtime.c)(64);
 	const { logPath, id: sampleId, epoch } = useLogOrSampleRouteParams();
 	const [searchParams, setSearchParams] = useSearchParams();
 	let t0;
@@ -161307,7 +162329,7 @@ var SampleEventView_module_default = {
 	const runningEvents = sampleData.running;
 	const isRunning = !sample && runningEvents.length > 0;
 	const scope = useFocusLaneScope(sample?.events ?? runningEvents, eventId, sample?.timelines ?? void 0);
-	const { eventNodes, defaultCollapsedIds } = useEventNodes(scope.laneEvents, isRunning, void 0, sample?.events ?? runningEvents);
+	const { eventNodes, defaultCollapsedIds, recordsExecutionIds } = useEventNodes(scope.laneEvents, isRunning, void 0, sample?.events ?? runningEvents);
 	const sampleNavigation = useLogSampleNavigationActions();
 	const setParams = useFocusSetParams(setSearchParams);
 	let t3;
@@ -161324,15 +162346,17 @@ var SampleEventView_module_default = {
 		$[10] = t4;
 	} else t4 = $[10];
 	let t5;
-	if ($[11] !== following || $[12] !== isRunning) {
+	if ($[11] !== following || $[12] !== isRunning || $[13] !== recordsExecutionIds) {
 		t5 = {
 			running: isRunning,
-			following
+			following,
+			recordsExecutionIds
 		};
 		$[11] = following;
 		$[12] = isRunning;
-		$[13] = t5;
-	} else t5 = $[13];
+		$[13] = recordsExecutionIds;
+		$[14] = t5;
+	} else t5 = $[14];
 	const nav = useFocusTurnNavigation(eventNodes, eventId, t4, setParams, defaultCollapsedIds, scope, t5);
 	const { singleFileMode } = useAppConfig();
 	const navigate = useNavigate();
@@ -161345,30 +162369,30 @@ var SampleEventView_module_default = {
 			break bb0;
 		}
 		let t7;
-		if ($[14] !== builder || $[15] !== epoch || $[16] !== following || $[17] !== logPath || $[18] !== resolvedEventId || $[19] !== sampleId) {
+		if ($[15] !== builder || $[16] !== epoch || $[17] !== following || $[18] !== logPath || $[19] !== resolvedEventId || $[20] !== sampleId) {
 			const base = resolvedEventId ? sampleEventUrl(builder, resolvedEventId, logPath, sampleId, epoch) : builder(logPath, sampleId, epoch, kSampleTranscriptTabId);
 			t7 = following ? `${base}${base.includes("?") ? "&" : "?"}follow=1` : base;
-			$[14] = builder;
-			$[15] = epoch;
-			$[16] = following;
-			$[17] = logPath;
-			$[18] = resolvedEventId;
-			$[19] = sampleId;
-			$[20] = t7;
-		} else t7 = $[20];
+			$[15] = builder;
+			$[16] = epoch;
+			$[17] = following;
+			$[18] = logPath;
+			$[19] = resolvedEventId;
+			$[20] = sampleId;
+			$[21] = t7;
+		} else t7 = $[21];
 		t6 = t7;
 	}
 	const exitUrl = t6;
 	let t7;
-	if ($[21] !== exitUrl || $[22] !== navigate) {
+	if ($[22] !== exitUrl || $[23] !== navigate) {
 		t7 = () => {
 			if (!exitUrl) return;
 			navigate(exitUrl);
 		};
-		$[21] = exitUrl;
-		$[22] = navigate;
-		$[23] = t7;
-	} else t7 = $[23];
+		$[22] = exitUrl;
+		$[23] = navigate;
+		$[24] = t7;
+	} else t7 = $[24];
 	const onExit = t7;
 	let t8;
 	bb1: {
@@ -161377,18 +162401,18 @@ var SampleEventView_module_default = {
 			break bb1;
 		}
 		let t9;
-		if ($[24] !== isSamplesSurface || $[25] !== logPath || $[26] !== prefix) {
+		if ($[25] !== isSamplesSurface || $[26] !== logPath || $[27] !== prefix) {
 			t9 = isSamplesSurface ? samplesUrl(logPath) : logsUrl(logPath, void 0, kLogViewSamplesTabId, prefix);
-			$[24] = isSamplesSurface;
-			$[25] = logPath;
-			$[26] = prefix;
-			$[27] = t9;
-		} else t9 = $[27];
+			$[25] = isSamplesSurface;
+			$[26] = logPath;
+			$[27] = prefix;
+			$[28] = t9;
+		} else t9 = $[28];
 		t8 = t9;
 	}
 	const homeUrl = t8;
 	let t9;
-	if ($[28] !== isSamplesSurface || $[29] !== logPath || $[30] !== prefix) {
+	if ($[29] !== isSamplesSurface || $[30] !== logPath || $[31] !== prefix) {
 		t9 = (file, log_dir) => {
 			if (isSamplesSurface) {
 				const normalizedFile = file.endsWith("/") ? file.slice(0, -1) : file;
@@ -161399,17 +162423,17 @@ var SampleEventView_module_default = {
 			if (normalizedFile_0 === logPath || normalizedFile_0 === `${logPath}/sample`) return logsUrl(logPath, log_dir, kLogViewSamplesTabId, prefix);
 			return logsUrl(file, log_dir, void 0, prefix);
 		};
-		$[28] = isSamplesSurface;
-		$[29] = logPath;
-		$[30] = prefix;
-		$[31] = t9;
-	} else t9 = $[31];
+		$[29] = isSamplesSurface;
+		$[30] = logPath;
+		$[31] = prefix;
+		$[32] = t9;
+	} else t9 = $[32];
 	const fnNavigationUrl = t9;
 	const sampleError = sample?.error;
 	const t10 = logPath ? `${logPath}/sample` : void 0;
 	const t11 = !singleFileMode;
 	let t12;
-	if ($[32] !== exitUrl || $[33] !== fnNavigationUrl || $[34] !== homeUrl || $[35] !== t10 || $[36] !== t11) {
+	if ($[33] !== exitUrl || $[34] !== fnNavigationUrl || $[35] !== homeUrl || $[36] !== t10 || $[37] !== t11) {
 		t12 = {
 			currentPath: t10,
 			fnNavigationUrl,
@@ -161418,15 +162442,15 @@ var SampleEventView_module_default = {
 			bordered: true,
 			breadcrumbsEnabled: t11
 		};
-		$[32] = exitUrl;
-		$[33] = fnNavigationUrl;
-		$[34] = homeUrl;
-		$[35] = t10;
-		$[36] = t11;
-		$[37] = t12;
-	} else t12 = $[37];
+		$[33] = exitUrl;
+		$[34] = fnNavigationUrl;
+		$[35] = homeUrl;
+		$[36] = t10;
+		$[37] = t11;
+		$[38] = t12;
+	} else t12 = $[38];
 	let t13;
-	if ($[38] !== epoch || $[39] !== sampleId || $[40] !== sampleLoading || $[41] !== sampleNavigation || $[42] !== t12) {
+	if ($[39] !== epoch || $[40] !== sampleId || $[41] !== sampleLoading || $[42] !== sampleNavigation || $[43] !== t12) {
 		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleNavbar, {
 			sampleId,
 			epoch,
@@ -161434,73 +162458,73 @@ var SampleEventView_module_default = {
 			navbarConfig: t12,
 			loading: sampleLoading
 		});
-		$[38] = epoch;
-		$[39] = sampleId;
-		$[40] = sampleLoading;
-		$[41] = sampleNavigation;
-		$[42] = t12;
-		$[43] = t13;
-	} else t13 = $[43];
+		$[39] = epoch;
+		$[40] = sampleId;
+		$[41] = sampleLoading;
+		$[42] = sampleNavigation;
+		$[43] = t12;
+		$[44] = t13;
+	} else t13 = $[44];
 	const header = t13;
 	if (!sample && runningEvents.length === 0) {
 		let t14;
-		if ($[44] === Symbol.for("react.memo_cache_sentinel")) {
+		if ($[45] === Symbol.for("react.memo_cache_sentinel")) {
 			t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: SampleEventView_module_default.loading,
 				children: ["loading sample data", /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { className: SampleEventView_module_default.ellipsis })]
 			});
-			$[44] = t14;
-		} else t14 = $[44];
+			$[45] = t14;
+		} else t14 = $[45];
 		let t15;
-		if ($[45] !== header) {
+		if ($[46] !== header) {
 			t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: SampleEventView_module_default.root,
 				children: [header, t14]
 			});
-			$[45] = header;
-			$[46] = t15;
-		} else t15 = $[46];
+			$[46] = header;
+			$[47] = t15;
+		} else t15 = $[47];
 		return t15;
 	}
 	if (nav.slice.length === 0) {
 		let t14;
-		if ($[47] !== isRunning) {
+		if ($[48] !== isRunning) {
 			t14 = isRunning ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: SampleEventView_module_default.loading,
 				children: ["loading sample data", /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { className: SampleEventView_module_default.ellipsis })]
 			}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: "Event not found in this sample." });
-			$[47] = isRunning;
-			$[48] = t14;
-		} else t14 = $[48];
+			$[48] = isRunning;
+			$[49] = t14;
+		} else t14 = $[49];
 		let t15;
-		if ($[49] !== header || $[50] !== t14) {
+		if ($[50] !== header || $[51] !== t14) {
 			t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: SampleEventView_module_default.root,
 				children: [header, t14]
 			});
-			$[49] = header;
-			$[50] = t14;
-			$[51] = t15;
-		} else t15 = $[51];
+			$[50] = header;
+			$[51] = t14;
+			$[52] = t15;
+		} else t15 = $[52];
 		return t15;
 	}
 	let t14;
-	if ($[52] !== sampleError) {
+	if ($[53] !== sampleError) {
 		t14 = sampleError ? {
 			label: "Sample error",
 			message: sampleError.message
 		} : void 0;
-		$[52] = sampleError;
-		$[53] = t14;
-	} else t14 = $[53];
+		$[53] = sampleError;
+		$[54] = t14;
+	} else t14 = $[54];
 	let t15;
-	if ($[54] !== exitUrl) {
+	if ($[55] !== exitUrl) {
 		t15 = toFullUrlMaybe(exitUrl);
-		$[54] = exitUrl;
-		$[55] = t15;
-	} else t15 = $[55];
+		$[55] = exitUrl;
+		$[56] = t15;
+	} else t15 = $[56];
 	let t16;
-	if ($[56] !== eventId || $[57] !== header || $[58] !== nav || $[59] !== onExit || $[60] !== t14 || $[61] !== t15) {
+	if ($[57] !== eventId || $[58] !== header || $[59] !== nav || $[60] !== onExit || $[61] !== t14 || $[62] !== t15) {
 		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FocusTurnView, {
 			nav,
 			eventId,
@@ -161509,18 +162533,17 @@ var SampleEventView_module_default = {
 			onExit,
 			exitHref: t15
 		});
-		$[56] = eventId;
-		$[57] = header;
-		$[58] = nav;
-		$[59] = onExit;
-		$[60] = t14;
-		$[61] = t15;
-		$[62] = t16;
-	} else t16 = $[62];
+		$[57] = eventId;
+		$[58] = header;
+		$[59] = nav;
+		$[60] = onExit;
+		$[61] = t14;
+		$[62] = t15;
+		$[63] = t16;
+	} else t16 = $[63];
 	return t16;
 };
-//#endregion
-//#region src/app/shared/contentTrust.tsx
+// src/app/shared/contentTrust.tsx
 /**
 * Trust for one log's content: untrusted when no log is given, or while its
 * header hasn't loaded.
@@ -161569,8 +162592,7 @@ var SampleEventView_module_default = {
 	} else t1 = $[2];
 	return t1;
 };
-//#endregion
-//#region src/app/routing/hostNavigation.ts
+// src/app/routing/hostNavigation.ts
 var key = "inspect-host-destination-v1";
 var identity = (message) => JSON.stringify([
 	message.url,
@@ -161591,8 +162613,7 @@ function hostDestinationRoute(message) {
 		return changed;
 	};
 }
-//#endregion
-//#region src/app/routing/loaders/LogLoadController.tsx
+// src/app/routing/loaders/LogLoadController.tsx
 /**
 * Reacts to the selected log's settled details — only the side effects that
 * can't be derived: resetting per-log
@@ -161665,8 +162686,7 @@ function _temp$6(state) {
 function _temp2$5(state_0) {
 	return state_0.appActions.setWorkspaceTab;
 }
-//#endregion
-//#region src/app/routing/loaders/SampleLoadController.tsx
+// src/app/routing/loaders/SampleLoadController.tsx
 var kSampleBagKeys = [
 	"scrollPosition",
 	kTranscriptOutlineListKey,
@@ -161736,8 +162756,7 @@ function _temp4$2(state_2) {
 function _temp5$1(state_3) {
 	return state_3.sampleActions.setActiveTimelineIndex;
 }
-//#endregion
-//#region src/app/routing/loaders/LoaderHost.tsx
+// src/app/routing/loaders/LoaderHost.tsx
 /** Applies per-view UI resets below the route-derived selection provider. */ var LoaderMounts = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(4);
 	const { children } = t0;
@@ -161769,8 +162788,7 @@ var FlowPanel_module_default = {
 	panel: "_panel_ovp9s_7",
 	code: "_code_ovp9s_12"
 };
-//#endregion
-//#region src/app/flow/FlowPanel.tsx
+// src/app/flow/FlowPanel.tsx
 var FlowPanel = () => {
 	const $ = (0, import_compiler_runtime.c)(1);
 	let t0;
@@ -161866,8 +162884,7 @@ var PrintHeading_module_default = {
 	headingModel: "_headingModel_1trs5_14",
 	headingTime: "_headingTime_1trs5_18"
 };
-//#endregion
-//#region src/app/samples/print/PrintHeading.tsx
+// src/app/samples/print/PrintHeading.tsx
 var PrintHeading = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(12);
 	const { evalSpec } = t0;
@@ -161930,8 +162947,7 @@ var SamplePrintView_module_default = {
 	header: "_header_15zex_14",
 	sampleInfo: "_sampleInfo_15zex_18"
 };
-//#endregion
-//#region src/app/samples/print/SamplePrintView.tsx
+// src/app/samples/print/SamplePrintView.tsx
 /**
 * Print route page component.
 * Renders sample content without virtualization for printing.
@@ -161947,7 +162963,7 @@ var SamplePrintView_module_default = {
 	const [searchParams] = useSearchParams();
 	let t0;
 	if ($[0] !== searchParams) {
-		t0 = sampleTabAlias(searchParams.get("view") ?? kSampleTranscriptTabId);
+		t0 = sampleTabAlias(searchParams.get("view") ?? "transcript");
 		$[0] = searchParams;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -161961,7 +162977,7 @@ var SamplePrintView_module_default = {
 	const printingSelection = t1;
 	let t2;
 	if ($[4] !== searchParams || $[5] !== view) {
-		t2 = searchParams.has("messages") && view === kSampleMessagesTabId;
+		t2 = searchParams.has("messages") && view === "messages";
 		$[4] = searchParams;
 		$[5] = view;
 		$[6] = t2;
@@ -161987,7 +163003,7 @@ var SamplePrintView_module_default = {
 		$[11] = t4;
 	} else t4 = $[11];
 	const flattenedNodes = t4;
-	const selectionNotFound = printingSelection && view === kSampleTranscriptTabId && sampleEvents.length > 0 && flattenedNodes.length === 0;
+	const selectionNotFound = printingSelection && view === "transcript" && sampleEvents.length > 0 && flattenedNodes.length === 0;
 	const listHandle = (0, import_react.useRef)(null);
 	let t5;
 	if ($[12] !== sample?.messages) {
@@ -162118,7 +163134,7 @@ var SamplePrintView_module_default = {
 	} else t12 = $[37];
 	let t13;
 	if ($[38] !== flattenedNodes || $[39] !== selectionNotFound || $[40] !== view) {
-		t13 = view === kSampleTranscriptTabId && !selectionNotFound && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptVirtualList, {
+		t13 = view === "transcript" && !selectionNotFound && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptVirtualList, {
 			id: "print-transcript",
 			listHandle,
 			eventNodes: flattenedNodes,
@@ -162131,7 +163147,7 @@ var SamplePrintView_module_default = {
 	} else t13 = $[41];
 	let t14;
 	if ($[42] !== messageSelectionNotFound || $[43] !== printMessages || $[44] !== view) {
-		t14 = view === kSampleMessagesTabId && !messageSelectionNotFound && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
+		t14 = view === "messages" && !messageSelectionNotFound && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
 			id: "print-messages",
 			messages: printMessages,
 			display: {
@@ -162153,7 +163169,7 @@ var SamplePrintView_module_default = {
 	} else t15 = $[47];
 	let t16;
 	if ($[48] !== sample || $[49] !== view) {
-		t16 = view === kSampleScoringTabId && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleScoresView, {
+		t16 = view === "scoring" && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleScoresView, {
 			sample,
 			scrollRef: contentRef
 		});
@@ -162163,14 +163179,14 @@ var SamplePrintView_module_default = {
 	} else t16 = $[50];
 	let t17;
 	if ($[51] !== sample || $[52] !== view) {
-		t17 = view === kSampleInfoTabId && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PrintMetadata, { sample });
+		t17 = view === "info" && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PrintMetadata, { sample });
 		$[51] = sample;
 		$[52] = view;
 		$[53] = t17;
 	} else t17 = $[53];
 	let t18;
 	if ($[54] !== sample || $[55] !== view) {
-		t18 = view === kSampleJsonTabId && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleJSONView, { sample });
+		t18 = view === "json" && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleJSONView, { sample });
 		$[54] = sample;
 		$[55] = view;
 		$[56] = t18;
@@ -162351,8 +163367,7 @@ function _temp$4(timestamp) {
 		return timestamp;
 	}
 }
-//#endregion
-//#region src/app/routing/RouteDispatcher.tsx
+// src/app/routing/RouteDispatcher.tsx
 /**
 * RouteDispatcher component that determines which view to show based on the route params.
 *
@@ -162388,7 +163403,7 @@ function _temp$4(timestamp) {
 		} else t2 = $[2];
 		return t2;
 	}
-	if (sampleId && epoch && sampleTabId === kSampleEventTabId) {
+	if (sampleId && epoch && sampleTabId === "event") {
 		let t2;
 		if ($[3] === Symbol.for("react.memo_cache_sentinel")) {
 			t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleEventView, {});
@@ -162429,8 +163444,7 @@ function _temp$4(timestamp) {
 		return t2;
 	}
 };
-//#endregion
-//#region src/app/samples-panel/SampleDetailView.tsx
+// src/app/samples-panel/SampleDetailView.tsx
 /**
 * Component that displays a single sample in detail view within the samples route.
 * This is shown when navigating to /samples/path/to/file.eval/sample/id/epoch
@@ -162565,8 +163579,7 @@ function _temp$3(state) {
 function _temp2$3(state_0) {
 	return state_0.appActions.clearSampleTab;
 }
-//#endregion
-//#region src/app/shared/samples-grid/useSampleGridState.ts
+// src/app/shared/samples-grid/useSampleGridState.ts
 /**
 * Persistence for the cross-log SamplesPanel grid. Owns its own
 * column-visibility map plus the TanStack grid state (sorting, per-column
@@ -162695,8 +163708,7 @@ var SamplesPanel_module_default = {
 	panel: "_panel_18nhs_1",
 	list: "_list_18nhs_8"
 };
-//#endregion
-//#region src/app/samples-panel/SamplesPanel.tsx
+// src/app/samples-panel/SamplesPanel.tsx
 var kSamplesPanelDefaultSorting = [{
 	id: "completed_at",
 	desc: true
@@ -163336,8 +164348,7 @@ function _temp18(row_7) {
 function _temp19(prev) {
 	return !prev;
 }
-//#endregion
-//#region src/app/routing/SamplesRouter.tsx
+// src/app/routing/SamplesRouter.tsx
 /**
 * Router component that determines whether to show the flow panel, samples grid, or sample detail view
 * based on the URL parameters. If the path ends with .yaml/.yml, it shows the FlowPanel.
@@ -163355,7 +164366,7 @@ function _temp19(prev) {
 		}
 	}
 	if (sampleId && epoch) {
-		if (tabId === kSampleEventTabId) {
+		if (tabId === "event") {
 			let t0;
 			if ($[1] === Symbol.for("react.memo_cache_sentinel")) {
 				t0 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SampleEventView, {});
@@ -163377,8 +164388,7 @@ function _temp19(prev) {
 	} else t0 = $[3];
 	return t0;
 };
-//#endregion
-//#region src/app/routing/AppRouter.tsx
+// src/app/routing/AppRouter.tsx
 var AppLayout = () => {
 	const $ = (0, import_compiler_runtime.c)(16);
 	const navigate = useNavigate();
@@ -163390,7 +164400,7 @@ var AppLayout = () => {
 	} else t0 = $[1];
 	const componentNavigation = t0;
 	const { sampleId, epoch, sampleTabId, sampleUuid } = useLogRouteParams();
-	const isFocus = sampleId && epoch && sampleTabId === kSampleEventTabId;
+	const isFocus = sampleId && epoch && sampleTabId === "event";
 	const isSampleDetail = sampleId && epoch || sampleUuid;
 	const appConfig = useAppConfig();
 	let t1;
@@ -163486,8 +164496,7 @@ var createAppRouter = () => {
 };
 var appRouter;
 var getAppRouter = () => appRouter ??= createAppRouter();
-//#endregion
-//#region src/app/App.tsx
+// src/app/App.tsx
 /**
 * Keep the applied theme in lockstep with the persisted preference. The inline
 * bootstrap sets the theme before first paint from localStorage; here we
@@ -163585,8 +164594,7 @@ function _temp3(e) {
 function _temp4() {
 	return createHostCommandFilter(webviewStorage, readEmbeddedStartupState());
 }
-//#endregion
-//#region src/main.tsx
+// src/main.tsx
 var backendCapabilities = getBootstrap().backend.capabilities;
 var applicationStorage = storage;
 var vscode = getVscodeApi();
@@ -163610,6 +164618,5 @@ if (!container) {
 	throw new Error(`Expected a container element with Id '${containerId}' but no such container element was present.`);
 }
 (0, import_client.createRoot)(container).render(/*#__PURE__*/ (0, import_jsx_runtime.jsx)(import_react.StrictMode, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(App, {}) }));
-//#endregion
 
 //# sourceMappingURL=index.js.map

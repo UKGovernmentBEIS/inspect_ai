@@ -148,6 +148,8 @@ from inspect_ai._util.http import (
 )
 from inspect_ai._util.http_defaults_httpx2 import (
     DEFAULT_REQUEST_TIMEOUT,
+    REQUEST_TIMEOUT_ENV,
+    connect_timeout,
     default_async_client,
     default_timeout,
 )
@@ -181,12 +183,7 @@ from inspect_ai.util._json import (
 )
 
 from ..._util.httpx import httpx_classify_retry
-from .._assistant_internal import (
-    bridge_replay,
-    generation_replay,
-    set_generation_assistant_internal,
-)
-from .._call_tools import TOOL_CALLS_FAIL_FAST
+from .._call_tools import TOOL_CALLS_FAIL_FAST, repeated_call_ids
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -237,6 +234,7 @@ from .util import (
     forced_tool_choice_degraded_metadata,
     is_claude_4_0_model,
     is_claude_fable_5_1_model,
+    is_claude_fable_5_2_model,
     is_claude_haiku_5_5_model,
     is_claude_opus_5_5_model,
     is_claude_sonnet_5_5_model,
@@ -250,6 +248,12 @@ from .util import (
 from .util.hooks import HttpxHooks
 
 logger = getLogger(__name__)
+
+ANTHROPIC_GENERATE_TIMEOUT = 1800.0
+"""Read deadline (seconds) for generate calls."""
+
+AUTO_STREAMING_MAX_TOKENS = 8192
+"""`max_tokens` at or above which generate streams by default."""
 
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 AZUREAI_ANTHROPIC_API_KEY = "AZUREAI_ANTHROPIC_API_KEY"
@@ -548,6 +552,43 @@ class AnthropicAPI(ModelAPI):
         )
         model_args["http_client"] = default_async_client()
         return model_args
+
+    def _generate_timeout(
+        self, request: dict[str, Any], streaming: bool
+    ) -> httpx2.Timeout | anthropic.NotGiven:
+        """Request budget for a generate call.
+
+        A non-streaming response sends nothing until the whole message is
+        ready, and a proxy that buffers server-sent events does the same to a
+        streaming one, so a very long input can outlast the SDK's 10 minute
+        read deadline. That timeout is retried, every attempt fails the same
+        way, and with Inspect's default unlimited retries the sample never
+        finishes, so the read deadline is raised.
+
+        A budget set by the caller (`timeout` model arg or
+        `INSPECT_HTTP_REQUEST_TIMEOUT`) is left alone. So is a non-streaming
+        request above the auto-streaming threshold: an explicit timeout would
+        skip the SDK's check that rejects non-streaming requests whose output
+        may take longer than 10 minutes.
+        """
+        if (
+            "timeout" in self.model_args
+            or os.environ.get(REQUEST_TIMEOUT_ENV, "").strip()
+            or self.client.timeout != anthropic.DEFAULT_TIMEOUT
+        ):
+            return anthropic.NOT_GIVEN
+        if (
+            not streaming
+            and (request.get("max_tokens") or 0) > AUTO_STREAMING_MAX_TOKENS
+        ):
+            return anthropic.NOT_GIVEN
+        sdk_timeout = anthropic.DEFAULT_TIMEOUT
+        return httpx2.Timeout(
+            connect=connect_timeout(),
+            read=ANTHROPIC_GENERATE_TIMEOUT,
+            write=sdk_timeout.write,
+            pool=sdk_timeout.pool,
+        )
 
     def _create_client(
         self,
@@ -1305,10 +1346,14 @@ class AnthropicAPI(ModelAPI):
                 )
             head_message = await self._batcher.generate_for_request(request)
         elif streaming:
-            async with self.client.messages.stream(**request) as stream:
+            async with self.client.messages.stream(
+                **request, timeout=self._generate_timeout(request, True)
+            ) as stream:
                 head_message, _ = await _capture_compaction_from_stream(stream)
         else:
-            head_message = await self.client.messages.create(**request, stream=False)
+            head_message = await self.client.messages.create(
+                **request, stream=False, timeout=self._generate_timeout(request, False)
+            )
 
         head_model_output, continuation_required = await model_output_from_message(
             self.client,
@@ -1691,7 +1736,7 @@ class AnthropicAPI(ModelAPI):
     ) -> None:
         """Opt into dropping prefix-mismatched thinking blocks on bound-thinking models.
 
-        Fable 5.1, Opus 5.5, Sonnet 5.5, and Haiku 5.5 bind thinking blocks to
+        Fable 5.1+, Opus 5.5, Sonnet 5.5, and Haiku 5.5 bind thinking blocks to
         the request prefix that produced them; solvers legitimately edit history, and without
         drop_block such an edit fails the replay with a 400. Applied to every
         request for these models — not only those replaying thinking blocks —
@@ -1782,7 +1827,8 @@ class AnthropicAPI(ModelAPI):
     # see https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests
     def auto_streaming(self, config: GenerateConfig) -> bool:
         return self.is_using_thinking(config) or (
-            config.max_tokens is not None and config.max_tokens >= 8192
+            config.max_tokens is not None
+            and config.max_tokens >= AUTO_STREAMING_MAX_TOKENS
         )
 
     def is_thinking_model(self) -> bool:
@@ -1833,6 +1879,10 @@ class AnthropicAPI(ModelAPI):
     def is_claude_fable_5_1_or_later(self) -> bool:
         return is_claude_fable_5_1_model(self.model_family())
 
+    def is_claude_fable_5_2_or_later(self) -> bool:
+        """Fable 5.2 or a later Fable 5 point release (a subset of 5.1-or-later)."""
+        return is_claude_fable_5_2_model(self.model_family())
+
     def is_claude_opus_5_5_or_later(self) -> bool:
         """Opus 5.5 or a later point release (a subset of is_claude_opus_5)."""
         return is_claude_opus_5_5_model(self.model_family())
@@ -1850,10 +1900,12 @@ class AnthropicAPI(ModelAPI):
 
         Auto mode (no `computer_toolset` model arg) uses the toolset where the
         legacy `computer_20251124` tool is rejected (Opus 5.5, Sonnet 5.5, and
-        Haiku 5.5 on the Claude API and Vertex) and, where the platform offers
+        Haiku 5.5 on the Claude API and Vertex; Fable 5.2 everywhere but
+        Bedrock) and, where the platform offers
         it, for Fable/Mythos 5.x and other Claude 5 models treated like them. Every other model keeps the
-        legacy tool, matching prior behavior; so do Fable/Mythos on Bedrock and
-        Foundry, which offer only the legacy tool.
+        legacy tool, matching prior behavior; so do Fable/Mythos on Bedrock,
+        and Fable before 5.2 and Mythos on Foundry, which offer only the
+        legacy tool.
         """
         if self.computer_toolset is not None:
             return self.computer_toolset
@@ -1876,23 +1928,30 @@ class AnthropicAPI(ModelAPI):
         )
 
     def computer_toolset_available(self) -> bool:
-        """Whether this platform offers the computer toolset at all.
+        """Whether this platform offers the computer toolset for this model.
 
         Per Anthropic's computer-use docs, platforms other than the Claude API
         and Google Cloud (Vertex) currently offer only the earlier tool
         versions. (Claude Platform on AWS also offers only those, but this
-        provider has no client for it, so it needs no case here.)
+        provider has no client for it, so it needs no case here.) The
+        exception is Fable 5.2 on Foundry: it rejects the earlier tool
+        everywhere except Bedrock and takes computer use through the toolset.
         """
-        return not (self.is_bedrock() or self.is_azure())
+        if self.is_bedrock():
+            return False
+        return not self.is_azure() or self.is_claude_fable_5_2_or_later()
 
     def computer_toolset_required(self) -> bool:
         """Whether the legacy computer tool is rejected for this model/platform.
 
-        Only Opus 5.5, Sonnet 5.5, and Haiku 5.5 on the Claude API and Vertex
-        reject `computer_20251124`; Bedrock and Foundry keep accepting it there, and
-        every other model listed for the legacy tool (Fable/Mythos 5.x
-        included) still accepts it.
+        Opus 5.5, Sonnet 5.5, and Haiku 5.5 on the Claude API and Vertex
+        reject `computer_20251124`; Bedrock and Foundry keep accepting it there.
+        Fable 5.2 rejects it on every platform except Bedrock. Every other
+        model listed for the legacy tool (Fable 5/5.1 and Mythos included)
+        still accepts it.
         """
+        if self.is_claude_fable_5_2_or_later():
+            return not self.is_bedrock()
         return (
             self.is_claude_opus_5_5_or_later()
             or self.is_claude_sonnet_5_5_or_later()
@@ -1984,6 +2043,10 @@ class AnthropicAPI(ModelAPI):
         return _CACHE_DIAGNOSIS_BETA in self._pull_betas_from_headers(
             dict(config.extra_headers or {})
         )
+
+    @override
+    def _client_endpoint(self) -> str | None:
+        return str(self.client.base_url)
 
     @override
     def connection_key(self) -> str:
@@ -2540,7 +2603,8 @@ class AnthropicAPI(ModelAPI):
                 # inspect computer tool always supports it, so no configs.
                 return BetaComputerToolset20260801Param(type=COMPUTER_TOOLSET_TYPE)
             # legacy path forced (computer_toolset=false) where the legacy tool
-            # is rejected (Opus/Sonnet/Haiku 5.5 on the Claude API / Vertex)
+            # is rejected (Opus/Sonnet/Haiku 5.5 on the Claude API / Vertex;
+            # Fable 5.2 everywhere but Bedrock)
             if self.computer_toolset_required():
                 raise PrerequisiteError(
                     f"The legacy computer tool (computer_20251124) is not supported "
@@ -3794,6 +3858,7 @@ async def assistant_message_block_params(
     computer_toolset_call_ids: Collection[str] = frozenset(),
 ) -> list[MessageBlockParam]:
     block_params: list[MessageBlockParam] = []
+    derive_anthropic_recorded_functions(message)
 
     # build block params per content item ("segments") so that client tool
     # calls can be spliced back at their original interleaved positions below.
@@ -3859,8 +3924,13 @@ async def assistant_message_block_params(
     combined = bool(message.metadata and "combined_from" in message.metadata)
     tools_by_position: dict[int, list[MessageBlockParam]] = {}
     for tool_call in message.tool_calls or []:
-        recorded = None if combined else _client_tool_call_position(tool_call.id)
-        position = content_len if recorded is None else recorded
+        position = (
+            assistant_internal().client_tool_call_positions.get(
+                tool_call.id, content_len
+            )
+            if not combined and _has_recorded_state(tool_call)
+            else content_len
+        )
         position = min(max(position, 0), content_len)
         if tool_call.id in computer_toolset_call_ids:
             tool_use = computer_toolset_tool_use_param(tool_call)
@@ -4053,6 +4123,15 @@ class _AssistantInternal:
     with client tool calls in a single turn). Keyed by tool use id (like
     `tool_call_internal_names`) so it survives the agent bridge and log
     round-trip."""
+    client_tool_call_functions: dict[str, str] = field(default_factory=dict)
+    """The function each tool use id's internal name and position were recorded
+    for, keyed by tool use id.
+
+    A call to another function under the id (a filter changed the function
+    and kept the id) replays without them (`_has_recorded_state`). An id
+    restored from a checkpoint written before this was recorded has none until
+    it is derived from the message holding its call
+    (`derive_anthropic_recorded_functions`)."""
     server_mcp_tool_uses: dict[
         str, tuple[BetaMCPToolUseBlockParam, BetaRequestMCPToolResultBlockParam]
     ] = field(default_factory=dict)
@@ -4076,12 +4155,9 @@ class _AssistantInternal:
     Replayed as the `container` request param when a turn left code
     execution pending (see `_pending_container_for_input`).
 
-    Unlike `server_tool_span_index`, there is no fallback for message ids
-    rewritten by the agent bridge: a pending span has produced no content,
-    so no bridge-surviving key exists to index by. Pending-work resumption
-    therefore does not survive a bridge id rewrite (the bridge does not
-    carry server tool state in general -- its anthropic impl handles
-    neither `server_tool_use` blocks nor the `container` param)."""
+    Unlike `server_tool_span_index`, there is no content-keyed fallback: a
+    pending span has produced no content. An edit of the message, which gets
+    an id of its own, is recorded here by `copy_server_tool_state`."""
 
 
 def assistant_internal() -> _AssistantInternal:
@@ -4109,6 +4185,9 @@ def init_sample_anthropic_assistant_internal(value: JsonValue | None = None) -> 
     )
     internal.client_tool_call_positions.update(
         cast("dict[str, int]", value.get("client_tool_call_positions", {}))
+    )
+    internal.client_tool_call_functions.update(
+        cast("dict[str, str]", value.get("client_tool_call_functions", {}))
     )
     internal.server_mcp_tool_uses.update(
         {
@@ -4174,6 +4253,7 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
         internal.thinking_blocks
         or internal.tool_call_internal_names
         or internal.client_tool_call_positions
+        or internal.client_tool_call_functions
         or internal.server_mcp_tool_uses
         or span_table
         or internal.containers
@@ -4185,6 +4265,7 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
             "thinking_blocks": dict(internal.thinking_blocks),
             "tool_call_internal_names": dict(internal.tool_call_internal_names),
             "client_tool_call_positions": dict(internal.client_tool_call_positions),
+            "client_tool_call_functions": dict(internal.client_tool_call_functions),
             "server_mcp_tool_uses": {
                 tool_use_id: list(use_result)
                 for tool_use_id, use_result in internal.server_mcp_tool_uses.items()
@@ -4210,47 +4291,41 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
     )
 
 
-def alias_anthropic_tool_call(
-    call_id: str, alias: str, replay: JsonValue, bridge: dict[str, JsonValue] | None
-) -> None:
+def derive_anthropic_recorded_functions(message: ChatMessageAssistant) -> None:
+    """Record the function of the message's calls whose name and position have none.
+
+    A checkpoint written before functions were recorded restores a tool use
+    id's internal name and position without one. They are the call's under
+    the id in the first message to hold it: an output as generated,
+    before a filter can change its calls (`derive_recorded_functions`), or the
+    earliest message of a request (`assistant_message_block_params`). An id
+    several of the message's calls to different functions share has no
+    derivable function, so its name and position are dropped.
+    """
     internal = assistant_internal()
-    assert isinstance(replay, dict)
-    names = cast(dict[str, Any], replay.get("names", {}))
-    positions = cast(dict[str, Any], replay.get("positions", {}))
-    if call_id in names:
-        if bridge is not None:
-            _bridge_section(bridge, "names")[alias] = names[call_id]
+    if not (internal.tool_call_internal_names or internal.client_tool_call_positions):
+        return
+    derived: dict[str, str | None] = {}
+    for call in message.tool_calls or []:
+        if call.id in internal.client_tool_call_functions or (
+            call.id not in internal.tool_call_internal_names
+            and call.id not in internal.client_tool_call_positions
+        ):
+            continue
+        if derived.setdefault(call.id, call.function) != call.function:
+            derived[call.id] = None
+    for call_id, function in derived.items():
+        if function is None:
+            forget_anthropic_tool_call(call_id)
         else:
-            internal.tool_call_internal_names[alias] = names[call_id]
-    if call_id in positions:
-        if bridge is not None:
-            _bridge_section(bridge, "positions")[alias] = positions[call_id]
-        else:
-            internal.client_tool_call_positions[alias] = positions[call_id]
+            internal.client_tool_call_functions[call_id] = function
 
 
-def has_parsed_tool_call(call_id: str) -> bool:
-    internal = assistant_internal()
-    return (
-        call_id in internal.tool_call_internal_names
-        or call_id in internal.client_tool_call_positions
-    )
-
-
-def _bridge_section(bridge: dict[str, JsonValue], key: str) -> dict[str, JsonValue]:
-    return cast(dict[str, JsonValue], bridge.setdefault(key, {}))
-
-
-def _bridge_handed(key: str) -> dict[str, JsonValue]:
-    anthropic = cast(dict[str, JsonValue], bridge_replay().get("anthropic", {}))
-    return cast(dict[str, JsonValue], anthropic.get(key, {}))
-
-
-def _client_tool_call_position(call_id: str) -> int | None:
-    handed = _bridge_handed("positions")
-    if call_id in handed:
-        return cast(int, handed[call_id])
-    return assistant_internal().client_tool_call_positions.get(call_id)
+def forget_anthropic_tool_call(call_id: str) -> None:
+    """Drop the call's internal name and position, so the call replays from itself."""
+    assistant_internal().tool_call_internal_names.pop(call_id, None)
+    assistant_internal().client_tool_call_positions.pop(call_id, None)
+    assistant_internal().client_tool_call_functions.pop(call_id, None)
 
 
 _anthropic_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(
@@ -4308,6 +4383,22 @@ def merge_server_tool_spans(head_id: str | None, tail_id: str | None) -> None:
         internal.containers.setdefault(tail_id, head_container)
 
 
+def copy_server_tool_state(source_id: str, edited_id: str) -> None:
+    """Record the spans and container of message `source_id` under its edit too.
+
+    An edit of a turn (approved arguments, a scaffold's changed copy) is still
+    the turn that left work pending, so it replays that work; `source_id` keeps
+    its own record.
+    """
+    internal = assistant_internal()
+    spans = internal.server_tool_spans.get(source_id)
+    if spans:
+        internal.server_tool_spans.setdefault(edited_id, list(spans))
+    container = internal.containers.get(source_id)
+    if container is not None:
+        internal.containers.setdefault(edited_id, container)
+
+
 def _prior_turn_server_tool_use(tool_use_id: str) -> BetaServerToolUseBlock | None:
     """Server tool use block recorded in a prior turn's span (if any).
 
@@ -4353,14 +4444,21 @@ def _pending_container_for_input(input: list[ChatMessage]) -> str | None:
     )
     if last_assistant is None or last_assistant.id is None:
         return None
-    internal = assistant_internal()
-    container = internal.containers.get(last_assistant.id)
-    if container is None:
+    container = assistant_internal().containers.get(last_assistant.id)
+    if container is None or not has_pending_server_work(last_assistant.id):
         return None
-    spans = internal.server_tool_spans.get(last_assistant.id, [])
-    if any(span.open_use_ids for span in spans):
-        return container
-    return None
+    return container
+
+
+def has_pending_server_work(message_id: str) -> bool:
+    """Whether message `message_id` ended its turn with server tool work still running.
+
+    That work is replayed from the spans recorded under the message id (and
+    resumed in the container recorded under it): a span with no results yet
+    has no content item to be found by.
+    """
+    spans = assistant_internal().server_tool_spans.get(message_id, [])
+    return any(span.open_use_ids for span in spans)
 
 
 def _server_tool_span_for_content(
@@ -4497,7 +4595,7 @@ async def model_output_from_message(
         span_recorder = _ServerToolSpanRecorder()
 
     # extract content and tool calls
-    content, tool_calls, replay = _parse_assistant_content_blocks(
+    content, tool_calls = content_and_tool_calls_from_assistant_content_blocks(
         message.content,
         tools,
         pending_tool_uses=pending_tool_uses,
@@ -4698,23 +4796,25 @@ async def model_output_from_message(
             if reason_type:
                 warn_once(logger, _CACHE_MISS_WARNING.format(reason=reason_type))
 
-    output = ModelOutput(
-        model=serving_model,
-        choices=[choice],
-        usage=ModelUsage(
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            total_tokens=total_tokens,
-            input_tokens_cache_write=input_tokens_cache_write,
-            input_tokens_cache_read=input_tokens_cache_read,
-            reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
+    return (
+        ModelOutput(
+            model=serving_model,
+            choices=[choice],
+            usage=ModelUsage(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens,
+                input_tokens_cache_write=input_tokens_cache_write,
+                input_tokens_cache_read=input_tokens_cache_read,
+                reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
+            ),
+            input_context_tokens=input_context_tokens,
+            fallback=fallback,
+            metadata=metadata,
+            response_id=message.id,
         ),
-        input_context_tokens=input_context_tokens,
-        fallback=fallback,
-        metadata=metadata,
-        response_id=message.id,
+        pause_turn,
     )
-    return set_generation_assistant_internal(output, replay), pause_turn
 
 
 content_block_adapter = TypeAdapter[
@@ -4734,50 +4834,21 @@ content_block_adapter = TypeAdapter[
 )
 
 
-_AssistantContentBlocks = Sequence[
-    BetaCompactionBlockParam
-    | BetaServerToolUseBlockParam
-    | BetaBashCodeExecutionToolResultBlockParam
-    | BetaTextEditorCodeExecutionToolResultBlock
-    | ContentBlockParam
-    | ContentBlock
-]
-
-
 def content_and_tool_calls_from_assistant_content_blocks(
-    content_blocks_input: _AssistantContentBlocks,
+    content_blocks_input: Sequence[
+        BetaCompactionBlockParam
+        | BetaServerToolUseBlockParam
+        | BetaBashCodeExecutionToolResultBlockParam
+        | BetaTextEditorCodeExecutionToolResultBlock
+        | ContentBlockParam
+        | ContentBlock
+    ],
     tools: list[ToolInfo],
     pending_tool_uses: dict[str, ServerToolUseBlock | BetaServerToolUseBlock]
     | None = None,
     pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
     span_recorder: _ServerToolSpanRecorder | None = None,
 ) -> tuple[list[Content], list[ToolCall] | None]:
-    parsed = _parse_assistant_content_blocks(
-        content_blocks_input,
-        tools,
-        pending_tool_uses=pending_tool_uses,
-        pending_mcp_tool_uses=pending_mcp_tool_uses,
-        span_recorder=span_recorder,
-    )
-    return parsed.content, parsed.tool_calls
-
-
-class _ParsedContentBlocks(NamedTuple):
-    content: list[Content]
-    tool_calls: list[ToolCall] | None
-    replay: dict[str, JsonValue]
-    """Each client tool call's internal name and position as this parse
-    recorded them (`generation_replay`)."""
-
-
-def _parse_assistant_content_blocks(
-    content_blocks_input: _AssistantContentBlocks,
-    tools: list[ToolInfo],
-    pending_tool_uses: dict[str, ServerToolUseBlock | BetaServerToolUseBlock]
-    | None = None,
-    pending_mcp_tool_uses: dict[str, BetaMCPToolUseBlock] | None = None,
-    span_recorder: _ServerToolSpanRecorder | None = None,
-) -> _ParsedContentBlocks:
     # when no span recorder is provided (e.g. parsing scaffold conversation
     # history via the agent bridge) record spans locally and register them in
     # the tool use id index at the end (gap-filling only -- see
@@ -4829,8 +4900,6 @@ def _parse_assistant_content_blocks(
     # extract content and tool calls
     content: list[Content] = []
     tool_calls: list[ToolCall] | None = None
-    names: dict[str, JsonValue] = {}
-    positions: dict[str, JsonValue] = {}
 
     if pending_tool_uses is None:
         pending_tool_uses = dict()
@@ -5037,17 +5106,18 @@ def _parse_assistant_content_blocks(
                 (tool_name, internal_name) = _names_for_tool_call(
                     content_block.name, tools
                 )
+            assistant_internal().tool_call_internal_names[content_block.id] = (
+                internal_name
+            )
             # record where this client tool call sits in the content stream so
             # the rebuild can splice it back at its interleaved position rather
             # than front-loading the surrounding thinking blocks (see
             # `_AssistantInternal.client_tool_call_positions`)
-            names[content_block.id] = internal_name
-            positions[content_block.id] = len(content)
-            assistant_internal().tool_call_internal_names[content_block.id] = (
-                internal_name
-            )
             assistant_internal().client_tool_call_positions[content_block.id] = len(
                 content
+            )
+            assistant_internal().client_tool_call_functions[content_block.id] = (
+                tool_name
             )
             tool_calls.append(
                 ToolCall(
@@ -5139,14 +5209,12 @@ def _parse_assistant_content_blocks(
     if local_span_recorder:
         index_server_tool_spans(span_recorder.take_spans(include_open=True))
 
-    return _ParsedContentBlocks(
-        content,
-        tool_calls,
-        generation_replay(
-            tool_calls or [],
-            anthropic={"names": names, "positions": positions},
-        ),
-    )
+    # an id the content repeats keeps no name or position, so no call replays
+    # another's
+    for call_id in repeated_call_ids(tool_calls or []):
+        forget_anthropic_tool_call(call_id)
+
+    return content, tool_calls
 
 
 # deal with tool results that may have been created with
@@ -5610,10 +5678,21 @@ async def _capture_compaction_from_stream(
 
 
 def _internal_name_from_tool_call(tool_call: ToolCall) -> str | None:
-    handed = _bridge_handed("names")
-    if tool_call.id in handed:
-        return cast(str | None, handed[tool_call.id])
+    if not _has_recorded_state(tool_call):
+        return None
     return assistant_internal().tool_call_internal_names.get(tool_call.id, None)
+
+
+def _has_recorded_state(tool_call: ToolCall) -> bool:
+    """Whether the internal name and position under the call's id are the call's.
+
+    They are when they were recorded for its function
+    (`client_tool_call_functions`). A call to another function under the id,
+    or under an id whose function is unknown, replays from itself, with its
+    own name, last in its message.
+    """
+    function = assistant_internal().client_tool_call_functions.get(tool_call.id)
+    return tool_call.type == "function" and function == tool_call.function
 
 
 def _computer_toolset_fail_fast_tools(

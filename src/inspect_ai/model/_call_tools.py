@@ -98,6 +98,7 @@ from ._chat_message import (
     ChatMessageUser,
 )
 from ._generate_config import active_generate_config
+from ._message_ids import edited_message
 
 logger = getLogger(__name__)
 
@@ -141,6 +142,19 @@ def watch_handoffs() -> Iterator[HandoffWatch]:
         yield watch
     finally:
         _handoff_watch.reset(token)
+
+
+def repeated_call_ids(calls: Sequence[ToolCall]) -> set[str]:
+    """The ids several of `calls` share.
+
+    A provider records no replay state under such an id, as it can't tell the
+    calls' states apart.
+    """
+    seen: set[str] = set()
+    repeated: set[str] = set()
+    for call in calls:
+        (repeated if call.id in seen else seen).add(call.id)
+    return repeated
 
 
 def _fail_fast_tools(message: ChatMessageAssistant) -> set[str]:
@@ -448,6 +462,7 @@ async def _execute_tools_impl(
                     arguments=call.arguments,
                     view=call.view,
                     pending=True,
+                    call_message_id=message.id,
                 )
                 stage_results[idx] = None
 
@@ -911,6 +926,24 @@ async def call_tool(
         event.arguments = shown.arguments
         return shown
 
+    # A sentinel sidecar that ended the sample at a call of this turn ends it
+    # before any of the turn's calls runs, as an in-process sentinel's
+    # terminate at a call does, whatever the call holds.
+    from inspect_ai._sentinel._sidecar._act import take_call_decision
+
+    decided = take_call_decision(call.id)
+    if decided is not None and decided.action == "terminate":
+        await record_pending_tool_event()
+        raise TerminateSampleError(decided.message or "Sentinel requested termination.")
+
+    # A call a sentinel sidecar rejected is answered as an in-process
+    # sentinel's rejection is, whatever it holds: the eval is handed it with
+    # its id and function only, so its arguments are never parsed. No approver
+    # sees it: the sidecar judged the turn before Inspect was handed it.
+    if decided is not None and decided.action == "reject":
+        await record_pending_tool_event()
+        raise ToolApprovalError(decided.message)
+
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
         raise await record_tool_parsing_error(call.parse_error)
@@ -948,6 +981,16 @@ async def call_tool(
     call, arguments = validated
     # without oversight the event records the model's arguments, canonical
     shown = shown_to_callbacks(call)
+
+    # A call the sidecar changed is the call Inspect is handed, so approvers
+    # and an in-process sentinel see it changed and may change it again.
+    if decided is not None and decided.modified is not None:
+        error = _sidecar_modified_error(shown, decided.modified)
+        if error is not None:
+            await record_pending_tool_event()
+            raise RuntimeError(error)
+        call, arguments = await revalidated_tool_call(decided.modified, tool_def)
+        shown = shown_to_callbacks(call)
 
     # if we have a tool approver, apply it now
     from inspect_ai.approval._apply import apply_tool_approval
@@ -1054,6 +1097,12 @@ _SENTINEL_MODIFIED_FUNCTION = (
     "'modify' decision may change only the arguments of a tool call, not the "
     "function called."
 )
+
+
+def _sidecar_modified_error(shown: ToolCall, modified: ToolCall) -> str | None:
+    if modified.function != shown.function:
+        return _SENTINEL_MODIFIED_FUNCTION.format(modified.function, shown.function)
+    return _modified_id_error("A sentinel sidecar", shown, modified)
 
 
 def _modified_id_error(who: str, shown: ToolCall, modified: ToolCall) -> str | None:
@@ -1178,14 +1227,13 @@ async def agent_handoff(
     # tools in parallel and we won't be handling the other calls)
     last_message = agent_conversation[-1]
     if isinstance(last_message, ChatMessageAssistant) and last_message.tool_calls:
-        agent_conversation[-1] = agent_conversation[-1].model_copy(
-            update=dict(
-                tool_calls=[
-                    tool_call
-                    for tool_call in last_message.tool_calls
-                    if tool_call.id == call.id
-                ]
-            )
+        agent_conversation[-1] = edited_message(
+            last_message,
+            tool_calls=[
+                tool_call
+                for tool_call in last_message.tool_calls
+                if tool_call.id == call.id
+            ],
         )
 
     # ammend the conversation with a ChatMessageTool to indicate
@@ -1296,9 +1344,7 @@ def prepend_agent_name(
     message: ChatMessageAssistant, agent_name: str
 ) -> ChatMessageAssistant:
     if isinstance(message.content, str):
-        return message.model_copy(
-            update=dict(content=f"[{agent_name}] {message.content}")
-        )
+        return edited_message(message, content=f"[{agent_name}] {message.content}")
     else:
         content = copy(message.content)
         for i in range(0, len(content)):
@@ -1309,7 +1355,7 @@ def prepend_agent_name(
                         update=dict(text=f"[{agent_name}] {text}")
                     )
                 break
-        return message.model_copy(update=dict(content=content))
+        return edited_message(message, content=content)
 
 
 async def resolve_tools(

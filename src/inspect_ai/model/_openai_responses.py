@@ -3,7 +3,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import reduce
 from logging import getLogger
-from typing import Any, Iterable, NamedTuple, Protocol, Sequence, TypeGuard, cast
+from typing import Any, Iterable, Protocol, Sequence, TypeGuard, cast
 
 from openai.types.responses import (
     CompactedResponse,
@@ -157,11 +157,10 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.images import inline_media_data_uri
-from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.json import json_equal, to_json_str_safe
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai.model._agent_message import validate_agent_message
-from inspect_ai.model._assistant_internal import bridge_replay, generation_replay
-from inspect_ai.model._call_tools import parse_tool_call
+from inspect_ai.model._call_tools import parse_tool_call, repeated_call_ids
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -193,6 +192,8 @@ from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_params import ToolParam as InspectToolParam
+from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util._json import json_schema_dump
 
 from ._openai import _cache_breakpoint
@@ -340,11 +341,18 @@ async def openai_responses_inputs(
     swap_todo_write: bool = False,
     cache_breakpoints: bool = False,
 ) -> list[ResponseInputItemParam]:
+    # the ids whose latest call so far replays from itself, as its result must
+    from_call: set[str] = set()
     return [
         item
         for message in messages
         for item in await _openai_input_item_from_chat_message(
-            message, model_info, synthesize_phase, swap_todo_write, cache_breakpoints
+            message,
+            model_info,
+            synthesize_phase,
+            swap_todo_write,
+            cache_breakpoints,
+            from_call,
         )
     ]
 
@@ -355,7 +363,15 @@ async def _openai_input_item_from_chat_message(
     synthesize_phase: bool = False,
     swap_todo_write: bool = False,
     cache_breakpoints: bool = False,
+    from_call: set[str] | None = None,
 ) -> list[ResponseInputItemParam]:
+    """`message` as Responses input items.
+
+    `from_call` collects, across a conversation's messages, the ids whose
+    latest call replays from itself rather than from its cached item
+    (`_tool_call_items_from_assistant_message`): their results replay from
+    themselves too.
+    """
     if message.role == "system":
         content = await _openai_responses_content_list_param(
             message.content, cache_breakpoints
@@ -385,12 +401,15 @@ async def _openai_input_item_from_chat_message(
         ]
     elif message.role == "assistant":
         return _openai_input_items_from_chat_message_assistant(
-            message, model_info, synthesize_phase, swap_todo_write
+            message, model_info, synthesize_phase, swap_todo_write, from_call
         )
     elif message.role == "tool":
         # recover the original call (by call_id) to replay the matching output item
-        responses_tool_call = cached_tool_call(
-            message.tool_call_id or str(message.function)
+        call_id = message.tool_call_id or str(message.function)
+        responses_tool_call = (
+            assistant_internal().tool_calls.get(call_id)
+            if from_call is None or call_id not in from_call
+            else None
         )
         if (
             responses_tool_call is not None
@@ -729,31 +748,23 @@ def responses_stop_details(response: OpenAIResponse) -> StopDetails | None:
     )
 
 
-class OpenAIResponsesChoices(NamedTuple):
-    choices: list[ChatCompletionChoice]
-    replay: dict[str, JsonValue]
-    """The response's per-call replay state (`generation_replay`), for its output
-    (`set_generation_assistant_internal`)."""
-
-
 def openai_responses_chat_choices(
     model: str | None, response: OpenAIResponse, tools: list[ToolInfo]
-) -> OpenAIResponsesChoices:
+) -> list[ChatCompletionChoice]:
     model = model or response.model
-    parsed = _chat_message_assistant_from_openai_response(model, response, tools)
-    return OpenAIResponsesChoices(
-        [
-            ChatCompletionChoice(
-                message=parsed.message,
-                stop_reason=parsed.stop_reason,
-                stop_details=collect_stop_details(
-                    "openai_responses", logger, lambda: responses_stop_details(response)
-                ),
-                logprobs=parsed.logprobs,
-            )
-        ],
-        parsed.replay,
+    message, stop_reason, logprobs = _chat_message_assistant_from_openai_response(
+        model, response, tools
     )
+    return [
+        ChatCompletionChoice(
+            message=message,
+            stop_reason=stop_reason,
+            stop_details=collect_stop_details(
+                "openai_responses", logger, lambda: responses_stop_details(response)
+            ),
+            logprobs=logprobs,
+        )
+    ]
 
 
 def is_native_tool_configured(
@@ -800,41 +811,22 @@ def is_native_tool_configured(
 #                                  └───────────────────────────┘
 
 
-_CachedToolCall = (
-    ResponseFunctionToolCallParam
-    | ResponseCustomToolCallParam
-    | ResponseComputerToolCallParam
-    | ResponseFunctionWebSearchParam
-    | ResponseCodeInterpreterToolCallParam
-    | ToolSearchCall
-)
-
-
 @dataclass
 class _AssistantInternal:
-    tool_calls: dict[str, _CachedToolCall] = field(default_factory=dict)
-    """Each call's item as last parsed or seeded, by its call id."""
+    tool_calls: dict[
+        str,
+        ResponseFunctionToolCallParam
+        | ResponseCustomToolCallParam
+        | ResponseComputerToolCallParam
+        | ResponseFunctionWebSearchParam
+        | ResponseCodeInterpreterToolCallParam
+        | ToolSearchCall,
+    ] = field(default_factory=dict)
     server_tool_uses: dict[str, ResponseInputItemParam] = field(default_factory=dict)
 
 
 def assistant_internal() -> _AssistantInternal:
     return _openai_assistant_internal.get()
-
-
-def cached_tool_call(call_id: str) -> _CachedToolCall | None:
-    """The item to replay for the call with this id, if one is cached.
-
-    The bridge serving the request's item for a call it handed on under this id
-    (`bridge_replay`) comes first.
-    """
-    handed = cast(dict[str, _CachedToolCall], bridge_replay().get("openai", {}))
-    if call_id in handed:
-        return handed[call_id]
-    return assistant_internal().tool_calls.get(call_id)
-
-
-def has_parsed_tool_call(call_id: str) -> bool:
-    return call_id in assistant_internal().tool_calls
 
 
 def init_sample_openai_assistant_internal(value: JsonValue | None = None) -> None:
@@ -865,7 +857,7 @@ def dump_openai_assistant_internal() -> JsonValue | None:
     in-memory).
     """
     internal = assistant_internal()
-    if not (internal.tool_calls or internal.server_tool_uses):
+    if not internal.tool_calls and not internal.server_tool_uses:
         return None
     return cast(
         JsonValue,
@@ -876,34 +868,134 @@ def dump_openai_assistant_internal() -> JsonValue | None:
     )
 
 
-def alias_openai_tool_call(
-    call_id: str,
-    alias: str,
-    replay: JsonValue,
-    modified: ToolCall | None,
-    bridge: dict[str, JsonValue] | None,
-) -> None:
-    param = cast(dict[str, _CachedToolCall], replay).get(call_id)
-    if param is not None:
-        # under another id, the replayed item carries that id (`call_id`, and
-        # `id` when the call has no separate item id). A separate item id is
-        # left out: it names the model's item, which a stored response
-        # resolves to the model's call id.
-        aliased: dict[str, Any] = (
-            dict(param)
-            if alias == call_id
-            else {
-                key: alias if key in ("call_id", "id") and value == call_id else value
-                for key, value in param.items()
-                if key != "id" or value == call_id
-            }
-        )
-        if modified is not None:
-            aliased = _with_tool_call_arguments(aliased, modified)
-        if bridge is not None:
-            bridge[alias] = cast(JsonValue, aliased)
-        else:
-            assistant_internal().tool_calls[alias] = cast(Any, aliased)
+def hand_openai_tool_call(call: ToolCall) -> None:
+    """Drop the call's cached item when it is for another function.
+
+    The call, and its result, then replay from the call. An item for the call's
+    function replays with the arguments of each message's call
+    (`_replayed_item`).
+    """
+    internal = assistant_internal()
+    item = internal.tool_calls.get(call.id)
+    if item is not None and not _item_names_call(cast(dict[str, Any], item), call):
+        del internal.tool_calls[call.id]
+
+
+def _replayed_item(param: dict[str, Any], call: ToolCall) -> dict[str, Any] | None:
+    """The cached item `param` as `call` replays in its message, or None to replay the call.
+
+    The item replays as cached only when it carries the call's arguments. The
+    cache keeps one item per id, which a call proposed again under the id, or
+    a call whose arguments approval, the sentinel or a filter changed, doesn't
+    match; such a call replays natively with its own arguments, without the
+    item's `id`: a stored response resolves an item by its `id` to the stored
+    arguments, ignoring the ones the request sends. None when the item is for
+    another function, or the arguments have no native form.
+    """
+    if not _item_names_call(param, call):
+        return None
+    if _item_carries_arguments(param, call):
+        return param
+    try:
+        handed = _with_tool_call_arguments(dict(param), call)
+    except (AssertionError, KeyError, StopIteration, TypeError, ValueError):
+        # arguments JSON can't encode (a parsed YAML date), computer arguments
+        # no action converts, or a custom call without input
+        return None
+    return {key: value for key, value in handed.items() if key != "id"}
+
+
+def _item_names_call(param: dict[str, Any], call: ToolCall) -> bool:
+    match param["type"]:
+        case "function_call":
+            return call.type != "custom" and (
+                _from_responses_tool_alias(param["name"]) == call.function
+                or (
+                    param["name"] == UPDATE_PLAN_NAME
+                    and call.function == TODO_WRITE_NAME
+                )
+            )
+        case "custom_tool_call":
+            return call.type == "custom" and param["name"] == call.function
+        case "computer_call":
+            return call.function == "computer"
+        case "tool_search_call":
+            return call.function == TOOL_SEARCH_NAME
+        case _:
+            return True
+
+
+def _item_carries_arguments(param: dict[str, Any], call: ToolCall) -> bool:
+    """Whether the item, parsed as the provider parses it, has the call's arguments.
+
+    Exactly (`same_value`): arguments JSON carries alike (1 and 1.0, `0.0` and
+    `-0.0`, an object's keys in another order) are other arguments, which the
+    model must be sent.
+    """
+    # deferred: the bridge imports this module
+    from inspect_ai.agent._bridge._sentinel import same_value
+
+    match param["type"]:
+        case "function_call":
+            # as the parse gives a call its arguments, malformed or not: a scalar
+            # goes to the tool's first parameter, which for an unchanged call is
+            # its only one
+            arguments = param["arguments"]
+            if param["name"] == UPDATE_PLAN_NAME and call.function == TODO_WRITE_NAME:
+                try:
+                    plan = json.loads(arguments) if arguments else {}
+                except json.JSONDecodeError:
+                    plan = None
+                if isinstance(plan, dict):
+                    arguments = json.dumps(_update_plan_args_to_inspect(plan))
+            parameters = (
+                [
+                    ToolInfo(
+                        name=call.function,
+                        description="",
+                        parameters=ToolParams(
+                            properties={next(iter(call.arguments)): InspectToolParam()}
+                        ),
+                    )
+                ]
+                if len(call.arguments) == 1
+                else []
+            )
+            parsed = parse_tool_call(call.id, call.function, arguments, parameters)
+            return same_value(parsed.arguments, call.arguments)
+        case "custom_tool_call":
+            return bool(param.get("input") == next(iter(call.arguments.values()), None))
+        # with the fields the parse doesn't read, which an item may lack (a
+        # rewritten item has no `id`)
+        case "computer_call":
+            # the parse reads only an `actions` list, not a legacy single `action`
+            if not param.get("actions"):
+                return False
+            parsed = tool_call_from_openai_computer_tool_call(
+                ResponseComputerToolCall.model_validate(
+                    {
+                        "id": "",
+                        "pending_safety_checks": [],
+                        "status": "completed",
+                        **param,
+                    }
+                )
+            )
+            # the native actions hold integers and named fields, so arguments
+            # JSON carries alike convert to this same item
+            return json_equal(parsed.arguments, call.arguments)
+        case "tool_search_call":
+            parsed = tool_call_from_openai_tool_search_call(
+                ResponseToolSearchCall.model_validate({"id": "", **param})
+            )
+            return same_value(parsed.arguments, call.arguments)
+        case _:
+            return True
+
+
+def forget_openai_tool_call(call_id: str) -> None:
+    """Drop the call's cached item, so the call replays from itself."""
+    assistant_internal().tool_calls.pop(call_id, None)
 
 
 def _with_tool_call_arguments(param: dict[str, Any], call: ToolCall) -> dict[str, Any]:
@@ -1005,27 +1097,10 @@ def model_usage_from_response_usage(usage: ResponseUsage | None) -> ModelUsage |
     )
 
 
-class _ParsedOutputItems(NamedTuple):
-    content: list[Content]
-    tool_calls: list[ToolCall]
-    logprobs: Logprobs | None
-    has_tool_calls: bool
-    replay: dict[str, _CachedToolCall]
-    """Each call's item as this parse recorded it, by call id."""
-
-
 def _process_response_output_items(
     outputs: Iterable[Any],
     tools: list[ToolInfo],
 ) -> tuple[list[Content], list[ToolCall], Logprobs | None, bool]:
-    parsed = _parse_response_output_items(outputs, tools)
-    return parsed.content, parsed.tool_calls, parsed.logprobs, parsed.has_tool_calls
-
-
-def _parse_response_output_items(
-    outputs: Iterable[Any],
-    tools: list[ToolInfo],
-) -> _ParsedOutputItems:
     """Process response output items into content, tool calls, and logprobs.
 
     This helper extracts the core logic for processing OpenAI response output items,
@@ -1047,15 +1122,6 @@ def _parse_response_output_items(
     message_content: list[Content] = []
     tool_calls: list[ToolCall] = []
     has_tool_calls = False
-    replay: dict[str, _CachedToolCall] = {}
-
-    def record(call_id: str, param: _CachedToolCall | None) -> None:
-        # a call without an item leaves none of an earlier call under its id
-        if param is None:
-            assistant_internal().tool_calls.pop(call_id, None)
-        else:
-            assistant_internal().tool_calls[call_id] = param
-            replay[call_id] = cast(_CachedToolCall, dict(param))
 
     for output in outputs:
         match output:
@@ -1107,7 +1173,6 @@ def _parse_response_output_items(
 
             case ResponseFunctionToolCall():
                 has_tool_calls = True
-                param: ResponseFunctionToolCallParam | None = None
                 if output.id is not None:
                     param = cast(
                         ResponseFunctionToolCallParam,
@@ -1116,7 +1181,10 @@ def _parse_response_output_items(
                     param["arguments"] = _limit_function_call_arguments(
                         output.arguments
                     )
-                record(output.call_id, param)
+                    assistant_internal().tool_calls[output.call_id] = param
+                else:
+                    # a call without an item keeps none of an earlier call's
+                    assistant_internal().tool_calls.pop(output.call_id, None)
 
                 call_name, call_arguments = _responses_call_to_inspect(
                     output.name, output.arguments, tools
@@ -1131,15 +1199,13 @@ def _parse_response_output_items(
                 )
             case ResponseCustomToolCall():
                 has_tool_calls = True
-                record(
-                    output.call_id,
-                    cast(
+                if output.id is not None:
+                    assistant_internal().tool_calls[output.call_id] = cast(
                         ResponseCustomToolCallParam,
                         output.model_dump(exclude_none=True),
                     )
-                    if output.id is not None
-                    else None,
-                )
+                else:
+                    assistant_internal().tool_calls.pop(output.call_id, None)
                 tool_call = ToolCall(
                     id=output.call_id,
                     function=output.name,
@@ -1150,15 +1216,13 @@ def _parse_response_output_items(
 
             case ResponseComputerToolCall():
                 has_tool_calls = True
-                record(
-                    output.call_id,
-                    cast(
+                if output.id is not None:
+                    assistant_internal().tool_calls[output.call_id] = cast(
                         ResponseComputerToolCallParam,
                         output.model_dump(exclude_none=True),
                     )
-                    if output.id is not None
-                    else None,
-                )
+                else:
+                    assistant_internal().tool_calls.pop(output.call_id, None)
 
                 if output.pending_safety_checks:
                     from inspect_ai.log._transcript import transcript
@@ -1204,9 +1268,8 @@ def _parse_response_output_items(
                 # (keyed by call_id) for verbatim replay within the sample.
                 has_tool_calls = True
                 tool_call = tool_call_from_openai_tool_search_call(output)
-                record(
-                    tool_call.id,
-                    cast(ToolSearchCall, output.model_dump(exclude_none=True)),
+                assistant_internal().tool_calls[tool_call.id] = cast(
+                    ToolSearchCall, output.model_dump(exclude_none=True)
                 )
                 tool_calls.append(tool_call)
             case ResponseToolSearchOutputItem():
@@ -1217,21 +1280,16 @@ def _parse_response_output_items(
             case _:
                 raise ValueError(f"Unexpected output type: {output.__class__}")
 
-    return _ParsedOutputItems(
-        message_content, tool_calls, logprobs, has_tool_calls, replay
-    )
+    # an id the response repeats keeps no item, so no call replays another's
+    for call_id in repeated_call_ids(tool_calls):
+        assistant_internal().tool_calls.pop(call_id, None)
 
-
-class _ParsedResponse(NamedTuple):
-    message: ChatMessageAssistant
-    stop_reason: StopReason
-    logprobs: Logprobs | None
-    replay: dict[str, JsonValue]
+    return message_content, tool_calls, logprobs, has_tool_calls
 
 
 def _chat_message_assistant_from_openai_response(
     model: str, response: OpenAIResponse, tools: list[ToolInfo]
-) -> _ParsedResponse:
+) -> tuple[ChatMessageAssistant, StopReason, Logprobs | None]:
     """
     Transform OpenAI `Response` into an Inspect `ChatMessageAssistant` and `StopReason`.
 
@@ -1253,23 +1311,22 @@ def _chat_message_assistant_from_openai_response(
             stop_reason = "stop"
 
     # process output items
-    parsed = _parse_response_output_items(response.output, tools)
+    message_content, tool_calls, logprobs, has_tool_calls = (
+        _process_response_output_items(response.output, tools)
+    )
 
-    if parsed.has_tool_calls:
+    if has_tool_calls:
         stop_reason = "tool_calls"
 
-    return _ParsedResponse(
+    return (
         ChatMessageAssistant(
-            content=parsed.content,
-            tool_calls=parsed.tool_calls if len(parsed.tool_calls) > 0 else None,
+            content=message_content,
+            tool_calls=tool_calls if len(tool_calls) > 0 else None,
             model=model,
             source="generate",
         ),
         stop_reason,
-        parsed.logprobs,
-        generation_replay(
-            parsed.tool_calls, openai=cast(dict[str, JsonValue], parsed.replay)
-        ),
+        logprobs,
     )
 
 
@@ -1615,6 +1672,7 @@ def _openai_input_items_from_chat_message_assistant(
     model_info: ResponsesModelInfo | None = None,
     synthesize_phase: bool = False,
     swap_todo_write: bool = False,
+    from_call: set[str] | None = None,
 ) -> list[ResponseInputItemParam]:
     """
     Transform a `ChatMessageAssistant` into OpenAI `ResponseInputItem`'s for playback to the model.
@@ -1822,7 +1880,9 @@ def _openai_input_items_from_chat_message_assistant(
     # final flush if necessary
     flush_pending_context_text()
 
-    return items + _tool_call_items_from_assistant_message(message, swap_todo_write)
+    return items + _tool_call_items_from_assistant_message(
+        message, swap_todo_write, from_call
+    )
 
 
 def _synthetic_phase_for_assistant_message(
@@ -1920,16 +1980,34 @@ def _maybe_native_tool_param(
 def _tool_call_items_from_assistant_message(
     message: ChatMessageAssistant,
     swap_todo_write: bool = False,
+    from_call: set[str] | None = None,
 ) -> list[ResponseInputItemParam]:
+    """The message's calls as Responses items.
+
+    A call replays its cached item when the item can replay for it
+    (`_replayed_item`), and otherwise from itself; its id is then added to
+    `from_call`, so its result, which would read the cached item's type (a
+    `computer_call_output`), replays from itself too.
+    """
     tool_calls: list[ResponseInputItemParam] = []
 
     # now standard tool calls
     for call in message.tool_calls or []:
         # see if we have it in assistant_internal (computer/custom/tool_search are
         # cached at parse time, and the bridge seeds tool_search calls on replay)
-        assistant_internal_call = cached_tool_call(call.id)
-        if assistant_internal_call is not None:
-            tool_calls.append(assistant_internal_call)
+        cached = assistant_internal().tool_calls.get(call.id, None)
+        replayed = (
+            _replayed_item(cast(dict[str, Any], cached), call)
+            if cached is not None
+            else None
+        )
+        if from_call is not None:
+            if replayed is None and cached is not None:
+                from_call.add(call.id)
+            else:
+                from_call.discard(call.id)
+        if replayed is not None:
+            tool_calls.append(cast(ResponseInputItemParam, replayed))
         else:
             # create param (rendering todo_write -> update_plan when swapping, else
             # the name-only alias)
@@ -2338,6 +2416,7 @@ def is_assistant_message_param(
         is_response_output_message(param)
         or is_response_computer_tool_call(param)
         or is_response_web_search_call(param)
+        or is_response_code_interpreter_call(param)
         or is_response_function_tool_call(param)
         or is_response_custom_tool_call(param)
         or is_response_reasoning_item(param)

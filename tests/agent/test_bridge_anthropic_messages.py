@@ -19,8 +19,10 @@ from inspect_ai.agent._bridge.util import (
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageSystem,
+    ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.model._message_ids import content_hash
 from inspect_ai.model._providers.anthropic import AnthropicAPI, message_block_params
 from inspect_ai.tool import WebSearchProviders
 from inspect_ai.tool._tool_info import ToolInfo
@@ -203,6 +205,48 @@ async def test_unexpected_input_parameter_error_includes_value() -> None:
         )
     assert "thinking" in str(exc_info.value)
     assert "{c}" not in str(exc_info.value)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("text", ["Timed out.", ""])
+async def test_error_result_forms_give_one_error(text: str) -> None:
+    """An `is_error` result as a string, a list, or a list with empty text blocks is one error."""
+    block = [{"type": "text", "text": text}] if text else []
+    empty = {"type": "text", "text": ""}
+    forms: list[Any] = [
+        text,
+        block,
+        [empty, *block, empty],
+        [empty, *block, empty, empty],
+    ]
+    results = []
+    for form in forms:
+        [_, result] = await messages_from_anthropic_input(
+            [
+                {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "tool_use", "id": "c", "name": "f", "input": {}}
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "c",
+                            "is_error": True,
+                            "content": form,
+                        }
+                    ],
+                },
+            ],
+            tools=[],
+        )
+        assert isinstance(result, ChatMessageTool) and result.error is not None
+        results.append(result)
+    assert {result.error.message for result in results if result.error} == {text}
+    assert len({content_hash(result) for result in results}) == 1
 
 
 def test_base_64_data_error_includes_value() -> None:

@@ -27,6 +27,7 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
+    ModelOutput,
     get_model,
 )
 from inspect_ai.model._providers.anthropic import AnthropicAPI
@@ -1856,6 +1857,7 @@ async def test_anthropic_opus_5_disabled_thinking_effort_clamp_live() -> None:
         ("claude-fable-5", 128000),
         ("claude-fable-5-1", 128000),
         ("claude-mythos-5-1", 128000),
+        ("claude-fable-5-2", 128000),
         ("claude-opus-5-0", 128000),
         ("claude-sonnet-5-0", 128000),
         # Non-opus 4.5 / 4.6+ (incl. 4.7 and future 4.x minor): 64k
@@ -1892,6 +1894,7 @@ def test_anthropic_max_tokens_caps(model_name: str, expected_cap: int) -> None:
         "claude-haiku-5-5",
         "claude-fable-5-1",
         "claude-mythos-5-1",
+        "claude-fable-5-2",
         # forward-compat variants: tier-named, new codename
         "claude-opus-5-0",
         "claude-saga-5",
@@ -2041,6 +2044,37 @@ def test_anthropic_is_claude_fable_5_1_or_later(
 @pytest.mark.parametrize(
     "model_name,expected",
     [
+        ("claude-fable-5-2", True),
+        ("anthropic.claude-fable-5-2", True),
+        ("claude-fable-5.2", True),
+        # assume later point releases keep the 5.2 behavior
+        ("claude-fable-5-3", True),
+        ("claude-fable-5-12", True),
+        # Mythos 5.2 keeps the Mythos 5.1 handling until verified
+        ("claude-mythos-5-2", False),
+        # earlier releases and other models don't match
+        ("claude-fable-5-1", False),
+        ("claude-mythos-5-1", False),
+        ("claude-fable-5", False),
+        ("claude-mythos-5", False),
+        ("claude-opus-5-5", False),
+        ("claude-saga-5-2", False),
+        # 1M-context style and date suffixes are not point releases
+        ("claude-fable-5-2m", False),
+        ("claude-fable-5-2026", False),
+        ("claude-fable-5-20261109", False),
+    ],
+)
+def test_anthropic_is_claude_fable_5_2_or_later(
+    model_name: str, expected: bool
+) -> None:
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    assert api.is_claude_fable_5_2_or_later() is expected
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
         ("claude-opus-5-5", True),
         ("anthropic.claude-opus-5-5", True),
         ("us.anthropic.claude-opus-5-5-20260922-v1:0", True),
@@ -2143,7 +2177,13 @@ def test_anthropic_is_claude_haiku_5_5_or_later(
 
 
 @pytest.mark.parametrize(
-    "model_name", ["claude-fable-5-1", "claude-mythos-5-1", "claude-opus-5-5"]
+    "model_name",
+    [
+        "claude-fable-5-1",
+        "claude-mythos-5-1",
+        "claude-fable-5-2",
+        "claude-opus-5-5",
+    ],
 )
 def test_anthropic_fable_5_1_degrades_forced_tool_choice(model_name: str) -> None:
     """Fable/Mythos 5.1 and Opus 5.5 reject forced tool choice (400); degrade to auto."""
@@ -2191,7 +2231,13 @@ def _request_with_thinking_history() -> dict[str, Any]:
 
 @pytest.mark.parametrize(
     "model_name",
-    ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"],
+    [
+        "claude-fable-5-1",
+        "claude-fable-5-2",
+        "claude-opus-5-5",
+        "claude-sonnet-5-5",
+        "claude-haiku-5-5",
+    ],
 )
 def test_anthropic_fable_5_1_thinking_block_binding(model_name: str) -> None:
     """Replayed thinking blocks opt into drop_block on prefix mismatch."""
@@ -2302,6 +2348,9 @@ def test_anthropic_claude_4_0_base_name_uses_extended_thinking(model_name: str) 
         "bedrock/anthropic.claude-fable-5-1",
         "vertex/claude-fable-5-1",
         "azure/claude-fable-5-1",
+        "bedrock/anthropic.claude-fable-5-2",
+        "vertex/claude-fable-5-2",
+        "azure/claude-fable-5-2",
         "bedrock/anthropic.claude-opus-5-5",
         "vertex/claude-opus-5-5",
         "azure/claude-opus-5-5",
@@ -2700,7 +2749,13 @@ async def test_anthropic_no_thinking_dropped_warning_when_empty(
 @skip_if_no_anthropic
 @pytest.mark.parametrize(
     "model_name",
-    ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"],
+    [
+        "claude-fable-5-1",
+        "claude-fable-5-2",
+        "claude-opus-5-5",
+        "claude-sonnet-5-5",
+        "claude-haiku-5-5",
+    ],
 )
 async def test_anthropic_bound_thinking_drop_reported_live(
     model_name: str,
@@ -2789,6 +2844,31 @@ async def test_anthropic_fable_5_1_forced_tool_choice_live() -> None:
         tool_choice=ToolFunction(name="addition"),
     )
     assert len(response.completion) >= 1 or response.message.tool_calls
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+@pytest.mark.parametrize("reasoning_effort", ["none", "low", "high"])
+async def test_anthropic_fable_5_2_generate_live(
+    reasoning_effort: Literal["none", "low", "high"],
+) -> None:
+    """Fable 5.2 accepts our request shape at each effort, including `none`.
+
+    `none` must not 400: thinking can't be disabled, so the field is omitted.
+    """
+    model = get_model(
+        "anthropic/claude-fable-5-2",
+        config=GenerateConfig(reasoning_effort=reasoning_effort, max_tokens=2048),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_fable_5_2_forced_tool_choice_live() -> None:
+    """Forced tool choice must not 400 on Fable 5.2 (degraded to auto)."""
+    await _check_forced_tool_choice_degrades("anthropic/claude-fable-5-2")
 
 
 @pytest.mark.anyio
@@ -3870,6 +3950,154 @@ async def test_anthropic_interleaved_thinking_tool_calls_preserved() -> None:
     assert restored_order == ["thinking", "tool_use", "thinking", "tool_use"], (
         restored_order
     )
+
+
+async def test_anthropic_tool_use_id_repeated_in_a_turn_records_no_position() -> None:
+    from anthropic.types import ContentBlock, ThinkingBlock, ToolUseBlock
+
+    from inspect_ai.model._providers.anthropic import (
+        assistant_internal,
+        content_and_tool_calls_from_assistant_content_blocks,
+        init_sample_anthropic_assistant_internal,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    blocks: list[ContentBlock] = [
+        ThinkingBlock(type="thinking", thinking="t1", signature="sig1"),
+        ToolUseBlock(type="tool_use", id="a", name="tool_a", input={"x": "1"}),
+        ThinkingBlock(type="thinking", thinking="t2", signature="sig2"),
+        ToolUseBlock(type="tool_use", id="a", name="tool_a", input={"x": "2"}),
+        ToolUseBlock(type="tool_use", id="b", name="tool_a", input={"x": "3"}),
+    ]
+    content_and_tool_calls_from_assistant_content_blocks(blocks, [])
+
+    internal = assistant_internal()
+    assert "a" not in internal.client_tool_call_positions
+    assert "a" not in internal.tool_call_internal_names
+    assert internal.client_tool_call_positions["b"] == 2
+
+
+@pytest.mark.parametrize("restore", [None, "current", "legacy"])
+async def test_anthropic_call_to_another_function_replays_without_the_ids_name_and_position(
+    restore: str | None,
+) -> None:
+    """A tool use id's internal name and position replay only with a call to its function.
+
+    The parse records `bash` (called as `bash_session`) after the thinking
+    block. The call as parsed replays with them; a call to `read_file` under
+    the id (a filter changed the function and kept the id) replays under its
+    own name, last. Both hold after a checkpoint restore, including one
+    written before functions were recorded (`legacy`): the function is derived
+    from the first message to hold the id, the call as parsed.
+    """
+    from dataclasses import replace
+
+    from anthropic.types import ContentBlock, TextBlock, ThinkingBlock, ToolUseBlock
+
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        content_and_tool_calls_from_assistant_content_blocks,
+        dump_anthropic_assistant_internal,
+        init_sample_anthropic_assistant_internal,
+    )
+
+    tools = [
+        ToolInfo(name="bash_session", description="Run a command."),
+        ToolInfo(name="read_file", description="Read a file."),
+    ]
+    blocks: list[ContentBlock] = [
+        ThinkingBlock(type="thinking", thinking="t1", signature="s1"),
+        ToolUseBlock(
+            type="tool_use", id="a", name="bash", input={"command": "cat notes.txt"}
+        ),
+        TextBlock(type="text", text="Reading."),
+    ]
+    init_sample_anthropic_assistant_internal()
+    content, tool_calls = content_and_tool_calls_from_assistant_content_blocks(
+        blocks, tools
+    )
+    assert tool_calls is not None and tool_calls[0].function == "bash_session"
+    if restore is not None:
+        dumped = dump_anthropic_assistant_internal()
+        assert isinstance(dumped, dict)
+        if restore == "legacy":
+            del dumped["client_tool_call_functions"]
+        init_sample_anthropic_assistant_internal()
+        init_sample_anthropic_assistant_internal(dumped)
+
+    async def replayed(call: ToolCall) -> list[tuple[str, object]]:
+        message = ChatMessageAssistant(
+            content=content, tool_calls=[call], model="claude-opus-4-8"
+        )
+        return [
+            (block["type"], block.get("name"))
+            for block in await assistant_message_block_params(message)
+        ]
+
+    native = [("thinking", None), ("tool_use", "bash"), ("text", None)]
+    assert await replayed(tool_calls[0]) == native
+    changed = replace(tool_calls[0], function="read_file", arguments={"path": "a"})
+    assert await replayed(changed) == [
+        ("thinking", None),
+        ("text", None),
+        ("tool_use", "read_file"),
+    ]
+
+
+@pytest.mark.parametrize("first", ["parsed", "cached", "shared"])
+async def test_anthropic_state_restored_without_functions_is_the_first_holders(
+    first: str,
+) -> None:
+    """A checkpoint written before functions were recorded restores names and positions.
+
+    The function they are for is derived from the first message to hold the
+    id. When that holds the call as parsed, it replays natively, and a later
+    call to another function under the id replays from itself. Calls to two
+    functions under the id in one message give no function, so neither
+    replays the name or position.
+    """
+    from inspect_ai.model._assistant_internal import derive_recorded_functions
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        init_sample_anthropic_assistant_internal,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    init_sample_anthropic_assistant_internal(
+        {
+            "tool_call_internal_names": {"a": "bash"},
+            "client_tool_call_positions": {"a": 0},
+        }
+    )
+    parsed = ToolCall(id="a", function="bash_session", arguments={"command": "ls"})
+    changed = ToolCall(id="a", function="read_file", arguments={"path": "a"})
+
+    async def replayed(*calls: ToolCall) -> list[tuple[str, object]]:
+        message = ChatMessageAssistant(content="Running.", tool_calls=list(calls))
+        return [
+            (block["type"], block.get("name"))
+            for block in await assistant_message_block_params(message)
+        ]
+
+    if first == "shared":
+        assert await replayed(parsed, changed) == [
+            ("text", None),
+            ("tool_use", "bash_session"),
+            ("tool_use", "read_file"),
+        ]
+        assert await replayed(parsed) == [("text", None), ("tool_use", "bash_session")]
+        return
+    if first == "parsed":
+        assert await replayed(parsed) == [("tool_use", "bash"), ("text", None)]
+    else:
+        # the cached output as generated, before a filter changes its call
+        derive_recorded_functions(
+            ModelOutput.from_message(
+                ChatMessageAssistant(content="Running.", tool_calls=[parsed])
+            )
+        )
+    assert await replayed(changed) == [("text", None), ("tool_use", "read_file")]
+    assert await replayed(parsed) == [("tool_use", "bash"), ("text", None)]
 
 
 async def test_anthropic_interleaved_thinking_last_gets_no_content() -> None:
