@@ -22,6 +22,21 @@ class CompletedBatchInfo(TypedDict):
     result_uris: list[str]
 
 
+def _together_sdk_base_url(openai_base_url: str) -> str:
+    """Return the base URL to pass to the Together SDK.
+
+    The OpenAI client base URL ends in ``/v1`` (e.g.
+    ``https://api.together.xyz/v1``). Together SDK 3.x builds resource
+    paths that already include ``/v1`` (``/v1/files``), so passing the
+    same base URL produces ``.../v1/v1/files`` and every batch fails at
+    creation. Strip one trailing ``/v1``. This applies to the default
+    base URL and to a user-set TOGETHER_BASE_URL alike, since both flow
+    through the OpenAI client base URL. Together 3.0.0 is the minimum
+    supported SDK version, so no older-version branch is kept.
+    """
+    return openai_base_url.rstrip("/").removesuffix("/v1") or openai_base_url
+
+
 class TogetherBatcher(OpenAIBatcher[ChatCompletion]):
     def __init__(
         self,
@@ -31,7 +46,7 @@ class TogetherBatcher(OpenAIBatcher[ChatCompletion]):
     ):
         FEATURE = "Together Batch API"
         PACKAGE = "together"
-        MIN_VERSION = "2.0.0"
+        MIN_VERSION = "3.0.0"
 
         try:
             from together import Together
@@ -44,7 +59,8 @@ class TogetherBatcher(OpenAIBatcher[ChatCompletion]):
         # together uses different file upload method than openai
         # async client doesn't have .upload method implemented
         self._together_sync_client = Together(
-            api_key=client.api_key, base_url=str(client.base_url)
+            api_key=client.api_key,
+            base_url=_together_sdk_base_url(str(client.base_url)),
         )
 
     # OpenAIBatcher overrides
@@ -118,7 +134,7 @@ class TogetherBatcher(OpenAIBatcher[ChatCompletion]):
         # extra_headers in the request.
         client = AsyncTogether(
             api_key=self._openai_client.api_key,
-            base_url=str(self._openai_client.base_url),
+            base_url=_together_sdk_base_url(str(self._openai_client.base_url)),
             default_headers=extra_headers,
         )
 
