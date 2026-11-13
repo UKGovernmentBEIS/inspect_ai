@@ -480,8 +480,11 @@ class _Proposals:
         is exact; several share it only where one output was returned again
         (a cache hit), which proposes the same call. Without one (a message
         the agent edited or built), any proposal of the id before `before` is
-        taken: one proposed while the execution's approval or check awaited
-        comes after it.
+        taken. `before` is the completion of the execution's first approval,
+        which runs before its check, else the begin of its `tool_call` check
+        span (`_first_event_of`). A turn proposed while that check awaited
+        comes after it and is never taken; a turn proposed while an approval
+        awaited comes before the approval's completion, and can be.
         """
         named = [
             proposal
@@ -666,7 +669,8 @@ class _Driver:
         approvals: dict[tuple[str, str | None], tuple[int, ApprovalEvent]] = {}
         # approvals that name the execution they judged, by its id
         execution_approvals: dict[str, tuple[int, ApprovalEvent]] = {}
-        # the index of the first approval naming each execution
+        # the index of the first approval naming each execution, recorded when
+        # the approval completed
         first_approvals: dict[str, int] = {}
         approval_entries: list[tuple[int, ApprovalEvent, str]] = []
         unplaced_approvals: list[tuple[int, ApprovalEvent]] = []
@@ -1301,9 +1305,12 @@ class _Driver:
     def _first_event_of(
         self, execution_id: str, index: int, first_approvals: dict[str, int]
     ) -> int:
-        """The index of the first event of a native execution: its first approval, the start of its `tool_call` check, or its `ToolEvent` (`index`).
+        """The index of the first event of a native execution: the start of its `tool_call` check, the completion of its first approval, or its `ToolEvent` (`index`).
 
-        Each is recorded after the generation that proposed the call is.
+        Each is recorded after the generation that proposed the call is. A
+        check's span begins when the check starts, but an approval is recorded
+        when it completes, so the bound excludes a turn proposed while the
+        check awaited, not one proposed while an approval awaited.
         """
         first = [index]
         if execution_id in first_approvals:
