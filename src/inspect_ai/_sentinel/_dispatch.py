@@ -134,6 +134,7 @@ async def sentinel_before_tool_call(
     producer: ModelEvent | None = None,
     *,
     bridge: bool = False,
+    execution_id: str | None = None,
 ) -> Decision | None:
     if not _watches(BeforeToolCall):
         return None
@@ -155,7 +156,7 @@ async def sentinel_before_tool_call(
         agent_messages=agent_messages(conversation),
         record=_record(conversation),
     )
-    return await _run(step, call.id, bridge=bridge)
+    return await _run(step, call.id, bridge=bridge, execution_id=execution_id)
 
 
 def apply_sentinel_decision(decision: Decision | None, call: ToolCall) -> ToolCall:
@@ -189,6 +190,7 @@ async def sentinel_after_tool_call(
     *,
     reject_on_viewer_error: bool = False,
     bridge: bool = False,
+    execution_id: str | None = None,
     view: ToolCallView | None = None,
 ) -> None:
     """Run the sentinel after a tool call ran, before the model sees its result.
@@ -221,7 +223,7 @@ async def sentinel_after_tool_call(
         agent_messages=agent_messages(conversation),
         record=_record(conversation),
     )
-    decision = await _run(step, call.id, bridge=bridge)
+    decision = await _run(step, call.id, bridge=bridge, execution_id=execution_id)
     if decision is not None and decision.action == "terminate":
         raise TerminateSampleError(
             decision.explanation or "Sentinel requested termination."
@@ -312,11 +314,17 @@ def watches_tool_results() -> bool:
     return _watches(AfterToolCall)
 
 
-async def _run(step: Step, step_id: str, *, bridge: bool = False) -> Decision | None:
+async def _run(
+    step: Step,
+    step_id: str,
+    *,
+    bridge: bool = False,
+    execution_id: str | None = None,
+) -> Decision | None:
     root = active_sentinel()
     if root is None or type(step) not in watched_stages(root):
         return None
-    recorder = _Recorder(step_id)
+    recorder = _Recorder(step_id, execution_id)
     try:
         try:
             async with span(
@@ -790,8 +798,14 @@ def _one_line(text: str, safe: _Escaped) -> str:
 
 
 class _Recorder:
-    def __init__(self, step_id: str) -> None:
+    def __init__(
+        self,
+        step_id: str,
+        execution_id: str | None = None,
+    ) -> None:
         self._step_id = step_id
+        # the execution a tool-stage step judged (`SentinelEvent.execution_id`)
+        self._execution_id = execution_id
         # this step's human() decisions, published once it settles
         self.kept: list[HumanDecision] = []
 
@@ -800,11 +814,10 @@ class _Recorder:
     ) -> None:
         report = reported.report
         if isinstance(report, Observation):
-            _emit(
+            self._emit(
                 context,
                 factory,
                 step,
-                self._step_id,
                 "observation",
                 "reported",
                 function=reported.function,
@@ -814,11 +827,10 @@ class _Recorder:
                 metadata=report.metadata,
             )
         else:
-            _emit_decision(
+            self._emit_decision(
                 context,
                 factory,
                 step,
-                self._step_id,
                 "reported",
                 reported.function,
                 report,
@@ -830,11 +842,10 @@ class _Recorder:
     def failed(
         self, context: Context, factory: str, step: Step, failed: Failed
     ) -> None:
-        _emit(
+        self._emit(
             context,
             factory,
             step,
-            self._step_id,
             "observation",
             "error",
             function=failed.function,
@@ -850,6 +861,7 @@ class _Recorder:
                 path="",
                 function=root.__name__,
                 step_id=self._step_id,
+                execution_id=self._execution_id,
                 conversation=step.conversation,
                 stage=step_stage(step),
                 kind="observation",
@@ -859,12 +871,10 @@ class _Recorder:
         )
 
     def cancelled(self, context: Context, factory: str, step: Step, name: str) -> None:
-        _emit(
-            context, factory, step, self._step_id, _factory_kind(factory), "cancelled"
-        )
+        self._emit(context, factory, step, _factory_kind(factory), "cancelled")
 
     def bypassed(self, context: Context, factory: str, step: Step, name: str) -> None:
-        _emit(context, factory, step, self._step_id, "decision", "bypassed")
+        self._emit(context, factory, step, "decision", "bypassed")
 
     def superseded(
         self,
@@ -873,88 +883,85 @@ class _Recorder:
         step: Step,
         reported: Reported[Decision],
     ) -> None:
-        _emit_decision(
+        self._emit_decision(
             context,
             factory,
             step,
-            self._step_id,
             "superseded",
             reported.function,
             reported.report,
         )
         self.kept = [k for k in self.kept if not supersedes(context.path, reported, k)]
 
+    def _emit_decision(
+        self,
+        context: Context,
+        factory: str,
+        step: Step,
+        status: SentinelStatus,
+        function: str,
+        decision: Decision,
+    ) -> None:
+        self._emit(
+            context,
+            factory,
+            step,
+            "decision",
+            status,
+            function=function,
+            action=decision.action,
+            audit=decision.audit,
+            message=decision.message,
+            explanation=decision.explanation,
+            references=decision.references,
+            metadata=decision.metadata,
+            modified=decision.modified,
+        )
+
+    def _emit(
+        self,
+        context: Context,
+        factory: str,
+        step: Step,
+        kind: _Kind,
+        status: SentinelStatus,
+        *,
+        function: str | None = None,
+        suspicion: SentinelSuspicion | None = None,
+        action: SentinelAction | None = None,
+        audit: bool = False,
+        message: str | None = None,
+        explanation: str | None = None,
+        references: Sequence[Reference] = (),
+        metadata: dict[str, Any] | None = None,
+        modified: ToolCall | None = None,
+        error: str | None = None,
+    ) -> None:
+        transcript()._event(
+            SentinelEvent(
+                factory=factory,
+                path=context.path,
+                function=function,
+                step_id=self._step_id,
+                execution_id=self._execution_id,
+                conversation=step.conversation,
+                stage=step_stage(step),
+                kind=kind,
+                status=status,
+                suspicion=suspicion,
+                action=action,
+                audit=audit,
+                message=message,
+                explanation=explanation,
+                references=list(references),
+                metadata=metadata,
+                modified=modified,
+                error=error,
+            )
+        )
+
 
 def _factory_kind(factory: str) -> _Kind:
     if registry_lookup("protocol", factory) is not None:
         return "decision"
     return "observation"
-
-
-def _emit_decision(
-    context: Context,
-    factory: str,
-    step: Step,
-    step_id: str,
-    status: SentinelStatus,
-    function: str,
-    decision: Decision,
-) -> None:
-    _emit(
-        context,
-        factory,
-        step,
-        step_id,
-        "decision",
-        status,
-        function=function,
-        action=decision.action,
-        audit=decision.audit,
-        message=decision.message,
-        explanation=decision.explanation,
-        references=decision.references,
-        metadata=decision.metadata,
-        modified=decision.modified,
-    )
-
-
-def _emit(
-    context: Context,
-    factory: str,
-    step: Step,
-    step_id: str,
-    kind: _Kind,
-    status: SentinelStatus,
-    *,
-    function: str | None = None,
-    suspicion: SentinelSuspicion | None = None,
-    action: SentinelAction | None = None,
-    audit: bool = False,
-    message: str | None = None,
-    explanation: str | None = None,
-    references: Sequence[Reference] = (),
-    metadata: dict[str, Any] | None = None,
-    modified: ToolCall | None = None,
-    error: str | None = None,
-) -> None:
-    transcript()._event(
-        SentinelEvent(
-            factory=factory,
-            path=context.path,
-            function=function,
-            step_id=step_id,
-            conversation=step.conversation,
-            stage=step_stage(step),
-            kind=kind,
-            status=status,
-            suspicion=suspicion,
-            action=action,
-            audit=audit,
-            message=message,
-            explanation=explanation,
-            references=list(references),
-            metadata=metadata,
-            modified=modified,
-            error=error,
-        )
-    )

@@ -33,6 +33,21 @@ class ToolEvent(BaseEvent):
     id: str
     """Unique identifier for tool call."""
 
+    execution_id: str | None = Field(default=None)
+    """Id of this execution of the call, which the approvals and sentinel steps that judged it record as their `execution_id`.
+
+    Unique to each execution of a native call, also when a model repeats a call
+    id. For a host tool a sandbox agent bridge runs, the id of the handout it
+    ran for: each response's handing of the call to the scaffold has its own,
+    and an execution of a call handed over once that denotes several bridged
+    tools sharing a description can run more than once under it. `None` for a
+    host call no handout accounts for, for a host call whose request matched
+    the grants of more than one handout (which one it ran for is unknown), and
+    in logs written before this field.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
+
     function: str
     """Function called."""
 

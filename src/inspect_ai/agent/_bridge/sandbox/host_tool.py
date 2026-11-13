@@ -94,8 +94,10 @@ async def execute_host_tool(
 
     Every request is recorded as one `ToolEvent` in a `tool` span, as a native
     call is, with `metadata["bridge"]` describing it (see `ToolEvent`). An
-    execution that consumed a grant takes the proposing call's id and is
-    recorded in the span of the proposing `ModelEvent`; a denied or rejected
+    execution that consumed a grant takes the id its call was handed to the
+    scaffold under, records the model's id for the call as `proposal_id` and
+    its handout as `execution_id`, and is recorded in the span of the
+    proposing `ModelEvent`; a denied or rejected
     request gets a fresh id and the error the scaffold receives. A running
     call can be cancelled by the operator like a native one.
     """
@@ -198,6 +200,18 @@ class _BridgeMetadata:
         }
 
 
+def _handout(grant: _ToolExecutionGrant | None) -> str | None:
+    """The handout a run that consumed `grant` is of (`ToolEvent.execution_id`).
+
+    `None` without a grant, or when the run's request matched grants of more
+    than one handout (`_Proposal.ambiguous`): which of them it ran for is
+    unknown, as one handout's response may never have reached the scaffold.
+    """
+    if grant is None or grant.proposal.ambiguous:
+        return None
+    return grant.proposal.execution_id
+
+
 async def _record_rejection(
     bridge: SandboxAgentBridge,
     tool: str,
@@ -214,6 +228,7 @@ async def _record_rejection(
     """Record a request that did not execute as a completed event in its own `tool` span."""
     event = ToolEvent(
         id=event_id or uuid(),
+        execution_id=_handout(grant),
         function=tool,
         arguments=arguments,
         view=view,
@@ -275,7 +290,7 @@ async def _execute_granted(
 ) -> JsonValue:
     if grant is not None:
         metadata.function = grant.proposal.call.function
-        metadata.proposal_id = grant.proposal.call.id
+        metadata.proposal_id = grant.proposal.proposal_id
         metadata.grant = "consumed"
     else:
         metadata.grant = "exempt"
@@ -325,6 +340,7 @@ async def _execute_granted(
 
     event = ToolEvent(
         id=event_id,
+        execution_id=_handout(grant),
         function=tool,
         arguments=call_arguments,
         view=view,

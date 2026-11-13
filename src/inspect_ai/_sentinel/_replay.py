@@ -430,9 +430,23 @@ class _Proposals:
         self._by_conversation: dict[tuple[str, str], _Proposal] = {}
         # the one conversation proposing each id; None once several have
         self._conversation: dict[str, str | None] = {}
+        # every proposal of each id, in log order, and whether those up to
+        # each one are of one conversation (`execution_owner`)
+        self._history: dict[str, list[_Proposal]] = {}
+        self._one_conversation: dict[str, list[bool]] = {}
+        # the proposals of each id by their output message's id
+        self._by_message: dict[tuple[str, str | None], list[_Proposal]] = {}
 
     def add(self, proposal: _Proposal) -> None:
         id = proposal.call.id
+        history = self._history.setdefault(id, [])
+        single = self._one_conversation.setdefault(id, [])
+        single.append(
+            not history
+            or (single[-1] and history[-1].conversation == proposal.conversation)
+        )
+        history.append(proposal)
+        self._by_message.setdefault((id, proposal.message.id), []).append(proposal)
         self._latest[id] = proposal
         self._by_span[(id, proposal.event.span_id)] = proposal
         self._by_conversation[(id, proposal.conversation)] = proposal
@@ -452,6 +466,44 @@ class _Proposals:
         found = self._by_conversation.get((id, conversation))
         return found if found is not None else self._by_span.get((id, span_id))
 
+    def execution_owner(
+        self,
+        id: str,
+        span_id: str | None,
+        conversation: str,
+        message_id: str | None,
+        before: int,
+    ) -> _Proposal | None:
+        """The proposal a native execution's call came from, by the rules of `owner` among the proposals complete before the execution's first recorded event (`before`).
+
+        The proposal whose output message ran the call (`ToolEvent.call_message_id`)
+        is exact; several share it only where one output was returned again
+        (a cache hit), which proposes the same call. Without one (a message
+        the agent edited or built), any proposal of the id before `before` is
+        taken. `before` is the completion of the execution's first approval,
+        which runs before its check, else the begin of its `tool_call` check
+        span (`_first_event_of`). A turn proposed while that check awaited
+        comes after it and is never taken; a turn proposed while an approval
+        awaited comes before the approval's completion, and can be.
+        """
+        named = [
+            proposal
+            for proposal in self._by_message.get((id, message_id), [])
+            if proposal.position < before
+        ]
+        if named:
+            return _owned(named, None, span_id, conversation)
+        history = self._history.get(id, [])
+        end = bisect_left(history, before, key=lambda p: p.position)
+        if end == 0:
+            return None
+        return _owned(
+            history[:end],
+            self._one_conversation[id][end - 1],
+            span_id,
+            conversation,
+        )
+
     def approval_key(
         self, id: str, owner: _Proposal | None, conversation: str
     ) -> tuple[str, str | None]:
@@ -461,6 +513,25 @@ class _Proposals:
         if owner is not None:
             return (id, owner.conversation)
         return (id, conversation if self.proposed(id) else None)
+
+
+def _owned(
+    proposals: Sequence[_Proposal],
+    one_conversation: bool | None,
+    span_id: str | None,
+    conversation: str,
+) -> _Proposal | None:
+    """`_Proposals.owner` among `proposals`, in log order; `one_conversation` says whether they are of one conversation, None to find out."""
+    if one_conversation is None:
+        one_conversation = len({proposal.conversation for proposal in proposals}) == 1
+    if one_conversation:
+        return proposals[-1]
+    found = next(
+        (p for p in reversed(proposals) if p.conversation == conversation), None
+    )
+    if found is not None:
+        return found
+    return next((p for p in reversed(proposals) if p.event.span_id == span_id), None)
 
 
 @dataclass
@@ -542,8 +613,11 @@ class _Driver:
         # (stage, step id) -> the sentinel span of the step, for generate steps
         self.step_spans: dict[tuple[SentinelStage, str], str] = {}
         # (stage, call id) -> the sentinel spans of native tool steps with that
-        # id, in log order: a model can reuse a call id
+        # id that name no execution, in log order: a model can reuse a call id
         self.tool_spans: dict[tuple[SentinelStage, str], list[str]] = {}
+        # (stage, execution id) -> the sentinel spans of native tool steps
+        # that name the execution they judged (`SentinelEvent.execution_id`)
+        self.execution_spans: dict[tuple[SentinelStage, str], list[str]] = {}
         # (call id, sentinel span) of each bridge tool check (BRIDGE_CHECK_SPAN)
         self.bridge_spans: list[tuple[str, str]] = []
         self.span_events: dict[str, list[SentinelEvent]] = {}
@@ -593,6 +667,11 @@ class _Driver:
         # approvals a ToolEvent can consume, by call id and owning conversation
         # (None before any model call proposed the id)
         approvals: dict[tuple[str, str | None], tuple[int, ApprovalEvent]] = {}
+        # approvals that name the execution they judged, by its id
+        execution_approvals: dict[str, tuple[int, ApprovalEvent]] = {}
+        # the index of the first approval naming each execution, recorded when
+        # the approval completed
+        first_approvals: dict[str, int] = {}
         approval_entries: list[tuple[int, ApprovalEvent, str]] = []
         unplaced_approvals: list[tuple[int, ApprovalEvent]] = []
         consumed_approvals: set[int] = set()
@@ -651,10 +730,14 @@ class _Driver:
                     continue
                 own = self._conversation(event)
                 owner = proposals.owner(event.call.id, event.span_id, own)
-                approvals[proposals.approval_key(event.call.id, owner, own)] = (
-                    index,
-                    event,
-                )
+                if event.execution_id is not None:
+                    execution_approvals[event.execution_id] = (index, event)
+                    first_approvals.setdefault(event.execution_id, index)
+                else:
+                    approvals[proposals.approval_key(event.call.id, owner, own)] = (
+                        index,
+                        event,
+                    )
                 if owner is None and proposals.proposed(event.call.id):
                     unplaced_approvals.append((index, event))
                 else:
@@ -668,7 +751,19 @@ class _Driver:
                 if self._in_sentinel_span(event.span_id):
                     continue
                 own = self._conversation(event)
-                owner = proposals.owner(event.id, event.span_id, own)
+                owner = (
+                    proposals.execution_owner(
+                        event.id,
+                        event.span_id,
+                        own,
+                        event.call_message_id,
+                        self._first_event_of(
+                            event.execution_id, index, first_approvals
+                        ),
+                    )
+                    if event.execution_id is not None and not _bridged(event)
+                    else proposals.owner(event.id, event.span_id, own)
+                )
                 producer: ModelEvent | None = None
                 produced_at = -1
                 assistant: ChatMessageAssistant | None
@@ -689,6 +784,8 @@ class _Driver:
                 recorded_approval = (
                     None
                     if _bridged(event)
+                    else execution_approvals.pop(event.execution_id, None)
+                    if event.execution_id is not None
                     else approvals.pop(
                         proposals.approval_key(event.id, owner, own), None
                     )
@@ -785,6 +882,10 @@ class _Driver:
         if event.stage in ("tool_call", "tool_result"):
             if self.begins[span][1].name == BRIDGE_CHECK_SPAN:
                 self.bridge_spans.append((event.step_id, span))
+            elif event.execution_id is not None:
+                self.execution_spans.setdefault(
+                    (event.stage, event.execution_id), []
+                ).append(span)
             else:
                 self.tool_spans.setdefault(key, []).append(span)
             return
@@ -966,17 +1067,25 @@ class _Driver:
         )
 
     def _take_checks(self, call: _Call) -> None:
-        """Pair a native call with the first of its recorded checks no earlier call took, in log order.
+        """Pair a native call with its recorded checks.
 
-        A call that never ran takes no result check, which is then a later
-        call's under its id: one its approver refused, or one rejected before
-        its step was built (invalid or malformed arguments, an unknown tool),
-        which has a parsing or approval error and no check of the call. A
-        tool that raised such an error itself ran after that check, and keeps
-        its result check.
+        A call whose `ToolEvent` records its `execution_id` takes the checks
+        that name it, wherever they are in the log. Otherwise (a log written
+        before the id) it takes the first of its recorded checks under its
+        call id that no earlier call took, in log order. Then a call that
+        never ran takes no result check, which is then a later call's under
+        its id: one its approver refused, or one rejected before its step was
+        built (invalid or malformed arguments, an unknown tool), which has a
+        parsing or approval error and no check of the call. A tool that
+        raised such an error itself ran after that check, and keeps its
+        result check.
         """
         event = call.event
         if _bridged(event):
+            return
+        if event.execution_id is not None:
+            call.before_span = self._execution_span_of("tool_call", event.execution_id)
+            call.after_span = self._execution_span_of("tool_result", event.execution_id)
             return
         tool_span = call.tool_span
         # live checks the call before its tool span opens, and its result once
@@ -1030,26 +1139,36 @@ class _Driver:
             and approval.modified is not None
             else None
         )
-        checked = before_span is not None or (
-            tool_span is not None
-            # the call was rejected before its step was built: by validation
-            # or a viewer that raised, or with every instance abstaining, by
-            # a tool that raised ToolParsingError or ToolApprovalError itself,
-            # which reads the same
-            and (event.error is None or event.error.type not in ("parsing", "approval"))
-            and proposal.parse_error is None
-            and (
-                call.producer is None
-                or any(tool.name == proposal.function for tool in call.producer.tools)
-            )
-            and (
-                approval is None
-                or approval.decision == "approve"
-                or (
-                    approval.decision == "modify"
-                    and (
-                        approver_modified is None
-                        or approver_modified.function == proposal.function
+        checked = (
+            before_span is not None
+            # a result check paired by execution id is of a call that ran
+            or (after_span is not None and event.execution_id is not None)
+            or (
+                tool_span is not None
+                # the call was rejected before its step was built: by
+                # validation or a viewer that raised, or with every instance
+                # abstaining, by a tool that raised ToolParsingError or
+                # ToolApprovalError itself, which reads the same
+                and (
+                    event.error is None
+                    or event.error.type not in ("parsing", "approval")
+                )
+                and proposal.parse_error is None
+                and (
+                    call.producer is None
+                    or any(
+                        tool.name == proposal.function for tool in call.producer.tools
+                    )
+                )
+                and (
+                    approval is None
+                    or approval.decision == "approve"
+                    or (
+                        approval.decision == "modify"
+                        and (
+                            approver_modified is None
+                            or approver_modified.function == proposal.function
+                        )
                     )
                 )
             )
@@ -1183,6 +1302,29 @@ class _Driver:
                 return spans.pop(at)
         return None
 
+    def _first_event_of(
+        self, execution_id: str, index: int, first_approvals: dict[str, int]
+    ) -> int:
+        """The index of the first event of a native execution: the start of its `tool_call` check, the completion of its first approval, or its `ToolEvent` (`index`).
+
+        Each is recorded after the generation that proposed the call is. A
+        check's span begins when the check starts, but an approval is recorded
+        when it completes, so the bound excludes a turn proposed while the
+        check awaited, not one proposed while an approval awaited.
+        """
+        first = [index]
+        if execution_id in first_approvals:
+            first.append(first_approvals[execution_id])
+        spans = self.execution_spans.get(("tool_call", execution_id))
+        if spans:
+            first.append(self.begins[spans[0]][0])
+        return min(first)
+
+    def _execution_span_of(self, stage: SentinelStage, execution_id: str) -> str | None:
+        """The first native check at `stage` that names this execution and no call has taken."""
+        spans = self.execution_spans.get((stage, execution_id))
+        return spans.pop(0) if spans else None
+
     def _ended_call(self, span: str) -> bool:
         """Whether the result check failed or decided to terminate."""
         return span in self.failed or any(
@@ -1202,6 +1344,10 @@ class _Driver:
             for span in spans:
                 self._settle_at_end(span)
                 unmatched.append(call_id)
+        for spans in self.execution_spans.values():
+            for span in spans:
+                self._settle_at_end(span)
+                unmatched.append(self.span_events[span][0].step_id)
         if self.skipped:
             logging.getLogger(__name__).warning(
                 "Replay skipped the tool steps of calls an agent bridge checked or "

@@ -545,6 +545,12 @@ class AgentBridge:
     _proposing_call_verified: list[bool] | None = None
     """Per-call filter verification, aligned with the calls being registered."""
 
+    _proposing_model_ids: list[str] | None = None
+    """The model's id for each call being registered, aligned with them; a call handed over under a fresh id has another (`_fresh_call_ids`)."""
+
+    _proposing_execution_ids: list[str] | None = None
+    """The handout id of each call being registered, aligned with them (`ToolEvent.execution_id`)."""
+
     def _handed_calls(
         self, reply_id: str, calls: Sequence[ToolCall]
     ) -> list[_HandedCall]:

@@ -2674,7 +2674,7 @@ def test_a_modify_decision_without_a_modified_call_fails_the_sample(
 ) -> None:
     from inspect_ai._sentinel import _dispatch
 
-    async def modify_without_call(*args: Any) -> Decision:
+    async def modify_without_call(*args: Any, **kwargs: Any) -> Decision:
         return Decision(action="modify")
 
     monkeypatch.setattr(_dispatch, "sentinel_before_tool_call", modify_without_call)

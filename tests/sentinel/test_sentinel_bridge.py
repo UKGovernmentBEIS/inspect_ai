@@ -57,8 +57,17 @@ from inspect_ai.approval import (
     approver,
     auto_approver,
 )
+from inspect_ai.approval._apply import apply_tool_approval, approval
 from inspect_ai.dataset import Sample
-from inspect_ai.event import ModelEvent, SentinelEvent, SpanBeginEvent, SpanEndEvent
+from inspect_ai.event import (
+    ApprovalEvent,
+    ModelEvent,
+    SentinelEvent,
+    SpanBeginEvent,
+    SpanEndEvent,
+    ToolEvent,
+)
+from inspect_ai.log import read_eval_log
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import (
     ChatMessage,
@@ -72,6 +81,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._model import GenerateFilter, GenerateInput
 from inspect_ai.model._model_data.model_data import ModelCost, ModelInfo
 from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
@@ -2151,6 +2161,41 @@ async def test_a_result_whose_proposal_was_dropped_is_still_checked(
             )
 
 
+async def test_a_result_whose_proposal_was_dropped_names_its_handout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.agent._bridge import _sentinel
+
+    monkeypatch.setattr(_sentinel, "_MAX_PROPOSALS", 1)
+    other = replace(READ, id="other", arguments={"path": "other"})
+    model = Scripted(calls_output(READ), calls_output(other), calls_output())
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    bridge = in_process_bridge(history)
+
+    with active([reporting_results()]):
+        output = await generate(bridge, model, history)
+        # a later call drops its proposal
+        await generate(bridge, model, history)
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                output.message,
+                ChatMessageTool(content="contents", tool_call_id=READ.id),
+            ],
+        )
+
+    [proposed] = [
+        e for e in sentinel_events() if e.stage == "tool_call" and e.step_id == READ.id
+    ]
+    [checked] = [e for e in sentinel_events() if e.stage == "tool_result"]
+    assert checked.step_id == READ.id
+    assert checked.execution_id is not None
+    assert checked.execution_id == proposed.execution_id
+    assert checked.execution_id == bridge._handouts.handed[READ.id].execution_id
+
+
 @protocol
 def terminate_on_secret() -> Protocol:
     async def after(
@@ -2216,6 +2261,211 @@ async def test_repeated_calls_are_checked_with_their_own_results(
     assert [(s.call.id, s.output) for s in seen if isinstance(s, AfterToolCall)] == [
         (call.id, f"output {index}") for index, call in enumerate(calls)
     ]
+
+
+@monitor
+def reporting_results() -> MonitorGroup:
+    async def before(context: Context, step: BeforeToolCall) -> Observation | None:
+        return Observation.score(0.1, "looked")
+
+    async def after(context: Context, step: AfterToolCall) -> Observation | None:
+        return Observation.score(0.2, f"saw {step.result.text}")
+
+    return MonitorGroup(before, after)
+
+
+@tool
+def read_copy(mock: AsyncMock) -> Tool:
+    async def execute(path: str) -> str:
+        """Read a file from the host.
+
+        Args:
+            path: Path of the file to read.
+        """
+        result: str = await mock(path=path)
+        return result
+
+    return execute
+
+
+@solver
+def repeated_host_call(cached: bool, shared: bool) -> Solver:
+    """A sandbox scaffold the model hands the same host call twice.
+
+    Repeated output proposes it again on the next turn; with the model output
+    cache, the scaffold sends the same request again (a sub-agent given the
+    same prompt) and the cache hit returns the call again. Each call is
+    approved; `shared` serves a second bridged tool with the same description,
+    so each call is also reviewed as that tool.
+    """
+    bridged = generate
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        read = ToolCall(
+            id="host_1", function="mcp__host__read_file", arguments=READ.arguments
+        )
+        model = Scripted(
+            calls_output(read),
+            calls_output(read) if not cached else calls_output(),
+            calls_output(),
+            config=GenerateConfig(cache=True) if cached else None,
+        )
+        bridge = sandbox_bridge(AsyncMock(side_effect=["contents 1", "contents 2"]))
+        if shared:
+            bridge.register_bridged_tools("copy", {"read_copy": read_copy(AsyncMock())})
+        bridge.approval = [ApprovalPolicy(auto_approver(), "*")]
+        history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+        for _ in range(2):
+            output = await bridged(
+                bridge, model, history[:1] if cached else history, declare_read_file()
+            )
+            [handed] = output.message.tool_calls or []
+            result = await call_host_tool(bridge)("host", "read_file", READ.arguments)
+            history += [
+                output.message,
+                ChatMessageTool(
+                    content=str(result),
+                    tool_call_id=handed.id,
+                    function=handed.function,
+                ),
+            ]
+        await bridged(bridge, model, history, declare_read_file())
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("shared", [False, True])
+@pytest.mark.parametrize("cached", [False, True])
+def test_each_handout_of_a_repeated_host_call_names_its_run_and_steps(
+    cached: bool, shared: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path / "cache"))
+    [log] = eval(
+        Task(
+            dataset=[Sample(input=TASK)],
+            solver=repeated_host_call(cached, shared),
+            sentinel=[reporting_results()],
+        ),
+        model="mockllm/model",
+        log_format="json",
+        log_dir=str(tmp_path / "logs"),
+    )
+    assert log.status == "success", log.error
+    [sample] = read_eval_log(log.location).samples or []
+    events = sample.events
+
+    generations = [e for e in events if isinstance(e, ModelEvent)]
+    if cached:
+        assert [e.cache for e in generations[:2]] == ["write", "read"]
+    # both runs are of the call under the model's id, each with its handout's id
+    executions = [e for e in events if isinstance(e, ToolEvent)]
+    assert [e.id for e in executions] == ["host_1", "host_1"]
+    assert [e.metadata["bridge"]["proposal_id"] for e in executions if e.metadata] == [
+        "host_1",
+        "host_1",
+    ]
+    handouts = [e.execution_id for e in executions]
+    assert None not in handouts and handouts[0] != handouts[1]
+
+    # each run's approvals and tool_call steps, one per target, name its handout
+    targets = 2 if shared else 1
+    for index, execution in enumerate(executions):
+        run = events[events.index(generations[index]) : events.index(execution)]
+        approvals = [e for e in run if isinstance(e, ApprovalEvent)]
+        steps = [
+            e for e in run if isinstance(e, SentinelEvent) and e.stage == "tool_call"
+        ]
+        assert (
+            [e.execution_id for e in approvals]
+            == [e.execution_id for e in steps]
+            == [handouts[index]] * targets
+        )
+
+    # a result names its handout while that is the id's only one; once the call
+    # is handed out again, which handout a result answers can't be told
+    results = [
+        (e.explanation, e.execution_id)
+        for e in events
+        if isinstance(e, SentinelEvent) and e.stage == "tool_result"
+    ]
+    unknown = [("saw contents 1", None)] * targets + [
+        ("saw contents 2", None)
+    ] * targets
+    if cached:
+        assert results == unknown
+    else:
+        assert results == [("saw contents 1", handouts[0])] * targets + unknown
+
+
+async def test_a_result_of_a_handout_run_twice_names_the_handout() -> None:
+    read = ToolCall(
+        id="host_1", function="mcp__host__read_file", arguments=READ.arguments
+    )
+    model = Scripted(calls_output(read), calls_output())
+    bridge = sandbox_bridge(AsyncMock(return_value="contents"))
+    bridge.register_bridged_tools(
+        "copy", {"read_copy": read_copy(AsyncMock(return_value="contents"))}
+    )
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    with active([reporting_results()]):
+        output = await generate(bridge, model, history, declare_read_file())
+        [handed] = output.message.tool_calls or []
+        # the call denotes both tools, and the scaffold runs it on each
+        await call_host_tool(bridge)("host", "read_file", READ.arguments)
+        await call_host_tool(bridge)("copy", "read_copy", READ.arguments)
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                output.message,
+                ChatMessageTool(
+                    content="contents",
+                    tool_call_id=handed.id,
+                    function=handed.function,
+                ),
+            ],
+            declare_read_file(),
+        )
+
+    # the second run takes a fresh event id, and both name the handout
+    runs = [e for e in transcript().events if isinstance(e, ToolEvent)]
+    assert runs[0].id == "host_1" and runs[1].id not in ("host_1", "")
+    [handout] = {e.execution_id for e in runs}
+    assert handout is not None
+    # the report's checks, one per tool, are of the handout, not of a run
+    results = [e for e in sentinel_events() if e.stage == "tool_result"]
+    assert [e.execution_id for e in results] == [handout, handout]
+
+
+@pytest.mark.parametrize("runs", [1, 2])
+async def test_a_host_run_matching_grants_of_two_handouts_names_neither(
+    runs: int,
+) -> None:
+    read = ToolCall(
+        id="host_1", function="mcp__host__read_file", arguments=READ.arguments
+    )
+    model = Scripted(calls_output(read), calls_output(read))
+    bridge = sandbox_bridge(AsyncMock(return_value="contents"))
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    with active([reporting_results()]):
+        # the scaffold loses the first response and sends its request again,
+        # then runs the call it received; with two runs, it runs both
+        # handouts, and the first run takes the older grant
+        await generate(bridge, model, history, declare_read_file())
+        await generate(bridge, model, history, declare_read_file())
+        for _ in range(runs):
+            await call_host_tool(bridge)("host", "read_file", READ.arguments)
+
+    handouts = [e.execution_id for e in sentinel_events() if e.stage == "tool_call"]
+    assert None not in handouts and len(set(handouts)) == 2
+    # which handout each run was for can't be told, so none is named
+    executions = [e for e in transcript().events if isinstance(e, ToolEvent)]
+    assert [e.id for e in executions][:1] == ["host_1"]
+    assert [e.execution_id for e in executions] == [None] * runs
 
 
 async def google_round_trips(
@@ -5208,6 +5458,19 @@ async def test_a_result_under_an_id_never_handed_out_is_checked_under_each_id() 
         (READ.id, "same", model.inputs[0]),
         ("scaffold_3", "same", None),
     ]
+    # a result under an id never handed out names no handout
+    handout = bridge._handouts.handed[READ.id].execution_id
+    assert handout is not None
+    assert [
+        (e.step_id, e.execution_id)
+        for e in sentinel_events()
+        if e.stage == "tool_result"
+    ] == [
+        ("scaffold_1", None),
+        ("scaffold_2", None),
+        (READ.id, handout),
+        ("scaffold_3", None),
+    ]
 
 
 async def gemini_cli_round_trips(
@@ -5962,6 +6225,213 @@ async def test_calls_sharing_an_id_keep_their_own_result_checks(
         for s in seen
         if isinstance(s, AfterToolCall)
     ) == [("notes.txt", "a"), ("other", "b")]
+
+
+async def test_steps_of_calls_sharing_an_id_name_their_handouts() -> None:
+    one = replace(READ, id="one")
+    two = replace(READ, id="one", arguments={"path": "other"})
+    model = Scripted(calls_output(one, two), calls_output())
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    bridge = in_process_bridge(history)
+    bridge.approval = [ApprovalPolicy(auto_approver(), "*")]
+
+    with active([reporting_results()]):
+        output = await generate(bridge, model, history)
+        calls = output.message.tool_calls or []
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                output.message,
+                *[
+                    ChatMessageTool(content=content, tool_call_id=call.id)
+                    for content, call in zip("ab", calls)
+                ],
+            ],
+        )
+
+    # both are handed over under the model's id, each as a handout of its own
+    assert [call.id for call in calls] == ["one", "one"]
+    approvals = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
+    handouts = [e.execution_id for e in approvals]
+    assert [e.call.arguments["path"] for e in approvals] == ["notes.txt", "other"]
+    assert None not in handouts and handouts[0] != handouts[1]
+    steps = [e for e in sentinel_events() if e.stage in ("tool_call", "tool_result")]
+    assert {e.step_id for e in steps} == {"one"}
+    assert [e.execution_id for e in steps if e.stage == "tool_call"] == handouts
+    # which handout a result under the shared id answers can't be told
+    assert sorted(
+        (e.explanation or "", e.execution_id) for e in steps if e.stage == "tool_result"
+    ) == [("saw a", None), ("saw b", None)]
+
+
+@monitor
+def approving_its_own_calls() -> MonitorGroup:
+    async def before(context: Context, step: BeforeToolCall) -> Observation | None:
+        await apply_tool_approval("", replace(LOOKUP, id="lookup_before"), None, [])
+        return Observation.score(0.1, "looked")
+
+    async def after(context: Context, step: AfterToolCall) -> Observation | None:
+        await apply_tool_approval("", replace(LOOKUP, id="lookup_after"), None, [])
+        return Observation.score(0.2, "looked at the result")
+
+    return MonitorGroup(before, after)
+
+
+LOOKUP = ToolCall(id="lookup", function="lookup", arguments={})
+
+
+async def test_a_monitors_own_approvals_name_no_execution() -> None:
+    one = replace(READ, id="one")
+    two = replace(READ, id="one", arguments={"path": "other"})
+    model = Scripted(calls_output(one, two), calls_output())
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    bridge = in_process_bridge(history)
+
+    with (
+        approval([ApprovalPolicy(auto_approver(), "*")]),
+        active([approving_its_own_calls()]),
+    ):
+        output = await generate(bridge, model, history)
+        calls = output.message.tool_calls or []
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                output.message,
+                *[
+                    ChatMessageTool(content=content, tool_call_id=call.id)
+                    for content, call in zip("ab", calls)
+                ],
+            ],
+        )
+
+    approvals = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
+    handouts = [e.execution_id for e in approvals if e.call.id == "one"]
+    assert len(handouts) == 2 and None not in handouts
+    # the monitor's approvals are of calls no execution ran
+    assert (
+        sorted((e.call.id, e.execution_id) for e in approvals if e.call.id != "one")
+        == [("lookup_after", None)] * 2 + [("lookup_before", None)] * 2
+    )
+    steps = [e for e in sentinel_events() if e.stage in ("tool_call", "tool_result")]
+    assert [(e.stage, e.execution_id) for e in steps if e.stage == "tool_call"] == [
+        ("tool_call", handout) for handout in handouts
+    ]
+
+
+@tool
+def lookup() -> Tool:
+    async def execute() -> str:
+        """Look up the policy."""
+        return "policy"
+
+    return execute
+
+
+async def run_own_call(id: str) -> None:
+    # a monitor's or approver's own model can return an id the agent's did
+    input: list[ChatMessage] = [ChatMessageUser(content="Check the policy.")]
+    own = Scripted(calls_output(replace(LOOKUP, id=id)))
+    output = await own.model.generate(input)
+    await execute_tools([*input, output.message], [lookup()])
+
+
+@monitor
+def running_its_own_calls() -> MonitorGroup:
+    async def before(context: Context, step: BeforeToolCall) -> Observation | None:
+        await run_own_call(step.call.id)
+        return Observation.score(0.1, "looked")
+
+    async def after(context: Context, step: AfterToolCall) -> Observation | None:
+        await run_own_call(step.call.id)
+        return Observation.score(0.2, f"saw {step.result.text}")
+
+    return MonitorGroup(before, after)
+
+
+@approver(name="bridge_running_its_own_call")
+def running_its_own_call() -> Approver:
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        await run_own_call(call.id)
+        return Approval(decision="approve")
+
+    return approve
+
+
+def assert_own_calls_name_their_own_executions(lookups: int) -> None:
+    events = transcript().events
+    approvals = [e for e in events if isinstance(e, ApprovalEvent)]
+    handouts = [e.execution_id for e in approvals if e.call.function == "read_file"]
+    assert len(handouts) == 2 and None not in handouts
+    assert handouts[0] != handouts[1]
+    # a monitor's or approver's own calls under the agent's id are its own
+    # executions, and never name the agent's handouts
+    own_runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert [e.id for e in own_runs] == ["same"] * lookups
+    own = [e for e in approvals if e.call.function == "lookup"]
+    assert [(e.call.id, e.execution_id) for e in own] == [
+        ("same", run.execution_id) for run in own_runs
+    ]
+    assert not {e.execution_id for e in own} & set(handouts)
+    steps = [e for e in sentinel_events() if e.stage in ("tool_call", "tool_result")]
+    # the result follows the second handout of the id, so names neither
+    assert [(e.stage, e.execution_id) for e in steps] == [
+        ("tool_call", handouts[0]),
+        ("tool_call", handouts[1]),
+        ("tool_result", None),
+    ]
+
+
+async def run_calls_sharing_an_id(bridge: AgentBridge) -> None:
+    """Generate the call `same` twice, and report the second's result."""
+    call = replace(READ, id="same")
+    model = Scripted(calls_output(call), calls_output(call), calls_output())
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    await generate(bridge, model, history)
+    second = await generate(bridge, model, history)
+    [handed] = second.message.tool_calls or []
+    assert handed.id == "same"
+    await generate(
+        bridge,
+        model,
+        [*history, second.message, ChatMessageTool(content="b", tool_call_id="same")],
+    )
+
+
+async def test_a_monitors_own_calls_sharing_the_agents_id_name_their_own_executions() -> (
+    None
+):
+    bridge = in_process_bridge([ChatMessageUser(content=TASK)])
+    with (
+        approval([ApprovalPolicy(auto_approver(), "*")]),
+        active([running_its_own_calls()]),
+    ):
+        await run_calls_sharing_an_id(bridge)
+
+    # its own calls at both proposals, and at the second's result
+    assert_own_calls_name_their_own_executions(3)
+
+
+async def test_an_approvers_own_calls_sharing_the_agents_id_name_their_own_executions() -> (
+    None
+):
+    bridge = in_process_bridge([ChatMessageUser(content=TASK)])
+    bridge.approval = [
+        ApprovalPolicy(running_its_own_call(), "read_file"),
+        ApprovalPolicy(auto_approver(), "*"),
+    ]
+    with active([reporting_results()]):
+        await run_calls_sharing_an_id(bridge)
+
+    assert_own_calls_name_their_own_executions(2)
 
 
 async def test_calls_sharing_an_id_keep_their_own_modifications() -> None:
@@ -12108,6 +12578,45 @@ async def test_a_provider_output_rebuilt_from_its_fields_replays_its_own_calls()
     assert handed.id == "call_reused"
     assert _responses_replayed(model.wire[1], "function_call") == [
         (handed.id, {"path": "new.txt"})
+    ]
+
+
+@pytest.mark.parametrize("fresh", [False, True])
+async def test_a_handed_calls_approvals_and_steps_name_its_handout(fresh: bool) -> None:
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    if fresh:
+        # the model's id already names a call in the conversation
+        earlier = replace(READ, arguments={"path": "old.txt"})
+        history += [
+            ChatMessageAssistant(content="Earlier.", tool_calls=[earlier]),
+            ChatMessageTool(content="old", tool_call_id=READ.id),
+        ]
+    model = Scripted(calls_output(READ), calls_output())
+    bridge = in_process_bridge(history)
+    bridge.approval = [ApprovalPolicy(auto_approver(), "*")]
+
+    with active([reporting_results()]):
+        output = await generate(bridge, model, history)
+        [handed] = output.message.tool_calls or []
+        await generate(
+            bridge,
+            model,
+            [
+                *history,
+                output.message,
+                ChatMessageTool(content="contents", tool_call_id=handed.id),
+            ],
+        )
+
+    assert (handed.id != READ.id) == fresh
+    handout = bridge._handouts.handed[handed.id].execution_id
+    assert handout is not None
+    approvals = [e for e in transcript().events if isinstance(e, ApprovalEvent)]
+    assert [(e.call.id, e.execution_id) for e in approvals] == [(handed.id, handout)]
+    steps = [e for e in sentinel_events() if e.stage in ("tool_call", "tool_result")]
+    assert [(e.stage, e.step_id, e.execution_id) for e in steps] == [
+        ("tool_call", handed.id, handout),
+        ("tool_result", handed.id, handout),
     ]
 
 

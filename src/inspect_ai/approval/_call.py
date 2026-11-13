@@ -20,6 +20,8 @@ async def call_approver(
     call: ToolCall,
     view: ToolCallView,
     history: list[ChatMessage],
+    *,
+    execution_id: str | None = None,
 ) -> Approval:
     # the event records the call as presented, which the approver may change
     presented, presented_view = deepcopy(call), deepcopy(view)
@@ -39,7 +41,12 @@ async def call_approver(
 
     # record
     record_approval(
-        registry_log_name(approver), message, presented, presented_view, approval
+        registry_log_name(approver),
+        message,
+        presented,
+        presented_view,
+        approval,
+        execution_id=execution_id,
     )
 
     # return approval
@@ -52,6 +59,8 @@ def record_approval(
     call: ToolCall,
     view: ToolCallView | None,
     approval: Approval,
+    *,
+    execution_id: str | None = None,
 ) -> None:
     """Record an approval decision as an `ApprovalEvent`.
 
@@ -64,6 +73,7 @@ def record_approval(
         ApprovalEvent(
             message=message,
             call=deepcopy(call),
+            execution_id=execution_id,
             view=deepcopy(view),
             approver=approver_name,
             decision=approval.decision,

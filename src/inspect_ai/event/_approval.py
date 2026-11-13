@@ -19,7 +19,13 @@ class ApprovalEvent(BaseEvent):
     """Tool call being approved."""
 
     execution_id: str | None = Field(default=None)
-    """When set, the execution this approval belongs to: which run of a bridged call it applies to, for a call that ran more than once.
+    """The execution of the call this approval judged: the `execution_id` of the `ToolEvent` that ran it, if one did.
+
+    Set for a native tool call and for a call an agent bridge reviews before
+    handing it to its scaffold, where it names that handout (a call the
+    scaffold runs itself has no `ToolEvent`). `None` in logs written before
+    this field, and for a call approved outside `execute_tools()` and the
+    agent bridge.
 
     Experimental: not yet a stable API; may change without notice.
     """

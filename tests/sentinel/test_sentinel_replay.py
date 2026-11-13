@@ -41,7 +41,13 @@ from inspect_ai.agent import (
     run,
 )
 from inspect_ai.agent._bridge.types import AgentBridge
-from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
+from inspect_ai.approval import (
+    Approval,
+    ApprovalPolicy,
+    Approver,
+    approver,
+    auto_approver,
+)
 from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.approval._human import acp as acp_module
 from inspect_ai.approval._human import approver as approver_module
@@ -309,8 +315,9 @@ def assert_logged_replay_equals_live(
     seen: dict[str, Step],
     differences: Sequence[str] = (),
     inferred: str | None = None,
+    old_log_differs: bool = False,
 ) -> list["ReplayStep"]:
-    """Rebuild the steps of a log that `r7_probe(seen, copies=True)` watched, and compare; then compare those with the steps replayed with the log's origins removed and the turns inferred (`inferred` as for `assert_replay_equals_live`)."""
+    """Rebuild the steps of a log that `r7_probe(seen, copies=True)` watched, and compare; then compare those with the steps replayed with the log's origins removed and the turns inferred (`inferred` as for `assert_replay_equals_live`), and, unless `old_log_differs`, with those replayed from the log without its execution ids."""
     assert log.samples
     live = live_steps(log.samples[0], seen)
     replay = replayed(log)
@@ -322,7 +329,27 @@ def assert_logged_replay_equals_live(
     for key, step in live.items():
         assert_step_equals_live(key, rebuilt[key], step, differences)
     assert_inferred(log, replay, inferred)
+    if not old_log_differs:
+        old = replay_events(log, without_execution_ids(logged_sample(log).events))
+        assert replay_record(old) == replay_record(replay)
     return replay
+
+
+def without_execution_ids(events: Sequence[Event]) -> list[Event]:
+    """The events as a log written before `execution_id` holds them."""
+    return [
+        event.model_copy(update={"execution_id": None})
+        if isinstance(event, ToolEvent | ApprovalEvent | SentinelEvent)
+        else event
+        for event in events
+    ]
+
+
+def replay_record(replay: list["ReplayStep"]) -> list[Any]:
+    return [
+        (s.stage, s.id, s.segment, dict(s.recorded_answers), comparable(s.step))
+        for s in replay
+    ]
 
 
 def assert_step_equals_live(
@@ -9814,3 +9841,261 @@ def test_a_result_reviewer_s_same_id_call_leaves_the_reviewed_call_its_result_ch
     assert dict(result.recorded_answers) == {
         "human": HumanAnswer(decision="approve", reason="reviewed the tool error")
     }
+
+
+# Ransom's round-8 B3 on #5765: a generation in the call's conversation
+# proposes its id again while the call's check awaits
+_SAME_ID_TURN: dict[str, anyio.Event] = {}
+
+
+@tool
+def read_path() -> Tool:
+    async def execute(path: str) -> str:
+        """Read a file.
+
+        Args:
+            path: The path.
+        """
+        return f"contents of {path}"
+
+    return execute
+
+
+@protocol
+def r7_modifies_once_a_same_id_turn_completes() -> Protocol:
+    async def check(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        _SAME_ID_TURN["started"].set()
+        await _SAME_ID_TURN["generated"].wait()
+        return Decision(
+            action="modify",
+            modified=replace(step.call, arguments={"path": "safe.txt"}),
+            explanation="safer",
+        )
+
+    return check
+
+
+@solver
+def a_same_id_turn_completes_during_a_call_check(again: str | None) -> Solver:
+    """Run a call while another turn of its conversation proposes its id: from `again` as a new user message, or from the same input (a cache hit)."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        started, generated = anyio.Event(), anyio.Event()
+        _SAME_ID_TURN.update(started=started, generated=generated)
+        model = get_model()
+        tools = [read_path()]
+        messages: list[ChatMessage] = [ChatMessageUser(content="Read the file")]
+        first = await model.generate(messages, tools=tools)
+
+        async def run_call() -> None:
+            await execute_tools([*messages, first.message], tools)
+
+        async def generate_again() -> None:
+            await started.wait()
+            await model.generate(
+                [*messages, ChatMessageUser(content=again)] if again else messages,
+                tools=tools,
+            )
+            generated.set()
+
+        await tg_collect([run_call, generate_again])
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("replies", ["same", "distinct"])
+@pytest.mark.parametrize("approved", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_call_check_pairs_with_its_call_when_a_same_id_turn_completes_during_it(
+    replies: str,
+    approved: bool,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # "same": the second generation returns the first's reply again from the
+    # same input, as a cache hit does (one message id); "distinct": another
+    # turn, from other input, proposes another call under the id
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    reply, again = (
+        ModelOutput.for_tool_call(
+            "mockllm/model",
+            tool_name="read_path",
+            tool_arguments={"path": path},
+            tool_call_id="call_x",
+            content=content,
+        )
+        for path, content in [("bad.txt", "Reading it."), ("other.txt", "Other.")]
+    )
+    if replies == "same":
+        again = reply
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read the file")],
+            solver=a_same_id_turn_completes_during_a_call_check(
+                "Read it again" if replies == "distinct" else None
+            ),
+            sentinel=[
+                r7_probe(seen, copies=True),
+                r7_modifies_once_a_same_id_turn_completes(),
+            ],
+            approval=[ApprovalPolicy(auto_approver(), "*")] if approved else None,
+        ),
+        model=outputs(reply, again),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    [ran] = [e for e in events if isinstance(e, ToolEvent)]
+    assert ran.arguments == {"path": "safe.txt"}
+    proposals = [e for e in events if isinstance(e, ModelEvent)]
+    assert len(proposals) == 2
+    assert (proposals[0].output.message.id == proposals[1].output.message.id) == (
+        replies == "same"
+    )
+
+    # the check names the call it judged, so it pairs with it, and with the
+    # generation that proposed it: its call, message and input equal live
+    with caplog.at_level(logging.WARNING):
+        replay = assert_logged_replay_equals_live(log, seen, old_log_differs=True)
+    assert "match no tool call" not in caplog.text
+    assert [(stage, arguments) for stage, _, arguments in tool_step_calls(replay)] == [
+        ("tool_call", {"path": "bad.txt"}),
+        ("tool_result", {"path": "safe.txt"}),
+    ]
+    tool_steps = [
+        s.step for s in replay if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    ]
+    assert len(tool_steps) == 2
+    assert {(s.message, s.message_id) for s in tool_steps} == {
+        ("Reading it.", proposals[0].output.message.id)
+    }
+    for step in tool_steps:
+        assert [m.text for m in step.input or []] == ["Read the file"]
+
+    # a log without execution ids pairs a call check only after the latest
+    # proposal of its id, so the check is orphaned as before
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        old = replay_events(log, without_execution_ids(events))
+    assert "match no tool call" in caplog.text
+    assert [(stage, arguments) for stage, _, arguments in tool_step_calls(old)] == [
+        ("tool_call", {"path": "safe.txt"}),
+        ("tool_result", {"path": "safe.txt"}),
+    ]
+
+
+@pytest.mark.parametrize("error", [ToolParsingError, ToolApprovalError])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_call_that_raised_after_running_keeps_its_result_check_without_a_call_monitor(
+    error: type[Exception],
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # #5765's known limit: with no monitor at tool_call, a tool that raised
+    # an oversight error after running reads as a call that never ran
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    Panel("approve", "reviewed the tool error").install(monkeypatch)
+
+    @tool
+    def fails_after_running() -> Tool:
+        async def execute() -> str:
+            """Raise an error after running."""
+            raise error("could not interpret the tool output")
+
+        return execute
+
+    log = eval(
+        Task(
+            dataset=[Sample(input="Run the tool")],
+            solver=[use_tools(fails_after_running()), generate()],
+            review=[
+                ReviewPolicy(checks_with_a_same_id_call(False), "fails_after_running")
+            ],
+            sentinel=[h_ask("tool_result", ["approve"])],
+        ),
+        model=outputs(
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="fails_after_running",
+                tool_arguments={},
+                tool_call_id="tool_call_0_0",
+            ),
+            done(),
+        ),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert [e.function for e in runs] == ["fails_after_running", "addition"]
+
+    # the result check names the reviewed call, so the reviewer's call under
+    # its id, which ended first, can't take it
+    [result] = [step for step in replayed(log) if step.stage == "tool_result"]
+    assert isinstance(result.step, AfterToolCall)
+    assert result.step.call.function == "fails_after_running"
+    assert dict(result.recorded_answers) == {
+        "human": HumanAnswer(decision="approve", reason="reviewed the tool error")
+    }
+
+    # a log without execution ids gives it to the reviewer's call, as before
+    [old] = [
+        step
+        for step in replay_events(log, without_execution_ids(events))
+        if step.stage == "tool_result"
+    ]
+    assert isinstance(old.step, AfterToolCall)
+    assert old.step.call.function == "addition"
+
+
+def test_each_native_run_names_its_approvals_and_steps() -> None:
+    # a model that repeats a call id across turns
+    repeated = [
+        ModelOutput.for_tool_call(
+            "mockllm/model",
+            tool_name="addition",
+            tool_arguments={"x": x, "y": 1},
+            tool_call_id="call_0",
+        )
+        for x in (1, 2)
+    ]
+    seen: dict[str, Step] = {}
+    # not replayed: replay keys a call's steps by its id
+    log = eval(
+        Task(
+            dataset=[Sample(input="What is 1 + 1?", target="2")],
+            solver=[use_tools(addition()), generate()],
+            sentinel=[r7_probe(seen, copies=True)],
+            approval=[ApprovalPolicy(auto_approver(), "*")],
+        ),
+        model=outputs(*repeated, done()),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert [e.id for e in runs] == ["call_0", "call_0"]
+    executions = [e.execution_id for e in runs]
+    assert None not in executions and executions[0] != executions[1]
+    assert [
+        e.execution_id for e in events if isinstance(e, ApprovalEvent)
+    ] == executions
+    for stage in ("tool_call", "tool_result"):
+        assert [
+            e.execution_id
+            for e in events
+            if isinstance(e, SentinelEvent) and e.stage == stage
+        ] == executions
+    assert [
+        e.execution_id
+        for e in events
+        if isinstance(e, SentinelEvent) and e.stage.startswith("model")
+    ] == [None] * 6

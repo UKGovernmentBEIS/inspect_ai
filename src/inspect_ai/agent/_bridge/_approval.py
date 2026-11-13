@@ -113,6 +113,7 @@ async def apply_bridge_tool_approval(
     history: list[ChatMessage],
     tools: Sequence[ToolInfo | Tool] = (),
     producer: Produced | None = None,
+    execution_ids: Sequence[str] | None = None,
 ) -> BridgeApproval:
     """Approve the tool calls in a bridged model response.
 
@@ -162,6 +163,9 @@ async def apply_bridge_tool_approval(
         producer: The generation whose output object `output` is, if known
             (`util._Generations`): its `ModelEvent`, and the agent span it ran
             in, whose conversation the call's steps are in.
+        execution_ids: The id of each call's handout, in order, which its
+            approvals and `tool_call` steps record as their `execution_id`
+            (`_Handouts.hand_over`); `None` records none.
 
     Returns:
         The response for the scaffold, plus the messages to replay to the model when
@@ -203,6 +207,7 @@ async def apply_bridge_tool_approval(
             list[tuple[ToolCall, ToolCallViewer | None, BridgedToolId | None]]
         ] = []
         for index, call in enumerate(tool_calls):
+            execution_id = execution_ids[index] if execution_ids is not None else None
             reviewed_calls = bridge.reviewed_calls(call, tools)
             selected_reviewed = reviewed_calls.calls[0]
             if approval_active:
@@ -210,7 +215,11 @@ async def apply_bridge_tool_approval(
                     reviewed = deepcopy(target)
                     shown = deepcopy(target)
                     approved, approval = await apply_tool_approval(
-                        message, reviewed, None, approval_history
+                        message,
+                        reviewed,
+                        None,
+                        approval_history,
+                        execution_id=execution_id,
                     )
                     error = (
                         approver_result_error(shown, reviewed, approval)
@@ -294,6 +303,7 @@ async def apply_bridge_tool_approval(
                             offered,
                             viewer,
                             producer,
+                            execution_ids[index] if execution_ids is not None else None,
                         )
                     except ToolApprovalError as ex:
                         return BridgeApproval(

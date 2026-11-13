@@ -2,7 +2,7 @@ import fnmatch
 import json
 import re
 from dataclasses import dataclass
-from typing import Any, Callable, Generator, NamedTuple, cast
+from typing import Any, Callable, NamedTuple, cast
 
 from pydantic import BaseModel, Field, model_validator
 from pydantic_core import to_jsonable_python
@@ -187,34 +187,38 @@ def _jsonable(value: Any) -> Any:
     return to_jsonable_python(value)
 
 
-def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
-    # if policies is a str, it is a config file or an approver
-    if isinstance(policies, str):
-        policies = approval_policies_from_config(policies)
+class PolicyApprover:
+    """The approvers of a list of policies, consulted in order for a tool call.
 
-    # compile policy into approvers and matchers
-    policy_matchers = [
-        (tool_call_matcher(policy.tools, policy.arguments), policy.approver)
-        for policy in policies
-    ]
+    Called as an `Approver`. `execution_id` names the execution of the call
+    under review, recorded on each `ApprovalEvent` the approval records
+    (`ApprovalEvent.execution_id`).
+    """
 
-    # generator for policies that match a tool_call
-    def tool_approvers(tool_call: ToolCall) -> Generator[Approver, None, None]:
-        for matches, approver in policy_matchers:
-            if matches(tool_call):
-                yield approver
+    def __init__(self, policies: list[ApprovalPolicy]) -> None:
+        self._matchers = [
+            (tool_call_matcher(policy.tools, policy.arguments), policy.approver)
+            for policy in policies
+        ]
 
-    async def approve(
+    async def __call__(
+        self,
         message: str,
         call: ToolCall,
         view: ToolCallView,
         history: list[ChatMessage],
+        *,
+        execution_id: str | None = None,
     ) -> Approval:
         # process approvers for this tool call (continue loop on "escalate")
         has_approver = False
-        for approver in tool_approvers(call):
+        for matches, approver in self._matchers:
+            if not matches(call):
+                continue
             has_approver = True
-            approval = await call_approver(approver, message, call, view, history)
+            approval = await call_approver(
+                approver, message, call, view, history, execution_id=execution_id
+            )
             if approval.decision != "escalate":
                 return approval
 
@@ -224,10 +228,17 @@ def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
             explanation=f"No {'approval granted' if has_approver else 'approvers registered'} for tool {call.function}",
         )
         # record and return the rejection
-        record_approval("policy", message, call, view, reject)
+        record_approval(
+            "policy", message, call, view, reject, execution_id=execution_id
+        )
         return reject
 
-    return approve
+
+def policy_approver(policies: str | list[ApprovalPolicy]) -> PolicyApprover:
+    # if policies is a str, it is a config file or an approver
+    if isinstance(policies, str):
+        policies = approval_policies_from_config(policies)
+    return PolicyApprover(policies)
 
 
 class ApproverPolicyConfig(BaseModel):

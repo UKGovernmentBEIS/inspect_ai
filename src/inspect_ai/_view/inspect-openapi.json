@@ -12378,6 +12378,17 @@
             "title": "Events",
             "type": "array"
           },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Id"
+          },
           "failed": {
             "anyOf": [
               {

@@ -58,7 +58,17 @@ class SentinelEvent(BaseEvent):
     """The step examined: at the generate stages (`model_input`, `model_output`) the generate's id, the `uuid` of its first `ModelEvent`, shared by both stages and by the generate's retried attempts; at the tool stages the tool call id."""
 
     execution_id: str | None = Field(default=None)
-    """When set, the execution this step belongs to: which run of a bridged call it examined, for a call that ran more than once."""
+    """At the tool stages, the execution of the call this step judged: the `execution_id` of the `ToolEvent` that ran it, if one did.
+
+    Set for a native tool call. In an agent bridge, a `tool_call` step names the
+    handout it reviewed, and a `tool_result` step the handout whose result the
+    scaffold reported (a host tool's result too), or `None` when the bridge
+    can't tell which handout that is: a call id handed out more than once or
+    shared by calls of one response, or one the bridge never handed out.
+    `None` at the generate stages, and in logs written before this field.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
 
     conversation: str
     """The agent conversation this step belongs to."""
