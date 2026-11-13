@@ -166,7 +166,7 @@ class ReceivedCall:
         self.held_reply_requested = False
         """Whether a request of the latest attempt went to the sidecar's held-reply path."""
         self.sent_on_model_path = False
-        """Whether the call's request was sent again for the provider since the sidecar last said it waits for it."""
+        """Whether the latest attempt sent the call's request again for the provider, and no try the sidecar sent on has been cut off at the provider since. Sent once more, the sidecar would only wait for it again."""
         self.model_sends = 0
         """How many times the latest attempt sent the call's request again for the sidecar to send on to the provider."""
         self.error_stands = False

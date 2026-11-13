@@ -3,9 +3,10 @@
 The stand-in here keeps a call a person is asked about as one model call under its `x-irid`, as the sidecar does: it answers the call's request with an error while the question is open, and afterwards answers the same request, sent to its held-reply path, with the provider's reply it held.
 """
 
+import asyncio
 import json
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, cast
 
@@ -23,6 +24,7 @@ from test_helpers.stand_in_sidecar import (
 
 from inspect_ai import Task
 from inspect_ai import eval as inspect_eval
+from inspect_ai._control.pause import pause_process, process_paused, resume_process
 from inspect_ai._sentinel._sidecar import _review as review_module
 from inspect_ai._sentinel._sidecar._act import refused_output
 from inspect_ai._sentinel._sidecar._endpoint import QUESTION_ANSWERED
@@ -492,11 +494,14 @@ class Person:
         decision: ApprovalDecision,
         explanation: str | None = None,
         takes: float = 0.0,
+        meanwhile: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         self.decision = decision
         self.explanation = explanation
         self.takes = takes
         """How long they take to answer, in seconds."""
+        self.meanwhile = meanwhile
+        """What happens while they decide, before their answer is given."""
         self.asked: list[tuple[str, ToolCall, ToolCallView, list[str]]] = []
         self.shown: list[list[ChatMessage]] = []
         """The conversation the panel was given with each question."""
@@ -515,6 +520,8 @@ class Person:
             self.asked.append((message, call, view, choices))
             self.shown.append(cast("list[ChatMessage]", history))
             await anyio.sleep(self.takes)
+            if self.meanwhile is not None:
+                await self.meanwhile()
             return Approval(decision=self.decision, explanation=self.explanation)
 
         monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
@@ -1434,7 +1441,68 @@ def test_a_send_cut_short_by_the_sample_ending_counts_as_the_models_time(
     assert sample.working_time >= (ended - held_at) - 0.5
 
 
+def test_a_request_sent_again_waits_for_an_operators_hard_pause(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paused_at: list[float] = []
+
+    async def operator_pauses() -> None:
+        # an operator pauses the process hard while the person decides, and
+        # resumes it half a second later
+        await pause_process(now=True)
+        paused_at.append(time.monotonic())
+        asyncio.get_running_loop().call_later(
+            0.5, lambda: asyncio.ensure_future(resume_process())
+        )
+
+    Person("approve", meanwhile=operator_pauses).install(monkeypatch)
+    stand_in = ReviewingSidecar(
+        pauses=["tool_result"],
+        turns=[Turn(text="Sunny.")],
+        holds=[(0.0, 0.0), (0.0, 0.0)],
+    )
+
+    sample = _sample(_run(stand_in, solver=generate()))
+
+    # the request the sidecar sends on to the provider went out only once
+    # the process was resumed
+    assert sample.output.completion == "Sunny."
+    assert not process_paused()
+    [_, sent_on_at] = stand_in.held_at
+    assert sent_on_at - paused_at[0] >= 0.4
+
+
 # --- a call Inspect gives up on -----------------------------------------------
+
+
+def test_a_call_whose_review_fails_is_closed_at_once_with_its_question_logged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Person("approve").install(monkeypatch)
+    stand_in = ReviewingSidecar(pauses=["tool_call"], turns=[_OSLO])
+    listed = stand_in._pending_questions
+
+    def only_modify(params: dict[str, Any]) -> dict[str, Any]:
+        # a question with no choice Inspect can offer a person
+        questions = listed(params)
+        for question in questions["questions"]:
+            question["choices"] = ["modify"]
+        return questions
+
+    stand_in.methods["pending_questions"] = only_modify
+
+    log = _run(stand_in, solver=generate(), fail_on_error=False)
+
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None
+    # The call is closed at the sidecar when its review fails, not when the
+    # sample ends, so the record of its question is in the sample's log.
+    [first] = stand_in.model_calls
+    assert stand_in.cancelled == [first.headers["x-irid"]]
+    [logged] = _reviews_logged(sample)
+    assert logged["review"]["resolution"] == "cancelled"
+    assert review_module._open_calls == {}
 
 
 def test_a_sample_that_times_out_while_a_person_decides_cancels_the_call(

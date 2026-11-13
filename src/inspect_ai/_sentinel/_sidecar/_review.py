@@ -643,7 +643,9 @@ async def cancel_open_calls(sample_uuid: str) -> None:
 async def _cancel(received: ReceivedCall, request_id: str) -> None:
     # The sidecar is told the call is given up, and is then asked once what
     # became of it, so that the record of a question the cancellation closed
-    # is in the eval's log. Neither holds up the sample for long.
+    # is in the eval's log. A call closed only when its sample ends is too
+    # late for that: the sample's log is written first. Neither holds up the
+    # sample for long.
     sidecar = received.sidecar
     with anyio.CancelScope(shield=True), anyio.move_on_after(CANCEL_TIMEOUT):
         try:

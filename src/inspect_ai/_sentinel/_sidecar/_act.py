@@ -7,7 +7,6 @@ from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 from weakref import WeakKeyDictionary
 
-import anyio
 from pydantic import TypeAdapter
 
 from inspect_ai._util.exception import TerminateSampleError
@@ -81,7 +80,7 @@ async def refused_output(
 ) -> ModelOutput | SentAgain | None:
     """A refusal of the current agent call, as the model output Inspect acts on, or None if the call wasn't refused by a sidecar's decision.
 
-    A rejected turn is the model's turn, whose calls are answered with approval errors, as in process. A turn refused because the sample ended is the model's turn if the sidecar was handed one, else empty. An error Inspect retries, such as a 503, isn't looked up while it is retried: the sidecar is asked with `request_result` only of an error Inspect won't retry. A sidecar that asks a person through the eval is asked once of a retried error too, as the error may stand in for its word that the call waits for a person.
+    A rejected turn is the model's turn, whose calls are answered with approval errors, as in process. A turn refused because the sample ended is the model's turn if the sidecar was handed one, else empty. An error Inspect retries, such as a 503, isn't looked up while it is retried: the sidecar is asked with `request_result` only of an error Inspect won't retry. A sidecar that asks a person through the eval is asked of a retried error too, once for each attempt Inspect retries, as the error may stand in for its word that the call waits for a person. That lookup waits while the sidecar is still judging the attempt, so the retry begins only once its judging has ended.
 
     Where a sentinel in the sidecar asked a person about the call, the call's error is the sidecar's word that the call waits. The person is shown the question, and the call's request is then sent again as the sidecar says: to get the provider's reply the sidecar holds, or for the sidecar to send on to the provider. What the provider's `generate` returns for it is returned in the refusal's place.
 
@@ -137,8 +136,14 @@ async def refused_output(
         after = await result_after_review(
             received, send_again, retried, response_headers
         )
-    except anyio.get_cancelled_exc_class():
-        # Inspect gives up on a call cancelled while a person decides
+    except BaseException:
+        # Inspect gives up on the call: it was cancelled while a person
+        # decided, or the review ended in an error of Inspect's own, such as
+        # a limit or a sidecar that takes no answer Inspect can give. The
+        # sidecar is told now, so it holds no question nobody will answer,
+        # and the record of that question is in the sample's log: a call
+        # left open is closed only when the sample ends, after its log is
+        # written.
         from ._review import cancel_open_call
 
         await cancel_open_call(received)

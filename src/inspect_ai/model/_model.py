@@ -1929,12 +1929,15 @@ class Model:
             async def send_again() -> (
                 ModelOutput | tuple[ModelOutput | Exception, ModelCall]
             ):
-                # Called only by `refused_output`, for an agent call that a
-                # sentinel sidecar paused while a person decided, once or
-                # more. What the earlier send streamed is dropped, and so is
-                # an earlier send's error.
+                # Called only through `refused_output`, for an agent call
+                # that a sentinel sidecar paused while a person decided, once
+                # or more. What the earlier send streamed is dropped, and so
+                # is an earlier send's error.
                 nonlocal sent_again_error
                 sent_again_error = None
+                # an operator's hard pause holds this send too, as it holds
+                # an attempt's first: a person may answer while it is closed
+                await wait_generate_dispatch(self, connection)
                 stream_observer.discard_partial_output()
                 try:
                     # the first send's timeouts are spent, so this send has

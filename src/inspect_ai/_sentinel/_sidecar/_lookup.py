@@ -71,7 +71,7 @@ class Looked(NamedTuple):
     failure: Failure | None = None
     """The provider's last failed exchange, with `awaiting_request`, where the sidecar waits for the request because that exchange failed."""
     judging_time: float | None = None
-    """How long the sidecar spent judging the call's latest attempt, in seconds, while the call waited on the proxy."""
+    """How long the sidecar spent judging the call's latest attempt, in seconds, while the call waited on the proxy. For a call a person was asked about, it is added up over every try of the call."""
     judging_usage: list[JudgingUsage] | None = None
     """What the provider billed for the models the sidecar's sentinel called while judging every attempt at the call."""
 
@@ -292,11 +292,11 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                     and awaited < AWAITED_REPLY_ASKS
                 ):
                     # A call a person was asked about, whose try came back as
-                    # an error while the provider's answer to a try the
-                    # sidecar sent on is still passing: the body of its
-                    # error, which the sidecar tells of only once it is
-                    # whole. It is asked again shortly, a bounded number of
-                    # times.
+                    # an error while a try the sidecar sent on is still with
+                    # the provider, or the provider's answer to it is still
+                    # passing: the body of its error, which the sidecar tells
+                    # of only once it is whole. It is asked again shortly, a
+                    # bounded number of times.
                     awaited += 1
                     await anyio.sleep(UNHELD_PAUSE)
                     continue
