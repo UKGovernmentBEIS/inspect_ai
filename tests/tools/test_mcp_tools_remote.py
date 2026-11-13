@@ -1,4 +1,7 @@
 import json
+import os
+import subprocess
+import sys
 import zipfile
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -11,6 +14,7 @@ import pytest
 from pydantic_core import to_jsonable_python
 from test_helpers.utils import (
     skip_if_no_anthropic,
+    skip_if_no_anthropic_package,
     skip_if_no_google,
     skip_if_no_openai,
 )
@@ -620,6 +624,37 @@ def test_remote_mcp_credentials_not_logged_at_debug_level(
             with zipfile.ZipFile(file) as z:
                 for member in z.namelist():
                     assert_no_credentials(z.read(member))
+
+
+@skip_if_no_anthropic_package
+def test_bridge_mcp_credentials_not_logged_at_debug_level(tmp_path: Path) -> None:
+    """The bridge installs the Anthropic SDK redactor itself.
+
+    Runs in a fresh process: an `AnthropicAPI` constructed by an earlier test
+    would otherwise have installed it already. Covers `with_raw_response` and
+    `with_streaming_response` on the stable and beta endpoints.
+    """
+    tests_dir = Path(__file__).parent
+    paths = [str(tests_dir.parent), str(tests_dir), os.environ.get("PYTHONPATH")]
+    env = os.environ | {"PYTHONPATH": os.pathsep.join(p for p in paths if p)}
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(tests_dir / "mcp_bridge_debug_log_check.py"),
+            str(tmp_path),
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    assert result.returncode == 0, result.stderr[-2000:]
+    counts = dict(
+        item.split("=") for item in result.stdout.strip().splitlines()[-1].split()
+    )
+    # the SDK records were captured (one per request), without the token
+    assert int(counts["request_options"]) >= 4
+    assert counts["token_hits"] == "0"
 
 
 AUTHORIZATION_NAMES = [
