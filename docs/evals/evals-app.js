@@ -154,7 +154,7 @@ function detailPage(eval_) {
   const pyText     = getPythonSnippet(eval_);
 
   const optionsText = [
-    `inspect eval ${eval_.code} --model anthropic/claude-opus-4-6`,
+    `inspect eval ${eval_.code} --model anthropic/claude-opus-5-5`,
     `inspect eval ${eval_.code} --model google/gemini-3.1-pro-preview`,
     `inspect eval ${eval_.code} --limit 10`,
     `inspect eval ${eval_.code} --temperature 0.5`,
