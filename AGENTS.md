@@ -94,7 +94,7 @@ Example:
 ```
 
 ## Build/Lint/Test Commands
-- Set up the environment: `uv sync` (installs from `uv.lock`; don't `pip install` the project). See CONTRIBUTING.md for the 7-day dependency cooldown and how to adopt a newer release
+- Set up the environment: `uv sync --locked` (installs exactly `uv.lock`; don't `pip install` the project). After changing dependencies in `pyproject.toml`, run `uv lock` and commit `uv.lock`. Don't override the 7-day dependency cooldown. Every other dependency procedure is in [DEPENDENCIES.md](https://github.com/meridianlabs-ai/actions/blob/main/DEPENDENCIES.md) in meridianlabs-ai/actions
 - Run all tests: `pytest`
 - Run a single test: `pytest tests/path/to/test_file.py::test_function_name -v`
 - Format code: `ruff format`
