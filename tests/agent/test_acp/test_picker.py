@@ -139,11 +139,9 @@ def test_list_picker_targets_hides_unbound_transports(monkeypatch) -> None:
 
 
 def test_list_picker_targets_hides_completed_transports(monkeypatch) -> None:
-    """Post-agent scoring window: agent loop exited, transport finalizing.
+    """Scoring window: the agent loop exited and unbound, the transport is open.
 
-    After ``__aexit__``, the transport sets ``agent_completed=True`` and
-    parks itself for the scoring window. The picker must hide it — new
-    clients can't drive a finished agent.
+    The picker must hide it — new clients can't drive a finished agent.
     """
     samples = [
         _make_sample(

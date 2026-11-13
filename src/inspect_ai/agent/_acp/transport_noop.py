@@ -142,11 +142,6 @@ class NoOpAcpTransport:
         return False
 
     @property
-    def agent_completed(self) -> bool:
-        """No-op session has no lifecycle to complete."""
-        return False
-
-    @property
     def turn_active(self) -> bool:
         """No-op sessions never have an active agent turn."""
         return False

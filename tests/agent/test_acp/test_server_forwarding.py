@@ -749,7 +749,7 @@ async def test_server_stop_lets_in_flight_session_ended_reach_client(
                     return
 
             collector = asyncio.create_task(_collect())
-            # Simulate ``LiveAcpTransport.finalize()`` closing pubsub
+            # Simulate ``LiveAcpTransport.__aexit__`` closing pubsub
             # — the trigger for the forwarder's EOF cleanup branch.
             # NO sleep here: we want to exercise the exact race the
             # production fix targets. Closing pubsub then immediately
