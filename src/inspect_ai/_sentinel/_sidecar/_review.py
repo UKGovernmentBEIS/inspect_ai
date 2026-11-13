@@ -139,19 +139,19 @@ async def result_after_review(
             # Inspect's own outcomes, which no sidecar explains
             raise
         except Exception as ex:
-            note_send(received)
             raised = ex
             if fetching is not None and _failed_try(ex) == fetching:
                 return _provider_failed(received, fetching, AfterReview(raised=ex))
             held = _HeldError(status=status_code_of(ex), sent_again=True)
             continue
         finally:
+            # timed however it ended, cancelled or cut short by a limit too
+            note_send(received)
             received.getting_held_reply = False
             received.held_reply_body = None
             if received.request_id is None:
                 # no request was begun, so the call keeps its id
                 received.request_id = received.reviewed_id
-        note_send(received)
         error = _error(result)
         if fetching is not None:
             marked = (

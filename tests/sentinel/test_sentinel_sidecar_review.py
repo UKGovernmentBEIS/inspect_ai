@@ -129,6 +129,8 @@ class ReviewingSidecar(StandInSidecar):
     sdk_retries: bool = True
     """Whether the provider's SDK may retry a provider's error on a try that is sent on. Without, the error comes back to Inspect, as `x-should-retry: false` makes it."""
     holds: list[tuple[float, float]] = field(default_factory=list)
+    held_at: list[float] = field(default_factory=list)
+    """When each request given a hold came, on the monotonic clock."""
     """For each request of a paused call, in order: how long the proxy holds it before answering, and how much of that the sentinel spent judging it, in seconds."""
 
     def __post_init__(self) -> None:
@@ -214,6 +216,7 @@ class ReviewingSidecar(StandInSidecar):
             hold, judging = self.holds.pop(0)
             self._holds[id(request)] = hold
             self.paused[request.headers["x-irid"]].judging_time += judging
+            self.held_at.append(time.monotonic())
         return response
 
     def _pending(self, request: httpx2.Request) -> httpx2.Response:
@@ -1362,6 +1365,34 @@ def test_a_rejected_call_counts_only_the_models_time_before_the_person(
     assert event.output.time == event.working_time
     assert sample.working_time is not None
     assert sample.working_time < 0.5
+
+
+def test_a_send_cut_short_by_the_sample_ending_counts_as_the_models_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Person("approve").install(monkeypatch)
+    # Every try of the paused call loses its connection before the sidecar's
+    # "pending review" comes back. Once the person approves, the request
+    # that gets the held reply is held until the sample's time runs out.
+    stand_in = ReviewingSidecar(
+        pauses=["tool_call"],
+        turns=[_OSLO, Turn()],
+        pending_lost=10,
+        holds=[(30.0, 0.0)],
+    )
+
+    log = _run(stand_in, time_limit=3)
+
+    assert log.samples is not None
+    [sample] = log.samples
+    ended = time.monotonic()
+    assert sample.limit is not None and sample.limit.type == "time"
+    [got] = stand_in.held_reply_requests
+    [held_at] = stand_in.held_at
+    # the send was with the model until the sample ended, and counts as work
+    assert ended - held_at > 0.5
+    assert sample.working_time is not None
+    assert sample.working_time >= (ended - held_at) - 0.5
 
 
 # --- a call Inspect gives up on -----------------------------------------------
