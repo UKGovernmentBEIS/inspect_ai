@@ -481,7 +481,7 @@ TRIGGER_KINDS: dict[str, type[CheckpointTrigger]] = {
 }
 """Every checkpoint trigger, by the word `--checkpoint` names it with.
 
-The union these belong to is undiscriminated and three of its arms serialize identically — `TurnInterval`, `TokenInterval` and `CostInterval` are each `{"every": N}` — so a document has to carry the kind or pydantic picks the first arm that validates. It picked `turn`, which turned `--checkpoint token:500k` into a checkpoint every five hundred thousand turns.
+Two arms of the union serialize identically — `TurnInterval` and `TokenInterval` are each `{"every": N}` — so a document has to carry the kind or the kind is a guess. Before the union carried a discriminator of its own, pydantic picked the first arm that validated: `turn`, which turned `--checkpoint token:500k` into a checkpoint every five hundred thousand turns.
 
 Spelled with the CLI's words rather than the class names, so that a hand-written document and a `--checkpoint` argument say the same thing.
 """
