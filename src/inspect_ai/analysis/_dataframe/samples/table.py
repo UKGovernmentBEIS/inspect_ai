@@ -218,13 +218,13 @@ def _read_samples_df(
         )
         subset = f"{detail.name}_id" if detail else SAMPLE_ID
         try:
-            df.drop_duplicates(subset=subset, ignore_index=True, inplace=True)
+            df = df.drop_duplicates(subset=subset, ignore_index=True)
         except Exception as e:
             # Check if it's specifically the pyarrow offset overflow error
             if "offset overflow" in str(e):
                 # Convert to large_string and retry
                 df = _convert_to_large_string(df)
-                df.drop_duplicates(subset=subset, ignore_index=True, inplace=True)
+                df = df.drop_duplicates(subset=subset, ignore_index=True)
             else:
                 raise
 
@@ -437,15 +437,15 @@ def _read_samples_df_serial(
 
     # normalize records and produce samples table
     samples_table = records_to_pandas(sample_records)
-    samples_table.drop_duplicates(
-        "sample_id", keep="first", inplace=True, ignore_index=True
+    samples_table = samples_table.drop_duplicates(
+        "sample_id", keep="first", ignore_index=True
     )
 
     # if we have detail records then join them into the samples table
     if detail is not None:
         details_table = records_to_pandas(detail_records)
-        details_table.drop_duplicates(
-            f"{detail.name}_id", keep="first", inplace=True, ignore_index=True
+        details_table = details_table.drop_duplicates(
+            f"{detail.name}_id", keep="first", ignore_index=True
         )
         if len(details_table) > 0:
             samples_table = details_table.merge(
