@@ -2839,9 +2839,13 @@ def _budget(tokens: int) -> dict[str, Any]:
         ("gemini-3.6-flash", "minimal", "minimal", None),
         ("gemini-3.7-flash", "minimal", "low", None),
         ("gemini-3.7-flash", "none", "none", None),
+        # LiteLLM rejects xhigh, which only Hydrogen accepts natively
+        ("gemini/gemini-4-hydrogen", "xhigh", "high", None),
+        ("gemini/gemini-4-hydrogen", "max", "high", None),
         # thinking-only models keep thinking
         ("gemini-3-pro-preview", "none", None, None),
         ("gemini-2.5-pro", "none", None, None),
+        ("gemini/gemini-4-hydrogen", "none", None, None),
         # codenames are the current frontier
         ("gemini/nimbus-preview", "xhigh", "high", None),
         ("gemini/nimbus-preview", "minimal", "low", None),

@@ -303,6 +303,9 @@ async def test_open_executable_pypi_missing_glibc_binary_raises(
     binaries: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _install_state(monkeypatch, "pypi")
+    monkeypatch.setattr(
+        sandbox_module, "_record_lists_binary", lambda name: name == _GLIBC
+    )
 
     with pytest.raises(PrerequisiteError, match="missing from the PyPI package"):
         await _open()
@@ -601,12 +604,22 @@ def test_committed_package_data_globs_match_source_files(
             assert any(regex.fullmatch(f) for f in files), pattern
 
 
-def _write_dist(dist: Path, wheel_version: str, sdist_version: str) -> None:
+def _write_dist(
+    dist: Path,
+    wheel_version: str,
+    sdist_version: str,
+    sdist_files: tuple[str, ...] = (),
+) -> None:
     dist.mkdir()
     _write_wheel(
         dist / f"inspect_ai-{wheel_version}-py3-none-any.whl", _wheel_members()
     )
-    (dist / f"inspect_ai-{sdist_version}.tar.gz").write_bytes(b"sdist")
+    root = f"inspect_ai-{sdist_version}"
+    with tarfile.open(dist / f"{root}.tar.gz", "w:gz") as sdist:
+        for name in ["PKG-INFO", *sdist_files]:
+            info = tarfile.TarInfo(f"{root}/{name}")
+            info.size = len(name)
+            sdist.addfile(info, io.BytesIO(name.encode()))
 
 
 @pytest.fixture
@@ -659,12 +672,37 @@ def test_pypi_verify_dist_rejects_unexpected_files(
 
 
 @pytest.mark.usefixtures("wheel_globs")
+def test_pypi_verify_dist_rejects_binaries_in_sdist(
+    pypi_release: ModuleType, tmp_path: Path
+) -> None:
+    binary = "src/inspect_ai/binaries/inspect-sandbox-tools-amd64-v9"
+    _write_dist(tmp_path / "dist", "0.3.278", "0.3.278", (binary,))
+    with pytest.raises(RuntimeError, match="must not contain the sandbox tools"):
+        pypi_release.verify_dist(tmp_path / "dist", "0.3.278", "9")
+
+
+@pytest.mark.usefixtures("wheel_globs")
 def test_pypi_verify_dist_runs_wheel_gate(
     pypi_release: ModuleType, tmp_path: Path
 ) -> None:
     _write_dist(tmp_path / "dist", "0.3.278", "0.3.278")
     with pytest.raises(RuntimeError, match="inspect-sandbox-tools-amd64-v10"):
         pypi_release.verify_dist(tmp_path / "dist", "0.3.278", "10")
+
+
+def test_pypi_remove_directories_removes_stale_build(
+    pypi_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stale = tmp_path / "build" / "lib" / "inspect_ai" / "binaries" / "old-binary"
+    stale.parent.mkdir(parents=True)
+    stale.write_bytes(b"stale")
+    (tmp_path / "dist").mkdir()
+    monkeypatch.chdir(tmp_path)
+
+    pypi_release.remove_directories()
+
+    assert not (tmp_path / "build").exists()
+    assert not (tmp_path / "dist").exists()
 
 
 def _prepare_repo(tmp_path: Path, digests: dict[str, str]) -> Path:

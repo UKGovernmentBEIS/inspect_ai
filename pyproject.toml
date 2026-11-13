@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 # tagless shallow clone. Without it the project builds as 0.1.devN, below the
 # inspect-ai floor of dev dependencies like inspect-scout, and `uv lock` fails.
 # Release Please updates it with each release.
-fallback_version = "0.3.288"
+fallback_version = "0.3.289"
 git_describe_command = [
   'git',
   'describe',
@@ -22,6 +22,9 @@ git_describe_command = [
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["inspect_ai*"]
+# Not runtime code. The wheel is built from the checkout, not the sdist, so
+# MANIFEST.in does not keep these namespace-package modules out of it.
+exclude = ["inspect_ai._view.ts-mono*", "inspect_ai.tool._tools._computer._resources*"]
 
 # Keep the ts-mono TS source out of the wheel: the git-tracked files are
 # pruned in MANIFEST.in (include-package-data pulls the manifest into the
@@ -29,7 +32,7 @@ include = ["inspect_ai*"]
 # **/*.yml) from picking up untracked files inside ts-mono such as
 # node_modules. The viewer ships prebuilt as _view/dist.
 [tool.setuptools.exclude-package-data]
-inspect_ai = ["_view/ts-mono*"]
+inspect_ai = ["_view/ts-mono*", "tool/_tools/_computer/_resources*"]
 
 [tool.setuptools.package-data]
 inspect_ai = [
@@ -47,7 +50,7 @@ inspect_ai = [
 
 
 [tool.ruff]
-extend-exclude = ["docs", "design"]
+extend-exclude = ["docs", "design", "src/inspect_ai/_view/ts-mono"]
 src = ["src"]
 
 [tool.ruff.lint]
@@ -88,6 +91,7 @@ ignore = [
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "typing.TypedDict".msg = "Use typing_extensions.TypedDict (Pydantic requires it on Python < 3.12)"
 "typing.is_typeddict".msg = "Use typing_extensions.is_typeddict (typing.is_typeddict doesn't recognize typing_extensions.TypedDict subclasses)"
+"acp.helpers".msg = "agent-client-protocol 1.0 removed acp.helpers"
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -121,6 +125,7 @@ exclude = [
   "examples/hooks",
   "examples/http_proxy",
   "src/inspect_sandbox_tools",
+  "src/inspect_ai/_view/ts-mono",
 ]
 warn_unused_ignores = true
 no_implicit_reexport = true
@@ -226,12 +231,12 @@ dev = [
   "azure-ai-inference",
   "azure-identity",
   "brotli",  # tests decode the agent bridge's forwarded Accept-Encoding: br; not a runtime dependency, since it makes httpx advertise br on every request
-  "google-genai>=3.0.0",
+  "google-genai>=3.3.0",
   "griffe>=2",
   "groq>=0.28.0",
   "huggingface_hub>=1.6.0",
   "inspect-scout>=0.5.5",
-  "inspect-sentinel>=0.3.0",
+  "inspect-sentinel>=0.3.1",
   "ipython",
   "jsonpath-ng",
   "latex2sympy2-extended==1.11.0",
@@ -328,19 +333,22 @@ dev = ["inspect_ai[dev]"]
 [tool.uv]
 cache-keys = [{ git = { commit = true } }, { file = "pyproject.toml" }]
 default-groups = ["dev"]
-# 0.11.8 is the first uv that keeps uv.lock stable with a relative exclude-newer.
-required-version = ">=0.11.8"
+# 0.11.8 is the first uv that keeps uv.lock stable with a relative exclude-newer,
+# and 0.13.4 the first that no longer trusts the compromised emSign root
+# (GHSA-hq85-5cpj-mr62).
+required-version = ">=0.13.4"
 # Only resolve releases at least 7 days old (see CONTRIBUTING.md).
 exclude-newer = "7 days"
 
-# 6 hours only for direct dependencies that are a model provider SDK or an Inspect package; see CONTRIBUTING.md.
+# Direct dependencies only: 6 hours for model provider SDKs, no cooldown (false)
+# for Inspect packages; see CONTRIBUTING.md.
 [tool.uv.exclude-newer-package]
 anthropic = "6 hours"
 azure-ai-inference = "6 hours"
 google-genai = "6 hours"
 groq = "6 hours"
-inspect-scout = "6 hours"
-inspect-sentinel = "6 hours"
+inspect-scout = false
+inspect-sentinel = false
 mistralai = "6 hours"
 openai = "6 hours"
 together = "6 hours"

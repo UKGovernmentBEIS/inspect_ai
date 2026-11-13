@@ -25,7 +25,7 @@ from inspect_ai.tool._tool_choice import ToolChoice
 
 @skip_if_no_together
 async def test_reasoning_content_together():
-    await check_reasoning_content("together/openai/gpt-oss-20b")
+    await check_reasoning_content("together/Qwen/Qwen3.5-9B")
 
 
 @skip_if_no_groq
@@ -174,7 +174,7 @@ def check_reasoning_history(
 
     log = eval(
         task,
-        model="together/deepseek-ai/DeepSeek-R1",
+        model="together/deepseek-ai/DeepSeek-V4.1-Flash",
         reasoning_history=reasoning_history,
     )[0]
     assert log.samples

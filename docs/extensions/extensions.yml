@@ -81,9 +81,9 @@
   author: "[Debu Sinha](https://github.com/debu-sinha)"
   categories: ["Analysis"]
 
-- name: "[Inspect falsify](https://github.com/studio-11-co/falsify-inspect)"
+- name: "[Inspect falsify](https://github.com/falsify-dev/falsify-inspect)"
   description: |
-    Pre-register an evaluation's success criteria (metric, threshold, dataset hash, seed) as a tamper-evident PRML manifest before the run, then verify eval logs against the locked claim via installed hooks.
+    Record an evaluation's pass criteria (metric, threshold, dataset hash, seed) in a hashed PRML manifest, then check an eval log's result, model and dataset against them via an Inspect hook or a CI gate command.
   author: "[Cüneyt Öztürk](https://falsify.dev)"
   categories: ["Analysis"]
 
@@ -190,13 +190,6 @@
   author: "[Lizard](https://github.com/lizard-build)"
   categories: ["Sandboxes"]
 
-- name: "[EC2 Sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox)"
-  description: |
-    Python package that provides a EC2 virtual machine sandbox environment for Inspect.
-  author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox)"
-  categories: ["Sandboxes"]
-
-
 - name: "[Proxmox Sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
   description: Use virtual machines, running within a Proxmox instance, as Inspect sandboxes.
   author: "[UK AISI](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox)"
@@ -240,6 +233,12 @@
   author: "[briq](https://github.com/briq-cloud/inspect-briq)"
   categories: ["Sandboxes"]
 
+- name: "[boxd Sandbox](https://github.com/boxd-sh/boxd-inspect)"
+  description: |
+    Runs each sample in its own boxd machine, a full Ubuntu VM. Tasks with a compose.yaml or Dockerfile run unchanged, with Docker inside the machine.
+  author: "[boxd](https://boxd.sh/?ref=inspect_ai)"
+  categories: ["Sandboxes"]
+
 
 - name: "[Inspect Costs Plugin](https://github.com/jasongwartz/inspect_costs_plugin/)"
   description: |
@@ -279,6 +278,12 @@
     returns probabilities, so the pass threshold can be chosen after the run.
   author: "[Nace](https://github.com/nace-ai)"
   categories: ["Tooling"]
+
+- name: "[Inspect Grounding](https://github.com/Chris316-git/inspect-grounding)"
+  description: |
+    Deterministic numeric-grounding scorer — flags numbers in model output that do not appear in the input, tool results or metadata. No judge model or API calls.
+  author: "[Yanheng Li](https://github.com/Chris316-git)"
+  categories: ["Analysis"]
 
 - name: "[anchorset](https://github.com/ogous/anchorset/blob/main/docs/INSPECT.md)"
   description: |

@@ -95,11 +95,14 @@ def gemini_thinking_only(family: str, latest: bool) -> bool:
 
     Pro names newer than those verified (e.g. a future gemini-4-pro) count as
     thinking-only, so disabling thinking warns rather than risking a 400.
+    Gemini 4 Hydrogen accepts thinking_budget=0 but keeps thinking.
     Only the final path segment is checked, so a vertex project id such as
     my-project does not make a model thinking-only.
     """
-    pro = "-pro" in _model_segment(family)
-    return gemini_has_thinking_config(family, latest) and pro
+    name = _model_segment(family)
+    return gemini_has_thinking_config(family, latest) and (
+        "-pro" in name or _is_gemini_4_hydrogen(family)
+    )
 
 
 def gemini_supports_minimal_thinking(family: str) -> bool:
@@ -119,14 +122,32 @@ def gemini_supports_minimal_thinking(family: str) -> bool:
     return low <= version < high
 
 
+def _is_gemini_4_hydrogen(family: str) -> bool:
+    return "gemini-4-hydrogen" in _model_segment(family)
+
+
+def gemini_supports_xhigh_thinking(family: str) -> bool:
+    """Whether the model accepts thinking_level=XHIGH.
+
+    True only for Gemini 4 Hydrogen, the first model documented to accept
+    it. Earlier models reject it with a 400, and unverified names get
+    `high` rather than risk one.
+    https://aistudio.google.com/docs/thinking
+    """
+    return _is_gemini_4_hydrogen(family)
+
+
 def gemini_thinking_level(
     effort: str | None, family: str
-) -> Literal["minimal", "low", "medium", "high"] | None:
+) -> Literal["minimal", "low", "medium", "high", "xhigh"] | None:
     """The Gemini 3+ thinking level for a `reasoning_effort`.
 
-    `xhigh`/`max` become `high`, and `minimal` becomes `low` for models that
-    reject it. None for no effort or `none`.
+    `xhigh`/`max` become `xhigh` for models that accept it and `high`
+    otherwise, and `minimal` becomes `low` for models that reject it. None
+    for no effort or `none`.
     """
+    if effort in ("xhigh", "max") and gemini_supports_xhigh_thinking(family):
+        return "xhigh"
     level = clamp_reasoning_effort_to_minimal_low_medium_high(effort)
     if level == "minimal" and not gemini_supports_minimal_thinking(family):
         return "low"

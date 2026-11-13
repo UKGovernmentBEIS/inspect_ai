@@ -49,7 +49,7 @@ eval(
     model="openai/gpt-6-luna",
     scanner=ScannerConfig(
         scanners=[refusal(), eval_awareness()],
-        model="anthropic/claude-opus-4-7",
+        model="anthropic/claude-opus-5-5",
     ),
 )
 ```
@@ -60,7 +60,7 @@ The same scanners can be specified from the CLI with `--scanner`:
 inspect eval tasks/agentic_search.py \
     --model openai/gpt-6-luna \
     --scanner my_scanners.py \
-    --scan-model anthropic/claude-opus-4-7
+    --scan-model anthropic/claude-opus-5-5
 ```
 
 On the CLI, `--scanner` accepts a YAML/JSON config file, a Python file containing `@scanner` functions (optionally `file.py@func` to pick one), or a registry reference like `pkgname/scanner_name`.

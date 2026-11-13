@@ -375,6 +375,76 @@ def test_hf_chat_template_dict_methods() -> None:
     assert chat == "[user] Lorem ipsum dolor"
 
 
+async def test_hf_chat_template_does_not_double_bos(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A chat template that writes BOS must not get a second BOS at tokenize time.
+
+    Regression test for #6350: the provider renders the chat template with
+    tokenize=False and then tokenizes the rendered string, so the default
+    add_special_tokens=True adds a second BOS for models whose template
+    already writes one (e.g. Gemma, Llama 3).
+    """
+    with _hf_provider_with_fake_deps(monkeypatch) as provider:
+        model = _FakeModel(101)
+        tokenizer = _FakeBosTokenizer("gemma")
+        api = _fake_hf_api_with_tokenizer(
+            provider,
+            "fake-gemma",
+            model,
+            tokenizer,
+            chat_template="{% for message in messages %}{{ message['content'] }}{% endfor %}",
+        )
+        await _generate_drained_together(
+            provider, [(api, GenerateConfig(max_tokens=1), "hi")]
+        )
+
+    assert tokenizer.calls[0].get("add_special_tokens") is False
+    assert tokenizer.tokenized[0][0] == 2
+    assert tokenizer.tokenized[0][1] != 2
+
+
+async def test_hf_explicit_add_special_tokens_wins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An explicit tokenizer_call_args add_special_tokens=True must be honoured."""
+    with _hf_provider_with_fake_deps(monkeypatch) as provider:
+        model = _FakeModel(101)
+        tokenizer = _FakeBosTokenizer("gemma")
+        api = _fake_hf_api_with_tokenizer(
+            provider,
+            "fake-gemma",
+            model,
+            tokenizer,
+            chat_template="{% for message in messages %}{{ message['content'] }}{% endfor %}",
+            tokenizer_call_args={"add_special_tokens": True},
+        )
+        await _generate_drained_together(
+            provider, [(api, GenerateConfig(max_tokens=1), "hi")]
+        )
+
+    assert tokenizer.calls[0].get("add_special_tokens") is True
+    assert tokenizer.tokenized[0][:2] == [2, 2]
+
+
+async def test_hf_no_chat_template_keeps_default_special_tokens(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without a chat template the prompt has no BOS, so tokenization is unchanged."""
+    with _hf_provider_with_fake_deps(monkeypatch) as provider:
+        model = _FakeModel(101)
+        tokenizer = _FakeBosTokenizer("gemma")
+        api = _fake_hf_api_with_tokenizer(
+            provider, "fake-gemma", model, tokenizer, use_chat_template=False
+        )
+        await _generate_drained_together(
+            provider, [(api, GenerateConfig(max_tokens=1), "hi")]
+        )
+
+    assert "add_special_tokens" not in tokenizer.calls[0]
+    assert tokenizer.tokenized[0][0] == 2
+
+
 class _FakeStopStringCriteria:
     def __init__(self, tokenizer: Any, stop_strings: list[str]) -> None:
         self.stop_strings = tuple(stop_strings)
@@ -439,6 +509,69 @@ class _FakeModel:
             logits=None,
             hidden_states=self.hidden_states,
         )
+
+
+class _FakeBosTokenizer:
+    """Mimics a Gemma/Llama 3 tokenizer: the chat template writes the BOS.
+
+    `apply_chat_template` renders a string starting with a BOS token id, and
+    `__call__` prepends a second BOS id unless `add_special_tokens=False`,
+    matching `transformers` behaviour for a rendered template string.
+    """
+
+    chat_template = "fake-gemma-template"
+    eos_token = "<eos>"
+    bos_token_id = 2
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.calls: list[dict[str, Any]] = []
+        self.tokenized: list[list[int]] = []
+
+    def apply_chat_template(self, messages: list[dict[str, Any]], **kwargs: Any) -> str:
+        turns = "".join(
+            f"<start_of_turn>{message['role']}\n{message['content']}<end_of_turn>\n"
+            for message in messages
+        )
+        return f"<bos>{turns}<start_of_turn>model\n"
+
+    def __call__(self, input: list[str], **kwargs: Any) -> dict[str, _FakeTensor]:
+        self.calls.append(dict(kwargs))
+        rows = []
+        for text in input:
+            # the rendered "<bos>" text tokenizes to a leading BOS id
+            ids = [self.bos_token_id] + [100 + i for i in range(len(text.split()))]
+            if kwargs.get("add_special_tokens", True):
+                ids = [self.bos_token_id] + ids
+            rows.append(ids)
+            self.tokenized.append(ids)
+        return {
+            "input_ids": _FakeTensor(rows),
+            "attention_mask": _FakeTensor([[1] * len(row) for row in rows]),
+        }
+
+    def batch_decode(self, sequences: _FakeTensor, **kwargs: Any) -> list[str]:
+        return [f"{self.name}:{row}" for row in sequences.rows]
+
+
+def _fake_hf_api_with_tokenizer(
+    provider: ModuleType,
+    name: str,
+    model: _FakeModel,
+    tokenizer: _FakeBosTokenizer,
+    **api_kwargs: Any,
+) -> Any:
+    setattr(
+        provider,
+        "AutoModelForCausalLM",
+        SimpleNamespace(from_pretrained=lambda *args, **kwargs: model),
+    )
+    setattr(
+        provider,
+        "AutoTokenizer",
+        SimpleNamespace(from_pretrained=lambda *args, **kwargs: tokenizer),
+    )
+    return provider.HuggingFaceAPI(model_name=name, **api_kwargs)
 
 
 def _fake_hf_api(provider: ModuleType, name: str, model: _FakeModel) -> Any:

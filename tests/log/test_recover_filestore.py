@@ -16,10 +16,12 @@ from test_helpers.buffer import simulate_crashed_buffer_db
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+from inspect_ai._util.json import JsonChange
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
+from inspect_ai.event._store import StoreEvent
 from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
 from inspect_ai.log._file import read_eval_log_async, write_eval_log_async
 from inspect_ai.log._log import (
@@ -1157,6 +1159,86 @@ async def test_streaming_recovery_falls_back_on_unavailable_metadata_sidecar(
             )
 
 
+@pytest.mark.parametrize("sidecar", ["ok", "empty", "missing", "hash_mismatch"])
+async def test_streaming_recovery_store_sidecar(
+    monkeypatch: pytest.MonkeyPatch,
+    sidecar: str,
+) -> None:
+    warnings: list[str] = []
+
+    def capture_warning(msg: object, *args: object, **_kwargs: object) -> None:
+        warnings.append(str(msg) % args if args else str(msg))
+
+    monkeypatch.setattr(filestore_module.logger, "warning", capture_warning)
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = Path(temp_dir) / "db"
+            db_dir.mkdir()
+            db = SampleBufferDatabase(location=eval_path, create=True, db_dir=db_dir)
+            filestore = SampleBufferFilestore(eval_path, create=True)
+            sample = Sample(id="sample1", input="input", target="target")
+            started = EvalSampleSummary(
+                id="sample1", epoch=1, input=sample.input, target=sample.target
+            )
+            completed = started.model_copy(
+                update={"completed_at": datetime.now(timezone.utc).isoformat()}
+            )
+            final_store: dict[str, Any] = {} if sidecar == "empty" else {"final": 1}
+
+            db.start_sample(started)
+            db.log_events(
+                [
+                    SampleEvent(
+                        id="sample1",
+                        epoch=1,
+                        event=SampleInitEvent(sample=sample, state={}),
+                    ),
+                    SampleEvent(
+                        id="sample1",
+                        epoch=1,
+                        event=StoreEvent(
+                            changes=[JsonChange(op="add", path="/replayed", value=1)]
+                        ),
+                    ),
+                ]
+            )
+            db.complete_sample(
+                completed, sample_metadata=None, sample_store=final_store
+            )
+            sync_to_filestore(db, filestore)
+
+            store_files = list(Path(filestore._dir).glob("store.*.json"))
+            assert len(store_files) == (0 if sidecar == "empty" else 1)
+            if sidecar == "missing":
+                store_files[0].unlink()
+            elif sidecar == "hash_mismatch":
+                store_files[0].write_bytes(b"{}")
+
+            _write_crashed_eval(eval_path)
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+            await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=os.path.join(temp_dir, "empty_db_dir"),
+            )
+
+            recovered = await read_eval_log_async(output_path)
+            assert recovered.samples is not None
+            store_warned = any(
+                "Unable to read sample store for id=sample1 epoch=1" in warning
+                for warning in warnings
+            )
+            if sidecar in ("ok", "empty"):
+                assert recovered.samples[0].store == final_store
+                assert not store_warned
+            else:
+                # the replayed StoreEvents are the fallback
+                assert recovered.samples[0].store == {"replayed": 1}
+                assert store_warned
+
+
 async def test_streaming_recovery_sample_with_no_events() -> None:
     """Samples with segments but no events still appear in the ZIP and summaries.
 
@@ -1540,13 +1622,7 @@ async def test_streaming_recovery_marks_summary_completed(
 
 
 async def test_streaming_recovery_carries_sample_init_fields() -> None:
-    """Per-sample files/setup propagate from SampleInitEvent.
-
-    Note: sandbox propagation from SampleInitEvent through JSON round-trip
-    is broken by a pre-existing ``Sample.__init__`` issue (dict form of
-    sandbox resolves to None). Recovery still populates ``sandbox`` from
-    the eval-level spec -- see ``test_streaming_recovery_inherits_eval_sandbox``.
-    """
+    """Per-sample sandbox/files/setup propagate from SampleInitEvent."""
     async with AsyncFilesystem():
         with tempfile.TemporaryDirectory() as temp_dir:
             eval_path = os.path.join(temp_dir, "test.eval")
@@ -1557,6 +1633,7 @@ async def test_streaming_recovery_carries_sample_init_fields() -> None:
                 Sample(
                     input="hello",
                     target="hi",
+                    sandbox=("docker", "compose.yaml"),
                     files={"a.txt": "contents"},
                     setup="echo hi",
                 )
@@ -1575,7 +1652,7 @@ async def test_streaming_recovery_carries_sample_init_fields() -> None:
             with open(os.path.join(buffer_dir, ".keep"), "w") as f:
                 pass
 
-            _write_crashed_eval(eval_path)
+            _write_crashed_eval(eval_path, sandbox=SandboxEnvironmentSpec("local"))
             db_dir = os.path.join(temp_dir, "empty_db_dir")
             output_path = os.path.join(temp_dir, "test-recovered.eval")
 
@@ -1591,6 +1668,7 @@ async def test_streaming_recovery_carries_sample_init_fields() -> None:
                 ]
                 raw = json.loads(zf.read(sample_names[0]))
 
+            assert raw["sandbox"] == {"type": "docker", "config": "compose.yaml"}
             assert raw["files"] == ["a.txt"]
             assert raw["setup"] == "echo hi"
 
