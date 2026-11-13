@@ -212,20 +212,39 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
     # a sidecar that puts no question to the eval is read as before it could
     reviews = bool(getattr(sidecar, "review", False)) and not replied
     awaited_pause = AWAITED_REPLY_PAUSE
+    # Whether the sidecar last said the provider still has the request of a
+    # call a person was asked about. From then the call's `timeout` bounds
+    # the waiting: no lookup begins once it has passed, and one under way
+    # when it passes is given up. An answer that comes before then is taken.
+    following = False
+    result: dict[str, Any] = {}
     with suspend_token_limit(), suspend_turn_limit(), suspend_working_limit():
         while True:
+            left = timeout_left(received) if following else None
+            if left is not None and left <= 0:
+                return await _out_of_time(received, result)
             asked = time.monotonic()
-            try:
-                result = await sidecar.eval_call(
-                    "request_result",
-                    {"id": received.request_id, "wait": RESULT_WAIT},
-                )
-            except SidecarCallError as ex:
-                if ex.code == UNAUTHORIZED:
-                    raise SentinelProxyError(
-                        f"The sentinel sidecar at {sidecar.origin} won't take the eval's calls, so it won't say what it decided of them: {ex}"
-                    ) from ex
-                return Looked("unavailable", str(ex))
+            with anyio.move_on_after(left) as within:
+                try:
+                    result = await sidecar.eval_call(
+                        "request_result",
+                        {
+                            "id": received.request_id,
+                            # the sidecar holds an answer only while it
+                            # judges, and a call that is followed is asked
+                            # about without waiting, so that judging which
+                            # has begun is learned of at once
+                            "wait": 0 if following else RESULT_WAIT,
+                        },
+                    )
+                except SidecarCallError as ex:
+                    if ex.code == UNAUTHORIZED:
+                        raise SentinelProxyError(
+                            f"The sentinel sidecar at {sidecar.origin} won't take the eval's calls, so it won't say what it decided of them: {ex}"
+                        ) from ex
+                    return Looked("unavailable", str(ex))
+            if within.cancelled_caught:
+                return await _out_of_time(received, result)
             records = result.get("records")
             if records != "held":
                 from ._review import reviews_unavailable
@@ -301,20 +320,10 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                     # is sent to the provider meanwhile. The call's `timeout`
                     # bounds the wait, as it bounds the call's retries, and
                     # the sample's time limit and its cancellation end it too.
+                    following = True
                     left = timeout_left(received)
                     if left is not None and left <= 0:
-                        # out of time: the sidecar is told the call is given
-                        # up, so it holds nothing for it any longer
-                        from ._review import cancel_open_call
-
-                        await cancel_open_call(received)
-                        return _judging(
-                            Looked(
-                                "unavailable",
-                                "the call's timeout passed while the provider still had its request",
-                            ),
-                            result,
-                        )
+                        return await _out_of_time(received, result)
                     await anyio.sleep(
                         awaited_pause if left is None else min(awaited_pause, left)
                     )
@@ -336,10 +345,30 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                 return _judging(
                     Looked("unavailable", f"the sidecar's state is {state!r}"), result
                 )
+            # the provider has answered, and its reply is judged with no
+            # deadline, as any reply is
+            following = False
             # a sidecar that answered at once didn't hold the answer, and
             # isn't asked again at once
             if time.monotonic() - asked < UNHELD_PAUSE:
                 await anyio.sleep(UNHELD_PAUSE)
+
+
+async def _out_of_time(received: ReceivedCall, result: dict[str, Any]) -> Looked:
+    # The call's `timeout` passed while the provider still had the request
+    # of a call a person was asked about. The sidecar is told the call is
+    # given up, so it holds nothing for it any longer. `result` is the last
+    # answer the sidecar gave about the call.
+    from ._review import cancel_open_call
+
+    await cancel_open_call(received)
+    return _judging(
+        Looked(
+            "unavailable",
+            "the call's timeout passed while the provider still had its request",
+        ),
+        result,
+    )
 
 
 def _ended(received: ReceivedCall) -> None:

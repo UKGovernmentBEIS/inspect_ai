@@ -131,6 +131,12 @@ class ReviewingSidecar(StandInSidecar):
     """Whether the try that is sent on is answered with the sidecar's own "pending review" when the provider fails it, and not with the provider's error: what Inspect holds when a try of its was answered while another was with the provider."""
     provider_takes_asks: int = 0
     """How many times `request_result` still says the sidecar awaits the reply of the try it sent on to the provider, before the reply has come and been judged. That try's own connection is held far longer, so Inspect's attempt at it times out first."""
+    lookups_take: list[float] = field(default_factory=list)
+    """How long the sidecar takes to answer each `request_result` that finds the call awaiting the provider's reply, in order, in seconds. Those past the list's end are answered at once."""
+    awaited_lookups: int = 0
+    """How many `request_result` calls found the call awaiting the provider's reply."""
+    reply_judged_asks: int = 0
+    """How many times, once the provider's reply has come, `request_result` says the sidecar is judging it, before it is decided."""
     closed_before_asked: bool = False
     """Whether the question about a call paused at its reply times out before Inspect first asks about the call, and the sentinel's cautious answer still lets the turn go on."""
     sdk_retries: bool = True
@@ -174,6 +180,10 @@ class ReviewingSidecar(StandInSidecar):
                 and call["params"].get("id") in self.paused
             ):
                 self.methods["request_result"] = self._request_result
+                if self.paused[call["params"]["id"]].state == "awaiting_reply":
+                    self.awaited_lookups += 1
+                    if self.lookups_take:
+                        self._holds[id(request)] = self.lookups_take.pop(0)
             else:
                 self.methods.pop("request_result", None)
         return super()._handle(request)
@@ -379,9 +389,17 @@ class ReviewingSidecar(StandInSidecar):
         if paused.failure is not None and self.error_passing_asks > 0:
             self.error_passing_asks -= 1
             return {"id": params["id"], "records": "held", "state": "awaiting_reply"}
+        if paused.state == "judging" and paused.turn is not None:
+            self.reply_judged_asks -= 1
+            if self.reply_judged_asks <= 0:
+                paused.state = "decided"
+                paused.judgment = {"outcome": "proceed", "steps": []}
         if paused.state == "awaiting_reply":
             self.provider_takes_asks -= 1
-            if self.provider_takes_asks <= 0:
+            if self.provider_takes_asks <= 0 and self.reply_judged_asks > 0:
+                # the provider's reply has come, and is being judged
+                paused.state = "judging"
+            elif self.provider_takes_asks <= 0:
                 # the provider's reply has come, and was judged
                 paused.state = "decided"
                 paused.judgment = {"outcome": "proceed", "steps": []}
@@ -1563,6 +1581,95 @@ def test_a_call_whose_timeout_passes_while_the_provider_works_is_closed_at_the_s
     assert 1.9 <= time.monotonic() - began < 4.5
     [first, _] = stand_in.model_calls
     assert stand_in.cancelled == [first.headers["x-irid"]]
+
+
+def test_a_lookup_under_way_when_the_calls_timeout_passes_is_given_up(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Person("approve").install(monkeypatch)
+    monkeypatch.setattr(lookup_module, "AWAITED_REPLY_PAUSE", 0.01)
+    # The provider never answers. The sidecar says so at once the first time
+    # it is asked, and takes ten seconds to say it again.
+    stand_in = ReviewingSidecar(
+        pauses=["tool_result"],
+        turns=[Turn(text="Sunny.")],
+        provider_takes_asks=1_000_000,
+        lookups_take=[0.0, 10.0],
+    )
+
+    began = time.monotonic()
+    log = _run(
+        stand_in,
+        solver=generate(),
+        fail_on_error=False,
+        timeout=2,
+        attempt_timeout=1,
+    )
+
+    # the call fails when its timeout passes, and not when the sidecar would
+    # have answered, and the sidecar is told it is given up
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None
+    assert 1.9 <= time.monotonic() - began < 4.5
+    assert stand_in.awaited_lookups == 2
+    [first, _] = stand_in.model_calls
+    assert stand_in.cancelled == [first.headers["x-irid"]]
+
+
+def test_the_sidecar_isnt_asked_again_once_the_calls_timeout_has_passed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Person("approve").install(monkeypatch)
+    # Inspect next asks five seconds after the first time, or when the
+    # call's timeout passes if that is sooner. The provider's reply comes
+    # meanwhile, which only asking again would tell.
+    monkeypatch.setattr(lookup_module, "AWAITED_REPLY_PAUSE", 5.0)
+    stand_in = ReviewingSidecar(
+        pauses=["tool_result"],
+        turns=[Turn(text="Sunny.")],
+        provider_takes_asks=2,
+    )
+
+    log = _run(
+        stand_in,
+        solver=generate(),
+        fail_on_error=False,
+        timeout=2,
+        attempt_timeout=1,
+    )
+
+    # the call's time is up, so it fails without asking, and is closed
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None
+    assert stand_in.awaited_lookups == 1
+    [first, _] = stand_in.model_calls
+    assert stand_in.cancelled == [first.headers["x-irid"]]
+
+
+def test_a_reply_that_came_within_the_calls_timeout_is_judged_past_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Person("approve").install(monkeypatch)
+    monkeypatch.setattr(lookup_module, "AWAITED_REPLY_PAUSE", 0.01)
+    # The provider's reply comes within the call's timeout of 2 seconds.
+    # The sidecar then judges it for six asks, half a second apart, which
+    # ends after the timeout has passed.
+    stand_in = ReviewingSidecar(
+        pauses=["tool_result"],
+        turns=[Turn(text="Sunny.")],
+        provider_takes_asks=2,
+        reply_judged_asks=6,
+    )
+
+    began = time.monotonic()
+    sample = _sample(_run(stand_in, solver=generate(), timeout=2, attempt_timeout=1))
+
+    # judging a reply has no deadline, as for any call: the call is decided
+    assert time.monotonic() - began > 2
+    assert sample.output.completion == "Sunny."
+    assert stand_in.cancelled == []
 
 
 # --- a call Inspect gives up on -----------------------------------------------
