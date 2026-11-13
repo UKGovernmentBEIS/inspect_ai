@@ -931,6 +931,31 @@ async def test_wait_for_client_raises_after_session_exit() -> None:
         await acp.wait_for_client()
 
 
+async def test_closed_session_rejects_clients_and_cancels() -> None:
+    """Once the session has exited, input and client attach are no-ops.
+
+    A late ``session/cancel`` must not write an ``InterruptEvent`` into
+    the finished sample's transcript, and a late client attach must not
+    make ``wait_for_client`` report a client on a closed transport.
+    """
+    from inspect_ai.event._interrupt import InterruptEvent
+    from inspect_ai.log._transcript import Transcript, init_transcript
+
+    tr = Transcript()
+    init_transcript(tr)
+    async with acp_session() as acp:
+        pass
+    before = len(tr.events)
+    acp.cancel_current_turn()
+    assert not any(isinstance(e, InterruptEvent) for e in tr.events[before:])
+    assert acp.interrupt_pending is False
+
+    _bind_approver(acp, _StubApproverClient())
+    assert acp.has_client is False
+    with pytest.raises(RuntimeError):
+        await acp.wait_for_client()
+
+
 async def test_wait_for_client_raises_when_session_closes_while_parked() -> None:
     raised = False
 

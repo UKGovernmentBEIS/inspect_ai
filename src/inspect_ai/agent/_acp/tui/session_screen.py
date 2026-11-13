@@ -971,8 +971,8 @@ class SessionScreen(Screen[None]):
             return
         # ``scoring`` is the same shape as ``complete`` from the
         # composer's perspective: the server's prompt handler now
-        # rejects messages once the agent has parked for scoring
-        # (see ``LiveAcpTransport.agent_completed`` + ``connection.py``).
+        # rejects messages once no agent is bound to the session
+        # (see ``LiveAcpTransport.is_interactive`` + ``connection.py``).
         # Belt-and-braces guard against the Enter binding firing
         # during a focus-change window even though ``_apply_lifecycle``
         # has disabled the TextArea.

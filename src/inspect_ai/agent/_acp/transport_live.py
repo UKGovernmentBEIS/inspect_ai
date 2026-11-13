@@ -562,20 +562,22 @@ class LiveAcpTransport:
         # Router attached at __aenter__; detached at __aexit__. Owns the
         # transcript subscription that maps events to SessionNotifications.
         self._router: _AcpEventRouter | None = None
-        # Split-phase teardown flags. The agent's ``async with`` block
-        # exits before the task runner's scoring + logging block runs;
-        # we want scoring events to still reach attached clients. So
-        # ``__aexit__`` enters a "post-agent" state when bound to an
-        # ActiveSample, and ``finalize()`` does the deferred teardown
-        # later (called from ``active_sample().__aexit__``).
-        self._agent_completed: bool = False
-        self._finalized: bool = False
-        # AgentRef captured at react() entry via :meth:`maybe_bind` so
-        # producer-side intervention (``submit_user_message`` /
-        # ``cancel_current_turn``) routes into the agent's channel.
-        # First-binder-wins per active top-level react; cleared by
-        # :meth:`unbind`; rebindable by a successor react.
+        # Lifecycle: open from construction until ``__aexit__``, which
+        # tears everything down at once. The session spans the whole
+        # sample (``active_sample`` opens it around solving, scoring and
+        # logging), so there is no post-agent phase to keep alive.
+        # Once closed, every network-reachable entry point is a no-op.
+        self._closed: bool = False
+        # AgentRef and channel captured at react() entry via
+        # :meth:`maybe_bind` so producer-side intervention
+        # (``submit_user_message`` / ``cancel_current_turn``) routes into
+        # the agent's channel. First-binder-wins per active top-level
+        # react; cleared by :meth:`unbind`; rebindable by a successor
+        # react. Binding is data, not a lifecycle phase: a session is
+        # open with or without a bound agent (setup, between agents,
+        # custom solvers, scoring).
         self._ref: "AgentRef | None" = None
+        self._channel: "AgentChannel | None" = None
         # Unsubscribe handle for the channel drain observer registered
         # during :meth:`maybe_bind`. Stored so :meth:`unbind` can drop
         # the subscription cleanly; ``None`` when not currently bound.
@@ -583,10 +585,6 @@ class LiveAcpTransport:
         # Unsubscribe handle for the channel turn-state observer
         # registered during :meth:`maybe_bind`; ``None`` when not bound.
         self._unsubscribe_turn_state: Callable[[], None] | None = None
-        # Current snapshot of the bound channel's turn scope. Updated before
-        # transition subscribers fire so late-bound clients can subscribe,
-        # read, then follow without a race.
-        self._turn_active: bool = False
         # Per-connection subscribers fired when the bound channel's
         # :meth:`AgentChannel.turn_scope` transitions ("started" /
         # "ended" / "cancelled"). The :class:`Forwarders` instance for
@@ -608,7 +606,7 @@ class LiveAcpTransport:
         self._clear_live: Callable[[], None] | None = None
         # Test-only override for :attr:`is_interactive`. Production code
         # leaves this at ``None`` (the property derives from ``_ref`` +
-        # ``_agent_completed``). Test fixtures that hand-wire a session
+        # ``_closed``). Test fixtures that hand-wire a session
         # without going through the real bind flow can set this to
         # ``True`` to make the picker treat the session as interactive
         # (drivable). Named ``_attachable_override`` for historical
@@ -627,36 +625,35 @@ class LiveAcpTransport:
 
     @property
     def is_interactive(self) -> bool:
-        """True iff a channel is bound and the agent loop is still live.
+        """True iff the session is open and an agent channel is bound.
 
         The *interactivity* axis (drive the turn loop via
-        ``session/prompt`` / ``session/cancel``). Returns False (a)
-        before the first :meth:`maybe_bind` (sample setup window) and
-        (b) after the agent loop has exited (scoring window). Either
-        state means the turn loop can't be driven.
+        ``session/prompt`` / ``session/cancel``). Returns False whenever
+        no top-level agent is bound (sample setup, between consecutive
+        agents, custom solvers, scoring) and after the session closes.
 
         Tests that exercise picker/forwarding behavior without going
         through the real bind flow can set
         :attr:`_attachable_override` to True to flag a hand-wired
         session as interactive. Production paths leave it at the
-        default (``None`` → derived from ``_ref`` + ``_agent_completed``).
+        default (``None`` → derived from ``_ref`` + ``_closed``).
         """
         if self._attachable_override is not None:
             return self._attachable_override
-        return self._ref is not None and not self._agent_completed
+        return not self._closed and self._ref is not None
 
     @property
     def is_attachable(self) -> bool:
         """True iff a client may attach to this transport at all.
 
-        The broad gate (observe-only attach): True from ``__aenter__``
-        until :meth:`finalize`, regardless of channel binding — so a
-        client can attach to any running sample (including custom
-        solvers that never bind a channel, the pre-bind window, and the
-        scoring window) and receive its event stream. Drivable attach
-        additionally requires :attr:`is_interactive`.
+        The broad gate (observe-only attach): True until ``__aexit__``,
+        regardless of channel binding — so a client can attach to any
+        running sample (including custom solvers that never bind a
+        channel, the pre-bind window, and the scoring window) and
+        receive its event stream. Drivable attach additionally requires
+        :attr:`is_interactive`.
         """
-        return not self._finalized
+        return not self._closed
 
     def maybe_bind(self, channel: "AgentChannel", ref: "AgentRef") -> bool:
         """Accept the (channel, ref) pair as the active producer target if none is bound.
@@ -678,13 +675,13 @@ class LiveAcpTransport:
         """
         if self._ref is None:
             self._ref = ref
+            self._channel = channel
             self._unsubscribe_drained = channel.subscribe_drained(
                 self._on_channel_drained
             )
             self._unsubscribe_turn_state = channel.subscribe_turn_state(
                 self._on_channel_turn_state
             )
-            self._turn_active = channel.turn_active
             # Mark the channel "live" iff an ACP server is up and
             # accepting external connections — i.e. iff ``--acp-server``
             # is enabled for this eval. Local import to avoid a
@@ -706,13 +703,13 @@ class LiveAcpTransport:
         """
         if self._ref is ref:
             self._ref = None
+            self._channel = None
             if self._unsubscribe_drained is not None:
                 self._unsubscribe_drained()
                 self._unsubscribe_drained = None
             if self._unsubscribe_turn_state is not None:
                 self._unsubscribe_turn_state()
                 self._unsubscribe_turn_state = None
-            self._turn_active = False
             if self._clear_live is not None:
                 self._clear_live()
                 self._clear_live = None
@@ -740,7 +737,6 @@ class LiveAcpTransport:
         the agent's task; exceptions are swallowed so a broken
         subscriber cannot stall the agent loop.
         """
-        self._turn_active = state == "started"
         self.publish(TurnStateUpdate(state))
         for cb in list(self._turn_state_subscribers):
             try:
@@ -784,34 +780,6 @@ class LiveAcpTransport:
         ):
             active = sample_active()
             if active is not None:
-                prev = active.acp_transport
-                # Predecessor handoff: when a solver runs two agents
-                # consecutively in the same sample, the first agent's
-                # ``__aexit__`` parks its session awaiting ``active_sample``
-                # to finalize it. Without this finalize the predecessor
-                # would be orphaned — router still attached, pubsub still
-                # open with subscribers, no path to clean it up. Hand
-                # over cleanly: detach the predecessor's router, close
-                # its pubsub (clients bound to its sessionId see EOF +
-                # ``inspect/session_ended``), then bind ourselves.
-                # ``finalize()`` is idempotent so this is safe even if
-                # the predecessor was already finalized via some other
-                # path. Nested sub-agents route through ``NoOpAcpTransport``
-                # (the factory's shadow rule), never reaching this code.
-                #
-                # The ``isinstance(prev, LiveAcpTransport)`` does double
-                # duty: it narrows the type for mypy (``finalize`` is on
-                # ``LiveAcpTransport``, not the ``AcpTransport`` Protocol) and
-                # acts as a runtime sanity check. Per the shadow rule
-                # above, a non-self ``prev`` is always a ``LiveAcpTransport``
-                # in practice — but we never want a registration that
-                # silently broke the invariant to crash an eval here.
-                if (
-                    prev is not None
-                    and prev is not self
-                    and isinstance(prev, LiveAcpTransport)
-                ):
-                    await prev.finalize()
                 active.acp_transport = self
                 # Install ourselves as the sample's execution observer.
                 # The model/tool layers (`_call_tools.py`, `_model.py`)
@@ -819,17 +787,13 @@ class LiveAcpTransport:
                 # in-flight tool/model events; ACP needs that data to
                 # populate `InterruptEvent` and clear `pending=True` on
                 # cancelled events. Cleared back to the null default in
-                # :meth:`finalize` under the same identity guard.
+                # :meth:`__aexit__` under the same identity guard.
                 active.execution_observer = self
-                # Register lifecycle hooks the eval primitive will fire:
-                # ``on_complete`` drives the deferred teardown after
-                # scoring + logging finish; ``on_interrupt`` clears the
-                # in-flight ``ModelEvent.pending=True`` (and other turn
-                # state) before the task-group hard cancel propagates,
-                # so the TUI's assistant chip stops spinning past the
-                # scoring chips. Both are cleared in :meth:`finalize`
-                # under the same ``is self`` identity guard.
-                active.on_complete = self.finalize
+                # ``on_interrupt`` clears the in-flight
+                # ``ModelEvent.pending=True`` (and other turn state)
+                # before the task-group hard cancel propagates, so the
+                # TUI's assistant chip stops spinning past the scoring
+                # chips. Cleared in :meth:`__aexit__`.
                 active.on_interrupt = self.cancel_current_turn
         return self
 
@@ -839,24 +803,17 @@ class LiveAcpTransport:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        """Exit the agent-scope ``async with``; behavior depends on binding.
+        """Close the session: detach the router, end every stream, deregister.
 
-        Two branches:
-
-        - **Bound to an ActiveSample** (the normal eval-time path): enter
-          a "post-agent" state. The agent's react loop has returned but
-          the task runner's scoring + logging block is about to run, and
-          we want events from that phase (notably ``ScoreEvent``s) to
-          reach attached ACP clients. Keep the router + pubsub +
-          ``ActiveSample.acp_transport`` binding alive; clear only the
-          per-turn subscriber registries that would be unsafe to keep
-          (interrupt coordinator, approver clients) since the agent loop
-          is no longer running to drain them. The eventual full teardown
-          runs from :meth:`finalize`, invoked by
-          ``active_sample().__aexit__`` after the sample is fully done.
-        - **Unbound** (test code that constructs ``LiveAcpTransport()``
-          directly without an ActiveSample): full immediate teardown, the
-          original single-phase behavior.
+        ``active_sample`` opens the session around the sample's solving,
+        scoring and logging, so by the time this runs no more events are
+        coming. Closing detaches the router before closing pubsub, so no
+        notification is published after the per-connection forwarders
+        see ``EndOfStream`` (which is what triggers their
+        ``inspect/session_ended``). It also drops every subscriber and
+        client registration so a late callback can't fire into a closed
+        connection, and removes the ``ActiveSample`` registration under
+        an ``is self`` identity guard.
 
         Hard contract: never propagates a teardown failure to the
         agent loop (which would mask the original exception when the
@@ -865,38 +822,9 @@ class LiveAcpTransport:
         """
         from inspect_ai.log._samples import sample_active
 
-        self._turn_active = False
-        active = sample_active()
-        bound = active is not None and active.acp_transport is self
-        if bound:
-            # Split-phase: park the session for the scoring window.
-            self._agent_completed = True
-            self._wake_client_waiters()
-            # The interrupt coordinator and approver-client registry only
-            # make sense while the agent loop is running; drop their
-            # subscribers / clients so a late listener can't fire into a
-            # closed context post-agent. Router + pubsub stay attached
-            # so scoring events still flow.
-            with acp_guard("ACP session: interrupt clear_subscribers failed"):
-                self._interrupt.clear_subscribers()
-            with acp_guard("ACP session: turn_state clear_subscribers failed"):
-                self._turn_state_subscribers.clear()
-            with acp_guard("ACP session: client registries clear failed"):
-                self._clients.clear()
+        if self._closed:
             return
-
-        # Unbound — full immediate teardown. Reached in two cases:
-        # 1. Tests construct ``LiveAcpTransport()`` directly without an
-        #    enclosing ``active_sample()`` context.
-        # 2. Production: the ``acp_guard("ACP session: ActiveSample
-        #    registration failed")`` block in ``__aenter__`` caught an
-        #    exception, so ``active.acp_transport`` was never assigned and
-        #    ``bound`` is False. Without this branch a registration
-        #    failure would leak the router + pubsub for the rest of the
-        #    sample's lifetime (the registration-driven ``on_complete``
-        #    hook also never fired, so ``active_sample().__aexit__``
-        #    can't finalize us either).
-        self._finalized = True
+        self._closed = True
         self._wake_client_waiters()
         if self._router is not None:
             with acp_guard("ACP session: router detach failed"):
@@ -904,53 +832,16 @@ class LiveAcpTransport:
             self._router = None
         with acp_guard("ACP session: pubsub close_all failed"):
             self._pubsub.close_all()
-        # Drop interrupt-coordination subscribers so a late listener
-        # (TUI widget unmount race, connection-handler unbind race)
-        # doesn't end up holding a callback that fires into a closed
-        # context. Drop approver-client registrations for the same
-        # reason — a late-arriving approval prompt after session exit
-        # would otherwise try to call into a closed connection.
         with acp_guard("ACP session: interrupt clear_subscribers failed"):
             self._interrupt.clear_subscribers()
         with acp_guard("ACP session: turn_state clear_subscribers failed"):
             self._turn_state_subscribers.clear()
         with acp_guard("ACP session: client registries clear failed"):
             self._clients.clear()
-
-    async def finalize(self) -> None:
-        """Deferred teardown for split-phase exit. Idempotent.
-
-        Called from ``active_sample().__aexit__`` after scoring + logging
-        finishes (intrinsic to ActiveSample lifetime — runs strictly
-        after everything inside the body, including ``emit_sample_end``).
-        Also called from :meth:`__aenter__` of a successor session when
-        two agents run consecutively in the same sample.
-
-        Ordering matters: detach the router first so no further
-        notifications get published, then close pubsub. The per-connection
-        semantic forwarder sees ``EndOfStream`` on its attach() receive
-        stream — which is what triggers the existing
-        ``inspect/session_ended`` emission downstream.
-        """
-        from inspect_ai.log._samples import sample_active
-
-        if self._finalized:
-            return
-        self._finalized = True
-        self._wake_client_waiters()
-        if self._router is not None:
-            with acp_guard("ACP session: router detach failed"):
-                self._router.detach()
-            self._router = None
-        with acp_guard("ACP session: pubsub close_all failed"):
-            self._pubsub.close_all()
         with acp_guard("ACP session: ActiveSample deregistration failed"):
             active = sample_active()
-            # `is self` identity guard: don't clear someone else's
-            # registration if a successor session has already taken over.
             if active is not None and active.acp_transport is self:
                 active.acp_transport = None
-                active.on_complete = None
                 active.on_interrupt = None
                 # Restore the null observer; subsequent track_* calls on
                 # the (now winding-down) sample are no-ops.
@@ -1036,10 +927,10 @@ class LiveAcpTransport:
         state cannot change (single event-loop thread).
         """
         while True:
+            if self._closed:
+                raise RuntimeError("ACP transport closed before a client attached")
             if self.has_client:
                 return
-            if self._finalized or self._agent_completed:
-                raise RuntimeError("ACP transport closed before a client attached")
             ready = anyio.Event()
             self._client_waiters.append(ready)
             try:
@@ -1099,13 +990,13 @@ class LiveAcpTransport:
 
         Hard contract: never propagates to the caller. The TUI Send
         button or a wire ``session/prompt`` can land any time, including
-        after the agent has parked; failure here is logged but the
+        after the session has closed (dropped); failure here is logged but the
         message is dropped silently rather than crashing the connection
         handler (or the TUI input handler) that called us. Likewise,
         messages submitted with no channel bound are silently dropped
         (no consumer to receive them).
         """
-        if self._agent_completed:
+        if self._closed:
             return
         with acp_guard("ACP submit_user_message raised; message dropped"):
             if msg.source != "operator":
@@ -1120,11 +1011,6 @@ class LiveAcpTransport:
     def interrupt_pending(self) -> bool:
         """True between ``cancel_current_turn`` and the next ``submit_user_message``."""
         return self._interrupt.pending
-
-    @property
-    def agent_completed(self) -> bool:
-        """True after ``__aexit__`` parked the session for scoring."""
-        return self._agent_completed
 
     def subscribe_interrupted(self, callback: Callable[[], None]) -> Callable[[], None]:
         """Register a callback fired on every ``cancel_current_turn``.
@@ -1150,8 +1036,12 @@ class LiveAcpTransport:
 
     @property
     def turn_active(self) -> bool:
-        """Whether the bound channel is currently inside its turn scope."""
-        return self._turn_active
+        """Whether the bound channel is currently inside its turn scope.
+
+        Read from the channel rather than mirrored, so it cannot disagree
+        with the channel when a turn exits without a transition.
+        """
+        return self._channel is not None and self._channel.turn_active
 
     def subscribe_turn_state(
         self, callback: Callable[[TurnState], None]
@@ -1196,13 +1086,12 @@ class LiveAcpTransport:
         unsubscribe so the caller still gets a callable to invoke at
         teardown.
 
-        Network-reachable: a ``Forwarders.start`` chain runs on every
-        binding, including those that complete during the scoring
-        window. The approver registry was cleared at park time and
-        approvals don't make sense during scoring — hand back a no-op
-        unsubscribe so the connection-side teardown stays uniform.
+        Network-reachable: a ``Forwarders.start`` chain can finish after
+        the session has closed. The registry was cleared on close, so
+        hand back a no-op unsubscribe rather than registering a client
+        on a closed session; the connection-side teardown stays uniform.
         """
-        if self._agent_completed:
+        if self._closed:
             return lambda: None
         with acp_guard(
             "ACP attach_approver_client raised; approval routing disabled "
@@ -1347,7 +1236,7 @@ class LiveAcpTransport:
         capability — clients without that capability never attach
         here.
         """
-        if self._agent_completed:
+        if self._closed:
             return lambda: None
         with acp_guard(
             "ACP attach_elicitation_client raised; elicitation routing disabled "
@@ -1430,10 +1319,10 @@ class LiveAcpTransport:
         Network-reachable: a wire ``session/cancel``, a TUI Esc, or
         the ``on_interrupt`` hook fired from ``sample.interrupt()`` /
         ``sample.limit_exceeded()`` can land at any time, including
-        after park. Silently drop — there's no turn scope to cancel
-        and no agent loop to re-engage.
+        after the session has closed. Silently drop — the sample's
+        transcript is finished and there is no agent loop to re-engage.
         """
-        if self._agent_completed:
+        if self._closed:
             return
         # Hard contract: never propagate an exception to the caller.
         # Called from sibling tasks (TUI button, ACP connection

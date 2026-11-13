@@ -64,7 +64,7 @@ REPLAY_MAX_EVENTS = 100
 
 # How long :meth:`Forwarders.stop` waits for the semantic task to
 # finish its EOF cleanup naturally before falling through to cancel.
-# On the standard end-of-sample path :meth:`LiveAcpTransport.finalize`
+# On the standard end-of-sample path ``LiveAcpTransport.__aexit__``
 # has already closed pubsub by the time ``stop()`` is called, so the
 # task is racing to drain the raw forwarder and send
 # ``inspect/session_ended`` — both finish within microseconds. The
@@ -295,7 +295,7 @@ class Forwarders:
         window to finish its EOF cleanup naturally before falling
         through to ``cancel``. The cleanup branch drains the raw
         forwarder and sends ``inspect/session_ended``; on the
-        standard end-of-sample path ``finalize()`` has already closed
+        standard end-of-sample path the session's ``__aexit__`` has already closed
         pubsub by this point, so the task is racing to complete that
         branch and finishes within microseconds. The
         :data:`_GRACEFUL_STOP_TIMEOUT_SECONDS` cap bounds the wait
@@ -473,11 +473,10 @@ class Forwarders:
         # noticed via some other side-effect.
         #
         # Drain the raw-event firehose BEFORE the session_ended
-        # notification. The semantic stream closes when the sample
-        # exits its react() / finalize() — but raw transcript events
-        # from the post-agent scoring phase (``ScoreEvent``,
-        # ``SampleLimitEvent``) ride the raw forwarder, not the
-        # semantic one. Without this barrier the raw forwarder's
+        # notification. The semantic stream closes when the session
+        # closes at sample end — but raw transcript events from the
+        # scoring phase (``ScoreEvent``, ``SampleLimitEvent``) ride
+        # the raw forwarder, not the semantic one. Without this barrier the raw forwarder's
         # task can still have queued items in flight when we send
         # ``inspect/session_ended``, and the client races the wire:
         # the lifecycle terminator can arrive BEFORE the trailing

@@ -276,10 +276,10 @@ class ActiveSample:
 
         self.execution_observer: "ExecutionObserver" = null_execution_observer()
         # Lifecycle callbacks owned by whoever bound to this sample
-        # (in practice, the live ACP session). Kept here rather than
-        # in the ACP layer so the eval primitive doesn't have to
-        # import or call into ACP — it just fires the registered hook
-        # if present. `on_complete` runs after scoring + logging
+        # (the live ACP session registers `on_interrupt`). Kept here
+        # rather than in the ACP layer so the eval primitive doesn't
+        # have to import or call into ACP — it just fires the
+        # registered hook if present. `on_complete` runs after scoring + logging
         # finish; `on_interrupt` runs inside `interrupt()` /
         # `limit_exceeded()` before the task-group cancel propagates,
         # giving the binder a chance to clean up in-flight state that
@@ -563,9 +563,8 @@ async def active_sample(
             # Single "the sample is fully done" hook for whoever bound to
             # this sample. By the time we get here scoring + logging have
             # run and the task runner's ``emit_sample_end`` has fired, so
-            # any registered binder (in practice the live ACP session)
-            # can do its deferred teardown safely. Shielded so a
-            # cancellation during teardown doesn't skip it.
+            # any registered binder can do its deferred teardown safely.
+            # Shielded so a cancellation during teardown doesn't skip it.
             if active.on_complete is not None:
                 with anyio.CancelScope(shield=True):
                     try:
