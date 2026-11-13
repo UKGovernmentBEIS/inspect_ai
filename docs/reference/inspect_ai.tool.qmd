@@ -15,6 +15,7 @@ description: Built-in and custom tool functions.
 ### read_file
 ### list_files
 ### grep
+### view_image
 
 ## Agentic Tools
 
