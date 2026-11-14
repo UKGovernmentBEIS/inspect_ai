@@ -13,6 +13,8 @@ ignored. These tests pin the corrected shape and the adaptive-thinking /
 
 from __future__ import annotations
 
+from typing import Literal
+
 import pytest
 from test_helpers.utils import skip_if_trio
 
@@ -167,6 +169,26 @@ def test_gpt_oss_unaffected():
     config = GenerateConfig(reasoning_effort="low")
     fields = api.reasoning_config(config)
     assert fields == {"reasoning_effort": "low"}
+
+
+@pytest.mark.parametrize(
+    "effort,expected",
+    [
+        ("none", {}),
+        ("minimal", {"reasoning_effort": "low"}),
+        ("medium", {"reasoning_effort": "medium"}),
+        ("high", {"reasoning_effort": "high"}),
+        ("xhigh", {"reasoning_effort": "high"}),
+        ("max", {"reasoning_effort": "high"}),
+    ],
+)
+def test_gpt_oss_reasoning_effort_clamped_to_low_medium_high(
+    effort: Literal["none", "minimal", "medium", "high", "xhigh", "max"],
+    expected: dict[str, str],
+):
+    """gpt-oss accepts only low/medium/high; 'none' sends nothing (#5933)."""
+    api = _make_api(GPT_OSS)
+    assert api.reasoning_config(GenerateConfig(reasoning_effort=effort)) == expected
 
 
 # --- reasoning_effort + reasoning_tokens precedence -----------------------
