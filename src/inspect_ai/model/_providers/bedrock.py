@@ -1652,7 +1652,18 @@ async def converse_chat_message(
 
         # process the tool response content
         tool_result_content: list[ConverseToolResultContent] = []
-        if isinstance(message.content, str):
+        if message.error is not None:
+            # Include the error message so the model can see why the tool call failed.
+            # Matches the native Anthropic provider: use error.message, falling back
+            # to message text then a generic "error" when empty. Drop original content
+            # when an error is present (same as Anthropic).
+            error_text = message.error.message
+            if not error_text:
+                error_text = message.text if isinstance(message.content, str) else ""
+            if not error_text:
+                error_text = "error"
+            tool_result_content.append(ConverseToolResultContent(text=error_text))
+        elif isinstance(message.content, str):
             tool_result_content.append(ConverseToolResultContent(text=message.content))
         else:
             for c in message.content:
