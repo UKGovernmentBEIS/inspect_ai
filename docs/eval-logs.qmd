@@ -482,6 +482,49 @@ Retrying a log (`inspect eval-retry`) and rescoring it (`inspect score`) are dif
 
 When you edit a score, a `ScoreEditEvent` is automatically added to the sample's event log. This provides a complete audit trail of all score modifications that can be viewed in the log viewer.
 
+### Excluding Samples
+
+To leave samples out of a finished log's metrics, use `exclude_samples()`. Each score the sample holds becomes an unscored `NaN` with the reason `"excluded"`, and the earlier score stays in the score history. A sample that holds no score (for example, one that errored before it was scored) gets one under the log's first scorer. Metrics are then recomputed:
+
+``` python
+from inspect_ai.log import (
+    read_eval_log, write_eval_log, exclude_samples, ProvenanceData
+)
+
+log = read_eval_log("my_eval.eval")
+
+result = exclude_samples(
+    log,
+    ["sample-3", ("sample-7", 2)],  # every epoch of sample-3, epoch 2 of sample-7
+    ProvenanceData(author="alice", reason="task environment was broken"),
+)
+
+write_eval_log(log)
+```
+
+The reason is required, and is also the score's explanation. `result.applied` lists the `(id, epoch)` of each sample excluded now, and `result.unchanged` those already excluded.
+
+The same edit is available from the command line. It rewrites the log in place:
+
+``` bash
+$ inspect log exclude logs/my_eval.eval --sample sample-3 --sample sample-7 \
+    --epoch 2 --reason "task environment was broken"
+```
+
+`--epoch` applies to every `--sample`. `--author` defaults to your git identity, else your user name. `--json` prints the result as JSON.
+
+An excluded epoch takes no part in epoch reduction: a sample reduces as if that epoch had not run, and a sample with every epoch excluded counts as unscored. Epochs are reduced with the reducers the log records, rebuilt by name, so a custom reducer configured with other arguments is rebuilt with its defaults.
+
+Some things to keep in mind:
+
+-   Exclusion does not change the sample's transcript, output or error. An errored sample that you exclude is still re-run by `inspect eval-retry` and eval set retries, and the new result replaces the exclusion.
+
+-   Rescoring with `inspect score --action append` keeps the excluded scores, but the appended scores count in their own metrics. Apply the exclusion again to exclude them too. `--action overwrite` replaces the sample's scores, so apply the exclusion again afterwards.
+
+-   As with `edit_score()`, the log's task file is not imported. If the eval used a metric or reducer defined in its task file, import that module before calling `exclude_samples()`; otherwise a `LookupError` names it and the log is not changed. `inspect log exclude` works only when every metric and reducer is part of Inspect or an installed package.
+
+-   The log must have finished. To exclude a sample of a running eval, cancel it with `inspect ctl sample cancel --action cancel`, then exclude it once the log is written.
+
 ### Tags & Metadata Editing
 
 You can also edit the tags and metadata associated with a log after evaluation. This is useful for workflows like QA review, categorisation, and filtering—for example, tagging a log as `"needs_qa"` at eval time, then updating it to `"qa_passed"` after review.
@@ -649,6 +692,7 @@ We've shown a number of Python functions that let you work with eval logs from c
 | `inspect log dump`           | Print log file contents as JSON.                   |
 | `inspect log convert`        | Convert between log file formats.                  |
 | `inspect log export-config`  | Export a run config YAML from a log file.          |
+| `inspect log exclude`        | [Exclude samples](#excluding-samples) from a log's metrics. |
 | `inspect log schema`         | Print JSON schema for log files.                   |
 
 ### Listing Logs
