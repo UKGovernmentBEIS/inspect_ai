@@ -162,6 +162,17 @@ class OpenAIAPI(ModelAPI):
             if env_safety_identifier:
                 self.safety_identifier = env_safety_identifier
 
+        # explicit prompt caching is only verified against the direct OpenAI
+        # endpoint by default (see `generate()`), so a configured base URL
+        # turns it off. This opt-in lets callers keep it for endpoints known
+        # to forward `prompt_cache_options` and per-part cache breakpoints
+        # (e.g. a proxy in front of api.openai.com). Azure and Bedrock remain
+        # excluded regardless of this flag.
+        explicit_prompt_cache = model_args.pop("explicit_prompt_cache", False)
+        if not isinstance(explicit_prompt_cache, bool):
+            raise ValueError("explicit_prompt_cache must be a bool")
+        self.explicit_prompt_cache: bool = explicit_prompt_cache
+
         # OpenAI recommends preserving `phase` on replayed Responses API
         # assistant messages:
         # https://developers.openai.com/api/docs/guides/reasoning#phase-parameter
@@ -589,11 +600,16 @@ class OpenAIAPI(ModelAPI):
         # direct OpenAI endpoint; Azure, Bedrock, and any custom base URL
         # (explicit base_url, OPENAI_BASE_URL, or INSPECT_EVAL_MODEL_BASE_URL)
         # are unverified — a resolved base_url means the request is going
-        # somewhere other than api.openai.com
+        # somewhere other than api.openai.com. The `explicit_prompt_cache`
+        # model arg opts back in when that endpoint is known to forward the
+        # explicit fields; Azure and Bedrock can never opt in.
         supports_explicit_prompt_cache = (
             not self.is_azure()
             and not self.is_bedrock()
-            and model_base_url(self.base_url, "OPENAI_BASE_URL") is None
+            and (
+                self.explicit_prompt_cache
+                or model_base_url(self.base_url, "OPENAI_BASE_URL") is None
+            )
         )
 
         async def generate_once(
