@@ -15,7 +15,18 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
+    ValidationInfo,
+    model_serializer,
+    model_validator,
+)
+from pydantic.annotated_handlers import GetJsonSchemaHandler
+from pydantic_core import CoreSchema
 
 from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.error import PrerequisiteError
@@ -85,6 +96,15 @@ UNCHANGED: Literal["UNCHANGED"] = "UNCHANGED"
 """Sentinel value to indicate an unchanged field in score edits."""
 
 
+def _selection_selects_field(field_name: str, selection: Any) -> bool:
+    """Whether a Pydantic include/exclude selection applies to a field."""
+    if selection is None:
+        return False
+    if isinstance(selection, Mapping):
+        return bool(selection.get(field_name, False))
+    return field_name in selection
+
+
 class ScoreEdit(BaseModel):
     """A single edit to a score."""
 
@@ -132,6 +152,52 @@ class ScoreEdit(BaseModel):
         ):
             return {"answer": None, "explanation": None} | data
         return data
+
+    @model_serializer(mode="wrap")
+    def _serialize_score_edit(
+        self,
+        handler: SerializerFunctionWrapHandler,
+        info: SerializationInfo,
+    ) -> dict[str, Any]:
+        """Preserve explicitly cleared fields through normal serialization.
+
+        A nullable field set to ``None`` means clear the value, while a missing
+        field in a legacy edit can mean ``UNCHANGED``. Log writers use
+        ``exclude_none=True``, so restore explicitly supplied ``None`` values
+        after the normal serializer has removed them unless the caller excluded
+        or omitted the field.
+        """
+        data = cast(dict[str, Any], handler(self))
+
+        for field_name in ("answer", "explanation", "reason"):
+            included = info.include is None or _selection_selects_field(
+                field_name, info.include
+            )
+            excluded = _selection_selects_field(field_name, info.exclude)
+            if (
+                field_name in self.model_fields_set
+                and getattr(self, field_name) is None
+                and included
+                and not excluded
+            ):
+                data[field_name] = None
+
+        return data
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls,
+        core_schema: CoreSchema,
+        handler: GetJsonSchemaHandler,
+    ) -> dict[str, Any]:
+        """Keep the model schema from reflecting the wrapped serializer's return."""
+        schema = cast(dict[str, Any], core_schema)
+        serialization = schema.get("serialization")
+        if isinstance(serialization, dict):
+            serialization = dict(serialization)
+            serialization.pop("return_schema", None)
+            schema = {**schema, "serialization": serialization}
+        return handler(cast(CoreSchema, schema))
 
 
 class Score(BaseModel):
