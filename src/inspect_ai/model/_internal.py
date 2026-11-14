@@ -2,6 +2,7 @@ import base64
 import binascii
 import json
 import re
+from typing import Iterator, NamedTuple
 
 from pydantic import JsonValue
 
@@ -51,41 +52,100 @@ def decode_internal(encoded: str) -> JsonValue:
         raise NotInternal() from ex
 
 
-def parse_content_with_internal(content: str, tag: str) -> tuple[str, JsonValue | None]:
-    """
-    Extracts and removes a smuggled <internal>...</internal> tag from the content string, if present.
+class ContentWithInternal(NamedTuple):
+    """A text block and the internal value associated with it."""
 
-    Note:
-        This OpenAI model does not natively use `.internal`. However, in bridge
-        scenarios—where output from a model that does use `.internal` is routed
-        through this code—such a tag may be present and should be handled.
+    text: str
+    internal: JsonValue | None
 
-        Only a tag whose body `decode_internal` accepts (the form
-        `content_internal_tag` writes) is internal state. Any other tag is
-        literal text (e.g. a model or user quoting the marker) and is left in
-        the content unchanged. A body may hold only base64 characters, so a
-        quoted opening marker does not extend to the closing marker of a
-        tag after it. A quoted tag whose body happens to be base64-encoded
-        JSON can't be told apart from internal state and is read as such.
+
+class _InternalMatch(NamedTuple):
+    start: int
+    end: int
+    internal: JsonValue
+
+
+def _content_internal_matches(content: str, tag: str) -> Iterator[_InternalMatch]:
+    escaped_tag = re.escape(tag)
+    pattern = re.compile(
+        rf"(?P<outer><)?<{escaped_tag}>(?P<payload>[A-Za-z0-9+/=\s]*)</{escaped_tag}>(?(outer)>)"
+    )
+    for match in pattern.finditer(content):
+        try:
+            internal = decode_internal(match.group("payload"))
+        except NotInternal:
+            continue
+        yield _InternalMatch(start=match.start(), end=match.end(), internal=internal)
+
+
+def parse_content_with_internal_blocks(
+    content: str, tag: str
+) -> list[ContentWithInternal]:
+    """Extract every internal value with its associated text block.
+
+    Single-wrapped markers and the double-wrapped form emitted by older bridge
+    serializers are supported. Only markers accepted by `decode_internal` are
+    state; quoted or invalid markers remain literal text.
+
+    Bridge serializers emit a marker immediately after the text it describes.
+    Text after the final marker becomes a block without internal data. Newlines
+    at marker boundaries are removed; other whitespace, including indentation,
+    is retained. If no marker carries internal state, the input is unchanged.
 
     Args:
-        content: The input string, possibly containing an <internal> tag with
-        base64-encoded JSON.
-        tag: The name of the tag for internal data (e.g. <internal>)
+        content: Text that may contain base64-encoded JSON markers.
+        tag: Name of the internal state tag.
 
     Returns:
-        tuple[str, JsonValue | None]:
-            - The content string with the decoded <internal>...</internal> tags removed (if present), otherwise the original string.
-            - The first decoded internal value (if present), otherwise None.
+        The parsed text blocks in their original order.
     """
-    decoded: list[JsonValue] = []
+    blocks: list[ContentWithInternal] = []
+    cursor = 0
+    for match in _content_internal_matches(content, tag):
+        blocks.append(
+            ContentWithInternal(
+                text=content[cursor : match.start].strip("\n"),
+                internal=match.internal,
+            )
+        )
+        cursor = match.end
 
-    def remove_internal(match: re.Match[str]) -> str:
-        try:
-            decoded.append(decode_internal(match.group(1)))
-        except NotInternal:
-            return match.group(0)
-        return ""
+    if not blocks:
+        return [ContentWithInternal(text=content, internal=None)]
+    if trailing_text := content[cursor:].strip("\n"):
+        blocks.append(ContentWithInternal(text=trailing_text, internal=None))
+    return blocks
 
-    stripped = re.sub(rf"<{tag}>([A-Za-z0-9+/=\s]*)</{tag}>", remove_internal, content)
-    return (stripped.strip(), decoded[0]) if decoded else (content, None)
+
+def parse_content_with_internal(content: str, tag: str) -> ContentWithInternal:
+    """Extract one internal state marker, leaving other markers as literal text.
+
+    Only markers accepted by `decode_internal` are state. Quoted opening tags
+    cannot consume a later state marker. Single- and double-wrapped markers
+    are supported. Callers reading flattened text with several state markers
+    must use `parse_content_with_internal_blocks` to retain their association.
+
+    Args:
+        content: Text that may contain a base64-encoded JSON marker.
+        tag: Name of the internal state tag.
+
+    Returns:
+        The text with the state marker removed and its decoded internal value,
+        or the original text and None if no marker carries internal state.
+
+    Raises:
+        ValueError: More than one internal state marker is present.
+    """
+    matches = list(_content_internal_matches(content, tag))
+    if len(matches) > 1:
+        raise ValueError(
+            f"Content contains multiple <{tag}> capsules; "
+            "use parse_content_with_internal_blocks()"
+        )
+    if not matches:
+        return ContentWithInternal(text=content, internal=None)
+    match = matches[0]
+    return ContentWithInternal(
+        text=f"{content[: match.start]}{content[match.end :]}".strip(),
+        internal=match.internal,
+    )

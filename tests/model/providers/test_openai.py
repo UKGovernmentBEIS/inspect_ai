@@ -20,7 +20,12 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._chat_message import ChatMessageSystem
-from inspect_ai.model._internal import parse_content_with_internal
+from inspect_ai.model._internal import (
+    CONTENT_INTERNAL_TAG,
+    content_internal_tag,
+    parse_content_with_internal,
+    parse_content_with_internal_blocks,
+)
 from inspect_ai.model._openai import openai_completion_params
 from inspect_ai.tool import ToolFunction, computer, tool
 
@@ -254,6 +259,77 @@ def test_parse_content_with_internal_valid(s, exp_content, exp_internal):
     assert internal == exp_internal
 
 
+def test_parse_content_with_internal_blocks_preserves_every_payload() -> None:
+    content = "\n".join(
+        [
+            "first",
+            content_internal_tag({"a": 1}),
+            "second",
+            content_internal_tag({"b": 2}),
+            "trailing text",
+        ]
+    )
+
+    blocks = parse_content_with_internal_blocks(content, CONTENT_INTERNAL_TAG)
+
+    assert [(block.text, block.internal) for block in blocks] == [
+        ("first", {"a": 1}),
+        ("second", {"b": 2}),
+        ("trailing text", None),
+    ]
+    with pytest.raises(ValueError, match="multiple.*content-internal"):
+        parse_content_with_internal(content, CONTENT_INTERNAL_TAG)
+
+
+def test_parse_content_with_internal_blocks_preserves_plain_trailing_block() -> None:
+    content = "\n".join(
+        [
+            "first",
+            content_internal_tag({"a": 1}),
+            "second",
+        ]
+    )
+
+    blocks = parse_content_with_internal_blocks(content, CONTENT_INTERNAL_TAG)
+
+    assert [(block.text, block.internal) for block in blocks] == [
+        ("first", {"a": 1}),
+        ("second", None),
+    ]
+    assert parse_content_with_internal(content, CONTENT_INTERNAL_TAG) == (
+        "first\n\nsecond",
+        {"a": 1},
+    )
+
+
+def test_parse_content_with_internal_blocks_preserves_payload_without_text() -> None:
+    blocks = parse_content_with_internal_blocks(
+        content_internal_tag({"a": 1}), CONTENT_INTERNAL_TAG
+    )
+
+    assert blocks == [("", {"a": 1})]
+
+
+def test_parse_content_with_internal_blocks_keeps_invalid_later_payload() -> None:
+    invalid_json = base64.b64encode(b"invalid json").decode("utf-8")
+    content = "\n".join(
+        [
+            "first",
+            content_internal_tag({"valid": True}),
+            "second",
+            f"<{CONTENT_INTERNAL_TAG}>{invalid_json}</{CONTENT_INTERNAL_TAG}>",
+        ]
+    )
+
+    assert parse_content_with_internal_blocks(content, CONTENT_INTERNAL_TAG) == [
+        ("first", {"valid": True}),
+        (
+            f"second\n<{CONTENT_INTERNAL_TAG}>{invalid_json}</{CONTENT_INTERNAL_TAG}>",
+            None,
+        ),
+    ]
+
+
 invalid_utf8_bytes = b"\xff\xfe\xfd"
 invalid_utf8_b64 = base64.b64encode(invalid_utf8_bytes).decode("utf-8")
 
@@ -271,11 +347,13 @@ invalid_utf8_b64 = base64.b64encode(invalid_utf8_bytes).decode("utf-8")
 )
 def test_parse_content_with_internal_undecodable_is_literal(s):
     assert parse_content_with_internal(s, "internal") == (s, None)
+    assert parse_content_with_internal_blocks(s, "internal") == [(s, None)]
 
 
 def test_parse_content_with_internal_deeply_nested_body_is_literal():
     s = f"<internal>{base64.b64encode(b'[' * 200_000).decode('utf-8')}</internal>"
     assert parse_content_with_internal(s, "internal") == (s, None)
+    assert parse_content_with_internal_blocks(s, "internal") == [(s, None)]
 
 
 @pytest.mark.parametrize("depth", [101, 250, 300])
@@ -287,6 +365,29 @@ def test_parse_content_with_internal_body_that_cannot_be_content_is_literal(dept
         f"see <internal>{deep}</internal>",
         {"a": 1},
     )
+
+
+@pytest.mark.parametrize(
+    "literal",
+    [
+        "<internal>example</internal>",
+        "Use the <internal> marker.",
+        f"<internal>{base64.b64encode(b'[' * 200_000).decode()}</internal>",
+        f"<internal>{base64.b64encode(('[' * 101 + ']' * 101).encode()).decode()}</internal>",
+    ],
+    ids=["quoted", "opening-only", "malformed-deep", "too-deep"],
+)
+def test_parse_content_with_internal_blocks_keeps_literal_between_payloads(
+    literal: str,
+) -> None:
+    content = (
+        f"first<internal>{encode_internal({'a': 1})}</internal>"
+        f"{literal}\nsecond<internal>{encode_internal({'b': 2})}</internal>"
+    )
+    assert parse_content_with_internal_blocks(content, "internal") == [
+        ("first", {"a": 1}),
+        (f"{literal}\nsecond", {"b": 2}),
+    ]
 
 
 def test_parse_content_with_internal_body_at_the_depth_limit_is_internal():

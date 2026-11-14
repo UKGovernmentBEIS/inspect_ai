@@ -43,7 +43,10 @@ from inspect_ai.model._generate_config import (
     GenerateConfig,
     ResponseSchema,
 )
-from inspect_ai.model._internal import CONTENT_INTERNAL_TAG, parse_content_with_internal
+from inspect_ai.model._internal import (
+    CONTENT_INTERNAL_TAG,
+    parse_content_with_internal_blocks,
+)
 from inspect_ai.model._message_ids import shown_text
 from inspect_ai.model._model import Model, ModelName
 from inspect_ai.model._model_output import ModelUsage, StopReason
@@ -593,8 +596,9 @@ async def messages_from_anthropic_input(
                         messages.append(
                             ChatMessageUser(
                                 content=[
-                                    content_block_to_content(b)
+                                    content
                                     for b in pending_user_content  # noqa: B023
+                                    for content in content_block_to_contents(b)
                                 ]
                             )
                         )
@@ -613,7 +617,9 @@ async def messages_from_anthropic_input(
                             content = content_value
                         else:
                             content = [
-                                content_block_to_content(b) for b in content_value
+                                content
+                                for b in content_value
+                                for content in content_block_to_contents(b)
                             ]
                         tool_message = ChatMessageTool(
                             tool_call_id=c["tool_use_id"],
@@ -648,37 +654,43 @@ async def messages_from_anthropic_input(
     return messages
 
 
-def content_block_to_content(
+def content_block_to_contents(
     block: TextBlockParam
     | ImageBlockParam
     | DocumentBlockParam
     | SearchResultBlockParam
     | ToolReferenceBlockParam
     | BrowserStateBlockParam,
-) -> Content:
+) -> list[Content]:
     if block["type"] == "text":
-        text = block["text"]
-        text, content_internal = parse_content_with_internal(text, CONTENT_INTERNAL_TAG)
-        return ContentText(
-            text=text,
-            internal=content_internal,
-            citations=[
-                to_inspect_citation(cite) for cite in block.get("citations", []) or []
-            ]
-            if block.get("citations", None) is not None
-            else None,
-        )
+        return [
+            ContentText(
+                text=parsed.text,
+                internal=parsed.internal,
+                citations=[
+                    to_inspect_citation(cite)
+                    for cite in block.get("citations", []) or []
+                ]
+                if block.get("citations", None) is not None
+                else None,
+            )
+            for parsed in parse_content_with_internal_blocks(
+                block["text"], CONTENT_INTERNAL_TAG
+            )
+        ]
     elif block["type"] == "image":
         if block["source"]["type"] == "base64":
             data = base_64_data(block["source"]["data"])
-            return ContentImage(
-                image=as_data_uri(
-                    mime_type=block["source"]["media_type"],
-                    data=data,
+            return [
+                ContentImage(
+                    image=as_data_uri(
+                        mime_type=block["source"]["media_type"],
+                        data=data,
+                    )
                 )
-            )
+            ]
         elif block["source"]["type"] == "url":
-            return ContentImage(image=block["source"]["url"])
+            return [ContentImage(image=block["source"]["url"])]
         else:
             raise RuntimeError(
                 f"Unsupported image source type: {block['source']['type']}"
@@ -687,24 +699,28 @@ def content_block_to_content(
         source = block["source"]
         if source["type"] == "text":
             data = base64.b64encode(source["data"].encode("utf-8")).decode("ascii")
-            return ContentDocument(
-                document=as_data_uri(source["media_type"], data),
-                mime_type=source["media_type"],
-            )
+            return [
+                ContentDocument(
+                    document=as_data_uri(source["media_type"], data),
+                    mime_type=source["media_type"],
+                )
+            ]
         elif source["type"] == "url":
-            return ContentDocument(document=source["url"])
+            return [ContentDocument(document=source["url"])]
         elif source["type"] == "base64":
             data = base_64_data(source["data"])
-            return ContentDocument(
-                document=as_data_uri(source["media_type"], data),
-                mime_type=source["media_type"],
-            )
+            return [
+                ContentDocument(
+                    document=as_data_uri(source["media_type"], data),
+                    mime_type=source["media_type"],
+                )
+            ]
         elif source["type"] == "content":
             c = source["content"]
             if isinstance(c, str):
-                return ContentText(text=c)
+                return [ContentText(text=c)]
             else:
-                return content_block_to_content(list(c)[0])
+                return content_block_to_contents(list(c)[0])
         else:
             raise RuntimeError(f"Unsupported document source type: {source['type']}")
     else:
