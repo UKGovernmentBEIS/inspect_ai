@@ -134,7 +134,7 @@ def json_dataset(
 
 def jsonlines_dataset_reader(file: TextIOWrapper, **kwargs: Any) -> DatasetReader:
     jsonlines_reader = jsonlines.Reader(file, **kwargs)
-    return jsonlines_reader.iter(type=dict)
+    return jsonlines_reader.iter(type=dict, skip_empty=True)
 
 
 def json_dataset_reader(file: TextIOWrapper, **kwargs: Any) -> DatasetReader:
