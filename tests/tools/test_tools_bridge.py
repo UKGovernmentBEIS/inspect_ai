@@ -6,6 +6,7 @@ via the MCP protocol using BridgedToolsSpec and sandbox_agent_bridge.
 
 import json
 from contextlib import contextmanager
+from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Iterator
 from unittest.mock import MagicMock, patch
@@ -28,7 +29,7 @@ from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent import BridgedToolsSpec, sandbox_agent_bridge
 from inspect_ai.agent._bridge.sandbox.host_tool import _raised
-from inspect_ai.agent._bridge.sandbox.service import call_tool
+from inspect_ai.agent._bridge.sandbox.service import call_tool, list_tools
 from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._span import SpanBeginEvent
@@ -1171,6 +1172,34 @@ async def test_bridged_tool_error_is_reported_to_the_model_only() -> None:
 
     assert not bridge._failure_requested.is_set()
     assert bridge._failure is None
+
+
+class Unit(Enum):
+    CELSIUS = "celsius"
+    FAHRENHEIT = "fahrenheit"
+
+
+@tool
+def weather_tool():
+    async def execute(city: str, unit: Unit = Unit.CELSIUS) -> str:
+        """Get the current temperature for a city.
+
+        Args:
+            city: City name.
+            unit: Temperature unit.
+        """
+        return f"21 degrees {unit.value} in {city}"
+
+    return execute
+
+
+async def test_bridged_tools_list_encodes_enum_default() -> None:
+    """The tool list goes to the scaffold as JSON, so an Enum default is its value."""
+    tools = await list_tools(_bridge_with_tools([weather_tool()]))("srv")
+
+    encoded = json.loads(json.dumps(tools))
+    assert encoded == tools
+    assert encoded[0]["inputSchema"]["properties"]["unit"]["default"] == "celsius"
 
 
 async def test_bridged_tool_malformed_arguments_are_a_parsing_error() -> None:
