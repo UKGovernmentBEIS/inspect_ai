@@ -752,3 +752,69 @@ def test_hf_dataset_cache_hit_does_not_invoke_retry(tmp_path, monkeypatch):
 
     result = hf_dataset(path=path, split=split)
     assert len(result) == 1
+
+
+@skip_if_no_package("httpx")
+def test_retry_httpx_timeout():
+    import httpx
+
+    timeout = httpx.ReadTimeout(
+        "timed out",
+        request=httpx.Request(
+            "GET", "https://huggingface.co/api/datasets/lhoestq/demo1"
+        ),
+    )
+
+    assert _should_retry_hf_error(timeout) is True
+
+
+@skip_if_no_package("httpx")
+def test_no_retry_httpx_timeout_for_another_host():
+    import httpx
+
+    timeout = httpx.ReadTimeout(
+        "timed out",
+        request=httpx.Request("GET", "https://example.com/api/datasets/lhoestq/demo1"),
+    )
+
+    assert _should_retry_hf_error(timeout) is False
+
+
+def test_retry_hub_connection_error_without_a_cause():
+    wrapped = ConnectionError(
+        "Couldn't reach 'lhoestq/demo1' on the Hub (LocalEntryNotFoundError)"
+    )
+
+    assert _should_retry_hf_error(wrapped) is True
+
+
+def test_no_retry_unrelated_connection_error():
+    assert _should_retry_hf_error(ConnectionError("connection reset by peer")) is False
+
+
+@skip_if_no_package("httpx")
+def test_retry_httpx_timeout_without_a_request():
+    """A timeout with no request attached: no host to check, so retry."""
+    import httpx
+
+    assert _should_retry_hf_error(httpx.ConnectTimeout("timed out")) is True
+
+
+@skip_if_no_package("httpx")
+def test_no_retry_httpx_error_that_is_not_a_timeout():
+    import httpx
+
+    error = httpx.ConnectError(
+        "refused",
+        request=httpx.Request(
+            "GET", "https://huggingface.co/api/datasets/lhoestq/demo1"
+        ),
+    )
+
+    assert _should_retry_hf_error(error) is False
+
+
+def test_no_retry_connection_error_that_does_not_name_the_hub():
+    assert (
+        _should_retry_hf_error(ConnectionError("Couldn't reach example.com")) is False
+    )

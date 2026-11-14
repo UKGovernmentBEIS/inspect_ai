@@ -38,6 +38,15 @@ _TRANSIENT_HTTP_STATUSES = {429, 502}
 
 def _should_retry_hf_error(err: BaseException) -> bool:
     """Return True if `err` is a transient HF failure worth retrying."""
+    # Offline mode makes the Hub unreachable by design, so retrying only adds the backoff.
+    try:
+        from huggingface_hub.constants import HF_HUB_OFFLINE
+
+        if HF_HUB_OFFLINE:
+            return False
+    except ImportError:
+        pass
+
     try:
         from huggingface_hub.errors import HfHubHTTPError, LocalEntryNotFoundError
 
@@ -73,6 +82,28 @@ def _should_retry_hf_error(err: BaseException) -> bool:
             return "huggingface.co" in str(err)
     except ImportError:
         pass
+
+    # huggingface_hub 1.x talks HTTPX, so a Hub timeout arrives as an HTTPX exception rather
+    # than a requests one.
+    try:
+        import httpx
+
+        if isinstance(err, httpx.TimeoutException):
+            # `HTTPError.request` raises rather than returning None when no request was
+            # attached, which is the cause-less shape this branch exists for.
+            try:
+                host = err.request.url.host
+            except RuntimeError:
+                return True
+            return host == "huggingface.co" or host.endswith(".huggingface.co")
+    except ImportError:
+        pass
+
+    # `datasets` re-raises a Hub timeout as a plain ConnectionError and drops the cause, so the
+    # wrapped LocalEntryNotFoundError leaves no attribute to inspect.
+    if isinstance(err, ConnectionError):
+        message = str(err)
+        return "Couldn't reach" in message and "on the Hub" in message
 
     return False
 
