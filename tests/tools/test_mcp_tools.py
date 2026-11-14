@@ -90,19 +90,22 @@ def _make_simulated_mcp_client(
     unexpected_methods: list[str],
     on_initialize: Callable[[int], Awaitable[bool]] | None = None,
     received: list[tuple[int, str]] | None = None,
+    on_list_tools: Callable[[int], Awaitable[None]] | None = None,
 ):
     """Build a fake MCP transport context manager.
 
     The writer responds to ``initialize`` with a valid handshake and to
-    ``tools/list`` with no tools, delegates ``tools/call`` to ``on_tool_call`` (which returns a ``JSONRPCMessage`` to
+    ``tools/list`` with one tool named ``connection_<n>``, delegates
+    ``tools/call`` to ``on_tool_call`` (which returns a ``JSONRPCMessage`` to
     send back), accepts notifications, and records anything else into
     ``unexpected_methods`` (asserted by callers — raising from the writer
     task wraps the failure in an ExceptionGroup, which obscures the message).
 
     Each opened transport is a numbered connection, from 0. ``on_initialize``
     is awaited with that number before the handshake reply, and an error is
-    sent instead when it returns False. ``received`` records every request and
-    notification as ``(connection, method)``.
+    sent instead when it returns False. ``on_list_tools`` is awaited with that
+    number before the ``tools/list`` reply. ``received`` records every request
+    and notification as ``(connection, method)``.
     """
     from anyio.streams.memory import (
         MemoryObjectReceiveStream,
@@ -207,13 +210,24 @@ def _make_simulated_mcp_client(
                             elif root.method == "tools/call":
                                 await read_stream_writer.send(on_tool_call(root))
                             elif root.method == "tools/list":
+                                if on_list_tools is not None:
+                                    await on_list_tools(connection)
                                 await read_stream_writer.send(
                                     SessionMessage(
                                         message=jsonrpc_message(
                                             JSONRPCResponse(
                                                 jsonrpc="2.0",
                                                 id=root.id,
-                                                result={"tools": []},
+                                                result={
+                                                    "tools": [
+                                                        _mcp_tool(
+                                                            f"connection_{connection}"
+                                                        ).model_dump(
+                                                            by_alias=True,
+                                                            exclude_none=True,
+                                                        )
+                                                    ]
+                                                },
                                             )
                                         )
                                     )
@@ -709,7 +723,7 @@ def _answer_tool_call(root: Any) -> Any:
     """Answer a tool call with an error naming who answered it.
 
     An error result avoids the `tools/list` that mcp sends to validate a
-    successful result, which the simulated transport doesn't serve.
+    successful result, which would add a request to the transport's log.
     """
     from mcp.shared.message import SessionMessage
     from mcp.types import INTERNAL_ERROR, ErrorData, JSONRPCError
@@ -733,7 +747,7 @@ def _mcp_tool(name: str) -> Any:
     return MCPTool.model_validate(
         {
             "name": name,
-            "description": "",
+            "description": name,
             "inputSchema": {"type": "object", "properties": {}},
         }
     )
@@ -941,6 +955,80 @@ async def test_mcp_tool_use_during_disconnect_opens_its_own_connection() -> None
         "tools listed over a temporary connection during teardown must not "
         "be served to the next connection"
     )
+
+
+@skip_if_no_mcp_package
+async def test_mcp_tool_list_from_ended_connection_is_not_cached() -> None:
+    """A tool listing that outlives the connection it started under isn't cached.
+
+    A `tools()` call during teardown lists over a temporary connection. If
+    that listing returns after the owner has reconnected and listed again, it
+    must not replace the new connection's tool list.
+    """
+    from inspect_ai.tool._mcp._local import MCPServerLocalSession
+
+    closing = anyio.Event()
+    release = anyio.Event()
+    listing = anyio.Event()
+    finish_listing = anyio.Event()
+    listed = anyio.Event()
+
+    async def hold_temporary_listing(connection: int) -> None:
+        if connection == 1:
+            listing.set()
+            await finish_listing.wait()
+
+    unexpected: list[str] = []
+    simulated = _make_simulated_mcp_client(
+        _answer_tool_call,
+        unexpected_methods=unexpected,
+        on_list_tools=hold_temporary_listing,
+    )
+    opened = 0
+
+    @contextlib.asynccontextmanager
+    async def client() -> AsyncIterator[Any]:
+        nonlocal opened
+        connection = opened
+        opened += 1
+        async with simulated() as streams:
+            try:
+                yield streams
+            finally:
+                if connection == 0:
+                    closing.set()
+                    await release.wait()
+
+    session = MCPServerLocalSession(client, name="late-listing", events=False)
+    connected: list[MCPServer] = []
+    tool_names: list[list[str]] = []
+
+    async def owner() -> None:
+        async with session as server:
+            connected.append(server)
+        async with session:
+            tool_names.append([ToolDef(t).name for t in await session.tools()])
+            finish_listing.set()
+            await listed.wait()
+            tool_names.append([ToolDef(t).name for t in await session.tools()])
+
+    async def list_during_teardown() -> None:
+        await closing.wait()
+        await connected[0].tools()
+        listed.set()
+
+    async def release_teardown_once_listing() -> None:
+        await listing.wait()
+        release.set()
+
+    with anyio.fail_after(5):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(owner)
+            tg.start_soon(list_during_teardown)
+            tg.start_soon(release_teardown_once_listing)
+
+    assert not unexpected, f"writer saw unexpected methods: {unexpected}"
+    assert tool_names == [["connection_2"], ["connection_2"]]
 
 
 @skip_if_no_mcp_package

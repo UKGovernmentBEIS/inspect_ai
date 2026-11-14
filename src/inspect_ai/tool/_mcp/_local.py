@@ -200,6 +200,10 @@ class MCPServerLocalSession(MCPServer):
         # being torn down.
         self._conn: _Connection | None = None
         self._cached_tool_list: list[MCPTool] | None = None
+        # Bumped whenever the cache is cleared, so a listing that started
+        # before the clear can't refill the cache with an ended connection's
+        # tools.
+        self._cache_generation = 0
 
     @override
     async def __aenter__(self) -> MCPServer:
@@ -231,20 +235,23 @@ class MCPServerLocalSession(MCPServer):
                 with trace_action(logger, "MCPServer", f"disconnect ({self._name})"):
                     await conn.exit_stack.aclose()
             finally:
-                # Clear the cached tool list once teardown is over (a tools()
-                # call during it can refill the cache), so a session reused
-                # across two mcp_connection blocks re-fetches from the server.
+                # Clear the cached tool list once teardown is over, so a
+                # session reused across two mcp_connection blocks re-fetches
+                # from the server.
                 self._cached_tool_list = None
+                self._cache_generation += 1
 
     @override
     async def tools(self) -> list[Tool]:
         if self._cached_tool_list is not None:
             mcp_tools = self._cached_tool_list
         else:
+            generation = self._cache_generation
             async with self._client_session() as session:
                 # get the underlying tools on the server
                 with trace_action(logger, "MCPServer", f"list_tools {self._name}"):
                     mcp_tools = (await session.list_tools()).tools
+            if self._cache_generation == generation:
                 self._cached_tool_list = mcp_tools
 
         return [
