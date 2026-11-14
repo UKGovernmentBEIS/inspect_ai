@@ -187,8 +187,7 @@ from inspect_ai.model._model_output import (
     collect_stop_details,
 )
 from inspect_ai.model._openai import is_gpt_5_model
-from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
-from inspect_ai.tool._mcp._remote import is_mcp_server_tool
+from inspect_ai.tool._mcp._remote import is_mcp_server_tool, mcp_server_config
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
@@ -1833,7 +1832,7 @@ _ResponseToolCallParam = (
 
 def maybe_mcp_tool(tool: ToolInfo) -> Mcp | None:
     if is_mcp_server_tool(tool):
-        mcp_server = MCPServerConfigHTTP.model_validate(tool.options)
+        mcp_server = mcp_server_config(tool)
         return Mcp(
             type="mcp",
             server_label=mcp_server.name,

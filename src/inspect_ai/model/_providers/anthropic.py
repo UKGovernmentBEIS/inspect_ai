@@ -174,7 +174,12 @@ from inspect_ai.model._internal import (
 from inspect_ai.model._retry import batch_admin_retry_config
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
-from inspect_ai.tool._mcp._remote import is_mcp_server_tool
+from inspect_ai.tool._mcp._remote import (
+    is_mcp_server_tool,
+    mcp_server_config,
+    redact_anthropic_mcp_servers,
+    redact_anthropic_sdk_debug_log,
+)
 from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
 from inspect_ai.util._json import (
     JSON_SCHEMA_EXTENDED_FIELDS,
@@ -460,6 +465,8 @@ class AnthropicAPI(ModelAPI):
         computer_toolset: bool | None = None,
         **model_args: Any,
     ):
+        redact_anthropic_sdk_debug_log()
+
         # extract any service prefix from model name
         parts = model_name.split("/")
         if len(parts) > 1:
@@ -1071,7 +1078,9 @@ class AnthropicAPI(ModelAPI):
                 if container is not None:
                     request["container"] = container
 
-                model_call = set_active_model_event_call(request, model_call_filter)
+                model_call = set_active_model_event_call(
+                    redact_anthropic_mcp_servers(request), model_call_filter
+                )
 
                 # stream if the caller passed on_stream or (in auto mode) when
                 # using reasoning or >= 8192 max_tokens; an explicit streaming
@@ -2507,7 +2516,7 @@ class AnthropicAPI(ModelAPI):
         mcp_servers: list[MCPServerConfigHTTP] = []
         for tool in tools:
             if is_mcp_server_tool(tool):
-                mcp_servers.append(MCPServerConfigHTTP.model_validate(tool.options))
+                mcp_servers.append(mcp_server_config(tool))
             else:
                 standard_tools.append(tool)
         return standard_tools, mcp_servers

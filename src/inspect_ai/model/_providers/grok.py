@@ -71,8 +71,11 @@ from inspect_ai.model._stream import (
     report_model_stream_progress,
     report_model_stream_start,
 )
-from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
-from inspect_ai.tool._mcp._remote import is_mcp_server_tool
+from inspect_ai.tool._mcp._remote import (
+    is_mcp_server_tool,
+    mcp_server_config,
+    redact_grok_mcp_tools,
+)
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
@@ -374,7 +377,7 @@ class GrokAPI(ModelAPI):
             )
 
         model_call = set_active_model_event_call(
-            request=request,
+            request=redact_grok_mcp_tools(request),
             filter=_grok_media_filter,
         )
 
@@ -592,7 +595,7 @@ class GrokAPI(ModelAPI):
         elif self._is_internal_code_execution_tool(tool_info):
             return code_execution()
         elif is_mcp_server_tool(tool_info):
-            mcp_config = MCPServerConfigHTTP.model_validate(tool_info.options)
+            mcp_config = mcp_server_config(tool_info)
             return mcp(
                 server_url=mcp_config.url,
                 server_label=mcp_config.name,
