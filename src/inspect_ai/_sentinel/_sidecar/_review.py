@@ -492,12 +492,23 @@ async def ask_person(received: ReceivedCall) -> None:
         return
     received.questions_lost = 0
     listed = result.get("questions")
+    if not isinstance(listed, list) or not all(
+        isinstance(question, dict)
+        and isinstance(question.get("id"), str)
+        and isinstance(question.get("request_id"), str)
+        for question in listed
+    ):
+        # A list Inspect can't read is never taken for an empty one: the
+        # sidecar goes on saying a question is open, and Inspect would go on
+        # asking with nothing to show a person. What the list held isn't
+        # told, as a question holds a call's arguments.
+        raise SentinelProxyError(
+            f"The sentinel sidecar at {sidecar.origin} listed the questions it holds for a person in a form Inspect can't read."
+        )
     questions = [
         question
-        for question in (listed if isinstance(listed, list) else [])
-        if isinstance(question, dict)
-        and question.get("request_id") == received.request_id
-        and isinstance(question.get("id"), str)
+        for question in listed
+        if question["request_id"] == received.request_id
         and question["id"] not in received.answered
     ]
     if not questions:
@@ -516,12 +527,24 @@ async def ask_person(received: ReceivedCall) -> None:
             call = question.get("call")
             function = call.get("function") if isinstance(call, dict) else None
             received.asked_about[id] = (str(function or "a tool"), time.time())
-        # an answer the sidecar couldn't be sent is sent again, and the
-        # person isn't asked again
-        if await _answer(sidecar, id, *received.decisions[id]):
+        # An answer the sidecar couldn't be sent is sent again, and the
+        # person isn't asked again. It is sent again after a wait, as a
+        # lookup lost on the way is asked again, and as many times: the
+        # sidecar goes on saying the question is open, which doesn't begin
+        # the count afresh.
+        lost = await _answer(sidecar, id, *received.decisions[id])
+        if lost is None:
+            received.answers_lost = 0
             received.answered.add(id)
-        else:
-            await anyio.sleep(NO_QUESTION_PAUSE)
+            continue
+        from ._lookup import LOOKUP_RETRIES, LOOKUP_RETRY_PAUSE
+
+        received.answers_lost += 1
+        if received.answers_lost > LOOKUP_RETRIES:
+            raise SentinelProxyError(
+                f"A person's answer couldn't be sent to the sentinel sidecar at {sidecar.origin}: {lost}"
+            ) from lost
+        await anyio.sleep(LOOKUP_RETRY_PAUSE * 2 ** (received.answers_lost - 1))
 
 
 async def _decision(
@@ -586,8 +609,11 @@ async def _ask(
     return chosen(approval, offered)
 
 
-async def _answer(sidecar: Any, id: str, decision: str, reason: str | None) -> bool:
-    # whether the sidecar took the answer, or holds the question no longer
+async def _answer(
+    sidecar: Any, id: str, decision: str, reason: str | None
+) -> SidecarCallError | None:
+    # None once the sidecar took the answer, or holds the question no
+    # longer; otherwise the failure that kept the answer from reaching it
     try:
         await sidecar.answer_question(id, decision, reason)
     except SidecarCallError as ex:
@@ -599,15 +625,15 @@ async def _answer(sidecar: Any, id: str, decision: str, reason: str | None) -> b
             logger.debug(
                 f"The sentinel sidecar at {sidecar.origin} no longer held a question when a person answered it: {ex}"
             )
-            return True
+            return None
         if ex.code is None:
             # the call didn't reach the sidecar, or its answer didn't come back
             logger.debug(
                 f"A person's answer couldn't be sent to the sentinel sidecar at {sidecar.origin}: {ex}"
             )
-            return False
+            return ex
         raise _refused(sidecar, ex) from ex
-    return True
+    return None
 
 
 def _refused(sidecar: Any, ex: SidecarCallError) -> SentinelProxyError:

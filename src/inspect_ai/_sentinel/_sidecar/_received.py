@@ -183,6 +183,8 @@ class ReceivedCall:
         """The tries the sidecar said failed at the provider that Inspect has acted on, by number. A try whose error the sidecar holds is acted on once that error has been got from it."""
         self.questions_lost = 0
         """How many times in a row the sidecar couldn't be asked for the call's questions, because the request didn't reach it or its answer didn't come back. Asking what became of the call meanwhile doesn't end the count."""
+        self.answers_lost = 0
+        """How many times in a row a person's answer couldn't be sent to the sidecar, because the request didn't reach it or its answer didn't come back. Asking for the call's questions, or what became of the call, meanwhile doesn't end the count."""
         self.failure_fetches: dict[int, int] = {}
         """How many times the provider's error for a failed try was asked of the sidecar, by the try's number."""
         self.decisions: dict[str, tuple[str, str | None]] = {}

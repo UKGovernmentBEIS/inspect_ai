@@ -138,6 +138,8 @@ class ReviewingSidecar(StandInSidecar):
     """How many such calls the sidecar itself answers with an error."""
     questions_lost: int = 0
     """How many `pending_questions` calls the proxy answers with a 502, so that they never reach the sidecar."""
+    answers_lost: int = 0
+    """How many `answer_question` calls the proxy answers with a 502, so that they never reach the sidecar."""
     error_cut_off: int = 0
     """How many times the held-reply path's answer with the provider's error has its connection fail part way through the body, after its headers, the sidecar's marker among them, have come."""
     pending_lost: int = 0
@@ -218,6 +220,9 @@ class ReviewingSidecar(StandInSidecar):
             call = json.loads(request.content)
             if call["method"] == "pending_questions" and self.questions_lost > 0:
                 self.questions_lost -= 1
+                return httpx2.Response(502, text="Bad Gateway")
+            if call["method"] == "answer_question" and self.answers_lost > 0:
+                self.answers_lost -= 1
                 return httpx2.Response(502, text="Bad Gateway")
             if (
                 call["method"] == "request_result"
@@ -1399,6 +1404,123 @@ def test_questions_that_keep_being_lost_are_asked_for_only_so_many_times(
     assert person.asked == []
     [first] = stand_in.model_calls
     assert stand_in.cancelled == [first.headers["x-irid"]]
+
+
+def test_an_answer_lost_on_the_way_is_sent_again_without_asking_the_person_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(lookup_module, "LOOKUP_RETRY_PAUSE", 0.01)
+    person = Person("approve")
+    person.install(monkeypatch)
+    # the proxy fails as many times as Inspect sends again, and then answers
+    stand_in = ReviewingSidecar(
+        pauses=["tool_call"],
+        turns=[_OSLO, Turn()],
+        answers_lost=lookup_module.LOOKUP_RETRIES,
+    )
+
+    sample = _sample(_run(stand_in))
+
+    # the answer the person gave once reaches the sidecar, and the call goes on
+    assert stand_in.answers_lost == 0
+    assert sample.error is None
+    assert len(person.asked) == 1
+    [answer] = _called(stand_in, "answer_question")
+    assert answer["decision"] == "approve"
+
+
+def test_an_answer_that_keeps_being_lost_is_sent_only_so_many_times(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(lookup_module, "LOOKUP_RETRY_PAUSE", 0.01)
+    person = Person("approve")
+    person.install(monkeypatch)
+    stand_in = ReviewingSidecar(pauses=["tool_call"], turns=[_OSLO], answers_lost=100)
+
+    # the sample's own limit is far off: it ends a review that goes on
+    # sending, so that such a test fails and doesn't hang
+    log = _run(stand_in, solver=generate(), fail_on_error=False, time_limit=10)
+
+    # The sidecar goes on listing the question and saying it is open, and
+    # neither begins the count afresh: after the first loss and each time the
+    # answer is sent again, the review fails. The person was asked once.
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None and sample.limit is None
+    assert "answer couldn't be sent" in sample.error.message
+    assert 100 - stand_in.answers_lost == 1 + lookup_module.LOOKUP_RETRIES
+    assert len(person.asked) == 1
+    # The call is closed at the sidecar when the review fails, not when the
+    # sample ends, so the record of its question is in the sample's log.
+    [first] = stand_in.model_calls
+    assert stand_in.cancelled == [first.headers["x-irid"]]
+    [logged] = _reviews_logged(sample)
+    assert logged["review"]["resolution"] == "cancelled"
+    assert review_module._open_calls == {}
+
+
+def _without(question: dict[str, Any], member: str) -> dict[str, Any]:
+    return {name: value for name, value in question.items() if name != member}
+
+
+@pytest.mark.parametrize(
+    "unreadable",
+    [
+        pytest.param(lambda listed: {}, id="no list"),
+        pytest.param(lambda listed: {"questions": None}, id="null"),
+        pytest.param(lambda listed: {"questions": "none"}, id="a string"),
+        pytest.param(
+            lambda listed: {"questions": ["a question"]}, id="an entry that is text"
+        ),
+        pytest.param(
+            lambda listed: {"questions": [{**q, "id": 7} for q in listed]},
+            id="an id that is a number",
+        ),
+        pytest.param(
+            lambda listed: {"questions": [_without(q, "id") for q in listed]},
+            id="no id",
+        ),
+        pytest.param(
+            lambda listed: {"questions": [_without(q, "request_id") for q in listed]},
+            id="no request id",
+        ),
+    ],
+)
+def test_questions_listed_in_a_form_inspect_cant_read_fail_the_review_at_once(
+    monkeypatch: pytest.MonkeyPatch,
+    unreadable: Callable[[list[dict[str, Any]]], dict[str, Any]],
+) -> None:
+    person = Person("approve")
+    person.install(monkeypatch)
+    stand_in = ReviewingSidecar(pauses=["tool_call"], turns=[_OSLO])
+    listed = stand_in._pending_questions
+    asked: list[dict[str, Any]] = []
+
+    def listing(params: dict[str, Any]) -> dict[str, Any]:
+        asked.append(params)
+        return unreadable(listed(params)["questions"])
+
+    stand_in.methods["pending_questions"] = listing
+
+    # the sample's own limit is far off: it ends a review that goes on
+    # asking, so that such a test fails and doesn't hang
+    log = _run(stand_in, solver=generate(), fail_on_error=False, time_limit=10)
+
+    # A list that can't be read isn't taken for one with no questions, which
+    # Inspect would go on asking for. The review fails on the first, nobody
+    # is asked, and the error tells nothing of what a question held.
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None and sample.limit is None
+    assert "in a form Inspect can't read" in sample.error.message
+    assert "Oslo" not in sample.error.message
+    assert len(asked) == 1
+    assert person.asked == []
+    # closed at the sidecar at once, so the question's record is in the log
+    [first] = stand_in.model_calls
+    assert stand_in.cancelled == [first.headers["x-irid"]]
+    [logged] = _reviews_logged(sample)
+    assert logged["review"]["resolution"] == "cancelled"
 
 
 @solver
