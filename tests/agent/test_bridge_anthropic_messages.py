@@ -119,6 +119,34 @@ async def test_inline_text_document_round_trip() -> None:
     }
 
 
+@pytest.mark.anyio
+async def test_inline_text_document_with_lone_surrogate_round_trip() -> None:
+    content = content_block_to_content(
+        cast(
+            Any,
+            {
+                "type": "document",
+                "source": {
+                    "type": "text",
+                    "data": "\ud800",
+                    "media_type": "text/plain",
+                },
+            },
+        )
+    )
+    assert isinstance(content, ContentDocument)
+    assert content.document.startswith("data:text/plain;base64,")
+
+    blocks = await message_block_params(content)
+    block = cast(dict[str, Any], blocks[0])
+    source = cast(dict[str, Any], block["source"])
+    assert source == {
+        "type": "text",
+        "data": r"\ud800",
+        "media_type": "text/plain",
+    }
+
+
 def test_file_image_source_raises() -> None:
     with pytest.raises(RuntimeError, match="Unsupported image source type: file"):
         content_block_to_content(
