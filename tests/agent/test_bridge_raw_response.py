@@ -32,6 +32,7 @@ from inspect_ai.model._openai import messages_to_openai
 from inspect_ai.scorer import includes
 
 ANSWER = "the answer is 42"
+SURROGATE = "\ud800"
 
 
 def bridge_client() -> AsyncOpenAI:
@@ -79,6 +80,19 @@ def raw_response_agent() -> Agent:
         async with agent_bridge(state) as bridge:
             completion = await consume_raw_response(bridge.state)
             assert completion.choices[0].message.content == ANSWER
+            return bridge.state
+
+    return execute
+
+
+@agent
+def raw_response_surrogate_agent() -> Agent:
+    """Bridge agent that checks a lone surrogate survives the round-trip."""
+
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            completion = await consume_raw_response(bridge.state)
+            assert completion.choices[0].message.content == SURROGATE
             return bridge.state
 
     return execute
@@ -176,6 +190,15 @@ def test_bridge_with_raw_response_parses() -> None:
 
 
 @skip_if_no_openai_package
+def test_bridge_with_raw_response_preserves_lone_surrogate() -> None:
+    """Raw-response JSON construction accepts a lone surrogate."""
+    run_bridge_test(
+        raw_response_surrogate_agent(),
+        ModelOutput.from_content("mockllm/model", SURROGATE),
+    )
+
+
+@skip_if_no_openai_package
 def test_bridge_plain_create_still_returns_model() -> None:
     """Plain `.create()` continues to return a parsed `ChatCompletion` (no regression)."""
     run_bridge_test(
@@ -249,6 +272,21 @@ def anthropic_raw_response_agent() -> Agent:
             block = message.content[0]
             assert isinstance(block, TextBlock)
             assert block.text == ANSWER
+            return bridge.state
+
+    return execute
+
+
+@agent
+def anthropic_raw_response_surrogate_agent() -> Agent:
+    """Bridge agent that checks a lone surrogate survives the round-trip."""
+
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            message = await consume_anthropic_raw_response()
+            block = message.content[0]
+            assert isinstance(block, TextBlock)
+            assert block.text == SURROGATE
             return bridge.state
 
     return execute
@@ -346,6 +384,15 @@ def test_anthropic_bridge_with_raw_response_parses() -> None:
     run_bridge_test(
         anthropic_raw_response_agent(),
         ModelOutput.from_content("mockllm/model", ANSWER),
+    )
+
+
+@skip_if_no_anthropic_package
+def test_anthropic_bridge_with_raw_response_preserves_lone_surrogate() -> None:
+    """Anthropic raw-response JSON construction accepts a lone surrogate."""
+    run_bridge_test(
+        anthropic_raw_response_surrogate_agent(),
+        ModelOutput.from_content("mockllm/model", SURROGATE),
     )
 
 
