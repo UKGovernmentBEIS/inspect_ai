@@ -1,13 +1,15 @@
-"""Tests for the private `Transcript._subscribe` multi-cast API."""
+"""Tests for the `Transcript.subscribe` / `Transcript._subscribe` multi-cast API."""
 
+import json
 import logging
 from unittest.mock import patch
 
 from inspect_ai._util.constants import SKIP_TRANSCRIPT_DISPATCH
-from inspect_ai.event import Event
+from inspect_ai.event import Event, ModelEvent
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._logger import LoggerEvent, LoggingMessage
 from inspect_ai.log._transcript import Transcript
+from inspect_ai.model import GenerateConfig, ModelCall, ModelOutput
 
 
 def _info(data: str) -> InfoEvent:
@@ -198,3 +200,42 @@ def test_reentrant_duplicate_callback_subscriptions_use_independent_guards() -> 
     tr._event(_info("outer"))
 
     assert seen == ["outer", "inner", "outer", "inner"]
+
+
+def test_subscribe_observes_model_call_before_condensing() -> None:
+    """The public hook sees a completed ModelEvent's call before it is condensed."""
+    tr = Transcript()
+    seen: list[ModelCall | None] = []
+
+    def on_event(event: Event) -> None:
+        if isinstance(event, ModelEvent):
+            seen.append(event.call)
+
+    tr.subscribe(on_event)
+
+    long_text = "x" * 150  # over the 100-char attachment threshold
+    event = ModelEvent(
+        model="test",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(),
+        pending=True,
+    )
+    tr._event(event)
+    raw_call = ModelCall(
+        request={"messages": [{"role": "user", "content": long_text}]},
+        response={"content": long_text},
+    )
+    event.call = raw_call
+    event.pending = None
+    tr._event_updated(event)
+
+    assert seen[-1] is raw_call
+    assert raw_call.request == {"messages": [{"role": "user", "content": long_text}]}
+    assert raw_call.response == {"content": long_text}
+    # the transcript condensed the call only after notifying
+    condensed = event.call
+    assert condensed is not None and condensed is not raw_call
+    assert long_text not in json.dumps(condensed.request)
