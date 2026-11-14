@@ -48,10 +48,12 @@ from ._file import (
 from ._headline import ResolvedHeadlineMetric, headline_metric
 from ._log import (
     ConnectionLimitChange,
+    EnqueueTaskOrigin,
     EvalConfig,
     EvalDataset,
     EvalLog,
     EvalMetric,
+    EvalOrigin,
     EvalPlan,
     EvalPlanStep,
     EvalResults,
@@ -102,6 +104,7 @@ __all__ = [
     "ConfigValueChange",
     "effective_eval_config",
     "effective_generate_config",
+    "EnqueueTaskOrigin",
     "EvalConfig",
     "SentinelConfig",
     "SentinelEntry",
@@ -109,6 +112,7 @@ __all__ = [
     "EvalDataset",
     "EvalLog",
     "EvalMetric",
+    "EvalOrigin",
     "EvalPlan",
     "EvalPlanStep",
     "EvalResults",
