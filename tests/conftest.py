@@ -308,6 +308,28 @@ def isolate_active_model():
 
 
 @pytest.fixture(autouse=True)
+def isolate_request_had_retry():
+    """Keep the retried-request contextvar from leaking across tests.
+
+    `report_http_retry` marks the request in flight as retried by setting the
+    `_request_had_retry` contextvar, and only a generate under an adaptive
+    connections controller clears it. A test that reports a retry
+    *synchronously* in its own context (calling `report_http_retry`, or a
+    model's `should_retry`, directly) keeps the mark after it returns, so it
+    leaks into later tests. A later test that reads the contextvar during a
+    generate with no controller then finds its request already marked as
+    retried. Restore the contextvar after each test.
+    """
+    from inspect_ai.util._concurrency import _request_had_retry
+
+    token = _request_had_retry.set(_request_had_retry.get())
+    try:
+        yield
+    finally:
+        _request_had_retry.reset(token)
+
+
+@pytest.fixture(autouse=True)
 def fresh_concurrency_registry():
     """Reset the process-global concurrency registry before each test.
 
