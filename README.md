@@ -12,12 +12,12 @@ Inspect also includes a collection of over 200 pre-built evaluations ready to ru
 
 ***
 
-To work on development of Inspect, install [uv](https://docs.astral.sh/uv/) (0.11.8 or later), clone the repository, and sync the development environment from the checked-in lockfile:
+To work on development of Inspect, install [uv](https://docs.astral.sh/uv/) (0.13.4 or later), clone the repository, and sync the development environment from the checked-in lockfile:
 
 ```bash
 git clone https://github.com/UKGovernmentBEIS/inspect_ai.git
 cd inspect_ai
-uv sync
+uv sync --locked
 ```
 
 This installs Inspect in editable mode with its development dependencies at the versions recorded in `uv.lock`. Project dependencies are declared in `pyproject.toml` (`dependencies` and the `optional-dependencies` extras). When changing dependencies, edit them there and run `uv lock`. uv only resolves releases that are at least seven days old, except for model provider SDKs and Inspect's own packages; see [CONTRIBUTING.md](CONTRIBUTING.md#working-on-your-issue) for how to adopt a newer release.
@@ -50,7 +50,7 @@ Initialize the submodule and install dependencies — see the [one-time setup gu
 To work on the Inspect documentation, sync the optional `doc` dependencies and build the docs:
 
 ```
-uv sync --extra doc
+uv sync --locked --extra doc
 cd docs
 uv run quarto render # or 'uv run quarto preview'
 ```

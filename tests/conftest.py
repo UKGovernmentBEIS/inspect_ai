@@ -308,6 +308,28 @@ def isolate_active_model():
 
 
 @pytest.fixture(autouse=True)
+def isolate_request_had_retry():
+    """Keep the retried-request contextvar from leaking across tests.
+
+    `report_http_retry` marks the request in flight as retried by setting the
+    `_request_had_retry` contextvar, and only a generate under an adaptive
+    connections controller clears it. A test that reports a retry
+    *synchronously* in its own context (calling `report_http_retry`, or a
+    model's `should_retry`, directly) keeps the mark after it returns, so it
+    leaks into later tests. A later test that reads the contextvar during a
+    generate with no controller then finds its request already marked as
+    retried. Restore the contextvar after each test.
+    """
+    from inspect_ai.util._concurrency import _request_had_retry
+
+    token = _request_had_retry.set(_request_had_retry.get())
+    try:
+        yield
+    finally:
+        _request_had_retry.reset(token)
+
+
+@pytest.fixture(autouse=True)
 def fresh_concurrency_registry():
     """Reset the process-global concurrency registry before each test.
 
@@ -419,6 +441,32 @@ def isolated_hooks_registry() -> Iterator[None]:
         registry_mod._registry.update(saved)
         # Direct dict updates don't invalidate get_all_hooks()'s cache.
         registry_mod._registry_version += 1
+
+
+@pytest.fixture
+def fresh_display(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Start with no display, display type or Rich console settings, as a new process does.
+
+    Earlier tests leave these set (a quiet console, a cached display), which
+    would hide or redirect the output a test captures; restoring them keeps
+    this test's display from leaking into later ones. The console is reset in
+    place, as `rich.reconfigure()` does, so a logging handler bound to it by an
+    earlier test still writes to it. It is wide enough not to wrap long
+    temporary paths in that output.
+    """
+    import rich
+    from rich.console import Console
+
+    from inspect_ai._display.core import active
+    from inspect_ai._display.core import rich as display_rich
+    from inspect_ai.util import _display
+
+    monkeypatch.setattr(active, "_active_display", None)
+    monkeypatch.setattr(_display, "_display_type", None)
+    monkeypatch.setattr(display_rich, "_console_settings", None)
+    monkeypatch.setattr(display_rich, "_reconfigure_in_place", False)
+    monkeypatch.setenv("COLUMNS", "1000")
+    monkeypatch.setattr(rich.get_console(), "__dict__", Console().__dict__)
 
 
 @pytest.fixture

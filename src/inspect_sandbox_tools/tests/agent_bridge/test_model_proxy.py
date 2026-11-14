@@ -2588,14 +2588,21 @@ async def proxy_server_google() -> AsyncGenerator[tuple[AsyncHTTPServer, str], N
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("api_version", ["v1beta", "v1"])
 async def test_google_generate_content_non_streaming(
     proxy_server_google: tuple[AsyncHTTPServer, str],
+    api_version: str,
 ) -> None:
     """Test Google generateContent API non-streaming endpoint."""
     _server, base_url = proxy_server_google
 
     # Use Google client
-    client = genai.Client(api_key="test", http_options={"base_url": base_url})
+    client = genai.Client(
+        api_key="test",
+        http_options=genai.types.HttpOptions(
+            base_url=base_url, api_version=api_version
+        ),
+    )
 
     # Make request
     response = await client.aio.models.generate_content(
@@ -2642,14 +2649,21 @@ async def test_google_proxy_rejects_missing_model_without_crashing(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("api_version", ["v1beta", "v1"])
 async def test_google_generate_content_streaming(
     proxy_server_google: tuple[AsyncHTTPServer, str],
+    api_version: str,
 ) -> None:
     """Test Google generateContent API streaming endpoint."""
     _server, base_url = proxy_server_google
 
     # Use Google client
-    client = genai.Client(api_key="test", http_options={"base_url": base_url})
+    client = genai.Client(
+        api_key="test",
+        http_options=genai.types.HttpOptions(
+            base_url=base_url, api_version=api_version
+        ),
+    )
 
     # Stream response
     collected_text = ""

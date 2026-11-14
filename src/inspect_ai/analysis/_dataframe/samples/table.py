@@ -216,7 +216,7 @@ def _read_samples_df(
             _reconcile_string_columns(cast(list[pd.DataFrame], df_results)),
             ignore_index=True,
         )
-        subset = f"{detail.name}_id" if detail else SAMPLE_ID
+        subset = [SAMPLE_ID, f"{detail.name}_id"] if detail else SAMPLE_ID
         try:
             df.drop_duplicates(subset=subset, ignore_index=True, inplace=True)
         except Exception as e:
@@ -311,9 +311,15 @@ def _read_samples_df_serial(
         all_errors: list[ColumnError] = []
 
         # read logs and note total samples
-        evals_table, eval_logs, total_samples = _read_evals_df(
-            logs, columns=columns_eval, strict=True, progress=p.update
-        )
+        if strict:
+            evals_table, eval_logs, total_samples = _read_evals_df(
+                logs, columns=columns_eval, strict=True, progress=p.update
+            )
+        else:
+            evals_table, eval_logs, eval_errors, total_samples = _read_evals_df(
+                logs, columns=columns_eval, strict=False, progress=p.update
+            )
+            all_errors.extend(eval_errors)
 
         # update progress now that we know the total samples
         entity = detail.name if detail else "sample"
@@ -439,7 +445,10 @@ def _read_samples_df_serial(
     if detail is not None:
         details_table = records_to_pandas(detail_records)
         details_table.drop_duplicates(
-            f"{detail.name}_id", keep="first", inplace=True, ignore_index=True
+            [SAMPLE_ID, f"{detail.name}_id"],
+            keep="first",
+            inplace=True,
+            ignore_index=True,
         )
         if len(details_table) > 0:
             samples_table = details_table.merge(

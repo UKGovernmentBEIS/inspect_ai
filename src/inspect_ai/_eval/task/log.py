@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from importlib import metadata as importlib_metadata
 from importlib.metadata import Distribution
 from typing import TYPE_CHECKING, Any, cast
@@ -11,7 +11,11 @@ from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._eval.task.util import slice_dataset
 from inspect_ai._util.background import run_in_background
 from inspect_ai._util.constants import PKG_NAME
-from inspect_ai._util.dateutil import datetime_now_utc, iso_now
+from inspect_ai._util.dateutil import (
+    datetime_from_iso_format_safe,
+    datetime_now_utc,
+    iso_now,
+)
 from inspect_ai._util.error import is_cancellation_message
 from inspect_ai._util.git import git_context, redact_url_credentials
 from inspect_ai._util.package import (
@@ -221,6 +225,7 @@ class TaskLogger:
         recorder: Recorder,
         header_only: bool,
         dynamic_dataset: bool = False,
+        prior_created: str | None = None,
     ) -> None:
         packages = {
             PKG_NAME: importlib_metadata.version(PKG_NAME),
@@ -322,6 +327,8 @@ class TaskLogger:
 
         # stack recorder and location
         self.recorder = recorder
+        # the prior log's `eval.created`, which this attempt's must follow
+        self._prior_created = prior_created
         self.header_only = header_only
 
         # number of samples logged without error / distinct samples logged
@@ -388,6 +395,7 @@ class TaskLogger:
         self._discarded = False
 
     async def init(self) -> None:
+        self._bump_created_past_prior()
         self._bump_created_past_existing_logs()
         self._location = await self.recorder.log_init(self.eval)
 
@@ -424,6 +432,8 @@ class TaskLogger:
             # holds the seeded prior set plus this attempt's flushed
             # completions, and the dispatcher makes it the retry's source
             await self.discard(keep_destination=True)
+        # the retry reads this attempt's log, or an older one when it wrote none
+        self._prior_created = self.eval.created
         self.eval = self.eval.model_copy(update=dict(eval_id=uuid(), created=iso_now()))
         self._samples_completed = 0
         self._logged_sample_keys = set()
@@ -443,6 +453,24 @@ class TaskLogger:
         # if `created` lands on the same second)
         await self._release_buffer_db(keep=False)
         await self.init()
+
+    def _bump_created_past_prior(self) -> None:
+        """Make `eval.created` at least a second later than the prior log's.
+
+        Generated sample ids take their token from `created`, to the second
+        (see `dynamic_id_token`), so a retry's ids then never repeat one in
+        its prior log. Unlike the existing-log walk below, this holds in any
+        log directory, without a log file, and when the clock went back.
+        """
+        if self._prior_created is None:
+            return
+        prior = int(datetime_from_iso_format_safe(self._prior_created).timestamp())
+        created = int(datetime_from_iso_format_safe(self.eval.created).timestamp())
+        if created <= prior:
+            bumped = datetime.fromtimestamp(prior + 1, timezone.utc)
+            self.eval = self.eval.model_copy(
+                update=dict(created=bumped.isoformat(timespec="seconds"))
+            )
 
     def _bump_created_past_existing_logs(self) -> None:
         """Bump `eval.created` past any existing log at the would-be path.
@@ -795,7 +823,9 @@ class TaskLogger:
         self._seeded_pending.discard(_seeded_key(sample.id, sample.epoch))
         if self._buffer_db is not None:
             self._buffer_db.complete_sample(
-                sample.summary(), sample_metadata=sample.metadata
+                sample.summary(),
+                sample_metadata=sample.metadata,
+                sample_store=sample.store,
             )
 
         # flush=False leaves the sample in the recorder's buffer for whichever
@@ -1195,6 +1225,7 @@ class TaskLogger:
         reductions: list[EvalSampleReductions] | None = None,
         error: EvalError | None = None,
         prune_unplanned: bool = False,
+        total_samples: int | None = None,
     ) -> EvalLog:
         """Finish this attempt's log.
 
@@ -1239,6 +1270,7 @@ class TaskLogger:
                     reductions,
                     error,
                     self.header_only,
+                    total_samples=total_samples,
                 )
                 teardown_scope.shield = True
 

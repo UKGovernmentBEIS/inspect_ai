@@ -17,6 +17,10 @@ from collections.abc import Generator
 import pytest
 from test_helpers.local_shell_sandbox import sandbox_path
 
+from checkpoint.transcript_store_cache import (
+    CACHE_DIR_ENV,
+    redirect_transcript_store_cache_dir,
+)
 from inspect_ai._util import asyncfiles
 from inspect_ai.util._checkpoint import _sandbox_dir
 from inspect_ai.util._sandbox import _privileged as privileged
@@ -36,6 +40,15 @@ def _async_fs() -> Generator[None, None, None]:
         yield
     finally:
         asyncfiles._current_async_fs.reset(token)
+
+
+@pytest.fixture(autouse=True)
+def _transcript_store_cache_dir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
+) -> Generator[None, None, None]:
+    monkeypatch.setenv(CACHE_DIR_ENV, str(tmp_path_factory.mktemp("cache")))
+    with redirect_transcript_store_cache_dir():
+        yield
 
 
 @pytest.fixture(autouse=True)

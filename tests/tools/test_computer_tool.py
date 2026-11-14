@@ -9,6 +9,7 @@ import json
 import logging
 import math
 import re
+import shlex
 import sys
 from argparse import Namespace
 from pathlib import Path
@@ -41,7 +42,7 @@ from inspect_ai.tool._tool import ToolParsingError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tools._computer import _common
-from inspect_ai.tool._tools._computer._computer import Action
+from inspect_ai.tool._tools._computer._computer import Action, is_computer_tool_info
 from inspect_ai.util import ExecResult
 
 ACTIONS: list[str] = list(get_args(Action))
@@ -311,6 +312,97 @@ async def test_computer_key_rejects_out_of_range_repeat(
     assert presses == []
 
 
+@pytest.mark.parametrize(
+    "clear_before_typing,expected",
+    [
+        (None, ["left_click", "type", "key"]),
+        (False, ["left_click", "type", "key"]),
+        (True, ["triple_click", "type", "key"]),
+    ],
+)
+async def test_computer_type_clear_before_typing(
+    sent_cmds: list[list[str]], clear_before_typing: bool | None, expected: list[str]
+) -> None:
+    kwargs = (
+        {"clear_before_typing": clear_before_typing}
+        if clear_before_typing is not None
+        else {}
+    )
+    await computer()(
+        action="type", text="hello", coordinate=[3, 4], press_enter=True, **kwargs
+    )
+    assert [cmd[0] for cmd in sent_cmds] == expected
+    assert sent_cmds[0][1:] == ["--coordinate", "3", "4"]
+
+
+@pytest.mark.parametrize(
+    "clear_before_typing,expected",
+    [
+        (False, [["left_click", "--coordinate", "3", "4"], ["type", "--text="]]),
+        (
+            True,
+            [
+                ["triple_click", "--coordinate", "3", "4"],
+                ["key", "--text", "BackSpace"],
+                ["type", "--text="],
+            ],
+        ),
+    ],
+)
+async def test_computer_type_clear_before_typing_empty_text(
+    sent_cmds: list[list[str]], clear_before_typing: bool, expected: list[list[str]]
+) -> None:
+    await computer()(
+        action="type",
+        text="",
+        coordinate=[3, 4],
+        clear_before_typing=clear_before_typing,
+    )
+    assert sent_cmds == expected
+
+
+async def test_computer_actions_list_clear_before_typing(
+    sent_cmds: list[list[str]],
+) -> None:
+    await computer()(
+        actions=[
+            {
+                "action": "type",
+                "text": "hello",
+                "coordinate": [3, 4],
+                "clear_before_typing": True,
+            }
+        ]
+    )
+    assert [cmd[0] for cmd in sent_cmds] == ["triple_click", "type"]
+    assert sent_cmds[0][1:] == ["--coordinate", "3", "4"]
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        {"action": "type", "text": "hello", "clear_before_typing": True},
+        {"actions": [{"action": "type", "text": "hello", "clear_before_typing": True}]},
+    ],
+    ids=["action", "actions_list"],
+)
+async def test_computer_type_clear_before_typing_requires_coordinate(
+    sent_cmds: list[list[str]], call: dict[str, object]
+) -> None:
+    with pytest.raises(ToolParsingError, match="coordinate must be provided"):
+        await computer()(**call)
+    assert sent_cmds == []
+
+
+def test_computer_tool_info_is_recognized_as_computer_tool() -> None:
+    """A new execute() parameter must also be added to _COMPUTER_TOOL_PARAMETERS."""
+    tdef = ToolDef(computer())
+    info = ToolInfo(
+        name=tdef.name, description=tdef.description, parameters=tdef.parameters
+    )
+    assert is_computer_tool_info(info)
+
+
 def _computer_call(call_id: str, **arguments: object):
     from inspect_ai.tool._tool_call import ToolCall
 
@@ -516,6 +608,80 @@ async def test_x11_actions_send_scaled_native_coordinates(x11: X11) -> None:
     await x11.client.left_click_drag((1000, 500), (1365, 767))
     assert any("mousemove --sync 1406 703" in c for c in x11.shell_cmds)
     assert any("mousemove --sync 1919 1079 mouseup 1" in c for c in x11.shell_cmds)
+
+
+@pytest.fixture
+def x11_typing(x11: X11, monkeypatch: pytest.MonkeyPatch) -> X11:
+    """The x11 fixture with typing commands recorded and no screenshots or sleeps."""
+    x11_client = importlib.import_module("_x11_client")
+    tool_result = importlib.import_module("_tool_result")
+
+    async def fake_shell(command: str, take_screenshot: bool = True) -> Any:
+        x11.shell_cmds.append(command)
+        return tool_result.ToolResult(output="", error="")
+
+    async def fake_run(command: str) -> tuple[int, str, str]:
+        x11.shell_cmds.append(command)
+        return 0, "", ""
+
+    async def no_op(*args: Any, **kwargs: Any) -> None:
+        return None
+
+    monkeypatch.setattr(x11.client, "_shell", fake_shell)
+    monkeypatch.setattr(x11.client, "_take_screenshot_after_delay", no_op)
+    monkeypatch.setattr(x11.client, "_activate_browser", no_op)
+    monkeypatch.setattr(x11.client, "screenshot", no_op)
+    monkeypatch.setattr(x11_client, "run", fake_run)
+    monkeypatch.setattr(x11_client, "asyncio", SimpleNamespace(sleep=no_op))
+    return x11
+
+
+def _xdotool_cmds(x11: X11, sent: list[tuple[str, str]]) -> list[str]:
+    x11_client = importlib.import_module("_x11_client")
+    xdotool = x11.client.xdotool
+    delay = x11_client.TYPING_DELAY_MS
+    return [
+        f"{xdotool} key {arg}"
+        if cmd == "key"
+        else f"{xdotool} type --delay {delay} -- {shlex.quote(arg)}"
+        for cmd, arg in sent
+    ]
+
+
+@pytest.mark.parametrize(
+    "text,sent",
+    [
+        ("a\nb", [("type", "a"), ("key", "Return"), ("type", "b")]),
+        (
+            "a\r\nb\n",
+            [("type", "a"), ("key", "Return"), ("type", "b"), ("key", "Return")],
+        ),
+        (
+            "a\n\nb",
+            [("type", "a"), ("key", "Return"), ("key", "Return"), ("type", "b")],
+        ),
+        ("\n", [("key", "Return")]),
+        ("", []),
+        ("a\rb\tc", [("type", "a\rb\tc")]),
+        (
+            "x" * 60 + "\ny",
+            [("type", "x" * 50), ("type", "x" * 10), ("key", "Return"), ("type", "y")],
+        ),
+    ],
+)
+async def test_x11_type_sends_newlines_as_return(
+    x11_typing: X11, text: str, sent: list[tuple[str, str]]
+) -> None:
+    await x11_typing.client.type(text)
+    assert x11_typing.shell_cmds == _xdotool_cmds(x11_typing, sent)
+
+
+async def test_x11_navigate_types_url_without_line_breaks(x11_typing: X11) -> None:
+    await x11_typing.client.navigate("example.com\n/path\n")
+    assert x11_typing.shell_cmds == _xdotool_cmds(
+        x11_typing,
+        [("key", "ctrl+l"), ("type", "example.com/path"), ("key", "Return")],
+    )
 
 
 async def test_x11_zoom_accepts_full_screen_region(

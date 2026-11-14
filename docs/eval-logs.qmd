@@ -197,6 +197,7 @@ The `EvalLog` object returned from `eval()` provides programmatic interface to t
 | `eval` | `EvalSpec` | Top level eval details including task, model, creation time, etc. |
 | `plan` | `EvalPlan` | List of solvers and model generation config used for the eval. |
 | `results` | `EvalResults` | Aggregate results computed by scorer metrics. |
+| `total_samples` | `int \| None` | Sample/epoch runs accepted for this attempt, saved when the eval finishes, even when `results` is absent. `None` means unknown. |
 | `stats` | `EvalStats` | Model usage statistics (input and output tokens) |
 | `error` | `EvalError` | Error information (if `status == "error`) including traceback. |
 | `tags` | `list[str]` | Current tags (eval-time tags merged with any post-eval edits). |
@@ -246,7 +247,7 @@ for log in logs:
     write_eval_log(log)
 ```
 
-Note that the `EvalLog.location` is a URI rather than a traditional file path(e.g. it could be a `file://` URI, an `s3://` URI or any other URI supported by [fsspec](https://filesystem-spec.readthedocs.io/)).
+Note that the `EvalLog.location` is a URI rather than a traditional file path (e.g. it could be a `file://` URI, an `s3://` URI or any other URI supported by [fsspec](https://filesystem-spec.readthedocs.io/)).
 
 ### Functions
 
@@ -306,7 +307,7 @@ You can also use `read_eval_log_sample_summaries()` as means of filtering which 
 ```python
 errors: list[EvalSample] = []
 for sample in read_eval_log_sample_summaries(log_file):
-    if sample.error is not None
+    if sample.error is not None:
         errors.append(
             read_eval_log_sample(log_file, sample.id, sample.epoch)
         )
