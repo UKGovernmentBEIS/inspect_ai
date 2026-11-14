@@ -32,6 +32,7 @@ import pytest
 from acp.schema import SessionNotification, ToolCallProgress, ToolCallStart
 from pydantic import JsonValue
 from test_helpers.checkpoint import RecordingCheckpointer
+from test_helpers.limits import priced_models, with_usage
 from test_helpers.message_ids import (
     assert_message_ids,
     edited_id,
@@ -137,7 +138,7 @@ from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
-from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._limit import LimitExceededError, cost_limit
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
 from inspect_ai.util._span import (
     SpanRotationScope,
@@ -411,6 +412,51 @@ async def test_approval_history_does_not_leak_into_tracked_state() -> None:
     )
 
     assert [(m.role, m.text) for m in messages] == [("user", TASK)]
+
+
+@approver(name="test_bridge_judge")
+def judging_approver(judge: Model) -> Approver:
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        await judge.generate("Should this call be approved?")
+        return Approval(decision="approve")
+
+    return approve
+
+
+async def test_approver_inference_is_not_charged_to_the_cost_limit() -> None:
+    """A $100 approver call under a $1 limit; the agent's own calls stay metered."""
+    call = ToolCall(id="1", function="bash", arguments={"cmd": "ls"})
+    judge = get_model(
+        "mockllm/judge",
+        custom_outputs=[
+            with_usage(ModelOutput.from_content("mockllm/judge", "yes"), 100_000)
+        ],
+        memoize=False,
+    )
+    with priced_models({"model": 1000.0, "judge": 1000.0}):
+        with cost_limit(1.0) as limit:
+            run = await run_bridge(
+                [with_usage(tool_calls_output(call), 100)],
+                approval=[ApprovalPolicy(judging_approver(judge), "*")],
+            )
+            assert run.output.message.tool_calls == [call]
+            assert limit.usage == pytest.approx(0.1)
+
+            # the agent's next call is metered again
+            agent_model = get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    with_usage(ModelOutput.from_content("mockllm/model", "ok"), 200)
+                ],
+                memoize=False,
+            )
+            await agent_model.generate("next")
+            assert limit.usage == pytest.approx(0.3)
 
 
 # ---------------------------------------------------------------------------
