@@ -59,6 +59,7 @@ from ._tools._text_editor import text_editor
 from ._tools._think import think
 from ._tools._todo_write import todo_write
 from ._tools._update_plan import update_plan
+from ._tools._view_image import view_image
 from ._tools._web_browser import web_browser
 from ._tools._web_search import WebSearchProviders, web_search
 
@@ -75,6 +76,7 @@ __all__ = [
     "notify_user",
     "python",
     "read_file",
+    "view_image",
     "web_browser",
     "web_search",
     "WebSearchProviders",

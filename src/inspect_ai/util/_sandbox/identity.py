@@ -30,28 +30,28 @@ def sandbox_identity(
 ) -> Iterator[None]:
     """Run model-facing work in a sandbox as `user`.
 
-    Inside the block, built-in tools that run commands in `sandbox` run them
-    as `user`: `bash()`, `python()`, `grep()`, `list_files()`, `read_file()`,
-    `bash_session()` and `text_editor()`. `bash()`, `python()`, `grep()`,
-    `list_files()` and `read_file()` also start in `cwd`, a `bash_session()`
-    shell created in the block starts (and restarts) there, and `text_editor()`
-    resolves relative paths against it. A `bash_session()` shell created in the
-    block works only with the sandbox tools server that created it, and needs
-    inspect-sandbox-tools 1.3.0 or later. A tool configured with a different
-    `user` raises `SandboxIdentityError`, and so do `computer()`, which
-    cannot run as a user, and `skill()`, which does not
-    yet install skills as a user. `exec_remote()` uses the
-    scope's user and cwd when omitted and keeps explicit values. Other
+    Inside the block, built-in tools that run commands in `sandbox` run them as
+    `user`: `bash()`, `python()`, `grep()`, `list_files()`, `read_file()`,
+    `view_image()`, `bash_session()` and `text_editor()`. `bash()`, `python()`,
+    `grep()`, `list_files()`, `read_file()` and `view_image()` also start in
+    `cwd`, a `bash_session()` shell created in the block starts (and restarts)
+    there, and `text_editor()` resolves relative paths against it. A
+    `bash_session()` shell created in the block works only with the sandbox
+    tools server that created it, and needs inspect-sandbox-tools 1.3.0 or
+    later. A tool configured with a different `user` raises
+    `SandboxIdentityError`, and so do `computer()`, which cannot run as a user,
+    and `skill()`, which does not yet install skills as a user. `exec_remote()`
+    uses the scope's user and cwd when omitted and keeps explicit values. Other
     sandbox-tool launches inherit the scope's user when omitted; they keep
     their existing working-directory behavior.
 
-    `bash()`, `python()`, `grep()`, `list_files()` and `read_file()` set `HOME`
-    to the user's home from the sandbox's passwd database, looked up once per
-    block. They keep the inherited `HOME` if the user has no passwd entry and
-    raise `RuntimeError` if the entry has an empty home. `bash_session()`,
-    `text_editor()` and `exec_remote()` set `HOME` only when switching user; if
-    their tools process already runs as that user, they keep its inherited
-    `HOME`.
+    `bash()`, `python()`, `grep()`, `list_files()`, `read_file()` and
+    `view_image()` set `HOME` to the user's home from the sandbox's passwd
+    database, looked up once per block. They keep the inherited `HOME` if the
+    user has no passwd entry and raise `RuntimeError` if the entry has an empty
+    home. `bash_session()`, `text_editor()` and `exec_remote()` set `HOME` only
+    when switching user; if their tools process already runs as that user, they
+    keep its inherited `HOME`.
 
     Inside the block `sandbox` is also the default sandbox (as with
     `sandbox_default()`), and tools that find their sandbox by injection use it.

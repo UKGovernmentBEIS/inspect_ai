@@ -22,6 +22,7 @@ from inspect_ai.tool import (
     python,
     read_file,
     skill,
+    view_image,
 )
 from inspect_ai.tool._sandbox_tools_utils._error_mapper import ServerErrorCode
 from inspect_ai.tool._tools import _bash_session as bash_session_module
@@ -40,6 +41,8 @@ from inspect_ai.util._sandbox.identity import SandboxIdentityError, sandbox_iden
 from inspect_ai.util._subprocess import ExecResult
 
 DEFAULT_USER = SandboxDefaultUser(uid=1111, gid=1111, groups=[1111], home="/h")
+
+PNG_SIGNATURE_BASE64 = "iVBORw0KGgo=\n"
 
 
 class FakeSandbox:
@@ -108,7 +111,9 @@ class _RecordingSandbox(CannedSandbox):
     """Records each exec's `(cmd, user, cwd)`; every exec succeeds."""
 
     def __init__(self) -> None:
-        super().__init__(lambda _cmd, _user: ExecResult(True, 0, "out\n", ""))
+        super().__init__(
+            lambda _cmd, _user: ExecResult(True, 0, PNG_SIGNATURE_BASE64, "")
+        )
         self.calls: list[tuple[list[str], str | None, str | None]] = []
 
     async def exec(
@@ -145,6 +150,7 @@ _EXEC_TOOLS: list[tuple[Callable[..., Tool], dict[str, Any]]] = [
     (grep, {"pattern": "x"}),
     (list_files, {}),
     (read_file, {"file_path": "a.txt"}),
+    (view_image, {"file_path": "a.png"}),
 ]
 
 
@@ -155,7 +161,7 @@ async def test_exec_tools_run_as_the_scope_user(
     default, workspace = _RecordingSandbox(), _RecordingSandbox()
     # the home directory lookup prints the passwd home
     workspace.policy = lambda cmd, _user: ExecResult(
-        True, 0, "/srv/w-1\n" if cmd[0] == "/bin/sh" else "out\n", ""
+        True, 0, "/srv/w-1\n" if cmd[0] == "/bin/sh" else PNG_SIGNATURE_BASE64, ""
     )
     with (
         _environments(default=default, workspace=workspace),

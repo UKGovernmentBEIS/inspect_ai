@@ -644,6 +644,22 @@ grep(timeout=60)
 
 The model can specify a `pattern`, `path`, optional `glob` filter (e.g. `"*.py"`), `fixed_strings` flag for literal matching, `extended_regexp` flag for extended regex (ERE), and `output_mode` (`"content"`, `"files_with_matches"`, or `"count"`). Patterns use grep's basic regex (BRE) by default. Results include file paths and line numbers by default.
 
+### view_image
+
+`read_file()` returns text only. To let the model see an image file in the sandbox (for example a plot it generated), use `view_image()`, which returns the file to the model as an image:
+
+``` python
+from inspect_ai.tool import view_image
+
+# default configuration
+view_image()
+
+# with timeout and user
+view_image(timeout=30, user="nobody")
+```
+
+The model specifies a `file_path`. PNG, JPEG, GIF and WebP files are supported; other files return an error to the model. Images are passed to the model as-is, without resizing, so files larger than the provider's image limits will fail at the model call. `view_image()` accepts optional `timeout`, `user`, and `sandbox` parameters matching the `bash()` tool. It is not one of the default `research()` and `plan()` subagent tools.
+
 ### Task Setup
 
 A task configured with read-only tools might look like this:
