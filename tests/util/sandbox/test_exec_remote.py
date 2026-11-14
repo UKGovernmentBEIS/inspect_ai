@@ -24,6 +24,7 @@ from inspect_ai.tool._sandbox_tools_utils.sandbox import (
     SandboxInjectionError,
     _inject_container_tools_code,
 )
+from inspect_ai.util._sandbox._framework_operation import framework_sandbox_operation
 from inspect_ai.util._sandbox.context import (
     sandbox_default_context_var,
     sandbox_environments_context_var,
@@ -1006,6 +1007,7 @@ class TestUserParam:
         options: ExecRemoteStreamingOptions,
         identity: tuple[str, str | None] | None = None,
         identity_sandbox: str = "default",
+        framework_operation: bool = False,
     ) -> dict[str, Any]:
         sandbox = _make_sandbox_mock([_start_response()])
         sandbox._tools_default_user = self._DEFAULT_USER
@@ -1019,7 +1021,12 @@ class TestUserParam:
                 if identity is not None
                 else contextlib.nullcontext()
             ):
-                await exec_remote_streaming(sandbox, ["cmd"], 5, options)
+                with (
+                    framework_sandbox_operation()
+                    if framework_operation
+                    else contextlib.nullcontext()
+                ):
+                    await exec_remote_streaming(sandbox, ["cmd"], 5, options)
         finally:
             sandbox_default_context_var.reset(default_token)
             sandbox_environments_context_var.reset(envs_token)
@@ -1050,6 +1057,19 @@ class TestUserParam:
         )
         assert params["user"] == "root"
         assert params["cwd"] == "/srv"
+
+    @pytest.mark.parametrize(
+        "framework_operation, cwd", [(False, "/home/w-1/sub"), (True, "sub")]
+    )
+    async def test_identity_scope_resolves_a_relative_cwd(
+        self, framework_operation: bool, cwd: str
+    ) -> None:
+        params = await self._start_params(
+            ExecRemoteStreamingOptions(user="root", cwd="sub"),
+            identity=("w-1", "/home/w-1"),
+            framework_operation=framework_operation,
+        )
+        assert params["cwd"] == cwd
 
     async def test_identity_scope_for_another_sandbox_is_ignored(self) -> None:
         params = await self._start_params(

@@ -85,6 +85,8 @@ async def sandbox_with(
     Args:
       file (str): Path to file to check for if on_path is False. If on_path is
         True, file should be a filename that exists on the system path.
+        Inside a `sandbox_identity()` scope with a `cwd`, a relative path is
+        checked against that `cwd` in the scope's sandbox.
       on_path (bool): If True, file is a filename to be verified using "which".
         If False, file is a path to be checked within the sandbox environments.
       name (str | None): Optional sandbox environment name.
@@ -102,23 +104,33 @@ async def sandbox_with(
     if environments_with is None:
         raise_no_sandbox()
 
+    from .identity import sandbox_operation_file
+
+    candidates = (
+        list(environments.values())
+        if name is None
+        else [named_env]
+        if (named_env := environments.get(name, None))
+        else []
+    )
+    # a relative file follows a sandbox_identity() scope's cwd, as file
+    # operations do, so the cache key holds the path each sandbox is probed with
+    paths = [
+        file if on_path else sandbox_operation_file(environment, file)
+        for environment in candidates
+    ]
+
     # if we've already discovered the sandbox for this file then return it
-    environment_with_key = f"{name or ''}:{file}:{on_path}"
+    probed = "\0".join(paths)
+    environment_with_key = f"{name or ''}:{probed}:{on_path}"
     environment = environments_with.get(environment_with_key, None)
     if environment is not None:
         return environment
 
     # look in each (or the named) sandbox
-    detector = sandbox_file_detector(file, on_path)
-    for environment in (
-        environments.values()
-        if name is None
-        else [named_env]
-        if (named_env := environments.get(name, None))
-        else []
-    ):
+    for environment, path in zip(candidates, paths):
         # can we find the file on the path?
-        if await detector(environment):
+        if await sandbox_file_detector(path, on_path)(environment):
             # if so this is our environment, cache and return it
             environments_with[environment_with_key] = environment
             return environment

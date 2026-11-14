@@ -975,6 +975,76 @@ def test_custom_tools_run_as_the_scope_user() -> None:
 
 
 @solver
+def _custom_tools_use_the_scope_cwd() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        created = await sb.exec(
+            [
+                "sh",
+                "-c",
+                "useradd -m w1 && chmod 700 /home/w1 && "
+                "mkdir -p /scratch/w1 && chown w1 /scratch/w1",
+            ],
+            user="root",
+        )
+        assert created.success, created.stderr
+        assert (await sb.exec(["pwd"])).stdout.strip() == "/root"
+
+        with sandbox_identity("w1", cwd="/home/w1"):
+            listed = await sandbox().exec(["sh", "-c", "pwd && ls ."])
+            assert listed.success, listed.stderr
+            assert listed.stdout.splitlines()[0] == "/home/w1"
+            here = await sandbox().exec(["pwd"], cwd="/tmp")
+            assert here.stdout.strip() == "/tmp"
+            # a relative path names the same file in exec() and the file calls
+            await sandbox().write_file("notes/a.txt", "relative")
+            read = await sandbox().exec(["cat", "notes/a.txt"])
+            assert read.stdout == "relative", read
+            assert await sandbox().read_file("/home/w1/notes/a.txt") == "relative"
+            # an absolute path outside the scope's cwd, as inspect_swe writes
+            config = "/scratch/w1/.codex/config.toml"
+            await sandbox().write_file(config, "model = 'x'")
+            assert await sandbox().read_file(config) == "model = 'x'"
+
+        # the user cannot enter the default working directory (/root), but the
+        # Docker file calls do not run there; checked from "/" because some
+        # runtimes refuse to start a command in /root
+        with sandbox_identity("w1"):
+            entered = await sandbox().exec(["test", "-x", "/root"], cwd="/")
+            assert not entered.success, entered
+            await sandbox().write_file("/home/w1/b.txt", "absolute")
+            assert await sandbox().read_file("/home/w1/b.txt") == "absolute"
+
+        owner = await sb.exec(
+            ["stat", "-c", "%U", "/home/w1/notes/a.txt", "/scratch/w1/.codex"]
+        )
+        assert owner.stdout.split() == ["w1", "w1"], owner
+        return state
+
+    return solve
+
+
+# Inside a scope with a cwd, a custom tool's exec() runs there and its relative
+# file paths resolve there, although the image's working directory (/root) is
+# closed to the scope's user.
+@pytest.mark.slow
+def test_custom_tools_use_the_scope_cwd(tmp_path: Path) -> None:
+    compose = tmp_path / "compose.yaml"
+    compose.write_text(
+        f"services:\n  default:\n    build: {_CONTEXT}\n"
+        "    command: tail -f /dev/null\n    working_dir: /root\n"
+        "    init: true\n    network_mode: none\n    stop_grace_period: 1s\n"
+    )
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_custom_tools_use_the_scope_cwd(),
+        sandbox=("docker", str(compose)),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
+
+
+@solver
 def _scoped_tools_report_the_user_home() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         sb = sandbox()
