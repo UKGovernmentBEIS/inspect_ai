@@ -720,6 +720,349 @@ def test_wrap_prior_run_reparents_existing_wraps_across_resumes() -> None:
     _assert_spans_balanced(wrapped)
 
 
+def _tree_shape(nodes: list[Any]) -> list[Any]:
+    """Summarize an event tree as nested ``(span name, children)`` tuples."""
+    from inspect_ai.event._tree import EventTreeSpan
+
+    shape: list[Any] = []
+    for node in nodes:
+        if isinstance(node, EventTreeSpan):
+            shape.append((node.name, _tree_shape(node.children)))
+        elif isinstance(node, CheckpointEvent):
+            shape.append(f"checkpoint event {node.checkpoint_id}")
+        elif isinstance(node, InfoEvent):
+            shape.append(node.data)
+        else:
+            shape.append(node.event)
+    return shape
+
+
+def _resumed_tree_shape(wrapped: list[Event]) -> list[Any]:
+    """Tree shape of ``wrapped`` as pushed under the resuming session's span."""
+    from inspect_ai.event._tree import event_tree
+
+    return _tree_shape(
+        event_tree(
+            [
+                SpanBeginEvent(id="current", name="current", type="agent"),
+                *wrapped,
+                SpanEndEvent(id="current"),
+            ]
+        )
+    )
+
+
+def _straddling_subagent_events(open_across: int, first: int = 1) -> list[Event]:
+    """Buffer of a session where a subagent span stays open across fires.
+
+    Uses the order the checkpointer writes: each fire ends ``checkpoint N``,
+    emits ``CheckpointEvent N`` in the agent span, then begins
+    ``checkpoint N+1``. The session's checkpoints start at ``first``. The
+    subagent span opens in the session's second checkpoint and ends after
+    ``open_across`` fires have begun new checkpoint spans. One more
+    checkpoint follows. The trailing ``CheckpointEvent`` is included, as
+    hydrate synthesizes it.
+    """
+    opens_in = first + 1
+    closes_in = opens_in + open_across
+    last = closes_in + 1
+    events: list[Event] = [
+        SpanBeginEvent(id="solvers1", name="solvers"),
+        SpanBeginEvent(id="agent1", name="react", type="agent", parent_id="solvers1"),
+        SpanBeginEvent(
+            id=f"checkpoint-{first}",
+            name=f"checkpoint {first}",
+            type="checkpoint",
+            parent_id="agent1",
+        ),
+    ]
+    for n in range(first, last + 1):
+        events.append(InfoEvent(data=f"main-{n}", span_id=f"checkpoint-{n}"))
+        if n == opens_in:
+            events.extend(
+                [
+                    SpanBeginEvent(
+                        id="sub",
+                        name="sub",
+                        type="agent",
+                        parent_id=f"checkpoint-{n}",
+                    ),
+                    InfoEvent(data=f"sub-{n}", span_id="sub"),
+                ]
+            )
+        elif opens_in < n <= closes_in:
+            events.append(InfoEvent(data=f"sub-{n}", span_id="sub"))
+            if n == closes_in:
+                events.append(SpanEndEvent(id="sub"))
+        events.extend(
+            [
+                SpanEndEvent(id=f"checkpoint-{n}"),
+                CheckpointEvent.from_details(_make_checkpoint(n)).model_copy(
+                    update={"span_id": "agent1"}
+                ),
+            ]
+        )
+        if n < last:
+            events.append(
+                SpanBeginEvent(
+                    id=f"checkpoint-{n + 1}",
+                    name=f"checkpoint {n + 1}",
+                    type="checkpoint",
+                    parent_id="agent1",
+                )
+            )
+    return events
+
+
+def _seeded_prior_run_wrap() -> list[Event]:
+    """A ``checkpoint restore 1`` wrap as an earlier resume seeds it.
+
+    It holds checkpoints 1 and 2, with a subagent span opened in checkpoint 1
+    and ended in checkpoint 2. The wrap's parent is the earlier resume's
+    agent span, which is gone in the next attempt.
+    """
+    return [
+        SpanBeginEvent(
+            id="restore-1",
+            name="checkpoint restore 1",
+            type="prior_run",
+            parent_id="agent0",
+        ),
+        SpanBeginEvent(
+            id="checkpoint-1",
+            name="checkpoint 1",
+            type="checkpoint",
+            parent_id="restore-1",
+        ),
+        InfoEvent(data="main-1", span_id="checkpoint-1"),
+        SpanBeginEvent(id="sub0", name="sub0", type="agent", parent_id="checkpoint-1"),
+        InfoEvent(data="sub0-1", span_id="sub0"),
+        SpanEndEvent(id="checkpoint-1"),
+        CheckpointEvent.from_details(_make_checkpoint(1)).model_copy(
+            update={"span_id": "restore-1"}
+        ),
+        SpanBeginEvent(
+            id="checkpoint-2",
+            name="checkpoint 2",
+            type="checkpoint",
+            parent_id="restore-1",
+        ),
+        InfoEvent(data="sub0-2", span_id="sub0"),
+        SpanEndEvent(id="sub0"),
+        InfoEvent(data="main-2", span_id="checkpoint-2"),
+        SpanEndEvent(id="checkpoint-2"),
+        CheckpointEvent.from_details(_make_checkpoint(2)).model_copy(
+            update={"span_id": "restore-1"}
+        ),
+        SpanEndEvent(id="restore-1"),
+    ]
+
+
+@pytest.mark.parametrize("seeded_wrap", [False, True])
+@pytest.mark.parametrize("open_across", [1, 3])
+def test_wrap_prior_run_keeps_checkpoints_in_wrap_while_subagent_span_open(
+    tmp_path: Path, open_across: int, seeded_wrap: bool
+) -> None:
+    """A span open across checkpoint fires doesn't push checkpoints out of the wrap.
+
+    Every checkpoint span and ``CheckpointEvent`` stays a direct child of the
+    ``prior_run`` wrap, and the subagent's events stay in its span, as in the
+    live transcript. With ``seeded_wrap``, the sample was already resumed
+    once, and the earlier wrap stays as it was.
+    """
+    from inspect_ai.util._checkpoint.hydrate import (
+        _validate_resume_state,
+        _wrap_prior_run,
+    )
+
+    first = 3 if seeded_wrap else 1
+    events = _straddling_subagent_events(open_across, first)
+    if seeded_wrap:
+        events = _seeded_prior_run_wrap() + events
+    wrapped = _wrap_prior_run(events, parent_span_id="current")
+
+    opens_in = first + 1
+    closes_in = opens_in + open_across
+    sub_children = [f"sub-{n}" for n in range(opens_in, closes_in + 1)]
+    wrap_children: list[Any] = []
+    for n in range(first, closes_in + 2):
+        children: list[Any] = [f"main-{n}"]
+        if n == opens_in:
+            children.append(("sub", sub_children))
+        wrap_children.extend([(f"checkpoint {n}", children), f"checkpoint event {n}"])
+    wraps: list[Any] = []
+    if seeded_wrap:
+        wraps.append(
+            (
+                "checkpoint restore 1",
+                [
+                    ("checkpoint 1", ["main-1", ("sub0", ["sub0-1", "sub0-2"])]),
+                    "checkpoint event 1",
+                    ("checkpoint 2", ["main-2"]),
+                    "checkpoint event 2",
+                ],
+            )
+        )
+    wraps.append((f"checkpoint restore {len(wraps) + 1}", wrap_children))
+    assert _resumed_tree_shape(wrapped) == [("current", wraps)]
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, closes_in + 1)
+    _validate_resume_state(wrapped, str(sample_root), closes_in + 1)
+
+
+async def test_resume_with_span_open_at_latest_checkpoint_keeps_checkpoint_event_in_wrap(
+    tmp_path: Path,
+) -> None:
+    """The synthesized trailing ``CheckpointEvent`` lands in the wrap, not the open span.
+
+    A subagent span still open when the latest checkpoint fires is the
+    innermost open span in the restored events, but the live
+    ``CheckpointEvent`` was emitted in the agent span the checkpoints fire in.
+    """
+    from types import SimpleNamespace
+
+    from inspect_ai.util._checkpoint.hydrate import _load_host_state, _push_host_state
+
+    sample_root = tmp_path / "sample"
+    context_dir = sample_root / "context"
+    context_dir.mkdir(parents=True)
+    first_attempt: list[Event] = [
+        SpanBeginEvent(id="agent1", name="react", type="agent"),
+        SpanBeginEvent(
+            id="checkpoint-1",
+            name="checkpoint 1",
+            type="checkpoint",
+            parent_id="agent1",
+        ),
+        InfoEvent(data="main-1", span_id="checkpoint-1"),
+        SpanBeginEvent(id="sub", name="sub", type="agent", parent_id="checkpoint-1"),
+        InfoEvent(data="sub-1", span_id="sub"),
+        SpanEndEvent(id="checkpoint-1"),
+    ]
+    writer = _make_cp()
+    for event in first_attempt:
+        writer._track_transcript_event(event)
+    await writer._write_host_context(str(context_dir), Store())
+    writer.close()
+    _write_checkpoint_files(sample_root, 1)
+
+    live = Transcript(bounded=False)
+    init_transcript(live)
+    host = _load_host_state(str(context_dir), str(sample_root), 1, "current")
+    with patch(
+        "inspect_ai.util._checkpoint.hydrate.sample_state",
+        return_value=SimpleNamespace(store=Store()),
+    ):
+        _push_host_state(host, str(sample_root), 1)
+
+    assert _resumed_tree_shape(host.condensed_events) == [
+        (
+            "current",
+            [
+                (
+                    "checkpoint restore 1",
+                    [
+                        ("checkpoint 1", ["main-1", ("sub", ["sub-1"])]),
+                        "checkpoint event 1",
+                    ],
+                )
+            ],
+        )
+    ]
+
+
+async def test_resume_fire_inside_span_moves_latest_marker_beside_checkpoints(
+    tmp_path: Path,
+) -> None:
+    """Pins restore placement when checkpoints fire inside a ``span()``.
+
+    A live fire from inside an agent's own span (``cp.checkpoint()`` or
+    ``cp.tick()`` under ``span()``) stamps its ``CheckpointEvent`` with that
+    span. Restore keeps that placement for every marker except the latest
+    one, which hydrate rebuilds from the checkpoint file and places next to
+    the checkpoint spans. The restored events can't tell this case from a
+    subagent span left open in another task. Placing the latest marker
+    exactly needs the firing span recorded in the host context; a change
+    that does that should update this test.
+    """
+    from types import SimpleNamespace
+
+    from inspect_ai.event._tree import event_tree
+    from inspect_ai.util._checkpoint.hydrate import _load_host_state, _push_host_state
+    from inspect_ai.util._span import span
+
+    live = Transcript(bounded=False)
+    init_transcript(live)
+    sample_root = tmp_path / "sample"
+    context_dir = sample_root / "context"
+    context_dir.mkdir(parents=True)
+    cp = _CountingCheckpointer(
+        config=ResolvedCheckpointConfig(trigger=Manual()),
+        hydration=_fake_hydration(str(sample_root), str(context_dir)),
+        resume_checkpoint=None,
+    )
+    with patch(
+        "inspect_ai.util._checkpoint.checkpointer_impl.sample_state",
+        return_value=SimpleNamespace(store=Store()),
+    ):
+        cp._ensure_transcript_subscription()
+        try:
+            async with span("react", type="agent"):
+                async with cp.span_session():
+                    for n in (1, 2):
+                        async with span("turn"):
+                            live._event(InfoEvent(data=f"work-{n}"))
+                            await cp.checkpoint()
+                            live._event(InfoEvent(data=f"after-fire-{n}"))
+                        if n == 1:
+                            live._event(InfoEvent(data="between-turns"))
+        finally:
+            cp.close()
+    assert cp.fire_count == 2
+
+    turn_1 = ("turn", ["work-1", "checkpoint event 1", "after-fire-1"])
+    turn_2 = ("turn", ["work-2", "checkpoint event 2", "after-fire-2"])
+    # live: each marker sits in the turn span it fired from
+    assert _tree_shape(event_tree(list(live.events))) == [
+        (
+            "react",
+            [
+                ("checkpoint 1", [turn_1]),
+                ("checkpoint 2", ["between-turns", turn_2]),
+                ("checkpoint 3", []),
+            ],
+        )
+    ]
+
+    init_transcript(Transcript(bounded=False))
+    host = _load_host_state(str(context_dir), str(sample_root), 2, "current")
+    with patch(
+        "inspect_ai.util._checkpoint.hydrate.sample_state",
+        return_value=SimpleNamespace(store=Store()),
+    ):
+        _push_host_state(host, str(sample_root), 2)
+
+    # restored: marker 1 keeps its live placement; the rebuilt marker 2 sits
+    # next to the checkpoint spans, and fire 2's `turn` span was still open
+    # when its host context was written
+    assert _resumed_tree_shape(host.condensed_events) == [
+        (
+            "current",
+            [
+                (
+                    "checkpoint restore 1",
+                    [
+                        ("checkpoint 1", [turn_1]),
+                        ("checkpoint 2", ["between-turns", ("turn", ["work-2"])]),
+                        "checkpoint event 2",
+                    ],
+                )
+            ],
+        )
+    ]
+
+
 def test_validate_resume_state_accepts_wrapped_checkpoint_shape(tmp_path: Path) -> None:
     from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
 

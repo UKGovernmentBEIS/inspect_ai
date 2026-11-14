@@ -642,14 +642,11 @@ def _load_host_state(
         synthesized = _synthesize_trailing_checkpoint_event(
             sample_root, latest_committed_id
         )
-        # Stamp the synthesized event with the restored session's active
-        # span (the innermost still-open span), matching the span the
-        # prior checkpoint events carry. Constructing the event live
-        # otherwise stamps `current_span_id()` — the *resuming* session's
-        # span, which lives outside the `prior_run` wrap and would dangle
-        # the checkpoint under the current agent instead of nesting it as
-        # a peer of the other restored checkpoints.
-        synthesized.span_id = _innermost_open_span_id(rehydrated_events)
+        # Constructing the event here stamps `current_span_id()` — the
+        # *resuming* session's span, which lives outside the `prior_run`
+        # wrap and would dangle the checkpoint under the current agent
+        # instead of nesting it as a peer of the other restored checkpoints.
+        synthesized.span_id = _checkpoint_parent_span_id(rehydrated_events)
         rehydrated_events.append(synthesized)
 
     rehydrated_events = materialize_pooled_events(
@@ -727,11 +724,12 @@ def _wrap_prior_run(events: list[Event], parent_span_id: str | None) -> list[Eve
     - Surviving ``prior_run`` wraps in the head pointed at a prior
       session's (now-sliced) ``agent`` span; rewrite them to
       ``parent_span_id`` so they sit as siblings under the current span.
-    - Depth-0 ``span_begin`` events in the tail (the checkpoint spans)
-      get ``parent_id`` rewritten to the new wrap; other depth-0 events
+    - Tail events whose parent span does not begin in the tail are
+      reparented to the new wrap: ``span_begin`` events (the checkpoint
+      spans) get ``parent_id`` rewritten, other events
       (``CheckpointEvent``s, inter-checkpoint execs) get ``span_id``
-      rewritten to it. ``span_end`` events carry no ``parent_id`` and
-      pass through unchanged.
+      rewritten. ``span_end`` events carry no ``parent_id`` and pass
+      through unchanged.
 
     The new wrap's own ``parent_id`` is ``parent_span_id`` — the live
     span id captured at hydrate time — so the wrap nests under the
@@ -783,7 +781,7 @@ def _wrap_prior_run(events: list[Event], parent_span_id: str | None) -> list[Eve
     # Slice the tail to its first *new* `checkpoint` span, dropping the
     # resumed session's own structural scaffolding (`init` / `solvers` /
     # `solver` / `agent` spans + setup execs). The new checkpoint span's
-    # `parent_id` points at the (now-dropped) `agent` span; the depth-0
+    # `parent_id` points at the (now-dropped) `agent` span; the
     # reparenting below rewrites it to the new wrap.
     first_new_ckpt = next(
         (
@@ -808,33 +806,31 @@ def _wrap_prior_run(events: list[Event], parent_span_id: str | None) -> list[Eve
     )
     wrap_end = SpanEndEvent(id=wrap_id)
 
-    # Reparent depth-0 events in the tail so the UI nests them inside
-    # the new wrap. Two cases:
+    # Reparent tail events whose parent span is not in the tail, so the
+    # UI nests them inside the new wrap. Two cases:
     #
-    # - Top-level `span_begin` (in practice each prior session's
-    #   `checkpoint N` span): rewrite `parent_id` to the wrap. Their
-    #   original `parent_id` points at a span from the prior attempt's
-    #   transcript (e.g. `react/agent`) that doesn't exist in this
-    #   attempt.
-    # - Other top-level events (in practice `CheckpointEvent`s emitted
-    #   between checkpoint spans): rewrite `span_id` to the wrap.
-    #   Their original `span_id` came from the prior attempt's
-    #   `_current_span_id` ContextVar at emit time — also stale.
+    # - `span_begin` (in practice each prior session's `checkpoint N`
+    #   span): rewrite `parent_id` to the wrap. Their original
+    #   `parent_id` points at a span from the prior attempt's transcript
+    #   (e.g. `react/agent`) that doesn't exist in this attempt.
+    # - Other events (in practice `CheckpointEvent`s emitted between
+    #   checkpoint spans): rewrite `span_id` to the wrap. Their original
+    #   `span_id` came from the prior attempt's `_current_span_id`
+    #   ContextVar at emit time — also stale.
     #
-    # Events at depth > 0 are inside their checkpoint span; their
-    # `span_id` already points at that span, which is in the tail and
-    # nests under the wrap via the rewritten `parent_id`. No change
-    # needed there.
+    # Resolve by span id, not by begin/end position: spans need not
+    # close in stack order. A subagent span opened in `checkpoint N` can
+    # stay open after the fire ends `checkpoint N` and begins
+    # `checkpoint N+1`. Events that point at a tail span already nest
+    # under the wrap through that span.
     new_tail: list[Event] = []
-    depth = 0
+    tail_span_ids: set[str] = set()
     for e in tail:
         if isinstance(e, SpanBeginEvent):
-            if depth == 0:
+            if e.parent_id not in tail_span_ids:
                 e = e.model_copy(update={"parent_id": wrap_id})
-            depth += 1
-        elif isinstance(e, SpanEndEvent):
-            depth -= 1
-        elif depth == 0:
+            tail_span_ids.add(e.id)
+        elif not isinstance(e, SpanEndEvent) and e.span_id not in tail_span_ids:
             e = e.model_copy(update={"span_id": wrap_id})
         new_tail.append(e)
 
@@ -861,19 +857,23 @@ def _synthesize_trailing_checkpoint_event(
     )
 
 
-def _innermost_open_span_id(events: list[Event]) -> str | None:
-    """Return the id of the innermost span still open at the end of ``events``.
+def _checkpoint_parent_span_id(events: list[Event]) -> str | None:
+    """Return the span the restored session's checkpoints fire within.
 
-    This is the restored session's active span at context-write time — the
-    agent span the checkpoints fire within. ``None`` if no span is open.
+    This is the parent of the last ``checkpoint`` span: the span a live fire
+    stamps on its ``CheckpointEvent`` after ending the checkpoint span. The
+    innermost span still open at context-write time is not a substitute: a
+    subagent span opened inside the checkpoint span can still be open when
+    the checkpoint fires. ``None`` if there is no checkpoint span.
     """
-    open_span_ids: list[str] = []
-    for e in events:
-        if isinstance(e, SpanBeginEvent):
-            open_span_ids.append(e.id)
-        elif isinstance(e, SpanEndEvent) and e.id in open_span_ids:
-            open_span_ids.remove(e.id)
-    return open_span_ids[-1] if open_span_ids else None
+    return next(
+        (
+            e.parent_id
+            for e in reversed(events)
+            if isinstance(e, SpanBeginEvent) and e.type == "checkpoint"
+        ),
+        None,
+    )
 
 
 def _validate_resume_state(
