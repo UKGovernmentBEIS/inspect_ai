@@ -991,6 +991,261 @@ async def test_anthropic_count_tokens_strips_thinking_from_payload(
     assert "thinking" not in captured
 
 
+def test_pad_server_tool_blocks_for_token_counting() -> None:
+    """Orphaned server tool blocks get a placeholder `server_tool_use` block.
+
+    Reproduces the count_tokens 400s that compaction hit when a server tool
+    result arrived in the turn after its use block (a client tool call cut the
+    first turn short) and only the later message was counted: "unexpected
+    `tool_use_id` found in `web_search_tool_result` blocks" and, for web search
+    with dynamic filtering, "source tool ... not found for tool use block".
+    """
+    from anthropic.types import MessageParam
+
+    from inspect_ai.model._providers.anthropic import (
+        pad_server_tool_blocks_for_token_counting,
+    )
+
+    def caller(source: str | None) -> dict[str, Any]:
+        if source is None:
+            return {"type": "direct"}
+        return {"type": "code_execution_20260120", "tool_id": source}
+
+    def use(id: str, name: str, source: str | None = None) -> dict[str, Any]:
+        return {
+            "type": "server_tool_use",
+            "id": id,
+            "name": name,
+            "input": {"query": "q"},
+            "caller": caller(source),
+        }
+
+    def result(type: str, id: str, source: str | None = None) -> dict[str, Any]:
+        return {
+            "type": type,
+            "tool_use_id": id,
+            "content": [],
+            "caller": caller(source),
+        }
+
+    def placeholder(id: str, name: str) -> dict[str, Any]:
+        return {"type": "server_tool_use", "id": id, "name": name, "input": {}}
+
+    text = {"type": "text", "text": "done"}
+    messages: list[dict[str, Any]] = [
+        # result whose use block is in a message that is not being counted
+        {
+            "role": "assistant",
+            "content": [result("web_search_tool_result", "s1"), text],
+        },
+        # dynamic filtering: a search issued from, and the result of, a code
+        # execution call whose use block is in a message that is not being counted
+        {
+            "role": "assistant",
+            "content": [
+                use("s2", "web_search", source="c1"),
+                result("web_search_tool_result", "s2", source="c1"),
+                result("code_execution_tool_result", "c1"),
+                text,
+            ],
+        },
+        # dynamic filtering: neither the search's use block nor the code
+        # execution call's is being counted
+        {
+            "role": "assistant",
+            "content": [
+                result("web_search_tool_result", "s3", source="c2"),
+                result("code_execution_tool_result", "c2"),
+            ],
+        },
+        {"role": "user", "content": "unchanged"},
+        # complete span
+        {
+            "role": "assistant",
+            "content": [
+                use("s4", "web_search"),
+                result("web_search_tool_result", "s4"),
+            ],
+        },
+        # use and result in different messages, both being counted
+        {"role": "assistant", "content": [use("c3", "code_execution")]},
+        {"role": "assistant", "content": [result("code_execution_tool_result", "c3")]},
+    ]
+
+    padded = pad_server_tool_blocks_for_token_counting(
+        cast(list[MessageParam], messages)
+    )
+
+    assert padded[0]["content"] == [
+        placeholder("s1", "web_search"),
+        *messages[0]["content"],
+    ]
+    assert padded[1]["content"] == [
+        placeholder("c1", "code_execution"),
+        *messages[1]["content"],
+    ]
+    assert padded[2]["content"] == [
+        placeholder("s3", "web_search"),
+        messages[2]["content"][0],
+        placeholder("c2", "code_execution"),
+        messages[2]["content"][1],
+    ]
+    # everything else is untouched
+    for index in range(3, len(messages)):
+        assert padded[index] is messages[index]
+
+
+# server tool blocks an assistant message can open with when a client tool call
+# ended the prior turn while the server tool call was still running (the use
+# block of "srvtoolu_ws1" / "srvtoolu_ce1" stays with the prior message), and
+# the blocks count_tokens must send for that message counted on its own
+_PRIOR_TURN_RESULTS: dict[str, tuple[list[dict[str, Any]], list[tuple[str, str]]]] = {
+    "web_search": (
+        [
+            {
+                "type": "web_search_tool_result",
+                "tool_use_id": "srvtoolu_ws1",
+                "content": [],
+            }
+        ],
+        [
+            ("server_tool_use", "srvtoolu_ws1"),
+            ("web_search_tool_result", "srvtoolu_ws1"),
+        ],
+    ),
+    "dynamic_filtering": (
+        [
+            {
+                "type": "server_tool_use",
+                "id": "srvtoolu_ws2",
+                "name": "web_search",
+                "input": {"query": "inspect ai"},
+                "caller": {
+                    "type": "code_execution_20260120",
+                    "tool_id": "srvtoolu_ce1",
+                },
+            },
+            {
+                "type": "web_search_tool_result",
+                "tool_use_id": "srvtoolu_ws2",
+                "content": [],
+                "caller": {
+                    "type": "code_execution_20260120",
+                    "tool_id": "srvtoolu_ce1",
+                },
+            },
+            {
+                "type": "code_execution_tool_result",
+                "tool_use_id": "srvtoolu_ce1",
+                "content": {
+                    "type": "code_execution_result",
+                    "stdout": "",
+                    "stderr": "",
+                    "return_code": 0,
+                    "content": [],
+                },
+            },
+        ],
+        [
+            ("server_tool_use", "srvtoolu_ce1"),
+            ("server_tool_use", "srvtoolu_ws2"),
+            ("web_search_tool_result", "srvtoolu_ws2"),
+            ("code_execution_tool_result", "srvtoolu_ce1"),
+        ],
+    ),
+}
+
+
+def _prior_turn_result_message(blocks: list[dict[str, Any]]) -> ChatMessageAssistant:
+    """An assistant message recorded as opening with a prior turn's results."""
+    from inspect_ai._util.content import ContentToolUse
+    from inspect_ai.model._providers.anthropic import (
+        _ServerToolSpan,
+        init_sample_anthropic_assistant_internal,
+        record_server_tool_spans,
+    )
+
+    tool_types: dict[str, Literal["web_search", "code_execution"]] = {
+        "web_search_tool_result": "web_search",
+        "code_execution_tool_result": "code_execution",
+    }
+    results = [block for block in blocks if block["type"] in tool_types]
+    message = ChatMessageAssistant(
+        id="msg_tail",
+        content=[
+            *[
+                ContentToolUse(
+                    tool_type=tool_types[block["type"]],
+                    id=block["tool_use_id"],
+                    name=tool_types[block["type"]],
+                    arguments="{}",
+                    result="",
+                )
+                for block in results
+            ],
+            ContentText(text="done"),
+        ],
+    )
+    init_sample_anthropic_assistant_internal()
+    record_server_tool_spans(
+        "msg_tail",
+        [
+            _ServerToolSpan(
+                blocks=cast(Any, blocks),
+                content_ids=[block["tool_use_id"] for block in results],
+            )
+        ],
+    )
+    return message
+
+
+@pytest.mark.parametrize("case", list(_PRIOR_TURN_RESULTS))
+async def test_anthropic_count_tokens_pads_prior_turn_server_tool_result(
+    monkeypatch: pytest.MonkeyPatch, case: str
+) -> None:
+    """count_tokens sends a use block for a result recorded from a prior turn.
+
+    When a client tool call ends a turn while a server tool call is still
+    running, the result arrives in the next response and is recorded for that
+    message alone (its use block replays with the prior message). Counting
+    that message without the prior one must not send an orphaned result.
+    """
+    blocks, expected = _PRIOR_TURN_RESULTS[case]
+    api = AnthropicAPI(model_name="claude-opus-4-8", api_key="test-key")
+
+    captured: dict[str, Any] = {}
+
+    async def fake_count_tokens(**kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return types.SimpleNamespace(input_tokens=123)
+
+    monkeypatch.setattr(api.client.messages, "count_tokens", fake_count_tokens)
+
+    assert await api.count_tokens([_prior_turn_result_message(blocks)]) == 123
+
+    [message] = captured["messages"]
+    assert [
+        (b["type"], b.get("id") or b.get("tool_use_id")) for b in message["content"]
+    ] == [*expected, ("text", None)]
+
+
+@skip_if_no_anthropic
+@pytest.mark.parametrize("case", list(_PRIOR_TURN_RESULTS))
+async def test_anthropic_count_tokens_prior_turn_server_tool_result(case: str) -> None:
+    """count_tokens must not 400 on a server tool result from a prior turn.
+
+    Live counterpart of the test above: without padding, the API rejects the
+    request with "unexpected `tool_use_id` found in `web_search_tool_result`
+    blocks ... Each `web_search_tool_result` block must have a corresponding
+    `server_tool_use` block before it." or, for web search with dynamic
+    filtering, "source tool ... not found for tool use block".
+    """
+    blocks, _ = _PRIOR_TURN_RESULTS[case]
+    model = get_model("anthropic/claude-opus-4-8")
+    token_count = await model.api.count_tokens([_prior_turn_result_message(blocks)])
+    assert token_count > 0
+
+
 async def test_anthropic_continuation_preserves_server_tool_pairing() -> None:
     """Ensure continuation parsing preserves server tool-use/result pairing."""
     from anthropic import AsyncAnthropic
