@@ -399,7 +399,10 @@ finalised. The bridge waits for it (`_await_result_message()`) and sets
 the completed event through the transcript's event-update path
 (`_event_updated()`), as for a pending event. Transcript subscribers see the
 event completed with `message_id=None` and then updated; a log read back has
-it set.
+it set. Waiting starts once the RPC's response is written to the sandbox
+(`on_response_written()` in the sandbox service), since a message the agent
+sent before then cannot hold the result. A call whose response is never
+written (the write fails, or the service is cancelled first) is not linked.
 
 The link is exact when all of these hold:
 
@@ -456,6 +459,35 @@ The link is exact when all of these hold:
 - Exactly one tool message answers it, by call id, before the next assistant
   message with tool calls, and that message is new in the request: one sent
   before, or equal to one sent before, may hold another result.
+- That message holds the result (`_holds_result()`). The response's delivery
+  to the agent can't be seen: the in-sandbox proxy reads the response file
+  even after the agent's MCP client gave up on the call (its own timeout),
+  and the agent then answers with its timeout error, sent after the response
+  was written. The evidence is the text the agent received, as the RPC sent
+  it: the result's first text, or for media without one the reply's first
+  text (an image URL or path sent as an MCP text block, or the JSON of
+  audio, video or a document). A message holds the result when it contains
+  the first 256 characters of that text, or a JSON string inside it does, one
+  level down too (Codex sends a list of MCP content blocks, Google a
+  `functionResponse` object, and a host tool's content result reaches the
+  agent as JSON already), or its text contains them JSON-escaped once or
+  twice, with or without ASCII escapes (an agent may cut its JSON so it no
+  longer parses, and a content result is then escaped inside the agent's
+  JSON). For a call whose RPC
+  raised, the text is the error the agent received (`str()` of what the RPC
+  raised, which for an OS error differs from the message the event records),
+  not counting the service's `Error calling method call_tool:` prefix, which
+  a denied call's answer carries too; an error with no text links nothing. A
+  text shorter than 16 characters must be a whole text of the message, a text
+  part or a JSON string, so a short error message, which agents show behind a
+  prefix, links nothing. A text within a known client timeout's wording
+  (`Request timed out` within `MCP error -32001: Request timed out`) links
+  no answer holding that timeout. A reply with no text needs an answer of
+  only text parts whose text, and every string of JSON it holds (one level
+  down too), is empty, so an empty field beside a timeout error, or a
+  reasoning part, links nothing; for an inline image, the answer must hold
+  an image, audio, video or document part (reasoning is not media). An agent that truncates the start of a
+  result or rewrites it leaves the call unlinked.
 
 Otherwise `message_id` stays `None`. This includes a Google result whose call
 id the dialect inferred from order (a call sharing its function with another),

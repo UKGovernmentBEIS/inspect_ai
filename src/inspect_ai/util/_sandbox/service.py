@@ -1,6 +1,7 @@
 import json
 import re
 from contextlib import AsyncExitStack
+from contextvars import ContextVar
 from logging import getLogger
 from pathlib import PurePosixPath
 from textwrap import dedent
@@ -43,6 +44,37 @@ logger = getLogger(__name__)
 # (task/run.py) but has no equivalent task-boundary consumer, so routing it
 # would not reliably enact anything.
 CONTROL_FLOW_EXCEPTIONS: tuple[type[BaseException], ...] = (TerminateSampleError,)
+
+
+class _ResponseWatch:
+    """Callbacks awaiting the response to the service request being handled."""
+
+    def __init__(self) -> None:
+        self.callbacks: list[Callable[[bool], None]] = []
+        self.written = False
+
+
+_response_watch: ContextVar[_ResponseWatch | None] = ContextVar(
+    "_response_watch", default=None
+)
+
+
+def on_response_written(callback: Callable[[bool], None]) -> bool:
+    """Call `callback` when the service request being handled ends.
+
+    `callback(True)` if its response was written to the sandbox, where the
+    caller can read it, and the request dequeued; `callback(False)` if not
+    (no response, a failed write, or the service cancelled first). It runs
+    once, after the request's handler returns, so it must not raise.
+
+    Returns:
+        `False`, with `callback` not registered, outside a service request.
+    """
+    watch = _response_watch.get()
+    if watch is None:
+        return False
+    watch.callbacks.append(callback)
+    return True
 
 
 def find_control_flow(ex: Exception) -> BaseException | None:
@@ -454,6 +486,8 @@ class SandboxService:
             )
 
     async def _handle_request_tracked(self, request_file: str, request_id: str) -> None:
+        watch = _ResponseWatch()
+        watching = _response_watch.set(watch)
         try:
             # log-and-continue for ordinary errors (one bad request must not
             # tear down the polling loop), but control-flow exceptions raised
@@ -464,6 +498,9 @@ class SandboxService:
             logger.warning(f"Error handling sandbox service request: {ex}")
         finally:
             self._in_flight.discard(request_id)
+            _response_watch.reset(watching)
+            for callback in watch.callbacks:
+                callback(watch.written)
 
     async def _handle_request(self, request_file: str) -> None:
         request_path = PurePosixPath(request_file)
@@ -674,6 +711,9 @@ class SandboxService:
             self._responses_dir, f"{request_id}.json", json.dumps(response_data)
         )
         await self._remove_request_file(request_file)
+        watch = _response_watch.get()
+        if watch is not None:
+            watch.written = True
 
     async def _remove_request_file(self, request_file: str) -> None:
         request_path = PurePosixPath(request_file)

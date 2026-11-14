@@ -54,8 +54,18 @@ import inspect_ai._util.logger as inspect_logger
 import inspect_ai.agent._bridge.types as bridge_types
 from inspect_ai import Task, eval
 from inspect_ai._util._async import tg_collect
-from inspect_ai._util.content import ContentImage, ContentText, ContentToolUse
+from inspect_ai._util.content import (
+    Content,
+    ContentAudio,
+    ContentDocument,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+    ContentToolUse,
+    ContentVideo,
+)
 from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._acp.event_mapping import _AcpEventRouter, replay_transcript
 from inspect_ai.agent._acp.transport import AcpUpdate
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport
@@ -66,7 +76,12 @@ from inspect_ai.agent._bridge.bridge import agent_bridge
 from inspect_ai.agent._bridge.completions import inspect_completions_api_request
 from inspect_ai.agent._bridge.google_api import inspect_google_api_request
 from inspect_ai.agent._bridge.responses import inspect_responses_api_request
-from inspect_ai.agent._bridge.sandbox.host_tool import execute_host_tool
+from inspect_ai.agent._bridge.sandbox.host_tool import (
+    _received,
+    _recorded_result,
+    _reply,
+    execute_host_tool,
+)
 from inspect_ai.agent._bridge.sandbox.service import (
     _forward_provider_errors,
     generate_completions,
@@ -78,7 +93,12 @@ from inspect_ai.agent._bridge.sandbox.types import (
     _Proposal,
     _ToolExecutionGrant,
 )
-from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.types import (
+    _RESULT_EVIDENCE,
+    AgentBridge,
+    _holds_result,
+    _Received,
+)
 from inspect_ai.agent._bridge.util import (
     bridge_generate,
     default_code_execution_providers,
@@ -138,7 +158,9 @@ from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
 from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
+from inspect_ai.util._sandbox.service import SandboxService
 from inspect_ai.util._span import (
     SpanRotationScope,
     current_span_id,
@@ -147,6 +169,7 @@ from inspect_ai.util._span import (
     span_id_provider,
 )
 from inspect_ai.util._store import Store, _subtask_store
+from inspect_ai.util._subprocess import ExecResult
 
 TASK = "Tidy up the working directory."
 
@@ -6041,10 +6064,13 @@ class _HostConversation:
         With `listed`, each result's text is sent as a list of text parts (one,
         or none for empty text), where the dialect allows one (Google results
         are JSON objects); with `padded` as well, the list starts and ends with
-        an empty text part. With `error`, Anthropic results are sent as errors.
+        an empty text part. A list output is sent as is (not for Google). With
+        `error`, Anthropic results are sent as errors.
         """
 
         def content(output: JsonValue, text_type: str = "text") -> Any:
+            if isinstance(output, list):
+                return output
             if not listed:
                 return str(output)
             parts = [{"type": text_type, "text": str(output)}] if output != "" else []
@@ -7076,11 +7102,13 @@ def test_full_history_host_result_links_to_the_later_calls_answer(
     copied: bool,
     tmp_path: Path,
 ) -> None:
-    """With the full conversation kept, the answer sent after the later reply links to the later call, whatever it holds.
+    """With the full conversation kept, the answer sent after the later reply links to the later call when it holds its result.
 
     The provider reuses the call id (Google re-derives call ids), so a copy of
     the earlier answer equals it. Both are in the request, so the copy gets an
-    id of its own, new in that request, and it is the later call's answer.
+    id of its own, new in that request, and it is the later call's answer. A
+    copy of a different earlier result doesn't hold the later call's result,
+    so it links nothing.
     """
     name = "mcp__host__read_file"
     call = ToolCall(id="call_1", function=name, arguments={"path": "a"})
@@ -7117,7 +7145,9 @@ def test_full_history_host_result_links_to_the_later_calls_answer(
     ]
     assert latest.id != first.id
     events = [e for e in sample.events if isinstance(e, ToolEvent)]
-    assert [e.message_id for e in events] == [first.id, latest.id]
+    # a lone surrogate's escape is the same text as the surrogate it escapes
+    held = not copied or results[1] == ESCAPED_SURROGATE_TEXT
+    assert [e.message_id for e in events] == [first.id, latest.id if held else None]
 
 
 @pytest.mark.parametrize("resumed", [False, True], ids=["live", "resumed"])
@@ -7373,7 +7403,11 @@ async def test_answer_sent_while_a_reused_call_id_ran_links_nothing(
     the full conversation with that timeout again (as a string, or as a list
     of one text part where the dialect allows one), so the request holds two
     equal answers. The second was sent before the execution completed and
-    links nothing. As a control, the execution's own result links.
+    links nothing. Where it is resent, the second call's own result is that
+    same text (the command it ran timed out too), so the answer holds the
+    result and only its being sent before the execution completed decides.
+    As a control, the execution's result sent after it completed links. The
+    first call's timeout answer doesn't hold its result, so it links nothing.
     """
     if dialect == "google" and resent == "listed timeout":
         pytest.skip("Google results are JSON objects")
@@ -7396,7 +7430,7 @@ async def test_answer_sent_while_a_reused_call_id_ran_links_nothing(
             return "OLD"
         started.set()
         await release.wait()
-        return "NEW"
+        return "NEW" if resent == "result" else "Timed out."
 
     bridge = SandboxAgentBridge(
         state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
@@ -7441,9 +7475,958 @@ async def test_answer_sent_while_a_reused_call_id_ran_links_nothing(
     model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
     answers = [m.id for m in model_events[-1].input if m.role == "tool"]
     events = [e for e in recorded.events if isinstance(e, ToolEvent)]
-    assert [e.result for e in events] == ["OLD", "NEW"]
-    assert events[0].message_id == answers[0]
+    assert [e.result for e in events] == [
+        "OLD",
+        "NEW" if resent == "result" else "Timed out.",
+    ]
+    assert events[0].message_id is None
     assert events[1].message_id == (answers[1] if resent == "result" else None)
+
+
+CLIENT_TIMEOUT = "MCP error -32001: Request timed out"
+"""The answer a scaffold's MCP client sends for a call it gave up waiting on."""
+
+
+def _host_contents(path: str) -> str:
+    """A host tool result a scaffold's JSON wrapper escapes (quotes, newlines)."""
+    return f'contents of {path}:\n"first" line'
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        "delivered",
+        "delivered as content blocks",
+        "late client timeout",
+        "parallel client timeout",
+    ],
+)
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_host_call_answered_without_its_result_links_nothing(
+    dialect: HostDialect, shape: str
+) -> None:
+    """A host call the scaffold answers without its result links nothing.
+
+    The scaffold's MCP client gave up waiting on the call (its own client
+    timeout) and answers it with its timeout error, sent after the execution
+    completed. In `parallel client timeout`, the scaffold waits for a second
+    call and sends both answers together: the first call's timeout and the
+    second's result, which links. As controls, a call answered with its
+    result links, also as a JSON list of MCP content blocks (as Codex sends
+    results), which escapes it.
+    """
+    if dialect == "google" and shape == "delivered as content blocks":
+        pytest.skip("Google results are JSON objects")
+    parallel = shape == "parallel client timeout"
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(
+                ToolCall(id="call_read", function="read_file", arguments={"path": "p"}),
+                *(
+                    [
+                        ToolCall(
+                            id="call_list",
+                            function="list_dir",
+                            arguments={"path": "d"},
+                        )
+                    ]
+                    * parallel
+                ),
+            ),
+            ModelOutput.from_content("mockllm/model", "Noted."),
+        ],
+    )
+
+    async def result(path: str) -> str:
+        return _host_contents(path)
+
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={
+            "host": {
+                "read_file": read_file(AsyncMock(side_effect=result)),
+                "list_dir": served_tool(
+                    AsyncMock(side_effect=result), description=LIST_DIR, name="list_dir"
+                ),
+            }
+        },
+    )
+    [read_info] = declare("read_file")
+    [list_info] = declare("list_dir", description=LIST_DIR)
+    conversation = _HostConversation(dialect, "Read p.", read_info, others=[list_info])
+    with recorded_transcript() as recorded:
+        calls = await conversation.request(bridge)
+        for (_, arguments), tool_name in zip(calls, ["read_file", "list_dir"]):
+            await call_host_tool(bridge)("host", tool_name, arguments)
+        match shape:
+            case "delivered":
+                answers: list[JsonValue] = [_host_contents("p")]
+            case "delivered as content blocks":
+                answers = [json.dumps([{"type": "text", "text": _host_contents("p")}])]
+            case "late client timeout":
+                answers = [CLIENT_TIMEOUT]
+            case _:
+                answers = [CLIENT_TIMEOUT, _host_contents("d")]
+        conversation.results(calls, answers)
+        await conversation.request(bridge)
+
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    sent = [m.id for m in model_events[-1].input if m.role == "tool"]
+    links = {
+        e.function: e.message_id for e in recorded.events if isinstance(e, ToolEvent)
+    }
+    match shape:
+        case "delivered" | "delivered as content blocks":
+            assert links == {"read_file": sent[0]}
+        case "late client timeout":
+            assert links == {"read_file": None}
+        case _:
+            assert links == {"read_file": None, "list_dir": sent[1]}
+
+
+CHART_URL = "https://example.com/charts/results.png"
+
+MEDIA_RESULTS: dict[str, ToolResult] = {
+    "image url": ContentImage(image=CHART_URL),
+    "image file": ContentImage(image="/tmp/chart.png"),
+    "audio": ContentAudio(audio="data:audio/wav;base64,UklGRiQAAABXQVZF", format="wav"),
+    "video": ContentVideo(video="data:video/mp4;base64,AAAAIGZ0eXBpc29t", format="mp4"),
+    "document": ContentDocument(
+        document="data:application/pdf;base64,JVBERi0xLjQK",
+        filename="report.pdf",
+        mime_type="application/pdf",
+    ),
+    "captioned image": [ContentText(text="Results by model"), ContentImage(image=PNG)],
+}
+"""Host media results the RPC sends as text: an image URL or file path as an MCP text block, other media as JSON (a captioned image as a control)."""
+
+
+def _scaffold_text(reply: JsonValue) -> str:
+    """The text a scaffold's MCP client reads from a host tool's RPC result."""
+    if isinstance(reply, str):
+        return reply
+    assert isinstance(reply, list)
+    return "\n".join(
+        str(block["text"])
+        for block in reply
+        if isinstance(block, dict) and block.get("type") == "text"
+    )
+
+
+@pytest.mark.parametrize("answered", ["reply", "client timeout"])
+@pytest.mark.parametrize("media", list(MEDIA_RESULTS))
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_host_media_result_sent_as_text_links_its_answer(
+    dialect: HostDialect, media: str, answered: str
+) -> None:
+    """A host media result the RPC sends as text links the answer holding that text.
+
+    The scaffold receives an image URL or file path as an MCP text block, and
+    audio, video or a document as JSON text, and sends it back unchanged,
+    which links. Its client timeout doesn't.
+    """
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(
+                ToolCall(id="call_read", function="read_file", arguments={"path": "p"})
+            ),
+            ModelOutput.from_content("mockllm/model", "Noted."),
+        ],
+    )
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={
+            "host": {
+                "read_file": read_file(AsyncMock(return_value=MEDIA_RESULTS[media]))
+            }
+        },
+    )
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read p.", info)
+    with recorded_transcript() as recorded:
+        [(_, arguments)] = calls = await conversation.request(bridge)
+        reply = await call_host_tool(bridge)("host", "read_file", arguments)
+        assert isinstance(reply, list if "image" in media else str)
+        conversation.results(
+            calls, [_scaffold_text(reply) if answered == "reply" else CLIENT_TIMEOUT]
+        )
+        await conversation.request(bridge)
+
+    [event] = [e for e in recorded.events if isinstance(e, ToolEvent)]
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [sent] = [m.id for m in model_events[-1].input if m.role == "tool"]
+    assert event.message_id == (sent if answered == "reply" else None)
+
+
+async def _host_result_link(
+    dialect: HostDialect,
+    result: ToolResult | Exception,
+    answer: Callable[[str], JsonValue],
+) -> bool:
+    """Whether a host call returning (or raising) `result` links the answer `answer` makes of the text the scaffold received."""
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(
+                ToolCall(id="call_read", function="read_file", arguments={"path": "p"})
+            ),
+            ModelOutput.from_content("mockllm/model", "Noted."),
+        ],
+    )
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={
+            "host": {
+                "read_file": read_file(
+                    AsyncMock(side_effect=result)
+                    if isinstance(result, Exception)
+                    else AsyncMock(return_value=result)
+                )
+            }
+        },
+    )
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read p.", info)
+    with recorded_transcript() as recorded:
+        [(_, arguments)] = calls = await conversation.request(bridge)
+        try:
+            text = _scaffold_text(
+                await call_host_tool(bridge)("host", "read_file", arguments)
+            )
+        except Exception as error:
+            text = f"{MCP_ERROR}{error}"
+        conversation.results(calls, [answer(text)])
+        await conversation.request(bridge)
+
+    [event] = [e for e in recorded.events if isinstance(e, ToolEvent)]
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [sent] = [m.id for m in model_events[-1].input if m.role == "tool"]
+    assert event.message_id in (sent, None)
+    return event.message_id == sent
+
+
+EMPTY_ANSWERS = {
+    "empty": ("", True),
+    "empty in json": (json.dumps({"output": ""}), True),
+    "empty content block": (json.dumps([{"type": "text", "text": ""}]), True),
+    "client timeout": (CLIENT_TIMEOUT, False),
+    "empty beside a timeout in json": (
+        json.dumps({"output": "", "error": CLIENT_TIMEOUT}),
+        False,
+    ),
+    "empty content block beside a timeout": (
+        json.dumps(
+            [{"type": "text", "text": ""}, {"type": "text", "text": CLIENT_TIMEOUT}]
+        ),
+        False,
+    ),
+}
+"""Answers to a host call returning empty text, and whether each holds its result."""
+
+
+@pytest.mark.parametrize("answer", list(EMPTY_ANSWERS))
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_empty_host_result_links_only_an_empty_answer(
+    dialect: HostDialect, answer: str
+) -> None:
+    """An empty host result links an answer holding no text, however wrapped, but not one with a timeout beside an empty field."""
+    text, links = EMPTY_ANSWERS[answer]
+    assert await _host_result_link(dialect, "", lambda _: text) is links
+
+
+REASONING_TIMEOUT: JsonValue = [{"type": "reasoning", "reasoning": CLIENT_TIMEOUT}]
+"""A Completions tool answer holding a client timeout as reasoning, not media or text."""
+
+
+@pytest.mark.parametrize(
+    "result,answer,links",
+    [
+        pytest.param(
+            ContentImage(image=PNG),
+            REASONING_TIMEOUT,
+            False,
+            id="image answered by reasoning",
+        ),
+        pytest.param("", REASONING_TIMEOUT, False, id="empty answered by reasoning"),
+        pytest.param("", [], True, id="empty answered by no parts"),
+    ],
+)
+async def test_host_result_answered_by_reasoning_links_nothing(
+    result: ToolResult, answer: JsonValue, links: bool
+) -> None:
+    """Reasoning in a Completions tool answer is neither the media nor the empty text a host result needs.
+
+    The image control is a unit case (`test_host_result_evidence_in_an_answer`):
+    a model without tool result images gets the image in a new user message.
+    """
+    assert await _host_result_link("completions", result, lambda _: answer) is links
+
+
+TIMEOUT_WORDING = "Request timed out"
+"""A host result or error the wording of `CLIENT_TIMEOUT` holds."""
+
+
+@pytest.mark.parametrize("answered", ["reply", "client timeout"])
+@pytest.mark.parametrize("raised", [False, True], ids=["result", "error"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_host_result_within_a_client_timeout_links_nothing(
+    dialect: HostDialect, raised: bool, answered: str
+) -> None:
+    """A host result or error within a client timeout's wording doesn't link that timeout; the scaffold's reply does."""
+    result = ToolError(TIMEOUT_WORDING) if raised else TIMEOUT_WORDING
+    links = await _host_result_link(
+        dialect,
+        result,
+        lambda text: text if answered == "reply" else CLIENT_TIMEOUT,
+    )
+    assert links is (answered == "reply")
+
+
+UNICODE_RESULT = "café menu\n" + "\n".join(
+    f"{n}. crème brûlée, «tarte»" for n in range(60)
+)
+"""A long host result that default `json.dumps` writes with ASCII escapes."""
+
+UNICODE_CUT = 1000
+"""Where a scaffold cuts its JSON holding `UNICODE_RESULT`, after more than `_RESULT_EVIDENCE` of its characters."""
+
+
+def _cut_ascii_json(value: JsonValue) -> str:
+    """`value` as default (ASCII-escaped) JSON, cut short of its end."""
+    text = json.dumps(value)
+    assert len(text) > UNICODE_CUT
+    return text[:UNICODE_CUT]
+
+
+UNICODE_WRAPPERS: dict[str, tuple[ToolResult, Callable[[str], str]]] = {
+    "object": (UNICODE_RESULT, lambda text: _cut_ascii_json({"output": text})),
+    "content block": (
+        UNICODE_RESULT,
+        lambda text: _cut_ascii_json([{"type": "text", "text": text}]),
+    ),
+    "nested content": (
+        [ContentText(text=UNICODE_RESULT)],
+        lambda text: _cut_ascii_json([{"type": "text", "text": text}]),
+    ),
+}
+"""Host results, and scaffold JSON holding what the scaffold received for each, cut short."""
+
+
+def _reply_text(result: ToolResult) -> str:
+    """The text the scaffold receives for a host tool's `result`."""
+    output, _ = _recorded_result("read_file", result, None)
+    return _scaffold_text(_reply(output, result))
+
+
+@pytest.mark.parametrize("wrapper", list(UNICODE_WRAPPERS))
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_host_result_in_ascii_escaped_json_cut_short_links(
+    dialect: HostDialect, wrapper: str
+) -> None:
+    """A host result holding non-ASCII text links an answer of ASCII-escaped JSON cut short, which doesn't parse."""
+    result, answer = UNICODE_WRAPPERS[wrapper]
+    assert await _host_result_link(dialect, result, answer)
+
+
+@pytest.mark.parametrize("answered", ["error", "denied call's error", "client timeout"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_host_error_links_the_answer_holding_the_error_raised(
+    dialect: HostDialect, answered: str
+) -> None:
+    """A host call whose tool raised links the answer holding the error the scaffold received.
+
+    Inspect records a missing file as `File '/x/y.txt' was not found.`, but
+    the RPC raises the original error, which the scaffold's MCP client shows
+    behind its own prefix and the service's. The service's prefix is no
+    evidence: the answer to another call's denial (a request the model
+    didn't propose, which doesn't repeat this call) carries it too and links
+    nothing, as does a client timeout.
+    """
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(
+                ToolCall(id="call_read", function="read_file", arguments={"path": "p"})
+            ),
+            ModelOutput.from_content("mockllm/model", "Noted."),
+        ],
+    )
+    missing = FileNotFoundError(2, "No such file or directory", "/x/y.txt")
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={
+            "host": {"read_file": read_file(AsyncMock(side_effect=missing))}
+        },
+    )
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read p.", info)
+    with recorded_transcript() as recorded:
+        [(_, arguments)] = calls = await conversation.request(bridge)
+        with pytest.raises(FileNotFoundError) as raised:
+            await call_host_tool(bridge)("host", "read_file", arguments)
+        with pytest.raises(PermissionError) as denied:
+            await call_host_tool(bridge)("host", "read_file", {"path": "q"})
+        error = {
+            "error": raised.value,
+            "denied call's error": denied.value,
+        }.get(answered)
+        conversation.results(
+            calls,
+            [CLIENT_TIMEOUT if error is None else f"{MCP_ERROR}{error}"],
+        )
+        await conversation.request(bridge)
+
+    [event] = [
+        e
+        for e in recorded.events
+        if isinstance(e, ToolEvent) and bridge_metadata(e)["grant"] == "consumed"
+    ]
+    assert event.error is not None
+    assert event.error.message == "File '/x/y.txt' was not found."
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [sent] = [m.id for m in model_events[-1].input if m.role == "tool"]
+    assert event.message_id == (sent if answered == "error" else None)
+
+
+class _ServedHostCall(SandboxService):
+    """A sandbox service serving one queued `call_tool` request, its sandbox I/O faked.
+
+    `write` runs as the response is written, and may block or raise.
+    """
+
+    def __init__(
+        self,
+        bridge: SandboxAgentBridge,
+        tool: str,
+        arguments: dict[str, Any],
+        write: Callable[[], Awaitable[None]],
+    ) -> None:
+        super().__init__("bridge_model_service", cast(SandboxEnvironment, None))
+        self.add_method("call_tool", call_host_tool(bridge))
+        self._requests_dir = "/requests"
+        self._responses_dir = "/responses"
+        self._request = json.dumps(
+            {
+                "id": "request",
+                "method": "call_tool",
+                "params": {"server": "host", "tool": tool, "arguments": arguments},
+            }
+        )
+        self._write = write
+        self.responses: list[dict[str, Any]] = []
+
+    async def serve(self) -> None:
+        await self._handle_request_tracked("/requests/request.json", "request")
+
+    async def _exec(self, cmd: list[str], input: str | None = None) -> ExecResult[str]:
+        assert cmd[0] == "cat"
+        return ExecResult(success=True, returncode=0, stdout=self._request, stderr="")
+
+    async def _write_text_file(self, dir: str, name: str, contents: str) -> None:
+        await self._write()
+        self.responses.append(json.loads(contents))
+
+    async def _remove_request_file(self, request_file: str) -> None:
+        pass
+
+
+@pytest.mark.parametrize(
+    "shape", ["written", "answered before written", "write failed", "cancelled"]
+)
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+async def test_host_result_links_only_once_its_response_is_written(
+    dialect: HostDialect, shape: str
+) -> None:
+    """A host call served by the sandbox service links only an answer sent after its response was written.
+
+    The scaffold can't hold the result before the service writes the RPC's
+    response, so an answer sent while the write is pending links nothing,
+    also when sent again after it. A response that is never written (the
+    write fails, or the call is cancelled) leaves the call unlinked whatever
+    the scaffold answers. As a control, an answer sent after the response
+    was written links.
+    """
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            tool_calls_output(
+                ToolCall(id="call_read", function="read_file", arguments={"path": "p"})
+            ),
+            *[ModelOutput.from_content("mockllm/model", "Noted.")] * 2,
+        ],
+    )
+    running, writing, release = anyio.Event(), anyio.Event(), anyio.Event()
+
+    async def result(path: str) -> str:
+        running.set()
+        if shape == "cancelled":
+            await anyio.sleep_forever()
+        return _host_contents(path)
+
+    async def write() -> None:
+        writing.set()
+        if shape == "answered before written":
+            await release.wait()
+        if shape == "write failed":
+            raise RuntimeError("Failed to write the response")
+
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        model_aliases={"inspect": model},
+        bridged_tools={"host": {"read_file": read_file(AsyncMock(side_effect=result))}},
+    )
+    [info] = declare("read_file")
+    conversation = _HostConversation(dialect, "Read p.", info)
+    # the answer holds the recorded result even where the scaffold can't have it
+    answer = (
+        "Host tool call was cancelled before completing."
+        if shape == "cancelled"
+        else _host_contents("p")
+    )
+    with recorded_transcript() as recorded:
+        [(_, arguments)] = calls = await conversation.request(bridge)
+        service = _ServedHostCall(bridge, "read_file", arguments, write)
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(service.serve)
+            if shape == "cancelled":
+                await running.wait()
+                tg.cancel_scope.cancel()
+            elif shape == "answered before written":
+                await writing.wait()
+                conversation.results(calls, [answer])
+                await conversation.request(bridge)
+                release.set()
+        if shape != "answered before written":
+            conversation.results(calls, [answer])
+        await conversation.request(bridge)
+
+    [event] = [e for e in recorded.events if isinstance(e, ToolEvent)]
+    assert event.result == ("" if shape == "cancelled" else _host_contents("p"))
+    assert len(service.responses) == (shape in ("written", "answered before written"))
+    model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
+    [sent] = [m.id for m in model_events[-1].input if m.role == "tool"]
+    assert event.message_id == (sent if shape == "written" else None)
+
+
+def _tool_answer(content: str | list[Content]) -> ChatMessageTool:
+    return ChatMessageTool(content=content, tool_call_id="call", function="read_file")
+
+
+LONG_RESULT = "\n".join(f'line {n}: "quoted" text' for n in range(100))
+
+MULTILINE_RESULT = [ContentText(text='first line\nsecond line, "quoted"')]
+"""A host MCP tool's content result, which reaches the scaffold as JSON."""
+
+MULTILINE_REPLY = to_json_str_safe(MULTILINE_RESULT)
+"""The RPC result for `MULTILINE_RESULT`, as the scaffold receives it."""
+
+LONG_CONTENT_REPLY = to_json_str_safe([ContentText(text=LONG_RESULT)])
+"""The RPC result for a long content result, as the scaffold receives it."""
+
+LONG_AUDIO = ContentAudio(audio="data:audio/wav;base64," + "A" * 100_000, format="wav")
+
+
+def _media_reply(media: str) -> str:
+    """The RPC result for `MEDIA_RESULTS[media]` sent as JSON, as the scaffold receives it."""
+    return to_json_str_safe(MEDIA_RESULTS[media])
+
+
+MISSING_FILE = str(FileNotFoundError(2, "No such file or directory", "/x/y.txt"))
+"""What the RPC raises for a missing file, which Inspect records as `File '/x/y.txt' was not found.`"""
+
+MCP_ERROR = "MCP error -32603: Error calling method call_tool: "
+"""The prefix a scaffold's MCP client shows a host tool's error with."""
+
+DENIED = (
+    "Host tool call 'host/read_file' was not proposed by the model in a "
+    "bridged generation (a bridged host tool runs once per proposed call)"
+)
+
+
+@pytest.mark.parametrize(
+    "result,error,answer,holds",
+    [
+        pytest.param(LONG_RESULT, None, LONG_RESULT, True, id="equal"),
+        pytest.param(
+            LONG_RESULT, None, f"Output:\n{LONG_RESULT}\n", True, id="within other text"
+        ),
+        pytest.param(
+            LONG_RESULT,
+            None,
+            json.dumps([{"type": "text", "text": LONG_RESULT}]),
+            True,
+            id="content block json",
+        ),
+        pytest.param(
+            LONG_RESULT,
+            None,
+            json.dumps({"output": LONG_RESULT}),
+            True,
+            id="google response json",
+        ),
+        pytest.param(
+            LONG_RESULT,
+            None,
+            f"{LONG_RESULT[:300]}\n[output truncated]",
+            True,
+            id="truncated",
+        ),
+        pytest.param(
+            LONG_RESULT,
+            None,
+            json.dumps([{"type": "text", "text": LONG_RESULT}])[:400],
+            True,
+            id="content block json cut short",
+        ),
+        pytest.param(LONG_RESULT, None, CLIENT_TIMEOUT, False, id="client timeout"),
+        pytest.param(
+            LONG_RESULT, None, LONG_RESULT[:200], False, id="too little of it"
+        ),
+        pytest.param(MULTILINE_RESULT, None, MULTILINE_REPLY, True, id="content reply"),
+        pytest.param(
+            MULTILINE_RESULT,
+            None,
+            json.dumps([{"type": "text", "text": MULTILINE_REPLY}]),
+            True,
+            id="content reply in codex json",
+        ),
+        pytest.param(
+            MULTILINE_RESULT,
+            None,
+            json.dumps({"output": MULTILINE_REPLY}),
+            True,
+            id="content reply in gemini json",
+        ),
+        pytest.param(
+            [ContentText(text="café menu\nsecond line")],
+            None,
+            json.dumps(
+                [
+                    {
+                        "type": "text",
+                        "text": json.dumps(
+                            [{"type": "text", "text": "café menu\nsecond line"}]
+                        ),
+                    }
+                ]
+            ),
+            True,
+            # only parsing the inner JSON finds it: its escapes differ from ours
+            id="content reply with ascii escapes in codex json",
+        ),
+        pytest.param(
+            [ContentText(text=LONG_RESULT)],
+            None,
+            json.dumps([{"type": "text", "text": LONG_CONTENT_REPLY}])[:600],
+            True,
+            id="long content reply in codex json cut short",
+        ),
+        pytest.param(
+            MULTILINE_RESULT,
+            None,
+            "tool call error: timed out awaiting tools/call after 60s",
+            False,
+            id="content reply answered by a codex timeout",
+        ),
+        pytest.param(
+            MULTILINE_RESULT,
+            None,
+            json.dumps({"error": CLIENT_TIMEOUT}),
+            False,
+            id="content reply answered by a gemini timeout",
+        ),
+        pytest.param("ok", None, "ok", True, id="short equal"),
+        pytest.param(
+            "ok",
+            None,
+            json.dumps([{"type": "text", "text": "ok"}]),
+            True,
+            id="short in content block json",
+        ),
+        pytest.param(
+            "ok", None, "ok, but the client timed out", False, id="short within text"
+        ),
+        pytest.param("1", None, CLIENT_TIMEOUT, False, id="short within a timeout"),
+        pytest.param(
+            "text",
+            None,
+            json.dumps([{"type": "text", "text": ""}]),
+            False,
+            id="short equal to a type tag",
+        ),
+        pytest.param("", None, "", True, id="empty"),
+        pytest.param("", None, "[]", True, id="empty json"),
+        pytest.param("", None, CLIENT_TIMEOUT, False, id="empty answered by a timeout"),
+        pytest.param(
+            "",
+            None,
+            [ContentReasoning(reasoning=CLIENT_TIMEOUT)],
+            False,
+            id="empty answered by reasoning",
+        ),
+        pytest.param(
+            "",
+            None,
+            [ContentText(text=""), ContentReasoning(reasoning="")],
+            False,
+            # a part other than text fails closed
+            id="empty answered by empty text and reasoning",
+        ),
+        pytest.param(
+            TIMEOUT_WORDING,
+            None,
+            CLIENT_TIMEOUT,
+            False,
+            id="result within a timeout",
+        ),
+        pytest.param(
+            TIMEOUT_WORDING,
+            None,
+            json.dumps({"error": CLIENT_TIMEOUT}),
+            False,
+            id="result within a timeout in gemini json",
+        ),
+        pytest.param(
+            "timed out awaiting tools/call",
+            None,
+            "tool call error: timed out awaiting tools/call after 60s",
+            False,
+            id="result within a codex timeout",
+        ),
+        pytest.param(
+            "",
+            TIMEOUT_WORDING,
+            CLIENT_TIMEOUT,
+            False,
+            id="error within a timeout",
+        ),
+        pytest.param(
+            "",
+            TIMEOUT_WORDING,
+            MCP_ERROR + TIMEOUT_WORDING,
+            True,
+            id="error within a timeout as raised",
+        ),
+        *[
+            pytest.param("", None, text, holds, id=f"empty answered by {name}")
+            for name, (text, holds) in EMPTY_ANSWERS.items()
+        ],
+        pytest.param(
+            "",
+            None,
+            [ContentText(text=""), ContentText(text=CLIENT_TIMEOUT)],
+            False,
+            id="empty answered by an empty part beside a timeout",
+        ),
+        *[
+            pytest.param(
+                result,
+                None,
+                answer(_reply_text(result)),
+                True,
+                id=f"unicode in ascii {name} json cut short",
+            )
+            for name, (result, answer) in UNICODE_WRAPPERS.items()
+        ],
+        pytest.param(
+            "", MISSING_FILE, MCP_ERROR + MISSING_FILE, True, id="error as raised"
+        ),
+        pytest.param(
+            "",
+            MISSING_FILE,
+            json.dumps({"error": MCP_ERROR + MISSING_FILE}),
+            True,
+            id="error as raised in gemini json",
+        ),
+        pytest.param(
+            "",
+            MISSING_FILE,
+            "File '/x/y.txt' was not found.",
+            False,
+            id="error as recorded",
+        ),
+        pytest.param(
+            "", MISSING_FILE, MCP_ERROR + DENIED, False, id="error answered by a denial"
+        ),
+        pytest.param(
+            "", MISSING_FILE, CLIENT_TIMEOUT, False, id="error answered by a timeout"
+        ),
+        pytest.param("", "", MCP_ERROR, False, id="error with no text"),
+        pytest.param(
+            "", "", "", False, id="error with no text answered by an empty message"
+        ),
+        pytest.param("", "not found", MCP_ERROR + "not found", False, id="short error"),
+        pytest.param(
+            [ContentText(text=""), ContentText(text=LONG_RESULT)],
+            None,
+            [ContentText(text=LONG_RESULT)],
+            True,
+            id="first text part",
+        ),
+        pytest.param(
+            [ContentImage(image="data:image/png;base64,AAAA")],
+            None,
+            [ContentImage(image="data:image/png;base64,AAAA")],
+            True,
+            id="image",
+        ),
+        pytest.param(
+            [ContentImage(image="data:image/png;base64,AAAA")],
+            None,
+            CLIENT_TIMEOUT,
+            False,
+            id="image answered by a timeout",
+        ),
+        pytest.param(
+            [ContentImage(image="data:image/png;base64,AAAA")],
+            None,
+            [ContentReasoning(reasoning=CLIENT_TIMEOUT)],
+            False,
+            id="image answered by reasoning",
+        ),
+        pytest.param(
+            MEDIA_RESULTS["captioned image"],
+            None,
+            "Results by model",
+            True,
+            id="captioned image",
+        ),
+        pytest.param(MEDIA_RESULTS["image url"], None, CHART_URL, True, id="image url"),
+        pytest.param(
+            MEDIA_RESULTS["image url"],
+            None,
+            json.dumps([{"type": "text", "text": CHART_URL}]),
+            True,
+            id="image url in codex json",
+        ),
+        pytest.param(
+            MEDIA_RESULTS["image url"],
+            None,
+            CLIENT_TIMEOUT,
+            False,
+            id="image url answered by a timeout",
+        ),
+        pytest.param(
+            [ContentImage(image=CHART_URL)],
+            None,
+            [ContentImage(image=CHART_URL)],
+            False,
+            # the scaffold received the URL as text, not an image
+            id="image url answered by an image",
+        ),
+        pytest.param(
+            MEDIA_RESULTS["image file"], None, "/tmp/chart.png", True, id="image file"
+        ),
+        pytest.param(
+            MEDIA_RESULTS["image file"],
+            None,
+            "Saved /tmp/chart.png",
+            False,
+            id="image file within other text",
+        ),
+        pytest.param(
+            MEDIA_RESULTS["image file"],
+            None,
+            CLIENT_TIMEOUT,
+            False,
+            id="image file answered by a timeout",
+        ),
+        *[
+            pytest.param(
+                MEDIA_RESULTS[media], None, _media_reply(media), True, id=media
+            )
+            for media in ["audio", "video", "document"]
+        ],
+        *[
+            pytest.param(
+                MEDIA_RESULTS[media],
+                None,
+                CLIENT_TIMEOUT,
+                False,
+                id=f"{media} answered by a timeout",
+            )
+            for media in ["audio", "video", "document"]
+        ],
+        pytest.param(
+            MEDIA_RESULTS["audio"],
+            None,
+            json.dumps([{"type": "text", "text": _media_reply("audio")}]),
+            True,
+            id="audio in codex json",
+        ),
+        pytest.param(
+            MEDIA_RESULTS["document"],
+            None,
+            json.dumps({"output": _media_reply("document")}),
+            True,
+            id="document in gemini json",
+        ),
+        pytest.param(
+            LONG_AUDIO,
+            None,
+            json.dumps([{"type": "text", "text": to_json_str_safe(LONG_AUDIO)}])[:600],
+            True,
+            id="long audio in codex json cut short",
+        ),
+    ],
+)
+def test_host_result_evidence_in_an_answer(
+    result: ToolResult, error: str | None, answer: str | list[Content], holds: bool
+) -> None:
+    """An answer holds a host result when it holds the start of the first text the scaffold received for it, however wrapped; a short text must be a whole text of it.
+
+    Media with no text reaches the scaffold as the RPC sends it: an image URL
+    or path as text, other media as JSON, an inline image as an image.
+    `error` is the text the RPC raised instead of returning `result`; the
+    prefix the service adds to it is no evidence.
+    """
+    output, _ = _recorded_result("read_file", result, None)
+    received = (
+        _received(output, _reply(output, result), None)
+        if error is None
+        else _received("", None, Exception(error))
+    )
+    assert _holds_result(_tool_answer(answer), received) is holds
+
+
+def test_host_media_reply_keeps_only_the_start_of_its_text() -> None:
+    """What the scaffold received for a large media reply is kept as its first `_RESULT_EVIDENCE` characters, which still link the reply."""
+    output, _ = _recorded_result("read_file", LONG_AUDIO, None)
+    reply = _reply(output, LONG_AUDIO)
+    received = _received(output, reply, None)
+    assert received == _Received(str(reply).strip()[:_RESULT_EVIDENCE])
+    assert _holds_result(_tool_answer(str(reply)), received)
 
 
 @pytest.mark.parametrize("side", [True, False], ids=["side request", "none"])
@@ -8105,12 +9088,13 @@ async def test_execution_whose_call_is_denied_again_links_nothing(
     """An execution whose call the scaffold sends again, and the bridge denies, links nothing.
 
     The call's one grant is consumed by its execution, so a retry (a client
-    that lost the first response, say) is denied, and the scaffold may send
-    the denial as the call's answer. The execution stays unlinked whether the
-    retry comes after it completed or while it runs, and when the retry's
-    arguments can't be read (so it may be any call of the tool). A denied call
-    with other arguments is not a retry of the call, which links; so does the
-    call with no retry (`none`).
+    that lost the first response, say) is denied. The scaffold answers the
+    call with the execution's result, which may have come from either
+    request. The execution stays unlinked whether the retry comes after it
+    completed or while it runs, and when the retry's arguments can't be read
+    (so it may be any call of the tool). A denied call with other arguments is
+    not a retry of the call, which links; so does the call with no retry
+    (`none`).
     """
     model = get_model(
         "mockllm/model",
@@ -8169,7 +9153,7 @@ async def test_execution_whose_call_is_denied_again_links_nothing(
             release.set()
         if retry not in ("none", "denied while it runs"):
             outputs.append(await denied())
-        main.results(calls, [outputs[-1]])
+        main.results(calls, ["successful first result"])
         await main.request(bridge)
 
     model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
@@ -8220,7 +9204,7 @@ def _execute(
         event = ToolEvent(
             id=call.id, function=call.function, arguments=call.arguments, result="ok"
         )
-        bridge._await_result_message(handed_call, event)
+        bridge._await_result_message(handed_call, event, _Received("ok"))
         events.append(event)
     return events
 
@@ -8959,6 +9943,7 @@ async def test_google_results_link_only_when_their_function_names_one_call(
             bridge._await_result_message(
                 handed_calls(bridge, cast(str, message.id), message.tool_calls)[index],
                 event,
+                _Received(f"contents {path}"),
             )
             events.append(event)
         results = [f"contents {p}" for p in paths]
@@ -9104,7 +10089,7 @@ async def test_reordered_google_results_never_take_each_others_ids(
             event = ToolEvent(
                 id=call.id, function=call.function, arguments={}, result=output
             )
-            bridge._await_result_message(handed, event)
+            bridge._await_result_message(handed, event, _Received(output))
             events.append(event)
         conversation.results(calls, cast(list[JsonValue], outputs))
         bundle = conversation.history[-1]
@@ -9191,6 +10176,7 @@ def test_matching_same_name_google_results_is_linear(host: bool) -> None:
                             arguments={},
                             result="OK",
                         ),
+                        _Received("OK"),
                     )
             inferred: list[ChatMessageTool] = []
             messages = messages_from_google_contents(contents, None, inferred)
@@ -9409,6 +10395,7 @@ async def test_repeated_google_results_are_matched_in_linear_time(host: bool) ->
                             arguments={},
                             result="working",
                         ),
+                        _Received("working"),
                     )
                 contents += [wire, {"role": "user", "parts": [result]}]
             summary = {"role": "user", "parts": [{"text": "Summary: still waiting."}]}
