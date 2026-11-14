@@ -1,12 +1,14 @@
 import inspect
 import json
 import warnings
-from collections import Counter
+from collections import Counter, deque
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from contextvars import ContextVar
+from dataclasses import replace
 from logging import getLogger
 from typing import (
     TYPE_CHECKING,
+    AbstractSet,
     Any,
     Callable,
     Collection,
@@ -21,6 +23,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from pydantic import BaseModel, ValidationError
 from pydantic_core import PydanticSerializationError
+from shortuuid import uuid
 from typing_extensions import TypeIs
 
 from inspect_ai._sentinel._agent_state import bridge_request
@@ -48,10 +51,21 @@ from inspect_ai.agent._bridge._approval import (
     terminate_for_repeated_rejections,
 )
 from inspect_ai.agent._bridge._errors import BridgePolicyError, ResponseFilterError
+from inspect_ai.agent._bridge._sentinel import (
+    Produced,
+    handed_targets,
+    history_ids,
+    same_value,
+    sentinel_tool_results,
+)
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._agent_message import validate_agent_message
-from inspect_ai.model._assistant_internal import has_pending_assistant_work
-from inspect_ai.model._call_tools import get_tools_info
+from inspect_ai.model._assistant_internal import (
+    forget_tool_call,
+    hand_tool_call,
+    has_pending_assistant_work,
+)
+from inspect_ai.model._call_tools import get_tools_info, repeated_call_ids
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -85,10 +99,17 @@ from inspect_ai.model._model import (
     collect_model_events,
     get_model,
     model_roles,
+    observe_generations,
     requested_model,
     use_model_event_sink,
 )
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._providers._google_reasoning import (
+    gemini_anchor_fits,
+    gemini_anchor_function,
+    gemini_anchors_with_functions,
+    gemini_shared_call_ids,
+)
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
@@ -101,7 +122,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
 )
 from inspect_ai.util._json import JSONSchema
 from inspect_ai.util._limit import LimitExceededError
-from inspect_ai.util._span import current_span_id
+from inspect_ai.util._span import current_agent_span_id, current_span_id
 
 if TYPE_CHECKING:
     from inspect_ai.event._model import ModelEvent
@@ -460,6 +481,7 @@ async def _apply_response_filter(
     output: ModelOutput,
     generate_input: GenerateInput,
     on_filtered_output: Callable[[ModelOutput], None] | None = None,
+    generated: Callable[[], Sequence[ModelOutput]] = list,
 ) -> ModelOutput:
     """Apply `response_filter` under the `ModelResponseFilter` contract.
 
@@ -561,10 +583,140 @@ async def _apply_response_filter(
         # text continued across requests is joined with no separator)
         filtered.completion = output.completion
     _check_provider_owned_content(output, filtered, generations)
+    _hold_signatures_in_place(output, filtered, generated())
     if on_filtered_output is not None:
         on_filtered_output(filtered)
     _settle_message_ids(output, filtered, generations)
     return filtered
+
+
+def _hold_signatures_in_place(
+    received: ModelOutput, output: ModelOutput, generated: Sequence[ModelOutput] = ()
+) -> None:
+    """Keep Google's thought signatures off calls their anchors don't name.
+
+    Google replays an anchor's signature on the call it names
+    (`gemini_function_call_id`), and any other signature (e.g. a signed text
+    part's) on the part after it. The serializer gives a call no anchor names
+    the signature still pending at the end of the content; with no anchor
+    left, it takes the message for one logged before anchors and gives the
+    first call the signature pending before it. So, when the output the filter
+    received had anchors:
+
+    - Anchors naming none of their message's calls (calls the filter removed
+      or renamed), or only calls to another function (`gemini_anchor_fits`),
+      are removed, so their signatures go on no other part.
+    - A message with a call no anchor names (or more calls under an ID than
+      anchors naming it) ends with an anchor without a signature, naming no
+      call, so no signature is pending for that call.
+    - Anchors naming an ID shared in the output the filter received or in a
+      generation of the request (`generated`; `gemini_shared_call_ids`) lose
+      their signatures, which can't be told apart by call: a filter keeping
+      one of the calls leaves the ID unshared.
+    """
+    if not any(
+        _anchor_call_id(part)
+        for choice in received.choices
+        if isinstance(choice.message.content, list)
+        for part in choice.message.content
+    ):
+        return
+    shared = {
+        call_id
+        for source in [received, *generated]
+        for choice in source.choices
+        for call_id in gemini_shared_call_ids(choice.message)
+    }
+    for choice in output.choices:
+        message = choice.message
+        if isinstance(message.content, str):
+            continue
+        calls: Counter[str] = Counter()
+        fitting: set[tuple[str, str | None]] = set()
+        for call in message.tool_calls or []:
+            calls[call.id] += 1
+            if call.type == "function":
+                fitting.add((call.id, call.function))
+        anchors: Counter[str] = Counter()
+        content: list[Content] = []
+        for part in message.content:
+            call_id = _anchor_call_id(part)
+            if call_id is not None:
+                assert isinstance(part, ContentReasoning)
+                if (call_id, gemini_anchor_function(part)) not in fitting:
+                    continue
+                anchors[call_id] += 1
+                if call_id in shared:
+                    part = part.model_copy(update={"reasoning": ""})
+            content.append(part)
+        if calls - anchors:
+            content.append(
+                ContentReasoning(
+                    reasoning="",
+                    redacted=True,
+                    internal={"gemini_function_call_id": uuid()},
+                )
+            )
+        message.content = content
+
+
+def gemini_first_call_signature(
+    message: ChatMessageAssistant,
+) -> ContentReasoning | None:
+    """The reasoning whose signature Google replays with the message's first call.
+
+    The rule the Google provider serializer follows, which a filtered output is
+    held to (`_hold_signatures_in_place`). When the message has reasoning
+    anchors, the call takes the signature of the anchor naming it, and an
+    anchor without a signature (an unsigned call), an anchor for another
+    function (`gemini_anchor_fits`), an ID several calls or anchors share
+    (`gemini_shared_call_ids`) or no anchor naming it means the call is
+    unsigned: a signature that came with
+    another part (a signed text part) is never a call's. A message without
+    anchors (logged before them, or rebuilt from a scaffold's history) gives
+    its last signature to its first call. None for no call or no signature.
+    """
+    calls = message.tool_calls or []
+    if not calls:
+        return None
+    content = (
+        []
+        if isinstance(message.content, str)
+        else gemini_anchors_with_functions(message) or message.content
+    )
+    if not any(_anchor_call_id(part) is not None for part in content):
+        return next(
+            (
+                part
+                for part in reversed(content)
+                if isinstance(part, ContentReasoning)
+                and part.redacted
+                and part.reasoning
+            ),
+            None,
+        )
+    # the first call takes the first anchor naming its ID, unless it is shared
+    if calls[0].id in gemini_shared_call_ids(message):
+        return None
+    anchor = next(
+        (part for part in content if _anchor_call_id(part) == calls[0].id), None
+    )
+    if (
+        isinstance(anchor, ContentReasoning)
+        and anchor.reasoning
+        and gemini_anchor_fits(anchor, calls[0])
+    ):
+        return anchor
+    return None
+
+
+def _anchor_call_id(content: Content) -> str | None:
+    """The call a Google reasoning anchor names, or None for other content."""
+    if isinstance(content, ContentReasoning) and isinstance(content.internal, dict):
+        call_id = content.internal.get("gemini_function_call_id")
+        if isinstance(call_id, str):
+            return call_id
+    return None
 
 
 def _same_client(a: Model, b: Model) -> bool:
@@ -808,6 +960,10 @@ def _request_filter_edits(generated: ModelOutput, output: ModelOutput) -> ModelO
         else choice
         for choice in output.choices
     ]
+    # unchanged, the reply is still the generation's own (the sentinel's tool
+    # steps tell its producer by the object)
+    if all(new is old for new, old in zip(choices, output.choices)):
+        return output
     return output.model_copy(update={"choices": choices})
 
 
@@ -917,12 +1073,16 @@ def _check_provider_owned_content(
     """Reject edits a dialect would silently undo when rendering for the agent.
 
     Dialects replay provider artifacts by identity rather than from the edited
-    values: Anthropic replays signed thinking by its `reasoning`, server tool
-    blocks as whole recorded spans (a span can cover several `ContentToolUse`
-    items), and a native tool's wire name by its call id. So reasoning and server
-    tool items may only be kept unchanged or removed, server tool items are kept
-    all or none, and a call keeping an original id keeps its function. A message
-    a generation of the bridged model made during the filter produced, returned
+    values: Anthropic replays signed thinking by its `reasoning`, and server
+    tool blocks as whole recorded spans (a span can cover several
+    `ContentToolUse` items). So reasoning and server tool items may only be
+    kept unchanged or removed, and server tool items are kept all or none. A
+    call keeping an original id keeps its function (one of the functions of
+    the calls under that id, as parallel calls can share one), as a sentinel
+    or approval `modify` must: a call to another function is a new call. (The
+    providers replay a call's by-id state only with a call to the function it
+    was recorded for, so a call changed by another route replays from itself.)
+    A message a generation of the bridged model made during the filter produced, returned
     unchanged (`generations`), is the provider's own and renders as such.
     """
     original_content = [
@@ -937,22 +1097,21 @@ def _check_provider_owned_content(
     original_reasoning = [
         c for c in original_content if isinstance(c, ContentReasoning)
     ]
-    original_functions = {
-        call.id: call.function
-        for choice in original.choices
-        for call in choice.message.tool_calls or []
-    }
+    original_functions: dict[str, list[str]] = {}
+    for choice in original.choices:
+        for call in choice.message.tool_calls or []:
+            original_functions.setdefault(call.id, []).append(call.function)
     kept_tool_uses: set[str] = set()
     for choice in filtered.choices:
         if _is_unchanged(choice.message, generations):
             continue
         for call in choice.message.tool_calls or []:
-            function = original_functions.get(call.id)
-            if function is not None and call.function != function:
+            functions = original_functions.get(call.id)
+            if functions is not None and call.function not in functions:
                 raise ResponseFilterError(
                     f"response_filter changed the function of tool call '{call.id}' "
-                    f"from '{function}' to '{call.function}'; give a call to a "
-                    "different function a new id"
+                    f"from '{' or '.join(dict.fromkeys(functions))}' to "
+                    f"'{call.function}'; give a call to a different function a new id"
                 )
         if not isinstance(choice.message.content, list):
             continue
@@ -1244,18 +1403,29 @@ async def bridge_generate(
     if routing is not None and routing.redirected:
         _warn_redirect(routing, bridge.model)
 
-    with bridged_request_scope(requested_model), bridge_request():
-        return await _bridge_generate_impl(
-            bridge,
-            model,
-            input,
-            tools,
-            tool_choice,
-            config,
-            declared_in_input,
-            routing,
-            finalize_config,
-        )
+    generations = _Generations()
+    with (
+        bridged_request_scope(requested_model),
+        bridge_request(),
+        # for what produced the response (the sentinel's tool steps), and the
+        # calls the request's generations made (`_hold_replay_state`)
+        observe_generations(generations.record),
+    ):
+        try:
+            return await _bridge_generate_impl(
+                bridge,
+                model,
+                input,
+                tools,
+                tool_choice,
+                config,
+                declared_in_input,
+                routing,
+                finalize_config,
+                generations,
+            )
+        finally:
+            generations.close()
 
 
 async def _bridge_generate_impl(
@@ -1272,6 +1442,7 @@ async def _bridge_generate_impl(
         GenerateConfig,
     ]
     | None,
+    generations: "_Generations",
 ) -> tuple[ModelOutput, ChatMessageUser | None]:
     """Implementation of bridge_generate (see wrapper)."""
     # restore operator provenance lost to a bridged scaffold's round-trip (e.g.
@@ -1279,8 +1450,11 @@ async def _bridge_generate_impl(
     # before compaction/recording so the restored source persists in both the
     # ModelEvent input and state.messages (and thus the eval log).
     _restore_operator_message_source(bridge, input)
+    request_ids = history_ids(input)
+    bridge._handouts.reserve(request_ids)
 
     _check_limits_before_dispatch()
+    await sentinel_tool_results(bridge, input)
 
     # get compaction function and run compaction once before retry loop
     compact = bridge.compaction(tools, model)
@@ -1428,6 +1602,9 @@ async def _bridge_generate_impl(
         # Inside the refusal-retry loop so a content_filter replacement is retried.
         verified_calls: list[bool] | None = None
         verified_source_id: str | None = None
+        # what produced the response, by the object handed over: the
+        # generation's output, or what the response filter returned
+        produced: ModelOutput | None = output
         if bridge.response_filter is not None:
 
             def check_proposal(
@@ -1442,15 +1619,19 @@ async def _bridge_generate_impl(
 
             # under the bridge's approval policies, as a filter may generate
             with bridge_approval_scope(bridge.approval):
-                output = await _apply_response_filter(
-                    bridge.response_filter,
+                filtered = await _apply_response_filter(
+                    generations.tracking(bridge.response_filter, output),
                     model,
                     output,
                     GenerateInput(
                         input_messages, get_tools_info(tools), tool_choice, config
                     ),
                     on_filtered_output=check_proposal,
+                    generated=generations.outputs,
                 )
+            if filtered is not output:
+                produced = generations.returned
+            output = filtered
         if verified_calls is None and generated is not None:
             verified_calls = _verified_generated_calls(generated, output)
             verified_source_id = _selected_generated_message_id(generated, output)
@@ -1479,30 +1660,52 @@ async def _bridge_generate_impl(
         declarations: list[ToolInfo | Tool] = list(tools)
         if declared_in_input is not None:
             declarations.extend(declared_in_input(input_messages))
+        producer = generations.producer(produced)
+        model_ids = [call.id for call in output.message.tool_calls or []]
+        output = _fresh_call_ids(bridge, output, request_ids)
+        bridge._handouts.propose(output.message.tool_calls or [])
         with agent_bridge_context_scope(_UTILITY_CONTEXT):
             reviewed = await apply_bridge_tool_approval(
-                bridge, output, input_messages, declarations
+                bridge, output, input_messages, declarations, producer=producer
             )
         if reviewed.rejection is None:
+            handed = reviewed.output.message.tool_calls or []
+            _hold_replay_state(reviewed.output, generations.outputs())
+            bridge._handouts.hand_over(
+                output.message.tool_calls or [],
+                handed,
+                reviewed.sentinel,
+                handed_targets(bridge, handed, declarations)
+                if reviewed.sentinel is None
+                else None,
+            )
             # executions are placed in the proposing ModelEvent's span; only one
             # a sink chose is stored, so a rotating checkpoint span is followed
             # a call the model proposed names its output, though a response
-            # filter or an approver may have changed the message handed over
+            # filter or an approver may have changed the message handed over,
+            # and a call handed over under a fresh id is the model's call
             proposing = (
                 _proposing_message_ids(
                     generated,
-                    reviewed.output.message.tool_calls or [],
+                    [
+                        replace(call, id=model_id)
+                        for call, model_id in zip(handed, model_ids)
+                    ],
                     verified_source_id,
                 )
                 if generated is not None
                 else {}
             )
-            bridge._proposing_message_ids = proposing
+            bridge._proposing_message_ids = {
+                call.id: proposing[model_id]
+                for call, model_id in zip(handed, model_ids)
+                if model_id in proposing
+            }
             bridge._proposing_reply_id = reviewed.output.message.id
             bridge._proposing_call_verified = verified_calls
             try:
                 bridge.register_tool_execution_grants(
-                    reviewed.output.message.tool_calls or [],
+                    handed,
                     declarations,
                     span_id=sink.span_id if sink is not None else None,
                 )
@@ -1516,9 +1719,224 @@ async def _bridge_generate_impl(
         if rejections >= MAX_CONSECUTIVE_REJECTIONS:
             terminate_for_repeated_rejections(bridge, rejections)
 
+        _hold_replay_state(output, generations.outputs())
+
         # accumulate onto original_input (rather than input_messages) since that is
         # what the top of the loop resets to, and any filter rewrite is per-attempt
         original_input = original_input + reviewed.rejection
+
+
+def _fresh_call_ids(
+    bridge: AgentBridge, output: ModelOutput, history: AbstractSet[str]
+) -> ModelOutput:
+    """`output` with a fresh id for each call whose model id names another call.
+
+    The model's id names another call when it is empty, or the bridge has
+    seen it in a request (`history`, the ids in this one) or the conversation
+    it started with, or handed it over or rejected it for another call
+    (`_Handouts.reused`). Inspect's providers don't reuse ids, but
+    OpenAI-compatible servers can, and Claude Code drops a call under a
+    repeated id, and its result. The provider state recorded under the id is
+    the new call's or another's, so it is dropped (`forget_tool_call`), and
+    the call under its fresh id replays from itself, but for its Google
+    reasoning anchors, which are its own (`_renamed_anchors`). A copy, as
+    `output` may be the object the `ModelEvent` recorded; the event keeps the
+    model's ids, and the copy's message is an edit with its own id
+    (`with_edited_id`).
+    """
+    calls: dict[str, list[ToolCall]] = {}
+    for call in output.message.tool_calls or []:
+        calls.setdefault(call.id, []).append(call)
+    kept: set[str] = set()
+    reused: set[str] = set()
+    for call_id, under_id in calls.items():
+        if bridge._handouts.reused(call_id, under_id, history, kept):
+            reused.add(call_id)
+        else:
+            kept.add(call_id)
+    if not reused:
+        return output
+    for call_id in reused:
+        forget_tool_call(call_id)
+    generated = output
+    output = output.model_copy(deep=True)
+    message = output.message
+    fresh: dict[str, list[str]] = {}
+    for call in message.tool_calls or []:
+        if call.id in reused:
+            fresh.setdefault(call.id, []).append(f"call_{uuid()}")
+            call.id = fresh[call.id][-1]
+    if not isinstance(message.content, str):
+        message.content = _renamed_anchors(message.content, fresh)
+    with_edited_id(generated.message, message)
+    return output
+
+
+def _renamed_anchors(
+    content: list[Content], fresh: dict[str, list[str]]
+) -> list[Content]:
+    """`content` with Google's reasoning anchors naming the calls' fresh ids.
+
+    An anchor is the call's own state, in its message, so it follows the call,
+    keeping its position and signature. Anchors of an id several calls or
+    anchors shared take the fresh ids in order without their signatures, which
+    can't be told apart by call; any left over are removed.
+    """
+    anchored = Counter(_anchor_call_id(part) for part in content)
+    pending = {call_id: deque(ids) for call_id, ids in fresh.items()}
+    renamed: list[Content] = []
+    for part in content:
+        call_id = _anchor_call_id(part)
+        if call_id is None or call_id not in pending:
+            renamed.append(part)
+            continue
+        if not pending[call_id]:
+            continue
+        assert isinstance(part, ContentReasoning) and isinstance(part.internal, dict)
+        shared = len(fresh[call_id]) > 1 or anchored[call_id] > 1
+        renamed.append(
+            part.model_copy(
+                update={
+                    "internal": {
+                        **part.internal,
+                        "gemini_function_call_id": pending[call_id].popleft(),
+                    },
+                    **({"reasoning": ""} if shared else {}),
+                }
+            )
+        )
+    return renamed
+
+
+def _hold_replay_state(output: ModelOutput, generations: Sequence[ModelOutput]) -> None:
+    """Hold the providers' replay state for `output`'s calls to the calls as handed on.
+
+    A provider replays a call with the state its parse recorded under the
+    call's id (a Responses item, Anthropic's name and position): that of the
+    call as generated, and only with a call to the function it was recorded
+    for. Each call's state is held to the call as handed on
+    (`hand_tool_call`); the provider replays it with the arguments of the
+    call in each message. A call under an id `output` repeats, or that several
+    generations of the request (`generations`) made different calls under,
+    keeps no state (`forget_tool_call`), as the state under it can't be told
+    apart by call, and replays from itself.
+
+    For the response handed to the scaffold and for a rejected turn, which is
+    replayed to the model.
+    """
+    calls = output.message.tool_calls or []
+    ids = {call.id for call in calls}
+    generated: dict[str, set[tuple[str, str]]] = {}
+    for generation in generations:
+        for choice in generation.choices:
+            for call in choice.message.tool_calls or []:
+                if call.id in ids:
+                    generated.setdefault(call.id, set()).add(
+                        (call.function, canonical_tool_arguments(call.arguments))
+                    )
+    shared = repeated_call_ids(calls)
+    for call_id in ids:
+        if call_id in shared or len(generated.get(call_id, ())) > 1:
+            forget_tool_call(call_id)
+    for call in calls:
+        if call.id not in shared and len(generated.get(call.id, ())) <= 1:
+            hand_tool_call(call)
+
+
+class _Generations:
+    """The generations of one bridged request, by the output object each returned.
+
+    The sentinel's tool steps take what the model was sent from the generation
+    that produced the response handed over. Messages from different
+    generations can be equal and share an id (a response filter that
+    regenerates, or concurrent bridges), so only the object identifies the
+    generation. A response filter's argument is a copy of the generation's
+    output, so it is recorded as that generation too.
+
+    An output has a producer only while its response is unchanged since its
+    generation (`_same_response` to the event's snapshot of it): one a filter
+    edited, or grafted another generation's message or calls into, no longer
+    answers that input.
+    Nor does an output that is no recorded generation's (a filter's copy or
+    replacement), or one two generations returned, or one whose event kept a
+    live message (one it could not serialize), since an edit to that message
+    changes the snapshot too. Nor does one recorded without an event (a
+    recovered refusal), as no event records what the model was sent for it.
+
+    Each generation is recorded with the agent span current while it ran (a
+    model event sink's `on_start` can choose it), so the call's steps are in
+    the conversation its generation's stages were.
+
+    Recorded with or without a sentinel: the calls the request's generations
+    made decide which calls' replay state can be told apart (`outputs`,
+    `_hold_replay_state`, `_hold_signatures_in_place`).
+    """
+
+    def __init__(self) -> None:
+        # the outputs are held, so their ids are not reused while recorded; an
+        # output two generations returned is recorded without a producer
+        self._producers: dict[int, tuple[ModelOutput, Produced | None]] = {}
+        self._generated: list[ModelOutput] = []
+        self._closed = False
+        self.returned: ModelOutput | None = None
+        """What the response filter last returned, before it is validated."""
+
+    def close(self) -> None:
+        """Stop recording, and let go of what was recorded.
+
+        A task the request started (a response filter's monitor) inherits the
+        observer and may generate after the request returns.
+        """
+        self._closed = True
+        self._producers.clear()
+        self._generated.clear()
+        self.returned = None
+
+    def record(self, output: ModelOutput, event: "ModelEvent | None") -> None:
+        if self._closed:
+            return
+        recorded = self._producers.get(id(output))
+        twice = recorded is not None and recorded[0] is output
+        produced = (
+            Produced(event, current_agent_span_id()) if event is not None else None
+        )
+        self._producers[id(output)] = (output, None if twice else produced)
+        if not twice:
+            self._generated.append(output)
+
+    def outputs(self) -> list[ModelOutput]:
+        """The outputs `generate()` returned, in order (not the copies a response filter is given)."""
+        return list(self._generated)
+
+    def producer(self, output: ModelOutput | None) -> Produced | None:
+        recorded = self._producers.get(id(output)) if output is not None else None
+        if recorded is None or recorded[0] is not output or recorded[1] is None:
+            return None
+        produced = recorded[1]
+        logged = produced.event.output
+        if any(
+            ours.message is theirs.message
+            for ours, theirs in zip(output.choices, logged.choices)
+        ):
+            return None
+        return produced if _same_response(output, logged) else None
+
+    def tracking(
+        self, response_filter: ModelResponseFilter, generated: ModelOutput
+    ) -> ModelResponseFilter:
+        """`response_filter`, recording its argument as `generated` and what it returns."""
+
+        async def tracked(
+            model: Model, output: ModelOutput, input: GenerateInput
+        ) -> ModelOutput | None:
+            produced = self.producer(generated)
+            if produced is not None:
+                self._producers[id(output)] = (output, produced)
+            self.returned = None
+            self.returned = await response_filter(model, output, input)
+            return self.returned
+
+        return tracked
 
 
 def _proposing_message_ids(
@@ -2067,3 +2485,26 @@ def apply_message_ids(
     dialect's results name their function rather than their call (Google).
     """
     bridge._assign_message_ids(messages, inferred_results, named_results)
+
+
+def _same_response(output: ModelOutput, logged: ModelOutput) -> bool:
+    """Whether `output` hands over the response `logged` recorded, as the model gave it.
+
+    Display-only annotations a model event sink may add to the logged snapshot
+    are not compared: a tool call's `view` (inspect_swe's consumers attach
+    their own renderings in `on_complete`), and a message's `metadata` and
+    `source`, which never reach a model. Everything else in each choice's
+    message is, exactly (`same_value`): its id, content and tool calls, so
+    arguments changed to ones JSON carries alike (1.0 to 1) are another
+    response.
+    """
+    return len(output.choices) == len(logged.choices) and all(
+        same_value(_handed(ours.message), _handed(theirs.message))
+        for ours, theirs in zip(output.choices, logged.choices)
+    )
+
+
+def _handed(message: ChatMessageAssistant) -> dict[str, Any]:
+    return message.model_dump(
+        exclude={"metadata": True, "source": True, "tool_calls": {"__all__": {"view"}}}
+    )

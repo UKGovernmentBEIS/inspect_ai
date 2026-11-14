@@ -2,6 +2,7 @@ import abc
 import contextlib
 import dataclasses
 import functools
+import hashlib
 import json
 import logging
 import os
@@ -34,7 +35,6 @@ if TYPE_CHECKING:
     from inspect_ai.tool import ToolInfo
 
 import anyio
-import mmh3
 from pydantic import BaseModel
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
@@ -127,6 +127,7 @@ from inspect_ai.util._span import (
 )
 
 from ._agent_message import validate_agent_message
+from ._assistant_internal import derive_recorded_functions
 from ._cache import (
     CacheEntry,
     CachePolicy,
@@ -1241,6 +1242,11 @@ class Model:
                     # fields set above
                     transcript()._event_updated(event)
 
+                # before a refusal is raised, which carries this same output
+                observer = _generation_observer.get()
+                if observer is not None:
+                    observer(output, event)
+
                 # fail the sample on a refusal if requested. Raised here, after the
                 # ModelEvent is complete (so the transcript shows the refusal and
                 # then the error) and after usage/refusal accounting has run.
@@ -1800,6 +1806,7 @@ class Model:
                 )
                 existing = cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
+                    existing = derive_recorded_functions(existing)
                     _, event = self._record_model_interaction(
                         input=input,
                         tools=event_tools,
@@ -2018,6 +2025,8 @@ class Model:
                     status_code=status_code_of(output),
                     provider_message=str(output),
                 ) from output
+
+            output = derive_recorded_functions(output)
 
             # a provider whose generate makes one request leaves the context
             # size to be read from its usage
@@ -3508,7 +3517,7 @@ _model_event_collectors: ContextVar[tuple[_ModelEventCollector, ...]] = ContextV
 class _Snapshot(NamedTuple):
     message: weakref.ReferenceType[ChatMessage]
     hash: bytes
-    """Hash of the message's `logged_json()`."""
+    """SHA-256 of the message's `logged_json()`."""
 
 
 _message_snapshots: dict[str | int, _Snapshot] = {}
@@ -3572,7 +3581,7 @@ def _snapshot_message(message: _MessageT) -> _MessageT:
         logged = logged_json(message)
         if logged is None:
             return message
-        digest = mmh3.hash_bytes(logged)
+        digest = hashlib.sha256(logged).digest()
         entry = _message_snapshots.get(key)
         snapshot = entry.message() if entry and entry.hash == digest else None
         # the logged JSON includes the role, so a hit has the message's type
@@ -3672,6 +3681,32 @@ def _model_event_sink_span(input: list[ChatMessage]) -> Iterator[None]:
             yield
     else:
         yield
+
+
+_generation_observer: ContextVar[
+    Callable[[ModelOutput, "ModelEvent | None"], None] | None
+] = ContextVar("_generation_observer", default=None)
+
+
+@contextlib.contextmanager
+def observe_generations(
+    observer: Callable[[ModelOutput, "ModelEvent | None"], None],
+) -> Iterator[None]:
+    """Call `observer` with each output `generate()` returns and its `ModelEvent`.
+
+    For the duration of the block, in this context and tasks started from it.
+    The output is the object `generate()` returns (or a `ModelRefusalError`
+    carries), so a caller can tell which generation produced an output it is
+    handed by identity. The event is None for an output with no event of its
+    own (a refusal a sidecar decided, recovered after the provider's error,
+    whose call's event records the error). An inner block replaces the
+    observer for its duration.
+    """
+    token = _generation_observer.set(observer)
+    try:
+        yield
+    finally:
+        _generation_observer.reset(token)
 
 
 _requested_model: ContextVar[str | None] = ContextVar("_requested_model", default=None)

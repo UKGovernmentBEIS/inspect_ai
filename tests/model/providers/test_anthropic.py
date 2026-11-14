@@ -27,6 +27,7 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
+    ModelOutput,
     get_model,
 )
 from inspect_ai.model._providers.anthropic import AnthropicAPI
@@ -3949,6 +3950,154 @@ async def test_anthropic_interleaved_thinking_tool_calls_preserved() -> None:
     assert restored_order == ["thinking", "tool_use", "thinking", "tool_use"], (
         restored_order
     )
+
+
+async def test_anthropic_tool_use_id_repeated_in_a_turn_records_no_position() -> None:
+    from anthropic.types import ContentBlock, ThinkingBlock, ToolUseBlock
+
+    from inspect_ai.model._providers.anthropic import (
+        assistant_internal,
+        content_and_tool_calls_from_assistant_content_blocks,
+        init_sample_anthropic_assistant_internal,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    blocks: list[ContentBlock] = [
+        ThinkingBlock(type="thinking", thinking="t1", signature="sig1"),
+        ToolUseBlock(type="tool_use", id="a", name="tool_a", input={"x": "1"}),
+        ThinkingBlock(type="thinking", thinking="t2", signature="sig2"),
+        ToolUseBlock(type="tool_use", id="a", name="tool_a", input={"x": "2"}),
+        ToolUseBlock(type="tool_use", id="b", name="tool_a", input={"x": "3"}),
+    ]
+    content_and_tool_calls_from_assistant_content_blocks(blocks, [])
+
+    internal = assistant_internal()
+    assert "a" not in internal.client_tool_call_positions
+    assert "a" not in internal.tool_call_internal_names
+    assert internal.client_tool_call_positions["b"] == 2
+
+
+@pytest.mark.parametrize("restore", [None, "current", "legacy"])
+async def test_anthropic_call_to_another_function_replays_without_the_ids_name_and_position(
+    restore: str | None,
+) -> None:
+    """A tool use id's internal name and position replay only with a call to its function.
+
+    The parse records `bash` (called as `bash_session`) after the thinking
+    block. The call as parsed replays with them; a call to `read_file` under
+    the id (a filter changed the function and kept the id) replays under its
+    own name, last. Both hold after a checkpoint restore, including one
+    written before functions were recorded (`legacy`): the function is derived
+    from the first message to hold the id, the call as parsed.
+    """
+    from dataclasses import replace
+
+    from anthropic.types import ContentBlock, TextBlock, ThinkingBlock, ToolUseBlock
+
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        content_and_tool_calls_from_assistant_content_blocks,
+        dump_anthropic_assistant_internal,
+        init_sample_anthropic_assistant_internal,
+    )
+
+    tools = [
+        ToolInfo(name="bash_session", description="Run a command."),
+        ToolInfo(name="read_file", description="Read a file."),
+    ]
+    blocks: list[ContentBlock] = [
+        ThinkingBlock(type="thinking", thinking="t1", signature="s1"),
+        ToolUseBlock(
+            type="tool_use", id="a", name="bash", input={"command": "cat notes.txt"}
+        ),
+        TextBlock(type="text", text="Reading."),
+    ]
+    init_sample_anthropic_assistant_internal()
+    content, tool_calls = content_and_tool_calls_from_assistant_content_blocks(
+        blocks, tools
+    )
+    assert tool_calls is not None and tool_calls[0].function == "bash_session"
+    if restore is not None:
+        dumped = dump_anthropic_assistant_internal()
+        assert isinstance(dumped, dict)
+        if restore == "legacy":
+            del dumped["client_tool_call_functions"]
+        init_sample_anthropic_assistant_internal()
+        init_sample_anthropic_assistant_internal(dumped)
+
+    async def replayed(call: ToolCall) -> list[tuple[str, object]]:
+        message = ChatMessageAssistant(
+            content=content, tool_calls=[call], model="claude-opus-4-8"
+        )
+        return [
+            (block["type"], block.get("name"))
+            for block in await assistant_message_block_params(message)
+        ]
+
+    native = [("thinking", None), ("tool_use", "bash"), ("text", None)]
+    assert await replayed(tool_calls[0]) == native
+    changed = replace(tool_calls[0], function="read_file", arguments={"path": "a"})
+    assert await replayed(changed) == [
+        ("thinking", None),
+        ("text", None),
+        ("tool_use", "read_file"),
+    ]
+
+
+@pytest.mark.parametrize("first", ["parsed", "cached", "shared"])
+async def test_anthropic_state_restored_without_functions_is_the_first_holders(
+    first: str,
+) -> None:
+    """A checkpoint written before functions were recorded restores names and positions.
+
+    The function they are for is derived from the first message to hold the
+    id. When that holds the call as parsed, it replays natively, and a later
+    call to another function under the id replays from itself. Calls to two
+    functions under the id in one message give no function, so neither
+    replays the name or position.
+    """
+    from inspect_ai.model._assistant_internal import derive_recorded_functions
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        init_sample_anthropic_assistant_internal,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    init_sample_anthropic_assistant_internal(
+        {
+            "tool_call_internal_names": {"a": "bash"},
+            "client_tool_call_positions": {"a": 0},
+        }
+    )
+    parsed = ToolCall(id="a", function="bash_session", arguments={"command": "ls"})
+    changed = ToolCall(id="a", function="read_file", arguments={"path": "a"})
+
+    async def replayed(*calls: ToolCall) -> list[tuple[str, object]]:
+        message = ChatMessageAssistant(content="Running.", tool_calls=list(calls))
+        return [
+            (block["type"], block.get("name"))
+            for block in await assistant_message_block_params(message)
+        ]
+
+    if first == "shared":
+        assert await replayed(parsed, changed) == [
+            ("text", None),
+            ("tool_use", "bash_session"),
+            ("tool_use", "read_file"),
+        ]
+        assert await replayed(parsed) == [("text", None), ("tool_use", "bash_session")]
+        return
+    if first == "parsed":
+        assert await replayed(parsed) == [("tool_use", "bash"), ("text", None)]
+    else:
+        # the cached output as generated, before a filter changes its call
+        derive_recorded_functions(
+            ModelOutput.from_message(
+                ChatMessageAssistant(content="Running.", tool_calls=[parsed])
+            )
+        )
+    assert await replayed(changed) == [("text", None), ("tool_use", "read_file")]
+    assert await replayed(parsed) == [("tool_use", "bash"), ("text", None)]
 
 
 async def test_anthropic_interleaved_thinking_last_gets_no_content() -> None:

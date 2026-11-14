@@ -4469,6 +4469,103 @@ def test_a_bridged_agent_whose_filter_generates_is_handed_the_turn_as_left() -> 
     assert [c.id for c in handed.message.tool_calls or []] == ["call_2"]
 
 
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("outcome", ["terminate", "reject"])
+@pytest.mark.parametrize("filtered", [False, True], ids=["unfiltered", "filter"])
+def test_a_refusal_recovered_through_a_bridge_with_a_sentinel_is_acted_on(
+    outcome: str, filtered: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a refusal recovered after the provider's error has no model event; with
+    # a sentinel checking the bridge's tool calls, the bridge observes it as a
+    # generation with no known producer
+    from inspect_ai.agent._bridge import util as bridge_util
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.agent._bridge.util import bridge_generate
+
+    observed: list[Any] = []
+    record = bridge_util._Generations.record
+
+    def recording(self: Any, output: ModelOutput, event: Any) -> None:
+        observed.append(event)
+        record(self, output, event)
+
+    monkeypatch.setattr(bridge_util._Generations, "record", recording)
+    judgment: dict[str, Any] = (
+        {
+            "outcome": "terminate",
+            "steps": [_ends("model_output")],
+            "withheld": _ended_turn(("call_1", "Tokyo")),
+        }
+        if outcome == "terminate"
+        else {
+            "outcome": "reject",
+            "withheld": {
+                "message": _turn_json(("call_1", "Tokyo")),
+                "results": {"call_1": "Tokyo is not allowed."},
+            },
+        }
+    )
+    stand_in = StandInSidecar(
+        # an error Inspect retries, with the judgment looked up once it stops
+        turns=[Turn(status=503)] * 10,
+        methods={"request_result": _answers(_decided(judgment))},
+    )
+    seen: list[ModelOutput | Exception] = []
+
+    async def generating(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        return await model.generate(input, tools, tool_choice, config)
+
+    @solver
+    def bridged() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            bridge = AgentBridge(
+                state=AgentState(messages=state.messages),
+                filter=generating if filtered else None,
+            )
+            try:
+                output, _ = await bridge_generate(
+                    bridge,
+                    get_model(),
+                    state.messages,
+                    [],
+                    None,
+                    GenerateConfig(),
+                    requested_model=None,
+                )
+                seen.append(output)
+            except Exception as ex:
+                seen.append(ex)
+            return state
+
+        return solve
+
+    task = Task(
+        dataset=[Sample(input="Hi.")], solver=bridged(), sentinel=counts_calls()
+    )
+
+    eval(task, model=_model(stand_in), max_retries=0, display="none")
+
+    [handed] = seen
+    if outcome == "terminate":
+        # the recovered refusal was observed, with no event, before it ended
+        # the sample at the model call
+        assert observed == [None]
+        assert isinstance(handed, TerminateSampleError)
+        assert handed.reason == "Too far."
+    else:
+        # a bridged agent runs its own tools: the rejection stands as the
+        # provider's error, which the bridge forwards
+        assert observed == []
+        assert isinstance(handed, Exception)
+        assert not isinstance(handed, (AttributeError, TerminateSampleError))
+
+
 _ANTHROPIC_REQUEST = {
     "model": "inspect",
     "max_tokens": 64,
