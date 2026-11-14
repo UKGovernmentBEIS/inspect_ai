@@ -13,12 +13,17 @@ bookkeeping directly so the isolation guarantees are easy to verify.
 
 from __future__ import annotations
 
+from contextlib import AsyncExitStack
 from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
 
-from inspect_ai.tool._mcp._local import MCPServerLocal, MCPServerLocalSession
+from inspect_ai.tool._mcp._local import (
+    MCPServerLocal,
+    MCPServerLocalSession,
+    _Connection,
+)
 
 
 def _make_server(name: str = "s") -> MCPServerLocal:
@@ -67,11 +72,14 @@ async def test_task_sessions_independent_across_instances_with_same_name() -> No
     assert sa is not sb
 
 
-async def test_cached_tool_list_cleared_on_close() -> None:
+@pytest.mark.parametrize("teardown_raises", [False, True])
+async def test_cached_tool_list_cleared_on_close(teardown_raises: bool) -> None:
     """A session whose refcount drops to zero must clear its cached tool list.
 
     Otherwise a reused session object would serve stale tools to the next
-    caller without contacting the server.
+    caller without contacting the server. The cache is cleared after
+    teardown, since a tools() call during teardown can refill it, and also
+    when teardown raises.
     """
     session = MCPServerLocalSession(
         client=lambda: (_ for _ in ()).throw(AssertionError("unused")),
@@ -82,19 +90,25 @@ async def test_cached_tool_list_cleared_on_close() -> None:
     # Simulate an active session with a populated cache.
     sentinel_tools: list[Any] = [object()]
     session._cached_tool_list = sentinel_tools
-    session._refcount = 1
-    fake_exit_stack = AsyncMock()
-    fake_exit_stack.aclose = AsyncMock(return_value=None)
-    session._exit_stack = fake_exit_stack
-    session._session = (
-        AsyncMock()
-    )  # any non-None placeholder satisfying ClientSession | None
+    exit_stack = AsyncExitStack()
 
-    await session.__aexit__(None, None, None)
+    async def teardown() -> None:
+        session._cached_tool_list = sentinel_tools  # refilled during teardown
+        if teardown_raises:
+            raise RuntimeError("teardown failed")
 
-    assert session._refcount == 0
-    assert session._session is None
-    assert session._exit_stack is None
+    closed = AsyncMock(side_effect=teardown)
+    exit_stack.push_async_callback(closed)
+    session._conn = _Connection(AsyncMock(), exit_stack)
+
+    if teardown_raises:
+        with pytest.raises(RuntimeError, match="teardown failed"):
+            await session.__aexit__(None, None, None)
+    else:
+        await session.__aexit__(None, None, None)
+
+    closed.assert_awaited_once()
+    assert session._conn is None
     assert session._cached_tool_list is None, (
         "cache must be dropped on close so a reused session re-fetches tools"
     )
@@ -113,11 +127,13 @@ async def test_cached_tool_list_preserved_when_still_referenced() -> None:
     )
     sentinel_tools: list[Any] = [object()]
     session._cached_tool_list = sentinel_tools
-    session._refcount = 2  # two holders
+    conn = _Connection(AsyncMock(), AsyncExitStack(), refcount=2)  # two holders
+    session._conn = conn
 
     await session.__aexit__(None, None, None)
 
-    assert session._refcount == 1
+    assert session._conn is conn
+    assert conn.refcount == 1
     assert session._cached_tool_list is sentinel_tools
 
 

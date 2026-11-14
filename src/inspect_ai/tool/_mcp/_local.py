@@ -3,6 +3,7 @@ import contextlib
 import os
 import sys
 from contextlib import AsyncExitStack
+from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
 from types import TracebackType
@@ -171,6 +172,15 @@ class MCPServerLocal(MCPServer):
         return session
 
 
+@dataclass
+class _Connection:
+    """A connection held open by this session's entries in one task."""
+
+    session: ClientSession
+    exit_stack: AsyncExitStack
+    refcount: int = 1
+
+
 class MCPServerLocalSession(MCPServer):
     def __init__(
         self,
@@ -181,49 +191,28 @@ class MCPServerLocalSession(MCPServer):
         timeout: int | None = None,
     ) -> None:
         super().__init__()
-        self._refcount = 0
         self._client = client
         self._name = name
         self._events = events
         self._timeout = timeout
-        self._session: ClientSession | None = None
-        self._exit_stack: AsyncExitStack | None = None
+        # Set only once initialize() has succeeded, so tools called from
+        # another task never see a connection that is still handshaking or
+        # being torn down.
+        self._conn: _Connection | None = None
         self._cached_tool_list: list[MCPTool] | None = None
+        # Bumped whenever the cache is cleared, so a listing that started
+        # before the clear can't refill the cache with an ended connection's
+        # tools.
+        self._cache_generation = 0
 
     @override
     async def __aenter__(self) -> MCPServer:
-        if self._session is not None:
-            assert self._refcount > 0
-            self._refcount = self._refcount + 1
+        if self._conn is not None:
+            self._conn.refcount += 1
         else:
-            assert self._refcount == 0
-            self._exit_stack = AsyncExitStack()
-            try:
-                await self._exit_stack.__aenter__()
-                with trace_action(logger, "MCPServer", f"create client ({self._name})"):
-                    read, write, *_ = await self._exit_stack.enter_async_context(
-                        self._client()
-                    )
-                with trace_action(
-                    logger, "MCPServer", f"create session ({self._name})"
-                ):
-                    self._session = await self._exit_stack.enter_async_context(
-                        ClientSession(
-                            read, write, sampling_callback=self._sampling_fn()
-                        )
-                    )
-                with trace_action(
-                    logger, "MCPServer", f"initialize session ({self._name})"
-                ):
-                    await self._session.initialize()
-                self._refcount = 1
-            except BaseException:
-                # leave the object fully disconnected rather than half-built,
-                # so a retry in this task creates a fresh connection instead
-                # of adopting a broken exit_stack/session pair.
-                await self._close()
-                raise
-
+            async with AsyncExitStack() as exit_stack:
+                session = await self._connect(exit_stack)
+                self._conn = _Connection(session, exit_stack.pop_all())
         return self
 
     @override
@@ -233,37 +222,36 @@ class MCPServerLocalSession(MCPServer):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        assert self._refcount > 0
-        self._refcount = self._refcount - 1
-        if self._refcount == 0:
-            with trace_action(logger, "MCPServer", f"disconnect ({self._name})"):
-                assert self._session is not None
-                assert self._exit_stack is not None
-                await self._close()
-
-    async def _close(self) -> None:
-        # Drop the transport and clear the cached tool list, so a session
-        # reused across two mcp_connection blocks in the same task (this
-        # object stays registered; only its connection closes) re-fetches
-        # from the server rather than serving tools bound to a connection
-        # that no longer exists.
-        try:
-            if self._exit_stack is not None:
-                await self._exit_stack.aclose()
-        finally:
-            self._session = None
-            self._exit_stack = None
-            self._cached_tool_list = None
+        conn = self._conn
+        if conn is None:
+            raise RuntimeError(
+                f"MCP server '{self._name}' exited without a matching enter. "
+                "An MCP connection must be entered and exited in the same task."
+            )
+        conn.refcount -= 1
+        if conn.refcount == 0:
+            self._conn = None
+            try:
+                with trace_action(logger, "MCPServer", f"disconnect ({self._name})"):
+                    await conn.exit_stack.aclose()
+            finally:
+                # Clear the cached tool list once teardown is over, so a
+                # session reused across two mcp_connection blocks re-fetches
+                # from the server.
+                self._cached_tool_list = None
+                self._cache_generation += 1
 
     @override
     async def tools(self) -> list[Tool]:
         if self._cached_tool_list is not None:
             mcp_tools = self._cached_tool_list
         else:
+            generation = self._cache_generation
             async with self._client_session() as session:
                 # get the underlying tools on the server
                 with trace_action(logger, "MCPServer", f"list_tools {self._name}"):
                     mcp_tools = (await session.list_tools()).tools
+            if self._cache_generation == generation:
                 self._cached_tool_list = mcp_tools
 
         return [
@@ -360,32 +348,24 @@ class MCPServerLocalSession(MCPServer):
     # otherwise, create a brand new session from the client
     @contextlib.asynccontextmanager
     async def _client_session(self) -> AsyncIterator[ClientSession]:
-        # if _connect has been previously called and we still have the connection
-        # to the session, we can just return nit
-        if self._session is not None:
-            yield self._session
-
-        # otherwise, create a new session and yield it (it will be cleaned up
-        # when the context manager exits)
+        conn = self._conn
+        if conn is not None:
+            yield conn.session
         else:
             async with AsyncExitStack() as exit_stack:
-                with trace_action(logger, "MCPServer", f"create client ({self._name})"):
-                    read, write, *_ = await exit_stack.enter_async_context(
-                        self._client()
-                    )
-                with trace_action(
-                    logger, "MCPServer", f"create session ({self._name})"
-                ):
-                    session = await exit_stack.enter_async_context(
-                        ClientSession(
-                            read, write, sampling_callback=self._sampling_fn()
-                        )
-                    )
-                with trace_action(
-                    logger, "MCPServer", f"initialize session ({self._name})"
-                ):
-                    await session.initialize()
-                yield session
+                yield await self._connect(exit_stack)
+
+    async def _connect(self, exit_stack: AsyncExitStack) -> ClientSession:
+        """Open the transport and an initialized session on `exit_stack`."""
+        with trace_action(logger, "MCPServer", f"create client ({self._name})"):
+            read, write, *_ = await exit_stack.enter_async_context(self._client())
+        with trace_action(logger, "MCPServer", f"create session ({self._name})"):
+            session = await exit_stack.enter_async_context(
+                ClientSession(read, write, sampling_callback=self._sampling_fn())
+            )
+        with trace_action(logger, "MCPServer", f"initialize session ({self._name})"):
+            await session.initialize()
+        return session
 
     def _sampling_fn(self) -> SamplingFnT | None:
         from inspect_ai.model._model import active_model
