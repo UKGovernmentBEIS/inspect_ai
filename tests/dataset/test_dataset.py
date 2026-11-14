@@ -249,6 +249,15 @@ def test_dataset(type: Type[T_ds], file: str) -> None:
     assert_sample(dataset[0])
 
 
+def test_csv_dataset_blank_id_cell_is_no_id(tmp_path: Path) -> None:
+    path = tmp_path / "ids.csv"
+    path.write_text(
+        "id,input,target\nq-1,What is 1+1?,2\n,What is 2+2?,4\n,What is 3+3?,6\n"
+    )
+    dataset = csv_dataset(str(path))
+    assert [sample.id for sample in dataset] == ["q-1", None, None]
+
+
 # test reading a dataset with an explicit fields specification
 @pytest.mark.parametrize("type,file", dataset_params)
 def test_dataset_fields(type: Type[T_ds], file: str) -> None:
