@@ -6,13 +6,16 @@ the trigger is a solver (the simplest in-run caller); the ergonomic trigger
 surface — hooks, a callback, etc. — is layered on top and tested separately.
 """
 
+from pathlib import Path
+
 import pytest
 
-from inspect_ai import Task, eval, task
+from inspect_ai import Task, TaskSource, eval, eval_set, task
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.enqueue import enqueue_task
 from inspect_ai._util.content import ContentImage
 from inspect_ai.dataset import Sample
+from inspect_ai.log import EvalLog, read_eval_log
 from inspect_ai.model import ChatMessageUser, get_model
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
@@ -242,3 +245,132 @@ def test_enqueue_task_does_not_leak_active_model() -> None:
 def test_enqueue_task_outside_run_raises() -> None:
     with pytest.raises(RuntimeError, match="while an eval is running"):
         enqueue_task(child())
+
+
+def _child_models(logs: list[EvalLog]) -> list[str]:
+    return sorted(log.eval.model for log in logs if log.eval.task == "child")
+
+
+def test_enqueue_task_under_eval_set_uses_creator_model(tmp_path: Path) -> None:
+    # eval_set() attaches its models to each task and runs them in an eval with
+    # no model of its own, so a task added without a model runs with the model
+    # of the task that added it -- one child per creator, on that creator's model
+    parent = Task(
+        dataset=[Sample(input="hi", target="ok")],
+        solver=[enqueue_child()],
+        name="parent",
+    )
+
+    success, logs = eval_set(
+        parent,
+        model=["mockllm/model", "mockllm/model2"],
+        log_dir=str(tmp_path),
+        display="none",
+    )
+
+    assert _child_models(logs) == ["mockllm/model", "mockllm/model2"]
+    assert success
+    for log in logs:
+        if log.eval.task != "child":
+            continue
+        child_log = read_eval_log(log.location)
+        assert child_log.status == "success"
+        assert child_log.samples is not None
+        # generate() returned model output (the none model raises instead)
+        assert (
+            child_log.samples[0].output.completion
+            == "Default output from mockllm/model"
+        )
+
+
+def test_enqueue_task_under_eval_set_keeps_added_task_model(tmp_path: Path) -> None:
+    child_with_model = Task(
+        dataset=[Sample(input="hi", target="ok")],
+        solver=[generate()],
+        name="child",
+        model="mockllm/model2",
+    )
+
+    @solver
+    def enqueue_child_with_model() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            enqueue_task(child_with_model)
+            return state
+
+        return solve
+
+    parent = Task(
+        dataset=[Sample(input="hi", target="ok")],
+        solver=[enqueue_child_with_model()],
+        name="parent",
+    )
+
+    success, logs = eval_set(
+        parent, model="mockllm/model", log_dir=str(tmp_path), display="none"
+    )
+
+    assert success
+    assert _child_models(logs) == ["mockllm/model2"]
+
+
+def test_enqueue_task_under_eval_uses_run_models() -> None:
+    # eval() gives the run its models, so an added task resolves against those
+    # (fanning out across them) rather than its creator's own model
+    parent = Task(
+        dataset=[Sample(input="hi", target="ok")],
+        solver=[enqueue_child(), generate()],
+        name="parent",
+        model="mockllm/creator",
+    )
+
+    logs = eval(parent, model=["mockllm/model", "mockllm/model2"], display="none")
+
+    assert all(log.status == "success" for log in logs)
+    assert _child_models(logs) == [
+        "mockllm/model",
+        "mockllm/model",
+        "mockllm/model2",
+        "mockllm/model2",
+    ]
+
+
+def test_added_task_in_run_without_model_uses_creator_model_or_none() -> None:
+    # in a run with no model, a task returned from task_complete (which runs in
+    # the completing task) uses that task's model, while one returned from
+    # next_tasks() (which runs outside any task) has no creator and resolves to
+    # no model, like any other task in the run
+    def added_task(name: str) -> Task:
+        return Task(dataset=[Sample(input="hi", target="ok")], solver=[], name=name)
+
+    class Source(TaskSource):
+        def __init__(self) -> None:
+            self.next_tasks_called = False
+
+        def initial_tasks(self) -> list[Task]:
+            return [
+                Task(
+                    dataset=[Sample(input="hi", target="ok")],
+                    solver=[],
+                    name="parent",
+                    model="mockllm/model",
+                )
+            ]
+
+        async def task_complete(self, log: EvalLog) -> list[Task] | None:
+            if log.eval.task == "parent":
+                return [added_task("from_task_complete")]
+            return None
+
+        async def next_tasks(self) -> list[Task] | None:
+            if self.next_tasks_called:
+                return None
+            self.next_tasks_called = True
+            return [added_task("from_next_tasks")]
+
+    logs = eval(Source(), model=None, display="none")
+
+    assert {log.eval.task: log.eval.model for log in logs} == {
+        "parent": "mockllm/model",
+        "from_task_complete": "mockllm/model",
+        "from_next_tasks": "none/none",
+    }
