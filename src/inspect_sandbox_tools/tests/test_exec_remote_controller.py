@@ -728,6 +728,45 @@ class TestKillByJobKey:
                 _kill_group(spawned.get_nowait().pid)
 
     @pytest.mark.asyncio
+    async def test_start_whose_stdin_closed_before_the_write_kills_the_job(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Input is not dropped silently when stdin closed before it is written.
+
+        asyncio has seen the close (the transport is closing) but has not yet
+        recorded the connection as lost, so writing the input would discard it
+        and the start would return the PID of a job that never got its input.
+        """
+        real_spawn = Job.spawn
+        spawned: list[Job] = []
+
+        async def spawn_until_stdin_closing(command: str, **kwargs: Any) -> Job:
+            job = await real_spawn(command, **kwargs)
+            spawned.append(job)
+            stdin = job._process.stdin
+            assert stdin is not None
+            with anyio.fail_after(10):
+                while not stdin.is_closing():
+                    await asyncio.sleep(0)
+            return job
+
+        monkeypatch.setattr(Job, "spawn", spawn_until_stdin_closing)
+        controller = Controller()
+        try:
+            with pytest.raises(ConnectionResetError, match="Connection lost"):
+                await controller.submit(
+                    "sleep 0.05; exec 0<&-; exec sleep 60",
+                    input=_LARGE_INPUT,
+                    job_key=_JOB_KEY,
+                )
+
+            assert not _group_alive(spawned[0].pid)
+            assert controller._jobs == {}
+        finally:
+            for job in spawned:
+                _kill_group(job.pid)
+
+    @pytest.mark.asyncio
     async def test_kill_key_during_a_failed_start_waits_for_the_job_to_die(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
