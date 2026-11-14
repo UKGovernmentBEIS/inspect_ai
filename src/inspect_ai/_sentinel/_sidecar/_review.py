@@ -29,7 +29,6 @@ from inspect_ai.util._limit import LimitExceededError
 from .._person import HUMAN_CHOICES, chosen, escalation_lines, human_view
 from ._endpoint import (
     QUESTION_ANSWERED,
-    UNAUTHORIZED,
     UNKNOWN_QUESTION,
     SentinelProxyError,
     SidecarCallError,
@@ -471,11 +470,27 @@ async def ask_person(received: ReceivedCall) -> None:
             "pending_questions", {"sample_uuid": _sample_uuid()}
         )
     except SidecarCallError as ex:
-        if ex.code == UNAUTHORIZED:
+        if ex.code is not None:
+            # An error the sidecar itself answered with, as it gives for a
+            # call it can't read or won't take. Asking again would get the
+            # same, so the review fails here, as it does for an answer the
+            # sidecar won't take.
             raise _refused(sidecar, ex) from ex
-        # asked again, with the call's state, after a pause
-        await anyio.sleep(NO_QUESTION_PAUSE)
+        # The request didn't reach the sidecar, or its answer didn't come
+        # back. It is asked again, with the call's state, after a wait, as a
+        # lookup lost on the way is, and as many times. That bounds how long
+        # Inspect goes on without reaching the sidecar, and not how long a
+        # person may take to answer.
+        from ._lookup import LOOKUP_RETRIES, LOOKUP_RETRY_PAUSE
+
+        received.questions_lost += 1
+        if received.questions_lost > LOOKUP_RETRIES:
+            raise SentinelProxyError(
+                f"The sentinel sidecar at {sidecar.origin} couldn't be asked for the questions it holds for a person: {ex}"
+            ) from ex
+        await anyio.sleep(LOOKUP_RETRY_PAUSE * 2 ** (received.questions_lost - 1))
         return
+    received.questions_lost = 0
     listed = result.get("questions")
     questions = [
         question

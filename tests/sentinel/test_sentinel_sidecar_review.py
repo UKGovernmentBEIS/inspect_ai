@@ -136,6 +136,8 @@ class ReviewingSidecar(StandInSidecar):
     """How many `request_result` calls about a paused call, once a person has answered, the proxy answers with a 502, so that they never reach the sidecar."""
     lookups_refused: int = 0
     """How many such calls the sidecar itself answers with an error."""
+    questions_lost: int = 0
+    """How many `pending_questions` calls the proxy answers with a 502, so that they never reach the sidecar."""
     error_cut_off: int = 0
     """How many times the held-reply path's answer with the provider's error has its connection fail part way through the body, after its headers, the sidecar's marker among them, have come."""
     pending_lost: int = 0
@@ -214,6 +216,9 @@ class ReviewingSidecar(StandInSidecar):
                 return self._held(request, self._paused_call(request, irid))
         if path == ENDPOINT:
             call = json.loads(request.content)
+            if call["method"] == "pending_questions" and self.questions_lost > 0:
+                self.questions_lost -= 1
+                return httpx2.Response(502, text="Bad Gateway")
             if (
                 call["method"] == "request_result"
                 and call["params"].get("id") in self.paused
@@ -1317,6 +1322,81 @@ def test_a_lookup_the_sidecar_answers_with_an_error_isnt_asked_again(
     [sample] = log.samples
     assert sample.error is not None
     assert 100 - stand_in.lookups_refused == 2
+    [first] = stand_in.model_calls
+    assert stand_in.cancelled == [first.headers["x-irid"]]
+
+
+def test_questions_the_sidecar_wont_list_fail_the_review_at_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Person("approve").install(monkeypatch)
+    stand_in = ReviewingSidecar(pauses=["tool_call"], turns=[_OSLO])
+    asked: list[dict[str, Any]] = []
+
+    def invalid(params: dict[str, Any]) -> dict[str, Any]:
+        # an error of the sidecar's own, which asking again wouldn't change
+        asked.append(params)
+        return stand_in._refuse(-32602, "The call's parameters can't be read.")
+
+    stand_in.methods["pending_questions"] = invalid
+
+    # the sample's own limit is far off: it ends a review that goes on
+    # asking, so that such a test fails and doesn't hang
+    log = _run(stand_in, solver=generate(), fail_on_error=False, time_limit=10)
+
+    # asked once, and the sample fails on the sidecar's error; the call is
+    # closed at the sidecar, which still holds its question
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None and sample.limit is None
+    assert "won't take the eval's calls" in sample.error.message
+    assert len(asked) == 1
+    [first] = stand_in.model_calls
+    assert stand_in.cancelled == [first.headers["x-irid"]]
+
+
+def test_questions_lost_on_the_way_are_asked_for_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(lookup_module, "LOOKUP_RETRY_PAUSE", 0.01)
+    person = Person("approve")
+    person.install(monkeypatch)
+    # the proxy fails as many times as Inspect asks again, and then answers
+    stand_in = ReviewingSidecar(
+        pauses=["tool_call"],
+        turns=[_OSLO, Turn()],
+        questions_lost=lookup_module.LOOKUP_RETRIES,
+    )
+
+    sample = _sample(_run(stand_in))
+
+    # the person is shown the question once it is got, and the call goes on
+    assert stand_in.questions_lost == 0
+    assert sample.error is None
+    assert len(person.asked) == 1
+    assert stand_in.cancelled == []
+    assert len(stand_in.held_reply_requests) == 1
+
+
+def test_questions_that_keep_being_lost_are_asked_for_only_so_many_times(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(lookup_module, "LOOKUP_RETRY_PAUSE", 0.01)
+    person = Person("approve")
+    person.install(monkeypatch)
+    stand_in = ReviewingSidecar(pauses=["tool_call"], turns=[_OSLO], questions_lost=100)
+
+    log = _run(stand_in, solver=generate(), fail_on_error=False, time_limit=10)
+
+    # The sidecar goes on saying a question is open, and that doesn't begin
+    # the count afresh: after the first loss and each time it is asked again,
+    # the review fails and the call is closed at the sidecar.
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None and sample.limit is None
+    assert "couldn't be asked for the questions" in sample.error.message
+    assert 100 - stand_in.questions_lost == 1 + lookup_module.LOOKUP_RETRIES
+    assert person.asked == []
     [first] = stand_in.model_calls
     assert stand_in.cancelled == [first.headers["x-irid"]]
 
