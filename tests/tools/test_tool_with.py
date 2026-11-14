@@ -68,3 +68,55 @@ def test_tool_with_keeps_earlier_tool_with_changes() -> None:
     assert tdef.description == DESCRIPTION
     assert tdef.parameters.properties["x"].description == X_DESCRIPTION
     assert tdef.parameters.properties["y"].description == Y_DESCRIPTION
+
+
+def _viewer(call: Any) -> Any:
+    from inspect_ai.tool._tool_call import ToolCallView
+
+    return ToolCallView()
+
+
+def _model_input(index: int, total: int, content: Any, hints: Any) -> Any:
+    return content
+
+
+def test_tool_with_applies_parallel_viewer_and_model_input_together():
+    """The three attributes are independent; none of them displaces another."""
+    tool = tool_with(
+        addition(), parallel=True, viewer=_viewer, model_input=_model_input
+    )
+
+    tdef = ToolDef(tool)
+
+    assert tdef.parallel is True
+    assert tdef.viewer is _viewer
+    assert tdef.model_input is _model_input
+
+
+def test_tool_with_applies_viewer_and_model_input_without_parallel():
+    tool = tool_with(addition(), viewer=_viewer, model_input=_model_input)
+
+    tdef = ToolDef(tool)
+
+    assert tdef.viewer is _viewer
+    assert tdef.model_input is _model_input
+
+
+def test_tool_with_disabling_parallel_keeps_the_viewer():
+    """`parallel=False` is an explicit value, so it must not shadow the other attributes."""
+    tool = tool_with(addition(), parallel=False, viewer=_viewer)
+
+    tdef = ToolDef(tool)
+
+    assert tdef.parallel is False
+    assert tdef.viewer is _viewer
+
+
+def test_tool_with_keeps_a_viewer_set_by_an_earlier_call():
+    tool = tool_with(addition(), viewer=_viewer)
+
+    tool_with(tool, model_input=_model_input)
+
+    tdef = ToolDef(tool)
+    assert tdef.viewer is _viewer
+    assert tdef.model_input is _model_input
