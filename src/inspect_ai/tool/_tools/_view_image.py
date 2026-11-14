@@ -1,12 +1,12 @@
 import base64
-import posixpath
 
 from inspect_ai._util.content import ContentImage
-from inspect_ai._util.images import _sniff_image_mime_type, as_data_uri
+from inspect_ai._util.images import as_data_uri, sniff_image_mime_type
 from inspect_ai.util import sandbox as sandbox_env
 from inspect_ai.util._sandbox.identity import (
     sandbox_identity_cwd,
     sandbox_identity_user,
+    sandbox_identity_vars,
 )
 
 from .._tool import Tool, ToolError, tool
@@ -16,6 +16,7 @@ _SUPPORTED_MIME_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
 
 @tool(parallel=True)
 def view_image(
+    timeout: int | None = None,
     user: str | None = None,
     sandbox: str | None = None,
 ) -> Tool:
@@ -25,7 +26,8 @@ def view_image(
     return it to the model as an image.
 
     Args:
-        user: User to read the file as.
+        timeout: Timeout (in seconds) for read operation.
+        user: User to execute as.
         sandbox: Optional sandbox environment name.
     """
 
@@ -38,16 +40,22 @@ def view_image(
             file_path: Path to the image file.
         """
         sbox = sandbox_env(sandbox)
-        cwd = sandbox_identity_cwd(sbox, None)
-        path = (
-            posixpath.join(cwd, file_path)
-            if cwd is not None and not posixpath.isabs(file_path)
-            else file_path
+        result = await sbox.exec(
+            cmd=["sh", "-c", 'base64 < "$1"', "sh", file_path],
+            cwd=sandbox_identity_cwd(sbox, None),
+            timeout=timeout,
+            user=sandbox_identity_user(sbox, user, strict=True),
+            env=await sandbox_identity_vars(sbox, timeout),
         )
-        data = await sbox.read_file(
-            path, text=False, user=sandbox_identity_user(sbox, user, strict=True)
-        )
-        mime_type = _sniff_image_mime_type(data)
+        if not result.success:
+            raise ToolError(
+                result.stderr.strip()
+                if result.stderr
+                else f"Error reading: {file_path}"
+            )
+
+        data = base64.b64decode(result.stdout)
+        mime_type = sniff_image_mime_type(data)
         if mime_type not in _SUPPORTED_MIME_TYPES:
             raise ToolError(f"{file_path} is not a PNG, JPEG, GIF or WebP image.")
         return ContentImage(

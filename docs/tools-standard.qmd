@@ -654,11 +654,11 @@ from inspect_ai.tool import view_image
 # default configuration
 view_image()
 
-# with user
-view_image(user="nobody")
+# with timeout and user
+view_image(timeout=30, user="nobody")
 ```
 
-The model specifies a `file_path`. PNG, JPEG, GIF and WebP files are supported; other files return an error to the model. Images are passed to the model as-is, without resizing, so files larger than the provider's image limits will fail at the model call. `view_image()` accepts optional `user` and `sandbox` parameters. It is not one of the default `research()` and `plan()` subagent tools.
+The model specifies a `file_path`. PNG, JPEG, GIF and WebP files are supported; other files return an error to the model. Images are passed to the model as-is, without resizing, so files larger than the provider's image limits will fail at the model call. `view_image()` accepts optional `timeout`, `user`, and `sandbox` parameters matching the `bash()` tool. It is not one of the default `research()` and `plan()` subagent tools.
 
 ### Task Setup
 

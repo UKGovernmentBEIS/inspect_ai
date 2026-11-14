@@ -1,6 +1,8 @@
 import base64
 
+import pytest
 from test_helpers.tool_call_utils import get_tool_call, get_tool_response
+from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
@@ -22,12 +24,14 @@ def _write_file(path: str, data: bytes) -> Solver:
     return solve
 
 
-def _run_view_image(path: str, data: bytes, file_path: str) -> ChatMessageTool:
+def _run_view_image(
+    path: str, data: bytes, file_path: str, sandbox_type: str = "local"
+) -> ChatMessageTool:
     task = Task(
         dataset=[Sample(input="View the image")],
         solver=[_write_file(path, data), use_tools(view_image()), generate()],
         message_limit=3,
-        sandbox="local",
+        sandbox=sandbox_type,
     )
     log = eval(
         task,
@@ -63,13 +67,28 @@ def test_view_image_returns_image() -> None:
     )
 
 
-def test_view_image_rejects_non_image() -> None:
-    response = _run_view_image("notes.txt", b"hello", "notes.txt")
+@pytest.mark.parametrize("data", [b"hello", b"BM" + b"\x00" * 16])
+def test_view_image_rejects_unsupported_file(data: bytes) -> None:
+    response = _run_view_image("file", data, "file")
     assert response.error is not None
     assert "not a PNG, JPEG, GIF or WebP image" in response.error.message
 
 
-def test_view_image_missing_file() -> None:
-    response = _run_view_image("plot.png", PNG_BYTES, "missing.png")
+@pytest.mark.parametrize("file_path", ["missing.png", "plot.png/x"])
+def test_view_image_unreadable_path_is_a_tool_error(file_path: str) -> None:
+    response = _run_view_image("plot.png", PNG_BYTES, file_path)
     assert response.error is not None
-    assert response.error.type == "file_not_found"
+    assert file_path in response.error.message
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_view_image_docker() -> None:
+    response = _run_view_image("plot.png", PNG_BYTES, "plot.png", "docker")
+    assert response.error is None
+    assert isinstance(response.content, list)
+    [content] = response.content
+    assert isinstance(content, ContentImage)
+    for file_path in ["plot.png/x", "/dev/null"]:
+        response = _run_view_image("plot.png", PNG_BYTES, file_path, "docker")
+        assert response.error is not None
