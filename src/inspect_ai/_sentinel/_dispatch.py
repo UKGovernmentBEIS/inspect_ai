@@ -70,9 +70,7 @@ from inspect_ai.model._model import (
 from inspect_ai.model._model_info import get_model_input_budget
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.review._human import (
-    escape_placeholders,
     fenced,
-    view_with_result,
 )
 from inspect_ai.scorer._metric import Reference
 from inspect_ai.solver._task_state import sample_state
@@ -106,6 +104,7 @@ from ._context import (
     active_task_metadata,
 )
 from ._conversation import current_conversation
+from ._person import chosen, escalation_lines, human_view, offered_choices
 from ._scope import sentinel_scope
 from ._steps import (
     ConversationRecord,
@@ -506,14 +505,7 @@ class _HostNative:
                 f"human() cannot offer 'reject' at the {step_stage(step)} stage, "
                 "where a turn can only proceed or be terminated."
             )
-        offered: list[ApprovalDecision] = []
-        for choice in choices:
-            if choice not in _HUMAN_CHOICES:
-                raise ValueError(
-                    f"human() cannot offer {choice!r}; the choices are "
-                    f"{', '.join(repr(c) for c in _HUMAN_CHOICES)}."
-                )
-            offered.append(cast(ApprovalDecision, choice))
+        offered = offered_choices(choices)
         # the approval surfaces show the conversation; a step with no agent's
         # list shows what the model saw instead, and nothing when that is
         # unknown too
@@ -535,58 +527,22 @@ class _HostNative:
                 _human_view(step, escalations),
                 list(conversation),
             )
-        if approval.decision in offered:
-            return HumanAnswer(decision=approval.decision, reason=approval.explanation)
-        # the reason says the person did not choose, since later steps read
-        # this decision in human_decisions
-        return HumanAnswer(
-            decision="reject" if "reject" in offered else "terminate",
-            reason=(
-                "The person closed the prompt without choosing; failing closed "
-                f"(the surface answered {approval.decision}: {approval.explanation})."
-            ),
-        )
-
-
-_HUMAN_CHOICES = ("approve", "reject", "terminate")
+        decision, reason = chosen(approval, offered)
+        return HumanAnswer(decision=decision, reason=reason)
 
 
 def _human_view(
     step: BeforeToolCall | AfterToolCall, escalations: Escalations
 ) -> ToolCallView:
-    view = step.view
-    if escalations:
-        lines = _escalation_lines(escalations)
-        escalated = f"**Escalated by**\n\n{fenced(lines)}"
-        if view.call is None:
-            call = ToolCallContent(format="markdown", content=escalated)
-        elif view.call.format == "markdown":
-            call = ToolCallContent(
-                title=view.call.title,
-                format="markdown",
-                content=f"{escalated}\n\n{view.call.content}",
-            )
-        else:
-            call = ToolCallContent(
-                title=view.call.title,
-                format="text",
-                content=f"Escalated by\n\n{lines}\n\n{view.call.content}",
-            )
-        view = ToolCallView(context=view.context, call=call)
-    if isinstance(step, AfterToolCall):
-        view = view_with_result(view, step.result)
-    return view
+    return human_view(
+        step.view,
+        _escalation_lines(escalations) if escalations else None,
+        step.result if isinstance(step, AfterToolCall) else None,
+    )
 
 
 def _escalation_lines(escalations: Escalations) -> str:
-    return escape_placeholders(
-        "\n".join(
-            f"- {e.name}: {e.report.explanation}"
-            if e.report.explanation
-            else f"- {e.name}"
-            for e in escalations
-        )
-    )
+    return escalation_lines((e.name, e.report.explanation) for e in escalations)
 
 
 async def _ask_about_turn(

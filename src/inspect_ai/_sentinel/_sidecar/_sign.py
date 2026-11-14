@@ -38,6 +38,20 @@ def eval_call_message(method: str, eval_id: str, timestamp: int) -> list[object]
     return [method, eval_id, timestamp]
 
 
+def answer_message(
+    eval_id: str, timestamp: int, id: str, decision: str, reason: str | None
+) -> list[object]:
+    """What an answer to a sidecar's question signs: the call, and the answer itself, so a signature copied from one answer can't send another."""
+    return [
+        "answer_question",
+        eval_id,
+        timestamp,
+        id,
+        decision,
+        reason if reason is not None else "",
+    ]
+
+
 def model_request_message(
     context: Mapping[str, object], irid: str, timestamp: int
 ) -> list[object]:
