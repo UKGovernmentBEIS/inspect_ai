@@ -699,9 +699,7 @@ def _generate_batch(batch: list[_QueueItem]) -> None:
         generator = first_input.generator
         decoder = first_input.decoder
 
-        # seed each batch from its requests' config, as API providers send the
-        # seed with each request: the model may be reused across evals with
-        # other seeds, so seeding once at construction is not enough
+        # reseed per batch: a model may be reused by evals with other seeds
         if first_input.seed is not None:
             set_random_seeds(first_input.seed)
 
