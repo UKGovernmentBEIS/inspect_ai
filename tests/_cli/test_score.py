@@ -9,7 +9,7 @@ from inspect_ai._cli.score import print_results, score
 from inspect_ai._display import display
 from inspect_ai._display.core.results import sample_coverage_messages
 from inspect_ai._eval.score import ScoreAction
-from inspect_ai.log import EvalLog, read_eval_log_async, write_eval_log_async
+from inspect_ai.log import EvalError, EvalLog, read_eval_log_async, write_eval_log_async
 from inspect_ai.log._edit import (
     MetadataEdit,
     ProvenanceData,
@@ -26,6 +26,8 @@ from inspect_ai.log._log import (
     EvalStats,
 )
 from inspect_ai.log._recorders import Recorder, create_recorder_for_location
+from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
+from inspect_ai.solver import TaskState
 from inspect_ai.util._early_stopping import EarlyStop, EarlyStoppingSummary
 
 LOGS_DIR = pathlib.Path(__file__).parents[1] / "scorer/logs"
@@ -166,6 +168,8 @@ async def test_score_stream_preserves_log_updates(
         copy,
         samples,
         _log_scorers,
+        _sample_count,
+        _on_sample_error,
     ):
         assert samples is not None
         return log
@@ -282,6 +286,8 @@ async def test_score_stream_flushes_periodically(
         copy,
         samples,
         _log_scorers,
+        _sample_count,
+        _on_sample_error,
     ):
         assert samples is not None
         for idx in range(10):
@@ -581,3 +587,70 @@ async def test_score_reads_coverage_before_the_scoring_pass_replaces_it(
     (coverage,) = captured
     assert coverage is not None
     assert (coverage.total_samples, coverage.completed_samples) == (10, 4)
+
+
+@pytest.mark.parametrize("stream", [True, False], ids=["stream", "no-stream"])
+@pytest.mark.parametrize("action", ["append", "overwrite"])
+@pytest.mark.parametrize("fail_rescoring", [True, False], ids=["failure", "success"])
+async def test_score_reports_rescoring_failures_with_original_coverage(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    stream: bool,
+    action: ScoreAction,
+    fail_rescoring: bool,
+) -> None:
+    log = await read_eval_log_async(LOG_SCORED)
+    assert log.samples is not None
+    assert log.results is not None
+    log.samples = log.samples[:6]
+    log.results.total_samples = 10
+    log.results.completed_samples = 4
+    log.results.early_stopping = early_stops(4)
+    for sample in log.samples[-2:]:
+        sample.error = EvalError(
+            message="original solver failure", traceback="", traceback_ansi=""
+        )
+        sample.events = []
+    failing_id = log.samples[0].id
+
+    @scorer(metrics=[mean()])
+    def rescore() -> Scorer:
+        async def run(state: TaskState, target: Target) -> Score:
+            if fail_rescoring and state.sample_id == failing_id:
+                raise RuntimeError("new scoring failure")
+            return Score(value=1)
+
+        return run
+
+    monkeypatch.setattr(score_cli, "resolve_scorers", lambda *args: [rescore()])
+    input_file = tmp_path / "original.eval"
+    output_file = tmp_path / "rescored.eval"
+    await write_eval_log_async(log, input_file)
+    await score(
+        log_dir="",
+        log_file=str(input_file),
+        scorer="rescore",
+        s=(),
+        metric=("mean",),
+        overwrite=True,
+        action=action,
+        log_level=None,
+        output_file=str(output_file),
+        model="mockllm/model",
+        stream=stream,
+    )
+
+    output = capsys.readouterr().out
+    assert "4 of 10 samples (40%) were not executed due to early stopping" in output
+    assert "2 of 6 executed samples (33%) had errors" in output
+    if fail_rescoring:
+        assert "1 of 6 samples (16%) failed rescoring" in output
+    else:
+        assert "failed rescoring" not in output
+    rescored = await read_eval_log_async(output_file)
+    assert rescored.samples is not None
+    assert len(rescored.samples) == 6
+    assert sum(sample.error is not None for sample in rescored.samples) == (
+        3 if fail_rescoring else 2
+    )
