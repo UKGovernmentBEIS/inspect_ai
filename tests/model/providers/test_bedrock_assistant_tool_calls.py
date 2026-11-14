@@ -76,3 +76,82 @@ async def test_assistant_tool_calls_without_content_unchanged():
     # No spurious NO_CONTENT text block; just the tool call.
     assert [b.toolUse.name for b in blocks if b.toolUse is not None] == ["pwd"]
     assert all(b.text is None for b in blocks)
+
+
+async def test_tool_error_message_included_in_result():
+    """Failed tool calls should include the error message so the model can see why."""
+    from inspect_ai.model._chat_message import ChatMessageTool
+    from inspect_ai.tool._tool_call import ToolCallError
+
+    message = ChatMessageTool(
+        content="",
+        function="lookup",
+        tool_call_id="c1",
+        error=ToolCallError(type="file_not_found", message="/tmp/missing: does not exist"),
+    )
+
+    result = await converse_chat_message(message)
+
+    assert result is not None and len(result) == 1
+    tool_result = result[0].content[0].toolResult
+    assert tool_result is not None
+    assert tool_result.status == "error"
+    assert tool_result.toolUseId == "c1"
+    texts = [c.text for c in tool_result.content if c.text is not None]
+    assert texts == ["/tmp/missing: does not exist"]
+
+
+async def test_tool_error_with_content_uses_error_message():
+    """When both error and content are present, prefer the error message (as Anthropic does)."""
+    from inspect_ai.model._chat_message import ChatMessageTool
+    from inspect_ai.tool._tool_call import ToolCallError
+
+    message = ChatMessageTool(
+        content="partial output before timeout",
+        function="long_cmd",
+        tool_call_id="c2",
+        error=ToolCallError(type="timeout", message="command timed out after 30s"),
+    )
+
+    result = await converse_chat_message(message)
+
+    assert result is not None and len(result) == 1
+    tool_result = result[0].content[0].toolResult
+    assert tool_result is not None
+    assert tool_result.status == "error"
+    texts = [c.text for c in tool_result.content if c.text is not None]
+    assert texts == ["command timed out after 30s"]
+
+
+async def test_tool_error_empty_message_falls_back():
+    """Empty error message falls back to message text, then generic 'error'."""
+    from inspect_ai.model._chat_message import ChatMessageTool
+    from inspect_ai.tool._tool_call import ToolCallError
+
+    message = ChatMessageTool(
+        content="fallback text",
+        function="cmd",
+        tool_call_id="c3",
+        error=ToolCallError(type="unknown", message=""),
+    )
+
+    result = await converse_chat_message(message)
+
+    assert result is not None and len(result) == 1
+    tool_result = result[0].content[0].toolResult
+    assert tool_result is not None
+    assert tool_result.status == "error"
+    texts = [c.text for c in tool_result.content if c.text is not None]
+    assert texts == ["fallback text"]
+
+    message2 = ChatMessageTool(
+        content="",
+        function="cmd",
+        tool_call_id="c4",
+        error=ToolCallError(type="unknown", message=""),
+    )
+
+    result2 = await converse_chat_message(message2)
+    tool_result2 = result2[0].content[0].toolResult
+    texts2 = [c.text for c in tool_result2.content if c.text is not None]
+    assert texts2 == ["error"]
