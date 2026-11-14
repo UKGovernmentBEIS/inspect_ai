@@ -290,3 +290,9 @@
     Converts Inspect eval logs into validated OSCAL assessment-results, mapping scores to NIST AI RMF subcategories, with each log's SHA-256 as evidence. Evidence for GRC teams, not a compliance verdict.
   author: "[John B Joseph](https://github.com/Johnbjoseph-cybersec)"
   categories: ["Analysis"]
+
+- name: "[ARCI verdict](https://github.com/ajaysurya1221/agent-reliability-ci/blob/main/docs/recipes/verdict.md)"
+  description: |
+    Regression verdict from two eval logs — reads a baseline and a candidate Inspect JSON log (epochs as rounds) and returns PASS, BLOCK or INCONCLUSIVE from a rule file fixed before the runs, with an exact sequential test. The error bound is stated only under its conditions; a rule written after the logs exist is labelled descriptive.
+  author: "[Ajay Surya Senthilrajan](https://github.com/ajaysurya1221)"
+  categories: ["Analysis"]
