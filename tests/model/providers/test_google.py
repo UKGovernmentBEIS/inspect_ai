@@ -1264,6 +1264,31 @@ async def test_google_generate_preserves_request_extra_headers() -> None:
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("seed", [42, None])
+async def test_google_generate_sends_seed(seed: int | None) -> None:
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(seed=seed, temperature=0.7),
+        )
+
+    request_config = mock_generate.call_args.kwargs["config"]
+    assert isinstance(request_config, GenerateContentConfig)
+    assert request_config.seed == seed
+
+
+@pytest.mark.anyio
 async def test_malformed_function_call_retry_succeeds():
     """Test that retry succeeds after initial MALFORMED_FUNCTION_CALL."""
     # First call returns malformed, second call succeeds
