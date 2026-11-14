@@ -324,6 +324,8 @@ async def test_compaction_iterations_context_is_one_input(continued: bool) -> No
 
     assert output.usage is not None
     assert output.usage.input_tokens == 21_000 + (5_000 if continued else 0)
+    assert output.usage.input_tokens_cache_read == 90_000
+    assert output.usage.input_tokens_cache_write == 9_000
     assert output.input_context_tokens == 100_000
     restored = ModelOutput.model_validate_json(output.model_dump_json())
     assert restored.input_context_tokens == 100_000
@@ -848,3 +850,69 @@ async def test_pause_turn_chain_priced_per_request(
         ] == [(REQUESTED_MODEL, FALLBACK_MODEL, fell_back)]
     finally:
         sample_model_fallbacks_context_var.reset(token)
+
+
+@pytest.mark.parametrize("sticky", [False, True])
+@pytest.mark.anyio
+async def test_streamed_fallback_priced_per_attempt(
+    fallback_costs: None, sticky: bool
+) -> None:
+    """A streamed fallback is recorded and priced as a non-streamed one is.
+
+    A decline mid-output streams a fallback block after the partial output. A
+    sticky-routed turn streams from the fallback model without one.
+    """
+    import json
+
+    import httpx2
+
+    content: list[dict[str, Any]] = [{"type": "text", "text": "served answer"}]
+    iterations = [_iteration("fallback_message", FALLBACK_MODEL, 412, 264)]
+    if not sticky:
+        content = [{"type": "text", "text": "partial"}, _fallback_block(), *content]
+        iterations = _DECLINED_THEN_SERVED
+    message: dict[str, Any] = _fallback_message(
+        [], model=FALLBACK_MODEL if sticky else REQUESTED_MODEL
+    ).to_dict()
+    events: list[dict[str, Any]] = [
+        {"type": "message_start", "message": message},
+        *(
+            event
+            for index, block in enumerate(content)
+            for event in (
+                {"type": "content_block_start", "index": index, "content_block": block},
+                {"type": "content_block_stop", "index": index},
+            )
+        ),
+        {
+            "type": "message_delta",
+            "delta": {"stop_reason": "end_turn"},
+            "usage": {**message["usage"], "iterations": iterations},
+        },
+        {"type": "message_stop"},
+    ]
+    sse = "".join(f"event: {e['type']}\ndata: {json.dumps(e)}\n\n" for e in events)
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
+            200, headers={"content-type": "text/event-stream"}, text=sse
+        )
+
+    init_sample_anthropic_assistant_internal()
+    api = AnthropicAPI(
+        model_name=REQUESTED_MODEL,
+        api_key="test-key",
+        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(respond)),
+    )
+    _, output = await api._perform_request_and_continuations(
+        request={"model": REQUESTED_MODEL, "max_tokens": 64, "messages": []},
+        streaming=True,
+        tools=[],
+        config=GenerateConfig(),
+    )
+
+    assert output.fallback is not None
+    assert output.fallback.model == REQUESTED_MODEL
+    assert output.fallback.fallback_model == FALLBACK_MODEL
+    cost = _REQUEST_COST["fallback" if sticky else "fallback_attempts"]
+    assert _recorded_cost(output) == pytest.approx(cost)
