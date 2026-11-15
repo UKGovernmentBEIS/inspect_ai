@@ -82,7 +82,44 @@ class ToolEvent(BaseEvent):
     """Did the tool call fail with a hard error?."""
 
     message_id: str | None = Field(default=None)
-    """Id of ChatMessageTool associated with this event."""
+    """Id of ChatMessageTool associated with this event.
+
+    The message may not stay in the conversation (react removes its `submit`
+    tool's result). For a host tool a sandbox agent bridge runs for the
+    scaffold, the result reaches the conversation only when the scaffold sends
+    it back, so this is set then, on the completed event, and only when the
+    answer is certain: the scaffold sends back the reply holding the call
+    unchanged and the bridge places it under the id it handed it with, the call
+    ran once, no other call of the reply has its id or its function and
+    arguments, and exactly one tool message answers it (by call id, before the
+    next assistant message with tool calls) and is new in that request. Its
+    content may differ from `result`: scaffolds edit results and dialects
+    reshape them.
+
+    Otherwise it stays `None`: the scaffold never sends the result, edits the
+    reply, or sends it where the bridge can't place it (another conversation
+    may hold an equal reply); a message the bridge couldn't place took the
+    reply's id; the call executed more than once; more than one tool
+    message answers it; the answer equals a message sent before or was sent
+    before the call completed; Google names only the result's function and
+    several calls of the reply share it; the sample resumed from a checkpoint
+    first; or 256 later host calls are tracked before its result arrives.
+    """
+
+    call_message_id: str | None = Field(default=None)
+    """Id of the assistant message that proposed this tool call.
+
+    The output of the `ModelEvent` that generated the call. In the agent bridge
+    this is the generated output even when a response filter or approval
+    changed the message handed to the scaffold; `None` for a call the model
+    did not propose or one the bridge can't verify against the generation
+    (arguments a filter changed, a reply whose text a request filter edited,
+    identical calls repeated in one reply).
+    It identifies the proposing message, not necessarily one model call: a
+    cached output reused by several model calls (even within one sample and
+    epoch) has one id, so a join that matches more than one `ModelEvent` is
+    ambiguous. `message_id` is the id of the tool message holding its result.
+    """
 
     def _set_result(
         self,

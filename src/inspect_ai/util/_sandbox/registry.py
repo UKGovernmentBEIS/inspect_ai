@@ -12,7 +12,6 @@ from .environment import SandboxEnvironment
 
 _SANDBOX_PACKAGES: dict[str, str] = {
     "k8s": "inspect-k8s-sandbox",
-    "ec2": "git+https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox.git",
     "proxmox": "git+https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox.git",
     "modal": "inspect-sandboxes",
     "daytona": "inspect-sandboxes",

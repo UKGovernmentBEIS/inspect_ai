@@ -1,3 +1,4 @@
+import json
 from typing import IO, Any, Generic, Literal, TypeVar
 
 import httpx2
@@ -66,22 +67,13 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
         }
 
     @override
-    async def _handle_batch_result(
+    def _missing_result_error(
         self, batch: Batch[ResponseT], completion_info: CompletedBatchInfo
-    ) -> dict[str, ResponseT | Exception]:
-        """Read the result files, failing requests that have no result.
-
-        A cancelled batch has only the partial results (if any) in its output
-        file, so it can end without a result for some or all of its requests.
-        """
-        results = await super()._handle_batch_result(batch, completion_info)
-        missing = RuntimeError(
+    ) -> Exception:
+        return RuntimeError(
             f"Batch {batch.id} ended with status '{completion_info['status']}' "
             "without a result for this request"
         )
-        for request_id in batch.requests.keys() - results.keys():
-            results[request_id] = missing
-        return results
 
     @override
     def _uris_from_completion_info(
@@ -164,14 +156,27 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
             )
 
         if (error := result.get("error")) is None:
-            response_body = result["response"]["body"]
-            return request_id, self._response_cls.model_validate(response_body)
+            response = result["response"]
+            response_body = response["body"]
+            status_code = response.get("status_code", 200)
+            if 200 <= status_code < 300:
+                return request_id, self._response_cls.model_validate(response_body)
+            error_text = json.dumps(response_body)
         else:
-            return request_id, (
-                self._openai_client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
-                    httpx2.Response(status_code=error["code"], text=error["message"])
+            code = str(error["code"])
+            if not code.isascii() or not code.isdigit():
+                return request_id, _batch_error_to_exception(
+                    BatchError.model_validate(error)
                 )
+            status_code = int(code)
+            error_text = error["message"]
+        return request_id, self._openai_client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
+            httpx2.Response(
+                status_code=status_code,
+                text=error_text,
+                request=httpx2.Request("POST", self.endpoint),
             )
+        )
 
     # Batcher overrides
 

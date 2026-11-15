@@ -402,11 +402,6 @@ def skip_if_no_openrouter(func):
     return pytest.mark.api(skip_if_env_var("OPENROUTER_API_KEY", exists=False)(func))
 
 
-def skip_if_no_together_base_url(func):
-    func._needs_flaky_retry = True
-    return pytest.mark.api(skip_if_env_var("TOGETHER_BASE_URL", exists=False)(func))
-
-
 def skip_if_no_fireworks(func):
     func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("FIREWORKS_API_KEY", exists=False)(func))

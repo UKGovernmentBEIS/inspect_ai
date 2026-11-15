@@ -1979,6 +1979,22 @@ def test_human_approver_rejects_modify_as_the_only_choice() -> None:
         human_approver(["modify"])
 
 
+@pytest.mark.parametrize(
+    ("choices", "match"),
+    [
+        ([], "at least one choice"),
+        (["approve", "reject", "approve"], "duplicate choice 'approve'"),
+    ],
+)
+def test_human_approver_rejects_empty_or_duplicate_choices(
+    choices: list[ApprovalDecision], match: str
+) -> None:
+    from inspect_ai.approval._human.approver import human_approver
+
+    with pytest.raises(ValueError, match=match):
+        human_approver(choices)
+
+
 async def test_panel_approval_answered_after_cancel_stays_cancelled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -341,8 +341,8 @@ The first two layers are described earlier in this article: defaults and [parame
 Every CLI flag can be set as an environment variable using the `INSPECT_EVAL_` prefix (with hyphens converted to underscores). Set these in the shell, or place them in a `.env` file that Inspect reads automatically from the current directory (searching parent directories if not found). Use this layer for project or session defaults you want applied across runs without specifying them each time:
 
 ``` {.makefile filename=".env"}
-INSPECT_EVAL_MODEL=anthropic/claude-sonnet-4-5
-INSPECT_EVAL_TEMPERATURE=0.0
+INSPECT_EVAL_MODEL=anthropic/claude-sonnet-5-5
+INSPECT_EVAL_REASONING_EFFORT=medium
 INSPECT_EVAL_MAX_CONNECTIONS=20
 INSPECT_EVAL_MAX_RETRIES=5
 ```
@@ -358,8 +358,8 @@ from inspect_ai import eval
 
 eval(
     simpleqa(),
-    model="anthropic/claude-sonnet-4-5",
-    temperature=0.0,
+    model="anthropic/claude-sonnet-5-5",
+    reasoning_effort="medium",
     max_tokens=4096,
     epochs=5,
     limit=100,
@@ -372,8 +372,8 @@ The same overrides on the command line:
 
 ``` bash
 inspect eval inspect_evals/simpleqa \
-    --model anthropic/claude-sonnet-4-5 \
-    --temperature 0.0 \
+    --model anthropic/claude-sonnet-5-5 \
+    --reasoning-effort medium \
     --max-tokens 4096 \
     --epochs 5 \
     --limit 100 \
@@ -569,7 +569,7 @@ task:
     split: test
 
 model:
-  model: anthropic/claude-sonnet-4-5
+  model: anthropic/claude-sonnet-5-5
   args:
     max_retries: 3
 
@@ -581,9 +581,8 @@ model_roles:
       temperature: 0.0
 
 generate_config:
-  temperature: 0.5
+  reasoning_effort: medium
   max_tokens: 4096
-  seed: 42
 
 solver:
   solver: my_solvers.py@chain_of_thought
@@ -601,14 +600,14 @@ All top-level keys are optional. This lets you create "paper config" files that 
 ``` bash
 # paper_config.yaml specifies only generate_config, eval_config, and model_roles
 inspect eval inspect_evals/simpleqa \
-    --model anthropic/claude-sonnet-4-5 \
+    --model anthropic/claude-sonnet-5-5 \
     --run-config paper_config.yaml
 ```
 
 To run with a different value than the file specifies, pass the corresponding flag:
 
 ``` bash
-inspect eval --run-config run.yaml --temperature 0.9
+inspect eval --run-config run.yaml --reasoning-effort high
 ```
 
 `--run-config` cannot be combined with `--generate-config`, `--task-config`, or `--solver-config`. Use `--run-config` for a single file; use the individual options to compose configuration from multiple files.

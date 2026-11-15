@@ -27,16 +27,16 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-from acp.helpers import (
+from test_helpers.utils import skip_if_trio
+
+from inspect_ai.agent._acp import picker
+from inspect_ai.agent._acp._schema_builders import (
     session_notification,
     start_tool_call,
     text_block,
     update_agent_message,
     update_tool_call,
 )
-from test_helpers.utils import skip_if_trio
-
-from inspect_ai.agent._acp import picker
 from inspect_ai.agent._acp.inspect_ext import REPLAY_META_KEY
 from inspect_ai.agent._acp.server import acp_server
 from inspect_ai.agent._acp.session_router import REPLAY_MAX_EVENTS
@@ -1585,8 +1585,12 @@ async def test_turn_state_is_ordered_after_buffered_session_updates() -> None:
     from unittest.mock import AsyncMock
 
     import anyio
-    from acp.helpers import session_notification, text_block, update_agent_message
 
+    from inspect_ai.agent._acp._schema_builders import (
+        session_notification,
+        text_block,
+        update_agent_message,
+    )
     from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
     from inspect_ai.agent._acp.session_router import Forwarders
 
@@ -1701,7 +1705,11 @@ async def test_forwarders_drain_blocks_until_pending_notifications_sent() -> Non
 
         # Publish three semantic notifications via the session's
         # pub/sub. They land in the forwarder's subscriber stream.
-        from acp.helpers import session_notification, text_block, update_agent_message
+        from inspect_ai.agent._acp._schema_builders import (
+            session_notification,
+            text_block,
+            update_agent_message,
+        )
 
         for i in range(3):
             notif = session_notification(
@@ -1813,7 +1821,11 @@ async def test_forwarders_drain_waits_for_in_flight_item() -> None:
         # - _notifications_sent unchanged (counter only bumps in
         #   the finally, which hasn't run yet)
         # - _processing_item == True (the new flag)
-        from acp.helpers import session_notification, text_block, update_agent_message
+        from inspect_ai.agent._acp._schema_builders import (
+            session_notification,
+            text_block,
+            update_agent_message,
+        )
 
         notif = session_notification(
             session.session_id, update_agent_message(text_block("only-chunk"))
@@ -1936,8 +1948,12 @@ async def test_forwarders_drain_returns_when_forwarder_task_dies() -> None:
     from unittest.mock import AsyncMock
 
     import anyio
-    from acp.helpers import session_notification, text_block, update_agent_message
 
+    from inspect_ai.agent._acp._schema_builders import (
+        session_notification,
+        text_block,
+        update_agent_message,
+    )
     from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
     from inspect_ai.agent._acp.session_router import Forwarders
 

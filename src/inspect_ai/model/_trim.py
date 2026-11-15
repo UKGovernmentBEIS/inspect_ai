@@ -1,10 +1,9 @@
 from dataclasses import dataclass, field
 
-from shortuuid import uuid
-
 from inspect_ai._util.content import Content, ContentText
 
 from ._chat_message import ChatMessage
+from ._message_ids import edited_message
 
 
 async def trim_messages(
@@ -70,12 +69,7 @@ async def trim_messages(
             ]
             if len(valid_tool_calls) != len(msg.tool_calls):
                 # Some tool_calls were orphaned, update the message
-                msg = msg.model_copy(
-                    update={
-                        "id": uuid(),
-                        "tool_calls": valid_tool_calls if valid_tool_calls else None,
-                    }
-                )
+                msg = edited_message(msg, tool_calls=valid_tool_calls or None)
         sanitized_messages.append(msg)
     conversation_messages = sanitized_messages
 
@@ -146,9 +140,7 @@ def strip_citations(messages: list[ChatMessage]) -> list[ChatMessage]:
                 else:
                     new_content.append(content)
             if modified:
-                result.append(
-                    msg.model_copy(update={"id": uuid(), "content": new_content})
-                )
+                result.append(edited_message(msg, content=new_content))
             else:
                 result.append(msg)
         else:

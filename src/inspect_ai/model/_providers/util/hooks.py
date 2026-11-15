@@ -11,6 +11,7 @@ from typing import (
     Iterator,
     Literal,
     Mapping,
+    MutableMapping,
     NamedTuple,
     Protocol,
     cast,
@@ -18,6 +19,10 @@ from typing import (
 
 from shortuuid import uuid
 
+from inspect_ai._sentinel._sidecar._received import (
+    report_request_id,
+    report_sent,
+)
 from inspect_ai._util.constants import HTTP
 from inspect_ai._util.http import parse_retry_after
 from inspect_ai._util.retry import report_http_retry
@@ -119,6 +124,7 @@ class HttpHooks:
         """
         request_id = uuid()
         self._requests[request_id] = RequestInfo(0, time.monotonic())
+        report_request_id(request_id)
         return request_id
 
     def restart_request(self, request_id: str) -> float:
@@ -391,7 +397,7 @@ class HttpxRequestLike(Protocol):
     @property
     def url(self) -> object: ...
     @property
-    def headers(self) -> Mapping[str, str]: ...
+    def headers(self) -> MutableMapping[str, str]: ...
 
 
 class HttpxResponseLike(Protocol):
@@ -431,6 +437,17 @@ class HttpxHooks(HttpHooks):
         request_id = request.headers.get(self.REQUEST_ID_HEADER, None)
         if request_id:
             self.update_request_time(request_id)
+            # an agent call through a sentinel sidecar is looked up there
+            # only once a request of it is sent: an error before this is
+            # Inspect's own, and the sidecar knows nothing of the call
+            report_sent(request_id)
+
+        # an agent call through a sentinel sidecar is signed as each try is
+        # sent, so a retry after a long backoff isn't refused as stale
+        if "x-inspect-context" in request.headers:
+            from inspect_ai._sentinel._sidecar._call import sign_context
+
+            sign_context(request.headers, str(request.url))
 
     async def response_hook(self, response: HttpxResponseLike) -> None:
         message = f'{response.request.method} {response.request.url} "{response.http_version} {response.status_code} {response.reason_phrase}" '

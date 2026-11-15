@@ -849,6 +849,37 @@ def test_restored_events_update_bounded_bookkeeping_and_evict() -> None:
     assert _data(transcript.history.recent_events(2)) == [3, 4]
 
 
+@pytest.mark.parametrize("resident_tail", [3, 100])
+def test_restored_events_evict_like_appended_events(resident_tail: int) -> None:
+    def events() -> list[Event]:
+        return [
+            SampleInitEvent(
+                sample=Sample(input="input", id="sample"), state={}, uuid="init"
+            ),
+            InfoEvent(data="a", uuid="a"),
+            InfoEvent(data="pending-a", uuid="pending-a", pending=True),
+            InfoEvent(data="b", uuid="b"),
+            *[InfoEvent(data=i, uuid=f"r{i}") for i in range(4)],
+            InfoEvent(data="pending-r", uuid="pending-r", pending=True),
+            *[InfoEvent(data=i, uuid=f"r{i}") for i in range(4, 8)],
+        ]
+
+    appended = Transcript(bounded=True, resident_tail=resident_tail)
+    for event in events():
+        appended._event(event)
+
+    restored = Transcript(bounded=True, resident_tail=resident_tail)
+    restored_events = events()
+    for event in restored_events[:4]:
+        restored._event(event)
+    restored._extend_restored_events(restored_events[4:], {})
+
+    assert [event.uuid for event in restored.history.resident_events] == [
+        event.uuid for event in appended.history.resident_events
+    ]
+    assert list(restored._evictable_event_ids) == list(appended._evictable_event_ids)
+
+
 def test_restored_events_reject_duplicate_uuid() -> None:
     transcript = Transcript(bounded=True, resident_tail=10)
     first = InfoEvent(data="first", uuid="same")
