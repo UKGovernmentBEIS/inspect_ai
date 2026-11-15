@@ -31,6 +31,12 @@ _scope: ContextVar[_Scope] = ContextVar(
 )
 
 
+# the origin a reclassifiable_scope() was entered with
+_reclassify_base: ContextVar[_Scope | None] = ContextVar(
+    "sentinel_reclassify_base", default=None
+)
+
+
 @contextmanager
 def sentinel_solving() -> Iterator[None]:
     token = _solving.set(True)
@@ -79,3 +85,33 @@ def enter_scope(origin: ModelOrigin, *, final: bool = False) -> Token[_Scope]:
 
 def exit_scope(token: Token[_Scope]) -> None:
     _scope.reset(token)
+
+
+@contextmanager
+def reclassifiable_scope() -> Iterator[None]:
+    """A region whose calls `reclassify_scope()` can mark as helper's in place.
+
+    For a bridged request, whose kind is decided inside its filter, after the region is entered. On exit the origin returns to the one the region was entered with.
+    """
+    base = _scope.get()
+    token = _scope.set(base)
+    base_token = _reclassify_base.set(base)
+    try:
+        yield
+    finally:
+        _reclassify_base.reset(base_token)
+        _scope.reset(token)
+
+
+def reclassify_scope(helper: bool) -> None:
+    """Mark the rest of the enclosing `reclassifiable_scope()` as helper's, or as the region it was entered in.
+
+    Only an agent turn becomes a helper's: a final region and every other kind (a tool, setup outside the solve) keep their origin. No-op outside a `reclassifiable_scope()`.
+    """
+    base = _reclassify_base.get()
+    if base is None:
+        return
+    if helper and base == _Scope("agent", False) and solving():
+        _scope.set(_Scope("helper", False))
+    else:
+        _scope.set(base)

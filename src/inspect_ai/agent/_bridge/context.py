@@ -3,6 +3,8 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Iterator, Literal
 
+from inspect_ai._sentinel._scope import reclassifiable_scope, reclassify_scope
+
 
 @dataclass(frozen=True)
 class AgentBridgeContext:
@@ -22,7 +24,10 @@ class AgentBridgeContext:
       (e.g. a Claude Code Task agent or a Codex spawned agent).
     - "utility": machinery calls serving the main agent's plumbing (compaction,
       approval review, internal helper models) — no delegated goal or thread.
-      Matches the timeline's utility-agent concept.
+      Matches the timeline's utility-agent concept. A request set to
+      "utility" records its model calls with `origin="helper"` rather than
+      `"agent"`, so they are not agent turns: the timeline shows them as
+      utility and sentinels do not check them at their generate stages.
     - "unknown": the bridge could not determine the calling agent.
     """
 
@@ -120,6 +125,13 @@ def set_agent_bridge_context(context: AgentBridgeContext) -> None:
     group child) changes only that task's copy, so the request keeps its
     previous value and nothing reports the miss.
 
+    A "utility" context records the request's later model calls (the
+    bridge's generation and any the filter makes after the call) with
+    `origin="helper"`, so they are not agent turns. A request made within a
+    region that is not an agent turn (`model_origin()`, a tool, a scorer)
+    keeps that region's origin. Setting another kind restores the origin the
+    request started with.
+
     Within the current task, the value lasts until the enclosing
     `bridged_request_scope` installed by `bridge_generate` exits, so it cannot
     leak into later requests. Raises `RuntimeError` when called outside a
@@ -141,6 +153,7 @@ def set_agent_bridge_context(context: AgentBridgeContext) -> None:
             "request is in flight."
         )
     _agent_bridge_context.set(context)
+    reclassify_scope(context.kind == "utility")
 
 
 def current_bridge_request() -> BridgeRequest | None:
@@ -157,14 +170,17 @@ def bridged_request_scope(requested_model: str | None) -> Iterator[None]:
     resets both on exit so no value leaks across sequential requests that
     share a task (the in-process bridge path). The reset applies to the
     current task only: tasks spawned during the request keep the snapshot
-    they were spawned with.
+    they were spawned with. The request's model-call origin is reset with
+    them, as `set_agent_bridge_context()` marks a "utility" request's calls
+    as a helper's.
     """
     context_token = _agent_bridge_context.set(_UNKNOWN_CONTEXT)
     request_token = _bridge_request.set(
         BridgeRequest(model=requested_model) if requested_model is not None else None
     )
     try:
-        yield
+        with reclassifiable_scope():
+            yield
     finally:
         _agent_bridge_context.reset(context_token)
         _bridge_request.reset(request_token)

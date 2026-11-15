@@ -618,3 +618,232 @@ async def test_approval_review_reads_utility() -> None:
 def test_setter_raises_outside_scope() -> None:
     with pytest.raises(RuntimeError):
         set_agent_bridge_context(AgentBridgeContext("root"))
+
+
+# --- utility requests record origin="helper" --------------------------------
+
+
+def _classifying_filter(kind: Kind | None, generate: bool = False) -> Any:
+    """A filter that sets `kind` (or nothing), then optionally generates itself."""
+
+    async def classify(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput | None:
+        if kind is not None:
+            set_agent_bridge_context(AgentBridgeContext(kind))
+        if generate:
+            return await model.generate(messages, tools, tool_choice, config)
+        return None
+
+    return classify
+
+
+async def _bridged_origins(
+    filter: Any, input: list[ChatMessage] | None = None, model: Model | None = None
+) -> list[ModelEvent]:
+    """The ModelEvents a bridged request (and its filter) records."""
+    from inspect_ai.model._model import collect_model_events
+
+    bridge = AgentBridge(state=AgentState(messages=[]), filter=filter)
+    with collect_model_events() as generations:
+        await bridge_generate(
+            bridge,
+            model or get_model("mockllm/model"),
+            input or [ChatMessageUser(content="hi")],
+            [],
+            None,
+            GenerateConfig(),
+            requested_model="scaffold-slug",
+        )
+    return [generation.event for generation in generations]
+
+
+@pytest.mark.parametrize("generate", [False, True])
+@pytest.mark.parametrize(
+    "kind,origin",
+    [
+        ("utility", "helper"),
+        ("root", "agent"),
+        ("subagent", "agent"),
+        ("unknown", "agent"),
+        (None, "agent"),
+    ],
+)
+async def test_utility_request_records_helper_origin(
+    kind: Kind | None, origin: str, generate: bool
+) -> None:
+    from inspect_ai._sentinel._scope import current_origin, sentinel_solving
+
+    with sentinel_solving():
+        events = await _bridged_origins(_classifying_filter(kind, generate))
+        # the request's origin does not outlive it
+        assert current_origin() == "agent"
+    # the bridge's generation, or the one the filter made and returned
+    assert [event.origin for event in events] == [origin]
+
+
+async def test_utility_origin_resets_with_the_context() -> None:
+    from inspect_ai._sentinel._scope import sentinel_solving
+
+    async def reclassify(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> None:
+        set_agent_bridge_context(AgentBridgeContext("utility"))
+        await model.generate("side call")
+        set_agent_bridge_context(AgentBridgeContext("root"))
+        return None
+
+    with sentinel_solving():
+        events = await _bridged_origins(reclassify)
+    assert [event.origin for event in events] == ["helper", "agent"]
+
+
+async def test_utility_origin_does_not_reach_a_retry() -> None:
+    from inspect_ai._sentinel._scope import sentinel_solving
+
+    calls = {"n": 0}
+
+    async def refuse_once(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput | None:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            set_agent_bridge_context(AgentBridgeContext("utility"))
+            return ModelOutput.from_content(
+                model="mockllm/model", content="refused", stop_reason="content_filter"
+            )
+        return None
+
+    bridge = AgentBridge(
+        state=AgentState(messages=[]), filter=refuse_once, retry_refusals=1
+    )
+    from inspect_ai.model._model import collect_model_events
+
+    with sentinel_solving(), collect_model_events() as generations:
+        await bridge_generate(
+            bridge,
+            get_model("mockllm/model"),
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            GenerateConfig(),
+            requested_model="scaffold-slug",
+        )
+    assert [g.event.origin for g in generations] == ["agent"]
+
+
+@pytest.mark.parametrize("outer", ["environment", "helper"])
+async def test_utility_request_keeps_an_outer_origin(outer: Any) -> None:
+    from inspect_ai._sentinel._scope import sentinel_solving
+    from inspect_ai.model import model_origin
+
+    with sentinel_solving(), model_origin(outer):
+        events = await _bridged_origins(_classifying_filter("utility"))
+    assert [event.origin for event in events] == [outer]
+
+
+async def test_utility_request_keeps_a_tool_s_origin() -> None:
+    from inspect_ai._sentinel._scope import sentinel_scope, sentinel_solving
+
+    with sentinel_solving(), sentinel_scope("tool"):
+        events = await _bridged_origins(_classifying_filter("utility"))
+    assert [event.origin for event in events] == ["tool"]
+
+
+async def test_utility_request_outside_the_solve_is_setup() -> None:
+    events = await _bridged_origins(_classifying_filter("utility"))
+    assert [event.origin for event in events] == ["setup"]
+
+
+async def test_utility_request_is_a_utility_span_in_the_timeline() -> None:
+    """A utility call sharing the agent's system prompt and making tool calls."""
+    from inspect_ai._sentinel._scope import sentinel_solving
+    from inspect_ai.event import SpanBeginEvent, SpanEndEvent, timeline_build
+    from inspect_ai.event._timeline import TimelineEvent, TimelineSpan
+    from inspect_ai.model import ChatMessageSystem, ChatMessageTool
+
+    def reply(text: str, call: str | None) -> ModelOutput:
+        return ModelOutput(
+            model="mockllm/model",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        content=text,
+                        tool_calls=[ToolCall(id=call, function="bash", arguments={})]
+                        if call
+                        else None,
+                    ),
+                    stop_reason="tool_calls" if call else "stop",
+                )
+            ],
+        )
+
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            reply("", "c1"),
+            reply("", "u1"),
+            reply("done", None),
+        ],
+    )
+    system = ChatMessageSystem(content="You are a coding agent.")
+    task = ChatMessageUser(content="Fix the bug.")
+    turn1: list[ChatMessage] = [system, task]
+    side: list[ChatMessage] = [
+        system,
+        task,
+        ChatMessageUser(content="Summarize the session so far."),
+    ]
+
+    with sentinel_solving():
+        first = await _bridged_origins(_classifying_filter("root"), turn1, model)
+        utility = await _bridged_origins(_classifying_filter("utility"), side, model)
+        turn2: list[ChatMessage] = [
+            *turn1,
+            first[0].output.message,
+            ChatMessageTool(content="ok", tool_call_id="c1"),
+        ]
+        second = await _bridged_origins(_classifying_filter("root"), turn2, model)
+
+    def build(events: list[ModelEvent]) -> list[str | None]:
+        stamped = [event.model_copy(update={"span_id": "main"}) for event in events]
+        root = timeline_build(
+            [
+                SpanBeginEvent(id="main", name="main", type="agent"),
+                *stamped,
+                SpanEndEvent(id="main"),
+            ]
+        ).root
+        found: list[str | None] = []
+
+        def walk(span: TimelineSpan, inside: bool) -> None:
+            for item in span.content:
+                if isinstance(item, TimelineEvent):
+                    if inside and isinstance(item.event, ModelEvent):
+                        found.append(item.event.uuid)
+                else:
+                    walk(item, inside or item.utility)
+
+        walk(root, root.utility)
+        return found
+
+    events = [*first, *utility, *second]
+    assert [event.origin for event in events] == ["agent", "helper", "agent"]
+    assert utility[0].output.message.tool_calls
+    assert build(events) == [utility[0].uuid]
+    # recorded as an agent turn (as before), the shared system prompt and its
+    # tool calls leave it on the main thread
+    as_agent = [event.model_copy(update={"origin": "agent"}) for event in events]
+    assert build(as_agent) == []
