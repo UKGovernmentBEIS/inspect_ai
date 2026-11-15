@@ -4,7 +4,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from math import inf, nan
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import anyio
 import httpx2
@@ -1448,6 +1448,43 @@ def test_only_the_agents_calls_name_their_sample() -> None:
     named = [_context(r) is not None for r in stand_in.model_calls]
     # the agent's turn, then the grader's, which no sidecar judges in process
     assert named == [True, False]
+
+
+@solver
+def _bridged_request(kind: str) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        from inspect_ai.agent._bridge.context import (
+            AgentBridgeContext,
+            bridged_request_scope,
+            set_agent_bridge_context,
+        )
+        from inspect_ai.model import model_origin
+
+        with bridged_request_scope(None):
+            if kind == "helper":
+                with model_origin("helper"):
+                    await get_model().generate(state.messages)
+            else:
+                set_agent_bridge_context(AgentBridgeContext(cast(Any, kind)))
+                await get_model().generate(state.messages)
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize(
+    ("kind", "judged"), [("root", True), ("utility", True), ("helper", False)]
+)
+def test_a_bridged_call_classified_as_utility_is_judged(
+    kind: str, judged: bool
+) -> None:
+    stand_in = StandInSidecar()
+    task = Task(dataset=[Sample(input="Hi.")], solver=_bridged_request(kind))
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    assert log.status == "success"
+    assert [_context(r) is not None for r in stand_in.model_calls] == [judged]
 
 
 @solver

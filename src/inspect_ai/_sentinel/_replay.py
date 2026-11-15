@@ -39,7 +39,7 @@ from inspect_ai.tool._tool_call import (
 from inspect_ai.util._span import AGENT_SPAN_TYPE
 
 from ._conversation import SpanConversations
-from ._scope import is_agent_turn
+from ._scope import is_checked_turn
 from ._steps import (
     ConversationRecord,
     FoldInput,
@@ -501,7 +501,7 @@ _HUMAN_FACTORY = "inspect_sentinel/human"
 
 # the origins of regions that are not final, so the tool calls of a model call
 # made there are checked live
-_NON_FINAL = {"agent", "tool", "setup"}
+_NON_FINAL = {"agent", "utility", "tool", "setup"}
 
 
 class _Driver:
@@ -607,7 +607,7 @@ class _Driver:
                         proposals.add(
                             _Proposal(index, message, event, tool_call, proposed_in)
                         )
-                if not is_agent_turn(self._origin(event)):
+                if not is_checked_turn(self._origin(event)):
                     continue
                 conversation = self._conversation(event)
                 self._at(index, 2, partial(self._fold, conversation, event))

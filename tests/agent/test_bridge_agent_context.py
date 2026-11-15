@@ -620,7 +620,7 @@ def test_setter_raises_outside_scope() -> None:
         set_agent_bridge_context(AgentBridgeContext("root"))
 
 
-# --- utility requests record origin="helper" --------------------------------
+# --- utility requests record origin="utility" -------------------------------
 
 
 def _classifying_filter(kind: Kind | None, generate: bool = False) -> Any:
@@ -666,14 +666,14 @@ async def _bridged_origins(
 @pytest.mark.parametrize(
     "kind,origin",
     [
-        ("utility", "helper"),
+        ("utility", "utility"),
         ("root", "agent"),
         ("subagent", "agent"),
         ("unknown", "agent"),
         (None, "agent"),
     ],
 )
-async def test_utility_request_records_helper_origin(
+async def test_utility_request_records_utility_origin(
     kind: Kind | None, origin: str, generate: bool
 ) -> None:
     from inspect_ai._sentinel._scope import current_origin, sentinel_solving
@@ -703,7 +703,7 @@ async def test_utility_origin_resets_with_the_context() -> None:
 
     with sentinel_solving():
         events = await _bridged_origins(reclassify)
-    assert [event.origin for event in events] == ["helper", "agent"]
+    assert [event.origin for event in events] == ["utility", "agent"]
 
 
 async def test_utility_origin_does_not_reach_a_retry() -> None:
@@ -840,7 +840,7 @@ async def test_utility_request_is_a_utility_span_in_the_timeline() -> None:
         return found
 
     events = [*first, *utility, *second]
-    assert [event.origin for event in events] == ["agent", "helper", "agent"]
+    assert [event.origin for event in events] == ["agent", "utility", "agent"]
     assert utility[0].output.message.tool_calls
     assert build(events) == [utility[0].uuid]
     # recorded as an agent turn (as before), the shared system prompt and its
@@ -849,7 +849,7 @@ async def test_utility_request_is_a_utility_span_in_the_timeline() -> None:
     assert build(as_agent) == []
 
 
-@pytest.mark.parametrize("kind,bridged", [("root", "agent"), ("utility", "helper")])
+@pytest.mark.parametrize("kind,bridged", [("root", "agent"), ("utility", "utility")])
 @pytest.mark.parametrize("region", ["environment", "tool"])
 async def test_a_region_inside_the_filter_keeps_its_origin(
     kind: Kind, bridged: str, region: str
@@ -904,14 +904,14 @@ async def test_a_utility_classification_outlives_a_span_in_the_filter() -> None:
     with sentinel_solving():
         events = await _bridged_origins(classify_in_span)
     assert current_agent_bridge_context() is None
-    assert [event.origin for event in events] == ["helper"]
+    assert [event.origin for event in events] == ["utility"]
 
 
 @pytest.mark.parametrize(
     "outer,inner,origins",
     [
-        ("utility", "root", ["helper", "helper"]),
-        ("root", "utility", ["helper", "agent"]),
+        ("utility", "root", ["utility", "utility"]),
+        ("root", "utility", ["utility", "agent"]),
         ("root", "root", ["agent", "agent"]),
     ],
 )

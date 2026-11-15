@@ -15,8 +15,12 @@ ModelOrigin = Literal[
     "sentinel",
     "scorer",
     "setup",
+    "utility",
 ]
-"""Where a model call was made (`ModelEvent.origin`); only `"agent"` is an agent turn."""
+"""Where a model call was made (`ModelEvent.origin`); only `"agent"` is an agent turn.
+
+`"utility"` is a bridged request's call that its agent classified as utility (`set_agent_bridge_context()`): not an agent turn, but checked by sentinels as one (`is_checked_turn()`).
+"""
 
 
 class _Scope(NamedTuple):
@@ -40,7 +44,7 @@ _utility_request_outer: ContextVar[bool | None] = ContextVar(
     "sentinel_utility_request_outer", default=None
 )
 
-UTILITY_REQUEST_ORIGIN: ModelOrigin = "helper"
+UTILITY_REQUEST_ORIGIN: ModelOrigin = "utility"
 """The origin of an agent-turn call made in a bridged request classified as utility."""
 
 
@@ -87,6 +91,14 @@ def is_agent_turn(origin: str | None) -> bool:
     The one rule, live and from a log: a kind added later reads as not a turn.
     """
     return origin == "agent"
+
+
+def is_checked_turn(origin: str | None) -> bool:
+    """Whether a sentinel checks a model call with this origin at its generate stages, live and in replay.
+
+    An agent turn, or a call its bridged agent classified as utility: the classification comes from the agent's own requests, so it shapes the timeline but does not exempt the call from monitoring.
+    """
+    return origin in ("agent", "utility")
 
 
 def in_final_scope() -> bool:

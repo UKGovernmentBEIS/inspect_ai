@@ -5350,7 +5350,7 @@ async def test_a_bridge_request_restores_the_agent_state_when_it_raises() -> Non
 
 
 @pytest.mark.parametrize("kind", ["root", "utility"])
-async def test_a_utility_bridge_request_is_not_checked_at_generate(kind: str) -> None:
+async def test_a_utility_bridge_request_is_checked_at_generate(kind: str) -> None:
     from inspect_ai.agent._bridge.context import (
         AgentBridgeContext,
         set_agent_bridge_context,
@@ -5368,10 +5368,11 @@ async def test_a_utility_bridge_request_is_not_checked_at_generate(kind: str) ->
 
     seen: list[StageSeen] = []
     await run_bridge_request(seen, filter=classifying_filter)
-    if kind == "utility":
-        assert seen == []
-    else:
-        assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    # recorded as utility, but checked as an agent turn
+    assert stages(seen) == {BeforeGenerate, AfterGenerate}
+    assert [e.origin for e in transcript().events if isinstance(e, ModelEvent)] == [
+        "utility" if kind == "utility" else "agent"
+    ]
 
 
 async def test_a_bridge_request_restores_the_agent_state_when_cancelled() -> None:

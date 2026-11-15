@@ -9,7 +9,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai.model._generate_config import GenerateConfig
 
 from .._config import SentinelProxy
-from .._scope import current_origin, is_agent_turn
+from .._scope import current_origin, is_checked_turn
 from ._endpoint import Sidecar, _origin
 from ._sign import model_request_message, now, sign
 from ._task import SampleFacts, TaskSidecars, attempt_number, task_sidecars
@@ -53,7 +53,7 @@ class SidecarCall(NamedTuple):
 async def sidecar_call(model: "Model") -> SidecarCall | None:
     """The sidecar an agent call goes through, with the sample's registration complete, or None for a call no sidecar judges.
 
-    Only the agent's calls are judged, as in process: not a scorer's, an approver's, a compaction summary's or a monitor's.
+    Only the agent's calls are judged (including those a bridged agent classified as utility), as in process: not a scorer's, an approver's, a compaction summary's or a monitor's.
 
     Raises:
         SentinelProxyError: If a sidecar found for the call's endpoint couldn't register the task or the sample.
@@ -62,7 +62,7 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
     from inspect_ai.solver._task_state import sample_state
 
     sidecars = task_sidecars()
-    if sidecars is None or not is_agent_turn(current_origin()):
+    if sidecars is None or not is_checked_turn(current_origin()):
         return None
     active = sample_active()
     state = sample_state()

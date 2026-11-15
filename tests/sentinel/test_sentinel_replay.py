@@ -5392,6 +5392,40 @@ def test_a_call_run_in_a_final_region_has_no_tool_steps() -> None:
     assert not [s for s in replay if s.stage.startswith("tool")]
 
 
+@solver
+def r7_makes_a_bridged_utility_call() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        from inspect_ai.agent._bridge.context import (
+            AgentBridgeContext,
+            bridged_request_scope,
+            set_agent_bridge_context,
+        )
+
+        tools = [addition()]
+        with bridged_request_scope(None):
+            set_agent_bridge_context(AgentBridgeContext("utility"))
+            output = await get_model().generate(state.messages, tools)
+            await execute_tools([*state.messages, output.message], tools)
+        state.output = await get_model().generate(state.messages)
+        return state
+
+    return solve
+
+
+def test_a_bridged_utility_call_replays_as_checked_as_it_ran() -> None:
+    replay = assert_replay_equals_live(
+        r7_makes_a_bridged_utility_call(),
+        outputs(call("addition", x=1, y=1), done()),
+    )
+    # both calls are checked at their generate stages, and the utility call's
+    # tool call at its tool stages, as live
+    assert [s.stage for s in replay if s.stage.startswith("model")] == [
+        "model_input",
+        "model_output",
+    ] * 2
+    assert [s for s in replay if s.stage.startswith("tool")]
+
+
 @scorer(metrics=[])
 def r7_scores_with_a_tool_loop() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:

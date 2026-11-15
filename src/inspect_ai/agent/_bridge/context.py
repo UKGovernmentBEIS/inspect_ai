@@ -26,9 +26,8 @@ class AgentBridgeContext:
       approval review, internal helper models) — no delegated goal or thread.
       Matches the timeline's utility-agent concept. A request set to
       "utility" with `set_agent_bridge_context()` records its model calls
-      with `origin="helper"` rather than `"agent"`, so they are not agent
-      turns: the timeline shows them as utility and sentinels do not check
-      them at their generate stages.
+      with `origin="utility"` rather than `"agent"`: the timeline shows them
+      as utility, and sentinels still check them as agent turns.
     - "unknown": the bridge could not determine the calling agent.
     """
 
@@ -127,8 +126,9 @@ def set_agent_bridge_context(context: AgentBridgeContext) -> None:
     previous value and nothing reports the miss.
 
     A "utility" context records the model calls made for the rest of the
-    request's attempt with `origin="helper"` rather than `"agent"`, so they
-    are not agent turns: the bridge's generation, calls the filter makes
+    request's attempt with `origin="utility"` rather than `"agent"`, so the
+    timeline shows them as utility (sentinels still check them as agent
+    turns): the bridge's generation, calls the filter makes
     after setting it, and the response filter's calls. Each attempt (a
     refusal retry, a regeneration after an approval rejection) starts as
     "unknown" and runs the filter again, which classifies it anew. A call made within a region that is not an agent
@@ -174,8 +174,8 @@ def bridged_request_scope(requested_model: str | None) -> Iterator[None]:
     resets both on exit so no value leaks across sequential requests that
     share a task (the in-process bridge path). The reset applies to the
     current task only: tasks spawned during the request keep the snapshot
-    they were spawned with. Whether the request is utility (which makes its
-    agent-turn model calls a helper's) is reset with them.
+    they were spawned with. Whether the request is utility (which records its
+    agent-turn model calls as `"utility"`) is reset with them.
     """
     context_token = _agent_bridge_context.set(_UNKNOWN_CONTEXT)
     request_token = _bridge_request.set(
