@@ -220,12 +220,21 @@ class HuggingFaceAPI(ModelAPI):
         chat = self.hf_chat(input, tools)
 
         assert isinstance(self.tokenizer_call_args, dict)
+        # A rendered chat template may already contain the model's special
+        # tokens (e.g. BOS for Gemma and Llama 3), so tokenizing it must not
+        # add them a second time. An explicit tokenizer_call_args value still wins.
+        tokenizer_call_args = dict(self.tokenizer_call_args)
+        if (
+            "add_special_tokens" not in tokenizer_call_args
+            and self._effective_chat_template() is not None
+        ):
+            tokenizer_call_args["add_special_tokens"] = False
         # prepare tokenizer
         tokenizer = functools.partial(  # type: ignore[misc]
             self.tokenizer,
             return_tensors="pt",
             padding=True,
-            **self.tokenizer_call_args,
+            **tokenizer_call_args,
         )
 
         # prepare generator
@@ -331,6 +340,17 @@ class HuggingFaceAPI(ModelAPI):
     def collapse_user_messages(self) -> bool:
         return True
 
+    def _effective_chat_template(self) -> str | None:
+        """Chat template `hf_chat` will apply, or `None` for the manual fallback."""
+        chat_template = (
+            self.chat_template
+            if isinstance(self.chat_template, str)
+            else self.tokenizer.chat_template
+        )
+        if self.use_chat_template is False:
+            return None
+        return chat_template
+
     def hf_chat(self, messages: list[ChatMessage], tools: list[ToolInfo]) -> str:
         # convert to hf format
         tools_list = []
@@ -348,13 +368,7 @@ class HuggingFaceAPI(ModelAPI):
                 hf_messages = inspect_tools_to_string(hf_messages)
 
         hf_messages = message_content_to_string(hf_messages)
-        chat_template = (
-            self.chat_template
-            if isinstance(self.chat_template, str)
-            else self.tokenizer.chat_template
-        )
-        if self.use_chat_template is False:
-            chat_template = None
+        chat_template = self._effective_chat_template()
 
         # apply chat template
         if chat_template is not None:

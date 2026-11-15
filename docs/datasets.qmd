@@ -170,8 +170,8 @@ eval("ctf.py", sample_shuffle=42)
 You can also shuffle datasets directly within a task definition. To do this, either use the `shuffle()` method or the `shuffle` parameter of the dataset loading functions:
 
 ``` python
-# shuffle method
-dataset = dataset.shuffle()
+# shuffle method (in place)
+dataset.shuffle()
 
 # shuffle on load
 dataset = json_dataset("data.jsonl", shuffle=True)

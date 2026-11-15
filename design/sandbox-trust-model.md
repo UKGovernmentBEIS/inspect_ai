@@ -319,6 +319,41 @@ comes from the scope as well as from tool construction:
   scope only if it was created under the same user and sandbox; outside any
   scope a saved shell can still be used and keeps running as the user it was
   created as. Nested scopes raise.
+- **Bridge peer check.** A sandbox agent bridge whose sandbox is the scope's
+  passes the scope's user to its model proxy, and nothing secret. The proxy
+  runs as the tools user and resolves the user before it binds; a user that
+  does not resolve, uid 0 or uid 65534 (the uids the socket table reports
+  for sockets it cannot attribute) stops it. For each connection, before
+  reading it, the proxy finds the client's socket in `/proc/net/tcp` or
+  `/proc/net/tcp6` by the accepted socket's own addresses, and serves the
+  connection only when exactly one live socket matches and the scope's user
+  owns it. Others get HTTP 403 on every route, bridged tools' MCP endpoints
+  included. The kernel records each socket's owner, and no process can
+  create a socket owned by another uid without that uid's privileges. It
+  then queries the accepted socket again and closes it unread unless it is
+  still connected at the same addresses: a client that sends a request and
+  resets the connection would otherwise leave its address pair, and its
+  row, to another user's later connection
+  (`guest/_agent_bridge/peer_uid.py`). Clients keep using `localhost`, so
+  the proxy listens on both `127.0.0.1` and `[::1]` at its port and never
+  sets `SO_REUSEPORT`; another user cannot then listen at either address. A
+  sandbox with no IPv6 loopback is served on `127.0.0.1` alone. The bridge
+  yields only after the proxy prints that it listens, so a user already
+  holding the port makes the bridge fail rather than receive the agent's
+  requests. The check does not stop the scope's user from relaying its own
+  bridge to another user. The proxy forwards through the bridge's sandbox
+  service, whose queue belongs to the tools user for every bridge, so no
+  other user, the sandbox's default user included, can submit requests to
+  it directly. Outside a scope the proxy listens on `127.0.0.1` and serves
+  any connection.
+  The proxy start and the polls of its output, the kill, the kill by job
+  key and the service queue's commands run outside the sandbox's
+  concurrency limits, so other commands holding capacity cannot time out
+  the listening wait or stall the bridge's shielded cleanup. Checking and
+  installing the sandbox tools happen before that wait and keep the normal
+  limits: a busy sandbox can delay them but not make them time out. This
+  is a liveness trade-off, not a security boundary (decision: Ransom,
+  2026-11-11).
 - **Sandbox operations.** `SandboxEnvironment.exec()`, `read_file()` and
   `write_file()` calls on the scope's sandbox that name no user run as the
   scope's user; a call that names a user keeps it. The sample's sandbox proxy

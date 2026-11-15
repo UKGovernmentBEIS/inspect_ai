@@ -1,4 +1,4 @@
-//#region ../../node_modules/.pnpm/mathxyjax3@0.8.3/node_modules/mathxyjax3/dist/chunk-DfAF0w94.js
+// ../../node_modules/.pnpm/mathxyjax3@0.8.3/node_modules/mathxyjax3/dist/chunk-DfAF0w94.js
 var e = Object.create;
 var t = Object.defineProperty;
 var n = Object.getOwnPropertyDescriptor;
@@ -18,7 +18,6 @@ var c = (n, r, a) => (a = n == null ? {} : e(i(n)), s(r || !n || !n.__esModule ?
 	enumerable: !0
 }) : a, n));
 var l = (e) => (t) => c(t.default, e);
-//#endregion
 export { o as n, l as t };
 
 //# sourceMappingURL=chunk-DfAF0w94.js.map

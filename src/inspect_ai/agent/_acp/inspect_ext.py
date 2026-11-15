@@ -923,7 +923,11 @@ class PlanPolicyTransformer:
         ``priority="medium"`` since neither ``update_plan`` nor
         ``todo_write`` carry priority.
         """
-        from acp.helpers import plan_entry, session_notification, update_plan
+        from inspect_ai.agent._acp._schema_builders import (
+            plan_entry,
+            session_notification,
+            update_plan,
+        )
 
         if not isinstance(raw_input, dict) or self._state.wire_session_id is None:
             return None
@@ -971,7 +975,11 @@ def build_picker_notification(
     Both the text format and the ``_meta`` shape are Inspect-specific
     extensions on a standard ACP notification.
     """
-    from acp.helpers import session_notification, text_block, update_agent_message
+    from inspect_ai.agent._acp._schema_builders import (
+        session_notification,
+        text_block,
+        update_agent_message,
+    )
 
     if not targets:
         text = (

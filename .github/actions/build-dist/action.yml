@@ -48,7 +48,7 @@ runs:
     - name: Build
       shell: bash
       working-directory: ${{ inputs.source }}
-      run: python -m build --no-isolation
+      run: python -m build --no-isolation --sdist --wheel
 
     - name: Verify distributions
       shell: bash

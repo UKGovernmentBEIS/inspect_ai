@@ -19,6 +19,7 @@ from .extract import (
     eval_log_location,
     eval_log_scores_dict,
     eval_log_task_display_name,
+    eval_log_total_samples,
 )
 
 
@@ -130,7 +131,7 @@ EvalResults: list[Column] = [
     EvalColumn("status", path="status", required=True),
     EvalColumn("error_message", path="error.message"),
     EvalColumn("error_traceback", path="error.traceback"),
-    EvalColumn("total_samples", path="results.total_samples"),
+    EvalColumn("total_samples", path=eval_log_total_samples),
     EvalColumn("completed_samples", path="results.completed_samples"),
     EvalColumn("score_headline_name", path=eval_log_headline_name),
     EvalColumn("score_headline_score", path=eval_log_headline_score),

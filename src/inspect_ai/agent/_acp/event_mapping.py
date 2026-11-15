@@ -44,12 +44,6 @@ from dataclasses import dataclass, field
 from logging import getLogger
 from typing import TYPE_CHECKING, Callable, Iterator, Literal
 
-from acp.helpers import (
-    session_notification,
-    start_tool_call,
-    text_block,
-    update_tool_call,
-)
 from acp.schema import (
     AgentMessageChunk,
     AgentThoughtChunk,
@@ -65,6 +59,12 @@ from inspect_ai._util.content import (
     ContentReasoning,
     ContentText,
     ContentVideo,
+)
+from inspect_ai.agent._acp._schema_builders import (
+    session_notification,
+    start_tool_call,
+    text_block,
+    update_tool_call,
 )
 from inspect_ai.agent._acp.inspect_ext import (
     TOOL_CALL_CANCELABLE_META_KEY,
@@ -766,11 +766,8 @@ def _map_model_event(
     # we skip rather than send a misleading size=0.
     usage_update = _build_usage_update(event)
     if usage_update is not None:
-        # SessionNotification directly: the acp.helpers.session_notification
-        # helper's type annotation predates UsageUpdate joining the
-        # SessionUpdate union (the schema discriminated union includes it,
-        # but the helper's typedef is narrower). Constructing the
-        # notification by hand sidesteps the type mismatch.
+        # SessionNotification directly: session_notification() takes no
+        # ``field_meta``.
         #
         # Piggyback the sample's running ``total_messages`` on the outer
         # ``field_meta`` so the TUI's header re-renders the ``messages``

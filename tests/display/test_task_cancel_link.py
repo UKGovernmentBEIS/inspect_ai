@@ -13,13 +13,8 @@ from inspect_ai.model import GenerateConfig, ModelName
 
 
 def _task_cancel(cancel_type: CancelType) -> TaskCancel:
-    task_cancel = TaskCancel(can_retry=True, cancel_task=lambda _: None)
-
-    def cancel_task(type: CancelType) -> None:
-        task_cancel.cancel_type = type
-
-    task_cancel.cancel_task = cancel_task
-    task_cancel.cancel_type = cancel_type
+    task_cancel = TaskCancel(can_retry=True, apply=lambda _: None)
+    task_cancel.request(cancel_type)
     return task_cancel
 
 

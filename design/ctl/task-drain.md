@@ -231,6 +231,10 @@ score/error resolution" — generalizes to an ordering by invasiveness:
 drain  <  score / error  <  cancel (abort)
 ```
 
+`TaskCancel.request` enforces the ladder for every caller, including the
+task display's cancel dialog, whose retry ranks between score/error and
+abort: a retry chosen after an operator's cancel does not re-run the task.
+
 A request strictly *stronger* than the pending resolution applies (the stamp
 is overwritten and, for score/error, the interrupt sweep runs — already-
 interrupted samples keep their resolution, per the first-resolution-wins

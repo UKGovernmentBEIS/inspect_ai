@@ -1,11 +1,16 @@
 import functools
+import importlib.util
+import linecache
 import logging
+import os
+import sys
 import tempfile
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Callable, Literal, NoReturn, cast
 from unittest import mock
 
@@ -19,6 +24,7 @@ from inspect_ai import (
     TaskSource,
     eval,
     eval_async,
+    eval_retry,
     eval_set,
     task,
     task_source,
@@ -26,11 +32,14 @@ from inspect_ai import (
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe, datetime_now_utc
+from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.module import load_module
 from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 from inspect_ai.dataset import Sample
 from inspect_ai.hooks._hooks import Hooks
-from inspect_ai.scorer import match
+from inspect_ai.scorer import Score, Scorer, Target, accuracy, match, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.util import DisplayType
 
 
 @pytest.mark.parametrize("pattern", ["task.py", "*.py", ".", "task.py@simple"])
@@ -70,6 +79,20 @@ def test_eval_rejects_filesystem_root(
     with pytest.raises(ValueError, match="filesystem root"):
         eval(str(anchor), model="mockllm/model", log_dir=str(tmp_path / "logs"))
     scan.assert_not_called()
+
+
+def test_eval_rejects_invalid_sandbox_override(tmp_path: Path) -> None:
+    sandbox: Any = False
+    log_dir = tmp_path / "logs"
+
+    with pytest.raises(ValueError, match="Invalid sandbox specification: False"):
+        eval(
+            Task(dataset=[Sample(input="x")]),
+            model="mockllm/model",
+            sandbox=sandbox,
+            log_dir=str(log_dir),
+        )
+    assert not log_dir.exists() or not any(log_dir.iterdir())
 
 
 def test_eval_epochs_sample_count():
@@ -310,6 +333,815 @@ def _peak_model_concurrency(max_tasks: int | None) -> int:
         depth += 1 if e == "enter" else -1
         peak = max(peak, depth)
     return peak
+
+
+@pytest.mark.parametrize("vscode", [False, True])
+def test_eval_display_follows_display_arg_across_evals(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    vscode: bool,
+) -> None:
+    import inspect_ai._display.core.rich as display_rich
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: vscode)
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+
+    eval(task, model="mockllm/model", display="plain", log_dir=str(tmp_path))
+    assert "Log:" in capsys.readouterr().out
+
+    eval(task, model="mockllm/model", display="none", log_dir=str(tmp_path))
+    assert capsys.readouterr().out == ""
+
+    eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+    assert "Log:" in capsys.readouterr().out
+
+
+def test_eval_display_plain_then_rich_shows_live_progress(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+
+    # a VS Code terminal, where rich_initialise leaves the console's colors
+    # and terminal detection alone
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: True)
+    monkeypatch.setenv("TTY_COMPATIBLE", "1")
+    monkeypatch.delenv("TERM", raising=False)
+    monkeypatch.delenv("TTY_INTERACTIVE", raising=False)
+    rich.reconfigure()
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+
+    eval(task, model="mockllm/model", display="plain", log_dir=str(tmp_path))
+    eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+
+    # rich.live draws progress only on a terminal, and in place only when
+    # interactive (plain turns both off)
+    console = rich.get_console()
+    assert console.is_terminal and console.is_interactive
+
+
+@pytest.mark.parametrize("vscode", [False, True])
+def test_eval_display_none_then_log_shows_log_output(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+    vscode: bool,
+) -> None:
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai._util.logger import _logHandler
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: vscode)
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+
+    eval(task, model="mockllm/model", display="none", log_dir=str(tmp_path))
+    capsys.readouterr()
+
+    # logging is configured once per process, so set it up as an INFO first
+    # eval with the default rich format would have
+    handler = _logHandler["handler"]
+    assert handler is not None
+    monkeypatch.setattr(handler, "display_level", logging.INFO)
+    monkeypatch.setattr(handler, "logger_format", "rich")
+    caplog.set_level(logging.INFO)
+
+    eval(task, model="mockllm/model", display="log", log_dir=str(tmp_path))
+    assert "Running 1 tasks" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "first,second",
+    [("rich", "plain"), ("plain", "rich"), ("plain", "none"), ("rich", "log")],
+)
+def test_eval_display_change_keeps_console_contexts(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    first: DisplayType,
+    second: DisplayType,
+) -> None:
+    import rich
+    from rich.theme import Theme
+
+    import inspect_ai._display.core.rich as display_rich
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+    eval(task, model="mockllm/model", display=first, log_dir=str(tmp_path))
+
+    console = rich.get_console()
+    console.record = True
+    with console.use_theme(Theme({"note": "bold"})):
+        console.print("recorded before the change")
+        with console.capture() as capture:
+            console.print("captured before the change")
+            eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
+    # the "none" display's quiet console drops captured output, as it does in
+    # a fresh process
+    shown = second != "none"
+    assert ("captured before the change" in capture.get()) == shown
+    assert "recorded before the change" in console.export_text()
+
+    # the capture no longer holds output back
+    capsys.readouterr()
+    console.print("after the change")
+    assert ("after the change" in capsys.readouterr().out) == shown
+
+
+def test_eval_display_change_keeps_console_settings_made_between_evals(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+    eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+
+    rich.reconfigure(width=120, quiet=True)
+    eval(task, model="mockllm/model", display="log", log_dir=str(tmp_path))
+
+    console = rich.get_console()
+    assert console.width == 120
+    assert console.quiet
+
+
+def test_eval_display_change_keeps_console_replaced_between_evals(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import io
+
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+
+    # a VS Code terminal, where the rich display keeps the user's console
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: True)
+    monkeypatch.delenv("TERM", raising=False)
+    monkeypatch.delenv("TTY_COMPATIBLE", raising=False)
+    monkeypatch.delenv("TTY_INTERACTIVE", raising=False)
+    rich.reconfigure(force_terminal=True, force_interactive=True)
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+    eval(task, model="mockllm/model", display="plain", log_dir=str(tmp_path))
+
+    # a console on a buffer is not a terminal, as plain also sets
+    rich.reconfigure(file=io.StringIO())
+    eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+
+    console = rich.get_console()
+    assert not console.is_terminal
+    assert not console.is_interactive
+
+
+def test_eval_first_display_after_display_type_query_replaces_console(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai.util._display import display_type
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+
+    # as get_model().generate() does outside an eval, without building a display
+    display_type()
+    rich.get_console().record = True
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+    eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+
+    # the first display replaces the console, as in a process with no query
+    assert not rich.get_console().record
+
+
+@pytest.mark.parametrize(
+    "first,second", [("plain", "rich"), ("rich", "plain"), ("rich", "rich")]
+)
+def test_eval_display_change_shows_input_screen_inside_capture(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    first: DisplayType,
+    second: DisplayType,
+) -> None:
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai.util import input_screen
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+
+    @solver
+    def ask() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            with input_screen() as console:
+                console.print("PROMPT")
+            return state
+
+        return solve
+
+    task = Task(dataset=[Sample(input="hi", target="hi")], solver=ask())
+    eval(task, model="mockllm/model", display=first, log_dir=str(tmp_path))
+    capsys.readouterr()
+
+    # a capture kept across a display type change doesn't hide the prompt;
+    # without a change it behaves as before
+    with rich.get_console().capture() as capture:
+        eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
+    changed = first != second
+    assert ("PROMPT" in capsys.readouterr().out) == changed
+    assert ("PROMPT" in capture.get()) != changed
+
+
+@pytest.mark.parametrize("vscode,second", [(False, "log"), (True, "rich")])
+def test_display_change_after_full_scoring_detects_settings_for_redirected_stdout(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    vscode: bool,
+    second: DisplayType,
+) -> None:
+    import io
+    import sys
+
+    import rich
+    from rich.console import Console
+
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai import score
+    from inspect_ai._display.core import active
+    from inspect_ai._display.textual.display import TextualDisplay
+    from inspect_ai.util import _display
+
+    class TerminalOutput(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: vscode)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    for name in ["TTY_COMPATIBLE", "TTY_INTERACTIVE", "FORCE_COLOR", "NO_COLOR"]:
+        monkeypatch.delenv(name, raising=False)
+    task = Task(dataset=[Sample(input="hi", target="hi")])
+    [log] = eval(task, model="mockllm/model", display="none", log_dir=str(tmp_path))
+
+    # a new process on a terminal scores with the full display, which shows
+    # progress without setting the console up, then redirects stdout
+    monkeypatch.setattr(active, "_active_display", None)
+    monkeypatch.setattr(_display, "_display_type", None)
+    monkeypatch.setattr(display_rich, "_console_settings", None)
+    monkeypatch.setattr(display_rich, "_reconfigure_in_place", False)
+    monkeypatch.setattr(sys, "stdout", TerminalOutput())
+    monkeypatch.setattr(rich.get_console(), "__dict__", Console().__dict__)
+    score(log, match(), display="full")
+    assert isinstance(active.active_display(), TextualDisplay)
+
+    monkeypatch.setattr(sys, "stdout", io.StringIO())
+    eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
+
+    console = rich.get_console()
+    assert console.color_system is None
+    assert not console.is_interactive
+
+
+@pytest.mark.parametrize("to_terminal", [False, True])
+@pytest.mark.parametrize(
+    "first,vscode,second",
+    [
+        ("plain", False, "log"),
+        ("plain", True, "rich"),
+        ("log", True, "rich"),
+        ("log", True, "conversation"),
+    ],
+)
+def test_eval_display_change_detects_settings_for_redirected_stdout(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    first: DisplayType,
+    vscode: bool,
+    second: DisplayType,
+    to_terminal: bool,
+) -> None:
+    import io
+    import sys
+
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+
+    class TerminalOutput(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: vscode)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    for name in ["TTY_COMPATIBLE", "TTY_INTERACTIVE", "FORCE_COLOR", "NO_COLOR"]:
+        monkeypatch.delenv(name, raising=False)
+    task = Task(dataset=[Sample(input="hi", target="hi")])
+
+    # an eval with stdout on a terminal (or a buffer), then stdout redirected
+    # to a buffer (or a terminal) for a display that keeps the console's color
+    # and interactive settings
+    first_output = io.StringIO() if to_terminal else TerminalOutput()
+    second_output = TerminalOutput() if to_terminal else io.StringIO()
+    monkeypatch.setattr(sys, "stdout", first_output)
+    rich.reconfigure()
+    eval(task, model="mockllm/model", display=first, log_dir=str(tmp_path))
+    monkeypatch.setattr(sys, "stdout", second_output)
+    eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
+
+    console = rich.get_console()
+    assert (console.color_system is not None) == to_terminal
+    assert console.is_interactive == to_terminal
+
+
+@pytest.mark.parametrize("second", ["rich", "conversation"])
+def test_eval_display_change_restores_cursor_after_captured_eval(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    second: DisplayType,
+) -> None:
+    import io
+
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai.util import input_screen
+
+    class TerminalOutput(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    for name in ["TTY_COMPATIBLE", "TTY_INTERACTIVE", "FORCE_COLOR", "NO_COLOR"]:
+        monkeypatch.delenv(name, raising=False)
+
+    @solver
+    def ask() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            with input_screen() as console:
+                console.print("PROMPT")
+            return state
+
+        return solve
+
+    task = Task(dataset=[Sample(input="hi", target="hi")], solver=ask())
+    eval(task, model="mockllm/model", display="plain", log_dir=str(tmp_path))
+
+    output = TerminalOutput()
+    rich.reconfigure(file=output)
+    with rich.get_console().capture():
+        eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
+
+    # whatever the terminal saw leaves the cursor visible
+    shown = output.getvalue()
+    assert shown.rfind("\x1b[?25l") < shown.rfind("\x1b[?25h") or (
+        "\x1b[?25l" not in shown
+    )
+
+
+def test_eval_display_change_shows_input_cursor_inside_capture(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import io
+
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai.util import input_screen
+
+    class TerminalOutput(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    for name in ["TTY_COMPATIBLE", "TTY_INTERACTIVE", "FORCE_COLOR", "NO_COLOR"]:
+        monkeypatch.delenv(name, raising=False)
+
+    @solver
+    def ask() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            with rich.get_console().capture():
+                with input_screen() as console:
+                    console.print("PROMPT")
+            return state
+
+        return solve
+
+    task = Task(dataset=[Sample(input="hi", target="hi")], solver=ask())
+    eval(task, model="mockllm/model", display="plain", log_dir=str(tmp_path))
+
+    output = TerminalOutput()
+    rich.reconfigure(file=output)
+    eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+
+    # the progress display hides the cursor, and the input screen shows it
+    # again on the terminal before its prompt
+    shown = output.getvalue().split("PROMPT")[0]
+    assert shown.rfind("\x1b[?25h") > shown.rfind("\x1b[?25l")
+
+
+@pytest.mark.parametrize("record_event", [True, False])
+@pytest.mark.parametrize("first,second", [("plain", "rich"), ("rich", "rich")])
+def test_eval_display_change_keeps_recording_through_input_screen(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    first: DisplayType,
+    second: DisplayType,
+    record_event: bool,
+) -> None:
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai.util import input_screen
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+
+    @solver
+    def ask() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            with input_screen(record_event=record_event) as console:
+                console.print("PROMPT")
+            return state
+
+        return solve
+
+    task = Task(dataset=[Sample(input="hi", target="hi")], solver=ask())
+    eval(task, model="mockllm/model", display=first, log_dir=str(tmp_path))
+
+    console = rich.get_console()
+    console.record = True
+    console.print("EARLIER")
+    [log] = eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
+
+    if first == second:
+        # without a change the input screen ends the recording, as before
+        assert not console.record
+        return
+
+    # the recording kept across the change keeps its contents and gains the
+    # interaction, which the event holds on its own
+    assert console.record
+    recorded = console.export_text()
+    assert "EARLIER" in recorded and "PROMPT" in recorded
+    assert log.samples
+    inputs = [e for e in log.samples[0].events if e.event == "input"]
+    if record_event:
+        assert len(inputs) == 1
+        assert "PROMPT" in inputs[0].input and "EARLIER" not in inputs[0].input
+    else:
+        assert not inputs
+
+
+def test_eval_display_change_after_log_display_keeps_console(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+
+    # the log display doesn't set the console up, the plain display after it
+    # sets only its display settings
+    eval(task, model="mockllm/model", display="log", log_dir=str(tmp_path))
+    rich.get_console().record = True
+    eval(task, model="mockllm/model", display="plain", log_dir=str(tmp_path))
+
+    assert rich.get_console().record
+
+
+def test_eval_display_change_detects_settings_for_the_console_output(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import io
+
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+
+    class TerminalOutput(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    for name in ["TTY_COMPATIBLE", "TTY_INTERACTIVE", "FORCE_COLOR", "NO_COLOR"]:
+        monkeypatch.delenv(name, raising=False)
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+    eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+
+    # a terminal of the user's own, while stdout is pytest's capture
+    rich.reconfigure(file=TerminalOutput())
+    eval(task, model="mockllm/model", display="conversation", log_dir=str(tmp_path))
+
+    console = rich.get_console()
+    assert console.is_interactive
+    assert console.color_system is not None
+
+
+@pytest.mark.parametrize("first,second", [("rich", "plain"), ("plain", "none")])
+def test_eval_display_change_keeps_console_options_set_between_evals(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    first: DisplayType,
+    second: DisplayType,
+) -> None:
+    import io
+
+    import rich
+    from rich.theme import Theme
+
+    import inspect_ai._display.core.rich as display_rich
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+    eval(task, model="mockllm/model", display=first, log_dir=str(tmp_path))
+
+    output = io.StringIO()
+    rich.reconfigure(file=output, theme=Theme({"note": "bold"}), soft_wrap=True)
+    eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
+
+    console = rich.get_console()
+    assert console.file is output
+    assert console.soft_wrap
+    assert str(console.get_style("note")) == "bold"
+
+
+def _display_state() -> dict[str, Any]:
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai._display.core.active import active_display
+
+    console = rich.get_console()
+    return {name: getattr(console, name) for name in display_rich._DISPLAY_SETTINGS} | {
+        "display": type(active_display()).__name__
+    }
+
+
+_DISPLAY_TYPES: list[DisplayType] = ["plain", "rich", "none", "log"]
+
+
+@pytest.mark.parametrize("vscode", [False, True])
+@pytest.mark.parametrize(
+    "first,second",
+    [(a, b) for a in _DISPLAY_TYPES for b in _DISPLAY_TYPES if a != b],
+)
+def test_eval_display_change_matches_fresh_display(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    vscode: bool,
+    first: DisplayType,
+    second: DisplayType,
+) -> None:
+    import rich
+    from rich.console import Console
+
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai._display.core import active
+    from inspect_ai.util import _display
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: vscode)
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+
+    eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
+    fresh = _display_state()
+
+    # start again as a new process, then change from the first display
+    monkeypatch.setattr(active, "_active_display", None)
+    monkeypatch.setattr(_display, "_display_type", None)
+    monkeypatch.setattr(display_rich, "_console_settings", None)
+    monkeypatch.setattr(display_rich, "_reconfigure_in_place", False)
+    monkeypatch.setattr(rich.get_console(), "__dict__", Console().__dict__)
+    eval(task, model="mockllm/model", display=first, log_dir=str(tmp_path))
+    eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
+
+    assert _display_state() == fresh
+
+
+def test_score_without_display_keeps_display_type(
+    fresh_display: None, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from inspect_ai import score
+    from inspect_ai.util._display import display_type
+
+    task = Task(dataset=[Sample(input="hi", target="hi")], scorer=match())
+    [log] = eval(task, model="mockllm/model", display="none", log_dir=str(tmp_path))
+    capsys.readouterr()
+
+    score(log, match(), action="append")
+    assert display_type() == "none"
+    assert capsys.readouterr().out == ""
+
+
+def test_display_type_change_during_eval_keeps_running_display(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai.util._display import display_type, init_display_type
+
+    # outside VS Code, where rich_initialise gives the running display its own
+    # console state
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+
+    @solver
+    def change_display() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            # as eval(display="log") does when called from another thread
+            init_display_type("log")
+            return state
+
+        return solve
+
+    task = Task(dataset=[Sample(input="hi")], solver=change_display())
+    log = eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))[0]
+    assert log.status == "success"
+    assert display_type() == "rich"
+    assert "Ignoring display type 'log'" in caplog.text
+
+
+def test_display_type_change_after_display_type_query_inside_status(
+    fresh_display: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai.util._display import display_type
+
+    # a VS Code terminal, where the rich display keeps the console
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: True)
+    monkeypatch.setenv("INSPECT_DISPLAY", "plain")
+
+    # as get_model().generate() does outside an eval, without building a display
+    display_type()
+    task = Task(dataset=[Sample(input="hi", target="hi")])
+    with rich.get_console().status("working"):
+        log = eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+    assert log[0].status == "success"
+    assert display_type() == "rich"
+
+
+@pytest.mark.parametrize("second", ["plain", "none"])
+def test_display_type_change_inside_screen_keeps_terminal_cleanup(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    second: DisplayType,
+) -> None:
+    import io
+
+    import rich
+
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai.util._display import display_type
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+    task = Task(dataset=[Sample(input="hi", target="hi")])
+    eval(task, model="mockllm/model", display="rich", log_dir=str(tmp_path))
+
+    output = io.StringIO()
+    rich.reconfigure(file=output, force_terminal=True)
+    with rich.get_console().screen():
+        eval(task, model="mockllm/model", display=second, log_dir=str(tmp_path))
+
+    # the screen leaves the alternate screen and shows the cursor on exit
+    assert output.getvalue().endswith("\x1b[?1049l\x1b[?25h")
+    assert display_type() == "rich"
+    assert f"Ignoring display type '{second}'" in caplog.text
+
+
+def test_display_type_change_warning_names_requested_type_on_trio(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    import rich
+
+    from inspect_ai.util import _display
+
+    task = Task(dataset=[Sample(input="hi", target="hi")])
+    eval(task, model="mockllm/model", display="plain", log_dir=str(tmp_path))
+
+    # trio runs "full" as "rich", which the warning shouldn't name instead
+    monkeypatch.setattr(_display, "configured_async_backend", lambda: "trio")
+    with rich.get_console().status("working"):
+        _display.init_display_type("full")
+
+    assert _display.display_type() == "plain"
+    assert "Ignoring display type 'full'" in caplog.text
+
+
+@pytest.mark.parametrize("inner_display", ["plain", "full", None])
+def test_display_type_change_during_score_keeps_running_display(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    inner_display: DisplayType | None,
+) -> None:
+    import inspect_ai._display.core.rich as display_rich
+    from inspect_ai import score
+    from inspect_ai.util._display import display_type
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+
+    task = Task(dataset=[Sample(input="hi", target="hi")])
+    [log] = eval(task, model="mockllm/model", display="none", log_dir=str(tmp_path))
+
+    @scorer(metrics=[accuracy()])
+    def nested_score() -> Scorer:
+        async def score_sample(state: TaskState, target: Target) -> Score:
+            await anyio.to_thread.run_sync(
+                lambda: score(log, match(), display=inner_display)
+            )
+            return Score(value=1)
+
+        return score_sample
+
+    scored = score(log, nested_score(), display="rich")
+    assert scored.results is not None
+    assert scored.results.scores[-1].name == "nested_score"
+    assert display_type() == "rich"
+    # the warning names the requested type (not the worker thread's "plain"),
+    # and without a display argument the worker thread asks for the current type
+    if inner_display is None:
+        assert "Ignoring display type" not in caplog.text
+    else:
+        assert f"Ignoring display type '{inner_display}'" in caplog.text
+
+
+@pytest.mark.parametrize("utility", ["convert", "chunked", "bundle"])
+@pytest.mark.parametrize("first", ["rich", "conversation", "full", "none", "log"])
+def test_display_type_change_during_log_utility_progress(
+    fresh_display: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    first: DisplayType,
+    utility: str,
+) -> None:
+    import inspect_ai._display.core.rich as display_rich
+    import inspect_ai.log._bundle as bundle
+    import inspect_ai.log._convert as convert
+    import inspect_ai.log._recorders.chunked.convert as chunked
+    from inspect_ai._display import display
+    from inspect_ai.util._display import display_type, init_display_type
+
+    monkeypatch.setattr(display_rich, "is_running_in_vscode", lambda: False)
+
+    log_dir = tmp_path / "logs"
+    task = Task(dataset=[Sample(input="hi", target="hi")])
+    eval(task, model="mockllm/model", display=first, log_dir=str(log_dir))
+
+    def change_display(module: Any, name: str) -> None:
+        original = getattr(module, name)
+
+        def during_progress(*args: Any, **kwargs: Any) -> Any:
+            # as eval(display="plain") does when started on another thread
+            init_display_type("plain")
+            display()
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(module, name, during_progress)
+
+    output_dir = str(tmp_path / "output")
+    if utility == "convert":
+        change_display(convert, "write_eval_log")
+        convert.convert_eval_logs(str(log_dir), "json", output_dir)
+    elif utility == "chunked":
+        change_display(chunked, "_convert_log_file")
+        chunked.convert_eval_logs_to_chunked(str(log_dir), output_dir)
+    else:
+        change_display(bundle, "write_log_listing")
+        bundle.bundle_log_dir(str(log_dir), output_dir)
+    assert len(os.listdir(output_dir)) > 0
+
+    # the Rich backed displays have a live progress display open, the log
+    # display doesn't
+    if first == "log":
+        assert display_type() == "plain"
+    else:
+        assert display_type() == first
+        assert "Ignoring display type 'plain'" in caplog.text
 
 
 def test_max_tasks_bounds_concurrent_models_single_task():
@@ -620,6 +1452,255 @@ def test_eval_set_task_instance_warns_once(caplog) -> None:
     assert len(records) == 1, (
         f"expected exactly one unconsumed task_args warning, got {len(records)}"
     )
+
+
+_SAME_NAME_TASK = """
+@{decorator}(name="{name}")
+def {fn}() -> Task:
+    return Task(dataset=[Sample(input="{fn}")])
+"""
+
+_SAME_NAME_TASK_CLASS = """
+@task(name="{name}")
+class {fn}(Task):
+    def __init__(self) -> None:
+        super().__init__(dataset=[Sample(input="{fn}")])
+"""
+
+
+def _write_task_module(
+    path: Path, name: str, *fns: str, template: str = _SAME_NAME_TASK
+) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "import inspect_ai\n"
+        "from inspect_ai import Task, task\n"
+        "from inspect_ai.dataset import Sample\n"
+        + "".join(template.format(name=name, fn=fn, decorator="task") for fn in fns)
+    )
+    return path
+
+
+def _import_task_module(
+    monkeypatch: pytest.MonkeyPatch, path: Path, module_name: str
+) -> ModuleType:
+    # in sys.modules (unlike load_module), as a normal import is
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, module_name, module)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _eval_input(tasks: Any, log_dir: Path) -> str:
+    log = eval(tasks, model="mockllm/model", log_dir=str(log_dir))[0]
+    assert log.status == "success"
+    assert log.samples
+    return str(log.samples[0].input)
+
+
+@pytest.mark.parametrize("decorator", ["task", "inspect_ai.task"])
+def test_eval_task_function_same_name_in_other_file_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, decorator: str
+) -> None:
+    # name lookup (and so eval_retry()) would find `second`
+    name = f"eval_same_name_other_file_{decorator.replace('.', '_')}"
+    first_path = _write_task_module(tmp_path / "a" / "tasks.py", name, "first")
+    first_path.write_text(first_path.read_text().replace("@task(", f"@{decorator}("))
+    first = _import_task_module(monkeypatch, first_path, f"{name}_first")
+    _import_task_module(
+        monkeypatch,
+        _write_task_module(tmp_path / "b" / "tasks.py", name, "second"),
+        f"{name}_second",
+    )
+
+    with pytest.raises(PrerequisiteError, match="registered by more than one task"):
+        eval(first.first, model="mockllm/model")
+
+
+def test_eval_task_function_same_name_twice_in_one_file_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tasks = _import_task_module(
+        monkeypatch,
+        _write_task_module(
+            tmp_path / "tasks.py", "eval_task_function_dup_in_file", "first", "second"
+        ),
+        "eval_dup_in_file",
+    )
+    with pytest.raises(PrerequisiteError, match="registered by more than one task"):
+        eval(tasks.first, model="mockllm/model")
+
+
+def test_eval_task_function_from_file_loaded_twice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _write_task_module(
+        tmp_path / "tasks.py", "eval_task_function_file_loaded_twice", "first"
+    )
+    tasks = _import_task_module(monkeypatch, path, "eval_file_loaded_twice")
+    load_module(path)
+
+    assert _eval_input(tasks.first, tmp_path / "logs") == "first"
+
+
+def test_eval_task_class_same_name_outside_sys_modules_runs_name_lookup(
+    tmp_path: Path,
+) -> None:
+    # load_module doesn't add to sys.modules, so these classes have no
+    # identifiable source file; eval() runs what name lookup finds
+    name = "eval_task_class_same_name_outside_sys_modules"
+    first = load_module(
+        _write_task_module(
+            tmp_path / "a" / "tasks.py", name, "First", template=_SAME_NAME_TASK_CLASS
+        )
+    )
+    load_module(
+        _write_task_module(
+            tmp_path / "b" / "tasks.py", name, "Second", template=_SAME_NAME_TASK_CLASS
+        )
+    )
+
+    log_dir = tmp_path / "logs"
+    assert _eval_input(first.First, log_dir) == _eval_input(name, log_dir)
+
+
+def test_eval_task_function_same_definition_runs_name_lookup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a decorator stacked on @task, and a second closure from the same factory
+    # function, share a definition with the registered task, so eval() runs
+    # what name lookup finds rather than raising
+    path = tmp_path / "tasks.py"
+    path.write_text(
+        """
+import functools
+
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+
+
+def shout(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        t = fn(*args, **kwargs)
+        return Task(dataset=[Sample(input=f"shout {s.input}") for s in t.dataset])
+
+    return wrapper
+
+
+@shout
+@task(name="eval_task_function_stacked")
+def stacked() -> Task:
+    return Task(dataset=[Sample(input="stacked")])
+
+
+def make(input: str):
+    @task(name="eval_task_function_closure")
+    def closure() -> Task:
+        return Task(dataset=[Sample(input=input)])
+
+    return closure
+"""
+    )
+    tasks = _import_task_module(monkeypatch, path, "eval_same_definition")
+    first_closure = tasks.make("first")
+    tasks.make("second")
+
+    log_dir = tmp_path / "logs"
+    assert _eval_input(tasks.stacked, log_dir) == _eval_input(
+        "eval_task_function_stacked", log_dir
+    )
+    assert _eval_input(first_closure, log_dir) == _eval_input(
+        "eval_task_function_closure", log_dir
+    )
+
+
+def test_eval_task_function_redefined_in_interactive_cell_runs_name_lookup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # notebook cells have no source file, so eval() runs what name lookup finds
+    name = "eval_task_function_interactive_cell"
+    namespace: dict[str, Any] = {
+        "__name__": "eval_interactive_cells",
+        "task": task,
+        "Task": Task,
+        "Sample": Sample,
+    }
+
+    def run_cell(cell: str, fn: str) -> Any:
+        code = _SAME_NAME_TASK.format(decorator="task", name=name, fn=fn)
+        # IPython registers each cell's source in linecache under its name
+        monkeypatch.setitem(
+            linecache.cache, cell, (len(code), None, code.splitlines(True), cell)
+        )
+        exec(compile(code, cell, "exec"), namespace)
+        return namespace[fn]
+
+    first = run_cell("<cell-1>", "first")
+    run_cell("<cell-2>", "second")
+
+    log_dir = tmp_path / "logs"
+    assert _eval_input(first, log_dir) == _eval_input(name, log_dir)
+
+
+def test_eval_list_with_task_function_then_task_instance(caplog) -> None:
+    # `Tasks` has no mixed-list member, but eval() has always run this list
+    logs = eval(
+        cast(
+            Any,
+            [task_args_warning_check, task_args_warning_check(task_arg="instance")],
+        ),
+        task_args={"task_arg": "function"},
+        model="mockllm/model",
+    )
+    assert [log.status for log in logs] == ["success", "success"]
+    assert [log.eval.task_args["task_arg"] for log in logs] == [
+        "function",
+        "instance",
+    ]
+    records = _task_args_warnings(caplog)
+    assert len(records) == 1, "expected exactly one unconsumed task_args warning"
+    assert "task_arg" in records[0].message
+
+
+def test_eval_list_with_task_function_then_task_instance_no_args_no_warning(
+    caplog,
+) -> None:
+    logs = eval(
+        cast(Any, [task_args_warning_check, task_args_warning_check()]),
+        model="mockllm/model",
+    )
+    assert [log.status for log in logs] == ["success", "success"]
+    assert not _task_args_warnings(caplog)
+
+
+def test_eval_task_function_list_with_task_args_no_warning(caplog) -> None:
+    logs = eval(
+        [task_args_warning_check, task_args_warning_check],
+        task_args={"task_arg": "function"},
+        model="mockllm/model",
+    )
+    assert [log.eval.task_args["task_arg"] for log in logs] == [
+        "function",
+        "function",
+    ]
+    assert not _task_args_warnings(caplog)
+
+
+def test_eval_registered_non_task_function_raises() -> None:
+    @solver(name="eval_non_task_function")
+    def not_a_task() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            return state
+
+        return solve
+
+    with pytest.raises(
+        PrerequisiteError, match="registered as type 'solver', not as a task"
+    ):
+        eval(cast(Any, not_a_task), model="mockllm/model")
 
 
 class _SeedTasks(TaskSource):
@@ -1649,7 +2730,6 @@ def test_retry_resumes_from_own_checkpoint_or_discards_it(
     first, so provisioning starts from an empty dir.
     """
     import inspect_ai.log._samples as samples_module
-    from inspect_ai import eval_retry
     from inspect_ai.log import ProvenanceData, invalidate_samples
     from inspect_ai.util._checkpoint._layout.eval_checkpoints_dir import (
         eval_checkpoints_dir,
