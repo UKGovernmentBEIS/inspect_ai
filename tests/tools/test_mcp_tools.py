@@ -1041,13 +1041,14 @@ async def test_mcp_tool_list_from_ended_connection_is_not_cached(
 
 
 @skip_if_no_mcp_package
-async def test_mcp_tool_list_spanning_connect_is_not_cached() -> None:
-    """A tool listing that started before a connection opened isn't cached.
+@pytest.mark.parametrize("returns", ["before_handshake", "after_owner_lists"])
+async def test_mcp_tool_list_spanning_connect_is_not_cached(returns: str) -> None:
+    """A connection lists its own tools, whatever a listing during connect does.
 
     A consumer holding the server from an earlier `async with` can call
     `tools()` while the owner reconnects. That listing runs over a temporary
-    connection. If it returns after the owner has connected and listed, it
-    must not replace the open connection's tool list.
+    connection. Whether it returns before the owner's handshake completes or
+    after the owner has listed, the open connection must serve its own tools.
     """
     from inspect_ai.tool._mcp._local import MCPServerLocalSession
 
@@ -1064,7 +1065,7 @@ async def test_mcp_tool_list_spanning_connect_is_not_cached() -> None:
         return True
 
     async def hold_temporary_listing(connection: int) -> None:
-        if connection == 1:
+        if connection == 1 and returns == "after_owner_lists":
             listing.set()
             await finish_listing.wait()
 
@@ -1081,8 +1082,9 @@ async def test_mcp_tool_list_spanning_connect_is_not_cached() -> None:
     async def owner() -> None:
         async with session:
             tool_names.append([ToolDef(t).name for t in await session.tools()])
-            finish_listing.set()
-            await listed.wait()
+            if returns == "after_owner_lists":
+                finish_listing.set()
+                await listed.wait()
             tool_names.append([ToolDef(t).name for t in await session.tools()])
 
     async def list_during_connect() -> None:
@@ -1090,15 +1092,15 @@ async def test_mcp_tool_list_spanning_connect_is_not_cached() -> None:
         await session.tools()
         listed.set()
 
-    async def finish_connect_once_listing() -> None:
-        await listing.wait()
+    async def finish_connect_once_listing_runs() -> None:
+        await (listing if returns == "after_owner_lists" else listed).wait()
         finish_connect.set()
 
     with anyio.fail_after(5):
         async with anyio.create_task_group() as tg:
             tg.start_soon(owner)
             tg.start_soon(list_during_connect)
-            tg.start_soon(finish_connect_once_listing)
+            tg.start_soon(finish_connect_once_listing_runs)
 
     assert not unexpected, f"writer saw unexpected methods: {unexpected}"
     assert tool_names == [["connection_0"], ["connection_0"]]

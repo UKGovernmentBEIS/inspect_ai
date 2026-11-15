@@ -200,10 +200,6 @@ class MCPServerLocalSession(MCPServer):
         # being torn down.
         self._conn: _Connection | None = None
         self._cached_tool_list: list[MCPTool] | None = None
-        # Bumped when a connection opens and when the cache is cleared after
-        # one closes. A listing caches its result only if the generation is
-        # unchanged, so a listing over a temporary connection can't replace
-        # the tools of a connection that opened or closed while it ran.
         self._cache_generation = 0
 
     @override
@@ -214,7 +210,7 @@ class MCPServerLocalSession(MCPServer):
             async with AsyncExitStack() as exit_stack:
                 session = await self._connect(exit_stack)
                 self._conn = _Connection(session, exit_stack.pop_all())
-                self._cache_generation += 1
+                self._invalidate_tool_list()
         return self
 
     @override
@@ -237,11 +233,19 @@ class MCPServerLocalSession(MCPServer):
                 with trace_action(logger, "MCPServer", f"disconnect ({self._name})"):
                     await conn.exit_stack.aclose()
             finally:
-                # Clear the cached tool list once teardown is over, so a
-                # session reused across two mcp_connection blocks re-fetches
-                # from the server.
-                self._cached_tool_list = None
-                self._cache_generation += 1
+                # After teardown, not before: a tools() call during it lists
+                # over a temporary connection.
+                self._invalidate_tool_list()
+
+    def _invalidate_tool_list(self) -> None:
+        """Drop the cached tool list when a connection opens or closes.
+
+        Each connection lists its own tools. Advancing the generation also
+        stops a listing that is still in flight, over a temporary connection,
+        from caching its result.
+        """
+        self._cached_tool_list = None
+        self._cache_generation += 1
 
     @override
     async def tools(self) -> list[Tool]:
