@@ -8,9 +8,11 @@ non-Claude models fall back gracefully instead of sending an unsupported field.
 
 from __future__ import annotations
 
+import json
 from typing import Optional
 
 import pytest
+from jsonschema import Draft7Validator
 
 pytest.importorskip("aiobotocore")
 pytest.importorskip("botocore")
@@ -25,7 +27,7 @@ from inspect_ai.model import (  # noqa: E402
 )
 from inspect_ai.model._generate_config import GenerateConfig  # noqa: E402
 from inspect_ai.model._providers.bedrock import BedrockAPI  # noqa: E402
-from inspect_ai.util import json_schema  # noqa: E402
+from inspect_ai.util import JSONSchema, json_schema  # noqa: E402
 
 
 class _Person(BaseModel):
@@ -54,6 +56,18 @@ def _make_nova_api() -> BedrockAPI:
 
 def _person_schema() -> ResponseSchema:
     return ResponseSchema(name="person", json_schema=json_schema(_Person))
+
+
+def _person_with_nullable_meta() -> JSONSchema:
+    """A nullable object written as a type array rather than Pydantic's anyOf."""
+    return JSONSchema(
+        type="object",
+        properties={
+            "name": JSONSchema(type="string"),
+            "meta": JSONSchema(type=["object", "null"]),
+        },
+        required=["name", "meta"],
+    )
 
 
 def test_claude_response_schema_emits_output_config_format():
@@ -113,6 +127,19 @@ def test_optional_field_keeps_additional_properties_on_objects_only():
     )  # anyOf: clean
 
 
+def test_nullable_object_type_array_sets_additional_properties_false() -> None:
+    """Bedrock rejects any object node without additionalProperties:false."""
+    api = _make_claude_api()
+    config = GenerateConfig(
+        response_schema=ResponseSchema(
+            name="person", json_schema=_person_with_nullable_meta()
+        )
+    )
+    fields = api._additional_model_request_fields(config, False)
+    schema = fields["output_config"]["format"]["schema"]
+    assert schema["properties"]["meta"]["additionalProperties"] is False
+
+
 @pytest.mark.anyio
 @skip_if_no_bedrock
 async def test_bedrock_generate_with_response_schema() -> None:
@@ -130,3 +157,25 @@ async def test_bedrock_generate_with_response_schema() -> None:
     response = await model.generate(input=[message])
     # Output must parse against the requested schema.
     _Person.model_validate_json(response.completion)
+
+
+@pytest.mark.anyio
+@skip_if_no_bedrock
+@pytest.mark.parametrize(
+    "schema",
+    [json_schema(_PersonOptional), _person_with_nullable_meta()],
+    ids=["optional-field", "nullable-object-type-array"],
+)
+async def test_bedrock_generate_accepts_nullable_schemas(schema: JSONSchema) -> None:
+    """End-to-end: Bedrock accepts the request schema for nullable fields."""
+    model = get_model(
+        "bedrock/us.anthropic.claude-sonnet-4-6",
+        config=GenerateConfig(
+            response_schema=ResponseSchema(name="person", json_schema=schema),
+        ),
+    )
+    message = ChatMessageUser(content="Invent a person. Fill in every schema field.")
+    response = await model.generate(input=[message])
+    Draft7Validator(schema.model_dump(exclude_none=True)).validate(
+        json.loads(response.completion)
+    )
