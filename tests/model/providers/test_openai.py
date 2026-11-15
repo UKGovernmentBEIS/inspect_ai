@@ -401,6 +401,18 @@ def test_parse_content_with_internal_blocks_preserves_payload_without_text() -> 
     assert blocks == [("", {"a": 1})]
 
 
+@pytest.mark.parametrize(
+    "content",
+    ["", "\n", "\n\n", "text", "\ntext\n", "\n\ntext\n\n", "  indented\n  text  "],
+)
+def test_parse_content_with_internal_blocks_without_marker_is_unchanged(
+    content: str,
+) -> None:
+    assert parse_content_with_internal_blocks(content, CONTENT_INTERNAL_TAG) == [
+        (content, None)
+    ]
+
+
 def test_parse_content_with_internal_blocks_keeps_invalid_later_payload() -> None:
     invalid_json = base64.b64encode(b"invalid json").decode("utf-8")
     content = "\n".join(
