@@ -5,7 +5,7 @@ import sys
 import zipfile
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from logging import DEBUG, WARNING, getLogger
+from logging import DEBUG, WARNING, LogRecord, getLogger
 from pathlib import Path
 from typing import Any
 
@@ -51,6 +51,7 @@ from inspect_ai.tool import (
 )
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import (
+    _anthropic_request_options_redactor,
     redact_anthropic_mcp_servers,
     redact_grok_mcp_tools,
     redact_responses_mcp_tools,
@@ -632,7 +633,9 @@ def test_bridge_mcp_credentials_not_logged_at_debug_level(tmp_path: Path) -> Non
 
     Runs in a fresh process: an `AnthropicAPI` constructed by an earlier test
     would otherwise have installed it already. Covers `with_raw_response` and
-    `with_streaming_response` on the stable and beta endpoints.
+    `with_streaming_response` on the stable and beta endpoints, and stable and
+    beta batch submissions (MCP servers under `requests[].params`) from async
+    and sync clients.
     """
     tests_dir = Path(__file__).parent
     paths = [str(tests_dir.parent), str(tests_dir), os.environ.get("PYTHONPATH")]
@@ -653,7 +656,7 @@ def test_bridge_mcp_credentials_not_logged_at_debug_level(tmp_path: Path) -> Non
         item.split("=") for item in result.stdout.strip().splitlines()[-1].split()
     )
     # the SDK records were captured (one per request), without the token
-    assert int(counts["request_options"]) >= 4
+    assert int(counts["request_options"]) >= 8
     assert counts["token_hits"] == "0"
 
 
@@ -769,6 +772,61 @@ async def test_redacted_header_refused_alongside_real_authorization(
             await model.generate("Search the MCP spec.", tools=[info])
 
     assert mcp_requests(requests) == []
+
+
+def test_sdk_debug_record_redaction_at_any_depth() -> None:
+    """MCP tokens are redacted wherever the SDK's logged options carry them."""
+    servers = [{"name": "a", "authorization_token": MCP_TOKEN}]
+    untouched = {"custom_id": "b", "params": {"messages": []}}
+    options: dict[str, Any] = {
+        "json_data": {
+            "requests": [
+                {"custom_id": "a", "params": {"mcp_servers": servers}},
+                untouched,
+            ]
+        },
+        "extra_json": {"mcp_servers": servers},
+        "headers": {"X-Other": "value"},
+    }
+    record = LogRecord(
+        "anthropic._base_client", DEBUG, "", 0, "Request options: %s", (options,), None
+    )
+    assert _anthropic_request_options_redactor.filter(record)
+    assert_no_credentials(record.getMessage())
+    assert REDACTED in record.getMessage()
+
+    # the logged options are copied only where a token was redacted
+    assert isinstance(record.args, dict)
+    assert record.args["json_data"]["requests"][1] is untouched
+    assert record.args["headers"] is options["headers"]
+    assert servers[0]["authorization_token"] == MCP_TOKEN
+
+    # other records are left alone
+    other = LogRecord(
+        "anthropic._base_client", DEBUG, "", 0, "Sending %s", (options,), None
+    )
+    assert _anthropic_request_options_redactor.filter(other)
+    assert other.args is options
+
+
+def test_sdk_debug_record_omitted_when_redaction_fails() -> None:
+    """Options too deeply nested to walk are omitted, not logged or raised."""
+    nested: dict[str, Any] = {"mcp_servers": [{"authorization_token": MCP_TOKEN}]}
+    for _ in range(sys.getrecursionlimit()):
+        nested = {"a": nested}
+    record = LogRecord(
+        "anthropic._base_client",
+        DEBUG,
+        "",
+        0,
+        "Request options: %s",
+        ({"json_data": nested},),
+        None,
+    )
+    assert _anthropic_request_options_redactor.filter(record)
+    assert record.getMessage() == (
+        "Request options: <omitted: request options could not be redacted>"
+    )
 
 
 def test_structural_request_redaction_copies_only_when_needed() -> None:

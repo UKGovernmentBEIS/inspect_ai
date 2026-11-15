@@ -175,6 +175,29 @@ def redact_grok_mcp_tools(request: dict[str, Any]) -> dict[str, Any]:
     return request | {"tools": new_tools}
 
 
+def _redact_nested_mcp_servers(value: Any, in_mcp_servers: bool = False) -> Any:
+    """`value` with every `mcp_servers[].authorization_token` redacted, at any depth.
+
+    Covers each request shape the SDK logs, e.g. a message body, `extra_body`
+    and batch `requests[].params`. Returns `value` itself when nothing changes;
+    otherwise copies only the containers on the path to a redacted token.
+    """
+    if isinstance(value, Mapping):
+        if in_mcp_servers and value.get("authorization_token") not in (None, ""):
+            return {**value, "authorization_token": REDACTED}
+        items = {
+            key: _redact_nested_mcp_servers(item, key == "mcp_servers")
+            for key, item in value.items()
+        }
+        changed = any(items[key] is not item for key, item in value.items())
+        return items if changed else value
+    if isinstance(value, list | tuple):
+        new_items = [_redact_nested_mcp_servers(item, in_mcp_servers) for item in value]
+        changed = any(new is not old for new, old in zip(new_items, value))
+        return type(value)(new_items) if changed else value
+    return value
+
+
 class _AnthropicRequestOptionsRedactor(Filter):
     """Redacts MCP tokens in the Anthropic SDK's "Request options" debug record.
 
@@ -185,15 +208,13 @@ class _AnthropicRequestOptionsRedactor(Filter):
     def filter(self, record: LogRecord) -> bool:
         # a single mapping argument is stored as `record.args` itself
         options = record.args
-        if record.msg != "Request options: %s" or not isinstance(options, Mapping):
-            return True
-        redacted = dict(options)
-        for key in ("json_data", "extra_json"):
-            value = options.get(key)
-            if isinstance(value, dict):
-                redacted[key] = redact_anthropic_mcp_servers(value)
-        if any(redacted[key] is not options[key] for key in options):
-            record.args = redacted
+        if record.msg == "Request options: %s" and isinstance(options, Mapping):
+            # an exception here would fail the request being logged, so if the
+            # options can't be walked (e.g. nested too deeply) log without them
+            try:
+                record.args = _redact_nested_mcp_servers(options)
+            except Exception:
+                record.args = ("<omitted: request options could not be redacted>",)
         return True
 
 

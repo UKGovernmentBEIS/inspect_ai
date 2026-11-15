@@ -2,7 +2,9 @@
 
 The target model is OpenAI Responses (mocked HTTP), so no `AnthropicAPI` is
 constructed and only the agent bridge can install the Anthropic SDK
-debug-record redactor. Expects `tests` and `tests/tools` on `sys.path`.
+debug-record redactor. The agent sends messages through the bridge and submits
+message batches (mocked HTTP), whose MCP servers are under
+`requests[].params`. Expects `tests` and `tests/tools` on `sys.path`.
 """
 
 import sys
@@ -10,7 +12,8 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-from anthropic import AsyncAnthropic
+import httpx2
+from anthropic import Anthropic, AsyncAnthropic
 from test_mcp_tools_remote import remote_mcp_model
 
 from inspect_ai import Task, eval
@@ -27,6 +30,60 @@ MCP_SERVERS: list[Any] = [
     }
 ]
 MESSAGES: list[Any] = [{"role": "user", "content": "hello"}]
+MCP_BETA = "mcp-client-2025-04-04"
+BATCH_REQUESTS: list[Any] = [
+    {
+        "custom_id": "r1",
+        "params": {
+            "model": "claude-sonnet-4-6",
+            "max_tokens": 1024,
+            "messages": MESSAGES,
+            "mcp_servers": MCP_SERVERS,
+        },
+    }
+]
+BATCH_RESPONSE = {
+    "id": "msgbatch_01",
+    "type": "message_batch",
+    "processing_status": "in_progress",
+    "request_counts": {
+        "processing": 1,
+        "succeeded": 0,
+        "errored": 0,
+        "canceled": 0,
+        "expired": 0,
+    },
+    "created_at": "2026-01-01T00:00:00Z",
+    "expires_at": "2026-01-02T00:00:00Z",
+    "ended_at": None,
+    "cancel_initiated_at": None,
+    "archived_at": None,
+    "results_url": None,
+}
+
+
+def batch_response(request: httpx2.Request) -> httpx2.Response:
+    return httpx2.Response(200, json=BATCH_RESPONSE, request=request)
+
+
+async def submit_batches() -> None:
+    """Stable and beta batch submissions, async and sync clients."""
+    async with AsyncAnthropic(
+        api_key="test",
+        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(batch_response)),
+    ) as client:
+        await client.messages.batches.create(requests=BATCH_REQUESTS)
+        await client.beta.messages.batches.create(
+            requests=BATCH_REQUESTS, betas=[MCP_BETA]
+        )
+    with Anthropic(
+        api_key="test",
+        http_client=httpx2.Client(transport=httpx2.MockTransport(batch_response)),
+    ) as sync_client:
+        sync_client.messages.batches.create(requests=BATCH_REQUESTS)
+        sync_client.beta.messages.batches.create(
+            requests=BATCH_REQUESTS, betas=[MCP_BETA]
+        )
 
 
 @agent
@@ -41,7 +98,7 @@ def mcp_agent() -> Agent:
                 beta = dict(
                     create,
                     mcp_servers=MCP_SERVERS,
-                    betas=["mcp-client-2025-04-04"],
+                    betas=[MCP_BETA],
                 )
                 raw = await client.messages.with_raw_response.create(**stable)
                 await raw.parse()
@@ -55,6 +112,7 @@ def mcp_agent() -> Agent:
                     **beta
                 ) as response:
                     await response.parse()
+            await submit_batches()
             return bridge.state
 
     return execute
