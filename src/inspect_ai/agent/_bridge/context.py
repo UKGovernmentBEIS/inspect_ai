@@ -134,7 +134,10 @@ def set_agent_bridge_context(context: AgentBridgeContext) -> None:
     "unknown" and runs the filter again, which classifies it anew. A call made within a region that is not an agent
     turn (`model_origin()`, a tool, a scorer, an approver) keeps that
     region's origin, and a request nested in a utility request is utility
-    too.
+    too. A task spawned during the request records `"utility"` only while
+    the request is in flight and classified so: unlike the context itself,
+    the origin follows a reclassification on a later attempt and ends with
+    the request.
 
     Within the current task, the value lasts until the enclosing
     `bridged_request_scope` installed by `bridge_generate` exits, so it cannot

@@ -10230,3 +10230,44 @@ def test_live_anthropic_pending_server_work_ids(filtered: bool, tmp_path: Path) 
         assert all(any(id in v for id in kept_output_ids) for v in violations)
     else:
         assert not violations
+
+
+@pytest.mark.parametrize("kind,origin", [("utility", "utility"), ("root", "agent")])
+async def test_a_regeneration_after_a_rejection_keeps_the_request_s_origin(
+    kind: str, origin: str
+) -> None:
+    from typing import cast
+
+    from inspect_ai._sentinel._scope import sentinel_solving
+    from inspect_ai.agent._bridge.context import (
+        AgentBridgeContext,
+        set_agent_bridge_context,
+    )
+    from inspect_ai.model._model import collect_model_events
+
+    async def classifying(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> None:
+        set_agent_bridge_context(AgentBridgeContext(cast(Any, kind)))
+        return None
+
+    rejected = ToolCall(id="1", function="bash", arguments={"cmd": "rm -rf /"})
+    replacement = ToolCall(id="2", function="bash", arguments={"cmd": "ls"})
+    with sentinel_solving(), collect_model_events() as generations:
+        run = await run_bridge(
+            [tool_calls_output(rejected), tool_calls_output(replacement)],
+            approval=[
+                ApprovalPolicy(reject_approver(), "bash", arguments={"cmd": "rm*"}),
+                ApprovalPolicy(auto_approver("approve"), "*"),
+            ],
+            bridge=AgentBridge(
+                AgentState(messages=[ChatMessageUser(content=TASK)]),
+                filter=classifying,
+            ),
+        )
+    assert run.generations == 2
+    assert [g.event.origin for g in generations] == [origin, origin]

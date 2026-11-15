@@ -945,3 +945,196 @@ async def test_a_nested_request_cannot_leave_a_utility_request(
         events = await _bridged_origins(nesting)
     # the nested request's generation, then the outer request's
     assert [event.origin for event in events] == origins
+
+
+async def test_a_task_spawned_in_a_utility_request_is_not_utility_after_it() -> None:
+    from inspect_ai._sentinel._scope import current_origin, sentinel_solving
+    from inspect_ai.model._model import collect_model_events
+
+    go = anyio.Event()
+    seen: dict[str, Any] = {}
+
+    async def later() -> None:
+        seen["during"] = current_origin()
+        await go.wait()
+        seen["after"] = current_origin()
+        with collect_model_events() as generations:
+            await get_model("mockllm/model").generate("later")
+        seen["events"] = [g.event.origin for g in generations]
+
+    with sentinel_solving():
+        async with anyio.create_task_group() as tg:
+
+            async def spawning(
+                model: Model,
+                messages: list[ChatMessage],
+                tools: list[ToolInfo],
+                tool_choice: ToolChoice | None,
+                config: GenerateConfig,
+            ) -> None:
+                set_agent_bridge_context(AgentBridgeContext("utility"))
+                tg.start_soon(later)
+                await anyio.sleep(0)
+                return None
+
+            events = await _bridged_origins(spawning)
+            assert current_origin() == "agent"
+            go.set()
+
+    assert [event.origin for event in events] == ["utility"]
+    assert seen == {"during": "utility", "after": "agent", "events": ["agent"]}
+
+
+async def test_a_task_spawned_in_a_utility_attempt_follows_the_retry() -> None:
+    from inspect_ai._sentinel._scope import current_origin, sentinel_solving
+
+    seen: list[str] = []
+    looked = anyio.Event()
+    retried = anyio.Event()
+    finished = anyio.Event()
+    calls = {"n": 0}
+
+    async def watch() -> None:
+        seen.append(current_origin())
+        looked.set()
+        await retried.wait()
+        seen.append(current_origin())
+        finished.set()
+
+    with sentinel_solving():
+        async with anyio.create_task_group() as tg:
+
+            async def refuse_then_root(
+                model: Model,
+                messages: list[ChatMessage],
+                tools: list[ToolInfo],
+                tool_choice: ToolChoice | None,
+                config: GenerateConfig,
+            ) -> ModelOutput | None:
+                calls["n"] += 1
+                if calls["n"] == 1:
+                    set_agent_bridge_context(AgentBridgeContext("utility"))
+                    tg.start_soon(watch)
+                    await looked.wait()
+                    return ModelOutput.from_content(
+                        model="mockllm/model",
+                        content="refused",
+                        stop_reason="content_filter",
+                    )
+                set_agent_bridge_context(AgentBridgeContext("root"))
+                retried.set()
+                await finished.wait()
+                return None
+
+            bridge = AgentBridge(
+                state=AgentState(messages=[]),
+                filter=refuse_then_root,
+                retry_refusals=1,
+            )
+            await bridge_generate(
+                bridge,
+                get_model("mockllm/model"),
+                [ChatMessageUser(content="hi")],
+                [],
+                None,
+                GenerateConfig(),
+                requested_model="scaffold-slug",
+            )
+
+    assert seen == ["utility", "agent"]
+
+
+async def test_a_utility_request_that_raises_leaves_the_next_request_agent() -> None:
+    from inspect_ai._sentinel._scope import current_origin, sentinel_solving
+
+    async def raising(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> None:
+        set_agent_bridge_context(AgentBridgeContext("utility"))
+        raise ValueError("boom")
+
+    with sentinel_solving():
+        with pytest.raises(ValueError):
+            await _bridged_origins(raising)
+        assert current_origin() == "agent"
+        events = await _bridged_origins(_classifying_filter(None))
+    assert [event.origin for event in events] == ["agent"]
+
+
+async def test_a_utility_request_s_response_filter_calls_are_utility() -> None:
+    from inspect_ai._sentinel._scope import sentinel_solving
+    from inspect_ai.model._model import collect_model_events
+
+    async def checking(
+        model: Model, output: ModelOutput, generate_input: Any
+    ) -> ModelOutput:
+        await model.generate("check the reply")
+        return output
+
+    bridge = AgentBridge(
+        state=AgentState(messages=[]),
+        filter=_classifying_filter("utility"),
+        response_filter=checking,
+    )
+    with sentinel_solving(), collect_model_events() as generations:
+        await bridge_generate(
+            bridge,
+            get_model("mockllm/model"),
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            GenerateConfig(),
+            requested_model="scaffold-slug",
+        )
+    assert [g.event.origin for g in generations] == ["utility", "utility"]
+
+
+async def test_a_refused_utility_generation_is_retried_as_reclassified() -> None:
+    from inspect_ai._sentinel._scope import sentinel_solving
+    from inspect_ai.model._model import collect_model_events
+
+    calls = {"n": 0}
+
+    async def utility_then_root(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> None:
+        calls["n"] += 1
+        kind: Kind = "utility" if calls["n"] == 1 else "root"
+        set_agent_bridge_context(AgentBridgeContext(kind))
+        return None
+
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content(
+                model="mockllm/model", content="no", stop_reason="content_filter"
+            ),
+            ModelOutput.from_content(model="mockllm/model", content="ok"),
+        ],
+    )
+    bridge = AgentBridge(
+        state=AgentState(messages=[]), filter=utility_then_root, retry_refusals=1
+    )
+    with sentinel_solving(), collect_model_events() as generations:
+        await bridge_generate(
+            bridge,
+            model,
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            GenerateConfig(),
+            requested_model="scaffold-slug",
+        )
+    assert [g.event.output.stop_reason for g in generations] == [
+        "content_filter",
+        "stop",
+    ]
+    assert [g.event.origin for g in generations] == ["utility", "agent"]

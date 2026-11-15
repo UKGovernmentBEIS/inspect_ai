@@ -2023,8 +2023,8 @@ def _wrap_utility_events(
         # Fall back to a position-derived id for uuid-less (legacy) events so
         # ids stay unique and deterministic across rebuilds.
         wrapper = TimelineSpan(
-            id=f"utility-{item.event.uuid or f'{agent.id}-{index}'}",
-            name="utility",
+            id=f"{_UTILITY_WRAPPER_PREFIX}{item.event.uuid or f'{agent.id}-{index}'}",
+            name=_UTILITY_WRAPPER_NAME,
             span_type="agent",
             content=[item],
         )
@@ -2074,6 +2074,21 @@ def _wrap_utility_events(
         _wrap_utility_events(item, inputs, turns)
     for branch in agent.branches:
         _wrap_utility_events(branch, inputs, turns)
+
+
+_UTILITY_WRAPPER_PREFIX = "utility-"
+_UTILITY_WRAPPER_NAME = "utility"
+
+
+def is_utility_wrapper(span: TimelineSpan) -> bool:
+    """Whether `span` is the span `_wrap_utility_events` made to hold one utility call of the agent span it sits in, rather than an agent span of the log."""
+    return (
+        span.utility
+        and span.name == _UTILITY_WRAPPER_NAME
+        and span.id.startswith(_UTILITY_WRAPPER_PREFIX)
+        and len(span.content) == 1
+        and isinstance(span.content[0], TimelineEvent)
+    )
 
 
 def _may_be_turn(event: ModelEvent, inputs: _Inputs) -> bool:

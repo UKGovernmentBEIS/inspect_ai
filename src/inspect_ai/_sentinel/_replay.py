@@ -24,6 +24,7 @@ from inspect_ai.event._timeline import (
     TimelineSpan,
     _call_failed,
     _timeline_build,
+    is_utility_wrapper,
 )
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.model._chat_message import (
@@ -1508,7 +1509,10 @@ def _event_key(event: Event) -> object:
 
 
 def _timeline_conversations(timeline: Timeline) -> dict[object, str]:
-    """The conversation of each event a stored timeline holds."""
+    """The conversation of each event a stored timeline holds.
+
+    A call the timeline wrapped as utility stays in the conversation of the agent span holding it, as live it was made there.
+    """
     conversations: dict[object, str] = {}
 
     def walk(span: TimelineSpan, conversation: str) -> None:
@@ -1518,7 +1522,10 @@ def _timeline_conversations(timeline: Timeline) -> dict[object, str]:
             else:
                 walk(
                     item,
-                    item.id if item.span_type == AGENT_SPAN_TYPE else conversation,
+                    item.id
+                    if item.span_type == AGENT_SPAN_TYPE
+                    and not is_utility_wrapper(item)
+                    else conversation,
                 )
         for branch in span.branches:
             walk(branch, branch.id)
