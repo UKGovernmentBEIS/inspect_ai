@@ -958,12 +958,15 @@ async def test_mcp_tool_use_during_disconnect_opens_its_own_connection() -> None
 
 
 @skip_if_no_mcp_package
-async def test_mcp_tool_list_from_ended_connection_is_not_cached() -> None:
+@pytest.mark.parametrize("returns", ["before_reconnect", "after_reconnect"])
+async def test_mcp_tool_list_from_ended_connection_is_not_cached(
+    returns: str,
+) -> None:
     """A tool listing that outlives the connection it started under isn't cached.
 
-    A `tools()` call during teardown lists over a temporary connection. If
-    that listing returns after the owner has reconnected and listed again, it
-    must not replace the new connection's tool list.
+    A `tools()` call during teardown lists over a temporary connection. Whether
+    that listing returns before the owner reconnects or after it has
+    reconnected and listed, the new connection must list its own tools.
     """
     from inspect_ai.tool._mcp._local import MCPServerLocalSession
 
@@ -1003,13 +1006,19 @@ async def test_mcp_tool_list_from_ended_connection_is_not_cached() -> None:
     connected: list[MCPServer] = []
     tool_names: list[list[str]] = []
 
+    async def finish_temporary_listing() -> None:
+        finish_listing.set()
+        await listed.wait()
+
     async def owner() -> None:
         async with session as server:
             connected.append(server)
+        if returns == "before_reconnect":
+            await finish_temporary_listing()
         async with session:
             tool_names.append([ToolDef(t).name for t in await session.tools()])
-            finish_listing.set()
-            await listed.wait()
+            if returns == "after_reconnect":
+                await finish_temporary_listing()
             tool_names.append([ToolDef(t).name for t in await session.tools()])
 
     async def list_during_teardown() -> None:
@@ -1029,6 +1038,70 @@ async def test_mcp_tool_list_from_ended_connection_is_not_cached() -> None:
 
     assert not unexpected, f"writer saw unexpected methods: {unexpected}"
     assert tool_names == [["connection_2"], ["connection_2"]]
+
+
+@skip_if_no_mcp_package
+async def test_mcp_tool_list_spanning_connect_is_not_cached() -> None:
+    """A tool listing that started before a connection opened isn't cached.
+
+    A consumer holding the server from an earlier `async with` can call
+    `tools()` while the owner reconnects. That listing runs over a temporary
+    connection. If it returns after the owner has connected and listed, it
+    must not replace the open connection's tool list.
+    """
+    from inspect_ai.tool._mcp._local import MCPServerLocalSession
+
+    connecting = anyio.Event()
+    finish_connect = anyio.Event()
+    listing = anyio.Event()
+    finish_listing = anyio.Event()
+    listed = anyio.Event()
+
+    async def hold_owner_handshake(connection: int) -> bool:
+        if connection == 0:
+            connecting.set()
+            await finish_connect.wait()
+        return True
+
+    async def hold_temporary_listing(connection: int) -> None:
+        if connection == 1:
+            listing.set()
+            await finish_listing.wait()
+
+    unexpected: list[str] = []
+    client = _make_simulated_mcp_client(
+        _answer_tool_call,
+        unexpected_methods=unexpected,
+        on_initialize=hold_owner_handshake,
+        on_list_tools=hold_temporary_listing,
+    )
+    session = MCPServerLocalSession(client, name="early-listing", events=False)
+    tool_names: list[list[str]] = []
+
+    async def owner() -> None:
+        async with session:
+            tool_names.append([ToolDef(t).name for t in await session.tools()])
+            finish_listing.set()
+            await listed.wait()
+            tool_names.append([ToolDef(t).name for t in await session.tools()])
+
+    async def list_during_connect() -> None:
+        await connecting.wait()
+        await session.tools()
+        listed.set()
+
+    async def finish_connect_once_listing() -> None:
+        await listing.wait()
+        finish_connect.set()
+
+    with anyio.fail_after(5):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(owner)
+            tg.start_soon(list_during_connect)
+            tg.start_soon(finish_connect_once_listing)
+
+    assert not unexpected, f"writer saw unexpected methods: {unexpected}"
+    assert tool_names == [["connection_0"], ["connection_0"]]
 
 
 @skip_if_no_mcp_package

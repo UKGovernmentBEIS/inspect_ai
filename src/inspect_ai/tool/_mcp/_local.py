@@ -200,9 +200,10 @@ class MCPServerLocalSession(MCPServer):
         # being torn down.
         self._conn: _Connection | None = None
         self._cached_tool_list: list[MCPTool] | None = None
-        # Bumped whenever the cache is cleared, so a listing that started
-        # before the clear can't refill the cache with an ended connection's
-        # tools.
+        # Bumped when a connection opens and when the cache is cleared after
+        # one closes. A listing caches its result only if the generation is
+        # unchanged, so a listing over a temporary connection can't replace
+        # the tools of a connection that opened or closed while it ran.
         self._cache_generation = 0
 
     @override
@@ -213,6 +214,7 @@ class MCPServerLocalSession(MCPServer):
             async with AsyncExitStack() as exit_stack:
                 session = await self._connect(exit_stack)
                 self._conn = _Connection(session, exit_stack.pop_all())
+                self._cache_generation += 1
         return self
 
     @override
