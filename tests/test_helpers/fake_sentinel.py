@@ -223,7 +223,6 @@ class ReplayStep:
     step: Step
     segment: tuple[str, int]
     recorded_answers: Mapping[str, "HumanAnswer"] = field(default_factory=dict)
-    matched: Literal["ids", "heuristic"] = "heuristic"
 
 
 STAGES: tuple[type[Step], ...] = (

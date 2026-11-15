@@ -2350,9 +2350,9 @@ def test_each_run_of_a_host_call_replays_under_its_own_id(
             eval_info=EvalInfo.from_eval(log.eval),
         )
     tools = [
-        (s.stage, s.id, s.matched, cast(Any, s.step).result.text)
+        (s.stage, s.id, cast(Any, s.step).result.text)
         if s.stage == "tool_result"
-        else (s.stage, s.id, s.matched)
+        else (s.stage, s.id)
         for s in replay
         if s.stage.startswith("tool")
     ]
@@ -2361,13 +2361,13 @@ def test_each_run_of_a_host_call_replays_under_its_own_id(
     # first proposal's message id, so its proposal is ambiguous, and replay
     # skips it rather than guess
     expected: list[tuple[str, ...]] = [
-        ("tool_call", first, "ids"),
-        ("tool_result", first, "ids", "contents 1"),
+        ("tool_call", first),
+        ("tool_result", first, "contents 1"),
     ]
     if not cached:
         expected += [
-            ("tool_call", second, "ids"),
-            ("tool_result", second, "ids", "contents 2"),
+            ("tool_call", second),
+            ("tool_result", second, "contents 2"),
         ]
     assert tools == expected
     skipped = [r.getMessage() for r in caplog.records if "Replay skipped" in r.message]
