@@ -31,10 +31,17 @@ _scope: ContextVar[_Scope] = ContextVar(
 )
 
 
-# the origin a reclassifiable_scope() was entered with
-_reclassify_base: ContextVar[_Scope | None] = ContextVar(
-    "sentinel_reclassify_base", default=None
+# set while a bridged request an agent classified as utility is in flight,
+# and the value the innermost bridged request started from
+_utility_request: ContextVar[bool] = ContextVar(
+    "sentinel_utility_request", default=False
 )
+_utility_request_outer: ContextVar[bool | None] = ContextVar(
+    "sentinel_utility_request_outer", default=None
+)
+
+UTILITY_REQUEST_ORIGIN: ModelOrigin = "helper"
+"""The origin of an agent-turn call made in a bridged request classified as utility."""
 
 
 @contextmanager
@@ -60,9 +67,18 @@ def sentinel_scope(origin: ModelOrigin, *, final: bool = False) -> Iterator[None
 
 
 def current_origin() -> ModelOrigin:
-    """The origin of a model call made here: the innermost region's kind, `"setup"` for an agent call outside the solve."""
-    origin = _scope.get().origin
-    return "setup" if origin == "agent" and not solving() else origin
+    """The origin of a model call made here: the innermost region's kind, `"setup"` for an agent call outside the solve.
+
+    An agent call (not in a final region) in a bridged request classified as utility is `UTILITY_REQUEST_ORIGIN`'s.
+    """
+    scope = _scope.get()
+    if scope.origin != "agent":
+        return scope.origin
+    if not solving():
+        return "setup"
+    if not scope.final and _utility_request.get():
+        return UTILITY_REQUEST_ORIGIN
+    return "agent"
 
 
 def is_agent_turn(origin: str | None) -> bool:
@@ -88,30 +104,26 @@ def exit_scope(token: Token[_Scope]) -> None:
 
 
 @contextmanager
-def reclassifiable_scope() -> Iterator[None]:
-    """A region whose calls `reclassify_scope()` can mark as helper's in place.
+def utility_request_scope() -> Iterator[None]:
+    """Bound `set_utility_request()` to one bridged request.
 
-    For a bridged request, whose kind is decided inside its filter, after the region is entered. On exit the origin returns to the one the region was entered with.
+    A request nested in a utility request stays utility whatever its own kind.
     """
-    base = _scope.get()
-    token = _scope.set(base)
-    base_token = _reclassify_base.set(base)
+    outer = _utility_request.get()
+    token = _utility_request.set(outer)
+    outer_token = _utility_request_outer.set(outer)
     try:
         yield
     finally:
-        _reclassify_base.reset(base_token)
-        _scope.reset(token)
+        _utility_request_outer.reset(outer_token)
+        _utility_request.reset(token)
 
 
-def reclassify_scope(helper: bool) -> None:
-    """Mark the rest of the enclosing `reclassifiable_scope()` as helper's, or as the region it was entered in.
+def set_utility_request(utility: bool) -> None:
+    """Classify the bridged request in flight as utility, or not; no-op outside one.
 
-    Only an agent turn becomes a helper's: a final region and every other kind (a tool, setup outside the solve) keep their origin. No-op outside a `reclassifiable_scope()`.
+    Read when a call's origin is resolved (`current_origin()`), so a region entered or left after this call (a span, `model_origin()`, a tool) neither loses it nor is overridden by it.
     """
-    base = _reclassify_base.get()
-    if base is None:
-        return
-    if helper and base == _Scope("agent", False) and solving():
-        _scope.set(_Scope("helper", False))
-    else:
-        _scope.set(base)
+    outer = _utility_request_outer.get()
+    if outer is not None:
+        _utility_request.set(outer or utility)

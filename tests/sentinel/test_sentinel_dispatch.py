@@ -5349,6 +5349,31 @@ async def test_a_bridge_request_restores_the_agent_state_when_it_raises() -> Non
     assert read[0] is state.messages
 
 
+@pytest.mark.parametrize("kind", ["root", "utility"])
+async def test_a_utility_bridge_request_is_not_checked_at_generate(kind: str) -> None:
+    from inspect_ai.agent._bridge.context import (
+        AgentBridgeContext,
+        set_agent_bridge_context,
+    )
+
+    async def classifying_filter(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: Any,
+        config: GenerateConfig,
+    ) -> None:
+        set_agent_bridge_context(AgentBridgeContext(cast(Any, kind)))
+        return None
+
+    seen: list[StageSeen] = []
+    await run_bridge_request(seen, filter=classifying_filter)
+    if kind == "utility":
+        assert seen == []
+    else:
+        assert stages(seen) == {BeforeGenerate, AfterGenerate}
+
+
 async def test_a_bridge_request_restores_the_agent_state_when_cancelled() -> None:
     from inspect_ai._sentinel._agent_state import agent_messages
     from inspect_ai._sentinel._conversation import current_conversation

@@ -847,3 +847,101 @@ async def test_utility_request_is_a_utility_span_in_the_timeline() -> None:
     # tool calls leave it on the main thread
     as_agent = [event.model_copy(update={"origin": "agent"}) for event in events]
     assert build(as_agent) == []
+
+
+@pytest.mark.parametrize("kind,bridged", [("root", "agent"), ("utility", "helper")])
+@pytest.mark.parametrize("region", ["environment", "tool"])
+async def test_a_region_inside_the_filter_keeps_its_origin(
+    kind: Kind, bridged: str, region: str
+) -> None:
+    """A region the filter enters keeps its origin, before and after classifying."""
+    from contextlib import AbstractContextManager
+
+    from inspect_ai._sentinel._scope import sentinel_scope, sentinel_solving
+    from inspect_ai.model import model_origin
+
+    def enter() -> AbstractContextManager[None]:
+        return (
+            model_origin("environment")
+            if region == "environment"
+            else sentinel_scope("tool")
+        )
+
+    async def classify_in_region(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> None:
+        with enter():
+            set_agent_bridge_context(AgentBridgeContext(kind))
+            await model.generate("inside")
+        with enter():
+            await model.generate("again")
+        return None
+
+    with sentinel_solving():
+        events = await _bridged_origins(classify_in_region)
+    assert [event.origin for event in events] == [region, region, bridged]
+
+
+async def test_a_utility_classification_outlives_a_span_in_the_filter() -> None:
+    from inspect_ai._sentinel._scope import sentinel_solving
+    from inspect_ai.util import span
+
+    async def classify_in_span(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> None:
+        async with span("classify", type="agent"):
+            set_agent_bridge_context(AgentBridgeContext("utility"))
+        return None
+
+    with sentinel_solving():
+        events = await _bridged_origins(classify_in_span)
+    assert current_agent_bridge_context() is None
+    assert [event.origin for event in events] == ["helper"]
+
+
+@pytest.mark.parametrize(
+    "outer,inner,origins",
+    [
+        ("utility", "root", ["helper", "helper"]),
+        ("root", "utility", ["helper", "agent"]),
+        ("root", "root", ["agent", "agent"]),
+    ],
+)
+async def test_a_nested_request_cannot_leave_a_utility_request(
+    outer: Kind, inner: Kind, origins: list[str]
+) -> None:
+    from inspect_ai._sentinel._scope import sentinel_solving
+
+    async def nesting(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> None:
+        set_agent_bridge_context(AgentBridgeContext(outer))
+        await bridge_generate(
+            AgentBridge(
+                state=AgentState(messages=[]), filter=_classifying_filter(inner)
+            ),
+            model,
+            messages,
+            [],
+            None,
+            GenerateConfig(),
+            requested_model="nested-slug",
+        )
+        return None
+
+    with sentinel_solving():
+        events = await _bridged_origins(nesting)
+    # the nested request's generation, then the outer request's
+    assert [event.origin for event in events] == origins
