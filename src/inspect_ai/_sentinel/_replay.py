@@ -1440,20 +1440,19 @@ class _Driver:
         """An imported transcript's tool steps, from its messages, each placed after the turn that made it.
 
         Its messages are one conversation, taken from the model calls
-        `messages_from` names, and keep one id per message across them and
-        the model calls' inputs and outputs (Scout's importers since #753). So
+        `messages_from` names, and keep one id per message across them and the
+        model calls' inputs and outputs (Scout's importers since #753). So
         each assistant message is joined by its id to the turn whose output it
         is: its tool steps follow that turn, with its input, tools,
         conversation and record. A message no one turn made is placed after
-        the last message before it that one did, or before the first turn,
-        in that message's conversation, else the conversation of the calls
-        `messages_from` names, with no input: after
-        the turn before the first whose input is longer than its position in
-        the messages, where that is later. A call's
-        result is the tool message answering its id before the next assistant
-        message with tool calls. A call no message holds (a sub-agent's, or
-        one in a turn the messages left out) has no tool steps, and the
-        transcript's tool events are not read.
+        the last message before it that one did, or before the first turn, in
+        that message's conversation, else the conversation of the calls
+        `messages_from` names, with no input: after the turn before the first
+        whose input is longer than its position in the messages, where that is
+        later. A call's result is the tool message answering its id before the
+        next assistant message with tool calls. A call no message holds (a
+        sub-agent's, or one in a turn the messages left out) has no tool
+        steps, and the transcript's tool events are not read.
         """
         made: dict[str, list[_Generate]] = {}
         for group in generates:

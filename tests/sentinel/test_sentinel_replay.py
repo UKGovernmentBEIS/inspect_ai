@@ -846,6 +846,57 @@ def test_a_log_without_message_ids_replays_its_tool_steps_by_call_id() -> None:
     ] * 2
 
 
+def test_a_tool_call_s_producer_is_the_model_call_its_event_names() -> None:
+    # a later model call in the conversation proposes the same call id with
+    # another input: the event's message id names the earlier one, which the
+    # latest proposal of the call id would not be
+    task = ChatMessageUser(content="Look up one.")
+    offered = [ToolInfo(name="lookup", description="Look up an item.")]
+    first = linked_call(
+        "first",
+        None,
+        [task],
+        "Looking.",
+        "agent",
+        ToolCall(id="call-1", function="lookup", arguments={"n": 1}),
+    )
+    first.output.choices[0].message.id = "m1"
+    second = linked_call(
+        "second",
+        None,
+        [task, first.output.message, ChatMessageUser(content="Look up two.")],
+        "Looking again.",
+        "agent",
+        ToolCall(id="call-1", function="lookup", arguments={"n": 2}),
+    )
+    second.output.choices[0].message.id = "m2"
+    events: list[Event] = [
+        first.model_copy(update={"tools": offered}),
+        second.model_copy(update={"tools": offered}),
+        SpanBeginEvent(id="tool", name="lookup", type="tool"),
+        ToolEvent(
+            id="call-1",
+            function="lookup",
+            arguments={"n": 1},
+            result="found",
+            call_message_id="m1",
+            span_id="tool",
+        ),
+        SpanEndEvent(id="tool"),
+    ]
+    replay = steps_from_events(
+        [],
+        solving(events),
+        [],
+        sample_uuid="sample",
+        eval_info=EvalInfo(inspect_ai_version="0.3.300", sentinel=False),
+    )
+    tools = [s for s in replay if s.stage.startswith("tool")]
+    assert [s.stage for s in tools] == ["tool_call", "tool_result"]
+    for step in tools:
+        assert step.step.input == first.input
+
+
 @solver
 def r7_prefills_a_call_under_a_bridged_id(call_id: str) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -2813,16 +2864,30 @@ class CountedCalls(list[ToolCall]):
 
 @pytest.mark.parametrize("proposed", ["generated", "prefilled"])
 def test_a_wide_batch_of_calls_finds_its_proposals_in_linear_work(
-    proposed: str,
+    proposed: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # after the PR C review: each tool event found its call by scanning every
     # call of the message its event names
+    from inspect_ai._sentinel import _replay
+
+    lookup = "_proposal_by_id" if proposed == "generated" else "_prefilled_by_id"
+    by_id = getattr(_replay._Driver, lookup)
+    found: list[int] = []
+
+    def counting_lookup(self: Any, event: ToolEvent) -> Any:
+        result = by_id(self, event)
+        if result is not None:
+            found[-1] += 1
+        return result
+
+    monkeypatch.setattr(_replay._Driver, lookup, counting_lookup)
     reads: list[int] = []
     for width in (8, 16, 32, 64):
         calls = CountedCalls(
             ToolCall(id=f"call-{n}", function="lookup", arguments={"n": n})
             for n in range(width)
         )
+        found.append(0)
         message = ChatMessageAssistant(id="assistant", content="", tool_calls=[])
         object.__setattr__(message, "tool_calls", calls)
         events: list[Event] = []
@@ -2855,6 +2920,8 @@ def test_a_wide_batch_of_calls_finds_its_proposals_in_linear_work(
         )
         tools = [s for s in replay if s.stage.startswith("tool")]
         assert len(tools) == 2 * width
+        # each call is found by the id its event records, not by position
+        assert found[-1] == width
         reads.append(calls.reads)
         assert calls.reads <= 3 * width, (width, reads)
     assert reads[-1] <= 8.8 * reads[0], reads
