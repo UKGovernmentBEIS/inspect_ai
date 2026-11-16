@@ -158,10 +158,11 @@ async def restore_repo(
             "-r",
             repo,
             "restore",
-            f"{snapshot['id']}:{subfolder}",
             "--target",
             str(target_dir),
             "--verify",
+            "--",
+            f"{snapshot['id']}:{subfolder}",
         ],
         env=restic_env(password),
         check=True,
@@ -233,7 +234,7 @@ async def _list_latest_snapshot(
     """
     try:
         proc = await anyio.run_process(
-            [str(restic), "-r", repo, "ls", "--json", "latest"],
+            [str(restic), "-r", repo, "ls", "--json", "--", "latest"],
             env=restic_env(password),
             check=True,
         )
@@ -445,13 +446,13 @@ async def list_changed_files(
     parent = _previous_id(json.loads(snapshots.stdout.decode()), snapshot_id)
     if parent is None:
         proc = await anyio.run_process(
-            [str(restic), "-r", repo, "ls", snapshot_id, "--json"],
+            [str(restic), "-r", repo, "ls", "--json", "--", snapshot_id],
             env=restic_env(password),
             check=True,
         )
         return _parse_listed_files(proc.stdout.decode(), limit)
     proc = await anyio.run_process(
-        [str(restic), "-r", repo, "diff", parent, snapshot_id, "--json"],
+        [str(restic), "-r", repo, "diff", "--json", "--", parent, snapshot_id],
         env=restic_env(password),
         check=True,
     )

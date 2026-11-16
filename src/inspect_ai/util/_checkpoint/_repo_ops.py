@@ -79,7 +79,7 @@ async def drop_orphan_snapshots(
                 break
     if orphan_ids:
         await _run_restic(
-            [str(restic), "-r", repo, "forget", *orphan_ids], password=password
+            [str(restic), "-r", repo, "forget", "--", *orphan_ids], password=password
         )
 
 
@@ -149,6 +149,7 @@ async def walk_snapshot_nodes(
         "ls",
         "--json",
         "--no-lock",
+        "--",
         snapshot_id,
     ]
     full_id: str | None = None
@@ -320,7 +321,14 @@ async def forget_unrecorded_snapshots(
     orphans = [snap for snap in snapshots if snap["id"] not in keep]
     if orphans:
         await _run_restic(
-            [str(restic), "-r", repo, "forget", *(snap["id"] for snap in orphans)],
+            [
+                str(restic),
+                "-r",
+                repo,
+                "forget",
+                "--",
+                *(snap["id"] for snap in orphans),
+            ],
             password=password,
         )
     return [tag for snap in orphans for tag in (snap.get("tags") or [])]
