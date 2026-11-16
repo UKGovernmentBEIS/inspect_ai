@@ -49,7 +49,9 @@ def searcher(n_steps: int) -> Solver:
 ```
 
 With both tasks in `search.py`, run the searcher by name: `inspect eval
-search.py@search`, or `eval_set("search.py@search", ...)`. Loading the
+search.py@search`, or `eval_set("search.py@search", ...)`, adding
+`log_dir_allow_dirty=True` to resume an eval set whose directory holds the
+rollout task's logs (as for any added task's logs). Loading the
 whole file (`inspect eval search.py`) also loads `rollout_task`, and a task
 fed through a handle cannot run on its own, so that run is refused ("What
 is refused").
@@ -92,7 +94,10 @@ All of these are new API; no existing eval waits on a handle or uses
   run's other logs but does not decide `eval_set()`'s result or a
   selection-mode worker's: its creator's log does. When an eval set
   resumes, its log is never taken as a requested task's log, and a
-  selection worker refuses it as a resume log.
+  selection worker refuses it as a resume log. Resuming such a set, or its
+  later `retry_immediate=False` rounds, needs `log_dir_allow_dirty=True`
+  when the rollout task is not one the set requests, as for any added
+  task's log.
 - A fed task's log records the dataset name `samples_from_handle`, which is
   refused for any other dataset.
 - The run's `--limit`, `--sample-id` and `--epochs` do not apply to a task
@@ -163,9 +168,14 @@ Non-goals:
   `sample_abandoned(sample, epoch)`, including samples a graceful task cancel
   (`drain`, `score`, `error`) abandons from the queue. A graceful cancel does
   not end the source: the feeder keeps calling `next_samples()`.
-- `_run_task` (`src/inspect_ai/_eval/run.py`) gives each attempt a
-  `cancel_task` callback, through which the control channel stamps the
-  attempt's `TaskCancel` for `abort`, `retry`, `drain`, `score` and `error`.
+- `_run_task` (`src/inspect_ai/_eval/run.py`) creates each attempt's
+  `TaskCancel`, whose `apply` closure wakes paused samples and cancels the
+  attempt's scope for `abort` and `retry`. `task_run` passes it to
+  `register_eval`, and the control channel's `cancel_task` and `drain_task`
+  (`_control/cancel.py`) find it through
+  `latest_eval_for_task(...).task_cancel` and call `request()` with
+  `abort`, `drain`, `score` or `error`; `retry` is requested only by task
+  code.
   A `TaskSource`'s `task_complete` runs inside `_run_task`, after `task_run`
   returns; `sample_complete` and `sample_abandoned` run inside `task_run`;
   `next_tasks()` runs in the dispatcher, outside any attempt.
@@ -604,6 +614,13 @@ class PortRequest:
   ("Compatibility and migration").
   The fed logs stay in the log directory and are never cleaned up as a
   requested task's older logs, and the identifier format is unchanged.
+  The filter runs after `validate_eval_set_prerequisites`, which is
+  unchanged: a resumed `eval_set()`, or a later `retry_immediate=False`
+  round, over a directory that holds the logs of a rollout factory the set
+  does not request fails that check, as any added task's log does today,
+  and passes with `log_dir_allow_dirty=True`. A selection worker does not
+  run that check; its supervisor reading the directory is the Steward
+  change below.
   `_resumed_task` refuses a resume log with that dataset name, before it
   recovers it: `PrerequisiteError` ("The log '<resume>' selected for
   resuming task '<identifier>' is the log of a task fed through a handle
@@ -899,7 +916,10 @@ test touched), with mockllm models; every test that waits is bounded with
   keeps that log's task id in the eval-set info, and leaves the fed log in
   the directory; a selection worker given the fed log as its
   `resume` raises the `PrerequisiteError` above, and given the requested
-  task's own failed log resumes it.
+  task's own failed log resumes it; with a distinct rollout factory the set
+  does not request, a resumed `eval_set()` fails the log-directory check
+  and passes with `log_dir_allow_dirty=True`, taking only the requested
+  task's log.
 - `tests/test_sample_source.py` (tasks fed through a handle):
   - a fed task's log records `eval.dataset.name == "samples_from_handle"`;
     a `Task` whose dataset is a `MemoryDataset` named `samples_from_handle`,
@@ -1003,7 +1023,7 @@ One PR, after step 3 of
   rollouts with `cancel()`, `fail_on_error=False` for rollout tasks, and
   running the creator by name, `inspect eval search.py@search` and
   `eval_set("search.py@search", ...)`, when the rollout task shares its
-  file),
+  file, and `log_dir_allow_dirty=True` when resuming such an eval set),
   `docs/parallelism.qmd`, `docs/reference`. Tests: those above.
 
 Coordinated change in inspect_steward, required before the docs present
