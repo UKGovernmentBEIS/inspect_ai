@@ -20,7 +20,14 @@ from inspect_ai.log._log import EvalSampleLimit
 from inspect_ai.scorer import Score, Target, accuracy, includes, match, scorer
 from inspect_ai.scorer._metric import score_is_excluded
 from inspect_ai.scorer._scorer import Scorer
-from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
+from inspect_ai.solver import (
+    Generate,
+    Solver,
+    SolverSpec,
+    TaskState,
+    generate,
+    solver,
+)
 from inspect_ai.solver._empty import empty_attempt
 
 # mockllm's default output, which both scorers count correct
@@ -185,6 +192,23 @@ def test_zero_samples_epochs(tmp_path: Path) -> None:
     _refused(log, one_epoch, [("a", 2)], r"'a' \(epoch 2\): the empty-attempt log has")
 
 
+def test_zero_samples_bare_solver_name(tmp_path: Path) -> None:
+    """`inspect eval --solver empty_attempt` records the bare name."""
+    log = _run(tmp_path, zero_task())
+    empty = _run(
+        tmp_path / "empty",
+        zero_task(),
+        solver=SolverSpec("empty_attempt"),
+        sample_id="a",
+    )
+    assert empty.eval.solver == "empty_attempt"
+
+    result = zero_samples(log, empty, ["a"], _provenance())
+
+    assert result.applied == [("a", 1)]
+    assert _sample(log, "a").scores["match"].reason == "zeroed"
+
+
 def test_zero_samples_refuses_empty_attempt_log(tmp_path: Path) -> None:
     log = _run(tmp_path, zero_task())
     empty = _empty(tmp_path, zero_task(), sample_id="a")
@@ -200,6 +224,7 @@ def test_zero_samples_refuses_empty_attempt_log(tmp_path: Path) -> None:
             setattr(other.eval, key, value)
         return other
 
+    _refused(log, header(solver="generate"), ["a"], "solver 'generate'")
     _refused(log, header(task="other_task"), ["a"], "of the task 'other_task'")
     scorers = empty.eval.scorers or []
     _refused(log, header(scorers=scorers[:1]), ["a"], "are not those of the log")

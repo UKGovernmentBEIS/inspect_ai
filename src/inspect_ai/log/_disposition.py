@@ -115,8 +115,11 @@ def exclude_samples(
     )
 
 
-EMPTY_ATTEMPT_SOLVER = "inspect_ai/empty_attempt"
-"""Registry name the `empty_attempt()` solver is recorded under."""
+_EMPTY_ATTEMPT_SOLVERS = ("inspect_ai/empty_attempt", "empty_attempt")
+"""Names the `empty_attempt()` solver is recorded under.
+
+The registry name, or the bare name that `--solver empty_attempt` records.
+"""
 
 _SCANNER_REFERENCES = "scanner_references"
 
@@ -238,10 +241,10 @@ def _check_empty_attempt(log: EvalLog, empty: EvalLog) -> None:
         raise ValueError(
             f"The empty-attempt log has status '{empty.status}', not 'success'."
         )
-    if empty.eval.solver != EMPTY_ATTEMPT_SOLVER:
+    if empty.eval.solver not in _EMPTY_ATTEMPT_SOLVERS:
         raise ValueError(
             f"The empty-attempt log was run with the solver {empty.eval.solver!r}, "
-            f"not {EMPTY_ATTEMPT_SOLVER!r}."
+            f"not {_EMPTY_ATTEMPT_SOLVERS[0]!r}."
         )
     if empty.eval.task != log.eval.task:
         raise ValueError(
