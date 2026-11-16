@@ -22,13 +22,13 @@ which suspend token, turn and cost limits, neither charge nor check them.
 The limit nodes' own state, not the errors they raise, is the record of what
 happened. Once reached, a limit refuses every later model call in its scope.
 Under a cost limit, a model with no price is refused, and a response that
-comes back with no usage marks the cost limit as reached; the marks survive a
-checkpoint resume. Failed attempts and calls cancelled in flight are not
-charged, as today, so they can take spend past a cost limit. A scope that
-owns limits checks them when it ends, and the sample decides its limit
-outcome from its own limit nodes once all of its work, background cleanup
-included, has finished. So a limit error that some handler catches and drops
-is not lost: it comes back at the next refused call, or at its owner's exit.
+comes back with no usage marks the cost limit as reached. Failed attempts
+and calls cancelled in flight are not charged, as today, so they can take
+spend past a cost limit. A limit error that reaches its owner stands. When
+none does, a scope that owns limits checks them when it ends normally, and
+so does the sample, once all of its work, background cleanup included, has
+finished. So a limit error that some handler catches and drops is not lost:
+it comes back at the next refused call, or at its owner's exit.
 
 Together these rules let a runtime that runs several agents catch the sample's
 limit error, stop its agents in an orderly way, and re-raise the error.
@@ -200,12 +200,28 @@ Errors are consumed in these places:
   with `>`, at the start of each request
   (`src/inspect_ai/agent/_bridge/sandbox/service.py:111`).
 - The cost of a call is `model_usage_cost()` (`_model.py:3757`): `None` when
-  the called model has no cost data. Before the eval starts,
-  `resolve_model_costs()` (`src/inspect_ai/model/_util.py:67-98`) requires
-  cost data for the task's model and its model roles when a cost limit is
-  set. Models resolved later (a subagent's `get_model()`, an approver,
-  review or sentinel monitor model, a swarm member's model) are not
-  covered.
+  the called model has no cost data. Before the eval starts, and for each
+  task enqueued later, `resolve_model_costs()`
+  (`src/inspect_ai/model/_util.py:67-98`, called at
+  `src/inspect_ai/_eval/eval.py:879` and `:1352`) requires cost data for the
+  task's model and every model of its model roles when a cost limit is set,
+  and raises `PrerequisiteError` otherwise. A role can serve suspended calls
+  only: the in-process sentinel host resolves its monitor model from the
+  `monitor` role (`_HostNative._resolve()`,
+  `src/inspect_ai/_sentinel/_dispatch.py:416-421`). Models
+  resolved later (a subagent's `get_model()`, an approver or review model
+  given by name, a swarm member's model) are not covered.
+- Two providers fill in zero usage when a streamed response ends without
+  reporting any. Mistral's `mistral_completion_from_stream()` substitutes
+  `UsageInfo(0, 0, 0)` with a warning (`_providers/mistral.py:646-652`),
+  which `MistralAPI.generate()` converts to a `ModelUsage` (`:366-374`).
+  SageMaker's stream assembly writes a zero `usage` dictionary
+  (`_providers/sagemaker.py:790-791`) before the shared OpenAI conversion.
+  Both outputs are indistinguishable from a reported zero. The other
+  conversions keep a missing usage as `None` (the shared OpenAI conversion,
+  `src/inspect_ai/model/_openai.py:1206-1231`; Google,
+  `_providers/google.py:2606-2610`), or raise (Bedrock streaming,
+  `_providers/bedrock.py:1228-1233`).
 - `suspend_token_limit()` and `suspend_turn_limit()` stop recording *and*
   checking for their kind (`_limit.py:620-646`, `:796-820`). Cost has no
   suspension in the code read for this design; approval, review and
@@ -335,14 +351,12 @@ tokens per call, run against this branch's base):
    turn limit never turns that limit's error into a message, a tool error, a
    reply or a return value. It lets the error propagate. Message limits keep
    today's handling (see "Ownership").
-7. **The owner checks at exit.** When an `apply_limits()` scope ends
-   normally, Inspect runs the check once more over the chain. A limit raises
-   there if it is exceeded, or if it is reached and has already raised (a
-   call it refused). When one of its own or a descendant's limits escapes
-   instead, the scope takes the outermost of that error and the limits that
-   count at exit. The
-   sample does the same once its task group has finished, on a normal or a
-   limit exit.
+7. **The owner checks at exit.** A limit error that reaches its owner
+   stands. When an `apply_limits()` scope ends normally, Inspect runs the
+   check once more over the chain. A limit raises there if it is exceeded,
+   or if it is reached and has already raised (a call it refused). The
+   sample does the same once its task group has finished, when its solvers
+   returned normally.
 8. **The bridge keeps the outermost limit.** The sandbox bridge keeps the
    outermost limit any of its requests reached (generations and host tools
    alike), refuses every later model call with it, and raises it when the
@@ -353,16 +367,16 @@ tokens per call, run against this branch's base):
    (other than an output Inspect built from the provider's rejection of the
    request) marks every such cost limit as reached, so later calls are
    refused (rule 3). Failed attempts and cancelled calls are not charged or
-   marked.
+   marked. A cost limit set to `None` enforces nothing, marked or not.
 
 Rules 3, 7 and 9 together make node state the record. The design does not
 try to carry every limit or accounting error intact through every handler
 that can catch one (a fallback, a hook, a first-error reduction, a cancelled
-delivery). A swallowed error costs time, not budget or correctness: the next
-call under the limit is refused before dispatch, and the owner's exit check
-or the sample's final decision finds the limit. Where Inspect's own code
-changes how errors travel (rules 4, 6 and 8, the sentinel wrapper), it is so
-that the right owner hears first, not so that the error survives.
+delivery). A swallowed error costs time, not budget: the next call under the
+limit is refused before dispatch, and if no limit error reaches the owner,
+its exit check finds the limit. Where Inspect's own code changes how errors
+travel (rules 4, 6 and 8), it is so that the right owner hears first, not so
+that the error survives.
 
 The sections below specify each rule.
 
@@ -451,8 +465,9 @@ def check_limits(raise_for_equal: bool = False, at_exit: bool = False) -> None:
 - `_Node._check_marked(raise_for_equal)` calls
   `_check_self(raise_for_equal)`; if that raises a `LimitExceededError`, it
   sets `self._raised = True` before re-raising. For a cost node marked
-  unmetered whose `_check_self()` returned without raising, it then raises
-  the marked error itself ("Unmetered calls"). Every check path goes
+  unmetered, with a limit that is not `None`, whose `_check_self()` returned
+  without raising, it then raises the marked error itself ("Unmetered
+  calls"). Every check path goes
   through it: `check_limits()` and the
   per-kind `check()` methods. inspect_swarm's `_check_self()` overrides are
   therefore marked too.
@@ -494,9 +509,9 @@ def check_limits(raise_for_equal: bool = False, at_exit: bool = False) -> None:
 - `check_token_limit()`, `check_cost_limit()` and `check_turn_limit()` stay as
   checks of their own kind. Inspect still uses them where one value changes:
   the `TaskState.token_limit` and `cost_limit` setters
-  (`src/inspect_ai/solver/_task_state.py:369`, `:393`). The checkpoint resume
-  (`sample_runtime.py:221-225`) calls `check_limits(at_exit=True)` in place
-  of its three checks (see "Checkpoints").
+  (`src/inspect_ai/solver/_task_state.py:369`, `:393`), and the checkpoint
+  resume, which keeps its three checks (`sample_runtime.py:221-225`, see
+  "Checkpoints").
 - Message limits are unchanged: the innermost message node is checked at the
   start of `generate()` (`_model.py:1044`) and on every append to a limited
   conversation. A message check sees only that node, so precedence does not
@@ -516,9 +531,8 @@ limit raises. Rule 4 extends that to every place that combines errors:
 | Pre-dispatch check | token, cost, then guards (guards skipped when suspended) | chain root first (turns included), then guards |
 | Overlapping calls in one task group | the group's first leaf, wherever it is reduced | the outermost limit at each limit-aware reduction below |
 | `_apply_response_filter()`, a group of only limits, terminations and refusals (`agent/_bridge/util.py:493-505`) | its first leaf | `first_or_outermost_limit(group)`; a mixed group is still a `ResponseFilterError` |
-| In-process sentinel wrapper (`_sentinel/_dispatch.py:315-316`) | wraps every error in `SentinelFailure` | raises a deciding limit bare (see "Sentinel failures") |
 | `apply_limits()` | catches a bare owned error only | catches a group whose leaves are all limit errors and whose outermost is owned (below) |
-| Sample runner (`run.py:3402`) | first leaf of the group | `first_or_outermost_limit(group)`, then the sample's final decision ("The owner's exit check") |
+| Sample runner (`run.py:3402`) | first leaf of the group | `first_or_outermost_limit(group)` |
 | `decisive_tool_exception()` (`_call_tools.py:2016`) | termination, unexpected error, first limit, first leaf | termination, unexpected error, **outermost** limit, first leaf |
 | `decisive_sentinel_exception()` (`_call_tools.py:180`) | termination, other error, first leaf | termination, other error, outermost limit |
 | Bridge `_first_control()`, a group of only limits and refusals | its first leaf | `first_or_outermost_limit(group)`: a leading refusal still wins |
@@ -537,10 +551,10 @@ Generic reductions are left alone. `tg_collect()` and
 still raise a group's first member, and `collect()` still unwraps only a
 one-member group. When `tg_collect()` drops an outer limit in favour of an
 inner one, the outer limit is still reached: the next call under it is
-refused, the scope that owns it finds it at exit, and the sample's final
-decision ranks it (see "Not this design").
+refused, and if its owner ends normally, its exit check finds it (see "Not
+this design").
 
-`apply_limits()` handles an exception escaping its body in three steps:
+`apply_limits()` handles an exception escaping its body in two steps:
 
 1. **Covered or not.** The exception is a *covered exit* when every leaf is
    a `LimitExceededError` covered by the scope: its `source` is one of the
@@ -554,30 +568,24 @@ decision ranks it (see "Not this design").
    `docs/setting-limits.qmd:278-288`, and raised by inspect_swarm members)
    is never covered, so a group holding a covered token error and a
    sourceless custom error propagates, as it does today.
-2. **Reconcile.** For a covered exit, the candidate is its outermost limit
-   (`outermost_limit()`; a bare error is its own; a time or working limit,
-   outside the chain, ranks after every chain limit, rule 4), and the winner is the
-   outer of that candidate and the limits that count at exit on the scope's
-   own and enclosing nodes ("Reconciling an exit" under "The owner's exit
-   check").
-3. **Ownership of the winner.** If the winner is one of the scope's own
-   limits, `limit_scope.limit_error` is set to it and, with
-   `catch_errors=True`, the exception is swallowed (raised as the winner
-   otherwise). If the winner is an enclosing limit, `apply_limits()` raises
-   it. If the winner is the candidate and that is a descendant's limit (no
-   own or enclosing limit counts further out), the exception propagates
-   unchanged, as it does today.
+2. **Ownership of the outermost.** For a covered exit, the deciding limit
+   is its outermost (`outermost_limit()`; a bare error is its own; a time
+   or working limit, outside the chain, ranks after every chain limit, rule
+   4). If it is one of the scope's own limits, `limit_scope.limit_error` is
+   set to it and, with `catch_errors=True`, the exception is swallowed
+   (raised as that limit otherwise). If it is a descendant's limit, the
+   exception propagates unchanged, as it does today.
 
 Every swallowed leaf is the scope's own or a descendant's, whose scope this
 one ends anyway. A bare error from one of the scope's own limits, a time
 limit included, is caught as today (`src/inspect_ai/util/_limit.py:158-160`,
 `:174-187`), also when it is raised as the limits exit (a time limit raises
-from its cancel scope's exit, inside the `ExitStack`), unless one of the
-scope's own or enclosing chain limits counts further out, which then wins;
+from its cancel scope's exit, inside the `ExitStack`), so
 `run(limits=[time_limit(...)])` and the deepagent callers of
-`apply_limits()` keep returning their own time limit error. A bare error from
-a descendant still propagates unless one of the scope's own or enclosing
-limits counts further out.
+`apply_limits()` keep returning their own time limit error. A bare error
+from a descendant still propagates. The error that escaped is not compared
+with node state: a limit error that reaches its owner stands ("The owner's
+exit check").
 
 A request refused before dispatch, for example one that was queued for a
 connection slot, the pause gate or a retry while another call reached a limit,
@@ -605,8 +613,10 @@ a reached sample cost limit does not refuse an approver's call, and a
 (suspension wins over nested limits, as for tokens today). The rules for
 unmetered calls skip them too (rule 9): an unpriced approver, reviewer or
 monitor model is not refused, and its response without usage marks nothing.
-Their spend is still recorded in model and role usage and in the sample's
-reported cost.
+For that exemption to hold, the start-time price check no longer requires
+prices for role models, which it cannot tell apart by use ("No price:
+refused before dispatch"). Their spend is still recorded in model and role
+usage and in the sample's reported cost.
 
 The one check that runs for suspended calls, and did not before, is
 `dispatch_guard()`. The bridge's guard is the only guard. Once the bridge has
@@ -654,138 +664,78 @@ is unchanged: the bridge never raises one through it.
 
 ### Sentinel failures
 
-A monitor's own model calls run with token, turn and cost limits suspended,
-so they cannot reach one of those limits. The one limit error a sentinel can
-meet is a dispatch guard's refusal: a monitor call made inside a bridged
-request after the bridge kept a limit, which raises a copy of the kept
-limit. That error must reach the bridge as a limit, not as a sentinel
-failure. The in-process sentinel wrapper
-(`src/inspect_ai/_sentinel/_dispatch.py:315-316`) changes from wrapping
-every error to:
-
-```python
-except Exception as ex:
-    decisive = decisive_sentinel_exception(ex)
-    if isinstance(decisive, LimitExceededError):
-        raise_unwrapped(ex, decisive)  # the limit, bare
-    raise SentinelFailure(ex) from ex
-```
-
-`decisive_sentinel_exception()` is imported inside the handler, since
-`_call_tools.py` imports the sentinel modules. It keeps its order: a
-termination, then any other error, then the outermost limit. So the limit is
-raised bare only when every leaf is a limit. A termination or another error
-in the same group still becomes a `SentinelFailure` that fails the sample, as
-today. Since the guard's refusal now leaves `generate()` bare, the bridge's
-`_forward_provider_errors()` answers it as the kept limit. The existing
-unwrapping in `_sentinel_exception()` and the runner's `handle_error()`
-stays, for `SentinelFailure`s raised elsewhere. The other places that raise
-`SentinelFailure` (`_dispatch.py:167`, `:320`, `:373`, `:409`) wrap protocol
-errors, never a limit, and are unchanged.
+The in-process sentinel wrapper is unchanged: it still wraps any exception
+escaping a monitor or protocol in `SentinelFailure`
+(`src/inspect_ai/_sentinel/_dispatch.py:315-316`). Under rule 5 a monitor's
+own model calls run with token, turn and cost limits suspended, so they
+cannot reach one of those limits. The one limit error a monitor can meet is
+a dispatch guard's refusal: a monitor call made inside a bridged request
+after the bridge kept a limit, which raises a copy of the kept limit. It
+leaves `generate()` wrapped, and the bridge's `_forward_provider_errors()`
+answers it as it answers any other error today: an error reply to the
+scaffold, with a logged warning (`service.py:153-166`;
+`SentinelFailure` is not one of the sidecar failures that fail the sample).
+Nothing is lost: the bridge has already kept the limit, it refuses every
+later request with it, and it raises it when the agent unwinds (rule 8). The
+existing unwrapping in native tools (`_sentinel_exception()`,
+`_call_tools.py:170-177`) and in the runner (`run.py:2913-2916`) stays.
 
 ### The owner's exit check
 
-Rule 7 has two call sites:
+A limit error that reaches its owner stands: `apply_limits()` and the sample
+runner record the error they receive (after the reductions in "Precedence")
+and do not compare it with node state. Rule 7 covers the other case, where
+no limit error reaches the owner because a handler swallowed it. It has two
+call sites:
 
 - `apply_limits()`, on a normal return: after the body returns, before it
   exits its limits, it calls `check_limits(at_exit=True)`. A limit that
   raises there is handled by the same `except` as one raised in the body:
   caught if owned and `catch_errors=True`, propagated otherwise. A sample
   limit raised at that point leaves `run()` and ends the sample.
-- `apply_limits()`, when one of its own or a descendant's limits escapes:
-  before it records, swallows or passes on the error ("Precedence"), it
-  reconciles it with node state (below), because the error that escaped
-  need not be the outermost limit that counts.
-- The sample runner, as its final limit decision (below).
+- The sample runner, when its solvers return normally (below).
 
-**Reconciling an exit.** `counting_limit(nodes) -> LimitExceededError |
-None` (in `_limit.py`) returns the error of the outermost node in `nodes`
-that counts at exit (exceeded, reached and already raised, or marked
-unmetered), built as the exit check builds it, or `None`. For a covered exit
-("Precedence") with candidate `escaped`, `apply_limits()` computes
-`final = counting_limit(own_nodes + enclosing_nodes)`: its own limits, whose
-state survives their exit, and the nodes still on the chain around it. The
-winner is `final` when it is outer than `escaped` (`_outer_than`), and
-`escaped` otherwise; step 3 of "Precedence" then applies ownership to the
-winner:
+**The sample's exit check.** Today the solvers run in `run()`, a task of the
+sample's task group, whose `finally` cancels the group (`run.py:3361-3364`)
+when `plan()` returns or raises (`run.py:3269`); the group is joined at
+`run.py:3391-3392`, inside the `with` block that holds the sample's limits
+(`run.py:3186-3198`). A `background()` worker can finish a priced call in
+its cancellation cleanup, reach a sample limit there, catch the error and
+return, after `plan()` has returned. So the check runs after the join:
+`run()` sets a local `solved = True` right after `plan()` returns, and after
+the `async with anyio.create_task_group()` block and the existing
+`solver_cancel` check, when `solved` is set, the runner calls
+`check_limits(at_exit=True)`. The sample's roots are the chain's only nodes
+at that point, so it raises the outermost root that counts at exit, with
+its `SampleLimitEvent`, and the existing `except LimitExceededError`
+(`run.py:3422`) records it.
 
-- the winner is one of the scope's own limits: it is the scope's error
-  (returned by `run()`, or raised when `catch_errors` is false), in place of
-  whatever escaped;
-- the winner is an enclosing limit (a sample or caller's limit that
-  counts): `apply_limits()` raises it, with the escaped exception as its
-  context, whatever `catch_errors` says, as its normal-return check would;
-- the winner is `escaped` and it is a descendant's limit: the exception
-  propagates unchanged.
-
-This covers both orders in which a limit can be caught behind another. In
-`run(limits=[outer_cost, inner_token])`, one task can raise the inner token
-limit while a sibling, finishing a call in its cancellation cleanup, pushes
-the outer cost limit over; `tg_collect()` keeps only the first error, the
-token limit, and the run returns the cost limit. In
-`run(limits=[cost_limit(1)])`, an agent can enter a child `token_limit()`
-around a `tg_collect()`; the child's token error escapes the run's body
-while a sibling's cleanup pushed the run's cost limit over, and the run
-returns the cost limit instead of letting the child's error through.
-
-An exception that is not a covered exit is not reconciled and propagates
-unchanged, as it does today. The reconciliation runs after the body's task
-groups have joined (the exception cannot escape before), so usage recorded
-in cancellation cleanup counts.
-
-**The sample's final limit decision.** The sample decides its limit outcome
-from its own limit nodes once everything that can still record usage has
-finished, and on every exit path that ends in a limit or in normal
-completion. Today the solvers run in `run()`, a task of the sample's task
-group, whose `finally` cancels the group (`run.py:3361-3364`) when `plan()`
-returns or raises (`run.py:3269`); the group is joined at `run.py:3391-3392`.
-A `background()` worker can finish a priced call in its cancellation cleanup,
-reach a sample limit there, catch the error and return, after `plan()` has
-returned or after an inner limit has already escaped from it. So the
-decision is made after the join, from node state:
-
-```python
-def final_sample_limit(
-    roots: Sequence[Limit], escaped: LimitExceededError | None
-) -> LimitExceededError | None:
-    """The sample's limit outcome: the outermost of `escaped` and its exit-reached roots."""
-```
-
-`final_sample_limit()` (in `_limit.py`) takes the sample's token, cost and
-turn nodes and the limit error that escaped the solvers, if any. A root
-counts when the exit check would raise it: exceeded, or reached and already
-raised (including a cost node marked unmetered, rule 9). It returns the
-outermost (`_outer_than`) of `counting_limit(roots)` (above) and `escaped`.
-A root's error is the one its `_check_marked(raise_for_equal=node._raised)`
-raises, caught and returned, so it carries the same message and
-`SampleLimitEvent` as an exit check's. The runner calls it in two places, both after the join, so
-after all cleanup:
-
-- **Normal completion.** `run()` sets a local `solved = True` right after
-  `plan()` returns. After the `async with anyio.create_task_group()` block
-  and the existing `solver_cancel` check, when `solved` is set, the runner
-  raises `final_sample_limit(roots, None)` if it is not `None`. The existing
-  `except LimitExceededError` (`run.py:3422`) records it.
-- **A limit escaped.** In that `except LimitExceededError as ex`, before it
-  builds `EvalSampleLimit`, `ex = final_sample_limit(roots, ex)`. An inner
-  cost limit that escaped while a background worker's cleanup pushed the
-  sample token limit over is recorded as the sample token limit, which
-  outranks it. An escaped sample limit stays itself unless an outer root
-  also counts.
-
-The stated policies for everything else are unchanged. A non-limit error
-(after `first_or_outermost_limit()` reduces a group, the deciding leaf is not
-a limit) goes to the error handling as today, so an error still outranks a
+Everything else is unchanged. A limit error that escapes the solvers is
+recorded as it is today. A non-limit error (after
+`first_or_outermost_limit()` reduces a group, the deciding leaf is not a
+limit) goes to the error handling as today, so an error still outranks a
 limit at the runner. A termination keeps its own `except` clause. An
 operator interrupt and a limit delivered by cancellation (the working limit,
 or a limit a sandbox service routes to the sample) keep their handling
 inside `run()`, which sets the outcome before the join and leaves `solved`
-unset; the decision does not override them. A resume for
-scoring skips the decision: it restores a spent budget on purpose, and
-`restore_sample_runtime()` takes the same `check=False` switch for that
-reason. The roots' state survives the exit of their `with` blocks, so the
-call in the `except` clause, which runs after the sample's limit scopes have
-exited, reads the same values.
+unset. A resume for scoring skips the check: it restores a spent budget on
+purpose, and `restore_sample_runtime()` takes the same `check=False` switch
+for that reason.
+
+**What the owner can miss.** Because an error that reaches its owner
+stands, only the recorded limit type can differ from the outermost limit
+that counts, and only in narrow cleanup races: a limit escapes, and while
+its task group unwinds, a sibling's call that was already in flight
+finishes in cancellation cleanup and pushes another limit over. In
+`run(limits=[outer_cost, inner_token])`, one task can raise the token
+limit while a sibling's cleanup pushes the cost limit over; `tg_collect()`
+keeps the token error and `run()` returns it. At the sample, an inner limit
+can escape the solvers while a background worker's cleanup pushes a sample
+limit over; the sample records the inner limit. Either way the outcome is
+still a limit, nothing is spent beyond the calls already in flight, and a
+limit left reached refuses every later call under it (rule 3): an enclosing
+limit pushed over in the race refuses the caller's next call, and its own
+owner's exit check finds it if no call follows.
 
 `run()` must read the scope's error after the block, not return from inside
 it. Today it returns `(state, None)` inside the `with` (`_run.py:103-105`). If
@@ -826,15 +776,20 @@ passes `raise_for_equal=node._raised` for each node. So:
   higher) is no longer reached, so it does not raise.
 - A cost limit marked unmetered (rule 9) counts as reached and raised, so it
   raises at exit whatever its spend, with a message naming the unmetered
-  call.
+  call, unless its limit is `None`.
 
 The `_raised` mark is per node and is never cleared, so it survives the
-cancellation that loses the error itself. For the sample's own limits it
-also survives a checkpoint resume ("Checkpoints").
+cancellation that loses the error itself. A checkpoint does not store it
+("Checkpoints").
+
+Plain `with token_limit(...)` blocks get no exit check. Their author enters
+and owns them, and may catch their errors on purpose. Their nodes are no
+longer on the chain when an enclosing owner checks at exit, so a mark on them
+has no effect there.
 
 ### Token metering must not decrease
 
-The exit check, the sample's final decision and the pre-dispatch refusal read
+The exit checks and the pre-dispatch refusal read
 a node's state after its error may have been lost, so they rely on metered
 usage never decreasing as calls are recorded: a limit that has been reached
 stays reached. Cost and turns only grow. A token limit's `type` can today be
@@ -886,51 +841,37 @@ retry, and inspect_swarm's member limits restored with
 
 ### Checkpoints
 
-A checkpoint stores the sample roots' usage, and a normal resume restores
-it into fresh roots and checks them: `dump_sample_runtime()` writes the
-token usage, cost and turns (`src/inspect_ai/util/_checkpoint/sample_runtime.py:47-96`),
-the checkpointer stores that payload
+Checkpoints are unchanged, and do not store the marks (decision: Ransom,
+2026-11-16). A checkpoint stores the sample roots' usage, and a normal
+resume restores it into fresh roots and checks them: `dump_sample_runtime()`
+writes the token usage, cost and turns
+(`src/inspect_ai/util/_checkpoint/sample_runtime.py:47-96`), the
+checkpointer stores that payload
 (`src/inspect_ai/util/_checkpoint/checkpointer_impl.py:624-633`), and
 `restore_sample_runtime(check=True)` reseeds the roots and runs the token,
-cost and turn checks (`sample_runtime.py:153-163`, `:221-225`; called for a
-normal resume at `checkpointer_impl.py:147-152`). Node state that is not
-usage would be lost there: a cost limit marked unmetered would come back at
-its spent cost, possibly under budget, and a limit that refused a call at
-exactly its budget would come back unmarked, so the resumed sample would
-make calls it was refused before the checkpoint.
+cost and turn checks, in that order, with `>` (`sample_runtime.py:153-163`,
+`:221-225`; called for a normal resume at `checkpointer_impl.py:147-152`).
+An exceeded root therefore still ends the resumed attempt before it makes a
+call. A resume for scoring (`check=False`) runs no check, as today.
 
-So the payload carries the marks of the sample's roots, as three optional
-keys beside the usage:
+The fresh roots carry neither `_raised` nor `_unmetered`. What that costs:
+each mark recurs after a resume, at the price of at most one more call.
 
-```python
-{
-    ...,  # token_usage, cost, turns: unchanged
-    "cost_unmetered": "<reason>" | None,  # the cost root's _unmetered
-    "limits_raised": ["token", "cost", "turn"],  # roots whose _raised is set
-}
-```
-
-`dump_sample_runtime()` writes them from the roots. `restore_sample_runtime()`
-sets `_unmetered` and `_raised` on the fresh roots when the keys are
-present, before its check, and the check becomes `check_limits(at_exit=True)`
-over the restored roots: a marked cost root, an exceeded root and a root
-that refused a call and is still reached all raise at resume, so the
-resumed attempt ends on that limit before making a call. A payload written
-before this change has neither key and restores as today, with no marks:
-the marks did not exist when it was written, so nothing is lost. A newer
-payload read by an older Inspect has two keys it does not read, which the
-restore ignores (it reads only the keys it knows, with `payload.get()`).
-A resume for scoring (`check=False`) restores the marks too but runs no
-check, as it runs none today: it restores a spent budget on purpose.
+- A cost limit marked because a model has no price: the resumed sample's
+  first call to that model is refused before dispatch and marks the limit
+  again. Nothing is spent.
+- A limit that refused a call at exactly its budget is restored at that
+  usage, so the resumed sample's next call is refused by the pre-dispatch
+  check (`>=`), which raises it and sets `_raised` again. Nothing is spent.
+  If the resumed sample makes no further call and returns, it is not
+  recorded as limited, as for a sample that used exactly its budget.
+- A cost limit marked because a response had no usage is restored at its
+  metered cost, possibly under budget. The resumed sample can make one more
+  call to that provider, whose cost is unknown, and that call's response
+  marks the limit again.
 
 Only the sample's roots are stored: scoped limits (`run()`, a swarm's
-nodes) are re-entered fresh by the resumed agents, as their usage is
-today.
-
-Plain `with token_limit(...)` blocks get no exit check. Their author enters
-and owns them, and may catch their errors on purpose. Their nodes are no
-longer on the chain when an enclosing owner checks at exit, so a mark on them
-has no effect.
+nodes) are re-entered fresh by the resumed agents, as their usage is today.
 
 ### The sandbox bridge
 
@@ -970,17 +911,18 @@ async def generate_forwarding_errors(json_data, headers=None):
   has unwound or returned, after a pending enclosing cancellation
   (`bridge.py:340-395`, unchanged). If the agent is cancelled first, the kept
   limit is not raised there. Its node raised when it was reached, so it
-  carries the `_raised` mark, and rule 7 raises it when its owner ends: an
-  `apply_limits()` scope that ends normally, or the sample's final decision
-  however the solvers ended, whether the limit is exceeded or was reached
-  exactly by a refused request: for example a swarm that hard-stopped the
-  member and then returned.
+  carries the `_raised` mark. It refuses every later call under it (rule
+  3), and when no other limit error reaches its owner, rule 7 raises it
+  when that owner ends normally: an `apply_limits()` scope, or the sample's
+  exit check when the solvers return, whether the limit is exceeded or was
+  reached exactly by a refused request: for example a swarm that
+  hard-stopped the member and then returned.
 - An unmetered call (`UnmeteredCallError`, see "Unmetered calls") in a
   bridged generation fails the sample through `bridge.request_fail()`, as a
   `ModelRefusalError` or `ResponseFilterError` does, so the sample fails with
   the error's message. If a cancellation displaces that failure before it is
-  delivered, the marked cost limit still refuses every later request and is
-  found by the sample's final decision.
+  delivered, the marked cost limit still refuses every later request, and
+  the sample's exit check finds it if the solvers return.
 
 Every bridged request and host tool runs in the bridge's service task, which
 inherits the agent's chain. So two limits reached by different requests are
@@ -1008,8 +950,7 @@ particular `run()`, installs its own background target for that scope
 (`background_target` in `src/inspect_ai/util/_background.py:30`), as
 inspect_swarm does for each member. This design does not reroute the
 sample's background group: work started there keeps its sample-scoped
-lifetime and its errors keep reaching the sample, where the final decision
-ranks them. The guarantees below are about work in tasks the runtime owns.
+lifetime and its errors keep reaching the sample runner. The guarantees below are about work in tasks the runtime owns.
 
 1. **A sample limit reaches the runtime.** A sample token, cost or turn
    limit reached by any of its agents' model calls, native or bridged, in a
@@ -1017,8 +958,7 @@ ranks them. The guarantees below are about work in tasks the runtime owns.
    code as a `LimitExceededError` whose `source` is the sample's node
    (`sample_limits().token`, `.cost`, `.turn`). It arrives bare, or in a
    group where `outermost_limit()` returns it. No Inspect code between the
-   model call and the runtime converts it (rule 6) or wraps it (a sentinel
-   raises it bare), and no inner limit reached by the same call or a
+   model call and the runtime converts it (rule 6), and no inner limit reached by the same call or a
    concurrent one replaces it (rules 3, 4, 8). For a bridged agent it
    arrives when the agent's CLI exits. If a handler on the way swallows it
    (a fallback, a hook, `tg_collect()` keeping another error), it arrives
@@ -1038,15 +978,16 @@ ranks them. The guarantees below are about work in tasks the runtime owns.
    runner records it as the sample's limit (`EvalSampleLimit` of that type).
    During the stop, no model call can succeed under the reached limit, so
    the runtime's final step must make none.
-4. **Losing it is not silent.** On normal completion, or an exit whose
-   deciding exception is a `LimitExceededError`, the sample's final decision
-   records the outermost sample limit that counts at exit (rule 7): one that
-   is exceeded, reached exactly after refusing a call, or marked unmetered.
-   That covers a runtime, or a bridged agent cancelled before its CLI
-   exited, that drops the error, and an inner limit that ends the solvers
-   first. It decides after background cleanup, so usage recorded there
-   counts. An exit decided by a non-limit error, a termination or an
-   operator interrupt keeps that outcome.
+4. **Losing it is not silent.** When the solvers return normally, the
+   sample's exit check records the outermost sample limit that counts at
+   exit (rule 7): one that is exceeded, reached exactly after refusing a
+   call, or marked unmetered. That covers a runtime, or a bridged agent
+   cancelled before its CLI exited, that drops the error. It runs after
+   background cleanup, so usage recorded there counts. A limit error that
+   reaches the runner is recorded as it is: it can be an inner limit only
+   when a sample limit was pushed over in cleanup after that limit escaped
+   (see "What the owner can miss"). An exit decided by a non-limit error, a
+   termination or an operator interrupt keeps that outcome.
 5. **A cost limit meters every call that comes back.** No model without
    cost data is dispatched under a sample or swarm cost limit, and a
    response that comes back with no usage (other than a rejection output)
@@ -1097,32 +1038,50 @@ charged to. A marked node raises in every check, through the same path as a
 numeric one, so that whatever a node does when it is reached (a swarm cap
 asking the swarm to stop) also happens when it is marked:
 
-- `_CostLimit._check_self()` raises the marked error first, when
-  `_unmetered` is set: `LimitExceededError("cost", value=<its cost>,
-  limit=<its limit>, source=node)` with the message "Cost limit reached:
-  <reason>", built by `_CostLimit._marked_error()`. Otherwise it compares
-  cost and limit as today.
+- `_CostLimit._check_self()` returns at once when its limit is `None`, as
+  it does today (`src/inspect_ai/util/_limit.py:1292-1297`). Otherwise it
+  raises the marked error first, when `_unmetered` is set:
+  `LimitExceededError("cost", value=<its cost>, limit=<its limit>,
+  source=node)` with the message "Cost limit reached: <reason>", built by
+  `_CostLimit._marked_error()`. Otherwise it compares cost and limit as
+  today.
 - A subclass that overrides `_check_self()` handles the mark there, as it
   handles its numeric limit. inspect_swarm's `SwarmCostNode._check_self()`
   (`inspect_swarm/src/inspect_swarm/_budget.py:529`), which routes its
   numeric limit through `SwarmNode.exceeded()` (`:385`, where a cap calls
-  `stop_swarm`), checks `self._unmetered` first and calls
-  `self.exceeded("cost", "cost", cost, limit, "", reason=self._unmetered)`.
+  `stop_swarm`), keeps its stop gate first (`pair.reason`, which refuses
+  every call with no numeric ceiling and is unchanged), then, when
+  `self._unmetered` is set and its numeric limit (`pair.cost_node.limit`)
+  is not `None`, calls `self.exceeded("cost", "cost", cost, limit, "",
+  reason=self._unmetered)` before its pair comparison.
   So a cap marked by an unpriced model or a response without usage asks the
   swarm to stop, as a cap reached by spend does, even when the error is
   then contained by `MemberBackground._run()` or swallowed by a compaction
   fallback.
 - As a backstop, `_check_marked()` raises `_marked_error()` itself when a
-  marked cost node's `_check_self()` returns without raising (an override
-  that does not know the mark), so a mark is never ignored, though such an
-  override skips its own notification.
+  marked cost node whose limit is not `None` returns from `_check_self()`
+  without raising (an override that does not know the mark), so a mark is
+  never ignored, though such an override skips its own notification.
 
 Every later dispatch under the node is therefore refused before it
 is sent (rule 3), in any task that shares the node, whatever happened to the
 error that marked it; a call already in flight raises it after recording;
-and the exit check and the sample's final decision raise it (rule 7). The
-mark is never cleared, as the `_raised` mark is not, and a sample's cost root
-keeps it across a checkpoint resume ("Checkpoints").
+and the owners' exit checks raise it (rule 7). The mark is never cleared,
+as the `_raised` mark is not. A checkpoint does not store it; the mark
+recurs after a resume ("Checkpoints").
+
+**Disabling a marked limit.** Setting a cost limit's value to `None` turns
+it off, today and with a mark: `state.cost_limit = None` (which checks at
+once, `src/inspect_ai/solver/_task_state.py:386-393`) and `node.limit =
+None` on a scoped limit (`tests/util/test_limit_cost.py:75-93`, `test_can_get_and_update_limit_value`) are
+supported. A node whose limit is `None` enforces nothing, marked or not:
+`_check_self()` returns, the backstop and the exit checks skip it, and the
+swarm's marked branch does not run, so no error is ever built with a
+limit of `None`. The mark stays on the node. Setting a number again turns
+enforcement back on, mark included: the `TaskState.cost_limit` setter's
+check raises the marked error at once, and a scoped limit raises it at its
+next check. A node whose limit is `None` when a call is unmetered is not
+marked (`mark_unmetered()` skips it), since nothing charges it.
 
 **The error.** Marking is followed by raising one private error,
 `UnmeteredCallError(PrerequisiteError)`, defined in `_limit.py` beside the
@@ -1145,9 +1104,10 @@ bridged host tool treats it as an unexpected error, which fails the sample
 (`host_tool.py:450-452`); a bridged generation fails the sample with it
 through `bridge.request_fail()` (above). Wherever it is swallowed instead
 (a compaction fallback, a hook that logs and continues, a first-error
-reduction, the sentinel wrapper, a cancelled bridge delivery), the mark does
-the rest: the next call under the limit is refused, and the sample records a
-cost limit whose message names the unmetered call.
+reduction, a cancelled bridge delivery), the mark does the rest: the next
+call under the limit is refused, or, if none follows and the solvers return,
+the sample's exit check records a cost limit whose message names the
+unmetered call.
 
 **No price: refused before dispatch.**
 
@@ -1168,6 +1128,17 @@ cost limit whose message names the unmetered call.
   configuration error, and the sample fails with it unless something
   swallows the error; the mark keeps a swallowed error from letting the
   sample continue as if the limit still metered everything.
+- **At start.** `resolve_model_costs()` keeps requiring cost data for the
+  task's own model, which the sample's agent calls by default, so the
+  common misconfiguration still fails before any sample runs. It no longer
+  requires cost data for model-role models, at eval start or for an
+  enqueued task (`src/inspect_ai/_eval/eval.py:879`, `:1352`): a role can be
+  used only by suspended calls (the sentinel host's `monitor` role, an
+  approver's role), and the start-time check cannot tell how a role will be
+  used. An unpriced role model called with cost suspended runs; the same
+  model called by an agent, unsuspended, under the cost limit is refused at
+  that call by the per-dispatch check above. A role cannot be exempted by
+  name either, since any code can resolve any role.
 
 **No usage: marked after the response.** `ModelOutput.usage` is optional
 (`src/inspect_ai/model/_model_output.py:286`), and a provider can omit it:
@@ -1186,6 +1157,28 @@ zero is metered as zero, as today. The billed usage of a sentinel-sidecar
 refusal (`_model.py:1170`) is recorded only when the sidecar reports it, as
 today; that path follows a provider error, not a successful response, and
 is left as is.
+
+**Missing usage stays missing.** The rule needs every provider to report a
+missing usage as `None`, not as zero. Mistral and SageMaker streaming fill
+in zeros today ("Current behaviour"), and change:
+
+- **SageMaker.** `_invoke_endpoint_streaming()` leaves `usage` out of the
+  assembled response when no chunk carried one, in place of the zero
+  dictionary (`_providers/sagemaker.py:790-791`). `ChatCompletion.usage` is
+  optional, so `model_output_from_response()` (`:907`) and the shared
+  conversion give `ModelOutput.usage = None`.
+- **Mistral.** The SDK's chat completion response requires `usage`, so
+  `mistral_completion_from_stream()` keeps building the zero `UsageInfo` for
+  the response object that the model call logs, and also returns whether
+  the stream reported usage (a `NamedTuple` of the response and a
+  `usage_reported: bool`). `MistralAPI.generate()` sets
+  `ModelOutput.usage = None` when it is false (`_providers/mistral.py:334`,
+  `:363-376`). The warning stays, for calls under no cost limit.
+
+A provider that reports zero tokens still gives `ModelUsage` of zero, which
+is metered as zero; counts a provider derives locally (the local `hf` and
+`nnterp` providers, mockllm) are reported usage. Only a provider that sent no usage
+gives `None`.
 
 **Rejection outputs are not marked.** Several providers return the
 provider's rejection of a request as an output with no usage (see "Current
@@ -1293,11 +1286,13 @@ What the swarm must change: its `_SwarmTurnNode._check_self()` takes the new
 `raise_for_equal` argument. Its other overrides (`record()`, the token and
 cost `_check_self()`, the message `check()`) are called as today, through
 `_check_marked()`. `SwarmCostNode._check_self()` handles the unmetered mark
-before its pair comparison and routes it through `exceeded()`, so a cap
-marked by an unpriced model or a response without usage calls `stop_swarm`
+after its stop gate and before its pair comparison, only while its numeric
+limit is not `None`, and routes it through `exceeded()`, so a cap marked by
+an unpriced model or a response without usage calls `stop_swarm`
 ("Unmetered calls"); its tests cover both marks, with the error contained by
 `MemberBackground._run()` and with it swallowed by a compaction fallback,
-and assert the stop was requested. A member whose model has no cost data, or whose provider
+and assert the stop was requested, and a marked node whose limit is set to
+`None` raises nothing until it is set again. A member whose model has no cost data, or whose provider
 returns no usage, under a swarm cost node now marks that node and every
 cost node above it (rule 9), so the swarm needs pricing and usage for every
 member model wherever it uses cost nodes. Approver, reviewer and monitor
@@ -1355,8 +1350,33 @@ user or extension code can catch an exception. The rules here make the
 nodes the record instead, so a handler that swallows a limit or an
 unmetered-call error delays it by at most one call and cannot lose it.
 Inspect still changes its own handlers where that decides *which owner*
-hears first (rules 4, 6 and 8, the sentinel wrapper), not merely whether
-the error survives.
+hears first (rules 4, 6 and 8), not merely whether the error survives.
+
+**Reconcile an escaped limit with node state at its owner.** When a limit
+error reaches `apply_limits()` or the sample runner, compare it with the
+outermost limit that counts at that point and report that one instead. It
+would close the cleanup race under "What the owner can miss", where only
+the recorded limit type differs, but each review of it found another exit
+path to cover (owned errors, descendants' errors, time limits outside the
+chain). An error that reaches its owner stands (decision: Ransom,
+2026-11-16).
+
+**Store the marks in checkpoints.** Two optional payload keys would carry
+`_unmetered` and `_raised` across a resume, so a resumed sample ends on a
+marked limit before any call. Without them each mark recurs within at most
+one call ("Checkpoints"); the keys were cut (decision: Ransom, 2026-11-16).
+
+**Raise a monitor's limit bare from the sentinel wrapper.** With cost
+suspended for monitors, the only limit a monitor can meet is the bridge
+guard's refusal, and the bridge has already kept that limit, so unwrapping
+it changes only the reply the scaffold sees (decision: Ransom,
+2026-11-16).
+
+**Exempt role models at start by name.** Skipping the start-time price
+check only for roles such as `monitor` would keep the early failure for
+other roles, but a role's name does not say how it is used, and any code
+can resolve any role. The per-dispatch check decides by the call's own
+suspension instead.
 
 **Fail an unmetered call without marking the cost limit.** Raising the
 error alone fails the sample when the error arrives, but a handler that
@@ -1446,6 +1466,13 @@ documented. Behaviour changes:
   model not in the database). Evals with no cost limit, and cache hits, are
   unaffected. Unpriced calls outside a cost limit now also raise a reached
   token or turn limit after they return, like any call.
+- **Unpriced role models fail per call, not at start.** Today an eval with
+  a cost limit and an unpriced model-role model fails before any sample
+  runs, with a `PrerequisiteError` from `resolve_model_costs()`, at eval
+  start or when the task is enqueued. Now it starts: a role model used only
+  by approvers, reviewers or sentinel monitors runs unpriced, and one an
+  agent calls fails each sample at that call with `UnmeteredCallError`. An
+  unpriced task model still fails at start, as today.
 - **Failed attempts and cancelled calls stay uncharged.** Unchanged: an
   attempt that fails (an error response, a timeout, a connection reset, an
   empty stream) or is cancelled in flight records no usage and marks
@@ -1467,26 +1494,30 @@ documented. Behaviour changes:
   overflow recovery, `CompactionAuto`'s native-to-summary fallback) are
   unchanged: one that catches the error falls back once, and its next model
   call is refused by the marked limit.
-- **Sentinel monitors.** A dispatch guard's refusal inside an in-process
-  sentinel (the bridge's kept limit) now leaves `generate()` as the bare
-  `LimitExceededError`, not a `SentinelFailure` wrapping it, when no other
-  error decides.
+- **Mistral and SageMaker streaming report missing usage.** A streamed
+  Mistral or SageMaker response that carries no usage now has
+  `ModelOutput.usage = None` in place of zero usage. Under a cost limit it
+  is marked like any response without usage; without one, its token
+  limits record nothing for it, as the zeros did. Logged model events show
+  no usage for such calls where they showed zeros. A reported zero is
+  unchanged.
+- **Disabling a marked cost limit.** Setting a marked cost limit to `None`
+  turns it off, as for any cost limit; setting a number again raises its
+  marked error at the next check ("Unmetered calls").
 - **`apply_limits()`** catches its own limit raised in an exception group
   (when every limit in it is its own or a descendant's; any other leaf,
   including a sourceless `custom` limit, propagates the group as today),
   and at normal exit raises a limit that is exceeded, or reached after it
-  refused a call. When its own or a descendant's limit escapes, it reports
-  the outermost limit that counts at that point instead, which can be one
-  of its own limits (in place of a descendant's error that today escapes
-  `run()`) or an enclosing one it then raises. `run()` therefore returns
-  `(state, error)` in these cases where today it raises or returns
-  `(state, None)`.
-- **The sample runner** decides the sample's limit after the solvers and
-  the sample's background work have finished: it records an exceeded, marked
-  or refusing sample limit found then, on a normal return, and records it in
-  place of an escaped inner limit that it outranks. Errors, terminations,
-  operator interrupts and limits delivered by cancellation are handled as
-  today.
+  refused a call. `run()` therefore returns `(state, error)` in these cases
+  where today it raises or returns `(state, None)`. A limit error that
+  escapes its body is handled as it is (by ownership of its outermost
+  limit), not compared with node state.
+- **The sample runner**, when the solvers return normally, checks the
+  sample's limits after the solvers and the sample's background work have
+  finished, and records an exceeded, marked or refusing sample limit found
+  then. A limit error that escapes the solvers is recorded as today.
+  Errors, terminations, operator interrupts and limits delivered by
+  cancellation are handled as today.
 - **Background work.** Unchanged. Work started with `background()` in the
   sample's task group, including deepagent's default background children,
   still sends its errors to the sample, so a child's limit of its parent's
@@ -1508,12 +1539,8 @@ documented. Behaviour changes:
   `record_turn()` no longer checks. inspect_swarm is the only known user of
   these classes (above).
 - **Persisted data and the viewer.** The checkpoint sample-runtime payload
-  gains two optional keys, `cost_unmetered` and `limits_raised`
-  ("Checkpoints"). Payloads without them restore as today, and an older
-  Inspect ignores them. A sample resumed from a checkpoint taken after its
-  cost limit was marked, or after a limit refused a call at exactly its
-  budget, now ends on that limit at resume instead of continuing.
-  `EvalSampleLimit`, `SampleLimitEvent` and `EvalConfig` limit fields keep
+  is unchanged and does not store the new marks, so a resumed sample meets
+  each mark again within at most one call ("Checkpoints"). `EvalSampleLimit`, `SampleLimitEvent` and `EvalConfig` limit fields keep
   their shapes, and old logs read the same. No generated TypeScript type
   changes.
 - **Docs.** `docs/setting-limits.qmd` and `docs/_agent_limits.md` state the
@@ -1603,10 +1630,34 @@ under trio with `--runtrio`.
     raises the marked error through its own path is used (its side effect
     runs), and one whose override ignores the mark still raises the marked
     error from `_check_marked()`;
+  - disabling a marked limit, beside `test_can_get_and_update_limit_value`:
+    a marked scoped `cost_limit()` set to `None` raises nothing at its next
+    check, in the pre-dispatch check or at the `apply_limits()` exit check,
+    and set back to a number raises the marked error at its next check; the
+    same through `state.cost_limit = None` and back, whose setter raises the
+    marked error at once; a node whose limit is `None` when a call is
+    unmetered is not marked;
   - containment: a missing-usage error swallowed by a hook that logs and
     continues, and by `tg_collect()` beside an owned token limit that
     `run()` catches, each leaves the cost limit marked, so the next call is
     refused;
+  - missing usage from Mistral and SageMaker streaming: in
+    `tests/model/providers/test_mistral.py`,
+    `test_mistral_completion_from_stream_missing_usage_warns` also asserts
+    that the stream reports no usage, and `MistralAPI.generate()` over a
+    stubbed stream with no usage chunk returns `usage=None` (and, under a
+    cost limit, raises `UnmeteredCallError`), while a stream whose usage
+    chunk reports zero tokens returns zero usage; in
+    `tests/model/providers/test_sagemaker.py`, the stream assembler over a
+    local event iterator with no usage chunk gives `usage=None`, and one
+    with a zero usage chunk gives zero usage (no API keys);
+  - start-time pricing, in `tests/test_sample_limits.py`: an eval with a
+    cost limit, a priced task model and an unpriced `monitor` role model
+    starts, and the same task enqueued during an eval is accepted
+    (`tests/test_enqueue_task.py`); a stub
+    in-process monitor that calls the role model with cost suspended runs;
+    a solver that calls the same role model, unsuspended, fails the sample
+    with `UnmeteredCallError`; an unpriced task model still fails at start;
   - failed attempts and cancellation stay unmarked (pinned): an attempt
     that raises `AttemptTimeoutError` and one that streams a chunk and then
     raises are retried under a cost limit with no usage recorded and the
@@ -1632,7 +1683,8 @@ under trio with `--runtrio`.
   raised inside the agent's task group is returned; a group with a foreign
   leaf propagates; a group of an owned token limit and a sourceless `custom`
   limit propagates as a group; a group of an owned limit and a limit of a
-  node entered below it is caught and returns the owned one; an owned token
+  node entered below it is caught and returns the owned one; a bare
+  descendant limit propagates; an owned token
   limit exceeded and swallowed inside the
   agent is returned as `(state, error)` by the exit check (the return path
   of `run()`); an owned limit reached exactly and swallowed after a refused
@@ -1640,35 +1692,26 @@ under trio with `--runtrio`.
   returns `(state, None)`; a sample limit swallowed inside the agent
   propagates from `run()`; a synchronous deepagent subagent's swallowed
   limit is reported as its result;
-  - owned-exit reconciliation (each synchronized by an `anyio.Event`):
+  - an escaped error stands (pinned, synchronized by an `anyio.Event`):
     `run(limits=[cost_limit(1), token_limit(1)])` over `tg_collect()`, where
     one task raises the token limit first and a sibling's call, finishing in
     its cancellation cleanup with token metering suspended, pushes the cost
-    limit over, returns the cost limit; the same where the sibling pushes an
-    enclosing `cost_limit()` over raises that enclosing limit from `run()`;
-    the same with a foreign or non-limit error escaping is unchanged;
+    limit over, returns the token limit; the same where the sibling pushes
+    an enclosing `cost_limit()` over returns the token limit, and the
+    caller's next model call is refused by the enclosing cost limit;
   - own limits outside the chain: `apply_limits([time_limit(...)],
     catch_errors=True)` and `run(limits=[time_limit(...)])` still catch and
     return their own time limit error, including one raised as the limits
     exit (the existing `test_apply_limits_handles_time_limit` stays);
-  - descendant-exit reconciliation, beside it: `run(limits=[cost_limit(1)])`
-    whose agent enters a child `token_limit(1)` around `tg_collect()`, where
-    the child's token limit escapes first and a sibling's call, finishing in
-    cancellation cleanup with token metering suspended, pushes the run's
-    cost limit over, returns `(state, cost_error)`; with no cost overrun the
-    child's token error propagates from `run()` as today.
-- `tests/checkpoint/test_sample_runtime.py`: dump and restore round-trip a
-  marked cost root (`cost_unmetered`) and a token root that refused a call
-  at exactly its budget (`limits_raised`); a normal resume
-  (`restore_sample_runtime(check=True)`) of either raises that limit before
-  any call; a scoring resume (`check=False`) restores the marks and does not
-  raise; a payload without the new keys restores unmarked, as today.
+- `tests/checkpoint/test_sample_runtime.py`: the payload is unchanged
+  (no new keys); after a dump and normal restore of a token root that
+  refused a call at exactly its budget, the next call is refused before
+  dispatch; after a dump and restore of a cost root marked by an unpriced
+  model, the next call to that model is refused and marks the restored
+  root.
 - `tests/util/test_limit.py`, sentinel: a stub in-process monitor whose
   priced model call would exceed a reached sample cost limit is made and
-  not charged to it; a monitor call refused by a `dispatch_guard()` leaves
-  `generate()` as the bare `LimitExceededError`; a monitor that raises a
-  `RuntimeError` beside a guard's refusal still fails with
-  `SentinelFailure`.
+  not charged to it.
 - `tests/agent/test_agent_execute.py`: a sample token limit reached inside an
   `as_tool()` agent ends the sample with `limit.type == "token"` and no
   further generation; `as_tool()`'s own token limit is still a tool error;
@@ -1683,14 +1726,14 @@ under trio with `--runtrio`.
   not; a sample with a cost limit whose solver calls an unpriced model fails
   with `UnmeteredCallError`; a solver that swallows that error and returns
   ends on the marked cost limit;
-  - final decision after cleanup (each with the worker synchronized by an
+  - exit check after cleanup (each with the worker synchronized by an
     `anyio.Event`, never a sleep): a `background()` worker makes a priced
     call in its cancellation cleanup after `plan()` returns, exceeds the
     sample cost limit, catches the error and returns: the sample ends on the
     cost limit; the same with a cleanup call refused at exactly the budget;
     `plan()` raises an inner `cost_limit()` while a worker's cleanup call
-    pushes the sample token limit over and is caught: the sample ends on the
-    sample token limit, not the inner cost limit; `plan()` raises a
+    pushes the sample token limit over and is caught: the sample records the
+    inner cost limit (pinned: an escaped limit stands); `plan()` raises a
     `RuntimeError` while a worker's cleanup exceeds a sample limit: the
     sample errors as today; an operator interrupt with an exceeded sample
     limit keeps its operator outcome.
@@ -1698,7 +1741,7 @@ under trio with `--runtrio`.
   summary call reaches the sample token limit falls back to the overflow
   filter as today, and the agent's next generation is refused with the
   sample token limit (the sample ends on it); if the overflow filter cannot
-  shorten the conversation and the agent ends, the sample's final decision
+  shorten the conversation and the agent returns, the sample's exit check
   records the limit.
 - `tests/agent/test_bridge_provider_errors.py`:
   - replace the `_encloses()` tests (`keeps_the_first_of_limits_in_different_trees`,
@@ -1713,7 +1756,9 @@ under trio with `--runtrio`.
     sample; a group `[ModelRefusalError, ValueError, LimitExceededError]`
     keeps the limit and logs the others, as today;
   - a bridged sentinel monitor call made after the bridge kept a limit is
-    refused by the guard, and the request is answered with the kept limit;
+    refused by the guard; the request gets an error reply (the wrapped
+    refusal, as today), no new limit is kept, and the agent ends on the
+    kept limit when it unwinds;
   - an unpriced bridged model under a cost limit fails the sample with
     `UnmeteredCallError`, and a bridged response without usage does too;
     with the bridged agent cancelled before the failure is delivered, a
@@ -1746,21 +1791,19 @@ Each step is one PR, in this order. Each keeps the suite green.
 1. **The chain and one check.** `src/inspect_ai/util/_limit.py`:
    `_limit_chain`, `_outer`/`_in_chain`/`_raised`, push/pop, `_chain_depth`,
    `_rank`, `outermost_limit`, `first_or_outermost_limit`, `_outer_than`,
-   `_check_marked`, `check_limits`, `counting_limit`, `final_sample_limit`,
-   `record_model_call`,
+   `_check_marked`, `check_limits`, `record_model_call`,
    `_TurnLimit._check_self(raise_for_equal)`, `record_turn` recording only,
    the affine grammar and non-negative weights in `_compile_token_formula()`,
    with metering from the reduced coefficients.
    `src/inspect_ai/model/_model.py`: `record_and_check_model_usage(check=)`,
    the inner generation recording without a check, the outer frame's
    `record_turn()` then `check_limits()`, `_check_limits_before_dispatch`.
-   `src/inspect_ai/util/_checkpoint/sample_runtime.py`:
-   `check_limits(at_exit=True)` at restore, and the `limits_raised` key.
-   Tests: `tests/util/test_limit*.py`, `tests/checkpoint/test_sample_runtime.py`.
+   Tests: `tests/util/test_limit*.py`, `tests/checkpoint/test_sample_runtime.py`
+   (the checkpoint code is unchanged).
 2. **Unmetered calls.** `_limit.py`: `_CostLimit._unmetered`,
    `mark_unmetered()`, `UnmeteredCallError`, `_CostLimit._marked_error()`,
    the marked raise in `_CostLimit._check_self()` and the backstop in
-   `_check_marked()`. `_model.py`: the unpriced check in
+   `_check_marked()`, both skipped while the limit is `None`. `_model.py`: the unpriced check in
    `_check_limits_before_dispatch(model)` and the model passed by
    `generate()`'s and compaction's per-attempt calls; marking and raising
    where the inner generation (`:1988`) and native compaction (`:1546`)
@@ -1770,14 +1813,21 @@ Each step is one PR, in this order. Each keeps the suite green.
    converters listed under "Unmetered calls": `openai_handle_bad_request()`
    in `_openai.py` for `APIStatusError` only, and each provider's converter
    in `src/inspect_ai/model/_providers/` that builds its output from an
-   error response received before any output.
-   `src/inspect_ai/util/_checkpoint/sample_runtime.py`: the
-   `cost_unmetered` key. `src/inspect_ai/model/_util.py`: the
-   shared message helper used by `resolve_model_costs()`.
+   error response received before any output. Missing usage stays missing:
+   `src/inspect_ai/model/_providers/sagemaker.py` (no zero usage dictionary
+   in the assembled stream response) and
+   `src/inspect_ai/model/_providers/mistral.py`
+   (`mistral_completion_from_stream()` reports whether the stream carried
+   usage; `MistralAPI.generate()` sets `usage=None` when it did not).
+   `src/inspect_ai/model/_util.py`: `resolve_model_costs()` checks the task
+   model only, with the shared message helper.
    `src/inspect_ai/agent/_bridge/sandbox/service.py`: `UnmeteredCallError`
    fails the sample. Tests: `tests/util/test_limit_cost.py`,
-   `tests/test_eval.py`, `tests/agent/test_bridge_provider_errors.py`,
-   `tests/checkpoint/test_sample_runtime.py`, and one rejection case per
+   `tests/test_eval.py`, `tests/test_sample_limits.py`,
+   `tests/test_enqueue_task.py`, `tests/agent/test_bridge_provider_errors.py`,
+   `tests/checkpoint/test_sample_runtime.py`,
+   `tests/model/providers/test_mistral.py`,
+   `tests/model/providers/test_sagemaker.py`, and one rejection case per
    classified converter in that provider's existing test file under
    `tests/model/providers/` (mocked transport, no API key).
 3. **Suspension.** `_limit.py`: `check_limits()` skips suspended cost
@@ -1785,15 +1835,14 @@ Each step is one PR, in this order. Each keeps the suite green.
    docstring. Tests in `tests/util/test_limit_token.py`,
    `tests/util/test_limit_cost.py` and
    `tests/agent/test_bridge_provider_errors.py`.
-4. **Owners and reductions.** `_limit.py`: `apply_limits()` covered exits,
-   exit check and reconciliation of own and descendant exits.
+4. **Owners and reductions.** `_limit.py`: `apply_limits()` covered exits
+   and its exit check on a normal return.
    `src/inspect_ai/agent/_run.py`: the return after the block. `src/inspect_ai/_eval/task/run.py`: `first_or_outermost_limit`
-   for the escaping group, and the final decision after the sample task
-   group has joined (on a normal return, and in `except
-   LimitExceededError`; skipped on a resume for scoring).
+   for the escaping group, and `check_limits(at_exit=True)` after the
+   sample task group has joined when the solvers returned (skipped on a
+   resume for scoring).
    `src/inspect_ai/model/_call_tools.py`: `decisive_tool_exception`,
-   `decisive_sentinel_exception`. `src/inspect_ai/_sentinel/_dispatch.py`:
-   a deciding limit raised bare. Tests: `run()` and sentinel tests in
+   `decisive_sentinel_exception`. Tests: `run()` and sentinel tests in
    `tests/util/test_limit.py`, `tests/test_eval.py`,
    `tests/agent/test_agent_overflow_compaction.py`.
 5. **Ownership in tools.** `_call_tools.py`: the call leaf and ownership test
@@ -1816,7 +1865,7 @@ Each step is one PR, in this order. Each keeps the suite green.
 inspect_swarm adapts in its own repository, alongside step 2: its
 `_SwarmTurnNode._check_self()` takes `raise_for_equal`, and its
 `SwarmCostNode._check_self()` routes the unmetered mark through
-`exceeded()`, with tests for a cap marked by an unpriced model and by a
+`exceeded()` while its numeric limit is not `None`, with tests for a cap marked by an unpriced model and by a
 response without usage ("What inspect_swarm can delete or simplify").
 
 ## Open questions
@@ -1848,8 +1897,8 @@ None.
   and `tg_collect()`'s first-error reduction. They are unchanged. What a
   limit or unmetered-call error swallowed there costs: it surfaces one step
   later, at the next call under the limit, which is refused at no cost, or
-  at the owner's exit or the sample's final decision. Spend stays bounded and
-  the sample limit is not lost. Making each re-raise these errors would only
+  at the owner's exit check. Spend stays bounded and the sample limit is not
+  lost. Making each re-raise these errors would only
   make them arrive sooner.
 - Routing `background()` work to the `run()` or runtime that started it.
   Default deepagent background children keep their sample-scoped lifetime
