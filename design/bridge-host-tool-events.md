@@ -552,7 +552,11 @@ proposal, and fixing the pairing would mean keeping evicted grants.
   whatever name the agent declared, through the same resolution the grants
   use (`reviewed_calls()`); a call denoting several bridged tools is approved
   separately for each, and the resulting `ApprovalEvent`s carry the id the
-  call is handed over under and its handout's `execution_id`. See
+  call is handed over under and its handout's `execution_id`. They are
+  recorded in the span the call's host runs are (the proposing `ModelEvent`'s,
+  where a `ModelEventSink` placed it in a sub-agent's span), so the viewer
+  finds them in the run's conversation; the approvers run in the current
+  span, so their own calls stay out of it. See
   [Bridged Agents](../docs/approval.qmd#bridged-agents).
 - **Sentinel.** The host executor runs no sentinel tool stage. The bridge
   checks the call when the model proposes it, and its result when the agent's

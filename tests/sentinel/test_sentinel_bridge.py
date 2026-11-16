@@ -2423,6 +2423,110 @@ def test_each_handout_of_a_repeated_host_call_names_its_run_and_steps(
         assert results == [("saw contents 1", handouts[0])] * targets + unknown
 
 
+@approver(name="bridge_approving")
+def approving() -> Approver:
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        return Approval(decision="approve", explanation="looks fine")
+
+    return approve
+
+
+@solver
+def routed_host_call(approver: str) -> Solver:
+    """A sandbox scaffold whose generations a model event sink routes into the sub-agent span `sub-agent` (as inspect_swe's consumers do), running one host call under an approval policy.
+
+    `approver` is `custom` (an approver of its own), `own-call` (one that runs
+    a native call of its own under the agent's call id), or `auto`.
+    """
+    bridged = generate
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        read = ToolCall(
+            id="host_1", function="mcp__host__read_file", arguments=READ.arguments
+        )
+        async with span("outer", type="agent", id="outer"):
+            transcript()._event(
+                SpanBeginEvent(
+                    id="sub-agent", parent_id="outer", type="agent", name="sub"
+                )
+            )
+            model = Scripted(calls_output(read), calls_output())
+            bridge = sandbox_bridge(AsyncMock(return_value="contents"))
+            bridge.model_event_sink = SubAgentSink()
+            policy = {
+                "custom": approving(),
+                "own-call": running_its_own_call(),
+                "auto": auto_approver(),
+            }[approver]
+            bridge.approval = [
+                ApprovalPolicy(policy, "read_file"),
+                ApprovalPolicy(auto_approver(), "*"),
+            ]
+            history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+            output = await bridged(bridge, model, history, declare_read_file())
+            [handed] = output.message.tool_calls or []
+            result = await call_host_tool(bridge)("host", "read_file", READ.arguments)
+            history += [
+                output.message,
+                ChatMessageTool(
+                    content=str(result),
+                    tool_call_id=handed.id,
+                    function=handed.function,
+                ),
+            ]
+            await bridged(bridge, model, history, declare_read_file())
+            transcript()._event(SpanEndEvent(id="sub-agent"))
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("approver", ["custom", "own-call", "auto"])
+def test_a_routed_host_calls_approval_is_in_its_generations_span(
+    approver: str, tmp_path: Path
+) -> None:
+    [log] = eval(
+        Task(
+            dataset=[Sample(input=TASK)],
+            solver=routed_host_call(approver),
+            sentinel=[reporting_results()],
+        ),
+        model="mockllm/model",
+        log_format="json",
+        log_dir=str(tmp_path),
+    )
+    assert log.status == "success", log.error
+    [sample] = read_eval_log(log.location).samples or []
+    events = sample.events
+
+    # the agent's generations and its host run are in the routed span
+    [run] = [e for e in events if isinstance(e, ToolEvent) and e.metadata]
+    assert run.span_id == "sub-agent"
+    generations = [e for e in events if isinstance(e, ModelEvent)]
+    agents = [e for e in generations if e.input[0].text == TASK]
+    assert {e.span_id for e in agents} == {"sub-agent"}
+
+    # so is the call's approval, which names the run's handout
+    approvals = [e for e in events if isinstance(e, ApprovalEvent)]
+    assert [
+        (e.span_id, e.execution_id) for e in approvals if e.call.function == "read_file"
+    ] == [("sub-agent", run.execution_id)]
+
+    # an approver's own generation, call and approval stay where it ran
+    own = [
+        *(e for e in generations if e not in agents),
+        *(e for e in events if isinstance(e, ToolEvent) and not e.metadata),
+        *(e for e in approvals if e.call.function == "lookup"),
+    ]
+    assert len(own) == (3 if approver == "own-call" else 0)
+    assert {e.span_id for e in own} <= {"outer"}
+
+
 async def test_a_result_of_a_handout_run_twice_names_the_handout() -> None:
     read = ToolCall(
         id="host_1", function="mcp__host__read_file", arguments=READ.arguments

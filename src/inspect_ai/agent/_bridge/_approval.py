@@ -114,6 +114,7 @@ async def apply_bridge_tool_approval(
     tools: Sequence[ToolInfo | Tool] = (),
     producer: Produced | None = None,
     execution_ids: Sequence[str] | None = None,
+    span_ids: Sequence[str | None] | None = None,
 ) -> BridgeApproval:
     """Approve the tool calls in a bridged model response.
 
@@ -166,6 +167,11 @@ async def apply_bridge_tool_approval(
         execution_ids: The id of each call's handout, in order, which its
             approvals and `tool_call` steps record as their `execution_id`
             (`_Handouts.hand_over`); `None` records none.
+        span_ids: The span to record each call's `ApprovalEvent`s in, in
+            order: the one its host tool runs will be recorded in (the
+            proposing `ModelEvent`'s, where a `ModelEventSink` placed it
+            elsewhere), so they share the run's conversation. `None` for a
+            call, or for all, records them in the current span.
 
     Returns:
         The response for the scaffold, plus the messages to replay to the model when
@@ -208,6 +214,7 @@ async def apply_bridge_tool_approval(
         ] = []
         for index, call in enumerate(tool_calls):
             execution_id = execution_ids[index] if execution_ids is not None else None
+            span_id = span_ids[index] if span_ids is not None else None
             reviewed_calls = bridge.reviewed_calls(call, tools)
             selected_reviewed = reviewed_calls.calls[0]
             if approval_active:
@@ -220,6 +227,7 @@ async def apply_bridge_tool_approval(
                         None,
                         approval_history,
                         execution_id=execution_id,
+                        span_id=span_id,
                     )
                     error = (
                         approver_result_error(shown, reviewed, approval)

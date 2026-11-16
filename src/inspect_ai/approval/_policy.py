@@ -192,7 +192,9 @@ class PolicyApprover:
 
     Called as an `Approver`. `execution_id` names the execution of the call
     under review, recorded on each `ApprovalEvent` the approval records
-    (`ApprovalEvent.execution_id`).
+    (`ApprovalEvent.execution_id`), and `span_id` is the span they are
+    recorded in, else the current span. Neither applies to approvals of the
+    approvers' own calls.
     """
 
     def __init__(self, policies: list[ApprovalPolicy]) -> None:
@@ -209,6 +211,7 @@ class PolicyApprover:
         history: list[ChatMessage],
         *,
         execution_id: str | None = None,
+        span_id: str | None = None,
     ) -> Approval:
         # process approvers for this tool call (continue loop on "escalate")
         has_approver = False
@@ -217,7 +220,13 @@ class PolicyApprover:
                 continue
             has_approver = True
             approval = await call_approver(
-                approver, message, call, view, history, execution_id=execution_id
+                approver,
+                message,
+                call,
+                view,
+                history,
+                execution_id=execution_id,
+                span_id=span_id,
             )
             if approval.decision != "escalate":
                 return approval
@@ -229,7 +238,13 @@ class PolicyApprover:
         )
         # record and return the rejection
         record_approval(
-            "policy", message, call, view, reject, execution_id=execution_id
+            "policy",
+            message,
+            call,
+            view,
+            reject,
+            execution_id=execution_id,
+            span_id=span_id,
         )
         return reject
 
