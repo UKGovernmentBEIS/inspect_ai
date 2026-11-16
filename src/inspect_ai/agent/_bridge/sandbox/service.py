@@ -15,6 +15,7 @@ from inspect_ai.model._model import (
 )
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
+from inspect_ai.util._json import json_schema_dump
 from inspect_ai.util._limit import (
     Limit,
     LimitExceededError,
@@ -310,6 +311,14 @@ async def run_model_service(
     instance: str,
     started: anyio.Event,
 ) -> None:
+    """Serve the bridge's model service to its proxy.
+
+    The service's request queue is private to the tools user, the user the
+    proxy runs as, so no other user (the sandbox's default user included) can
+    submit requests past the proxy's check of the client's user. Every bridge
+    does this, scoped or not: bridges' queues share one parent directory, which
+    must have one owner.
+    """
     await sandbox_service(
         name=MODEL_SERVICE,
         methods={
@@ -330,6 +339,7 @@ async def run_model_service(
         },
         until=lambda: False,
         sandbox=sandbox,
+        user=sandbox._tools_user,
         instance=instance,
         polling_interval=2,
         started=started,
@@ -430,7 +440,7 @@ def list_tools(
             {
                 "name": info.name,
                 "description": info.description,
-                "inputSchema": info.parameters.model_dump(exclude_none=True),
+                "inputSchema": json_schema_dump(info.parameters),
             }
             for info in tools_info
         ]

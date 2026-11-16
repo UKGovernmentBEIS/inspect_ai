@@ -2,6 +2,7 @@ import base64
 import json
 from contextlib import nullcontext
 from pathlib import Path
+from typing import Any, cast
 
 import httpx2
 import openai
@@ -11,8 +12,16 @@ from test_helpers.output_cache import check_output_cache_round_trip
 from test_helpers.utils import skip_if_no_openai, skip_if_no_openai_model
 
 from inspect_ai import Task, eval
+from inspect_ai._util.content import (
+    ContentData,
+    ContentDocument,
+    ContentImage,
+    ContentText,
+)
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
     Model,
@@ -21,7 +30,8 @@ from inspect_ai.model import (
 from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._internal import parse_content_with_internal
 from inspect_ai.model._openai import openai_completion_params
-from inspect_ai.tool import tool
+from inspect_ai.model._openai_responses import openai_responses_inputs
+from inspect_ai.tool import ToolFunction, computer, tool
 
 
 def _openai_model_with_status_response(status_code: int, path: str) -> Model:
@@ -73,6 +83,88 @@ async def test_openai_compact_reports_unavailable_endpoint(
     ) as model:
         with pytest.raises(NotImplementedError, match="endpoint not available"):
             await model.compact([ChatMessageUser(content="hello")], [])
+
+
+async def test_openai_compact_preserves_user_media() -> None:
+    """Images and files in user messages survive compaction and replay as input items."""
+    file_data = "data:application/pdf;base64,JVBERi0x"
+    image_url = "data:image/png;base64,iVBORw0KGgo"
+    # the compact endpoint echoes user messages with their original input items
+    body = {
+        "id": "resp_1",
+        "object": "response.compaction",
+        "created_at": 0,
+        "output": [
+            {
+                "id": "msg_1",
+                "type": "message",
+                "role": "user",
+                "status": "completed",
+                "content": [
+                    {"type": "input_text", "text": "see attached"},
+                    {
+                        "type": "input_file",
+                        "detail": "auto",
+                        "file_data": file_data,
+                        "filename": "r.pdf",
+                    },
+                    {"type": "input_image", "detail": "auto", "image_url": image_url},
+                ],
+            },
+            {"id": "cmp_1", "type": "compaction", "encrypted_content": "enc"},
+        ],
+        "usage": {
+            "input_tokens": 10,
+            "output_tokens": 1,
+            "total_tokens": 11,
+            "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
+            "output_tokens_details": {"reasoning_tokens": 0},
+        },
+    }
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        assert request.url.path == "/v1/responses/compact"
+        return httpx2.Response(200, json=body, request=request)
+
+    http_client = DefaultAsyncHttpxClient(transport=httpx2.MockTransport(handler))
+    async with get_model(
+        "openai/test",
+        api_key="test",
+        base_url="http://test/v1",
+        http_client=http_client,
+        responses_api=True,
+        memoize=False,
+    ) as model:
+        messages: list[ChatMessage] = [
+            ChatMessageUser(
+                content=[
+                    ContentText(text="see attached"),
+                    ContentDocument(document=file_data, filename="r.pdf"),
+                    ContentImage(image=image_url),
+                ]
+            )
+        ]
+        compacted, _ = await model.compact(messages, [])
+
+    user, compaction = compacted
+    assert isinstance(user, ChatMessageUser)
+    assert user.content == messages[0].content
+    assert isinstance(compaction.content, list)
+    assert isinstance(compaction.content[0], ContentData)
+
+    # the compacted history is replayed to the model on the next request
+    items = cast(list[dict[str, Any]], await openai_responses_inputs(compacted))
+    content = items[0]["content"]
+    assert [part["type"] for part in content] == [
+        "input_text",
+        "input_file",
+        "input_image",
+    ]
+    assert content[1]["file_data"] == file_data
+    assert content[1]["filename"] == "r.pdf"
+    assert content[2]["image_url"] == image_url
+    assert items[1]["type"] == "compaction"
+    assert items[1]["encrypted_content"] == "enc"
 
 
 async def test_openai_compact_propagates_other_endpoint_errors() -> None:
@@ -1092,3 +1184,30 @@ async def test_skip_if_no_openai_model_propagates_other_errors(
         with pytest.raises(type(error)):
             await gated()
     assert [c.closed for c in clients] == [True, True]
+
+
+@skip_if_no_openai
+async def test_openai_computer_tool_result_without_screenshot() -> None:
+    """A computer tool result with no image (e.g. a tool error) must not 400.
+
+    OpenAI's computer_call_output can only carry a screenshot, so a placeholder
+    is sent in its place. A corrupt placeholder was rejected with "The image
+    data you provided does not represent a valid image."
+    """
+    model = get_model("openai/gpt-5.4")
+    tools = [computer()]
+    user = ChatMessageUser(content="Take a screenshot of the desktop.")
+
+    output = await model.generate(
+        [user], tools=tools, tool_choice=ToolFunction(name="computer")
+    )
+    assert output.message.tool_calls
+    tool_call = output.message.tool_calls[0]
+
+    error = ChatMessageTool(
+        content="Error: the display is not available",
+        tool_call_id=tool_call.id,
+        function=tool_call.function,
+    )
+    output = await model.generate([user, output.message, error], tools=tools)
+    assert output.error is None

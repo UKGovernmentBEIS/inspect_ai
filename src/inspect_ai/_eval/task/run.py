@@ -1165,6 +1165,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # dynamic feed that no longer produces them — and leave the log
             # (see TaskLogger.log_finish)
             prune_unplanned=status == "success" and not record_logged_samples,
+            total_samples=total_samples,
         )
 
     # hooks whose on_task_start was entered and that are still owed their
@@ -1395,7 +1396,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         try:
             # return immediately if we are not running samples
             if not options.run_samples:
-                return await logger.log_finish("started", stats)
+                return await logger.log_finish(
+                    "started", stats, total_samples=total_samples
+                )
 
             sample_semaphore = create_sample_semaphore(
                 config,
@@ -2056,6 +2059,15 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         return True
 
                     def add_samples(samples: list[EnqueuedSample]) -> AddedSamples:
+                        """Admit a batch of samples, counting each run as it is admitted.
+
+                        A later sample in the batch can raise (duplicate id or
+                        epoch) after earlier ones were admitted, and the
+                        caller awaits a prior-record copy before dispatch, so
+                        the attempt's ``total_samples`` advances here rather
+                        than after either.
+                        """
+                        nonlocal total_samples
                         added = AddedSamples([], [], [], [], [])
                         over_limit = 0
                         for source_sample, epoch in samples:
@@ -2072,6 +2084,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                             added.samples.append(sample)
                             added.runs.extend((index, e) for e in planned_epochs)
                             added.run_ids.extend((sample.id, e) for e in planned_epochs)
+                            total_samples += len(planned_epochs)
+                            sample_error_handler.total_samples = total_samples
                             # resolvable by the requeue directive, like a seed
                             if epoch is None:
                                 sample_ids.append(sample.id)
@@ -2100,8 +2114,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         propagates and fails the task, matching a seed
                         config failing startup.
                         """
-                        nonlocal total_samples
-
                         added = add_samples(samples)
                         if (
                             logger.prior_seeded
@@ -2126,8 +2138,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                     sample_source.seed.source, seed_keys
                                 )
                         if added.runs:
-                            total_samples += len(added.runs)
-                            sample_error_handler.total_samples = total_samples
                             record_samples_added(
                                 logger.eval.eval_id,
                                 len(added.runs),
@@ -4465,6 +4475,7 @@ async def _finish_task_log(
     record_logged_samples: bool = False,
     resolved_unlogged_samples: int | None = None,
     prune_unplanned: bool = False,
+    total_samples: int | None = None,
 ) -> EvalLog:
     """Finish the task log.
 
@@ -4473,6 +4484,11 @@ async def _finish_task_log(
     logger's distinct-sample count — or, when sample logging is off and the
     logger therefore saw no samples, from ``resolved_unlogged_samples``, the
     attempt's resolved count per its terminal counters.
+
+    ``total_samples`` is the attempt's running count of accepted sample/epoch
+    runs (seed plus everything a SampleSource injected before the finish);
+    it lands on the log header so a denominator survives even when the
+    aggregate ``results`` is absent (#5814).
 
     The single finish chokepoint for ``task_run``'s terminal branches. A
     non-success finish may be a teardown that left planned samples unrun
@@ -4492,5 +4508,11 @@ async def _finish_task_log(
             else resolved_unlogged_samples
         )
     return await logger.log_finish(
-        status, stats, results, reductions, error, prune_unplanned=prune_unplanned
+        status,
+        stats,
+        results,
+        reductions,
+        error,
+        prune_unplanned=prune_unplanned,
+        total_samples=total_samples,
     )

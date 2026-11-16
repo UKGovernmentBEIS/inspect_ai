@@ -162,6 +162,15 @@ class TestGetModelInfo:
         assert info.organization == "Moonshot AI"
         assert info.context_length == 1048576
 
+    @pytest.mark.parametrize("model", ["mistral-large-4", "mistral-large-4-0"])
+    def test_known_mistral_large_4_model(self, model):
+        """Test lookup of Mistral Large 4 and its alias."""
+        info = get_model_info(f"mistral/{model}")
+        assert info is not None
+        assert info.organization == "Mistral"
+        assert info.model == "Mistral Large 4"
+        assert info.context_length == 1048576
+
     def test_known_deepseek_v4_model(self):
         """Test lookup of a known DeepSeek V4 model."""
         info = get_model_info("deepseek/deepseek-v4-pro")
@@ -800,6 +809,19 @@ class TestGetModelInputTokens:
         assert info.output_tokens == 65_536
         assert info.reasoning is True
         assert info.reasoning_effort_default == "medium"
+
+    def test_gemini_4_hydrogen(self) -> None:
+        """Gemini 4 Hydrogen resolves to its own entry (1M context, 64K output)."""
+        model = get_model("google/gemini-4-hydrogen", api_key="test-key")
+        assert get_model_input_tokens(model) == 1_048_576
+        info = get_model_info("google/gemini-4-hydrogen")
+        assert info is not None
+        assert info.model == "Gemini 4 Hydrogen"
+        assert str(info.release_date) == "2026-11-12"
+        assert str(info.knowledge_cutoff_date) == "2026-03-01"
+        assert info.output_tokens == 65_536
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "high"
 
     def test_claude_latest_defaults_to_1m(self):
         """An unknown/future Claude model (is_claude_latest) assumes the 1M frontier."""

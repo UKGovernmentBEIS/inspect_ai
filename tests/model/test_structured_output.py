@@ -145,8 +145,8 @@ def test_openai_structured_output():
 
 @skip_if_no_anthropic
 def test_anthropic_structured_output():
-    check_color_structured_output("anthropic/claude-sonnet-4-5")
-    check_nested_pydantic_output("anthropic/claude-sonnet-4-5")
+    check_color_structured_output("anthropic/claude-sonnet-5-5")
+    check_nested_pydantic_output("anthropic/claude-sonnet-5-5")
 
 
 @skip_if_no_openai

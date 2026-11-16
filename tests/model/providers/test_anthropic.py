@@ -3409,6 +3409,69 @@ async def test_anthropic_stream_capture_restores_container() -> None:
     assert message.container.id == "container_from_delta"
 
 
+async def test_anthropic_stream_compaction_usage_sums_iterations() -> None:
+    """Streamed compaction usage is the sum of `usage.iterations`.
+
+    The SDK's non-beta stream accumulator drops `message_delta.usage.iterations`.
+    The usage is from a live claude-haiku-5-5 response.
+    """
+    import json
+
+    import httpx2
+
+    iterations = [
+        {
+            "type": "compaction",
+            "input_tokens": 48,
+            "output_tokens": 415,
+            "cache_creation_input_tokens": 60104,
+        },
+        {"type": "message", "input_tokens": 233, "output_tokens": 206},
+    ]
+    events: list[dict[str, Any]] = [
+        {
+            "type": "message_start",
+            "message": {
+                "id": "msg_x",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-haiku-5-5",
+                "content": [],
+                "usage": {"input_tokens": 48, "output_tokens": 8},
+            },
+        },
+        {
+            "type": "message_delta",
+            "delta": {"stop_reason": "end_turn"},
+            "usage": {
+                "input_tokens": 233,
+                "output_tokens": 206,
+                "iterations": iterations,
+            },
+        },
+        {"type": "message_stop"},
+    ]
+    sse = "".join(f"event: {e['type']}\ndata: {json.dumps(e)}\n\n" for e in events)
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
+            200, headers={"content-type": "text/event-stream"}, text=sse
+        )
+
+    model = get_model(
+        "anthropic/claude-haiku-5-5",
+        api_key="test-key",
+        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(respond)),
+        memoize=False,
+    )
+    # streams at the default max_tokens
+    output = await model.generate("hello")
+
+    assert output.usage is not None
+    assert output.usage.total_tokens == 61006
+    assert output.input_context_tokens == 60152
+
+
 async def test_anthropic_stream_capture_tolerates_compaction_delta() -> None:
     """A compaction_delta must not be reported as a text stream delta.
 
