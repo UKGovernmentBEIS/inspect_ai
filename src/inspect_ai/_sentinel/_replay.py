@@ -121,7 +121,7 @@ def steps_from_events(
         messages_from: For an imported transcript, the `uuid`s of the model events its messages are from (Scout's `TranscriptInfo.messages_from`). Ignored for an Inspect log.
 
     Returns:
-        The steps, in the order they ran live. A tool step's id is its call id, as live records it (`step_id`; for a host call, the id it was handed over under), but for a later execution of a call id an earlier rebuilt execution, native or bridged, already took (a retry after a tool error, a provider that repeats ids, a call handed out again): that execution's steps are named by its `ToolEvent.execution_id`, which each of its live `SentinelEvent`s records. A host run so named has a `tool_result` step only where a result check names its execution: the bridge checks a result reported under an id it handed out more than once under no execution and without the call's proposal. A `ToolEvent` that records no `execution_id` keeps its call id; in such a log, a host call under an id a native call or an earlier replayed host call has is skipped.
+        The steps, in the order they ran live. A tool step's id is its call id, as live records it (`step_id`; for a host call, the id it was handed over under), but for a later execution of a call id an earlier rebuilt execution, native or bridged, already took (a retry after a tool error, a provider that repeats ids, a call handed out again): that execution's steps are named by its `ToolEvent.execution_id`, which each of its live `SentinelEvent`s records. A host run so named under an id an earlier host run has (a second handout) has a `tool_result` step only where a result check names its execution: the bridge checks a result reported under an id it handed out more than once under no execution and without the call's proposal, so replay skips such a result, and warns. A host run named so because a native execution took its id keeps its `tool_result` step. A `ToolEvent` that records no `execution_id` keeps its call id; in such a log, a host call under an id a native call or an earlier replayed host call has is skipped.
 
     Raises:
         ValueError: `eval_info` and `messages_from` are both `None`, the log predates Inspect 0.3.100 or its samples have an earlier layout (or it has an unknown version and completed spanless native tool events), or the call an approval approved is not the call its `ToolEvent` records. Replay such transcripts from their messages instead.
@@ -678,6 +678,8 @@ class _Driver:
         # keep their id (`_tool_step_id`); the host executions replayed
         self.unnamed_native_ids: set[str] = set()
         self.host_executions: set[str] = set()
+        # the call ids of the host runs `_tool_call` has read, in log order
+        self.bridged_ids: set[str] = set()
         # each model event's input view and producer, shared by its steps
         self._views: dict[int, PoolView] = {}
         self._producers: dict[int, Producer] = {}
@@ -1237,9 +1239,11 @@ class _Driver:
                 approval, call.conversation, (begin, 1), call.seq + 1
             )
         if _bridged(event):
+            handed_again = event.id in self.bridged_ids
+            self.bridged_ids.add(event.id)
             step_id = self._host_step_id(event) if self._links_host_call(call) else None
             if step_id is not None:
-                self._host_call(call, step_id, begin, end)
+                self._host_call(call, step_id, begin, end, handed_again)
             else:
                 # its checks still publish their decisions
                 self._settle_at_end(call.before_span)
@@ -1460,7 +1464,12 @@ class _Driver:
         return self._tool_step_id(event)
 
     def _host_call(
-        self, call: _Call, step_id: str, begin: int, end: int | None
+        self,
+        call: _Call,
+        step_id: str,
+        begin: int,
+        end: int | None,
+        handed_again: bool,
     ) -> None:
         """The steps of a sandbox bridge's host call, as the bridge built them live.
 
@@ -1470,10 +1479,14 @@ class _Driver:
         arguments approval left. It checks the result when the scaffold's
         next request carries it, as the tool message the scaffold sent, which
         the run's event names where the bridge linked it (`message_id`). Both
-        steps have `step_id` (`_host_step_id`). A run whose steps are named by
-        its execution has a `tool_result` step only where a result check names
-        that execution: a result reported under an id the bridge handed out
-        more than once is checked under none, without the call's proposal.
+        steps have `step_id` (`_host_step_id`). A run named by its execution
+        under an id an earlier host run has (`handed_again`) has a
+        `tool_result` step only where a result check names its execution: a
+        result reported under an id the bridge handed out more than once is
+        checked under none, without the call's proposal, so a result its
+        event links that no check names is skipped, with a warning. A run
+        named by its execution because a native execution took its id was
+        handed the id once, so its result step is built as any other run's.
         """
         event = call.event
         proposal = call.proposal
@@ -1539,15 +1552,17 @@ class _Driver:
         self._settle_at_end(before_span)
         # a result reported under an id handed out more than once is checked
         # under no execution and without its proposal, which replay can't give
-        result = (
-            self._reported_result(event)
-            if step_id == event.id or after_span is not None
-            else None
+        result = self._reported_result(event)
+        dropped = (
+            result is not None
+            and handed_again
+            and step_id != event.id
+            and after_span is None
         )
-        if result is None:
+        if result is None or dropped:
             # its result check, if any, still publishes its decisions
             self._settle_at_end(after_span)
-            if after_span is not None:
+            if dropped or after_span is not None:
                 self.skipped.append(event.id)
             return
         after_call = replace(

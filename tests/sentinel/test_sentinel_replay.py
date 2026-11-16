@@ -2812,6 +2812,34 @@ def test_a_failed_call_and_its_same_id_retry_replay_with_bridged_and_native_call
             assert_step_equals_live(key, s, live[key], differences)
 
 
+def test_a_second_handout_s_result_no_check_names_is_skipped_with_a_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # with a sentinel that checks calls only, the retry's event still links
+    # the result the scaffold reported, which live would check under no
+    # execution and without the call's proposal: replay skips it, and says so
+    host = ToolCall(
+        id="host_1", function="mcp__host__addition", arguments={"x": 1, "y": 1}
+    )
+    log = run_logged(
+        as_solver(r7_retries_a_failed_host_call("host_1")),
+        outputs(r7_tool_calls(host), r7_tool_calls(host), done()),
+        sentinel=[r7_counts_tool_calls([])],
+    )
+    hosts = [e for e in logged_sample(log).events if isinstance(e, ToolEvent)]
+    assert [e.id for e in hosts] == ["host_1", "host_1"]
+    assert hosts[1].message_id is not None
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        replay = replayed(log)
+    assert [(s.stage, s.id) for s in replay if s.stage.startswith("tool")] == [
+        ("tool_call", "host_1"),
+        ("tool_result", "host_1"),
+        ("tool_call", hosts[1].execution_id),
+    ]
+    assert bridge_warning_ids(caplog) == ["host_1"]
+
+
 @pytest.mark.parametrize("decision", ["approve", "modify"])
 def test_an_older_bridged_approval_under_the_scaffold_s_name_replays(
     decision: str,
@@ -8428,6 +8456,83 @@ def test_a_native_call_run_while_a_bridged_call_waits_keeps_its_tool_steps(
     ids = [s.id for s in replay if s.stage.startswith("tool")]
     assert ("shared" in ids[:1]) is (not native_first)
     assert len(tool_step_calls(replay)) == 4
+    assert replay_warnings(caplog) == []
+
+
+def test_a_host_call_under_an_id_a_native_call_took_first_keeps_its_result_step(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # the bridge handed the id out once, so its result check names the run's
+    # execution; with a sentinel that checks calls only, no result check
+    # links the run, and replay still builds its result step, as live built it
+    def run(sentinel: Any) -> EvalLog:
+        return run_logged(
+            as_solver(r7_defers_a_bridged_host_call(native_first=True)),
+            outputs(
+                r7_tool_calls(
+                    ToolCall(
+                        id="shared",
+                        function="mcp__host__addition",
+                        arguments={"x": 1, "y": 1},
+                    )
+                ),
+                r7_tool_calls(
+                    ToolCall(
+                        id="shared", function="addition", arguments={"x": 5, "y": 5}
+                    )
+                ),
+                done(),
+            ),
+            sentinel=[sentinel],
+            inferred="two threads in one conversation",
+        )
+
+    def host_steps(steps: list[tuple[str, Step]]) -> tuple[Step, Step]:
+        [before, after] = [
+            step
+            for stage, step in steps
+            if stage.startswith("tool") and step.call.arguments == {"x": 1, "y": 1}
+        ]
+        assert (before.conversation, before.message_id) == (
+            after.conversation,
+            after.message_id,
+        )
+        return before, after
+
+    seen: dict[str, Step] = {}
+    probed = run(r7_probe(seen, copies=True))
+    _, live = host_steps(
+        [
+            (e.stage, seen[e.explanation or ""])
+            for e in logged_sample(probed).events
+            if isinstance(e, SentinelEvent) and e.path == "r7_probe"
+        ]
+    )
+    log = run(r7_counts_tool_calls([]))
+    [host] = [
+        e
+        for e in logged_sample(log).events
+        if isinstance(e, ToolEvent) and _is_bridged(e)
+    ]
+    assert host.id == "shared" and host.execution_id is not None
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        replay = replayed(log)
+    assert [(s.stage, s.id) for s in replay if s.stage.startswith("tool")] == [
+        ("tool_call", host.execution_id),
+        ("tool_call", "shared"),
+        ("tool_result", "shared"),
+        ("tool_result", host.execution_id),
+    ]
+    # each has its own run's message ids, and the host call's tool_call step's
+    _, rebuilt = host_steps([(s.stage, s.step) for s in replay])
+    assert not [
+        f.name
+        for f in dataclasses.fields(live)
+        if f.name not in ABSENT["AfterToolCall"] | {"conversation", "message_id"}
+        and comparable(getattr(rebuilt, f.name), ids=False)
+        != comparable(getattr(live, f.name), ids=False)
+    ]
     assert replay_warnings(caplog) == []
 
 

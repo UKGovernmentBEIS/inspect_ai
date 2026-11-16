@@ -585,10 +585,14 @@ proposal, and fixing the pairing would mean keeping evicted grants.
   sentinel that checks results only), its `tool_result` check. The
   `tool_result` step is the tool message `message_id` names, so a run
   without it has none. The steps are named as a native execution's are (see
-  Execution ids), so a later handout under a call id an earlier rebuilt
-  execution took is named by its `execution_id`, with no `tool_result` step
-  unless a result check names that execution. Other host calls, including a
-  shared handout's run under a fresh event id, are skipped with a warning.
+  Execution ids), so a run under a call id an earlier rebuilt execution
+  took is named by its `execution_id`. A later handout under a call id an
+  earlier host run has gets no `tool_result` step unless a result check
+  names its execution, since the bridge checks that result under no
+  execution; replay warns where the run's event links a result it skips. A
+  run under a native execution's id was handed the id once, and keeps its
+  `tool_result` step. Other host calls, including a shared handout's run
+  under a fresh event id, are skipped with a warning.
 - **Hooks, control server, TUI, dataframes.** Pending host events drive the
   TUI's running state and the control server's activity and cancellation like
   native ones. Hooks receive each non-pending update. `events_df()` has `tool`
