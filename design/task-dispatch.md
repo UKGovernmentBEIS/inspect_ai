@@ -458,6 +458,7 @@ class RunQueue:
     uncounted: int                    # display decrements held until the task screen opens
     notifications: list[SourceNotification]  # queued-cancel reports made before the attempt group opened
     group: TaskGroup | None           # the attempt group while the dispatcher is inside it
+    run_context: Context              # saved after binding the queue; each notification runs in a copy
     notifying: int                    # source notifications running in the group
     def add(self, resolved: list[ResolvedTask]) -> list[TaskRecord]
     def find(self, task_id: str) -> TaskRecord | None
@@ -763,6 +764,17 @@ twice is reported three times.
   cancelled-before-start log, and calls `queue.notify(job)`. While the
   dispatcher is inside its attempt group (`queue.group` is set), `notify`
   starts the job there at once, adding one to `queue.notifying`. The job
+  runs in the run's context, not its caller's: `eval_run` saves
+  `queue.run_context = contextvars.copy_context()` after it binds the queue
+  and before any attempt or sample sets state, and `notify` calls
+  `queue.run_context.copy().run(queue.group.start_soon, job)`, since
+  `start_soon` gives the new task a copy of the calling context (checked on
+  asyncio and trio). A control-channel cancel, whose handler runs in the
+  control server's context without the queue binding, therefore still
+  reaches a callback that can call `enqueue_task()` and return follow-ups;
+  a cancel from a creator sample does not carry that sample's transcript,
+  model-usage attribution or attempt identity (`_attempt`) into the
+  callback. The job
   runs `notify_task_source` through the same guard `_run_task` uses today
   (below), and in a `finally` that covers every exit it takes one off
   `queue.notifying`, rings `wake` and drops its log and source references.
@@ -773,8 +785,8 @@ twice is reported three times.
   the report and returns. Only the report runs; no task starts during the
   call. A cancel made before the group opens (a seed cancelled while the
   task screen loads) is held in `queue.notifications`, and the dispatcher
-  starts those jobs the same way when it enters the group, then sets
-  `queue.group`. A running job counts as running work in the dispatcher's
+  starts those jobs the same way, each in its own copy of
+  `queue.run_context`, when it enters the group, then sets `queue.group`. A running job counts as running work in the dispatcher's
   idle test, so `next_tasks()` is not called while one runs and its tasks
   are added first, the order an attempt gives today. The dispatcher clears
   `queue.group` when dispatch ends; a job held then is dropped with the
@@ -789,10 +801,15 @@ catches only `Exception`, so `_run_task` runs it in a private task group
 and, when the call did not return normally and no cancellation of the run
 caused that, raises `RuntimeError` ("TaskSource.task_complete() for task
 '<task>' raised a cancellation that no cancellation of the run caused."),
-whatever `debug_errors` says. That check moves into one helper,
-`notify_source_guarded(task_name, log, ...)`, which `_run_task` and the
-notification job both call, so a stray cancellation from a queued-cancel
-report ends the run with the task's name instead of being absorbed by the
+whatever `debug_errors` says. Only the notification half of that check
+moves into one helper, `notify_source_guarded(task_name, log, ...)`, which
+`_run_task` and the notification job both call. `_run_task` keeps its own
+private group and normal-return check around `task_run`, which turns a
+stray cancellation escaping task cleanup or `on_task_end` into the
+"Task '<task>' raised a cancellation…" error, as today
+(`test_stray_cancellation_after_log_finalized_ends_run`). A stray cancellation from a queued-cancel
+cancellation from a queued-cancel
+report then ends the run with the task's name instead of being absorbed by the
 attempt group while a source waits in `next_tasks()`; a real cancellation
 of the run still propagates.
 
@@ -816,11 +833,29 @@ traceback)` keeps `exc_type`, the rendered traceback
 `INSPECT_TRACEBACK_LOCALS=1`, keeps the locals as reprs) and the text of
 `traceback.format_exception(...)`, and no exception object or frame.
 `task_run` builds it at each `td.complete(TaskError(...))`;
-`task_result_error` (`_display/core/results.py`) renders the snapshot, and
-`LogDisplay` logs "failed (…)" followed by the same text that logging's
-`exc_info` gives today. Under `debug_errors` the original exception still
-propagates with its traceback. A run with a failing task looks as it does
-today.
+`task_result_error` (`_display/core/results.py`) renders the snapshot.
+`LogDisplay._log_result` keeps today's status message, "<title> failed
+(<n>/<m> logged)", and passes the snapshot's text instead of `exc_info`, as
+`extra={"exc_snapshot": text}`; the text is exactly what
+`Formatter.formatException` gives for today's `exc_info`, without its
+trailing newline. The logger reads it where it reads `exc_info`
+(`_util/logger.py`):
+
+- `LogHandler.emit` sets `record.exc_text` from `exc_snapshot` when the
+  record has no `exc_info`, so `Formatter.format`, which appends
+  `exc_text` after the message, gives the plain display, the Rich display
+  (`RichHandler` formats the message the same way, since Inspect does not
+  enable `rich_tracebacks`) and the `INSPECT_PY_LOGGER_FILE` handler the
+  same output as today;
+- `json_log_record` emits `exc_info` from `record.exc_info` as today, and
+  otherwise from `exc_snapshot`, so the JSON record keeps a short `msg` and
+  the separate `exc_info` field;
+- the trace file's `TraceFormatter` records no exception today, and still
+  does not.
+
+Under `debug_errors` the original exception still propagates with its
+traceback. A run with a failing task looks as it does today on every
+display and logger format.
 
 **Terminal identity without registration.** A record that ends before any
 attempt calls `register_eval` (cancelled while queued, a startup failure
@@ -1487,7 +1522,8 @@ log schema, viewer type or config file changes here.
 
 Displays: `TaskError` (in the private `inspect_ai._display`) holds a
 rendered snapshot of the traceback instead of the exception and its
-traceback; the Rich, Textual and log displays show the same output.
+traceback; the Rich, Textual and log displays show the same output, and the
+JSON logger keeps its `msg` and separate `exc_info` fields.
 
 Model controllers: an added task's model gets its adaptive controller on
 its first `generate`, not before its sandboxes are built, so an `inspect ctl
@@ -1670,6 +1706,13 @@ test that waits on a run is bounded with `fail_after`.
   registered for the run's cleanup; the failed rows still render the
   traceback, with a chained cause, and `LogDisplay` logs the same text as
   today.
+- `tests/util/test_logger_format.py`: beside
+  `test_json_logger_format_includes_exc_info`, a record carrying a
+  snapshot's `exc_snapshot` and no `exc_info` gives a JSON line whose `msg`
+  is the status message and whose `exc_info` field holds the traceback text,
+  and the plain and Rich formats give the same text as the `exc_info`
+  record. `tests/test_task_cancel.py`'s two assertions on
+  `TaskError.exc_value` read the snapshot's error text instead.
 - `tests/test_enqueue_task.py` (live fixes): at `max_tasks=1`, a long seed
   task holds the only slot and a task it added waits behind it; `inspect
   ctl config --max-tasks 2` starts the added task while the seed task still
@@ -1709,10 +1752,16 @@ test that waits on a run is bounded with `fail_after`.
   reported again; a source whose `next_tasks()` adds a task, cancels it
   through its handle and waits for its report, and one waiting while the
   control channel cancels a queued task, each get exactly one report and
-  return; when that report's `task_complete` raises a saved cancellation of
+  return; in the control-channel case the callback adds one task with
+  `enqueue_task()` and returns another, and both run; in the handle case
+  the callback's transcript events and model usage are not attributed to
+  the creator sample, and an `enqueue_task()` of a `samples_from_handle()`
+  task inside it is refused as outside any attempt; when that report's `task_complete` raises a saved cancellation of
   its own, the run ends with the `RuntimeError` naming the task on asyncio
   and trio (as `test_task_complete_raising_stray_cancellation_ends_run`
-  checks for an attempt's report), `queue.notifying` is back to zero, and a
+  checks for an attempt's report, and as
+  `test_stray_cancellation_after_log_finalized_ends_run` still checks for a
+  cancellation escaping task cleanup), `queue.notifying` is back to zero, and a
   cancellation of the run during the report propagates as a cancellation; a source that seeds a successful A and a B whose
   `logger.init()` always fails, and returns from `next_tasks()` only after
   `task_complete` has reported A and B's final attempt, with
@@ -1843,7 +1892,9 @@ state in the single `eval_run`), so the setup fixes come first.
    `unwritten_task_log` with no location; `TaskCancelledBeforeStart`),
    `_display/core/display.py` (`TaskError.from_exception`),
    `_display/core/results.py` and `_display/log/display.py` (rendering the
-   snapshot),
+   snapshot; logging its text as `exc_snapshot`), `_util/logger.py`
+   (`LogHandler.emit` setting `exc_text` from it, `json_log_record` reading
+   it), `tests/util/test_logger_format.py`,
    `_eval/task/log.py` (`reinit()` without `init()`, `initialized`, `discard()` without an
    entry, a `location` of `None` until
    `log_init()` returns),
@@ -1901,6 +1952,7 @@ awaited nothing, that an attempt cancelled before it registers is stopped
 by its own abort, not the retry-abandon stamp (replacing that part of the
 2026-11-12 three-phase decision), and that cancels under legacy
 `eval_set()` rounds are not refused (replacing the 2026-11-12 refusal),
+that a failed task's display row keeps a frame-free snapshot of its error,
 and that each attempt's outcome, a failed `init()` and a queued first
 attempt's cancel included, reaches the `TaskSource` through one rule with
 today's two exceptions.
