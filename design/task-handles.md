@@ -545,8 +545,11 @@ class PortRequest:
   The creator's own settings are not inherited: the searcher passes what it
   wants shared when it builds the rollout task. Other `SampleSource` tasks
   keep today's resolution and filtering.
-- **Graceful cancels stop it.** `_run_task`'s `cancel_task` callback calls
-  `channel.stop()` for `drain`, `score` and `error`: `next_samples()` returns
+- **Graceful cancels stop it.** The attempt's `TaskCancel.apply`, which
+  `run_one` creates with the attempt's cancel scope
+  ([task-dispatch.md](task-dispatch.md#phases-and-cancelling); today
+  `_run_task` creates it), calls `channel.stop()` for `drain`, `score` and
+  `error`: `next_samples()` returns
   `None` and later sends raise `SampleAbandonedError` until the task ends,
   then `TaskEndedError` ("What is refused"). Samples already
   buffered or running follow the directive's existing rules and settle
@@ -597,6 +600,8 @@ class PortRequest:
   is `samples_from_handle` from the list it matches against requested
   tasks: task-id reuse, the pending-task check, `list_latest_eval_logs`
   (newest log, coverage, older-log cleanup) and the retries built from it.
+  inspect_steward reads the same logs and needs the same exclusion
+  ("Compatibility and migration").
   The fed logs stay in the log directory and are never cleaned up as a
   requested task's older logs, and the identifier format is unchanged.
   `_resumed_task` refuses a resume log with that dataset name, before it
@@ -768,6 +773,26 @@ the run's `--limit`, `--sample-id` and `--epochs` (with the run's epoch
 reducer), resolves its settings before the run's, runs once under its
 creator's model, is exempt from `max_tasks` and is left out of
 `eval_set()`'s result.
+
+inspect_steward, which supervises eval sets from their log directories,
+needs a coordinated change. It groups log attempts by `task_identifier`
+without the dataset name (`_attempt`, `observe_logs_async` and `_current`
+in `src/inspect_steward/_evalset/observe.py`) and takes a successful
+candidate, so a fed task built with `task_with(registered_task(), ...)`
+from a requested factory can make a failed requested task read COMPLETE,
+and its scheduler (`_schedule/reconcile.py`) then never launches the worker
+whose resume refusal would catch it. The change records the dataset name on
+each `LogAttempt` and skips attempts named `samples_from_handle` before
+requested-task matching and reuse, in the directory observer and its cache
+and in the store-candidate route through `read_attempt`
+(`_store/directory.py`, `_store/match.py`, which Flow-store candidates also
+pass through); fed logs stay listed. Its regression uses one registered
+factory whose requested sample fails and whose `task_with` adaptation,
+marked by the reserved name, succeeds: the requested task reads
+INCOMPLETE through the directory observer, a cached observation and a
+store candidate. Until a Steward release carries it, the handle docs do not
+present Steward-supervised eval sets as supporting fed tasks, and the
+identifier format and `task_with` support stay as they are.
 
 No eval log schema, viewer type, control-channel or config file changes. A
 fed task's log records the reserved dataset name `samples_from_handle`,
@@ -965,7 +990,7 @@ One PR, after step 3 of
   `sample_id`; `_attempt` set in `run_one`; the
   uncounted start step; channels closed with the creator's attempt; no
   retry, and `can_retry=False`, for fed tasks; `channel.stop()` from the
-  `cancel_task` callback), `_eval/task/task.py` (`resolve_dataset_or_source`
+  attempt's `TaskCancel.apply` that `run_one` creates), `_eval/task/task.py` (`resolve_dataset_or_source`
   naming a `HandleChannel`'s dataset and refusing the reserved name for any
   other), `_eval/eval.py` (`_resolve_enqueued_tasks` resolving a fed task
   for its creator's model; the `eval_resolve_tasks` refusal;
@@ -980,6 +1005,11 @@ One PR, after step 3 of
   `eval_set("search.py@search", ...)`, when the rollout task shares its
   file),
   `docs/parallelism.qmd`, `docs/reference`. Tests: those above.
+
+Coordinated change in inspect_steward, required before the docs present
+Steward-supervised eval sets with fed tasks: fed logs skipped in its
+observer, cache and store-candidate matching, with the regression above
+("Compatibility and migration").
 
 ## Open questions
 
@@ -1012,10 +1042,6 @@ from the log, without the schema field dropped then).
 - A handle for tasks a `TaskSource` returns from `next_tasks()`.
 - Recording the creator in the eval log; see
   [task-dispatch.md](task-dispatch.md#interactions-with-related-changes).
-- inspect_steward's log observation, which groups attempts by
-  `task_identifier` without the dataset name, skipping fed logs so that it
-  never offers one as a task's attempt or resume log; a worker given one
-  refuses it ("Requested-task matching skips fed logs").
 - Showing open handle waits in `inspect ctl task list`: a per-task count of
   waits in the control state, a `GET /tasks` field and a CLI column.
 - Counting a fed task's token or cost usage against its creator's limits.

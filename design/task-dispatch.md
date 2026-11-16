@@ -101,8 +101,9 @@ hides a problem):
   before it started", held in memory and not written to a file. One
   cancelled after its attempt began but before it registered with the
   control channel is aborted, as `inspect ctl task cancel` aborts a running
-  task, and ends with today's "Task cancelled by user (abort)" error log.
-  `eval()` returns either with the other logs, so an eval set or
+  task, and ends with today's "Task cancelled by user (abort)" error log,
+  or, when that attempt had already returned an error log, with that log
+  and no retry. `eval()` returns either with the other logs, so an eval set or
   selection-mode worker that requested the task reports failure. Under
   `eval_set(retry_immediate=False)` the next round runs such a task again,
   as it does a running task cancelled today.
@@ -611,8 +612,13 @@ retry is the one with a stored `log`. `attempt` means `run_one` is running
 for the record. The move into `attempt` is `run_one`'s first statement, not
 the dispatcher's pick: if the record ended between the pick and that
 statement (a cancel, or dispatch ending), `run_one` gives the slot back and
-returns. So a record is never left in `attempt` by an attempt that never ran
-(an AnyIO task cancelled before its first step runs none of its body).
+returns. A cancellation of the attempt group right after the pick does not
+skip that statement: an AnyIO task started with `start_soon` runs its
+synchronous body up to its first checkpoint even when its group is cancelled
+first (checked on asyncio and trio). Such a `run_one` moves the record into
+`attempt`, is cancelled at its first `await`, and leaves through its
+existing exception exit, after which `end_all()` ends the record with its
+stored log, so no record stays in `attempt`.
 Registration is `reached`, not a phase: an attempt that has not reached
 `register_eval` is initialising the log, seeding prior samples and writing
 the header. A retry whose attempt starts after a registered attempt has
@@ -631,7 +637,9 @@ queued row and by a handle's `cancel()`, is synchronous:
   does today.
 - `queued`, never registered: `RunQueue.end(record, record.log or
   cancelled_log(record))`, reporting `retry_abandoned` when `record.log` is
-  set (an earlier unregistered attempt failed and its retry was waiting).
+  set (an earlier unregistered attempt failed and its retry was waiting, and
+  the record keeps that attempt's log). This is the only branch that
+  reports it.
   A queued record holds no recorder entry, so nothing is discarded.
 - `attempt`, never registered: the attempt's own abort,
   `record.attempt_cancel.request("abort")`, the call `inspect ctl task
@@ -644,7 +652,8 @@ queued row and by a handle's `cancel()`, is synchronous:
   after an attempt that ended in error and only an error is retried, and
   `run_one` reads it where it reads `queue.closed` ("No retry once
   closed"), so no retry is published and the record ends with that
-  attempt's log.
+  attempt's log. Neither case reports `retry_abandoned`: an attempt that
+  is still running ends with its new abort log, not a stored one.
 
 `cancelled_log(record)` is `unwritten_task_log(logger, TaskCancelledBeforeStart())`:
 the same in-memory error log a failed log init returns, with status `error`,
@@ -674,7 +683,13 @@ handling covers every point before registration:
   TerminateTaskError("Task cancelled by user (abort)"))`;
 - during `logger.log_start()`: `task_run`'s handler there completes the
   open row with that error and re-raises, and `_run_task` returns the same
-  log;
+  log. That handler sits outside the `try`/`finally` that closes a paged
+  dataset (`maybe_page_to_disk`'s `DiskSampleStore`), so today an abort
+  there leaves the store's temporary file. `task_run` therefore closes the
+  store in a `try`/`finally` opened right after `maybe_page_to_disk`
+  returns, replacing the close in the main `finally`, so every exit after
+  paging, this one and a cancellation before the row opens included,
+  unlinks the file;
 - after the header is written: `task_run`'s cancellation handler writes the
   error log and completes the row, as for a running task.
 
@@ -964,8 +979,16 @@ task id, and `EvalState`s persist across those calls.
   cancelled-before-start error log, or aborting one in its unregistered
   attempt) and returns `changed: true`,
   `task_queued: true`, `in_flight: 0` (and `queued: 0` for a drain, whose
-  `queued` is a sample count), plus `retry_abandoned: true` when an earlier
-  unregistered attempt stored a log; `dry_run` reports without acting. The
+  `queued` is a sample count), plus `retry_abandoned: true` only when a
+  `queued` record ends with the log an earlier unregistered attempt stored;
+  `dry_run` reports without acting. For a record in its unregistered
+  attempt the directive first asks its `attempt_cancel`, dry runs included,
+  as today's directive asks a registered attempt's: when an abort is
+  already requested it answers `changed: false`, "cancel already requested
+  (abort)", and when the attempt has already returned a log that is not an
+  error (the `TaskCancel` then accepts nothing) it answers `changed: false`,
+  "task already finished", so a repeated cancel or drain while startup or
+  cleanup still holds the record changes nothing. The
   CLI renders such a result as "queued task … cancelled before it started;
   no samples ran". `action=score|error` answers 409 ("task … has not
   started, so there are no samples for a resolution to apply to; use cancel
@@ -1479,7 +1502,8 @@ test that waits on a run is bounded with `fail_after`.
   reporting an abandoned retry; the same with a cancellation from
   a scope around `eval_async()` and with a `debug_errors` exception; an
   attempt cancelled before its first step (the dispatcher's pick followed at
-  once by a cancel of the record) leaves no record in `attempt`; every record
+  once by a cancel of the record) leaves no record in `attempt`, and neither
+  does a cancellation of the attempt group right after a pick; every record
   has ended when `eval_async()` returns or raises.
 - `tests/test_enqueue_task.py` (setup in the attempt; stub provider whose
   `task_init` blocks on an event or fails on demand): at `max_tasks=2`, a
@@ -1568,10 +1592,15 @@ test that waits on a run is bounded with `fail_after`.
   before `_run_task` enters the attempt's scope, while `logger.init()` is
   held and while `log_start()` is held, each ending the record with "Task
   cancelled by user (abort)", with retries left and no retry, and with the
-  retry-abandon stamp unset; a cancel landing while `run_one` awaits the
-  `reinit()` of an unregistered attempt whose log init failed publishes no
-  retry and ends the record with that attempt's error log; a cancel of a
-  queued record whose
+  retry-abandon stamp unset and no `retry_abandoned` in the result, a retry's
+  attempt included; the abort while `log_start()` is held, with a dataset
+  paged to disk (`max_dataset_memory`), leaves no store file; a repeated
+  cancel and drain of the aborting attempt, each with and without
+  `--dry-run`, answer `changed: false`, "cancel already requested
+  (abort)", while `logger.init()` is still held; a cancel landing while
+  `run_one` awaits the `reinit()` of an unregistered attempt whose log init
+  failed publishes no retry, ends the record with that attempt's error log
+  and reports no `retry_abandoned`; a cancel of a queued record whose
   unregistered attempt failed and whose retry is waiting ends it at once
   with the stored log and reports `retry_abandoned: true`; a second cancel
   changes nothing;
