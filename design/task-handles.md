@@ -94,8 +94,9 @@ All of these are new API; no existing eval waits on a handle or uses
   run's other logs but does not decide `eval_set()`'s result or a
   selection-mode worker's: its creator's log does. A fed task must have a
   name of its own: one named like a task the eval set requests, or like a
-  seed task of a plain `eval()`, is refused, so its log never shares a
-  requested task's identifier. Resuming an eval set whose directory holds
+  seed task of a plain `eval()`, is refused. A later eval set that
+  requests a task whose identifier matches a fed log in its directory, and
+  a selection worker given a fed log to resume, refuse to run. Resuming an eval set whose directory holds
   fed logs, or its later `retry_immediate=False` rounds, needs
   `log_dir_allow_dirty=True`, as for any added task's log.
 - A fed task's log records the dataset name `samples_from_handle`, which is
@@ -351,10 +352,10 @@ the sample it sent still runs and its result is dropped.
     `eval_set_tasks` an eval set passes to its rounds and selection
     workers, and the seed's task names. Names added later are not
     compared, so a creator can add several rollout tasks from one factory.
-    Since the task name is part of `task_identifier()`, a fed log never
-    shares a requested task's identifier, and a selection worker given one
-    as its `resume` log refuses it with its existing identifier check
-    (`_resumed_task`);
+    Since the task name is part of `task_identifier()`, a fed log does not
+    share an identifier with a task the same run requests. A later
+    invocation can still request a task of that name; "Fed logs in an
+    eval-set directory" refuses it;
   - as a `PreviousTask` or a `ResolvedTask` (with or without a prior sample
     source): `ValueError` ("tasks fed through a handle must start fresh;
     pass the Task");
@@ -605,12 +606,28 @@ class PortRequest:
   `@task` function returned, whose log names that factory and whose
   rebuilt task would have the factory's own dataset.
 - **Fed logs in an eval-set directory** are logs of tasks the set does not
-  request, like any added task's: matching never takes one for a requested
-  task, since a fed task's name differs from every requested name ("What
-  is refused"). A resumed `eval_set()`, or a later `retry_immediate=False`
-  round, over such a directory fails the unchanged log-directory check
-  (`validate_eval_set_prerequisites`), as any added task's log does today,
-  and passes with `log_dir_allow_dirty=True`.
+  request, like any added task's. A resumed `eval_set()`, or a later
+  `retry_immediate=False` round, over such a directory fails the unchanged
+  log-directory check (`validate_eval_set_prerequisites`), as any added
+  task's log does today, and passes with `log_dir_allow_dirty=True`. The
+  name refusal covers only the run that adds the fed task: a later
+  `eval_set()` in the same directory can request an ordinary task whose
+  identifier matches a fed log, for example a factory that an earlier
+  run's creator adapted with `task_with` as its rollout task. Matching
+  would then take the fed log as that task's log and skip running it. So
+  that case is refused loudly (decision: Ransom, 2026-11-16), not
+  filtered:
+  - `validate_eval_set_prerequisites`, before it applies
+    `log_dir_allow_dirty`, raises `PrerequisiteError` when a requested
+    task's identifier matches a log whose dataset name is
+    `samples_from_handle` ("The log directory holds logs of a task fed
+    through a handle (samples_from_handle()) under the identifier of
+    requested task '<task>'; use another log directory, or give the
+    rollout task another name");
+  - `_resumed_task` raises the same error for a selection worker's
+    `resume` log with that dataset name, before it recovers the log.
+
+  Fed logs are never removed or matched; the directory is left as it is.
 
 ### Waits and limits
 
@@ -773,9 +790,12 @@ reducer), resolves its settings before the run's, runs once under its
 creator's model, is exempt from `max_tasks` and is left out of
 `eval_set()`'s result.
 
-inspect_steward reads fed logs as logs of tasks the set does not request,
-as it does ordinary added tasks' logs: their names differ from every
-requested name, so they never match a requested task's identifier.
+inspect_steward's log reader does not know fed logs: it groups attempts by
+`task_identifier` without the dataset name, so in a directory where a
+requested task's identifier matches a fed log (the case `eval_set()`
+refuses above) it can take the fed log for that task's attempt. This is a
+documented limitation for supervised eval sets, not a change this design
+makes; the worker it launches refuses such a log as its `resume` log.
 
 No eval log schema, viewer type, control-channel or config file changes. A
 fed task's log records the reserved dataset name `samples_from_handle`,
@@ -881,7 +901,14 @@ test touched), with mockllm models; every test that waits is bounded with
     run complete.
 - `tests/test_eval_set.py`: with a rollout task the set does not request,
   a resumed `eval_set()` fails the log-directory check and passes with
-  `log_dir_allow_dirty=True`, taking only the requested task's log.
+  `log_dir_allow_dirty=True`, taking only the requested task's log. The
+  two-run case: run A requests only the creator, which adds
+  `task_with(rollout(), dataset=samples_from_handle())` (allowed, since A
+  does not request `rollout`); run B, an `eval_set()` requesting the
+  ordinary `rollout` factory in the same directory, raises the
+  `PrerequisiteError` above with and without `log_dir_allow_dirty=True`,
+  runs nothing and writes no log, and runs `rollout` in a fresh directory;
+  a selection worker given A's fed log as `resume` raises the same error.
 - `tests/test_sample_source.py` (tasks fed through a handle):
   - a fed task's log records `eval.dataset.name == "samples_from_handle"`;
     a `Task` whose dataset is a `MemoryDataset` named `samples_from_handle`,
@@ -980,7 +1007,9 @@ One PR, after step 3 of
   `eval_retry_async` refusing a log by its dataset name; `max_tasks`,
   `max_samples` and `max_sandboxes` docstrings; `requested_names` given to
   the queue), `_eval/evalset.py`
-  (`all_evals_succeeded` skipping logs with the reserved dataset name),
+  (`all_evals_succeeded` skipping logs with the reserved dataset name;
+  `validate_eval_set_prerequisites` and `_resumed_task` refusing a fed log
+  under a requested identifier),
   `__init__.py` (exports), `docs/task-source.qmd` (handles, stopping
   rollouts with `cancel()`, `fail_on_error=False` for rollout tasks, and
   running the creator by name, `inspect eval search.py@search` and
@@ -1016,8 +1045,10 @@ from the log, without the schema field dropped then), and a drain, `score`
 or `error` cancel closes the channel, with no separate stopped state
 (narrowing the 2026-11-12 send error order to ended, then closed), and a
 fed task named like a requested or seed task is refused, so fed logs never
-share a requested task's identifier (replacing the eval-set matching filter,
-the selection-resume refusal and the coordinated inspect_steward change).
+share a requested task's identifier (replacing the eval-set matching filter
+and the coordinated inspect_steward change), and a later invocation whose
+requested task matches a fed log in its directory is refused, not filtered,
+with inspect_steward's reader a documented limitation (2026-11-16).
 
 ## Not this design
 

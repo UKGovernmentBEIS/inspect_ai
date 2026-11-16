@@ -456,15 +456,11 @@ class RunQueue:
     task_names: list[str]             # eval_set_tasks, then each commit's names
     wake: Wake                        # rung by every phase change and addition, waiters or not
     uncounted: int                    # display decrements held until the task screen opens
-    notifications: list[SourceNotification]  # queued-cancel reports made before the attempt group opened
-    group: TaskGroup | None           # the attempt group while the dispatcher is inside it
-    run_context: Context              # saved after binding the queue; each notification runs in a copy
-    notifying: int                    # source notifications running in the group
+    pending_reports: list[SourceReport]  # queued-cancel reports owed to the source, until each has run
     def add(self, resolved: list[ResolvedTask]) -> list[TaskRecord]
     def find(self, task_id: str) -> TaskRecord | None
     def cancel(self, record: TaskRecord) -> None
     def end(self, record: TaskRecord, log: EvalLog | None) -> None
-    def notify(self, job: SourceNotification) -> None   # starts it in `group`, or holds it until the group opens
     def close(self) -> None           # idempotent
     def end_unstarted(self) -> None   # ends every queued record with its stored log
     def end_all(self) -> None         # ends every record not yet ended
@@ -760,37 +756,28 @@ twice is reported three times.
 - **A first attempt cancelled while queued** has no `_run_task`.
   `RunQueue.cancel` is synchronous, so `RunQueue.end` in that branch, before
   it releases `options`, takes the task source, `run_samples`,
-  `debug_errors` and the task name into a notification job holding the
-  cancelled-before-start log, and calls `queue.notify(job)`. While the
-  dispatcher is inside its attempt group (`queue.group` is set), `notify`
-  starts the job there at once, adding one to `queue.notifying`. The job
-  runs in the run's context, not its caller's: `eval_run` saves
-  `queue.run_context = contextvars.copy_context()` after it binds the queue
-  and before any attempt or sample sets state, and `notify` calls
-  `queue.run_context.copy().run(queue.group.start_soon, job)`, since
-  `start_soon` gives the new task a copy of the calling context (checked on
-  asyncio and trio). A control-channel cancel, whose handler runs in the
-  control server's context without the queue binding, therefore still
-  reaches a callback that can call `enqueue_task()` and return follow-ups;
-  a cancel from a creator sample does not carry that sample's transcript,
-  model-usage attribution or attempt identity (`_attempt`) into the
-  callback. The job
-  runs `notify_task_source` through the same guard `_run_task` uses today
-  (below), and in a `finally` that covers every exit it takes one off
-  `queue.notifying`, rings `wake` and drops its log and source references.
-  It does not wait for the dispatcher's next pass, which
-  cannot come while the dispatcher awaits `next_tasks()`: a source that
-  adds a task, cancels it through its handle and waits for its report in
-  that call, or one waiting while an operator cancels a queued task, gets
-  the report and returns. Only the report runs; no task starts during the
-  call. A cancel made before the group opens (a seed cancelled while the
-  task screen loads) is held in `queue.notifications`, and the dispatcher
-  starts those jobs the same way, each in its own copy of
-  `queue.run_context`, when it enters the group, then sets `queue.group`. A running job counts as running work in the dispatcher's
-  idle test, so `next_tasks()` is not called while one runs and its tasks
-  are added first, the order an attempt gives today. The dispatcher clears
-  `queue.group` when dispatch ends; a job held then is dropped with the
-  queue, as tasks ended unstarted are not reported either.
+  `debug_errors` and the task name into a report (`SourceReport`) holding the
+  cancelled-before-start log, appends it to `queue.pending_reports` and
+  rings `wake`. On each pass, before its idle test, the dispatcher starts
+  every report not yet started in its attempt group, through
+  `notify_source_guarded` (below); the report removes itself from the list
+  and rings `wake` in a `finally` that covers every exit, dropping its log
+  and source references. A non-empty `pending_reports` counts as not idle,
+  so `next_tasks()` is not called while a report is owed or running, and
+  the tasks a report adds are queued first, the order an attempt gives
+  today. The report inherits the dispatcher's own context: the run's, with
+  the queue bound and no sample or attempt state, so a control-channel
+  cancel's callback can call `enqueue_task()` and return follow-ups, and a
+  cancel from a creator sample carries none of that sample's transcript,
+  model-usage attribution or attempt identity (`_attempt`) into it. A
+  cancel made before the dispatcher enters its group (a seed cancelled
+  while the task screen loads) is started on its first pass. Reports not
+  started when dispatch ends are dropped with the queue, as tasks ended
+  unstarted are not reported either. The cost (decision: Ransom,
+  2026-11-16): a task added and cancelled while `next_tasks()` blocks is
+  reported when that call returns. A source waiting inside that call for
+  the report of a task it added itself was already waiting on its own
+  added task, which does not start until the call returns either.
 
 Both paths keep `notify_task_source`'s rules: a callback exception is
 logged (propagated under `debug_errors`), and the tasks a callback returns
@@ -803,7 +790,7 @@ caused that, raises `RuntimeError` ("TaskSource.task_complete() for task
 '<task>' raised a cancellation that no cancellation of the run caused."),
 whatever `debug_errors` says. Only the notification half of that check
 moves into one helper, `notify_source_guarded(task_name, log, ...)`, which
-`_run_task` and the notification job both call. `_run_task` keeps its own
+`_run_task` and the queued-cancel report both call. `_run_task` keeps its own
 private group and normal-return check around `task_run`, which turns a
 stray cancellation escaping task cleanup or `on_task_end` into the
 "Task '<task>' raised a cancellation…" error, as today
@@ -850,8 +837,10 @@ trailing newline. The logger reads it where it reads `exc_info`
 - `json_log_record` emits `exc_info` from `record.exc_info` as today, and
   otherwise from `exc_snapshot`, so the JSON record keeps a short `msg` and
   the separate `exc_info` field;
-- the trace file's `TraceFormatter` records no exception today, and still
-  does not.
+- the trace file's `TraceFormatter` records no exception today and copies
+  every unexpected record attribute into its JSON, except a fixed set that
+  includes `exc_info` and `exc_text`; `exc_snapshot` joins that set, so the
+  trace output stays as it is today.
 
 Under `debug_errors` the original exception still propagates with its
 traceback. A run with a failing task looks as it does today on every
@@ -957,7 +946,6 @@ balancing:
 async with _run_task_screen(...):              # absorbs a cancellation of the run body, as today
     async with attempt task group:             # today's group: run_one and the throughput reporter
         add_dispatch_waker(queue.wake.set)
-        start held source notifications; queue.group = attempt group   # "Reporting to the source"
         try:
             source_done = task_source is None
             loop:
@@ -969,7 +957,8 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
                     start run_one(entry)
                 [starts outside max_tasks: task-handles.md]
                 if cancelled: break
-                idle = no entry is pending, no attempt runs and queue.notifying == 0
+                start each queued-cancel report not yet started   # "Reporting to the source"
+                idle = no entry is pending, no attempt runs and queue.pending_reports is empty
                 if idle and source_done: break
                 if idle:
                     more = await task_source.next_tasks()  # inline, as on today's live path
@@ -978,7 +967,7 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
                     continue
                 await queue.wake
         finally:
-            queue.group = None; queue.close(); queue.end_unstarted()   # synchronous, before the group joins
+            queue.close(); queue.end_unstarted()           # synchronous, before the group joins
             remove_dispatch_waker(queue.wake.set)
 ```
 
@@ -1711,7 +1700,9 @@ test that waits on a run is bounded with `fail_after`.
   snapshot's `exc_snapshot` and no `exc_info` gives a JSON line whose `msg`
   is the status message and whose `exc_info` field holds the traceback text,
   and the plain and Rich formats give the same text as the `exc_info`
-  record. `tests/test_task_cancel.py`'s two assertions on
+  record; `TraceFormatter` gives the same JSON for the snapshot record as
+  for the `exc_info` record, with no `exc_snapshot` key, and still copies an
+  unrelated extra field. `tests/test_task_cancel.py`'s two assertions on
   `TaskError.exc_value` read the snapshot's error text instead.
 - `tests/test_enqueue_task.py` (live fixes): at `max_tasks=1`, a long seed
   task holds the only slot and a task it added waits behind it; `inspect
@@ -1749,19 +1740,18 @@ test that waits on a run is bounded with `fail_after`.
   run ends normally, on asyncio and trio; a cancel of B before the task
   screen opens is reported once the dispatcher enters its group; a queued
   retry cancelled after its first attempt's log was reported is not
-  reported again; a source whose `next_tasks()` adds a task, cancels it
-  through its handle and waits for its report, and one waiting while the
-  control channel cancels a queued task, each get exactly one report and
-  return; in the control-channel case the callback adds one task with
-  `enqueue_task()` and returns another, and both run; in the handle case
-  the callback's transcript events and model usage are not attributed to
-  the creator sample, and an `enqueue_task()` of a `samples_from_handle()`
-  task inside it is refused as outside any attempt; when that report's `task_complete` raises a saved cancellation of
+  reported again; a queued task cancelled through the control channel is
+  reported once, and its callback adds one task with `enqueue_task()` and
+  returns another, and both run; a queued task a creator sample cancels
+  through its handle is reported once, its callback's transcript events and
+  model usage are not attributed to that sample, and an `enqueue_task()` of
+  a `samples_from_handle()` task inside it is refused as outside any
+  attempt; when a queued-cancel report's `task_complete` raises a saved cancellation of
   its own, the run ends with the `RuntimeError` naming the task on asyncio
   and trio (as `test_task_complete_raising_stray_cancellation_ends_run`
   checks for an attempt's report, and as
   `test_stray_cancellation_after_log_finalized_ends_run` still checks for a
-  cancellation escaping task cleanup), `queue.notifying` is back to zero, and a
+  cancellation escaping task cleanup), `queue.pending_reports` is empty, and a
   cancellation of the run during the report propagates as a cancellation; a source that seeds a successful A and a B whose
   `logger.init()` always fails, and returns from `next_tasks()` only after
   `task_complete` has reported A and B's final attempt, with
@@ -1878,7 +1868,7 @@ state in the single `eval_run`), so the setup fixes come first.
    `_eval/run.py` (`configure_task()` with the `chdir` kept around the
    logger's construction, `ensure_controllers()` for the seed only,
    `dispatch_tasks()` with the inline `next_tasks()` call and its dispatch
-   waker and its source-notification jobs, `_run_task`'s single
+   waker and its queued-cancel reports, `_run_task`'s single
    `notify_task_source` call with its two exceptions, the cancellation guard
    factored into `notify_source_guarded` for both, `run_one`'s move into `attempt` creating the attempt's `TaskCancel`
    and scope, which `_run_task` takes, and its closed and abort checks, the
@@ -1894,7 +1884,8 @@ state in the single `eval_run`), so the setup fixes come first.
    `_display/core/results.py` and `_display/log/display.py` (rendering the
    snapshot; logging its text as `exc_snapshot`), `_util/logger.py`
    (`LogHandler.emit` setting `exc_text` from it, `json_log_record` reading
-   it), `tests/util/test_logger_format.py`,
+   it), `_util/trace.py` (`TraceFormatter` excluding `exc_snapshot`),
+   `tests/util/test_logger_format.py`,
    `_eval/task/log.py` (`reinit()` without `init()`, `initialized`, `discard()` without an
    entry, a `location` of `None` until
    `log_init()` returns),
@@ -1953,6 +1944,8 @@ by its own abort, not the retry-abandon stamp (replacing that part of the
 2026-11-12 three-phase decision), and that cancels under legacy
 `eval_set()` rounds are not refused (replacing the 2026-11-12 refusal),
 that a failed task's display row keeps a frame-free snapshot of its error,
+that a queued cancel's report starts on the dispatcher's next pass, in its
+context (replacing immediate scheduling during a blocked `next_tasks()`),
 and that each attempt's outcome, a failed `init()` and a queued first
 attempt's cancel included, reaches the `TaskSource` through one rule with
 today's two exceptions.
