@@ -377,6 +377,74 @@ async def test_responses_api_null_model_falls_back_to_requested_model():
     assert output.model == "gpt-4o"
 
 
+async def test_responses_api_incomplete_content_filter_with_tool_calls():
+    """An incomplete response with content_filter preserves stop_reason and stop_details with tool calls."""
+    from openai.types.responses import Response, ResponseFunctionToolCall
+    from openai.types.responses.response import IncompleteDetails
+
+    tool_call = ResponseFunctionToolCall(
+        id="call_1",
+        call_id="call_1",
+        type="function_call",
+        name="test_tool",
+        arguments='{"arg": "value"}',
+    )
+    mock_response = Response.model_construct(
+        id="resp_content_filter_tool_calls",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[tool_call],
+        tools=[],
+        status="incomplete",
+        incomplete_details=IncompleteDetails(reason="content_filter"),
+    )
+
+    output, _ = await _generate_responses_with_mock(mock_response)
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "content_filter"
+    assert output.choices[0].stop_reason == "content_filter"
+    assert output.choices[0].stop_details is not None
+    assert output.choices[0].stop_details.type == "content_filter"
+    assert (
+        output.choices[0].stop_details.explanation
+        == "Response incomplete: content_filter"
+    )
+    assert output.message.tool_calls is not None
+    assert len(output.message.tool_calls) == 1
+
+
+async def test_responses_api_incomplete_max_output_tokens_with_tool_calls():
+    """An incomplete response with max_output_tokens preserves stop_reason with tool calls."""
+    from openai.types.responses import Response, ResponseFunctionToolCall
+    from openai.types.responses.response import IncompleteDetails
+
+    tool_call = ResponseFunctionToolCall(
+        id="call_1",
+        call_id="call_1",
+        type="function_call",
+        name="test_tool",
+        arguments='{"arg": "value"}',
+    )
+    mock_response = Response.model_construct(
+        id="resp_max_tokens_tool_calls",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[tool_call],
+        tools=[],
+        status="incomplete",
+        incomplete_details=IncompleteDetails(reason="max_output_tokens"),
+    )
+
+    output, _ = await _generate_responses_with_mock(mock_response)
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "max_tokens"
+    assert output.choices[0].stop_reason == "max_tokens"
+    assert output.message.tool_calls is not None
+    assert len(output.message.tool_calls) == 1
+
+
 async def _generate_responses_with_mock(
     mock_response,
     config: GenerateConfig = GenerateConfig(),
@@ -1103,6 +1171,118 @@ def test_chat_messages_from_compact_response_developer_and_user_messages():
     assert isinstance(result[2].content, list)
     assert isinstance(result[2].content[0], ContentData)
     assert result[2].content[0].data["compaction_metadata"]["id"] == "comp_123"
+
+
+def _compact_response_with_user_items(items: list[Any]) -> Any:
+    from openai.types.responses import (
+        CompactedResponse,
+        ResponseCompactionItem,
+        ResponseOutputMessage,
+    )
+    from openai.types.responses.response_usage import (
+        InputTokensDetails,
+        OutputTokensDetails,
+        ResponseUsage,
+    )
+
+    # model_construct because the SDK types restrict role to "assistant" and
+    # content to output text/refusal, while the real compact endpoint echoes
+    # user messages with their input_* items
+    user_msg = ResponseOutputMessage.model_construct(
+        id="msg_user", type="message", role="user", status="completed", content=items
+    )
+    return CompactedResponse(
+        id="resp_abc",
+        created_at=1234567890,
+        object="response.compaction",
+        output=[
+            user_msg,
+            ResponseCompactionItem(
+                id="comp_123", encrypted_content="encrypted", type="compaction"
+            ),
+        ],
+        usage=ResponseUsage(
+            input_tokens=100,
+            output_tokens=50,
+            total_tokens=150,
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+
+def test_chat_messages_from_compact_response_user_content_edge_cases() -> None:
+    """Echoed user media with optional fields absent, a non-default detail, and a refusal."""
+    from openai.types.responses import ResponseOutputRefusal, ResponseOutputText
+
+    from inspect_ai._util.content import ContentDocument, ContentImage
+    from inspect_ai.model._chat_message import ChatMessageUser
+    from inspect_ai.model._openai_responses import chat_messages_from_compact_response
+
+    # the SDK parses input_image/input_file items as ResponseOutputText with the
+    # real `type` and the other fields as extra attributes
+    image_url = "data:image/png;base64,AAAA"
+    file_data = "data:application/pdf;base64,BBBB"
+    response = _compact_response_with_user_items(
+        [
+            ResponseOutputText.model_construct(
+                type="input_image", image_url=image_url, detail="high"
+            ),
+            ResponseOutputText.model_construct(type="input_image", image_url=image_url),
+            ResponseOutputText.model_construct(type="input_file", file_data=file_data),
+            ResponseOutputRefusal(type="refusal", refusal="no"),
+        ]
+    )
+
+    result = chat_messages_from_compact_response(response)
+
+    message = result[0]
+    assert isinstance(message, ChatMessageUser)
+    assert message.content == [
+        ContentImage(image=image_url, detail="high"),
+        ContentImage(image=image_url),
+        ContentDocument(document=file_data),
+        ContentText(text="no", refusal=True),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("fields", "message"),
+    [
+        pytest.param(
+            {"type": "input_audio", "data": "AAAA"}, "input_audio", id="audio"
+        ),
+        pytest.param(
+            {"type": "input_image", "file_id": "file-1"},
+            "image_url",
+            id="image-file-id",
+        ),
+        pytest.param(
+            {"type": "input_file", "file_id": "file-1"}, "file_data", id="file-id"
+        ),
+        pytest.param(
+            {"type": "input_file", "file_url": "https://x/y.pdf"},
+            "file_data",
+            id="file-url",
+        ),
+    ],
+)
+def test_chat_messages_from_compact_response_user_unsupported_content(
+    fields: dict[str, Any], message: str
+) -> None:
+    """Echoed user content Inspect cannot represent raises a clear error."""
+    from openai.types.responses import ResponseOutputText
+
+    from inspect_ai.model._openai_responses import chat_messages_from_compact_response
+
+    response = _compact_response_with_user_items(
+        [ResponseOutputText.model_construct(**fields)]
+    )
+
+    with pytest.raises(ValueError, match=message):
+        chat_messages_from_compact_response(response)
 
 
 def test_chat_messages_from_compact_response_mixed_roles():

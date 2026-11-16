@@ -1319,8 +1319,12 @@ def math(*, timeout: float = _DEFAULT_TIMEOUT_SECONDS) -> Scorer:
             worker.started = True
         except TimeoutError:
             worker.started = False
+            # A timeout is the scorer failing to run, not the model failing
+            # to answer: record it in `reason` so analysis can attribute the
+            # dropped sample to a slow host.
             return Score.unscored(
                 explanation="Mathematical target exceeded the parsing time limit.",
+                reason="scoring_failed",
                 metadata=_status_metadata("target_timeout"),
             )
 
@@ -1340,9 +1344,13 @@ def math(*, timeout: float = _DEFAULT_TIMEOUT_SECONDS) -> Scorer:
                     )
         except TimeoutError:
             worker.started = False
+            # A timeout is the scorer not running to completion, not the
+            # model failing to answer: record `timeout` in `reason` so
+            # analysis can separate a slow host from a wrong answer.
             return Score(
                 value=INCORRECT,
                 explanation="Mathematical answer exceeded the scoring time limit.",
+                reason="timeout",
                 metadata=_status_metadata("answer_timeout"),
             )
 

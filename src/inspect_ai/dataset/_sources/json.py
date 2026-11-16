@@ -2,6 +2,7 @@ import json
 from io import TextIOWrapper
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import jsonlines
 
@@ -22,6 +23,25 @@ from .._util import (
     shuffle_choices_if_requested,
 )
 from .util import resolve_sample_files
+
+
+def _reader_extension_path(json_file: str) -> str:
+    """Return the part of `json_file` whose extension selects the reader.
+
+    A query string or a fragment is URL syntax, so it is stripped before the
+    extension is read. That is only true for `http(s)`: in a local path or in
+    an object-store key, `#` and `?` are ordinary characters, and treating them
+    as URL delimiters hides a `.jsonl` extension that is really there.
+
+    Args:
+        json_file: Path or URL of the dataset.
+
+    Returns:
+        The string to read the extension from.
+    """
+    if json_file.lower().startswith(("http://", "https://")):
+        return urlparse(json_file).path
+    return json_file
 
 
 def json_dataset(
@@ -77,7 +97,7 @@ def json_dataset(
     # pick the right reader for the file extension
     dataset_reader = (
         jsonlines_dataset_reader
-        if json_file.lower().endswith(".jsonl")
+        if _reader_extension_path(json_file).lower().endswith(".jsonl")
         else json_dataset_reader
     )
 

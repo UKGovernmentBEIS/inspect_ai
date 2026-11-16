@@ -2,6 +2,7 @@
 
 import base64
 import os
+from enum import Enum
 
 from test_helpers.utils import (
     skip_if_no_anthropic,
@@ -68,6 +69,28 @@ def test_count_text_tokens_with_special_tokens():
     result = count_text_tokens(text)
     assert isinstance(result, int)
     assert result > 0
+
+
+async def test_count_tool_tokens_enum_default():
+    """count_tool_tokens should handle a parameter whose default is an Enum member."""
+
+    class Unit(Enum):
+        CELSIUS = "celsius"
+        FAHRENHEIT = "fahrenheit"
+
+    tool = ToolInfo(
+        name="get_weather",
+        description="Get the current weather for a location.",
+        parameters=ToolParams(
+            properties={
+                "unit": ToolParam(
+                    type="string", enum=["celsius", "fahrenheit"], default=Unit.CELSIUS
+                ),
+            },
+        ),
+    )
+    tool_token_count = await get_model("mockllm/model").count_tool_tokens([tool])
+    assert tool_token_count > 0
 
 
 @skip_if_no_openai
