@@ -221,7 +221,12 @@ Errors are consumed in these places:
   conversions keep a missing usage as `None` (the shared OpenAI conversion,
   `src/inspect_ai/model/_openai.py:1206-1231`; Google,
   `_providers/google.py:2606-2610`), or raise (Bedrock streaming,
-  `_providers/bedrock.py:1228-1233`).
+  `_providers/bedrock.py:1228-1233`). Google's continuations and
+  malformed-function-call retries, and the LiteLLM proxy's
+  malformed-function-call retries, sum the usage of several requests with
+  `sum_usage()`, which skips a request with none, so a call whose requests
+  reported usage only in part returns that part as its usage (see "Usage
+  summed over several requests").
 - `suspend_token_limit()` and `suspend_turn_limit()` stop recording *and*
   checking for their kind (`_limit.py:620-646`, `:796-820`). Cost has no
   suspension in the code read for this design; approval, review and
@@ -398,6 +403,8 @@ class _Node:
 
 class _CostLimit(_Node):
     _unmetered: str | None  # why a call under it could not be metered; never cleared
+
+    def _on_unmetered(self, reason: str) -> None: ...  # called when marked; no-op here
 ```
 
 - `_Tree.push()` for the token, cost, turn and message trees also sets
@@ -1034,9 +1041,21 @@ bound on failed attempts.
 **Marking.** `mark_unmetered(reason: str)` (in `_limit.py`) sets
 `_unmetered = reason` and `_raised = True` on every `_CostLimit` on the
 chain whose limit is not `None`: the cost limits the call would have been
-charged to. A marked node raises in every check, through the same path as a
-numeric one, so that whatever a node does when it is reached (a swarm cap
-asking the swarm to stop) also happens when it is marked:
+charged to. Then, before the caller raises `UnmeteredCallError`, it calls
+`node._on_unmetered(reason)` on each node it marked, outermost first. The
+hook is a non-raising notification, a no-op on `_CostLimit`, for a node
+whose owner must act when it is marked (a swarm cap asks the swarm to stop,
+below). It runs at marking time, not at a later check, because the error
+can be swallowed and the scope can then return normally with no further
+check (ReAct's forced-compaction fallback returns when overflow recovery
+cannot shorten the conversation, `src/inspect_ai/agent/_react.py:729-747`),
+and because a later root-first check raises an enclosing marked sample
+limit before it reaches an inner cap. All marks are set before any hook
+runs; an exception from a hook propagates in place of the
+`UnmeteredCallError`, with every mark already set.
+
+A marked node also raises in every check, through the same path as a
+numeric one, so that later refusals behave as a reached limit does:
 
 - `_CostLimit._check_self()` returns at once when its limit is `None`, as
   it does today (`src/inspect_ai/util/_limit.py:1292-1297`). Otherwise it
@@ -1053,11 +1072,17 @@ asking the swarm to stop) also happens when it is marked:
   every call with no numeric ceiling and is unchanged), then, when
   `self._unmetered` is set and its numeric limit (`pair.cost_node.limit`)
   is not `None`, calls `self.exceeded("cost", "cost", cost, limit, "",
-  reason=self._unmetered)` before its pair comparison.
+  reason=self._unmetered)` before its pair comparison. It also overrides
+  `_on_unmetered()`: a cap (`stop_swarm` set) calls
+  `self.stop_swarm("swarm_cap")`, as `exceeded()` does, without raising.
   So a cap marked by an unpriced model or a response without usage asks the
-  swarm to stop, as a cap reached by spend does, even when the error is
-  then contained by `MemberBackground._run()` or swallowed by a compaction
-  fallback.
+  swarm to stop when it is marked, as a cap reached by spend does, even when
+  the error is then contained by `MemberBackground._run()`, swallowed by a
+  compaction fallback whose agent then returns, or preceded by an enclosing
+  marked sample limit at the next check. The controller's `stop()` keeps
+  the first call and ignores later ones
+  (`inspect_swarm/src/inspect_swarm/_controller/_control.py:1176-1180`), so
+  the hook and a later `exceeded()` call do not stop twice.
 - As a backstop, `_check_marked()` raises `_marked_error()` itself when a
   marked cost node whose limit is not `None` returns from `_check_self()`
   without raising (an override that does not know the mark), so a mark is
@@ -1095,7 +1120,8 @@ cost limit. Its message says which case it is and what to do:
   cost." `resolve_model_costs()` (`src/inspect_ai/model/_util.py:67-98`)
   and this error share one helper for this text.
 - no usage: "cost_limit requires usage from every call made under it.
-  '<model>' returned no token usage, so the cost of the call is unknown."
+  '<model>' returned no token usage for the call, or for one of the
+  requests it made for the call, so the cost of the call is unknown."
 
 The error is not a `LimitExceededError`, so no limit owner catches it. When
 it reaches the sample runner the sample fails with it, as a sample error.
@@ -1148,10 +1174,12 @@ records nothing when `output.usage` is `None` (`_model.py:1988`), and native
 compaction records nothing when its `usage` is `None` (`_model.py:1546`), so
 such calls never advance a cost limit, and a priced model that never reports
 usage can be called without bound under one. Now, in each of those two
-places, when usage is `None`, cost is not suspended, a cost node on the
-chain has a limit, and the output is not a rejection output (below), Inspect
-marks and raises after the call's `ModelEvent` is completed (so the
-transcript shows the call) and before the output is returned or cached. A
+places, when usage is `None` or incomplete (below), cost is not suspended, a
+cost node on the chain has a limit, and the output is not a rejection output
+(below), Inspect marks and raises after the call's `ModelEvent` is completed
+(so the transcript shows the call) and before the output is returned or
+cached. An incomplete usage is recorded first, as today, so token limits,
+the logged usage and the cost limit see the part that was reported. A
 cache hit records no usage and is not affected. Usage that is present but
 zero is metered as zero, as today. The billed usage of a sentinel-sidecar
 refusal (`_model.py:1170`) is recorded only when the sidecar reports it, as
@@ -1179,6 +1207,47 @@ A provider that reports zero tokens still gives `ModelUsage` of zero, which
 is metered as zero; counts a provider derives locally (the local `hf` and
 `nnterp` providers, mockllm) are reported usage. Only a provider that sent no usage
 gives `None`.
+
+**Usage summed over several requests.** Some providers make several billed
+requests for one call and return the sum of their usage with `sum_usage()`
+(`src/inspect_ai/model/_model_output.py:485-497`), which skips a request
+that reported none. A call where one request reported no usage and another
+reported some returns a non-`None` usage that is only part of the cost.
+Two paths do this for successful responses:
+
+- **Google** continuations and malformed-function-call retries:
+  `_ContinuationChain.add()` sums each response's usage
+  (`_providers/google.py:254-258`), and the output carries the chain's sum
+  (`:943-949`).
+- **The LiteLLM proxy's** malformed-function-call retries add the usage of
+  each discarded attempt to the final output's
+  (`_providers/litellm_proxy.py:961`, `:970`).
+
+So `ModelOutput` gains a second private attribute,
+`_usage_incomplete: bool = PrivateAttr(default=False)`, set by
+`usage_incomplete(output) -> ModelOutput` (in `_model_output.py`). Like
+`_rejection` (below) it is not serialized, and `model_copy()` keeps it. Each
+aggregating path tracks, beside its sum, whether any of the requests it
+summed returned no usage (or returned an output already marked
+incomplete), and marks the output it returns:
+
+- `_ContinuationChain` gains `usage_missing: bool = False`, set in `add()`
+  when a response's usage converts to `None`; the Google provider calls
+  `usage_incomplete()` on the output it builds from the chain when it is
+  set.
+- The LiteLLM proxy keeps `discarded_missing: bool` beside
+  `discarded_usage`, set when a discarded attempt's output has no usage or
+  is incomplete, and marks the final output when it is set, or when the
+  final output has no usage while the discarded attempts reported some.
+
+The flag records a component that is known to be missing, not an empty
+accumulator: `sum_usage()` itself is unchanged, and its initial `None`
+means nothing. Anthropic's continuation chain also sums with `sum_usage()`
+(`_providers/anthropic.py:358`), but its response converter always builds
+a `ModelUsage` from the SDK's required `message.usage`, so no request it
+sums lacks usage and it needs no change. A request that failed or was
+cancelled inside these loops is not one of the summed responses and stays
+unmarked, as for any failed attempt.
 
 **Rejection outputs are not marked.** Several providers return the
 provider's rejection of a request as an output with no usage (see "Current
@@ -1292,7 +1361,11 @@ an unpriced model or a response without usage calls `stop_swarm`
 ("Unmetered calls"); its tests cover both marks, with the error contained by
 `MemberBackground._run()` and with it swallowed by a compaction fallback,
 and assert the stop was requested, and a marked node whose limit is set to
-`None` raises nothing until it is set again. A member whose model has no cost data, or whose provider
+`None` raises nothing until it is set again. It also overrides
+`_on_unmetered()` so a marked cap calls `stop_swarm` at marking; its tests
+cover a member whose agent swallows the marking error and returns at once
+(no further check), and a cap under an enclosing marked sample cost limit,
+for both mark reasons, and assert the stop was requested. A member whose model has no cost data, or whose provider
 returns no usage, under a swarm cost node now marks that node and every
 cost node above it (rule 9), so the swarm needs pricing and usage for every
 member model wherever it uses cost nodes. Approver, reviewer and monitor
@@ -1501,6 +1574,12 @@ documented. Behaviour changes:
   limits record nothing for it, as the zeros did. Logged model events show
   no usage for such calls where they showed zeros. A reported zero is
   unchanged.
+- **Google and LiteLLM proxy calls with partial usage.** A Google call
+  whose continuation or malformed-function-call retry returned no usage,
+  and a LiteLLM proxy call whose malformed-function-call retries did, now
+  count as calls without usage under a cost limit: the reported part is
+  recorded and logged as today, then the cost limits are marked and the
+  call raises `UnmeteredCallError`. Without a cost limit nothing changes.
 - **Disabling a marked cost limit.** Setting a marked cost limit to `None`
   turns it off, as for any cost limit; setting a number again raises its
   marked error at the next check ("Unmetered calls").
@@ -1535,7 +1614,9 @@ documented. Behaviour changes:
   weighted sums such as `(input * 0.1) + output` are unchanged.
 - **Private internals.** `_encloses()`, `_sample_roots()` and `_in_tree()`
   are removed. `_TurnLimit._check_self()` gains a parameter. Chain nodes gain
-  `_outer`, `_in_chain` and `_raised`, and cost nodes `_unmetered`.
+  `_outer`, `_in_chain` and `_raised`, and cost nodes `_unmetered` and a
+  no-op `_on_unmetered()` hook. `ModelOutput` gains two private, unserialized
+  attributes, `_rejection` and `_usage_incomplete`.
   `record_turn()` no longer checks. inspect_swarm is the only known user of
   these classes (above).
 - **Persisted data and the viewer.** The checkpoint sample-runtime payload
@@ -1651,6 +1732,24 @@ under trio with `--runtrio`.
     `tests/model/providers/test_sagemaker.py`, the stream assembler over a
     local event iterator with no usage chunk gives `usage=None`, and one
     with a zero usage chunk gives zero usage (no API keys);
+  - partial usage: in `tests/model/providers/test_google.py`, a call over
+    a stubbed SDK client whose first response is a `CONTINUATION` with no
+    usage and whose last reports zero tokens returns an output marked
+    incomplete, and the same for a `MALFORMED_FUNCTION_CALL` response with
+    no usage followed by a reported-zero retry; under a cost limit each
+    raises `UnmeteredCallError` after recording the reported part, and a
+    chain whose every response reports usage (zero included) is not
+    marked; in `tests/model/providers/test_litellm_proxy.py`, a malformed-call attempt with
+    no usage followed by a reported-zero recovery is marked incomplete, and
+    one with usage on both is not;
+  - marking notifies at once: a `_CostLimit` subclass whose
+    `_on_unmetered()` records its calls is notified once per marked node,
+    outermost first, before `UnmeteredCallError` is raised, for an unpriced
+    model and for a response without usage; with the error then swallowed
+    by a ReAct forced compaction that falls back and returns, the
+    notification has already run; with an enclosing marked sample cost
+    limit, the inner node is notified at marking although the next check
+    raises the sample limit first;
   - start-time pricing, in `tests/test_sample_limits.py`: an eval with a
     cost limit, a priced task model and an unpriced `monitor` role model
     starts, and the same task enqueued during an eval is accepted
@@ -1801,7 +1900,8 @@ Each step is one PR, in this order. Each keeps the suite green.
    Tests: `tests/util/test_limit*.py`, `tests/checkpoint/test_sample_runtime.py`
    (the checkpoint code is unchanged).
 2. **Unmetered calls.** `_limit.py`: `_CostLimit._unmetered`,
-   `mark_unmetered()`, `UnmeteredCallError`, `_CostLimit._marked_error()`,
+   `mark_unmetered()` with the `_on_unmetered()` notification,
+   `UnmeteredCallError`, `_CostLimit._marked_error()`,
    the marked raise in `_CostLimit._check_self()` and the backstop in
    `_check_marked()`, both skipped while the limit is `None`. `_model.py`: the unpriced check in
    `_check_limits_before_dispatch(model)` and the model passed by
@@ -1809,7 +1909,11 @@ Each step is one PR, in this order. Each keeps the suite green.
    where the inner generation (`:1988`) and native compaction (`:1546`)
    find no usage under a cost limit, skipping suspended cost and rejection
    outputs. `src/inspect_ai/model/_model_output.py`: the private
-   `_rejection` attribute and `rejection_output()`. The rejection
+   `_rejection` attribute and `rejection_output()`, and the private
+   `_usage_incomplete` attribute and `usage_incomplete()`, which the no-usage
+   check also marks. Partial usage: `_ContinuationChain.usage_missing` in
+   `src/inspect_ai/model/_providers/google.py`, and `discarded_missing` in
+   `src/inspect_ai/model/_providers/litellm_proxy.py`. The rejection
    converters listed under "Unmetered calls": `openai_handle_bad_request()`
    in `_openai.py` for `APIStatusError` only, and each provider's converter
    in `src/inspect_ai/model/_providers/` that builds its output from an
@@ -1827,7 +1931,10 @@ Each step is one PR, in this order. Each keeps the suite green.
    `tests/test_enqueue_task.py`, `tests/agent/test_bridge_provider_errors.py`,
    `tests/checkpoint/test_sample_runtime.py`,
    `tests/model/providers/test_mistral.py`,
-   `tests/model/providers/test_sagemaker.py`, and one rejection case per
+   `tests/model/providers/test_sagemaker.py`,
+   `tests/model/providers/test_google.py`,
+   `tests/model/providers/test_litellm_proxy.py`,
+   and one rejection case per
    classified converter in that provider's existing test file under
    `tests/model/providers/` (mocked transport, no API key).
 3. **Suspension.** `_limit.py`: `check_limits()` skips suspended cost
@@ -1865,7 +1972,8 @@ Each step is one PR, in this order. Each keeps the suite green.
 inspect_swarm adapts in its own repository, alongside step 2: its
 `_SwarmTurnNode._check_self()` takes `raise_for_equal`, and its
 `SwarmCostNode._check_self()` routes the unmetered mark through
-`exceeded()` while its numeric limit is not `None`, with tests for a cap marked by an unpriced model and by a
+`exceeded()` while its numeric limit is not `None` and overrides
+`_on_unmetered()` to request the stop at marking, with tests for a cap marked by an unpriced model and by a
 response without usage ("What inspect_swarm can delete or simplify").
 
 ## Open questions
