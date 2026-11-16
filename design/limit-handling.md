@@ -211,13 +211,17 @@ Errors are consumed in these places:
   `src/inspect_ai/_sentinel/_dispatch.py:416-421`). Models
   resolved later (a subagent's `get_model()`, an approver or review model
   given by name, a swarm member's model) are not covered.
-- Two providers fill in zero usage when a streamed response ends without
-  reporting any. Mistral's `mistral_completion_from_stream()` substitutes
+- Three providers fill in zero usage when a response reports none. Mistral's `mistral_completion_from_stream()` substitutes
   `UsageInfo(0, 0, 0)` with a warning (`_providers/mistral.py:646-652`),
   which `MistralAPI.generate()` converts to a `ModelUsage` (`:366-374`).
   SageMaker's stream assembly writes a zero `usage` dictionary
   (`_providers/sagemaker.py:790-791`) before the shared OpenAI conversion.
-  Both outputs are indistinguishable from a reported zero. The other
+  Grok converts its protobuf `usage` unconditionally
+  (`_providers/grok.py:683`), so an absent usage message reads as zeros, on
+  every route; in a stream, the SDK copies each chunk's `usage` into the
+  accumulated response, so a usage-less chunk also replaces an earlier
+  reported total with zeros. These outputs are indistinguishable from a
+  reported zero. The other
   conversions keep a missing usage as `None` (the shared OpenAI conversion,
   `src/inspect_ai/model/_openai.py:1206-1231`; Google,
   `_providers/google.py:2606-2610`), or raise (Bedrock streaming,
@@ -1174,11 +1178,21 @@ records nothing when `output.usage` is `None` (`_model.py:1988`), and native
 compaction records nothing when its `usage` is `None` (`_model.py:1546`), so
 such calls never advance a cost limit, and a priced model that never reports
 usage can be called without bound under one. Now, in each of those two
-places, when usage is `None` or incomplete (below), cost is not suspended, a
-cost node on the chain has a limit, and the output is not a rejection output
-(below), Inspect marks and raises after the call's `ModelEvent` is completed
-(so the transcript shows the call) and before the output is returned or
-cached. An incomplete usage is recorded first, as today, so token limits,
+places, when cost is not suspended and a cost node on the chain has a limit,
+Inspect marks and raises if the output's usage is incomplete (below), or if
+its usage is `None` and it is not a rejection output (below):
+
+```python
+unmetered = output._usage_incomplete or (
+    output.usage is None and not output._rejection
+)
+```
+
+Incompleteness takes precedence over the rejection exemption, because it
+describes earlier responses aggregated into the output, while the
+rejection flag describes only the request that was rejected. Inspect marks
+and raises after the call's `ModelEvent` is completed (so the transcript
+shows the call) and before the output is returned or cached. An incomplete usage is recorded first, as today, so token limits,
 the logged usage and the cost limit see the part that was reported. A
 cache hit records no usage and is not affected. Usage that is present but
 zero is metered as zero, as today. The billed usage of a sentinel-sidecar
@@ -1187,8 +1201,8 @@ today; that path follows a provider error, not a successful response, and
 is left as is.
 
 **Missing usage stays missing.** The rule needs every provider to report a
-missing usage as `None`, not as zero. Mistral and SageMaker streaming fill
-in zeros today ("Current behaviour"), and change:
+missing usage as `None`, not as zero. Mistral, SageMaker and Grok fill in
+zeros today ("Current behaviour"), and change:
 
 - **SageMaker.** `_invoke_endpoint_streaming()` leaves `usage` out of the
   assembled response when no chunk carried one, in place of the zero
@@ -1202,6 +1216,24 @@ in zeros today ("Current behaviour"), and change:
   `usage_reported: bool`). `MistralAPI.generate()` sets
   `ModelOutput.usage = None` when it is false (`_providers/mistral.py:334`,
   `:363-376`). The warning stays, for calls under no cost limit.
+- **Grok.** `_model_output_from_response()` converts `response.usage`
+  unconditionally (`_providers/grok.py:676-685`, `:902-910`), and an absent
+  protobuf message reads as zero fields, so absent and reported-zero usage
+  look the same. The unary (`chat.sample()`), structured (`chat.parse()`)
+  and batch routes (`grok.py:383-400`, `_grok_batch.py`) return a
+  `Response` whose proto says whether usage was sent:
+  `response._proto.HasField("usage")`. The streaming route cannot use that
+  test, because the SDK's `Response.process_chunk()` copies every chunk's
+  `usage` into the accumulated response (`CopyFrom(chunk.usage)`, xai-sdk),
+  which makes the field present and lets a usage-less tail chunk overwrite
+  an earlier reported total with zero. So the stream loop
+  (`grok.py:405-415`) keeps its own copy of the usage of the last raw chunk
+  with `chunk.proto.HasField("usage")`, and passes it to the conversion.
+  `_model_output_from_response(response, tools, usage)` takes the reported
+  usage, `SamplingUsage | None`: the stream's last reported usage, or, for
+  the other routes, `response.usage` when `HasField("usage")` and `None`
+  otherwise; it sets `ModelOutput.usage = None` when it is `None`. The
+  logged response (`MessageToDict(chat_response._proto)`) is unchanged.
 
 A provider that reports zero tokens still gives `ModelUsage` of zero, which
 is metered as zero; counts a provider derives locally (the local `hf` and
@@ -1231,14 +1263,27 @@ aggregating path tracks, beside its sum, whether any of the requests it
 summed returned no usage (or returned an output already marked
 incomplete), and marks the output it returns:
 
+A component counts as missing when it is a completed response with no
+usage that is not a rejection, or an output already marked incomplete. A
+rejected request is never such a component: it ran no inference, and the
+rejection exemption applies to it alone.
+
 - `_ContinuationChain` gains `usage_missing: bool = False`, set in `add()`
-  when a response's usage converts to `None`; the Google provider calls
-  `usage_incomplete()` on the output it builds from the chain when it is
-  set.
+  when a response's usage converts to `None` (the chain holds only
+  completed responses). The Google provider calls `usage_incomplete()` on
+  every output it returns for the call when it is set: the output it builds
+  from the chain (`google.py:943-949`), and an output that
+  `handle_client_error()` builds from an error response after earlier
+  responses completed, such as a context-length 400 after a
+  malformed-function-call response (`google.py:905-914`), which carries the
+  earlier responses' usage and also has `_rejection` set.
 - The LiteLLM proxy keeps `discarded_missing: bool` beside
-  `discarded_usage`, set when a discarded attempt's output has no usage or
-  is incomplete, and marks the final output when it is set, or when the
-  final output has no usage while the discarded attempts reported some.
+  `discarded_usage`, set when a discarded attempt's output is missing by
+  the rule above, and marks the final output when it is set, or when the
+  final output is itself missing (no usage, not a rejection) while the
+  discarded attempts reported some. A final rejection after fully
+  reported attempts is not marked; it keeps its `_rejection` flag through
+  `model_copy()` and the summed usage of the attempts.
 
 The flag records a component that is known to be missing, not an empty
 accumulator: `sum_usage()` itself is unchanged, and its initial `None`
@@ -1270,9 +1315,12 @@ the output:
   its exception is an `APIStatusError` (a status response), and not for the
   status-less `APIError` that `openai_handle_stream_error()` passes it for a
   mid-stream failure.
-- The no-usage check skips an output whose `_rejection` is set. Every other
-  output with no usage is marked, including a rejection-shaped output from a
-  converter that has not been classified, which fails closed.
+- The no-usage check skips an output with no usage whose `_rejection` is
+  set, unless it is also marked incomplete ("Usage summed over several
+  requests"). Every other output with no usage is marked, including a
+  rejection-shaped output from a converter that has not been classified,
+  which fails closed. A rejection output that carries the usage of earlier
+  fully reported responses is not marked.
 
 The converters to classify, from a survey of the providers: the shared
 OpenAI converter (`_openai.py:1666-1712`, used by Chat Completions,
@@ -1567,9 +1615,11 @@ documented. Behaviour changes:
   overflow recovery, `CompactionAuto`'s native-to-summary fallback) are
   unchanged: one that catches the error falls back once, and its next model
   call is refused by the marked limit.
-- **Mistral and SageMaker streaming report missing usage.** A streamed
-  Mistral or SageMaker response that carries no usage now has
-  `ModelOutput.usage = None` in place of zero usage. Under a cost limit it
+- **Mistral, SageMaker and Grok report missing usage.** A streamed
+  Mistral or SageMaker response, or a Grok response on any route, that
+  carries no usage now has `ModelOutput.usage = None` in place of zero
+  usage; a Grok stream whose last chunks carry no usage keeps the last
+  usage it reported, where today it ends at zero. Under a cost limit it
   is marked like any response without usage; without one, its token
   limits record nothing for it, as the zeros did. Logged model events show
   no usage for such calls where they showed zeros. A reported zero is
@@ -1732,6 +1782,19 @@ under trio with `--runtrio`.
     `tests/model/providers/test_sagemaker.py`, the stream assembler over a
     local event iterator with no usage chunk gives `usage=None`, and one
     with a zero usage chunk gives zero usage (no API keys);
+  - missing usage from Grok, in `tests/model/providers/test_grok.py` with
+    protobuf fixtures (no RPC): a unary `Response` without a `usage` field
+    converts to `usage=None` and one with an explicit zero `usage` to zero
+    usage; a stream of raw chunks with no usage gives `usage=None`, one
+    whose reported total of 5 is followed by a usage-less chunk gives 5, and
+    one that reports zero gives zero;
+  - rejection after partial usage: a Google call over a stubbed SDK client
+    whose malformed-function-call response has no usage and whose retry
+    gets a context-length 400 returns a `model_length` output with
+    `_rejection` and `_usage_incomplete` set, and under a cost limit is
+    marked; the same with a fully reported first response, and a
+    standalone context-length 400, are not marked; the LiteLLM proxy's
+    retry loop gives the same three results;
   - partial usage: in `tests/model/providers/test_google.py`, a call over
     a stubbed SDK client whose first response is a `CONTINUATION` with no
     usage and whose last reports zero tokens returns an output marked
@@ -1911,8 +1974,10 @@ Each step is one PR, in this order. Each keeps the suite green.
    outputs. `src/inspect_ai/model/_model_output.py`: the private
    `_rejection` attribute and `rejection_output()`, and the private
    `_usage_incomplete` attribute and `usage_incomplete()`, which the no-usage
-   check also marks. Partial usage: `_ContinuationChain.usage_missing` in
-   `src/inspect_ai/model/_providers/google.py`, and `discarded_missing` in
+   check also marks, ahead of the rejection exemption. Partial usage:
+   `_ContinuationChain.usage_missing` in
+   `src/inspect_ai/model/_providers/google.py`, applied to the chain's
+   output and to `handle_client_error()` outputs, and `discarded_missing` in
    `src/inspect_ai/model/_providers/litellm_proxy.py`. The rejection
    converters listed under "Unmetered calls": `openai_handle_bad_request()`
    in `_openai.py` for `APIStatusError` only, and each provider's converter
@@ -1922,7 +1987,11 @@ Each step is one PR, in this order. Each keeps the suite green.
    in the assembled stream response) and
    `src/inspect_ai/model/_providers/mistral.py`
    (`mistral_completion_from_stream()` reports whether the stream carried
-   usage; `MistralAPI.generate()` sets `usage=None` when it did not).
+   usage; `MistralAPI.generate()` sets `usage=None` when it did not) and
+   `src/inspect_ai/model/_providers/grok.py` (the reported usage passed to
+   `_model_output_from_response()`: `HasField("usage")` for unary,
+   structured and batch responses, the last raw chunk that carried usage
+   for streams).
    `src/inspect_ai/model/_util.py`: `resolve_model_costs()` checks the task
    model only, with the shared message helper.
    `src/inspect_ai/agent/_bridge/sandbox/service.py`: `UnmeteredCallError`
@@ -1934,6 +2003,7 @@ Each step is one PR, in this order. Each keeps the suite green.
    `tests/model/providers/test_sagemaker.py`,
    `tests/model/providers/test_google.py`,
    `tests/model/providers/test_litellm_proxy.py`,
+   `tests/model/providers/test_grok.py`,
    and one rejection case per
    classified converter in that provider's existing test file under
    `tests/model/providers/` (mocked transport, no API key).
