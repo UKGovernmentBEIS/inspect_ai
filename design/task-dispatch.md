@@ -762,9 +762,11 @@ twice is reported three times.
   `debug_errors` and the task name into a notification job holding the
   cancelled-before-start log, and calls `queue.notify(job)`. While the
   dispatcher is inside its attempt group (`queue.group` is set), `notify`
-  starts the job there at once (one call of `notify_task_source`'s body),
-  adding one to `queue.notifying`; the job takes it off and rings `wake`
-  when it returns. It does not wait for the dispatcher's next pass, which
+  starts the job there at once, adding one to `queue.notifying`. The job
+  runs `notify_task_source` through the same guard `_run_task` uses today
+  (below), and in a `finally` that covers every exit it takes one off
+  `queue.notifying`, rings `wake` and drops its log and source references.
+  It does not wait for the dispatcher's next pass, which
   cannot come while the dispatcher awaits `next_tasks()`: a source that
   adds a task, cancels it through its handle and waits for its report in
   that call, or one waiting while an operator cancels a queued task, gets
@@ -781,7 +783,18 @@ twice is reported three times.
 Both paths keep `notify_task_source`'s rules: a callback exception is
 logged (propagated under `debug_errors`), and the tasks a callback returns
 go through `_enqueue_source_tasks`, so after the queue closes they are
-dropped ("Source returns after close are dropped").
+dropped ("Source returns after close are dropped"). Both also keep today's
+guard against a callback that raises a cancellation: `notify_task_source`
+catches only `Exception`, so `_run_task` runs it in a private task group
+and, when the call did not return normally and no cancellation of the run
+caused that, raises `RuntimeError` ("TaskSource.task_complete() for task
+'<task>' raised a cancellation that no cancellation of the run caused."),
+whatever `debug_errors` says. That check moves into one helper,
+`notify_source_guarded(task_name, log, ...)`, which `_run_task` and the
+notification job both call, so a stray cancellation from a queued-cancel
+report ends the run with the task's name instead of being absorbed by the
+attempt group while a source waits in `next_tasks()`; a real cancellation
+of the run still propagates.
 
 `RunQueue.end` sets `ended`; for a record whose `reached` is not
 `registered`, registers it as a finished eval (below); removes the record
@@ -1696,7 +1709,11 @@ test that waits on a run is bounded with `fail_after`.
   reported again; a source whose `next_tasks()` adds a task, cancels it
   through its handle and waits for its report, and one waiting while the
   control channel cancels a queued task, each get exactly one report and
-  return; a source that seeds a successful A and a B whose
+  return; when that report's `task_complete` raises a saved cancellation of
+  its own, the run ends with the `RuntimeError` naming the task on asyncio
+  and trio (as `test_task_complete_raising_stray_cancellation_ends_run`
+  checks for an attempt's report), `queue.notifying` is back to zero, and a
+  cancellation of the run during the report propagates as a cancellation; a source that seeds a successful A and a B whose
   `logger.init()` always fails, and returns from `next_tasks()` only after
   `task_complete` has reported A and B's final attempt, with
   `task_retry_attempts` 0 and 2: B is reported once per attempt (once, and
@@ -1813,7 +1830,8 @@ state in the single `eval_run`), so the setup fixes come first.
    logger's construction, `ensure_controllers()` for the seed only,
    `dispatch_tasks()` with the inline `next_tasks()` call and its dispatch
    waker and its source-notification jobs, `_run_task`'s single
-   `notify_task_source` call with its two exceptions, `run_one`'s move into `attempt` creating the attempt's `TaskCancel`
+   `notify_task_source` call with its two exceptions, the cancellation guard
+   factored into `notify_source_guarded` for both, `run_one`'s move into `attempt` creating the attempt's `TaskCancel`
    and scope, which `_run_task` takes, and its closed and abort checks, the
    run's task
    names seeded from `eval_set_tasks`, `startup_sandboxes` and the record's
