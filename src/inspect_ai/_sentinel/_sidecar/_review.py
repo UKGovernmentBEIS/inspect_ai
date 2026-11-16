@@ -13,7 +13,7 @@ error, and acts on the state it gets:
 - `awaiting_resend`: the provider still has to be called. Inspect resends the
   request under the same `x-irid`, and the proxy passes it on to the provider.
 - `decided`, with the outcome `proceed`: the sidecar holds the provider's
-  reply. Inspect fetches it from the sidecar's held-reply path. The provider
+  reply. Inspect fetches it from the sidecar's judged-reply path. The provider
   is not called again.
 
 Inspect makes every fetch and resend with the provider's own client, so the
@@ -69,7 +69,7 @@ sample ends.
 FAILED_TRY_HEADER = "x-sentinel-failed-try"
 """The header that marks a provider's error fetched from the sidecar.
 
-The sidecar adds it to a provider's error that it returns from its held-reply
+The sidecar adds it to a provider's error that it returns from its judged-reply
 path. Its value is the number of the try that failed. The sidecar's own refusals
 never have it.
 """
@@ -140,7 +140,7 @@ async def finish_paused_call(
     - `decided`, with the outcome `proceed`: the sentinel let the turn go
       ahead, but Inspect has no reply yet. `request_result` returns the
       decision, and the sidecar holds the provider's reply. Inspect fetches
-      the reply from the sidecar's held-reply path (`HELD_REPLY_PATH`).
+      the reply from the sidecar's judged-reply path (`JUDGED_REPLY_PATH`).
     - `awaiting_resend`, with a provider error in `failure`: the provider
       failed the call, and the sidecar holds its error. Inspect fetches the
       error the same way, then treats it as it treats any provider error.
@@ -153,7 +153,7 @@ async def finish_paused_call(
 
     A fetch and a resend both call `send_again`, which sends the call's
     model request. For a fetch, Inspect's HTTP hook sends that request to
-    the held-reply path, because only the provider's client code can read
+    the judged-reply path, because only the provider's client code can read
     the reply, and that code can only send its model request. The sidecar
     ignores the body, finds the call by its `x-irid`, and returns what it
     holds. The provider is not called.
@@ -382,14 +382,14 @@ def _next_step(
             received,
             "the sidecar didn't answer with the provider's reply it holds for the call"
             if received.fetch_sent
-            else "this model's client couldn't send a request to the sidecar's held-reply path",
+            else "this model's client couldn't send a request to the sidecar's judged-reply path",
         )
     return None
 
 
 def _failed_try_number(error: BaseException) -> int | None:
     # The try's number, if `error` is a provider's error fetched from the
-    # sidecar's held-reply path. The sidecar's `x-sentinel-failed-try` header
+    # sidecar's judged-reply path. The sidecar's `x-sentinel-failed-try` header
     # on the error's response gives the number. None for anything else: the
     # sidecar's own refusal, or an error with no complete response, such as a
     # connection that failed part way.

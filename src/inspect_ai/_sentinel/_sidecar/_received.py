@@ -201,14 +201,14 @@ class ReceivedCall:
         """Whether the request now being sent is a fetch.
 
         A fetch gets the reply, or the provider's error, that the sidecar holds
-        for the call. The HTTP hook sends it to the sidecar's held-reply path,
+        for the call. The HTTP hook sends it to the sidecar's judged-reply path,
         not to the model.
         """
         self.fetch_body: bytes | None = None
         """A digest of the body of the fetch request.
 
         The SDK's retries of the fetch have the same body, so they go to the
-        held-reply path too. A later request that the provider's code makes in
+        judged-reply path too. A later request that the provider's code makes in
         the same send, such as a continuation, has a different body and goes to
         the model.
         """
@@ -218,7 +218,7 @@ class ReceivedCall:
         An attempt tries once.
         """
         self.fetch_sent = False
-        """Whether the latest attempt sent a fetch to the sidecar's held-reply path."""
+        """Whether the latest attempt sent a fetch to the sidecar's judged-reply path."""
         self.resent = False
         """Whether the latest attempt has resent the request for the provider.
 
@@ -383,7 +383,7 @@ def begin_attempt() -> None:
         )
 
 
-HELD_REPLY_PATH = "/sentinel/v1/held-reply"
+JUDGED_REPLY_PATH = "/sentinel/v1/judged-reply"
 """The path where a sidecar returns what it holds for a paused call.
 
 Inspect fetches the provider's reply from it once the turn may go ahead, or the
@@ -407,7 +407,7 @@ def request_id_to_reuse() -> str | None:
 
 
 def route_fetch_to_sidecar(request: Any) -> None:
-    """Send a fetch to the sidecar's held-reply path, not to the model.
+    """Send a fetch to the sidecar's judged-reply path, not to the model.
 
     A fetch is the model request that gets what the sidecar holds for the current
     paused call. Every other request is left unchanged: a request of a call that
@@ -434,7 +434,7 @@ def route_fetch_to_sidecar(request: Any) -> None:
         received.fetch_body = body
     elif received.fetch_body != body:
         return
-    request.url = request.url.copy_with(path=HELD_REPLY_PATH)
+    request.url = request.url.copy_with(path=JUDGED_REPLY_PATH)
     received.fetch_sent = True
 
 
