@@ -221,6 +221,9 @@ other order their ids are swapped between two otherwise identical events.
   call the event's `arguments` are the inner arguments that ran, which is
   what the grant binds.
 - `proposal_id`: the proposing call's id on every consumed grant, else `null`.
+  The bridge hands a call over under the model's id, except when the model
+  reuses an id that already names another call: the call is then handed over,
+  and runs, under a fresh id, and its `ModelEvent` keeps the model's.
 - `grant`: `"consumed"`, `"denied"`, `"exempt"` (an exempt server ran it
   without a matching proposal), or `null` for a request rejected before the
   grant check (unknown server or tool, arguments too deep).
@@ -482,7 +485,11 @@ proposal, and fixing the pairing would mean keeping evicted grants.
 - **ACP.** `_map_tool_event()` pops the call from `_BridgeToolState.pending`,
   so the card synthesized for the proposal is updated with the real result
   and is not settled again from the agent's `ChatMessageTool`; the update
-  also marks the card cancelable. An event of a multi-target proposal that
+  also replaces the card's title and `raw_input` with the event's (the
+  arguments that ran, which a sentinel may have modified) and marks the card
+  cancelable. A scaffold-reported result gives the card the title and
+  `raw_input` of the call it answers in the scaffold's request (the arguments
+  that ran; `_scaffold_run`). An event of a multi-target proposal that
   did not take the proposing id, and an unpaired call on an exempt server,
   carry fresh ids and map as their own cards. Replay synthesizes no card for an id that has a real
   `ToolEvent`. The sub-agent filter places an event by its `span_id` as well
@@ -504,8 +511,13 @@ proposal, and fixing the pairing would mean keeping evicted grants.
   separately for each, and the resulting `ApprovalEvent`s carry the proposing
   id. See
   [Bridged Agents](../docs/approval.qmd#bridged-agents).
-- **Sentinel.** The host executor runs no sentinel tool stage, so sentinel
-  replay rebuilds none for a `ToolEvent` with `metadata["bridge"]`.
+- **Sentinel.** The host executor runs no sentinel tool stage. The bridge
+  checks the call when the model proposes it, and its result when the agent's
+  next request carries it (`sentinel_tool_results()`), each in a
+  `sentinel_bridge` span under the request, not under the tool span: the
+  request carries the call's id, which the MCP call does not. Sentinel replay
+  rebuilds no tool stage for a `ToolEvent` with `metadata["bridge"]`, and
+  warns.
 - **Hooks, control server, TUI, dataframes.** Pending host events drive the
   TUI's running state and the control server's activity and cancellation like
   native ones. Hooks receive each non-pending update. `events_df()` has `tool`

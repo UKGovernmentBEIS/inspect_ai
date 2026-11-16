@@ -15,6 +15,11 @@ from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
 
+from ._google_computer_use_name import (
+    gemini_computer_action_name,
+    gemini_computer_action_names,
+)
+
 # Default display dimensions matching MAX_SCALING_TARGETS["FWXGA"] in _x11_client.py.
 # These should stay in sync with the dimensions used by the container.
 DISPLAY_WIDTH = 1366
@@ -38,11 +43,16 @@ def maybe_computer_use_tool(model_name: str, tool: ToolInfo) -> Tool | None:
 
 
 def tool_call_from_gemini_computer_action(
-    function_call: FunctionCall,
+    function_call: FunctionCall, call_id: str | None = None
 ) -> ToolCall:
+    """The Inspect call for a Gemini computer action.
+
+    `call_id` is the id the parse gives the call's part (and its reasoning
+    anchor); without one, the id names the action (`click_at_<uuid>`).
+    """
     name = function_call.name or ""
     return ToolCall(
-        id=f"{name}_{uuid()}",
+        id=call_id or f"{name}_{uuid()}",
         function="computer",
         arguments=_parse_gemini_action(name, function_call.args or {}),
     )
@@ -71,14 +81,15 @@ def gemini_action_from_tool_call(
 ) -> tuple[str, dict[str, object]]:
     arguments = tool_call.arguments
     action = str(arguments.get("action", ""))
+    name = gemini_computer_action_name(arguments)
 
     if action == "left_click":
         x, y = _normalize_coordinate(arguments.get("coordinate", [0, 0]))
-        return "click_at", {"x": x, "y": y}
+        return name, {"x": x, "y": y}
 
     elif action == "mouse_move":
         x, y = _normalize_coordinate(arguments.get("coordinate", [0, 0]))
-        return "hover_at", {"x": x, "y": y}
+        return name, {"x": x, "y": y}
 
     elif action == "key":
         text = str(arguments.get("text", ""))
@@ -102,7 +113,7 @@ def gemini_action_from_tool_call(
             "alt": "alt",
         }
         keys = "+".join(mapping.get(p.strip(), p.strip()) for p in text.split("+"))
-        return "key_combination", {"keys": keys}
+        return name, {"keys": keys}
 
     elif action == "type":
         text = str(arguments.get("text", ""))
@@ -112,7 +123,7 @@ def gemini_action_from_tool_call(
             result["press_enter"] = bool(arguments["press_enter"])
         # Gemini defaults clear_before_typing to True, so send False explicitly
         result["clear_before_typing"] = bool(arguments.get("clear_before_typing"))
-        return "type_text_at", result
+        return name, result
 
     elif action == "scroll":
         direction = str(arguments.get("scroll_direction", "down"))
@@ -121,20 +132,20 @@ def gemini_action_from_tool_call(
             x, y = _normalize_coordinate(coordinate)
             amount = int(str(arguments.get("scroll_amount", 3)))
             magnitude = min(amount * 100, 999)
-            return "scroll_at", {
+            return name, {
                 "x": x,
                 "y": y,
                 "direction": direction,
                 "magnitude": magnitude,
             }
-        return "scroll_document", {"direction": direction}
+        return name, {"direction": direction}
 
     elif action == "left_click_drag":
         start_x, start_y = _normalize_coordinate(
             arguments.get("start_coordinate", [0, 0])
         )
         end_x, end_y = _normalize_coordinate(arguments.get("coordinate", [0, 0]))
-        return "drag_and_drop", {
+        return name, {
             "x": start_x,
             "y": start_y,
             "destination_x": end_x,
@@ -142,20 +153,39 @@ def gemini_action_from_tool_call(
         }
 
     elif action == "wait":
-        return "wait_5_seconds", {}
+        return name, {}
 
     elif action == "open_web_browser":
-        return "open_web_browser", {}
+        return name, {}
 
     elif action == "navigate":
         text = str(arguments.get("text", ""))
-        return "navigate", {"url": text}
+        return name, {"url": text}
 
     else:
         # Best-effort: actions without Gemini equivalents (screenshot,
         # triple_click, cursor_position, etc.) map to wait_5_seconds
         # as a no-op that still returns a screenshot.
-        return "wait_5_seconds", {}
+        return name, {}
+
+
+def gemini_replay_action_name(tool_call: ToolCall, sent: str | None = None) -> str:
+    """The Gemini action a computer call replays as.
+
+    The action it was sent as (`sent`, from its reasoning anchor,
+    `gemini_computer_actions`), or else the one its id names
+    (`click_at_<id>`), when that fits the call's arguments: this keeps an
+    action parsed as another (`search` as navigation). Otherwise the action of
+    its arguments, as for a call whose arguments approval or a filter changed
+    to another action.
+    """
+    names = gemini_computer_action_names(tool_call.arguments)
+    if sent in names:
+        return sent
+    prefix = tool_call.id.rsplit("_", 1)[0]
+    if prefix in names:
+        return prefix
+    return gemini_computer_action_name(tool_call.arguments)
 
 
 def gemini_replay_args(action_name: str, tool_call: ToolCall) -> dict[str, object]:
