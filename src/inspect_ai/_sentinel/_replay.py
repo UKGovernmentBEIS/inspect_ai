@@ -102,11 +102,11 @@ def steps_from_events(
 
     In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later; older or unknown versions omit them and warn once when a selected human approver appears. A `tool_call` step whose call an approver changed has no `view.context`: the `ApprovalEvent` view describes the call the approver was shown, and live renders the changed call's context again, which the log does not record. A log is refused where the call an approval approved (its modified call, else the call it records) is not the call its `ToolEvent` records, unless a recorded sentinel modify changed the call again to the one the `ToolEvent` records. Inspect before 0.3.277 wrote such logs, including for a call an approver changed in place and approved without a modified call, and they are refused whatever version the header records, since a retried eval keeps its completed samples under a newer header. This includes an approved call whose tool records other arguments than it was given, such as `memory()` resolving a path: the log does not show which implementation ran. Replay such a transcript from its messages instead. Where such a call has no recorded step and its `ToolEvent` has a parsing or approval error, it may have been refused before it ran or raised the error after running, so replay skips its tool steps with a warning naming the call instead of refusing the log.
 
-    A tool call is joined to the model call that proposed it by the id of the message its `ToolEvent` records (`call_message_id`, written since inspect_ai #6143), and a call no model call proposed (a pre-filled message) to the message holding it, by the same id. Where the event records no proposing message (an older log), or the id names several model calls' output (a cached output reused), a native call's producer is the latest model call that proposed its id before the call (in the call's own conversation, where model calls in several conversations proposed it), a bridge's generation included.
+    A tool call is joined to the model call that proposed it by the id of the message its `ToolEvent` records (`call_message_id`, written since inspect_ai #6143), and a call no model call proposed (a pre-filled message) to the message holding it, by the same id. Where the id names several model calls' output (a cached output reused), a native call's producer is the latest of those model calls before the call, in the call's own conversation where they are in several. Where the event records no proposing message (an older log), or the id names no model call's output, it is the latest model call that proposed the call's id before the call (in the call's own conversation, where model calls in several conversations proposed it), a bridge's generation included.
 
-    A host call a sandbox bridge ran (`ToolEvent.metadata["bridge"]`) is replayed where its event ties it to its proposal and its run exactly: its proposing message is one model call's output holding the call under the model's id (`proposal_id`), and either the bridge linked the run to the tool message the scaffold reported its result in (`message_id`) or the bridge's `tool_call` check names the run's handout (`SentinelEvent.execution_id`). Its `tool_call` step is the call as the bridge checked it, under the id the scaffold was handed it under, with the host tool's name and the arguments it ran with (a sentinel's modify aside), once per handout. Its `tool_result` step holds the tool message `message_id` names, which the bridge checked when the scaffold's next request carried it; a run with no such link has no `tool_result` step. Step ids are unique in a sample, so a host call under an id a native call or an earlier replayed host call has is skipped. Other host calls, and the calls a bridged scaffold ran itself, which leave no `ToolEvent`, are skipped, and a warning names them. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A bridge's tool checks are recorded in spans named `sentinel_bridge`, so a native call under an id a bridge also checked keeps its own checks.
+    A host call a sandbox bridge ran (`ToolEvent.metadata["bridge"]`) is replayed where its event ties it to its proposal and its run exactly: its proposing message is one model call's output holding the call under the model's id (`proposal_id`), and either the bridge linked the run to the tool message the scaffold reported its result in (`message_id`) or a bridge check of the call, its `tool_call` or its `tool_result` check, names the run's handout (`SentinelEvent.execution_id`; in a log from before the handout ids, a check under the call's id). Its `tool_call` step is the call as the bridge checked it, under the id the scaffold was handed it under, with the host tool's name and the arguments it ran with (a sentinel's modify aside), once per handout. Its `tool_result` step holds the tool message `message_id` names, which the bridge checked when the scaffold's next request carried it; a run with no such link has no `tool_result` step, even where its result check linked the run. Step ids are unique in a sample, so a host call under an id a native call or an earlier replayed host call has is skipped. Other host calls, and the calls a bridged scaffold ran itself, which leave no `ToolEvent`, are skipped, and a warning names them. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A bridge's tool checks are recorded in spans named `sentinel_bridge`, so a native call under an id a bridge also checked keeps its own checks.
 
-    A transcript Scout imported from another source (`eval_info` is None) replays from its events where Scout records which model calls its messages come from (`messages_from`): its turns are inferred as for a log without origins, and its tool steps come from its messages, each assistant message joined by its id to the turn whose output it is, which gives the steps that turn's input, tools and conversation; a message no one turn made is placed after the last message before it that one did, with no input. Its tool events are not read: importers record them without the model's call ids.
+    A transcript Scout imported from another source (`eval_info` is None) replays from its events where Scout records which model calls its messages come from (`messages_from`): its turns are inferred as for a log without origins, and its tool steps come from its messages, each assistant message joined by its id to the turn whose output it is, which gives the steps that turn's input, tools and conversation; a message no one turn made is placed after the last message before it that one did, with no input. A call under an id an earlier call in the messages has is skipped, with a warning, as step ids are unique in a sample. Its tool events are not read: importers record them without the model's call ids.
 
     Replay requires a log written by Inspect 0.3.100 or later. Earlier logs lack the `solvers` and `scorers` spans (and, before 0.3.94, native tool spans) and cannot be replayed reliably. A log whose samples have an earlier layout is refused whatever its header says, since a retried eval keeps its completed samples under a newer header: a `ToolEvent` that nests other events, a solver or scorer `StepEvent`, a top-level scorer span, or a top-level solver span in a sample that records no `solvers` span (where one is recorded, a top-level solver span is a chain `Task.cleanup` or a hook awaited, and its calls are setup's; a `scorers` span alone does not count, since rescoring adds one to an older sample). If the recorded version is unknown, completed native tool events without a matching tool span, including execution failures, are also refused as potentially older logs. Pending calls and spanless parsing, approval, or cancelled errors remain allowed. A completed spanless timeout is refused when the version is unknown.
 
@@ -576,9 +576,6 @@ class _Call:
     # the sentinel spans of the call's checks (_take_checks)
     before_span: str | None = None
     after_span: str | None = None
-    # for a sandbox bridge's host call, whether it is its handout's first run,
-    # which has the handout's tool_call step
-    first_run: bool = True
 
 
 class _Region(NamedTuple):
@@ -674,8 +671,6 @@ class _Driver:
         # the approvals recorded for each handout (`execution_id`), else, in a
         # log from before the id, for each call id, in log order
         self.run_approvals: dict[str, list[tuple[int, ApprovalEvent]]] = {}
-        # (producer index, call id, handout) of each host call handout run so far
-        self.runs: set[tuple[int, str, str | None]] = set()
         # the ids of native calls, and of the host runs replayed
         self.native_ids: set[str] = set()
         self.host_runs: set[str] = set()
@@ -1197,14 +1192,10 @@ class _Driver:
         if call.producer is None or proposal is None:
             return
         event = call.event
-        run = (call.produced_at, proposal.id, event.execution_id)
-        call.first_run = run not in self.runs
-        self.runs.add(run)
         handout = event.execution_id or event.id
-        if call.first_run:
-            call.before_span = self._bridge_span_of(
-                ("tool_call", event.id, handout), call.produced_at, begin
-            )
+        call.before_span = self._bridge_span_of(
+            ("tool_call", event.id, handout), call.produced_at, begin
+        )
         if end is not None:
             call.after_span = self._bridge_span_of(
                 ("tool_result", event.id, handout), end
@@ -1414,10 +1405,13 @@ class _Driver:
         bridge could tell: so the run must also be linked to the result the
         scaffold reported (`message_id`, which the bridge sets only for a
         reply placed and run once, with no other reply's pending call matching
-        the run), or a check the bridge recorded must name the run's handout
-        (`execution_id`, #6370). Its run must not share its id with a native
-        call or an earlier run, since step ids are unique in a sample. Else
-        replay skips its steps, and warns.
+        the run), or a check the bridge recorded, of either stage, must be
+        paired with the run (`_take_bridge_checks`): by the run's handout
+        (`execution_id`, #6370), or, in a log from before the handout ids, by
+        the call id; where no `tool_call` check was recorded, as with a sentinel
+        that checks results only, the result check alone links it. Its run
+        must not share its id with a native call or an earlier run, since step
+        ids are unique in a sample. Else replay skips its steps, and warns.
         """
         return (
             # step ids are unique in a sample: a native call, or an earlier
@@ -1489,26 +1483,25 @@ class _Driver:
         conversation = call.conversation
         assistant_id = assistant.id or ""
         assistant_text = self._text(assistant)
-        if call.first_run:
 
-            def build_before() -> None:
-                step = before_tool_call(
-                    conversation=conversation,
-                    message=assistant_text,
-                    message_id=assistant_id,
-                    call=before_call,
-                    view=before_view,
-                    producer=producer,
-                    agent_messages=None,
-                    record=self._record(conversation),
-                )
-                self._built(event.id, "tool_call", step, before_span)
-
-            # checked once its model call returned, before the scaffold got it
-            self._at_point(
-                self._cut(before_span, (call.produced_at, 3)), call.seq, build_before
+        def build_before() -> None:
+            step = before_tool_call(
+                conversation=conversation,
+                message=assistant_text,
+                message_id=assistant_id,
+                call=before_call,
+                view=before_view,
+                producer=producer,
+                agent_messages=None,
+                record=self._record(conversation),
             )
-            self._settle_at_end(before_span)
+            self._built(event.id, "tool_call", step, before_span)
+
+        # checked once its model call returned, before the scaffold got it
+        self._at_point(
+            self._cut(before_span, (call.produced_at, 3)), call.seq, build_before
+        )
+        self._settle_at_end(before_span)
         result = self._reported_result(event)
         if result is None:
             # its result check, if any, still publishes its decisions
@@ -1583,7 +1576,10 @@ class _Driver:
         later. A call's result is the tool message answering its id before the
         next assistant message with tool calls. A call no message holds (a
         sub-agent's, or one in a turn the messages left out) has no tool
-        steps, and the transcript's tool events are not read.
+        steps, and the transcript's tool events are not read. Step ids are
+        unique in a sample, so a call under an id an earlier call in the
+        messages has (a provider that reuses ids) is skipped, and a warning
+        names it.
         """
         made: dict[str, list[_Generate]] = {}
         for group in generates:
@@ -1616,6 +1612,9 @@ class _Driver:
                 and current is not None
             ):
                 current.setdefault(message.tool_call_id, message)
+        # step ids are unique in a sample: a call id an earlier call has
+        replayed: set[str] = set()
+        repeated: list[str] = []
         for position, message in enumerate(self.messages):
             if not isinstance(message, ChatMessageAssistant):
                 continue
@@ -1633,6 +1632,10 @@ class _Driver:
                 if later > 0:
                     place = max(place, (turns[later - 1].attempts[-1][0], 3))
             for call in message.tool_calls or []:
+                if call.id in replayed:
+                    repeated.append(call.id)
+                    continue
+                replayed.add(call.id)
                 self._message_call(
                     message,
                     call,
@@ -1641,6 +1644,13 @@ class _Driver:
                     place,
                     producer,
                 )
+        if repeated:
+            logging.getLogger(__name__).warning(
+                "Replay skipped the tool steps of imported call(s) %s: an earlier "
+                "call in the messages has the same id, and step ids are unique in "
+                "a sample.",
+                ", ".join(repr(id) for id in dict.fromkeys(repeated)),
+            )
 
     def _message_call(
         self,

@@ -2544,6 +2544,58 @@ def test_a_host_call_handed_out_again_under_its_id_replays_its_first_handout(
     assert "(host_1)" in skipped
 
 
+@monitor
+def checking_results_only() -> MonitorGroup:
+    async def after(context: Context, step: AfterToolCall) -> Observation | None:
+        return Observation.score(0.2, f"saw {step.result.text}")
+
+    return MonitorGroup(after)
+
+
+def test_a_host_call_whose_result_check_names_its_handout_replays(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    from inspect_ai._sentinel._integration import EvalInfo, steps_from_events
+
+    [log] = eval(
+        Task(
+            dataset=[Sample(input=TASK)],
+            solver=repeated_host_call(cached=False, shared=False),
+            sentinel=[checking_results_only()],
+        ),
+        model="mockllm/model",
+        log_format="json",
+        log_dir=str(tmp_path / "logs"),
+    )
+    assert log.status == "success", log.error
+    [sample] = read_eval_log(log.location).samples or []
+    first = next(e for e in sample.events if isinstance(e, ToolEvent) and e.metadata)
+    checks = [e for e in sample.events if isinstance(e, SentinelEvent)]
+    # the bridge linked no reported result to the run, and there is no
+    # tool_call check: only the result check names the run's handout
+    assert first.message_id is None and first.execution_id is not None
+    assert {e.stage for e in checks} == {"tool_result"}
+    assert first.execution_id in [e.execution_id for e in checks]
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        replay = steps_from_events(
+            sample.messages,
+            sample.events,
+            [],
+            sample_uuid=sample.uuid or "",
+            eval_info=EvalInfo.from_eval(log.eval),
+        )
+    # that check links the run, so its tool_call step replays; with no reported
+    # result linked, its result check is skipped
+    assert [(s.stage, s.id) for s in replay if s.stage.startswith("tool")] == [
+        ("tool_call", "host_1")
+    ]
+    [skipped] = [
+        r.getMessage() for r in caplog.records if "Replay skipped" in r.message
+    ]
+    assert "(host_1)" in skipped
+
+
 async def google_round_trips(
     bridge: AgentBridge, model: Scripted, outputs: list[str]
 ) -> None:

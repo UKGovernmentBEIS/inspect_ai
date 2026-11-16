@@ -558,10 +558,11 @@ proposal, and fixing the pairing would mean keeping evicted grants.
   rebuilds those steps for a `ToolEvent` with `metadata["bridge"]` where the
   event links the run to its proposal: its `call_message_id` names one model
   call's output holding the call under `proposal_id`, and either its
-  `message_id` names the result the agent reported or the call's `tool_call`
-  check names its handout. The `tool_result` step is the tool message
-  `message_id` names, so a run without it has none. Other host calls are
-  skipped with a warning.
+  `message_id` names the result the agent reported or a check of the call
+  names its handout: its `tool_call` check or, where none was recorded (a
+  sentinel that checks results only), its `tool_result` check. The
+  `tool_result` step is the tool message `message_id` names, so a run
+  without it has none. Other host calls are skipped with a warning.
 - **Hooks, control server, TUI, dataframes.** Pending host events drive the
   TUI's running state and the control server's activity and cancellation like
   native ones. Hooks receive each non-pending update. `events_df()` has `tool`

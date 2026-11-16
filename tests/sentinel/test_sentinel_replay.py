@@ -1065,6 +1065,38 @@ def test_an_imported_message_no_turn_made_has_tool_steps_without_input() -> None
     ]
 
 
+def test_an_imported_call_id_repeated_across_messages_replays_its_first_call(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # a provider that reuses call ids: two assistant messages each carry call_0
+    def turn(n: int) -> list[ChatMessage]:
+        return [
+            ChatMessageAssistant(
+                id=f"assistant-{n}",
+                content="",
+                tool_calls=[
+                    ToolCall(id="call_0", function="addition", arguments={"x": n})
+                ],
+            ),
+            ChatMessageTool(id=f"tool-{n}", content=str(n), tool_call_id="call_0"),
+        ]
+
+    messages = [ChatMessageUser(content="add"), *turn(1), *turn(2)]
+    with caplog.at_level(logging.WARNING):
+        replay = steps_from_events(
+            messages, [], [], sample_uuid="s", eval_info=None, messages_from=[]
+        )
+    assert [(s.stage, s.id) for s in replay] == [
+        ("tool_call", "call_0"),
+        ("tool_result", "call_0"),
+    ]
+    before, after = (s.step for s in replay)
+    assert isinstance(before, BeforeToolCall) and isinstance(after, AfterToolCall)
+    assert [before.message_id, after.message_id] == ["assistant-1", "assistant-1"]
+    assert after.result.id == "tool-1"
+    assert any("imported call(s) 'call_0'" in r.getMessage() for r in caplog.records)
+
+
 def test_a_transcript_with_no_header_or_messages_from_is_refused() -> None:
     log = run_logged(tool_loop(addition()), outputs(done()))
     sample = logged_sample(log)
