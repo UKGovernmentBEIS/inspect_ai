@@ -107,6 +107,7 @@ from inspect_ai.tool._tool import ToolSource
 from inspect_ai.tool._tool_call import ToolCallModelInputHints
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util import concurrency
+from inspect_ai.util._json import json_schema_dump
 from inspect_ai.util._limit import (
     LimitExceededError,
     check_cost_limit,
@@ -272,6 +273,17 @@ class _PreparedInput(NamedTuple):
     tdefs: list[ToolDef]
     tools: list[ToolInfo]
     tool_choice: ToolChoice
+
+
+@dataclasses.dataclass
+class _CallEvent:
+    """The `ModelEvent` of a call's latest attempt, held from when the attempt records it.
+
+    The caller has the event on every path, including where `_generate` raises
+    after recording it, as on a reply that takes the sample past a limit.
+    """
+
+    event: BaseModel | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1118,6 +1130,9 @@ class Model:
         # a call through a sidecar leaves its attempts to be committed here,
         # once the sidecar has said how long it spent judging the call
         attempts = ModelAttempts() if through_sidecar is not None else None
+        # the call's event, which the sidecar's judging time is taken out of
+        # even where `_generate` raises after recording it
+        call_event = _CallEvent() if through_sidecar is not None else None
         judged_for = 0.0
         receiving: ReceivedCall | None = None
         event: BaseModel | None = None
@@ -1142,6 +1157,7 @@ class Model:
                             on_stream=on_stream,
                             event_uuid=generate_id,
                             attempts=attempts,
+                            call_event=call_event,
                         )
                     except LimitExceededError:
                         # The sidecar judged the reply before Inspect counted its
@@ -1279,7 +1295,11 @@ class Model:
                 end_if_terminated(judgment, output, _bridged())
         finally:
             if attempts is not None:
-                judged_for = count_judging_as_waiting(receiving, attempts, event)
+                judged_for = count_judging_as_waiting(
+                    receiving,
+                    attempts,
+                    call_event.event if call_event is not None else None,
+                )
                 attempts.commit()
         if judged_for and output.time is not None:
             output.time = max(output.time - judged_for, 0.0)
@@ -1475,7 +1495,7 @@ class Model:
                     "function": {
                         "name": tool.name,
                         "description": tool.description,
-                        "parameters": tool.parameters.model_dump(exclude_none=True),
+                        "parameters": json_schema_dump(tool.parameters),
                     },
                 }
             )
@@ -1634,6 +1654,7 @@ class Model:
         on_stream: StreamHandler | None = None,
         event_uuid: str | None = None,
         attempts: ModelAttempts | None = None,
+        call_event: _CallEvent | None = None,
     ) -> tuple[ModelOutput, BaseModel]:
         """Generate, retrying as the model's retry config says.
 
@@ -1648,6 +1669,8 @@ class Model:
                 call through a sentinel sidecar's does once the sidecar has
                 said how long it spent judging the call. Otherwise the
                 attempts are made and committed here.
+            call_event: Set to each attempt's `ModelEvent` as soon as it is
+                recorded, for a caller that needs the event when this raises.
         """
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.hooks._hooks import (
@@ -1795,6 +1818,8 @@ class Model:
                         call=None,
                         event_uuid=attempt_uuid(),
                     )
+                    if call_event is not None:
+                        call_event.event = event
                     # announce the attempt even though no provider call runs:
                     # a cache hit on a *retry* attempt (a concurrent identical
                     # call cached between attempts) must still deliver the
@@ -1832,6 +1857,8 @@ class Model:
                 cache=cache_mode,
                 event_uuid=attempt_uuid(),
             )
+            if call_event is not None:
+                call_event.event = event
 
             # create timeout context manager if we have an attempt timeout
             attempt_timeout = generate_config_override_for_attempt(

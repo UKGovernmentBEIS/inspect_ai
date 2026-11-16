@@ -31,7 +31,7 @@ class ToolInfo(BaseModel):
     ```python
     ChatCompletionToolParam(
         type="function",
-        function=tool.model_dump(exclude_none=True),
+        function=tool.model_dump(mode="json", exclude_none=True),
     )
     ```
 
@@ -43,9 +43,12 @@ class ToolInfo(BaseModel):
     ToolParam(
         name=tool.name,
         description=tool.description,
-        input_schema=tool.parameters.model_dump(exclude_none=True),
+        input_schema=tool.parameters.model_dump(mode="json", exclude_none=True),
     )
     ```
+
+    Dump in JSON mode, as shown, so parameter defaults such as an `Enum`
+    member are converted to JSON values.
     """
 
     name: str
