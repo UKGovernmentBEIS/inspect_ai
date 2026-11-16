@@ -13,9 +13,15 @@ from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai.dataset import Sample
-from inspect_ai.event import ModelEvent, SampleInitEvent
-from inspect_ai.log import EvalError
-from inspect_ai.log._condense import resolve_sample_attachments
+from inspect_ai.event import (
+    InfoEvent,
+    ModelEvent,
+    SampleInitEvent,
+    ScoreEvent,
+    ToolEvent,
+)
+from inspect_ai.log import EvalError, EvalRetryError
+from inspect_ai.log._condense import condense_raw_sample, resolve_sample_attachments
 from inspect_ai.log._convert import convert_eval_logs
 from inspect_ai.log._edit import (
     MetadataEdit,
@@ -44,13 +50,22 @@ from inspect_ai.log._recorders.chunked.format import (
 from inspect_ai.log._recorders.chunked.stats import event_stats
 from inspect_ai.log._resolve import resolve_sample_events_data
 from inspect_ai.model import (
+    ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageUser,
     ModelOutput,
     get_model,
 )
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
-from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
+from inspect_ai.solver import (
+    Generate,
+    Solver,
+    TaskState,
+    generate,
+    solver,
+    use_tools,
+)
+from inspect_ai.tool import Tool, tool
 
 _TESTS_DIR = pathlib.Path(__file__).resolve().parent
 
@@ -860,12 +875,24 @@ def test_convert_chunked_keeps_literal_reference_text(tmp_path: pathlib.Path):
 def test_convert_chunked_keeps_raw_fields_that_read_like_references(
     tmp_path: pathlib.Path,
 ):
-    """Raw fields stay as written when a literal names an attachment; references still renumber."""
+    """Plain fields stay as written when a literal names an attachment; references still renumber."""
     system_prompt = "You are a careful assistant who answers in full. " * 4
     image = "data:image/png;base64," + ("A" * 200)
     first = f"attachment://{mm3_hash(system_prompt)}"
     # names the attachment that holds `first`, which is stored as a literal
     final = f"attachment://{mm3_hash(first)}"
+
+    @tool
+    def echo() -> Tool:
+        async def execute(text: str) -> str:
+            """Return the text.
+
+            Args:
+                text: Text to return.
+            """
+            return text
+
+        return execute
 
     @solver
     def ask_again() -> Solver:
@@ -886,6 +913,7 @@ def test_convert_chunked_keeps_raw_fields_that_read_like_references(
     model = get_model(
         "mockllm/model",
         custom_outputs=[
+            ModelOutput.for_tool_call("mockllm/model", "echo", {"text": final}),
             ModelOutput.from_content("mockllm/model", first),
             ModelOutput.from_content("mockllm/model", final),
         ],
@@ -903,7 +931,7 @@ def test_convert_chunked_keeps_raw_fields_that_read_like_references(
                 metadata={"note": final},
             )
         ],
-        solver=[generate(), ask_again(), generate()],
+        solver=[use_tools(echo()), generate(), ask_again(), generate()],
         scorer=explain(),
     )
     [log] = inspect_eval(
@@ -911,13 +939,35 @@ def test_convert_chunked_keeps_raw_fields_that_read_like_references(
     )
     assert log.location
 
-    output_dir = tmp_path / "chunked"
-    convert_eval_logs_to_chunked(log.location, str(output_dir), chunk_size=_CHUNK_SIZE)
+    # add event metadata and a copy of the events as retry history, then
+    # write the sample as a run would (raw, then condensed)
+    full = read_eval_log(log.location, resolve_attachments="full")
+    assert full.samples
+    raw = full.samples[0]
+    events = [*raw.events, InfoEvent(data="note", metadata={"note": final})]
+    raw = raw.model_copy(
+        update={
+            "events": events,
+            "error_retries": [
+                EvalRetryError(
+                    message="retry",
+                    traceback="",
+                    traceback_ansi="",
+                    events=list(events),
+                )
+            ],
+        }
+    )
+    full.samples = [condense_raw_sample(raw)]
+    source = tmp_path / "source" / pathlib.Path(log.location).name
+    write_eval_log(full, str(source))
 
-    with zipfile.ZipFile(output_dir / pathlib.Path(log.location).name) as zf:
+    output_dir = tmp_path / "chunked"
+    convert_eval_logs_to_chunked(str(source), str(output_dir), chunk_size=_CHUNK_SIZE)
+    with zipfile.ZipFile(output_dir / source.name) as zf:
         sample, _ = _reassemble_chunked_sample(zf, 1, 1)
 
-    # raw fields
+    # shell fields
     assert sample.output.completion == final
     assert sample.output.message.text == final
     assert sample.target == final
@@ -926,18 +976,39 @@ def test_convert_chunked_keeps_raw_fields_that_read_like_references(
     assert sample.scores is not None
     assert sample.scores["explain"].explanation == final
 
-    # renumbered references still resolve
     resolved = resolve_sample_attachments(sample, "full")
+
+    # renumbered references still resolve
     assert isinstance(resolved.input, list)
     content = resolved.input[1].content
     assert isinstance(content, list)
     assert isinstance(content[1], ContentImage)
     assert content[1].image == image
     assert resolved.messages[0].text == system_prompt
-    assert [m.text for m in resolved.messages if m.role == "assistant"] == [
-        first,
-        final,
-    ]
-    model_events = [e for e in resolved.events if isinstance(e, ModelEvent)]
-    assert model_events[0].input[0].text == system_prompt
-    assert model_events[-1].output.message.text == final
+
+    # messages
+    assistant = [m for m in resolved.messages if isinstance(m, ChatMessageAssistant)]
+    assert assistant[0].tool_calls is not None
+    assert assistant[0].tool_calls[0].arguments == {"text": final}
+    assert [m.text for m in assistant[1:]] == [first, final]
+    [tool_message] = [m for m in resolved.messages if m.role == "tool"]
+    assert tool_message.text == final
+
+    # events, and their copies in the retry history
+    assert resolved.error_retries is not None
+    retry_events = resolved.error_retries[0].events
+    assert retry_events is not None
+    for event_list in (resolved.events, retry_events):
+        model_events = [e for e in event_list if isinstance(e, ModelEvent)]
+        assert model_events[0].input[0].text == system_prompt
+        assert model_events[-1].output.completion == final
+        assert model_events[-1].output.message.text == final
+        [tool_event] = [e for e in event_list if isinstance(e, ToolEvent)]
+        assert tool_event.arguments == {"text": final}
+        assert tool_event.result == final
+        [score_event] = [e for e in event_list if isinstance(e, ScoreEvent)]
+        assert score_event.score.explanation == final
+        [info_event] = [
+            e for e in event_list if isinstance(e, InfoEvent) and e.data == "note"
+        ]
+        assert info_event.metadata == {"note": final}
