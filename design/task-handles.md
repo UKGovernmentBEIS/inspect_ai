@@ -437,7 +437,10 @@ class PortRequest:
   handle that is never used costs nothing. Its model controller is created
   lazily on its first `generate`, as for any added task
   ([task-dispatch.md](task-dispatch.md#adding-tasks)); under its creator's
-  model it usually exists already. It has no seed, so
+  model it usually exists already. When it does not (the rollout task sets
+  its own `model`, or its creator is an added task that has not generated
+  yet), an `inspect ctl config --max-connections` retune made before it is
+  created misses it, as for any added task. It has no seed, so
   its attempt sets up no sandbox before its first sample, and the
   dispatcher, which never waits on a setup, starts it as soon as a sample is
   sent.

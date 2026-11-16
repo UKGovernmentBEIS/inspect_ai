@@ -533,9 +533,13 @@ error. The cost: an `inspect ctl config --max-connections` retune made
 before an added task's first `generate` (while it is queued or building its
 sandboxes) is dropped with today's "not using adaptive connections" warning
 when no other task has created that model's controller, and the controller
-is created later at its configured ceiling. Rollouts are unaffected: a task
-fed through a handle runs under its creator's model, whose controller
-the seed's eager call or the creator's own generates have usually created.
+is created later at its configured ceiling. A task fed through a handle
+escapes this only when its connection pool already has a controller that
+the retune reached: usually it runs under its creator's model, whose
+controller the seed's eager call or the creator's own generates created.
+A rollout task that sets its own `model`, or whose creator is itself an
+added task that has not generated yet, can resolve to a pool with no
+controller, and then has the same cost as any other added task.
 
 **The run's task names.** `RunQueue` is created with the names of
 `eval_set_tasks`, which `_eval_async_inner` already receives: the whole eval
@@ -1736,8 +1740,9 @@ adding a task awaited nothing.
   tasks, which get no eager controller: a retune made before an added
   task's first `generate` (while it is queued or building its sandboxes) is
   dropped with today's "not using adaptive connections" warning when no
-  other task has created that model's controller. Rollouts are unaffected;
-  they run on their creator's model.
+  other task has created that model's controller. A task fed through a
+  handle escapes it only when its pool already has a controller the retune
+  reached, as when it shares a seed creator's model ("Adding tasks").
 - A provider's own lookups in `sample_init` (a missing config's compose-file
   search) seeing the task directory.
 - A caller's own cancellation of `eval_async()` (for example
