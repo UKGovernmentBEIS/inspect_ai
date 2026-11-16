@@ -8,11 +8,7 @@ import anyio
 
 from inspect_ai._util.exception import SampleRefusedError
 from inspect_ai.model._model_output import ModelUsage
-from inspect_ai.util._limit import (
-    suspend_token_limit,
-    suspend_turn_limit,
-    suspend_working_limit,
-)
+from inspect_ai.util._limit import suspend_limits
 
 from .._config import SentinelProxy
 from ._endpoint import UNAUTHORIZED, SentinelProxyError, SidecarCallError
@@ -115,7 +111,7 @@ class Looked(NamedTuple):
 async def request_result(received: ReceivedCall, replied: bool) -> Looked:
     """Ask the sidecar what it decided of the call's latest attempt, and keep the answer, waiting while it is still judging.
 
-    The sidecar holds each answer while the call is still being judged, up to `RESULT_WAIT`, and Inspect asks again while it is. While Inspect waits, the sample's token, turn and working limits are paused, as they are while an in-process sentinel runs; its time limit still applies. A state other than judging, including one this version doesn't know, is an answer.
+    The sidecar holds each answer while the call is still being judged, up to `RESULT_WAIT`, and Inspect asks again while it is. While Inspect waits, the sample's cost, token, turn and working limits are paused, as they are while an in-process sentinel runs; its time limit still applies. A state other than judging, including one this version doesn't know, is an answer.
 
     The usage of the models the sidecar's sentinel called is recorded in the sample's and the eval's usage: the latest attempt's, which the sidecar adds up over the provider SDK's own retries, and that of each earlier attempt Inspect retried without asking about it, which is asked for without waiting.
 
@@ -198,7 +194,7 @@ async def record_unasked_usage(received: ReceivedCall) -> None:
         return
     if not received.unasked:
         return
-    with suspend_token_limit(), suspend_turn_limit(), suspend_working_limit():
+    with suspend_limits():
         while received.unasked:
             request_id = received.unasked[0]
             try:
@@ -259,7 +255,7 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
     repeats_lost_lookup = handles_reviews or received.reviewed_request_id is not None
     lost_lookups = 0
     result: dict[str, Any] = {}
-    with suspend_token_limit(), suspend_turn_limit(), suspend_working_limit():
+    with suspend_limits():
         while True:
             left = timeout_left(received) if provider_has_request else None
             if left is not None and left <= 0:

@@ -11,11 +11,7 @@ from inspect_ai.tool._tool_call import (
     ToolCallViewError,
     resolve_tool_call_view,
 )
-from inspect_ai.util._limit import (
-    suspend_token_limit,
-    suspend_turn_limit,
-    suspend_working_limit,
-)
+from inspect_ai.util._limit import suspend_limits
 
 from ._approver import Approver
 from ._call import record_approval
@@ -52,9 +48,7 @@ async def apply_tool_approval(
         # shouldn't have that inference charged to the agent's own budget, and
         # time spent approving, by a person or a model, counts as waiting)
         with (
-            suspend_token_limit(),
-            suspend_turn_limit(),
-            suspend_working_limit(),
+            suspend_limits(),
             sentinel_scope("approval", final=True),
         ):
             approval = await approver(
