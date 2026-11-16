@@ -101,13 +101,11 @@ def convert_eval_logs(
         else:
             log = read_eval_log(input_file, resolve_attachments=resolve_attachments)
             # resolved text is raw: write_eval_log's condense_sample, or a
-            # "core" read of attachments the model calls keep, would take
-            # literal reference text in it as references
+            # later read of the uncondensed json, would take literal
+            # reference text in it as references
             if resolve_attachments and log.samples is not None:
-                if to == "eval":
-                    log.samples = [condense_raw_sample(s) for s in log.samples]
-                elif resolve_attachments == "core":
-                    log.samples = [escape_literal_refs(s) for s in log.samples]
+                escape = condense_raw_sample if to == "eval" else escape_literal_refs
+                log.samples = [escape(s) for s in log.samples]
             write_eval_log(log, output_file)
 
     if fs.info(path).type == "file":

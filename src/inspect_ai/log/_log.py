@@ -622,10 +622,12 @@ class EvalSample(BaseModel):
         Returns:
            Summary of sample.
         """
+        from ._condense import summary_input
+
         return EvalSampleSummary(
             id=self.id,
             epoch=self.epoch,
-            input=self.input,
+            input=summary_input(self.input, self.attachments),
             choices=self.choices,
             target=self.target,
             description=self.description,

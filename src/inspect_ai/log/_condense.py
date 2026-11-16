@@ -352,26 +352,35 @@ def condense_raw_sample(sample: EvalSample, log_images: bool = True) -> EvalSamp
     return _condense_sample(sample, log_images, raw=True)
 
 
+def _escape_refs_fn(attachments: MutableMapping[str, str]) -> Callable[[str], str]:
+    """Content function storing each string with a reference prefix as an attachment."""
+    create_attachment = attachment_fn(attachments)
+
+    def fn(text: str) -> str:
+        return create_attachment(text) if _has_ref_prefix(text) else text
+
+    return fn
+
+
 def escape_literal_refs(sample: EvalSample) -> EvalSample:
     """Store literal reference text outside model calls as attachments of its own.
 
-    For a sample resolved with `"core"` that is written without condensing:
-    it keeps the attachments its model calls still reference, which a
-    literal `attachment://` or `tc://` string elsewhere could name. Each such
-    string becomes a reference to an attachment holding it, so it reads back
-    as written. Other content stays as it is.
+    For a resolved sample that is written without condensing. One resolved
+    with `"core"` keeps the attachments its model calls still reference,
+    which a literal `attachment://` or `tc://` string elsewhere could name;
+    one resolved fully has none, but a reader still takes a literal `tc://`
+    string as a reference. Each such string becomes a reference to an
+    attachment holding it, so it reads back as written. Other content,
+    model calls included, stays as it is.
 
     Args:
-       sample: Sample resolved with `"core"`.
+       sample: Sample resolved with `"core"` or `"full"`.
 
     Returns:
        The sample with its literal reference text stored as attachments.
     """
     attachments = dict(sample.attachments)
-    create_attachment = attachment_fn(attachments)
-
-    def content_fn(text: str) -> str:
-        return create_attachment(text) if _has_ref_prefix(text) else text
+    content_fn = _escape_refs_fn(attachments)
 
     def context() -> WalkContext:
         return WalkContext(message_cache={}, only_core=True)
@@ -394,6 +403,60 @@ def escape_literal_refs(sample: EvalSample) -> EvalSample:
             "attachments": attachments,
         }
     )
+
+
+def escape_literal_event_refs(
+    events: Sequence[Event], attachments: MutableMapping[str, str]
+) -> list[Event]:
+    """Store literal reference text in raw events outside model calls as attachments.
+
+    For new events merged into a condensed sample (scorer events added by
+    `score()`), which `condense_sample` would otherwise take as references
+    when a literal names one of the sample's attachments.
+
+    Args:
+       events: Raw events.
+       attachments: The sample's attachments, which the literals are added to.
+
+    Returns:
+       The events with their literal reference text stored as attachments.
+    """
+    return walk_events(
+        list(events),
+        _escape_refs_fn(attachments),
+        WalkContext(message_cache={}, only_core=True),
+    )
+
+
+def summary_input(
+    input: str | list[ChatMessage], attachments: Mapping[str, str]
+) -> str | list[ChatMessage]:
+    """Input for a sample summary, with literal reference text restored.
+
+    Condensing stores literal `attachment://` and `tc://` text as an
+    attachment of its own. Summaries carry no attachments, so the literal is
+    put back. Other references stay as they are.
+
+    Args:
+       input: Condensed sample input.
+       attachments: The sample's attachments.
+
+    Returns:
+       The input with literal reference text restored.
+    """
+    if isinstance(input, str) or not any(
+        _has_ref_prefix(value) for value in attachments.values()
+    ):
+        return input
+
+    def content_fn(text: str) -> str:
+        if text.startswith(ATTACHMENT_PROTOCOL):
+            value = attachments.get(text.removeprefix(ATTACHMENT_PROTOCOL))
+            if value is not None and _has_ref_prefix(value):
+                return value
+        return text
+
+    return walk_input(input, content_fn, WalkContext(message_cache={}, only_core=True))
 
 
 def _condense_sample(sample: EvalSample, log_images: bool, raw: bool) -> EvalSample:

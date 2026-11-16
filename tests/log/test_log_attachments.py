@@ -7,8 +7,10 @@ from typing import Literal
 import pytest
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_serializer
 
-from inspect_ai import Task
+from inspect_ai import Task, eval_retry, task
 from inspect_ai import eval as inspect_eval
+from inspect_ai._eval.score import score
+from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._eval.task.run import _seed_error_retries
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import (
@@ -42,7 +44,11 @@ from inspect_ai.log._condense import (
     resolve_sample_attachments,
 )
 from inspect_ai.log._convert import convert_eval_logs
-from inspect_ai.log._file import read_eval_log, write_eval_log
+from inspect_ai.log._file import (
+    read_eval_log,
+    read_eval_log_sample_summaries,
+    write_eval_log,
+)
 from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSpec
 from inspect_ai.log._resolve import resolve_sample_events_data
 from inspect_ai.model._chat_message import (
@@ -56,7 +62,8 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.solver import generate, use_tools
+from inspect_ai.scorer import Score, Scorer, Target, match, mean, scorer
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
 from inspect_ai.tool import Tool, tool
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCall
@@ -1294,6 +1301,7 @@ def _run_literal_eval(
             )
         ],
         solver=[use_tools(_ref_echo(literal)), generate()],
+        scorer=match(),
     )
     [log] = inspect_eval(
         task, model=model, log_dir=log_dir, log_format=log_format, display="none"
@@ -1369,17 +1377,38 @@ def test_recondensing_keeps_literals_and_genuine_references(
         _assert_literals_read_back(reread.samples[0], literal)
 
 
+@pytest.fixture(scope="module")
+def literal_eval_log(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Callable[[str], str]:
+    """Log of `_run_literal_eval` for a literal with the given prefix, run once per prefix."""
+    logs: dict[str, str] = {}
+
+    def get(protocol: str) -> str:
+        if protocol not in logs:
+            logs[protocol] = _run_literal_eval(
+                str(tmp_path_factory.mktemp("literal")),
+                "eval",
+                f"{protocol}{_LITERAL_KEY}",
+            )
+        return logs[protocol]
+
+    return get
+
+
 @pytest.mark.parametrize("stream", [False, True])
-@pytest.mark.parametrize("resolve", [False, "core", "full"])
+@pytest.mark.parametrize("resolve", [False, True, "core", "full"])
 @pytest.mark.parametrize("to", ["eval", "json"])
+@pytest.mark.parametrize("protocol", ["attachment://", "tc://"])
 def test_convert_keeps_literals_and_genuine_references(
     tmp_path: str,
+    literal_eval_log: Callable[[str], str],
     stream: bool,
     resolve: bool | Literal["full", "core"],
     to: Literal["eval", "json"],
+    protocol: str,
 ) -> None:
-    literal = f"attachment://{_LITERAL_KEY}"
-    log_file = _run_literal_eval(os.path.join(tmp_path, "logs"), "eval", literal)
+    log_file = literal_eval_log(protocol)
     output_dir = os.path.join(tmp_path, "converted")
     convert_eval_logs(
         log_file,
@@ -1393,7 +1422,194 @@ def test_convert_keeps_literals_and_genuine_references(
     )
     log = read_eval_log(converted, resolve_attachments=True)
     assert log.samples
-    _assert_literals_read_back(log.samples[0], literal)
+    _assert_literals_read_back(log.samples[0], f"{protocol}{_LITERAL_KEY}")
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+@pytest.mark.parametrize(
+    "literal",
+    [
+        "attachment://ordinary-user-text",
+        "tc://ordinary-user-text",
+        f"attachment://{_LITERAL_KEY}",
+    ],
+)
+def test_summary_input_keeps_literal_reference_text(
+    tmp_path: str, log_format: Literal["eval", "json"], literal: str
+) -> None:
+    task = Task(
+        dataset=[
+            Sample(
+                input=[
+                    ChatMessageSystem(content=_LITERAL_SYSTEM_PROMPT),
+                    ChatMessageUser(content=literal),
+                ]
+            )
+        ]
+    )
+    [log] = inspect_eval(
+        task,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        log_format=log_format,
+        display="none",
+    )
+    assert log.location
+
+    [summary] = read_eval_log_sample_summaries(log.location)
+    assert isinstance(summary.input, list)
+    assert summary.input[0].text == _LITERAL_SYSTEM_PROMPT
+    assert summary.input[-1].text == literal
+
+    resolved = read_eval_log(log.location, resolve_attachments=True)
+    assert resolved.samples
+    assert isinstance(resolved.samples[0].input, list)
+    assert resolved.samples[0].input[-1].text == literal
+
+
+@scorer(metrics=[mean()])
+def _literal_grader(literal: str) -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        grader = get_model(
+            "mockllm/model",
+            custom_outputs=[ModelOutput.from_content("mockllm/model", literal)],
+            memoize=False,
+        )
+        output = await grader.generate("Grade the answer.")
+        return Score(value=1, explanation=output.completion)
+
+    return score
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+@pytest.mark.parametrize("action", ["append", "overwrite"])
+def test_rescoring_keeps_literal_reference_text(
+    tmp_path: str,
+    log_format: Literal["eval", "json"],
+    action: Literal["append", "overwrite"],
+) -> None:
+    literal = f"attachment://{_LITERAL_KEY}"
+    log_file = _run_literal_eval(str(tmp_path), log_format, literal)
+
+    scored = score(
+        read_eval_log(log_file), _literal_grader(literal), action=action, display="none"
+    )
+    rescored = os.path.join(tmp_path, f"rescored.{log_format}")
+    write_eval_log(scored, rescored)
+
+    reread = read_eval_log(rescored, resolve_attachments=True)
+    assert reread.samples
+    sample = reread.samples[0]
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert len(model_events) == 3
+    assert model_events[0].input[0].text == _LITERAL_SYSTEM_PROMPT
+    grader_event = model_events[-1]
+    assert grader_event.input[0].text == "Grade the answer."
+    assert grader_event.output.message.text == literal
+    assert sample.messages[-1].text == literal
+
+
+_RETRY_IMAGE = "data:image/png;base64," + ("A" * 200)
+
+
+@solver
+def _fail_when_marked() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if state.metadata.get("fail"):
+            raise ValueError("Marked to fail.")
+        return state
+
+    return solve
+
+
+@task
+def literal_retry_task() -> Task:
+    return Task(
+        dataset=[
+            Sample(
+                id=1,
+                input=[
+                    ChatMessageSystem(content=_LITERAL_SYSTEM_PROMPT),
+                    ChatMessageUser(
+                        content=[
+                            ContentText(text="Describe the image."),
+                            ContentImage(image=_RETRY_IMAGE),
+                        ]
+                    ),
+                ],
+            ),
+            Sample(id=2, input="fail", metadata={"fail": True}),
+        ],
+        solver=[_fail_when_marked(), generate()],
+    )
+
+
+@pytest.mark.parametrize(
+    "log_format,seeded",
+    [
+        # no seed: run.py logs the reused prior sample through condense_sample
+        ("eval", False),
+        # a .json log is seeded by re-logging each prior sample
+        ("json", True),
+    ],
+)
+def test_retry_reuse_keeps_genuine_references(
+    tmp_path: str,
+    monkeypatch: pytest.MonkeyPatch,
+    log_format: Literal["eval", "json"],
+    seeded: bool,
+) -> None:
+    literal = f"attachment://{_LITERAL_KEY}"
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", literal)],
+    )
+    [log] = inspect_eval(
+        literal_retry_task(),
+        model=model,
+        log_dir=str(tmp_path),
+        log_format=log_format,
+        max_samples=1,
+        display="none",
+    )
+    assert log.status == "error"
+
+    if not seeded:
+
+        async def no_seed(*args: object, **kwargs: object) -> None:
+            return None
+
+        monkeypatch.setattr(TaskLogger, "seed_from_prior", no_seed)
+
+    [retried] = eval_retry(log, log_dir=str(tmp_path), display="none")
+    assert retried.location
+
+    stored = read_eval_log(retried.location)
+    assert stored.samples
+    [reused] = [s for s in stored.samples if s.id == 1]
+    # genuine references were kept, not stored as literal text
+    assert {
+        value
+        for value in reused.attachments.values()
+        if value.startswith(ATTACHMENT_PROTOCOL)
+    } == {literal}
+
+    [sample] = [s for s in _resolved_samples(retried.location) if s.id == 1]
+    assert sample.messages[0].text == _LITERAL_SYSTEM_PROMPT
+    image = sample.messages[1].content
+    assert isinstance(image, list)
+    assert isinstance(image[1], ContentImage)
+    assert image[1].image == _RETRY_IMAGE
+    assert sample.messages[-1].text == literal
+    [model_event] = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert model_event.input[0].text == _LITERAL_SYSTEM_PROMPT
+    assert model_event.output.message.text == literal
+
+
+def _resolved_samples(location: str) -> list[EvalSample]:
+    log = read_eval_log(location, resolve_attachments=True)
+    assert log.samples
+    return log.samples
 
 
 def test_recondense_does_not_wrap_genuine_references() -> None:

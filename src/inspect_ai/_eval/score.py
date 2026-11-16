@@ -60,7 +60,10 @@ from inspect_ai.event._tree import (
 from inspect_ai.log import (
     EvalLog,
 )
-from inspect_ai.log._condense import resolve_sample_attachments
+from inspect_ai.log._condense import (
+    escape_literal_event_refs,
+    resolve_sample_attachments,
+)
 from inspect_ai.log._headline import headline_metric_ref, resolve_headline_metric
 from inspect_ai.log._log import EvalMetricDefinition, EvalSample
 from inspect_ai.log._resolve import rebind_sample_timelines
@@ -617,8 +620,13 @@ async def _run_score_task(
                         scorer=registry_unqualified_name(scorer),
                     )
 
-    # slice off only the newly added events
-    new_events = transcript().events[len(resolved_sample.events) :]
+    # slice off only the newly added events; they are raw, while the sample
+    # they join is condensed
+    attachments = dict(sample.attachments)
+    new_events = escape_literal_event_refs(
+        transcript().events[len(resolved_sample.events) :], attachments
+    )
+    sample.attachments = attachments
 
     sample.scores = _get_updated_scores(sample, results, action=action)
     sample.events = _get_updated_events(sample, new_events, action=action)
