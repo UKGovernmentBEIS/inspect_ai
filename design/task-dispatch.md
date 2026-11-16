@@ -61,13 +61,9 @@ sandbox and model):
 
 API:
 
-- `enqueue_task()` becomes `async` and returns handles
-  ([task-handles.md](task-handles.md#the-handle-api)). An un-awaited call adds
-  nothing; Python warns "coroutine 'enqueue_task' was never awaited" and type
-  checkers flag it. Callers add `await`. The only callers today are inspect_ai's
-  own tests and `docs/task-source.qmd`, all inside async solvers; no satellite
-  repository (inspect_swarm, inspect_flow, inspect_steward, inspect_swe and
-  the others checked out beside this repo) calls it.
+- `enqueue_task()` stays synchronous and returns handles
+  ([task-handles.md](task-handles.md#the-handle-api)); a caller that ignores
+  the result, as every caller does today, is unchanged.
 - `enqueue_task()` raises at the call for every selection error and for
   every error in the configuration checks made while adding (id
   uniqueness, the eval-level overrides, the epoch reducer against the
@@ -398,11 +394,13 @@ list or a `TaskSource`; `eval_set()` including selection mode;
   outlived it and kept its context): `RuntimeError`, before anything is
   resolved. Tasks a `TaskSource` callback returns then are dropped with a
   log line instead ("Source returns after close are dropped").
-- `enqueue_task()` from another event loop (a worker thread that copied the
-  run's context and runs the coroutine with `anyio.run()`): `RuntimeError`.
-  `_require_run_loop(queue)` compares `anyio.lowlevel.current_token()` with
-  the token the queue recorded at creation. A worker calls it through
-  `anyio.from_thread.run()`, which runs it on the run's loop.
+- `enqueue_task()` off the run's event loop (a worker thread that copied the
+  run's context and calls it there, with no event loop or inside its own
+  `anyio.run()`): `RuntimeError`. `_require_run_loop(queue)` compares
+  `anyio.lowlevel.current_token()` with the token the queue recorded at
+  creation, and refuses the call when they differ or when there is no loop
+  (`current_token()` then raises `NoEventLoopError`). A worker calls it
+  through `anyio.from_thread.run_sync()`, which runs it on the run's loop.
 - Adding a task id the run already holds: `ValueError` ("Task ids").
 - Handle misuse: see
   [task-handles.md](task-handles.md#what-is-refused).
@@ -549,8 +547,8 @@ an eval-set task outside the run still matches no sample of this task
 instead of being read as a literal id. Each commit then adds its batch's
 names.
 
-Callers: `eval_run` for the seed (errors raise from `eval()`, as today); the
-async `enqueue_task()`, after resolving its argument with
+Callers: `eval_run` for the seed (errors raise from `eval()`, as today);
+`enqueue_task()`, after resolving its argument with
 `_resolve_enqueued_tasks` (errors raise to its caller); `_enqueue_source_tasks`,
 synchronous as today, for `TaskSource` callback returns; and the dispatcher
 for a `next_tasks()` batch (errors end the run, as today).
@@ -708,6 +706,23 @@ the run would end in a `ValueError`. It runs for every stamp-stopped attempt
 whose row opened: a first attempt cancelled before it registers, and a
 stopped retry, whose row today is left without a result. An attempt stopped
 at the earlier checks has no row and takes one off the total, as above.
+
+Before completing the row, the handler also clears the row's link to the
+startup log, which `run_one` discards. `task_run` copies `logger.location`
+into the display profile (`TaskProfile.log_location`) before `log_start`,
+and resetting the logger's location does not change that copy, so the
+handler sets `profile.log_location = ""` on the profile the row holds.
+`task_panel` already treats an empty location as none and adds no Log
+footer. Two consumers change so that nothing points at the discarded file:
+
+- `task_interrupted` (`src/inspect_ai/_display/core/results.py`) gives the
+  `inspect eval-retry <log>` command only when the profile has a location;
+  with none, a row whose attempt reused samples (a stopped retry) still
+  reports how many were logged, with no retry command.
+- Textual's row (`TaskProgressView` in
+  `src/inspect_ai/_display/textual/widgets/tasks.py`) builds its
+  `[View Log]` link when the row is created, so its `complete()` hides that
+  link when the profile's location is empty.
 
 The record's sandbox resolution cache (today's run-wide
 `SandboxManager._resolved_no_metadata`, keyed by `(Task, spec)`) is on its
@@ -1204,16 +1219,12 @@ depends on it.
 - **A `start=` option on `enqueue_task()`.** Rejected by Ransom: added tasks
   always start when there is room.
 - **Admitting a task in the background after it is added** (initialise its
-  log and resolve its selection in a job, so `enqueue_task()` stays
-  synchronous). It needs admission phases, an admission failure outcome, a
-  queue-owned task group for admission and its cancellation, and an end of run
+  log and resolve its selection in a job after `enqueue_task()` returns).
+  It needs admission phases, an admission failure outcome, a queue-owned
+  task group for admission and its cancellation, and an end of run
   that waits for admissions; and it holds a temporary file and buffer database
   for every queued task. Starting the log with the attempt and resolving
   selection at the call removes all of it.
-- **Keeping `enqueue_task()` synchronous**, with a new async function for
-  handles. Two functions for one operation; no caller needs the synchronous
-  one (all are in async code), and the API is young enough that the break is
-  cheap now.
 - **Resolving `task:id` selectors when tasks are admitted together** rather
   than at the call. Keeps today's batch semantics but needs deferred
   resolution and its failure path; adding mutually-referring tasks in one call
@@ -1272,8 +1283,9 @@ Alternatives for the handles are in
 
 ## Compatibility and migration
 
-Eval authors who call `enqueue_task()` add `await` (see "Behaviour changes").
-Third-party sandbox providers need no change unless their `task_init`,
+Eval authors' `enqueue_task()` calls are unchanged: it stays synchronous,
+and its new return value can be ignored. Third-party sandbox providers need
+no change unless their `task_init`,
 `task_init_environment` or `task_cleanup` relies on the process directory
 being the task directory; of the surveyed providers only Proxmox does, for a
 relative `PROXMOX_CONFIG_FILE`. No provider needs a release for any step
@@ -1313,7 +1325,7 @@ provider follow-up, not a gate for any step here (decision: Ransom,
 
 Public API:
 
-- `enqueue_task()` is `async` (breaking) and returns `list[TaskHandle]`
+- `enqueue_task()` returns `list[TaskHandle]` and stays synchronous
   ([task-handles.md](task-handles.md)); its docstring and `docs/task-source.qmd`
   say added tasks start when there is room and that selectors naming each
   other need one call.
@@ -1428,8 +1440,9 @@ test that waits on a run is bounded with `fail_after`.
   is filtered with no error or warning, and the same two in one call run
   as today; a literal namespaced id
   (`user:cybergym/arvo_6008`) still selects its sample; `enqueue_task()` run
-  in a worker thread's own loop raises `RuntimeError`, and through
-  `anyio.from_thread.run()` succeeds; after `eval_async()` returns, after a
+  in a worker thread's own loop, and in a worker thread with no loop, raises
+  `RuntimeError`, and through `anyio.from_thread.run_sync()` succeeds;
+  after `eval_async()` returns, after a
   latched cancellation and after an exception left dispatch, a child task
   that kept the run's context raises `RuntimeError` with the resolver and the
   registry untouched; a queued task holds no recorder entry, temporary file or
@@ -1564,7 +1577,14 @@ test that waits on a run is bounded with `fail_after`.
   cancelled result and leaves the total unchanged, so completed and total
   match once the run ends, under Rich and under Textual; the run reaches
   the task screen's teardown and returns the expected logs with no
-  rendering error (and the same under `display="none"`); with Textual's app load held on an event, one of two seed
+  rendering error (and the same under `display="none"`); the rendered
+  cancelled result has no Log footer and no `inspect eval-retry` command,
+  and Textual's row (with VS Code commands patched available) shows no
+  `[View Log]` link; the same cancel written while a stopped retry's
+  `log_start()` is held, the retry having reused samples from the first
+  attempt, renders the reused count with no retry command, so neither the
+  discarded file nor an empty command appears; with Textual's app load
+  held on an event, one of two seed
   tasks cancelled during the load leaves 1/1 once the survivor completes,
   and the same cancel after the screen opened (the control) does too.
 - `tests/test_eval_set.py`: a seed task cancelled while queued under
@@ -1597,7 +1617,7 @@ would extend two of today's live-path bugs to plain evals (the process-wide
 `chdir` overlapping running tasks, and a later `task_init` rebinding provider
 state in the single `eval_run`), so the setup fixes come first.
 
-1. **No process-wide directory or environment changes.**
+1. **Sandbox setup without process-wide directory or environment changes.**
    `util/_sandbox/paths.py` (`resolve_config_paths`), `util/_sandbox/setup.py`
    (the `env` variable), `util/_sandbox/environment.py` (docstrings),
    `util/_sandbox/docker/docker.py` (reads the `env`),
@@ -1608,6 +1628,9 @@ state in the single `eval_run`), so the setup fixes come first.
    `environ_vars`), `docs/extensions-sandboxes.qmd`. Tests:
    `test_sandbox_setup.py` (the directory, environment and
    `resolve_config_paths` cases), `test_retry.py`, the Docker tests.
+   `prepare_options` still awaits `logger.init()` inside its own `chdir`
+   after this step; step 3 removes that await from the `chdir`, completing
+   invariant 7.
 2. **Provider state per setup.** `_eval/run.py` (`SandboxManager` runs each
    `task_init` in the chained context and records each configuration's
    bindings against the run's root context, and its context), `_eval/task/sandbox.py`
@@ -1622,7 +1645,7 @@ state in the single `eval_run`), so the setup fixes come first.
    later setup, and the empty `SampleSource` seed).
 3. **One queue and one dispatcher; logs start with their attempt; queued
    tasks in the control channel.** `_eval/task/enqueue.py` (`RunQueue`,
-   `TaskRecord`, async `enqueue_task()` still returning `None`),
+   `TaskRecord`, `enqueue_task()` still returning `None`),
    `_eval/run.py` (`configure_task()` with the `chdir` kept around the
    logger's construction, `ensure_controllers()` for the seed only,
    `dispatch_tasks()` with the inline `next_tasks()` call and its dispatch
@@ -1633,8 +1656,12 @@ state in the single `eval_run`), so the setup fixes come first.
    `_eval/task/run.py` (`logger.init()` at the start of `task_run`; the
    seed's `startup_sandboxes` call after the task-start hooks;
    `on_row_opened()` and `on_registered()`; the row completed in the
-   `TaskRetryAbandonedError` handler;
+   `TaskRetryAbandonedError` handler, with the profile's log location
+   cleared;
    `unwritten_task_log` with no location; `TaskCancelledBeforeStart`),
+   `_display/core/results.py` (`task_interrupted` with no retry command
+   without a location), `_display/textual/widgets/tasks.py` (`complete()`
+   hiding `[View Log]` without a location),
    `_eval/task/log.py` (`reinit()` without `init()`, `discard()` without an
    entry and resetting the location, a `location` of `None` until
    `log_init()` returns),
@@ -1643,8 +1670,8 @@ state in the single `eval_run`), so the setup fixes come first.
    `_control/pause.py` (queued pause and resume), `_control/state.py`,
    `_control/__init__.py`, `_cli/ctl/_task.py`, `_eval/evalset.py` (the
    no-log rule and the legacy-round flag); `util/_sandbox/environment.py`
-   and `docs/extensions-sandboxes.qmd` (the repeat-call rule); the callers of `enqueue_task()` in `tests/` and
-   `docs/task-source.qmd` gain `await`; `design/task-source.md` ("Live
+   and `docs/extensions-sandboxes.qmd` (the repeat-call rule);
+   `design/task-source.md` ("Live
    injection"), `design/ctl/task-drain.md` ("Out of scope"),
    `design/sample-source.md`. Tests: `test_enqueue_task.py`,
    `test_task_source.py`, `test_task_cancel.py`, `_control/test_ctl.py`,
@@ -1670,8 +1697,8 @@ Follow-ups in provider repositories, none a gate (decision: Ransom,
 ## Open questions
 
 None. Decided: Ransom (2026-11-09) that a task's log starts with its attempt,
-that `enqueue_task()` becomes async with selection resolved at the call, and
-that config paths are resolved by Inspect against the task directory;
+that selection is resolved at the call, and that config paths are
+resolved by Inspect against the task directory;
 (2026-11-11) that third-party providers' task-level calls, and the
 subprocesses those start, run in the launch directory with no
 `task_init_in_launch_dir` attribute and no warning (replacing the 2026-11-03
@@ -1687,7 +1714,9 @@ before it is added and an added task's lazily on its model's first
 a record has three phases with registration tracked apart, that the `chdir`
 stays around the synchronous construction of a task's logger, and that a task cancelled before it starts ends with an
 in-memory error log, with such cancels refused under legacy `eval_set()`
-rounds.
+rounds; and (2026-11-16) that `enqueue_task()` stays synchronous and
+returns handles, reversing the 2026-11-09 decision to make it async once
+adding a task awaited nothing.
 
 ## Not this design
 

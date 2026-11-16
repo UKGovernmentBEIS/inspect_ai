@@ -26,7 +26,7 @@ def rollout_task() -> Task:
 @solver
 def search(n_steps: int) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        [handle] = await enqueue_task(rollout_task())
+        [handle] = enqueue_task(rollout_task())
         async with handle as rollouts:                    # closes on exit
             try:
                 for _ in range(n_steps):
@@ -59,8 +59,8 @@ added task is a `TaskRecord` in the run's `RunQueue`.
 All of these are new API; no existing eval waits on a handle or uses
 `samples_from_handle()`.
 
-- `enqueue_task()` is async and returns `list[TaskHandle]`
-  ([task-dispatch.md](task-dispatch.md#behaviour-changes) has the migration).
+- `enqueue_task()` returns `list[TaskHandle]` and stays synchronous; a
+  caller that ignores the result is unchanged.
 - A task fed through a handle does not count toward `max_tasks`. A
   supervisor that sets `max_tasks` as a ceiling, such as a selection-mode
   worker's, sees one extra running task for each fed task that has been sent
@@ -74,6 +74,8 @@ All of these are new API; no existing eval waits on a handle or uses
   `eval_retry()` refuses its log. Its log is returned and listed with the
   run's other logs but does not decide `eval_set()`'s result or a
   selection-mode worker's: its creator's log does.
+- A fed task's log records the dataset name `samples_from_handle`, which is
+  refused for any other dataset.
 - The run's `--limit`, `--sample-id` and `--epochs` do not apply to a task
   fed through a handle.
 - `TaskHandle.result()` waits only on a task fed through its handle; on the
@@ -171,8 +173,14 @@ Non-goals:
   slots are held only during a `generate` call.
 - `_resolve_enqueued_tasks` (`src/inspect_ai/_eval/eval.py`) resolves an
   added `Task` once per run model.
-- `eval_retry()` recovers a crashed log before it resolves the log's task
-  (`eval_retry_async`).
+- Every log records its task's dataset name (`EvalDataset.name`, which
+  `TaskLogger` takes from `task.dataset`, `src/inspect_ai/_eval/task/log.py`).
+  For a `SampleSource` task the dataset is the unnamed `MemoryDataset` of its
+  `initial_samples()` that `resolve_dataset_or_source`
+  (`src/inspect_ai/_eval/task/task.py`) builds, at `Task` construction and in
+  `task_with`.
+- `eval_retry()` recovers every crashed log in its list before it resolves
+  any log's task (`eval_retry_async`).
 - `eval_set()` judges the result from every log `eval()` returns
   (`all_evals_succeeded`, also its retry predicate), added tasks' logs
   included; later rounds match logs only to requested tasks.
@@ -187,7 +195,7 @@ Non-goals:
 ### The handle API
 
 ```python
-async def enqueue_task(tasks: Tasks, *, run_id: str | None = None) -> list[TaskHandle]
+def enqueue_task(tasks: Tasks, *, run_id: str | None = None) -> list[TaskHandle]
 
 class TaskHandle:
     task_id: str
@@ -245,6 +253,12 @@ its handle", not "creator".
   holder of the same handle can no longer send.
 - Every method checks first that it runs on the run's event loop
   (`_require_run_loop`), as `enqueue_task()` does.
+- `enqueue_task()` stays synchronous (decision: Ransom, 2026-11-16): adding
+  a task awaits nothing (resolution, `configure_task()` and `RunQueue.add`
+  are synchronous; the log, sandbox setup and model controller come with the
+  attempt), and every wait is on the handle, as with
+  `asyncio.create_task()`. Backpressure on adds, if ever needed, would be a
+  new async method or an await on the handle, not a change to this call.
 
 **Terminal outcomes.** Every record ends (task-dispatch.md, invariant 2),
 including when dispatch ends, so no wait outlives its target:
@@ -286,42 +300,20 @@ the sample it sent still runs and its result is dropped.
   - with `epochs` above 1: `ValueError` from `enqueue_task()` ("a task fed
     through its handle runs each sample once; send a sample again to repeat
     it");
-  - passed to `eval()`, `eval_set()`, a selection worker or `eval_retry()`:
+  - passed to `eval()`, `eval_set()` or a selection worker:
     `PrerequisiteError` from `eval_resolve_tasks` ("task '<task>' takes its
     samples through its handle (samples_from_handle()), so it cannot be run
     or retried on its own; run or retry the task that adds it");
+  - its log passed to `eval_retry()`: `PrerequisiteError` from
+    `eval_retry_async`, by the log's dataset name, before any task is
+    resolved ("Logs and eval sets");
   - as a `PreviousTask` or a `ResolvedTask` (with or without a prior sample
     source): `ValueError` ("tasks fed through a handle must start fresh;
     pass the Task");
-  - put on a task a `@task` function returned, with
-    `task_with(task, dataset=samples_from_handle())` after that function
-    returned: `ValueError` from `enqueue_task()` ("samples_from_handle()
-    was set on the task the @task function '<name>' returned, after it
-    returned: eval_retry() rebuilds the task by calling that function, so
-    the dataset would be lost; return the adapted task from a @task
-    function, for example `@task def rollout(): return task_with(<name>(),
-    dataset=samples_from_handle())`"). The log records only the factory's
-    name and arguments, so a retry of such a task would rebuild the
-    factory's own dataset (an empty ordinary `SampleSource`, say), pass the
-    retry refusal below, and run without the sent samples.
-
-    Adapting during composition stays allowed: `@task def rollout(): return
-    task_with(existing_task(), dataset=samples_from_handle())`, the pattern
-    `docs/tasks.qmd` documents. There `task_with` changes the inner task in
-    place, and the outer `@task` wrapper retags the returned object with
-    `rollout`'s registry info after its body returns
-    (`src/inspect_ai/_eval/registry.py`, `construct`), so a retry calls
-    `rollout`, which rebuilds the handle-fed dataset and meets the
-    resolution-time refusal above. The two are told apart by a marker,
-    with no construction-depth check: `task_with`, when `dataset` resolves
-    to a `HandleChannel` and the task carries registry info
-    (`is_registry_object(task)`), sets a private attribute on the task
-    naming its current registry name; the `@task` wrapper's `construct`
-    clears it on the instance it returns, after `tag_task`, because the
-    factory that now owns the task produced that dataset in its body; and
-    `enqueue_task()` refuses a fed task that still carries it. A `Task`
-    built directly with `samples_from_handle()`, inside a `@task` function
-    or not, never carries it.
+- **A user dataset named `samples_from_handle`**: `ValueError` from
+  `resolve_dataset_or_source` ("the dataset name 'samples_from_handle' is
+  reserved for tasks fed through a handle"), at `Task` construction or in
+  `task_with`, so no other task's log can carry it.
 - **The free `enqueue_sample()` function** (exported from `inspect_ai`,
   which adds samples to the calling task's own `SampleSource`) inside a task fed
   through a handle: `RuntimeError` ("enqueue_sample() cannot add samples to
@@ -382,9 +374,7 @@ once it has latched a cancellation:
 An attempt started this way does not count toward `in_flight`, and the
 ordinary picks skip every record that has a channel. `RunQueue.end` closes
 the record's channel, settling every request still unsettled with
-`TaskEndedError(log)`. `RunQueue.add` also records the task id of every
-record with a channel in a process-level set, `fed_task_ids()`, cleared by
-`reset_run_registries()` ("Logs and eval sets").
+`TaskEndedError(log)`.
 
 ### Tasks fed through a handle
 
@@ -409,6 +399,13 @@ class PortRequest:
     future: Future[EvalSample]
 ```
 
+- **Its dataset name.** `resolve_dataset_or_source` gives a
+  `HandleChannel`'s `MemoryDataset` the reserved name `samples_from_handle`,
+  so every log of a fed task records `eval.dataset.name ==
+  "samples_from_handle"`. The record's fresh channel keeps the task's
+  dataset, and the name lives in the eval spec, so every copy of the log
+  (conversion, recovery) carries it. It is what `eval_retry()` and the eval
+  set's result read ("Logs and eval sets").
 - **One record, under the creator's model, one epoch.**
   `_resolve_enqueued_tasks` resolves a task whose dataset is
   `samples_from_handle()` once, for the model of the creator's attempt in
@@ -534,22 +531,26 @@ class PortRequest:
   task and queues no retry for it, so no retry is pre-marked or reported
   (`will_retry` is false), and a retry the task requests itself through its
   `TaskCancel` is not honoured, as for a task with no retries left.
-- **Logs and eval sets.** A fed task's log is an ordinary log with no
-  marker. `eval()` returns it with the run's other logs, `eval_set()`
-  returns it among its logs, and it is written to the log directory, where
+- **Logs and eval sets.** A fed task's log is an ordinary log whose
+  dataset name is `samples_from_handle`. `eval()` returns it with the run's
+  other logs, `eval_set()` returns it among its logs, and it is written to the log directory, where
   `inspect log list`, `list_eval_logs()` and the viewer list it. It does not
   decide the eval set's result: `all_evals_succeeded`, which is also
   `eval_set()`'s retry predicate and selection mode's result, skips the
-  logs whose task id is in `fed_task_ids()`. So a creator that cancels its
-  rollout task, a rollout task cancelled before it started, or one that
-  failed and was replaced, does not fail the set; the creator's own log
-  does, if the creator fails. `eval_retry()` of a fed task's log is refused
-  when the log's task is resolved, because the reloaded task's dataset is
-  `samples_from_handle()` ("What is refused"); that holds because a
-  registered task that is added can get that dataset only in the body of
-  the `@task` function whose registry info it carries, never from
-  `task_with` after that function returned; a crashed log is recovered first, as
-  for any log, which runs nothing.
+  logs with that dataset name. So a creator that cancels its rollout task,
+  a rollout task cancelled before it started (its in-memory log carries the
+  eval spec built at add), or one that failed and was replaced, does not
+  fail the set; the creator's own log does, if the creator fails.
+  `eval_retry()` refuses a fed task's log: after it recovers its crashed
+  logs, as for any log (recovery runs nothing), and before it resolves any
+  task, `eval_retry_async` checks every log's `eval.dataset.name` and raises
+  `PrerequisiteError` ("task '<task>' took its samples through its handle
+  (samples_from_handle()), so it cannot be retried on its own; retry the
+  task that added it"), so a list holding such a log retries nothing. The
+  check reads the log, so it holds however the task was built, including
+  `task_with(registered_task(), dataset=samples_from_handle())` after the
+  `@task` function returned, whose log names that factory and whose
+  rebuilt task would have the factory's own dataset.
 
 ### Waits and limits
 
@@ -662,13 +663,20 @@ needs.
   the task's other ids.
 - **An `EvalSpec.send_samples` field** marking a fed task's log, read by
   `eval_retry()`, `task_identifier()`, selection resume and `eval_set()`'s
-  result. It is a log schema change with a coordinated viewer update.
-  `eval_retry()` is refused without it at task resolution, and the eval
-  set's result skips fed tasks by the in-process `fed_task_ids()`. The
-  identifier collision it guards needs a requested task with the same file,
-  name and arguments as the fed task but another dataset, which is the
+  result. It is a log schema change with a coordinated viewer update; the
+  reserved dataset name marks the log with a field every log already has.
+  The identifier collision a `task_identifier()` read would guard needs a
+  requested task with the same file, name and arguments as the fed task but another dataset, which is the
   exposure any edit of a task's dataset already has, since
   `task_identifier()` leaves the dataset out.
+- **Refusing `eval_retry()` when the rebuilt task's dataset is
+  `samples_from_handle()`**, with an in-process set of fed task ids for the
+  eval set's result. A task adapted with `task_with` after its `@task`
+  function returned has a log naming that function, whose rebuilt dataset
+  is the factory's own, so the retry would run without the sent samples.
+  Closing that needs a marker `task_with` sets, the `@task` wrapper clears
+  and `enqueue_task()` refuses; the dataset name is read from the log and
+  needs none of it.
 - **Counting a fed task's log in the eval set's result**, as for other
   added tasks. A creator that recovers from a failed rollout task, or
   cancels one it no longer needs, would fail the set although the search
@@ -696,10 +704,9 @@ needs.
 
 ## Compatibility and migration
 
-Public API: `enqueue_task()` is async and returns `list[TaskHandle]` (the
-migration is in [task-dispatch.md](task-dispatch.md#compatibility-and-migration));
-new `TaskHandle`, `TaskEndedError`, `SampleAbandonedError` and
-`samples_from_handle`. Existing `SampleSource` tasks are unchanged: only a
+Public API: `enqueue_task()` returns `list[TaskHandle]` and stays
+synchronous, so existing calls are unchanged; new `TaskHandle`,
+`TaskEndedError`, `SampleAbandonedError` and `samples_from_handle`. Existing `SampleSource` tasks are unchanged: only a
 `HandleChannel` gets `stop()`, and only a task fed through a handle ignores
 the run's `--limit`, `--sample-id` and `--epochs` (with the run's epoch
 reducer), resolves its settings before the run's, runs once under its
@@ -707,7 +714,10 @@ creator's model, is exempt from `max_tasks` and is left out of
 `eval_set()`'s result.
 
 No eval log schema, viewer type, control-channel or config file changes. A
-fed task appears in `inspect ctl task list` as any task does.
+fed task's log records the reserved dataset name `samples_from_handle`,
+which the viewer shows as its dataset name; a user dataset of that name is
+refused at construction. A fed task appears in `inspect ctl task list` as
+any task does.
 
 ## Security
 
@@ -764,20 +774,15 @@ test touched), with mockllm models; every test that waits is bounded with
   - refusals: a `samples_from_handle()` task added from `next_tasks()`, returned from a `TaskSource` callback, added after
     its creator's attempt ended (by a coroutine the creator left running,
     while another task keeps the run open), with `epochs=2`, passed to
-    `eval()` and `eval_set()`, as a `PreviousTask`, as a `ResolvedTask` with
-    no prior sample source, and `eval_retry()` of its log (finished, and
-    crashed: recovered, then refused), each raising and adding nothing;
-    `task_with(dataset=samples_from_handle())` in a solver over the
-    returned task of a registered `@task` function whose own dataset is an
-    empty ordinary `SampleSource` makes `enqueue_task()` raise and add
-    nothing, so no such task runs and no log can be retried as an ordinary
-    empty task, while the same `task_with` over an unregistered `Task` is
-    added; the composition `@task def rollout(): return
-    task_with(existing_task(), dataset=samples_from_handle())` is added and
-    runs, its log's task is `rollout` (the outer registry name, with its
-    arguments), and `eval_retry()` of that log calls `rollout` and is
-    refused at resolution with the `PrerequisiteError` above; off-loop calls raise, and through `anyio.from_thread`
-    succeed;
+    `eval()` and `eval_set()`, as a `PreviousTask`, and as a `ResolvedTask`
+    with no prior sample source, each raising and adding nothing;
+    a fed task built in a solver as
+    `task_with(registered_task(), dataset=samples_from_handle())`, whose
+    factory's own dataset is an empty ordinary `SampleSource`, is added and
+    runs, and `eval_retry()` of its log raises the `PrerequisiteError` above
+    before any task is resolved (the factory is not called) and writes no
+    log; off-loop calls raise, and through
+    `anyio.from_thread` succeed;
   - creation from attempt code outside a sample: an `on_task_start` hook
     adds a fed task and a sample of the same attempt sends to it through the
     handle the hook stored; the channel closes when the attempt ends; a fed
@@ -799,6 +804,9 @@ test touched), with mockllm models; every test that waits is bounded with
     `inspect ctl config --max-sandboxes N`, and raising the limit lets the
     run complete.
 - `tests/test_sample_source.py` (tasks fed through a handle):
+  - a fed task's log records `eval.dataset.name == "samples_from_handle"`;
+    a `Task` whose dataset is a `MemoryDataset` named `samples_from_handle`,
+    and `task_with` given one, raise `ValueError`;
   - each sent sample runs under the id `send-<token>-<n>` in send order,
     with the token the first 8 characters of the task's id, and its one run
     comes back; the caller's object keeps `id is None`; a sample with an
@@ -872,7 +880,7 @@ One PR, after step 3 of
 [task-dispatch.md](task-dispatch.md#implementation-plan).
 
 - `_eval/task/enqueue.py` (`TaskHandle`, the errors, `TaskAttempt` and
-  `_attempt`, `fed_task_ids()`, `result()` refusing a handle whose task is
+  `_attempt`, `result()` refusing a handle whose task is
   not fed through it, the `max_sandboxes` warning naming its `inspect ctl
   config` command, `enqueue_task()` returning handles, passing its creator
   and refusing a fed task outside an attempt or with `epochs` above 1),
@@ -885,13 +893,13 @@ One PR, after step 3 of
   `sample_id`; `_attempt` set in `run_one`; the
   uncounted start step; channels closed with the creator's attempt; no
   retry, and `can_retry=False`, for fed tasks; `channel.stop()` from the
-  `cancel_task` callback), `_eval/task/task.py` (the `task_with` marker),
-  `_eval/registry.py` (`construct` clears it),
-  `_eval/eval.py` (`_resolve_enqueued_tasks` resolving a fed task for its
-  creator's model; the `eval_resolve_tasks` refusal; `max_tasks`,
+  `cancel_task` callback), `_eval/task/task.py` (`resolve_dataset_or_source`
+  naming a `HandleChannel`'s dataset and refusing the reserved name for any
+  other), `_eval/eval.py` (`_resolve_enqueued_tasks` resolving a fed task
+  for its creator's model; the `eval_resolve_tasks` refusal;
+  `eval_retry_async` refusing a log by its dataset name; `max_tasks`,
   `max_samples` and `max_sandboxes` docstrings), `_eval/evalset.py`
-  (`all_evals_succeeded` skipping `fed_task_ids()`),
-  `_control/eval_state.py` (`reset_run_registries()` clears the set),
+  (`all_evals_succeeded` skipping logs with the reserved dataset name),
   `__init__.py` (exports), `docs/task-source.qmd` (handles, stopping
   rollouts with `cancel()`, `fail_on_error=False` for rollout tasks),
   `docs/parallelism.qmd`, `docs/reference`. Tests: those above.
@@ -899,8 +907,9 @@ One PR, after step 3 of
 ## Open questions
 
 None. Decided: `enqueue_task()` returns `list[TaskHandle]` (Ransom,
-2026-11-03), becomes async (2026-11-09), and the receiving task declares that
-it is fed through its handle (2026-11-09); `async with` closes and never
+2026-11-03) and stays synchronous (2026-11-16, reversing the 2026-11-09
+decision to make it async), and the receiving task declares that it is fed
+through its handle (2026-11-09); `async with` closes and never
 cancels (2026-11-09); `result()` closes the handle before it waits
 (2026-11-10); a fed task is never retried automatically (2026-11-10);
 (2026-11-11) a fed task takes no `max_tasks` slot, with no slot lent to any
@@ -915,14 +924,16 @@ the oversight controls), does not decide `eval_set()`'s result, runs
 in a `.json`-logged run as in any other (dropping the 2026-11-03 `.json`
 refusal, whose premise was the per-delivery marker dropped on 2026-11-04),
 and is the only task `result()` waits on (narrowing "wait for the task to
-end" on any handle).
+end" on any handle); and (2026-11-16) a fed task's log is marked by the
+reserved dataset name `samples_from_handle`, which `eval_retry()` and the
+eval set's result read (the 2026-11-04 decision's refusal and counting
+from the log, without the schema field dropped then).
 
 ## Not this design
 
 - Handles across processes (a task in another selection-mode worker).
 - A handle for tasks a `TaskSource` returns from `next_tasks()`.
-- Recording the creator, or that a task was fed through a handle, in the
-  eval log; see
+- Recording the creator in the eval log; see
   [task-dispatch.md](task-dispatch.md#interactions-with-related-changes).
 - Showing open handle waits in `inspect ctl task list`: a per-task count of
   waits in the control state, a `GET /tasks` field and a CLI column.
