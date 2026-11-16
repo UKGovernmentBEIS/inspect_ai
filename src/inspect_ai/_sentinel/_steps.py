@@ -3,6 +3,7 @@
 Each driver gathers the facts a step is made from, live from its arguments and context variables, or from a sample's events, and hands them to the same functions here, so a field added to a step is built for both or fails both.
 """
 
+import hashlib
 import json
 from bisect import bisect_left, bisect_right
 from collections.abc import Callable, Iterator, Sequence
@@ -16,9 +17,6 @@ from typing import (
     overload,
 )
 
-import mmh3
-
-from inspect_ai._util.hash import mm3_hash
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sentinel import SentinelStage
@@ -115,14 +113,14 @@ _EXCLUDED = {"id", "source", "metadata"}
 
 
 def content_key(message: ChatMessage) -> str:
-    """A hash of what the model is sent of a message: all but its id, source and metadata.
+    """A SHA-256 digest of what the model is sent of a message: all but its id, source and metadata.
 
-    It is encoded as the log is (`logged_json()`), so None, NaN and the infinities are told apart. Text with lone surrogates, which UTF-8 JSON cannot encode, is hashed from JSON with them escaped. A message that cannot be serialized at all (such as a numpy array in its tool arguments) is keyed by identity, so it matches only itself: a rebuilt copy of it is new, and an edit made to it in place is not seen.
+    A match decides that a message is not new, and the agent controls its messages, so the key is collision-resistant. It is encoded as the log is (`logged_json()`), so None, NaN and the infinities are told apart. Text with lone surrogates, which UTF-8 JSON cannot encode, is hashed from JSON with them escaped. A message that cannot be serialized at all (such as a numpy array in its tool arguments) is keyed by identity, so it matches only itself: a rebuilt copy of it is new, and an edit made to it in place is not seen.
     """
     try:
-        return mmh3.hash_bytes(
+        return hashlib.sha256(
             _logged_json_adapter.dump_json(message, exclude=_EXCLUDED)
-        ).hex()
+        ).hexdigest()
     except ValueError:
         pass
     # any value can fail to serialize, in any way; keyed by identity, a
@@ -131,7 +129,7 @@ def content_key(message: ChatMessage) -> str:
         logged = _logged_json_adapter.dump_python(
             message, mode="json", exclude=_EXCLUDED
         )
-        return mm3_hash(json.dumps(logged))
+        return hashlib.sha256(json.dumps(logged).encode()).hexdigest()
     except Exception:
         return f"object:{id(message)}"
 

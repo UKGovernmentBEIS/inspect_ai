@@ -146,6 +146,7 @@ async def test_score_stream_preserves_log_updates(
         ],
         ProvenanceData(author="alice", reason="qa"),
     )
+    log.total_samples = 7
     await write_eval_log_async(log, str(input_file))
 
     monkeypatch.setattr(score_cli, "init_eval_context", lambda *args, **kwargs: None)
@@ -188,6 +189,7 @@ async def test_score_stream_preserves_log_updates(
     assert rescored_log.log_updates == log.log_updates
     assert rescored_log.tags == log.tags
     assert rescored_log.metadata == log.metadata
+    assert rescored_log.total_samples == 7
 
 
 @pytest.mark.anyio

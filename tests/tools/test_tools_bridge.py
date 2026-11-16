@@ -6,6 +6,7 @@ via the MCP protocol using BridgedToolsSpec and sandbox_agent_bridge.
 
 import json
 from contextlib import contextmanager
+from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Iterator
 from unittest.mock import MagicMock, patch
@@ -28,7 +29,7 @@ from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent import BridgedToolsSpec, sandbox_agent_bridge
 from inspect_ai.agent._bridge.sandbox.host_tool import _raised
-from inspect_ai.agent._bridge.sandbox.service import call_tool
+from inspect_ai.agent._bridge.sandbox.service import call_tool, list_tools
 from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._span import SpanBeginEvent
@@ -305,11 +306,11 @@ def test_single_tool_call_returns_correct_result(
 @skip_if_no_docker
 @pytest.mark.slow
 def test_single_tool_call_with_nonroot_default_user() -> None:
-    """The model service runs as the non-root default user while the proxy runs as root.
+    """The bridge works in a sandbox whose default user is not root.
 
-    The service's request/response queues are private (0700) to the default user;
-    the proxy inside the sandbox-tools daemon runs as root and must still be able to
-    file requests into them and collect the responses.
+    The service's request/response queues are private (0700) to the tools user,
+    root here, which the proxy runs as, so the default user cannot file requests
+    past the proxy.
     """
     call_log: list[dict] = []
 
@@ -339,10 +340,11 @@ def test_single_tool_call_with_nonroot_default_user() -> None:
                         "-c",
                         "stat -c '%U %a' /var/tmp/sandbox-services/bridge_model_service/*/requests "
                         "/var/tmp/sandbox-services/bridge_model_service/*/responses",
-                    ]
+                    ],
+                    user="root",
                 )
                 assert queues.success, queues.stderr
-                assert queues.stdout.split("\n")[:-1] == ["nonroot 700"] * 2, queues
+                assert queues.stdout.split("\n")[:-1] == ["root 700"] * 2, queues
 
             return state
 
@@ -1068,6 +1070,147 @@ def test_sandbox_bridge_terminate_ends_the_sample() -> None:
     assert completed == []
 
 
+@pytest.mark.parametrize("terminate", [False, True])
+@skip_if_no_docker
+@pytest.mark.slow
+@pytest.mark.usefixtures("fake_sentinel")
+def test_sandbox_bridge_runs_the_sentinel_for_a_host_tool(terminate: bool) -> None:
+    """Both tool stages run for a bridged host tool, across the RPC boundary.
+
+    The tool_call stage runs on the model's response; the tool_result stage runs
+    once, when the agent sends the result back to the model, and not when the
+    host tool executes. A tool_result terminate ends the sample before the
+    model is called.
+    """
+    from test_helpers.fake_sentinel import (
+        AfterToolCall,
+        BeforeToolCall,
+        Context,
+        Decision,
+        Escalations,
+        Monitor,
+        Observation,
+        ProtocolGroup,
+        monitor,
+        protocol,
+    )
+
+    from inspect_ai.event import SentinelEvent
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+    from inspect_ai.tool._tool_call import ToolCall
+
+    outputs_seen: list[object] = []
+
+    @monitor
+    def host_output_monitor() -> Monitor:
+        async def after(context: Context, step: AfterToolCall) -> Observation:
+            outputs_seen.append(step.output)
+            return Observation.score(0.0)
+
+        return after
+
+    @protocol
+    def host_result_terminate() -> ProtocolGroup:
+        async def before(
+            context: Context, step: BeforeToolCall, escalations: Escalations
+        ) -> Decision | None:
+            return None
+
+        async def after(
+            context: Context, step: AfterToolCall, escalations: Escalations
+        ) -> Decision | None:
+            return Decision.terminate(f"saw {step.result.text}")
+
+        return ProtocolGroup(before, after)
+
+    call_log: list[dict] = []
+    responses: list[dict] = []
+    completed: list[bool] = []
+    calculator = {
+        "type": "function",
+        "function": {
+            "name": "calculator_add",
+            "description": "Add two numbers.",
+            "parameters": {
+                "type": "object",
+                "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}},
+                "required": ["x", "y"],
+            },
+        },
+    }
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                state,
+                bridged_tools=[
+                    BridgedToolsSpec(name="calc", tools=[calculator_add(call_log)])
+                ],
+            ) as bridge:
+                messages: list[dict] = [{"role": "user", "content": "Add 5 and 3."}]
+                response = await post_completions(
+                    bridge.port,
+                    {"model": "inspect", "messages": messages, "tools": [calculator]},
+                )
+                messages.append(response["choices"][0]["message"])
+                responses.append(
+                    await call_mcp_tool(
+                        bridge.mcp_server_configs[0],
+                        "calculator_add",
+                        {"x": 5, "y": 3},
+                    )
+                )
+                messages.append(
+                    {"role": "tool", "tool_call_id": "proposed", "content": "8"}
+                )
+                await post_completions(
+                    bridge.port,
+                    {"model": "inspect", "messages": messages, "tools": [calculator]},
+                )
+                completed.append(True)
+            return state
+
+        return solve
+
+    proposed = ToolCall(
+        id="proposed", function="calculator_add", arguments={"x": 5, "y": 3}
+    )
+    outputs = [
+        ModelOutput(
+            model="mockllm/model",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(content="", tool_calls=[proposed]),
+                    stop_reason="tool_calls",
+                )
+            ],
+        ),
+        ModelOutput.from_content(model="mockllm/model", content="It is 8."),
+    ]
+    task = bridged_tools_task(test_solver())
+    task.sentinel = host_result_terminate() if terminate else [host_output_monitor()]
+    log = eval(task, model=get_model("mockllm/model", custom_outputs=outputs))[0]
+
+    assert log.status == "success", log.error
+    assert log.samples is not None
+    assert call_log == [{"tool": "calculator_add", "x": 5, "y": 3}]
+    events = [e for e in log.samples[0].events if isinstance(e, SentinelEvent)]
+    assert {e.step_id for e in events} == {"proposed"}
+    if terminate:
+        assert completed == []
+        assert [(e.stage, e.action) for e in events if e.kind == "decision"] == [
+            ("tool_result", "terminate")
+        ]
+        assert events[-1].explanation == "saw 8"
+    else:
+        assert completed == [True]
+        assert responses[0]["result"]["content"][0]["text"] == "8"
+        assert outputs_seen == ["8"]
+        assert [e.stage for e in events] == ["tool_result"]
+
+
 # =============================================================================
 # Host tool exceptions
 # =============================================================================
@@ -1170,6 +1313,34 @@ async def test_bridged_tool_error_is_reported_to_the_model_only() -> None:
 
     assert not bridge._failure_requested.is_set()
     assert bridge._failure is None
+
+
+class Unit(Enum):
+    CELSIUS = "celsius"
+    FAHRENHEIT = "fahrenheit"
+
+
+@tool
+def weather_tool():
+    async def execute(city: str, unit: Unit = Unit.CELSIUS) -> str:
+        """Get the current temperature for a city.
+
+        Args:
+            city: City name.
+            unit: Temperature unit.
+        """
+        return f"21 degrees {unit.value} in {city}"
+
+    return execute
+
+
+async def test_bridged_tools_list_encodes_enum_default() -> None:
+    """The tool list goes to the scaffold as JSON, so an Enum default is its value."""
+    tools = await list_tools(_bridge_with_tools([weather_tool()]))("srv")
+
+    encoded = json.loads(json.dumps(tools))
+    assert encoded == tools
+    assert encoded[0]["inputSchema"]["properties"]["unit"]["default"] == "celsius"
 
 
 async def test_bridged_tool_malformed_arguments_are_a_parsing_error() -> None:
@@ -1789,7 +1960,7 @@ async def test_bridge_exit_keeps_a_termination_the_scaffold_outran(
     async def sandbox_with_injected_tools(**kwargs: object) -> Sandbox:
         return Sandbox()
 
-    async def monitor_proxy(proxy: Proxy) -> None:
+    async def monitor_proxy(proxy: Proxy, listening: object = None) -> None:
         await anyio.sleep_forever()
 
     async def run_model_service(
