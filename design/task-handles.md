@@ -553,8 +553,10 @@ class PortRequest:
   The creator's own settings are not inherited: the searcher passes what it
   wants shared when it builds the rollout task. Other `SampleSource` tasks
   keep today's resolution and filtering.
-- **Closing.** The channel closes on `close()`, `result()`, `async with`
-  exit, `cancel()`, a drain, `score` or `error` cancel (the attempt's
+- **Closing.** `channel.close()` sets `closed` and rings `pushed` in one
+  synchronous step, so a feeder parked in `next_samples()` wakes and returns
+  `None`; a second call does nothing. Every cause uses it: `close()`,
+  `result()`, `async with` exit, `cancel()`, a drain, `score` or `error` cancel (the attempt's
   `TaskCancel.apply`, which `run_one` creates with the attempt's cancel
   scope, calls `channel.close()`; [task-dispatch.md](task-dispatch.md#phases-and-cancelling)),
   the end of the creator's attempt (`run_one` sets

@@ -88,6 +88,13 @@ hides a problem):
   retried, like a failed `log_start()`, and each failed attempt is reported
   to the run's `TaskSource`; today a seed task's failure raises from
   `eval()`.
+- An attempt stopped by its own abort or retry request before it wrote a
+  final log is reported to the run's `TaskSource` with its unwritten "Task
+  cancelled by user" log, as is a first attempt cancelled while queued;
+  today neither reaches `task_complete`. The location of such a log can
+  name a file the attempt never finished or never wrote. How often a source
+  hears about a task is unchanged: once per attempt ("Reporting to the
+  source").
 - A sandbox setup error ends only the task that needs that configuration,
   with its error log, and the task is retried under `task_retry_attempts`;
   its retry runs `task_init` again. Today a setup error fails the whole run,
@@ -449,12 +456,14 @@ class RunQueue:
     task_names: list[str]             # eval_set_tasks, then each commit's names
     wake: Wake                        # rung by every phase change and addition, waiters or not
     uncounted: int                    # display decrements held until the task screen opens
-    notifications: list[SourceNotification]  # queued-cancel reports for the dispatcher to run
+    notifications: list[SourceNotification]  # queued-cancel reports made before the attempt group opened
+    group: TaskGroup | None           # the attempt group while the dispatcher is inside it
+    notifying: int                    # source notifications running in the group
     def add(self, resolved: list[ResolvedTask]) -> list[TaskRecord]
     def find(self, task_id: str) -> TaskRecord | None
     def cancel(self, record: TaskRecord) -> None
     def end(self, record: TaskRecord, log: EvalLog | None) -> None
-    def notify(self, job: SourceNotification) -> None   # appends and rings `wake`
+    def notify(self, job: SourceNotification) -> None   # starts it in `group`, or holds it until the group opens
     def close(self) -> None           # idempotent
     def end_unstarted(self) -> None   # ends every queued record with its stored log
     def end_all(self) -> None         # ends every record not yet ended
@@ -620,8 +629,18 @@ skip that statement: an AnyIO task started with `start_soon` runs its
 synchronous body up to its first checkpoint even when its group is cancelled
 first (checked on asyncio and trio). Such a `run_one` moves the record into
 `attempt`, is cancelled at its first `await`, and leaves through its
-existing exception exit, after which `end_all()` ends the record with its
-stored log, so no record stays in `attempt`.
+exception exit, which ends the record (below), so no record stays in
+`attempt`.
+
+**`run_one`'s exception exit ends its record.** When `_run_task` raises
+(a cancellation, or an error under `debug_errors`), `run_one` discards an
+unfinished logger entry, as today, then calls `RunQueue.end(record,
+record.log)` in the same step, before re-raising. That settles every handle
+wait on the record (task-handles.md), so a creator sample whose shielded
+cleanup awaits `result()` on a fed task that raised is released, and the
+attempt group's join, which waits for that cleanup, can finish; the original
+exception still propagates. `end_all()` after the group exits stays as the
+fallback for a record whose `run_one` never reached either exit.
 Registration is `reached`, not a phase: an attempt that has not reached
 `register_eval` is initialising the log, seeding prior samples and writing
 the header. A retry whose attempt starts after a registered attempt has
@@ -741,16 +760,23 @@ twice is reported three times.
   `RunQueue.cancel` is synchronous, so `RunQueue.end` in that branch, before
   it releases `options`, takes the task source, `run_samples`,
   `debug_errors` and the task name into a notification job holding the
-  cancelled-before-start log, and `queue.notify(job)` appends it to
-  `queue.notifications` and rings `wake`. The dispatcher starts each queued
-  job (one call of `notify_task_source`'s body) in its attempt task group on
-  its next pass: at once while it is inside the group, and on entering the
-  group for a cancel made before (a seed cancelled while the task screen
-  loads). A running job counts as running work in the dispatcher's idle
-  test, so `next_tasks()` is not called before `task_complete` has returned
-  and its tasks are added, the order an attempt gives today. Jobs not
-  started when dispatch ends are dropped with the queue, as tasks ended
-  unstarted are not reported either.
+  cancelled-before-start log, and calls `queue.notify(job)`. While the
+  dispatcher is inside its attempt group (`queue.group` is set), `notify`
+  starts the job there at once (one call of `notify_task_source`'s body),
+  adding one to `queue.notifying`; the job takes it off and rings `wake`
+  when it returns. It does not wait for the dispatcher's next pass, which
+  cannot come while the dispatcher awaits `next_tasks()`: a source that
+  adds a task, cancels it through its handle and waits for its report in
+  that call, or one waiting while an operator cancels a queued task, gets
+  the report and returns. Only the report runs; no task starts during the
+  call. A cancel made before the group opens (a seed cancelled while the
+  task screen loads) is held in `queue.notifications`, and the dispatcher
+  starts those jobs the same way when it enters the group, then sets
+  `queue.group`. A running job counts as running work in the dispatcher's
+  idle test, so `next_tasks()` is not called while one runs and its tasks
+  are added first, the order an attempt gives today. The dispatcher clears
+  `queue.group` when dispatch ends; a job held then is dropped with the
+  queue, as tasks ended unstarted are not reported either.
 
 Both paths keep `notify_task_source`'s rules: a callback exception is
 logged (propagated under `debug_errors`), and the tasks a callback returns
@@ -763,6 +789,25 @@ from the queue and the queued registry, rings `wake`, and releases `options`
 (and what the handles attach): `ResolvedTask.task` holds the dataset and the configured task is a
 shallow copy of it, so both references go for a finished task's samples to
 be freed. The record keeps its identity, `log` and `ended`.
+
+**Display rows keep no frames.** Rich keeps each row's result
+(`TaskStatus.result`) and Textual keeps every row (`_app_tasks`) for the
+life of the task screen, which is now the whole run. Today a failed row's
+`TaskError` holds the exception and its live traceback, whose frames hold
+`task_run`'s locals, so a failed task's `options`, `Task` and dataset
+would outlive its record. So `TaskError` holds a snapshot instead:
+`TaskError.from_exception(samples_completed, exc_type, exc_value,
+traceback)` keeps `exc_type`, the rendered traceback
+(`rich_traceback(...)`, Rich's extracted `Trace`, which follows the
+`__cause__` and `__context__` chain and, under
+`INSPECT_TRACEBACK_LOCALS=1`, keeps the locals as reprs) and the text of
+`traceback.format_exception(...)`, and no exception object or frame.
+`task_run` builds it at each `td.complete(TaskError(...))`;
+`task_result_error` (`_display/core/results.py`) renders the snapshot, and
+`LogDisplay` logs "failed (…)" followed by the same text that logging's
+`exc_info` gives today. Under `debug_errors` the original exception still
+propagates with its traceback. A run with a failing task looks as it does
+today.
 
 **Terminal identity without registration.** A record that ends before any
 attempt calls `register_eval` (cancelled while queued, a startup failure
@@ -802,7 +847,7 @@ while the screen is not yet open, and calls
 the body of `_run_task_screen` (Textual's reset is done by then), calls
 `update_task_count(-queue.uncounted)` and marks the screen open; when it
 leaves the screen it marks it closed, and records that end afterwards
-(`end_all()`) change no display. The displays are unchanged.
+(`end_all()`) change no display. The displays' counting is unchanged.
 
 The record's sandbox resolution cache (today's run-wide
 `SandboxManager._resolved_no_metadata`, keyed by `(Task, spec)`) is on its
@@ -864,6 +909,7 @@ balancing:
 async with _run_task_screen(...):              # absorbs a cancellation of the run body, as today
     async with attempt task group:             # today's group: run_one and the throughput reporter
         add_dispatch_waker(queue.wake.set)
+        start held source notifications; queue.group = attempt group   # "Reporting to the source"
         try:
             source_done = task_source is None
             loop:
@@ -875,8 +921,7 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
                     start run_one(entry)
                 [starts outside max_tasks: task-handles.md]
                 if cancelled: break
-                start each queued source notification          # "Reporting to the source"
-                idle = no entry is pending, no attempt or notification is running
+                idle = no entry is pending, no attempt runs and queue.notifying == 0
                 if idle and source_done: break
                 if idle:
                     more = await task_source.next_tasks()  # inline, as on today's live path
@@ -885,7 +930,7 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
                     continue
                 await queue.wake
         finally:
-            queue.close(); queue.end_unstarted()           # synchronous, before the group joins
+            queue.group = None; queue.close(); queue.end_unstarted()   # synchronous, before the group joins
             remove_dispatch_waker(queue.wake.set)
 ```
 
@@ -959,8 +1004,9 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
   to `run_one`.
 - **After the group exits**, `eval_run`'s `finally` calls `queue.close()` and
   `queue.end_all()`, which ends any record still open with its stored log:
-  one whose `run_one` raised, and every record when a failure came before
-  the loop (the task screen failing to open). Then it shuts down the
+  a fallback, since `run_one` ends its record on both exits, and every
+  record when a failure came before the loop (the task screen failing to
+  open). Then it shuts down the
   sandboxes and cleans up S3 sessions, as today's `finally` does, and resets
   the `ContextVar`.
 - **`debug_errors`** is passed to the dispatcher at every `max_tasks`.
@@ -1426,6 +1472,10 @@ Code that reads `log.location` from `eval()`'s results gets an empty string
 for it, as it already can for a task whose log could not be written. No eval
 log schema, viewer type or config file changes here.
 
+Displays: `TaskError` (in the private `inspect_ai._display`) holds a
+rendered snapshot of the traceback instead of the exception and its
+traceback; the Rich, Textual and log displays show the same output.
+
 Model controllers: an added task's model gets its adaptive controller on
 its first `generate`, not before its sandboxes are built, so an `inspect ctl
 config --max-connections` retune made earlier is dropped with today's "not
@@ -1558,7 +1608,10 @@ test that waits on a run is bounded with `fail_after`.
   a scope around `eval_async()` and with a `debug_errors` exception; an
   attempt cancelled before its first step (the dispatcher's pick followed at
   once by a cancel of the record) leaves no record in `attempt`, and neither
-  does a cancellation of the attempt group right after a pick; every record
+  does a cancellation of the attempt group right after a pick; with
+  `debug_errors`, a fed task that raises while its creator sample's shielded
+  `finally` awaits `handle.result()` releases that wait, the run ends, and
+  the original error propagates; every record
   has ended when `eval_async()` returns or raises.
 - `tests/test_enqueue_task.py` (setup in the attempt; stub provider whose
   `task_init` blocks on an event or fails on demand): at `max_tasks=2`, a
@@ -1597,9 +1650,13 @@ test that waits on a run is bounded with `fail_after`.
   seed task raises from `eval()` as today.
 - `tests/test_enqueue_task.py` (retention): while a long-running task keeps
   the run open, it adds sandbox tasks that end by finishing, by a cancel
-  while queued and by a final failed retry; a `weakref` to each ended task's
-  `Task` and dataset is dead after `gc.collect()`, while the sandbox
-  configuration they set up is still registered for the run's cleanup.
+  while queued, by a final failed retry, by a task-level error and by a
+  sandbox setup failure; a `weakref` to each ended task's `Task` and dataset
+  is dead after `gc.collect()` while its failed row is still held, under
+  Rich and Textual, and the sandbox configuration they set up is still
+  registered for the run's cleanup; the failed rows still render the
+  traceback, with a chained cause, and `LogDisplay` logs the same text as
+  today.
 - `tests/test_enqueue_task.py` (live fixes): at `max_tasks=1`, a long seed
   task holds the only slot and a task it added waits behind it; `inspect
   ctl config --max-tasks 2` starts the added task while the seed task still
@@ -1636,7 +1693,10 @@ test that waits on a run is bounded with `fail_after`.
   run ends normally, on asyncio and trio; a cancel of B before the task
   screen opens is reported once the dispatcher enters its group; a queued
   retry cancelled after its first attempt's log was reported is not
-  reported again; a source that seeds a successful A and a B whose
+  reported again; a source whose `next_tasks()` adds a task, cancels it
+  through its handle and waits for its report, and one waiting while the
+  control channel cancels a queued task, each get exactly one report and
+  return; a source that seeds a successful A and a B whose
   `logger.init()` always fails, and returns from `next_tasks()` only after
   `task_complete` has reported A and B's final attempt, with
   `task_retry_attempts` 0 and 2: B is reported once per attempt (once, and
@@ -1763,6 +1823,9 @@ state in the single `eval_run`), so the setup fixes come first.
    seed's `startup_sandboxes` call after the task-start hooks;
    `on_row_opened()` and `on_registered()`;
    `unwritten_task_log` with no location; `TaskCancelledBeforeStart`),
+   `_display/core/display.py` (`TaskError.from_exception`),
+   `_display/core/results.py` and `_display/log/display.py` (rendering the
+   snapshot),
    `_eval/task/log.py` (`reinit()` without `init()`, `initialized`, `discard()` without an
    entry, a `location` of `None` until
    `log_init()` returns),
