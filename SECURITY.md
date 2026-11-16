@@ -29,7 +29,7 @@ We only fix security issues in the most recent release of `inspect_ai` on PyPI. 
 
 Inspect runs evaluations that execute model-generated code, and tasks, solvers, and scorers are Python programs. Running an untrusted task or an untrusted model is equivalent to running untrusted code. Much of what Inspect does by design looks unsafe in isolation, so the sections below describe what we treat as a vulnerability and what we do not.
 
-When you evaluate an adversarial model, the sandbox is the security boundary. `sandbox_agent_bridge()` runs the agent inside the sandbox and passes its model calls to the host. By default it keeps API keys on the host and withholds web search, code execution and remote MCP servers. Inspect does not run the agent's own tools, so it records the agent's model calls but not what its tools did. The in-process `agent_bridge()` and `sandbox_service()` methods run code on the host. See [Adversarial Models](https://inspect.aisi.org.uk/agent-bridge.html#adversarial-models) for guidance.
+When you evaluate an adversarial model, the sandbox is the security boundary. With `sandbox_agent_bridge()` the agent runs inside the sandbox and its model calls are passed to the host. By default it keeps API keys on the host and withholds web search, code execution and remote MCP servers. Inspect does not run the agent's own tools, so it records the agent's model calls but not what its tools did. The in-process `agent_bridge()` and `sandbox_service()` methods run code on the host. See [Adversarial Models](https://inspect.aisi.org.uk/agent-bridge.html#adversarial-models) for guidance.
 
 ### In scope
 
