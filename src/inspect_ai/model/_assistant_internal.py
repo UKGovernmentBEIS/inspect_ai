@@ -11,8 +11,13 @@ resume.
 from __future__ import annotations
 
 import importlib.util
+from typing import TYPE_CHECKING
 
 from pydantic import JsonValue
+
+if TYPE_CHECKING:
+    from inspect_ai.model._model_output import ModelOutput
+    from inspect_ai.tool._tool_call import ToolCall
 
 # `importlib.util.find_spec` walks importer paths (~3 ms per call). Cache
 # at module load — package installation can't change during a process
@@ -118,3 +123,84 @@ def dump_sample_assistant_internal() -> JsonValue | None:
             pass
 
     return dump or None
+
+
+def hand_tool_call(call: ToolCall) -> None:
+    """Hold the providers' replay state for `call` to the call as it is handed on.
+
+    Only a Responses item carries a call's function and arguments: one for
+    another function is dropped (`hand_openai_tool_call`), and one for the
+    call's function replays with each message's arguments. A provider's other
+    per-call state holds as it is; each provider replays it only with a call to
+    the function it was recorded for (Anthropic's name and position,
+    `_has_recorded_state`; Google's anchors, `gemini_anchor_fits`), derived
+    for state recorded without one (`derive_recorded_functions`).
+    """
+    if _HAS_OPENAI:
+        try:
+            from inspect_ai.model._openai_responses import hand_openai_tool_call
+
+            hand_openai_tool_call(call)
+        except ImportError:
+            pass
+
+
+def derive_recorded_functions(output: ModelOutput) -> ModelOutput:
+    """`output` with the function of provider state its calls hold without one.
+
+    State parsed before functions were recorded (a cache entry, or a
+    checkpoint's Anthropic state, written by an earlier version) is for the
+    calls holding it in the output as generated. `Model.generate` derives it
+    for each output it returns (a cache hit, or a provider's that recorded
+    none), before recording the output's `ModelEvent` and before a filter can
+    change its calls: a call changed to another function then replays without
+    it (Anthropic's name and position, Google's anchors), and the bridge sees
+    the output it returns as the one recorded. A copy when an anchor gets its
+    function.
+    """
+    from inspect_ai.model._providers._google_reasoning import (
+        gemini_anchors_with_functions,
+    )
+
+    choices = [
+        choice.model_copy(
+            update={"message": choice.message.model_copy(update={"content": derived})}
+        )
+        if (derived := gemini_anchors_with_functions(choice.message)) is not None
+        else choice
+        for choice in output.choices
+    ]
+    if any(new is not old for new, old in zip(choices, output.choices)):
+        output = output.model_copy(update={"choices": choices})
+    if _HAS_ANTHROPIC:
+        try:
+            from inspect_ai.model._providers.anthropic import (
+                derive_anthropic_recorded_functions,
+            )
+
+            for choice in output.choices:
+                derive_anthropic_recorded_functions(choice.message)
+        except ImportError:
+            pass
+    return output
+
+
+def forget_tool_call(call_id: str) -> None:
+    """Drop the providers' replay state for `call_id`, so the call under it replays from itself."""
+    if _HAS_OPENAI:
+        try:
+            from inspect_ai.model._openai_responses import forget_openai_tool_call
+
+            forget_openai_tool_call(call_id)
+        except ImportError:
+            pass
+
+    if _HAS_ANTHROPIC:
+        try:
+            from inspect_ai.model._providers.anthropic import (
+                forget_anthropic_tool_call,
+            )
+
+            forget_anthropic_tool_call(call_id)
+        except ImportError:
+            pass
