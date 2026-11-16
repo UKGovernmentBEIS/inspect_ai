@@ -45,6 +45,8 @@ class ToolEvent(BaseEvent):
     a host call whose request matched the grants of more than one handout
     (which one it ran for is unknown), and in logs written before this field.
 
+    The id is opaque: compare it for equality, and don't parse it.
+
     Experimental: not yet a stable API; may change without notice.
     """
 

@@ -181,6 +181,8 @@ call is reviewed, and keeps it on the bridge's record of the call id
 description) is approved, checked and run once per tool, so a handout's run
 of one bridged tool is an execution: its id is the handout's with the tool's
 server and name, `<handout>/<server>/<tool>` (`target_execution_id`). The
+id is opaque: a server or tool name may contain `/`, so it can't be split
+into its parts, and consumers compare it only for equality. The
 call's `ApprovalEvent`s and `tool_call` sentinel steps record it, one per
 tool reviewed, and so does the host `ToolEvent` that consumed that tool's
 grant. Consumers that pair a check or an approval with its run by

@@ -10161,6 +10161,110 @@ def test_a_call_that_raised_and_its_same_id_retry_replay_as_two_executions(
     ]
 
 
+@protocol
+def r7_rejects_the_first_call() -> Protocol:
+    async def before_call(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if step.call.arguments.get("text") == "first":
+            return Decision(action="reject", explanation="not the first")
+        return None
+
+    return before_call
+
+
+@pytest.mark.parametrize("probed", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_call_rejected_at_tool_call_and_its_same_id_retries_replay_as_executions(
+    probed: bool,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # a sentinel rejects a call at tool_call, and the model retries it twice
+    # under the same id: the reject pairs through the call check, not a result
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    seen: dict[str, Step] = {}
+
+    @tool
+    def echo() -> Tool:
+        async def execute(text: str) -> str:
+            """Echo the input.
+
+            Args:
+                text: The input.
+            """
+            return f"echo {text}"
+
+        return execute
+
+    texts = ["first", "second", "third"]
+    log = eval(
+        Task(
+            dataset=[Sample(input="Echo it")],
+            solver=[use_tools(echo()), generate()],
+            sentinel=[
+                *([r7_probe(seen, copies=True)] if probed else []),
+                r7_rejects_the_first_call(),
+            ],
+        ),
+        model=outputs(
+            *(
+                ModelOutput.for_tool_call(
+                    "mockllm/model",
+                    tool_name="echo",
+                    tool_arguments={"text": text},
+                    tool_call_id="tool_call_0_0",
+                )
+                for text in texts
+            ),
+            done(),
+        ),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert [e.id for e in runs] == ["tool_call_0_0"] * 3
+    assert [e.error.type if e.error else None for e in runs] == [
+        "approval",
+        None,
+        None,
+    ]
+    executions = [e.execution_id for e in runs]
+    assert None not in executions and len(set(executions)) == 3
+    assert [
+        e.execution_id
+        for e in events
+        if isinstance(e, SentinelEvent) and e.action == "reject"
+    ] == executions[:1]
+
+    # the rejected call keeps the call id, and each retry is named by its
+    # execution id
+    with caplog.at_level(logging.WARNING):
+        replay = replayed(log)
+    assert replay_warnings(caplog) == []
+    assert [
+        (s.stage, s.id, s.step.call.arguments)
+        for s in replay
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    ] == [
+        ("tool_call", "tool_call_0_0", {"text": "first"}),
+        ("tool_call", executions[1], {"text": "second"}),
+        ("tool_result", executions[1], {"text": "second"}),
+        ("tool_call", executions[2], {"text": "third"}),
+        ("tool_result", executions[2], {"text": "third"}),
+    ]
+    if probed:
+        assert_tool_steps_equal_live_by_execution(log, seen, replay)
+
+    # a log without execution ids can't be replayed, as before
+    with pytest.raises(MalformedLogError, match="Two tool_call steps"):
+        replay_events(log, without_execution_ids(events))
+
+
 def assert_tool_steps_equal_live_by_execution(
     log: EvalLog, seen: dict[str, Step], replay: Sequence["ReplayStep"]
 ) -> None:

@@ -114,7 +114,7 @@ def steps_from_events(
         human_approvers: The registry names of approvers that are people, whose `ApprovalEvent`s are `human_decisions` in a log from an eval that ran no sentinel and records inspect_ai 0.3.277 or later.
 
     Returns:
-        The steps, in the order they ran live.
+        The steps, in the order they ran live. A native tool step's id is its call id, as live records it (`step_id`), but for a later execution of a call id an earlier rebuilt execution already took (a retry after a tool error, a provider that repeats ids): that execution's steps are named by its `ToolEvent.execution_id`, which each of its live `SentinelEvent`s records. A `ToolEvent` that records no `execution_id` keeps its call id.
 
     Raises:
         ValueError: `eval_info` is `None`, the log predates Inspect 0.3.100 or its samples have an earlier layout (or it has an unknown version and completed spanless native tool events), or the call an approval approved is not the call its `ToolEvent` records. Replay such transcripts from their messages instead.

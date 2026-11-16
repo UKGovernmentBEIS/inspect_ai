@@ -206,6 +206,10 @@ def target_execution_id(
     execution of its own: the handout's id (`_Handed.execution_id`) with the
     tool's server and name, `<handout>/<server>/<tool>`. A call no bridged
     tool serves has the handout's id. `None` where the handout is unknown.
+
+    The id is opaque: consumers compare it for equality and don't parse it.
+    A server or tool name may contain `/`, so the parts can't be recovered
+    from it.
     """
     if handout is None or target is None:
         return handout
@@ -581,7 +585,7 @@ class AgentBridge:
     """The model's id for each call being registered, aligned with them; a call handed over under a fresh id has another (`_fresh_call_ids`)."""
 
     _proposing_execution_ids: list[str] | None = None
-    """The handout id of each call being registered, aligned with them (`ToolEvent.execution_id`)."""
+    """The handout id of each call being registered, aligned with them (`_Handed.execution_id`); a grant's host run records its tool's execution id derived from it (`target_execution_id`)."""
 
     def _handed_calls(
         self, reply_id: str, calls: Sequence[ToolCall]
