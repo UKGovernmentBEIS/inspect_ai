@@ -116,6 +116,7 @@ from inspect_ai.util._span import (
     span_id_provider,
 )
 
+from .test_sentinel_bridge import SubAgentSink, shared_handout_run_in_reverse
 from .test_sentinel_dispatch import (
     _RetriedError,
     _RetryingMockLLM,
@@ -1843,10 +1844,11 @@ def r7_runs_a_bridged_host_tool(
     request_before_running: bool = False,
     report: bool = False,
     host_tool: Tool | None = None,
+    routed: bool = False,
 ) -> Agent:
     """A scaffold that declares the host tool (`host_tool`, else `addition`) as `name` (or calls it through Antigravity's `call_mcp_tool` dispatcher) and runs the call the bridge hands it, after one more model request if `request_before_running`.
 
-    With `report`, it then sends the result, with a note of its own, in its next request, which is when the bridge checks it.
+    With `report`, it then sends the result, with a note of its own, in its next request, which is when the bridge checks it. With `routed`, a model event sink routes its generations into the sub-agent span `sub-agent`, as inspect_swe's consumers do.
     """
 
     async def execute(state: AgentState) -> AgentState:
@@ -1866,6 +1868,16 @@ def r7_runs_a_bridged_host_tool(
             bridged_tools={"host": {"addition": host_tool or addition()}},
             approval=approval,
         )
+        if routed:
+            transcript()._event(
+                SpanBeginEvent(
+                    id="sub-agent",
+                    parent_id=current_span_id(),
+                    type="agent",
+                    name="sub",
+                )
+            )
+            bridge.model_event_sink = SubAgentSink()
         [served] = bridge.served_tools.values()
         # the scaffold declares the tool under its own name, with the
         # description the bridge served
@@ -1932,6 +1944,8 @@ def r7_runs_a_bridged_host_tool(
                 None,
                 bridge,
             )
+        if routed:
+            transcript()._event(SpanEndEvent(id="sub-agent"))
         return state
 
     return execute
@@ -2059,11 +2073,21 @@ def test_a_native_call_reusing_a_bridged_call_id_keeps_its_tool_steps(
         (("tool_call", "shared"), {"x": 5, "y": 5}),
         (("tool_result", "shared"), {"x": 5, "y": 5}),
     ]
-    # the bridge's checks are marked, so the native call keeps its own
-    replay = assert_replay_skips_bridge_steps(
-        log, seen, lambda step: step.call.arguments == {"x": 5, "y": 5}
-    )
+    # the bridge's checks are marked, so each call keeps its own: the host
+    # call, which ran first, has the id, and the native call is named by its
+    # execution
+    replay = assert_replay_equals_live_by_execution(log, seen)
     assert [(stage, args) for stage, _, args in tool_step_calls(replay)] == [
+        ("tool_call", {"x": 1, "y": 1}),
+        ("tool_result", {"x": 1, "y": 1}),
+        ("tool_call", {"x": 5, "y": 5}),
+        ("tool_result", {"x": 5, "y": 5}),
+    ]
+    assert replay_warnings(caplog) == []
+    # in a log from before the execution ids, the native call keeps the id,
+    # and the host call under it is skipped, as before
+    old = replay_events(log, without_execution_ids(logged_sample(log).events))
+    assert [(stage, args) for stage, _, args in tool_step_calls(old)] == [
         ("tool_call", {"x": 5, "y": 5}),
         ("tool_result", {"x": 5, "y": 5}),
     ]
@@ -2485,6 +2509,307 @@ def test_an_approved_bridged_host_tool_call_replays(
         "tool_call",
         "tool_result",
     ]
+
+
+@pytest.mark.parametrize("decision", ["approve", "modify"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_routed_bridged_call_s_approval_replays_with_its_run(
+    decision: str, backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a model event sink routes the agent's generations into a sub-agent span,
+    # where the bridge records the call's approval with its run
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(
+            r7_runs_a_bridged_host_tool(
+                approval=[ApprovalPolicy(r7_bridged_approver(decision), "*")],
+                report=True,
+                routed=True,
+            )
+        ),
+        outputs(call("mcp__host__addition", x=1, y=1), done()),
+        sentinel=[r7_probe(seen, copies=True)],
+    )
+    events = logged_sample(log).events
+    [ran] = [e for e in events if isinstance(e, ToolEvent)]
+    [approval] = [e for e in events if isinstance(e, ApprovalEvent)]
+    assert ran.span_id == approval.span_id == "sub-agent"
+    assert ran.execution_id is not None and approval.execution_id == ran.execution_id
+    assert ran.arguments == (approval.modified or approval.call).arguments
+    replay = assert_logged_replay_equals_live(log, seen)
+    assert [(s.stage, s.id) for s in replay if s.stage.startswith("tool")] == [
+        ("tool_call", ran.id),
+        ("tool_result", ran.id),
+    ]
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_shared_handout_s_first_run_replays_with_its_own_tool_s_checks(
+    backend: str, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    # one call denotes two bridged tools that share a description; the bridge
+    # checks it as each, a person answering each check by the tool it names,
+    # and the scaffold runs them in the reverse of that order
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+
+    async def acp(**kwargs: object) -> Approval | None:
+        return None
+
+    async def panel(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: object,
+        choices: list[str],
+    ) -> Approval:
+        return Approval(decision="approve", explanation=f"reviewed {call.function}")
+
+    monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
+    monkeypatch.setattr(approver_module, "panel_approval", panel)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        shared_handout_run_in_reverse(),
+        "mockllm/model",
+        sentinel=[r7_probe(seen, copies=True), h_ask("tool_call", ["approve"])],
+    )
+    events = logged_sample(log).events
+    first, second = [e for e in events if isinstance(e, ToolEvent)]
+    assert (first.function, second.function) == ("read_copy", "read_file")
+    # the first run has the id the call was handed over under, and the second
+    # a fresh one; each names its own tool's execution, as its checks do
+    assert first.id == "host_1" and second.id != "host_1"
+    assert first.execution_id != second.execution_id
+    live = {
+        (e.stage, e.execution_id): seen[e.explanation or ""]
+        for e in events
+        if isinstance(e, SentinelEvent) and e.path == "r7_probe"
+    }
+    assert {key for key in live if key[0].startswith("tool")} == {
+        (stage, run.execution_id)
+        for stage in ("tool_call", "tool_result")
+        for run in (first, second)
+    }
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        replay = replayed(log)
+    # the first run takes its own tool's checks, whatever order they were made
+    # in; the second, under a fresh id its checks don't have, and the results,
+    # which the bridge didn't link to a run, are skipped
+    [step] = [s for s in replay if s.stage.startswith("tool")]
+    assert (step.stage, step.id) == ("tool_call", "host_1")
+    assert step.recorded_answers["human"].reason == "reviewed read_copy"
+    assert_step_equals_live(
+        ("tool_call", "host_1"), step, live[("tool_call", first.execution_id)]
+    )
+    [skipped] = [
+        r.getMessage() for r in caplog.records if "Replay skipped" in r.message
+    ]
+    assert f"(host_1, {second.id})" in skipped
+
+
+@agent
+def r7_retries_a_failed_host_call(call_id: str) -> Agent:
+    """A scaffold whose host tool fails on its first run; the model proposes the call again under the same id (`call_id`), and the scaffold runs it again and reports each result."""
+
+    async def execute(state: AgentState) -> AgentState:
+        from inspect_ai.agent._bridge.completions import (
+            inspect_completions_api_request,
+        )
+        from inspect_ai.agent._bridge.sandbox.service import call_tool
+        from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+
+        runs: list[int] = []
+
+        @tool(name="addition")
+        def fails_once() -> Tool:
+            async def execute(x: int, y: int) -> int:
+                """Add two numbers.
+
+                Args:
+                    x: The first number.
+                    y: The second number.
+                """
+                runs.append(x)
+                if len(runs) == 1:
+                    raise ToolError("the host was busy")
+                return x + y
+
+            return execute
+
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=8080,
+            model=None,
+            bridged_tools={"host": {"addition": fails_once()}},
+        )
+        [served] = bridge.served_tools.values()
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "mcp__host__addition",
+                    "description": served.description,
+                    "parameters": served.parameters.model_dump(exclude_none=True),
+                },
+            }
+        ]
+        messages: list[Any] = [{"role": "user", "content": "What is 1 + 1?"}]
+
+        async def request() -> Any:
+            completion = await inspect_completions_api_request(
+                {"model": "inspect", "messages": messages, "tools": tools}, None, bridge
+            )
+            message = completion.choices[0].message
+            messages.append(message.model_dump(exclude_none=True))
+            return message.tool_calls or []
+
+        for _ in range(2):
+            [proposed] = await request()
+            try:
+                result = await call_tool(bridge)(
+                    "host", "addition", json.loads(proposed.function.arguments)
+                )
+            except ToolError as ex:
+                # the service reports the error to the scaffold
+                result = f"Error: {ex.message}"
+            messages.append(
+                {"role": "tool", "tool_call_id": proposed.id, "content": str(result)}
+            )
+        await request()
+        return state
+
+    return execute
+
+
+@pytest.mark.parametrize("bridged_id", ["host_1", "tool_call_0_0"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_failed_call_and_its_same_id_retry_replay_with_bridged_and_native_calls(
+    bridged_id: str,
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # a native tool and a host tool each fail on their first run, and the model
+    # retries each under the same id; with `tool_call_0_0`, the model proposes
+    # the host calls under the native calls' id too
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    seen: dict[str, Step] = {}
+    attempts: list[str] = []
+
+    @tool
+    def parse_once() -> Tool:
+        async def execute(text: str) -> str:
+            """Fail to parse the first input.
+
+            Args:
+                text: The input.
+            """
+            attempts.append(text)
+            if len(attempts) == 1:
+                raise ToolParsingError("could not parse the input")
+            return f"parsed {text}"
+
+        return execute
+
+    host = ToolCall(
+        id=bridged_id, function="mcp__host__addition", arguments={"x": 1, "y": 1}
+    )
+    log = run_logged(
+        [
+            use_tools(parse_once()),
+            generate(),
+            as_solver(r7_retries_a_failed_host_call(bridged_id)),
+        ],
+        outputs(
+            *(
+                ModelOutput.for_tool_call(
+                    "mockllm/model",
+                    tool_name="parse_once",
+                    tool_arguments={"text": text},
+                    tool_call_id="tool_call_0_0",
+                )
+                for text in ("first", "second")
+            ),
+            done(),
+            r7_tool_calls(host),
+            r7_tool_calls(host),
+            done(),
+        ),
+        sentinel=[r7_probe(seen, copies=True)],
+    )
+    events = logged_sample(log).events
+    natives = [e for e in events if isinstance(e, ToolEvent) and not e.metadata]
+    hosts = [e for e in events if isinstance(e, ToolEvent) and e.metadata]
+    assert [e.id for e in natives] == ["tool_call_0_0"] * 2
+    assert [e.error.type if e.error else None for e in natives] == ["parsing", None]
+    assert [e.error is not None for e in hosts] == [True, False]
+    executions = [e.execution_id for e in natives + hosts]
+    assert None not in executions and len(set(executions)) == 4
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        replay = replayed(log)
+    tool_steps = [(s.stage, s.id) for s in replay if s.stage.startswith("tool")]
+    native_steps = [
+        ("tool_call", "tool_call_0_0"),
+        ("tool_result", "tool_call_0_0"),
+        ("tool_call", natives[1].execution_id),
+        ("tool_result", natives[1].execution_id),
+    ]
+    skipped = [r.getMessage() for r in caplog.records if "Replay skipped" in r.message]
+    if bridged_id == "tool_call_0_0":
+        # the conversation already has the model's id, so the bridge hands
+        # each host call over under a fresh one, and both replay under it
+        assert "tool_call_0_0" not in [e.id for e in hosts]
+        assert len({e.id for e in hosts}) == 2
+        assert tool_steps == [
+            *native_steps,
+            *((stage, e.id) for e in hosts for stage in ("tool_call", "tool_result")),
+        ]
+        assert skipped == []
+    else:
+        # the host calls ran under the id they were handed over under: the
+        # first run's steps have it, and the retry's, a second handout of that
+        # id, are named by its execution, as a native retry's are. Once the id
+        # is handed out again, the bridge checks a result under it under no
+        # execution and without the call's proposal, so the retry has no
+        # tool_result step, and the warning names it
+        assert [e.id for e in hosts] == ["host_1", "host_1"]
+        assert tool_steps == [
+            *native_steps,
+            ("tool_call", "host_1"),
+            ("tool_result", "host_1"),
+            ("tool_call", hosts[1].execution_id),
+        ]
+        [warning] = skipped
+        assert "(host_1)" in warning
+    # every step replay builds is the one live saw, by execution
+    live: dict[tuple[str, str], Step] = {
+        (e.stage, e.execution_id): seen[e.explanation or ""]
+        for e in events
+        if isinstance(e, SentinelEvent)
+        and e.path == "r7_probe"
+        and e.stage in ("tool_call", "tool_result")
+        and e.execution_id is not None
+    }
+    executions_by_step = {
+        "tool_call_0_0": natives[0].execution_id or "",
+        **{e.execution_id or "": e.execution_id or "" for e in natives + hosts},
+        **{e.id: e.execution_id or "" for e in reversed(hosts)},
+    }
+    # a host call handed over under a fresh id has the handed copy's message
+    # id live, and the generation's in replay (a named difference)
+    reissued = {e.id for e in hosts if e.id != bridged_id}
+    for s in replay:
+        if s.stage.startswith("tool"):
+            key = (str(s.stage), executions_by_step[s.id])
+            differences = [f"{s.stage}.message_id"] if s.id in reissued else []
+            assert_step_equals_live(key, s, live[key], differences)
 
 
 @pytest.mark.parametrize("decision", ["approve", "modify"])
@@ -3161,6 +3486,38 @@ def assert_replay_skips_bridge_steps(
     assert [(s.stage, s.id) for s in replay] == [key for key, _ in kept]
     for (key, step), rebuilt in zip(kept, replay):
         assert_step_equals_live(key, rebuilt, step)
+    return replay
+
+
+def assert_replay_equals_live_by_execution(
+    log: EvalLog,
+    seen: dict[str, Step],
+    skipped: Callable[[str, Step], bool] = lambda stage, step: False,
+) -> list["ReplayStep"]:
+    """Rebuild the steps of a log `r7_probe(seen, copies=True)` watched, and compare each with live's, a tool step at its stage and execution: live records two executions of one call id under one step id, and replay names the later one by its execution id. Live's steps that `skipped` accepts are not replayed."""
+    events = logged_sample(log).events
+    live = [
+        (
+            (e.stage, e.execution_id if e.stage.startswith("tool") else e.step_id),
+            seen[e.explanation or ""],
+        )
+        for e in events
+        if isinstance(e, SentinelEvent)
+        and e.path == "r7_probe"
+        and not skipped(e.stage, seen[e.explanation or ""])
+    ]
+    first: dict[str, str | None] = {}
+    for e in events:
+        if isinstance(e, ToolEvent):
+            first.setdefault(e.id, e.execution_id)
+    replay = replayed(log)
+    rebuilt = [
+        ((s.stage, first.get(s.id, s.id) if s.stage.startswith("tool") else s.id), s)
+        for s in replay
+    ]
+    assert [key for key, _ in rebuilt] == [key for key, _ in live]
+    for (key, step), (_, rebuilt_step) in zip(live, rebuilt):
+        assert_step_equals_live((key[0], key[1] or ""), rebuilt_step, step)
     return replay
 
 
@@ -8065,11 +8422,13 @@ def test_a_native_call_run_while_a_bridged_call_waits_keeps_its_tool_steps(
     [_, turn, _] = [n for n, (key, _) in enumerate(live) if key[0] == "model_input"]
     assert bridged[0] < turn < native[0]
     assert (bridged[1] > native[1]) is native_first
-    replay = assert_replay_skips_bridge_steps(
-        log, seen, lambda step: step.call.arguments == {"x": 5, "y": 5}
-    )
-    assert len(tool_step_calls(replay)) == 2
-    assert bridge_warning_ids(caplog) == ["shared"]
+    # each call keeps its own checks; the call that ran first has the id, and
+    # the other is named by its execution
+    replay = assert_replay_equals_live_by_execution(log, seen)
+    ids = [s.id for s in replay if s.stage.startswith("tool")]
+    assert ("shared" in ids[:1]) is (not native_first)
+    assert len(tool_step_calls(replay)) == 4
+    assert replay_warnings(caplog) == []
 
 
 @agent
@@ -8708,14 +9067,33 @@ def test_a_native_call_under_a_host_call_s_id_keeps_its_tool_steps(
         ("tool_result", {"x": 5, "y": 5}),
         ("tool_result", {"x": 1, "y": 1}),
     ]
-    replay = assert_replay_skips_bridge_steps(
-        log, seen, lambda step: step.call.arguments == {"x": 5, "y": 5}
+    # the native call ran first, so has the id, and the host call is named by
+    # its execution; a result check that terminated the sample left the
+    # reported result unlinked to its run, so that step is skipped
+    terminated = bridge_outcome == "terminate"
+    replay = assert_replay_equals_live_by_execution(
+        log,
+        seen,
+        lambda stage, step: (
+            terminated
+            and stage == "tool_result"
+            and step.call.arguments == {"x": 1, "y": 1}
+        ),
     )
     assert [(stage, args) for stage, _, args in tool_step_calls(replay)] == [
+        ("tool_call", {"x": 1, "y": 1}),
         ("tool_call", {"x": 5, "y": 5}),
         ("tool_result", {"x": 5, "y": 5}),
+        *([] if terminated else [("tool_result", {"x": 1, "y": 1})]),
     ]
-    assert bridge_warning_ids(caplog) == ["shared"]
+    host = next(e for e in events if isinstance(e, ToolEvent) and e.metadata)
+    assert [s.id for s in replay if s.stage.startswith("tool")][0] == (
+        host.execution_id
+    )
+    if terminated:
+        assert bridge_warning_ids(caplog) == ["shared"]
+    else:
+        assert replay_warnings(caplog) == []
 
 
 @agent

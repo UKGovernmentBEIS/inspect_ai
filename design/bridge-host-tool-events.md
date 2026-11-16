@@ -212,7 +212,9 @@ record. Sentinel replay pairs a native call with its checks by it. Live
 records every execution's tool steps under the call id, but a replayed step
 id must be unique for its stage, so when two executions of one call id are
 rebuilt (a retry after a tool error, a provider that repeats ids), the first
-keeps the call id and each later one is named by its `execution_id`. A log
+keeps the call id and each later one is named by its `execution_id`. Replay
+names a host run's steps by the same rule, under the id the call was handed
+over under, so native and bridged executions of one call id share it. A log
 without the ids replays as before.
 
 A `_Proposal` is referenced only by its grants, so pairing state lives in the
@@ -582,7 +584,11 @@ proposal, and fixing the pairing would mean keeping evicted grants.
   names its execution: its `tool_call` check or, where none was recorded (a
   sentinel that checks results only), its `tool_result` check. The
   `tool_result` step is the tool message `message_id` names, so a run
-  without it has none. Other host calls are skipped with a warning.
+  without it has none. The steps are named as a native execution's are (see
+  Execution ids), so a later handout under a call id an earlier rebuilt
+  execution took is named by its `execution_id`, with no `tool_result` step
+  unless a result check names that execution. Other host calls, including a
+  shared handout's run under a fresh event id, are skipped with a warning.
 - **Hooks, control server, TUI, dataframes.** Pending host events drive the
   TUI's running state and the control server's activity and cancellation like
   native ones. Hooks receive each non-pending update. `events_df()` has `tool`

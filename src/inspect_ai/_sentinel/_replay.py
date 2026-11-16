@@ -104,7 +104,7 @@ def steps_from_events(
 
     A tool call is joined to the model call that proposed it by the id of the message its `ToolEvent` records (`call_message_id`, written since inspect_ai #6143), and a call no model call proposed (a pre-filled message) to the message holding it, by the same id. Where the id names several model calls' output (a cached output reused), a native call's producer is the latest of those model calls before the call, in the call's own conversation where they are in several. Where the event records no proposing message (an older log), or the id names no model call's output, it is the latest model call that proposed the call's id before the call (in the call's own conversation, where model calls in several conversations proposed it), a bridge's generation included.
 
-    A host call a sandbox bridge ran (`ToolEvent.metadata["bridge"]`) is replayed where its event ties it to its proposal and its run exactly: its proposing message is one model call's output holding the call under the model's id (`proposal_id`), and either the bridge linked the run to the tool message the scaffold reported its result in (`message_id`) or a bridge check of the call, its `tool_call` or its `tool_result` check, names the run's handout (`SentinelEvent.execution_id`; in a log from before the handout ids, a check under the call's id). Its `tool_call` step is the call as the bridge checked it, under the id the scaffold was handed it under, with the host tool's name and the arguments it ran with (a sentinel's modify aside), once per handout. Its `tool_result` step holds the tool message `message_id` names, which the bridge checked when the scaffold's next request carried it; a run with no such link has no `tool_result` step, even where its result check linked the run. Step ids are unique in a sample, so a host call under an id a native call or an earlier replayed host call has is skipped. Other host calls, and the calls a bridged scaffold ran itself, which leave no `ToolEvent`, are skipped, and a warning names them. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A bridge's tool checks are recorded in spans named `sentinel_bridge`, so a native call under an id a bridge also checked keeps its own checks.
+    A host call a sandbox bridge ran (`ToolEvent.metadata["bridge"]`) is replayed where its event ties it to its proposal and its run exactly: its proposing message is one model call's output holding the call under the model's id (`proposal_id`), and either the bridge linked the run to the tool message the scaffold reported its result in (`message_id`) or a bridge check of the call, its `tool_call` or its `tool_result` check, names the run's execution (`SentinelEvent.execution_id`, the handout's run of that host tool; in a log from before the execution ids, a check under the call's id). Its `tool_call` step is the call as the bridge checked it, under the id the scaffold was handed it under, with the host tool's name and the arguments it ran with (a sentinel's modify aside). Its `tool_result` step holds the tool message `message_id` names, which the bridge checked when the scaffold's next request carried it; a run with no such link has no `tool_result` step, even where its result check linked the run. A run whose event has a fresh id (a shared handout's second tool) is not tied to its checks, which have the id the call was handed over under, so it is skipped. Other host calls, and the calls a bridged scaffold ran itself, which leave no `ToolEvent`, are skipped, and a warning names them. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A bridge's tool checks are recorded in spans named `sentinel_bridge`, so a native call under an id a bridge also checked keeps its own checks.
 
     A transcript Scout imported from another source (`eval_info` is None) replays from its events where Scout records which model calls its messages come from (`messages_from`): its turns are inferred as for a log without origins, and its tool steps come from its messages, each assistant message joined by its id to the turn whose output it is, which gives the steps that turn's input, tools and conversation; a message no one turn made is placed after the last message before it that one did, with no input. A call under an id an earlier call in the messages has is skipped, with a warning, as step ids are unique in a sample. Its tool events are not read: importers record them without the model's call ids.
 
@@ -121,7 +121,7 @@ def steps_from_events(
         messages_from: For an imported transcript, the `uuid`s of the model events its messages are from (Scout's `TranscriptInfo.messages_from`). Ignored for an Inspect log.
 
     Returns:
-        The steps, in the order they ran live. A native tool step's id is its call id, as live records it (`step_id`), but for a later execution of a call id an earlier rebuilt execution already took (a retry after a tool error, a provider that repeats ids): that execution's steps are named by its `ToolEvent.execution_id`, which each of its live `SentinelEvent`s records. A `ToolEvent` that records no `execution_id` keeps its call id.
+        The steps, in the order they ran live. A tool step's id is its call id, as live records it (`step_id`; for a host call, the id it was handed over under), but for a later execution of a call id an earlier rebuilt execution, native or bridged, already took (a retry after a tool error, a provider that repeats ids, a call handed out again): that execution's steps are named by its `ToolEvent.execution_id`, which each of its live `SentinelEvent`s records. A host run so named has a `tool_result` step only where a result check names its execution: the bridge checks a result reported under an id it handed out more than once under no execution and without the call's proposal. A `ToolEvent` that records no `execution_id` keeps its call id; in such a log, a host call under an id a native call or an earlier replayed host call has is skipped.
 
     Raises:
         ValueError: `eval_info` and `messages_from` are both `None`, the log predates Inspect 0.3.100 or its samples have an earlier layout (or it has an unknown version and completed spanless native tool events), or the call an approval approved is not the call its `ToolEvent` records. Replay such transcripts from their messages instead.
@@ -648,9 +648,9 @@ class _Driver:
         # (stage, execution id) -> the sentinel spans of native tool steps
         # that name the execution they judged (`SentinelEvent.execution_id`)
         self.execution_spans: dict[tuple[SentinelStage, str], list[str]] = {}
-        # (stage, call id, handout) -> the sentinel spans of bridge tool checks
-        # (BRIDGE_CHECK_SPAN), in log order; the handout is the one the check
-        # names (`execution_id`), else the call id
+        # (stage, call id, execution) -> the sentinel spans of bridge tool
+        # checks (BRIDGE_CHECK_SPAN), in log order; the execution is the one
+        # the check names (`execution_id`), else the call id
         self.bridge_spans: dict[tuple[SentinelStage, str, str], list[str]] = {}
         self.span_events: dict[str, list[SentinelEvent]] = {}
         # the sentinel spans whose invocation raised or was cancelled
@@ -671,12 +671,13 @@ class _Driver:
         self.proposed: dict[str, list[int]] = {}
         # the ids of model calls' output messages
         self.outputs: set[str] = set()
-        # the approvals recorded for each handout (`execution_id`), else, in a
-        # log from before the id, for each call id, in log order
+        # the approvals recorded for each execution (`execution_id`), else, in
+        # a log from before the id, for each call id, in log order
         self.run_approvals: dict[str, list[tuple[int, ApprovalEvent]]] = {}
-        # the ids of native calls, and of the host runs replayed
-        self.native_ids: set[str] = set()
-        self.host_runs: set[str] = set()
+        # the ids of native calls whose ToolEvent names no execution, which
+        # keep their id (`_tool_step_id`); the host executions replayed
+        self.unnamed_native_ids: set[str] = set()
+        self.host_executions: set[str] = set()
         # each model event's input view and producer, shared by its steps
         self._views: dict[int, PoolView] = {}
         self._producers: dict[int, Producer] = {}
@@ -910,7 +911,11 @@ class _Driver:
                         (index, 2),
                         self._next_seq(),
                     )
-        self.native_ids = {c.event.id for c in calls if not _bridged(c.event)}
+        self.unnamed_native_ids = {
+            c.event.id
+            for c in calls
+            if not _bridged(c.event) and c.event.execution_id is None
+        }
         for entry in calls:
             self._take_checks(entry)
             self._check_modified_approval(entry)
@@ -951,9 +956,9 @@ class _Driver:
         key = (event.stage, event.step_id)
         if event.stage in ("tool_call", "tool_result"):
             if self.begins[span][1].name == BRIDGE_CHECK_SPAN:
-                handout = event.execution_id or event.step_id
+                execution = event.execution_id or event.step_id
                 self.bridge_spans.setdefault(
-                    (event.stage, event.step_id, handout), []
+                    (event.stage, event.step_id, execution), []
                 ).append(span)
             elif event.execution_id is not None:
                 self.execution_spans.setdefault(
@@ -1180,28 +1185,31 @@ class _Driver:
             )
 
     def _take_bridge_checks(self, call: _Call, begin: int, end: int | None) -> None:
-        """Pair a sandbox bridge's host call with its recorded checks, by the id the call was handed to the scaffold under and the handout they checked.
+        """Pair a sandbox bridge's host call with its recorded checks, by the id the call was handed to the scaffold under and the execution they checked.
 
         The bridge checks every call of a response before the scaffold gets it,
         so a handout's `tool_call` check is before its first run; its result
         is checked when the scaffold's next request carries it, after the run.
         Both are under the id the scaffold was handed the call under, which
-        its first run's event has, and name the handout (`execution_id`,
-        #6370); a result check names none where the bridge could not tell
-        which handout it answers, and is not paired. In a log from before the
-        handout ids, they are paired by the call id alone.
+        the handout's first run's event has, and name the handout's run of the
+        host tool they judged (`execution_id`, #6370), as the run does, so a
+        call denoting several host tools pairs each tool's checks with that
+        tool's run, whatever order they ran in. A result check names none
+        where the bridge could not tell which handout it answers, and is not
+        paired. In a log from before the execution ids, they are paired by the
+        call id alone.
         """
         proposal = call.proposal
         if call.producer is None or proposal is None:
             return
         event = call.event
-        handout = event.execution_id or event.id
+        execution = event.execution_id or event.id
         call.before_span = self._bridge_span_of(
-            ("tool_call", event.id, handout), call.produced_at, begin
+            ("tool_call", event.id, execution), call.produced_at, begin
         )
         if end is not None:
             call.after_span = self._bridge_span_of(
-                ("tool_result", event.id, handout), end
+                ("tool_result", event.id, execution), end
             )
 
     def _bridge_span_of(
@@ -1210,7 +1218,7 @@ class _Driver:
         after: int,
         before: int | None = None,
     ) -> str | None:
-        """The first bridge check with this stage, call id and handout that no call has taken and begins between the events at `after` and `before`."""
+        """The first bridge check with this stage, call id and execution that no call has taken and begins between the events at `after` and `before`."""
         spans = self.bridge_spans.get(key, [])
         for at, span in enumerate(spans):
             position = self.begins[span][0]
@@ -1229,9 +1237,9 @@ class _Driver:
                 approval, call.conversation, (begin, 1), call.seq + 1
             )
         if _bridged(event):
-            if self._links_host_call(call):
-                self.host_runs.add(event.id)
-                self._host_call(call, begin, end)
+            step_id = self._host_step_id(event) if self._links_host_call(call) else None
+            if step_id is not None:
+                self._host_call(call, step_id, begin, end)
             else:
                 # its checks still publish their decisions
                 self._settle_at_end(call.before_span)
@@ -1410,19 +1418,15 @@ class _Driver:
         scaffold reported (`message_id`, which the bridge sets only for a
         reply placed and run once, with no other reply's pending call matching
         the run), or a check the bridge recorded, of either stage, must be
-        paired with the run (`_take_bridge_checks`): by the run's handout
-        (`execution_id`, #6370), or, in a log from before the handout ids, by
-        the call id; where no `tool_call` check was recorded, as with a sentinel
-        that checks results only, the result check alone links it. Its run
-        must not share its id with a native call or an earlier run, since step
-        ids are unique in a sample. Else replay skips its steps, and warns.
+        paired with the run (`_take_bridge_checks`): by the run's execution
+        (`execution_id`, #6370), or, in a log from before the execution ids,
+        by the call id; where no `tool_call` check was recorded, as with a sentinel
+        that checks results only, the result check alone links it. Else, or
+        where its steps can't have an id of their own (`_host_step_id`),
+        replay skips its steps, and warns.
         """
         return (
-            # step ids are unique in a sample: a native call, or an earlier
-            # run, under the run's id keeps it
-            call.event.id not in self.native_ids
-            and call.event.id not in self.host_runs
-            and call.producer is not None
+            call.producer is not None
             and call.proposal is not None
             and call.assistant is not None
             and (
@@ -1432,17 +1436,44 @@ class _Driver:
             )
         )
 
-    def _host_call(self, call: _Call, begin: int, end: int | None) -> None:
+    def _host_step_id(self, event: ToolEvent) -> str | None:
+        """The id of the tool steps replay builds for a host run, as `_tool_step_id` names a native execution's, or None where they can't have one of their own.
+
+        The run's event has the id the call was handed over under, which its
+        checks record as their step id: the steps take it unless an earlier
+        rebuilt execution, native or bridged, took it, and then the run's
+        execution (`execution_id`, #6370). A run whose execution an earlier
+        run's steps took (a handout's tool run again) has none. In a log from
+        before the execution ids, a run under an id a native call or an
+        earlier run has has none.
+        """
+        if event.id in self.unnamed_native_ids:
+            return None
+        if event.execution_id is None:
+            if event.id in self.call_steps:
+                return None
+            self.call_steps[event.id] = None
+            return event.id
+        if event.execution_id in self.host_executions:
+            return None
+        self.host_executions.add(event.execution_id)
+        return self._tool_step_id(event)
+
+    def _host_call(
+        self, call: _Call, step_id: str, begin: int, end: int | None
+    ) -> None:
         """The steps of a sandbox bridge's host call, as the bridge built them live.
 
         The bridge checks each call of a response before the scaffold gets it,
-        once per handout, as the host tool it runs (`reviewed_calls`): under
+        once per handout and host tool it denotes (`reviewed_calls`): under
         the id it hands the call over under, with the host tool's name and the
         arguments approval left. It checks the result when the scaffold's
         next request carries it, as the tool message the scaffold sent, which
         the run's event names where the bridge linked it (`message_id`). Both
-        steps are keyed by the id the call was handed over under, which the
-        handout's first run has.
+        steps have `step_id` (`_host_step_id`). A run whose steps are named by
+        its execution has a `tool_result` step only where a result check names
+        that execution: a result reported under an id the bridge handed out
+        more than once is checked under none, without the call's proposal.
         """
         event = call.event
         proposal = call.proposal
@@ -1499,14 +1530,20 @@ class _Driver:
                 agent_messages=None,
                 record=self._record(conversation),
             )
-            self._built(event.id, "tool_call", step, before_span)
+            self._built(step_id, "tool_call", step, before_span)
 
         # checked once its model call returned, before the scaffold got it
         self._at_point(
             self._cut(before_span, (call.produced_at, 3)), call.seq, build_before
         )
         self._settle_at_end(before_span)
-        result = self._reported_result(event)
+        # a result reported under an id handed out more than once is checked
+        # under no execution and without its proposal, which replay can't give
+        result = (
+            self._reported_result(event)
+            if step_id == event.id or after_span is not None
+            else None
+        )
         if result is None:
             # its result check, if any, still publishes its decisions
             self._settle_at_end(after_span)
@@ -1534,7 +1571,7 @@ class _Driver:
                 agent_messages=None,
                 record=self._record(conversation),
             )
-            self._built(event.id, "tool_result", step, after_span)
+            self._built(step_id, "tool_result", step, after_span)
 
         after_cut = self._cut(after_span, (end if end is not None else call.index, 3))
         self._at_point(after_cut, call.seq + 2, build_after)
@@ -1554,7 +1591,7 @@ class _Driver:
         )
 
     def _run_approval(self, call: _Call) -> ApprovalEvent | None:
-        """The last approval recorded for a host call's handout between its model call and its run, by the handout's id (#6370), else, in a log from before it, by the model's call id."""
+        """The last approval recorded for a host call's execution between its model call and its run, by the execution's id (#6370), else, in a log from before it, by the model's call id."""
         proposal = call.proposal
         assert proposal is not None
         found = None
@@ -1731,7 +1768,7 @@ class _Driver:
         return None
 
     def _tool_step_id(self, event: ToolEvent) -> str:
-        """The id of the tool steps replay builds for a native execution: its call id, unless an earlier execution's steps took that id, then its `execution_id`.
+        """The id of the tool steps replay builds for an execution: its call id, unless an earlier execution's steps took that id, then its `execution_id`.
 
         Live records each execution's steps under the call id, so two
         executions of one id (a retry after a tool error, a provider that

@@ -2741,7 +2741,7 @@ async def test_a_host_run_matching_grants_of_two_handouts_names_neither(
 
 @pytest.mark.parametrize("shared", [False, True])
 @pytest.mark.parametrize("cached", [False, True])
-def test_a_host_call_handed_out_again_under_its_id_replays_its_first_handout(
+def test_a_host_call_handed_out_again_under_its_id_replays_under_its_execution(
     cached: bool,
     shared: bool,
     tmp_path: Path,
@@ -2775,13 +2775,15 @@ def test_a_host_call_handed_out_again_under_its_id_replays_its_first_handout(
             sample_uuid=sample.uuid or "",
             eval_info=EvalInfo.from_eval(log.eval),
         )
-    # both handouts ran under the model's call id, which a step id names once:
-    # the first handout's tool_call step is joined to its proposal and to the
-    # check naming its handout; the second handout's steps, and results the
-    # bridge didn't link to a run (`message_id`), are skipped with a warning
-    # rather than guessed
+    # both handouts ran under the model's call id: the first handout's
+    # tool_call step has it, and the second's, whose id is taken, is named by
+    # its execution, each joined to its proposal and to the check naming its
+    # execution. A cache hit's second handout names a message two model calls
+    # output, so it isn't tied to one proposal and is skipped, as are results
+    # the bridge didn't link to a run (`message_id`), with a warning
     assert [(s.stage, s.id) for s in replay if s.stage.startswith("tool")] == [
-        ("tool_call", "host_1")
+        ("tool_call", "host_1"),
+        *([] if cached else [("tool_call", runs[1].execution_id)]),
     ]
     [skipped] = [
         r.getMessage() for r in caplog.records if "Replay skipped" in r.message
