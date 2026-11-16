@@ -86,6 +86,12 @@ async def execute_host_tool(
     content) is truncated to the same output limit, in the same format
     (`truncate_tool_output`).
 
+    No sentinel stage runs here. A sentinel's `tool_call` check runs before
+    the call's grant is minted, and its `tool_result` check when the scaffold
+    sends the result back in a request (`sentinel_tool_results`), as for a
+    tool the scaffold runs itself: that request carries the call's id, which
+    an MCP call does not.
+
     Every request is recorded as one `ToolEvent` in a `tool` span, as a native
     call is, with `metadata["bridge"]` describing it (see `ToolEvent`). An
     execution that consumed a grant takes the proposing call's id and is
