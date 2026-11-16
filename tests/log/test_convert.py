@@ -7,9 +7,14 @@ from typing import Literal, NamedTuple
 import pytest
 from test_helpers.chunked_corpus import CORPUS_SMALL_CHUNK_SIZE, ChunkedCorpus
 
+from inspect_ai import Task
+from inspect_ai import eval as inspect_eval
 from inspect_ai._util.constants import get_deserializing_context
+from inspect_ai._util.hash import mm3_hash
+from inspect_ai.dataset import Sample
 from inspect_ai.event import ModelEvent, SampleInitEvent
 from inspect_ai.log import EvalError
+from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._convert import convert_eval_logs
 from inspect_ai.log._edit import (
     MetadataEdit,
@@ -37,6 +42,12 @@ from inspect_ai.log._recorders.chunked.format import (
 )
 from inspect_ai.log._recorders.chunked.stats import event_stats
 from inspect_ai.log._resolve import resolve_sample_events_data
+from inspect_ai.model import (
+    ChatMessageSystem,
+    ChatMessageUser,
+    ModelOutput,
+    get_model,
+)
 
 _TESTS_DIR = pathlib.Path(__file__).resolve().parent
 
@@ -805,3 +816,39 @@ def test_convert_chunked_cli_hidden():
     command = log_command.get_command(None, "convert-chunked")
     assert command is not None
     assert command.hidden
+
+
+def test_convert_chunked_keeps_literal_reference_text(tmp_path: pathlib.Path):
+    """A reply that reads like a reference survives chunking; real refs still resolve."""
+    system_prompt = "You are a careful assistant who answers in full. " * 4
+    literal = f"attachment://{mm3_hash(system_prompt)}"
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", literal)],
+    )
+    task = Task(
+        dataset=[
+            Sample(
+                input=[
+                    ChatMessageSystem(content=system_prompt),
+                    ChatMessageUser(content="hello"),
+                ]
+            )
+        ]
+    )
+    [log] = inspect_eval(
+        task, model=model, log_dir=str(tmp_path / "logs"), display="none"
+    )
+    assert log.location
+
+    output_dir = tmp_path / "chunked"
+    convert_eval_logs_to_chunked(log.location, str(output_dir), chunk_size=_CHUNK_SIZE)
+
+    with zipfile.ZipFile(output_dir / pathlib.Path(log.location).name) as zf:
+        sample, _ = _reassemble_chunked_sample(zf, 1, 1)
+    resolved = resolve_sample_attachments(sample, "full")
+    assert resolved.messages[0].text == system_prompt
+    assert resolved.messages[-1].text == literal
+    [model_event] = [e for e in resolved.events if isinstance(e, ModelEvent)]
+    assert model_event.input[0].text == system_prompt
+    assert model_event.output.message.text == literal

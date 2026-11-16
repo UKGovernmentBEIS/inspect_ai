@@ -7,7 +7,11 @@ from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import exists, filesystem
 from inspect_ai.log import resolve_sample_attachments
-from inspect_ai.log._condense import condense_sample
+from inspect_ai.log._condense import (
+    condense_raw_sample,
+    condense_sample,
+    escape_literal_refs,
+)
 from inspect_ai.log._file import (
     log_files_from_ls,
     read_eval_log,
@@ -96,6 +100,14 @@ def convert_eval_logs(
             )
         else:
             log = read_eval_log(input_file, resolve_attachments=resolve_attachments)
+            # resolved text is raw: write_eval_log's condense_sample, or a
+            # "core" read of attachments the model calls keep, would take
+            # literal reference text in it as references
+            if resolve_attachments and log.samples is not None:
+                if to == "eval":
+                    log.samples = [condense_raw_sample(s) for s in log.samples]
+                elif resolve_attachments == "core":
+                    log.samples = [escape_literal_refs(s) for s in log.samples]
             write_eval_log(log, output_file)
 
     if fs.info(path).type == "file":
@@ -133,12 +145,13 @@ async def _stream_convert_file(
         async with semaphore:
             sample = await input_recorder.read_log_sample(input_file, sample_id, epoch)
             if resolve_attachments:
-                sample = resolve_sample_attachments(sample, resolve_attachments)
+                sample = condense_raw_sample(
+                    resolve_sample_attachments(sample, resolve_attachments)
+                )
             else:
                 # Must resolve message pool refs before re-condensing,
                 # otherwise condense_sample will overwrite pools with empty lists
-                sample = resolve_sample_events_data(sample)
-            sample = condense_sample(sample)
+                sample = condense_sample(resolve_sample_events_data(sample))
             await output_recorder.log_sample(
                 log_header.eval,
                 sample,

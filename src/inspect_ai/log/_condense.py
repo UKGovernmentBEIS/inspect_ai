@@ -77,6 +77,15 @@ logger = getLogger(__name__)
 
 ATTACHMENT_PROTOCOL = "attachment://"
 
+CONTENT_PROTOCOL = "tc://"
+"""Legacy prefix for attachment references, read as ``attachment://``."""
+
+
+def _has_ref_prefix(text: str) -> bool:
+    """Whether readers would take ``text`` as an attachment reference."""
+    return text.startswith((ATTACHMENT_PROTOCOL, CONTENT_PROTOCOL))
+
+
 MAX_SAMPLE_DUMP_DEPTH = 250
 """Nesting depth at which a condensed sample is checked for serializability.
 
@@ -135,6 +144,14 @@ class WalkContext(TypedDict):
     identical object. Logged calls share wire-message objects across events
     (see ``CallMessageInterner``), so walking every event's call costs one
     walk per distinct message. Same lifetime rule as ``message_cache``.
+    """
+
+    call_fn: NotRequired[Callable[[str], str]]
+    """Content function for ``ModelEvent.call`` payloads (``walk_model_event``).
+
+    ``condense_raw_sample`` sets it because the transcript has already
+    condensed model calls while every other field is still raw. When absent,
+    calls go through ``content_fn``.
     """
 
     media_fn: NotRequired[Callable[[str], str]]
@@ -298,6 +315,12 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     `resolve_attachments()`. Removal of base64 encoded images is a
     one-way operation.
 
+    The sample is taken to be condensed already (read from a log without
+    resolving attachments, or returned by this function): a string that
+    begins with `attachment://` or `tc://` and names one of its attachments
+    is kept as a reference. Any other string with those prefixes is stored as
+    an attachment of its own, so it reads back as written.
+
     Args:
        sample (EvalSample): Eval sample to condense.
        log_images (bool): Should base64 images be logged for this sample.
@@ -305,18 +328,90 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     Returns:
        EvalSample: Eval sample in condensed form.
     """
+    return _condense_sample(sample, log_images, raw=False)
+
+
+def condense_raw_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
+    """Condense a sample whose fields hold raw values, except model calls.
+
+    For a sample just produced by a run, whose `ModelEvent.call` payloads the
+    transcript condensed while it ran, and for a sample resolved with
+    `"core"`, which has the same shape. Every string outside model calls
+    that begins with `attachment://` or `tc://` is literal text, even when it
+    names one of the sample's attachments, so it is stored as an attachment
+    of its own and reads back as written. Model calls are condensed as in
+    `condense_sample`.
+
+    Args:
+       sample: Eval sample to condense.
+       log_images: Should base64 images be logged for this sample.
+
+    Returns:
+       Eval sample in condensed form.
+    """
+    return _condense_sample(sample, log_images, raw=True)
+
+
+def escape_literal_refs(sample: EvalSample) -> EvalSample:
+    """Store literal reference text outside model calls as attachments of its own.
+
+    For a sample resolved with `"core"` that is written without condensing:
+    it keeps the attachments its model calls still reference, which a
+    literal `attachment://` or `tc://` string elsewhere could name. Each such
+    string becomes a reference to an attachment holding it, so it reads back
+    as written. Other content stays as it is.
+
+    Args:
+       sample: Sample resolved with `"core"`.
+
+    Returns:
+       The sample with its literal reference text stored as attachments.
+    """
+    attachments = dict(sample.attachments)
+    create_attachment = attachment_fn(attachments)
+
+    def content_fn(text: str) -> str:
+        return create_attachment(text) if _has_ref_prefix(text) else text
+
+    def context() -> WalkContext:
+        return WalkContext(message_cache={}, only_core=True)
+
+    return sample.model_copy(
+        update={
+            "input": walk_input(sample.input, content_fn, context()),
+            "messages": walk_chat_messages(sample.messages, content_fn, context()),
+            "events": walk_events(sample.events, content_fn, context()),
+            "error_retries": [
+                retry.model_copy(
+                    update={"events": walk_events(retry.events, content_fn, context())}
+                )
+                if retry.events is not None
+                else retry
+                for retry in sample.error_retries
+            ]
+            if sample.error_retries is not None
+            else None,
+            "attachments": attachments,
+        }
+    )
+
+
+def _condense_sample(sample: EvalSample, log_images: bool, raw: bool) -> EvalSample:
     existing_attachments = dict(sample.attachments)
     attachments = dict(existing_attachments)
     rewritten_attachments: set[str] = set()
-    events_fn = existing_attachments_content_fn(
-        existing_attachments,
-        rewritten_attachments,
-        events_attachment_fn(attachments, log_images),
+    events_policy = events_attachment_fn(attachments, log_images, escape_refs=True)
+    messages_policy = messages_attachment_fn(attachments, log_images, escape_refs=True)
+    call_fn = existing_attachments_content_fn(
+        existing_attachments, rewritten_attachments, events_policy
     )
-    messages_fn = existing_attachments_content_fn(
-        existing_attachments,
-        rewritten_attachments,
-        messages_attachment_fn(attachments, log_images),
+    events_fn = events_policy if raw else call_fn
+    messages_fn = (
+        messages_policy
+        if raw
+        else existing_attachments_content_fn(
+            existing_attachments, rewritten_attachments, messages_policy
+        )
     )
     # The events and messages walks rewrite content differently (events_fn
     # pools long text as attachments; messages_fn leaves it inline), so they
@@ -328,6 +423,7 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
         only_core=False,
         media_fn=messages_fn,
         call_message_cache={},
+        call_fn=call_fn,
     )
     messages_context = WalkContext(message_cache={}, only_core=False)
     condensed_events = walk_events(sample.events, events_fn, events_context)
@@ -336,6 +432,7 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
         only_core=False,
         media_fn=messages_fn,
         call_message_cache={},
+        call_fn=call_fn,
     )
     condensed_error_retries = (
         [
@@ -368,10 +465,7 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
         else []
     )
     existing_calls = (
-        [
-            walk_json_value(call, events_fn, existing_context)
-            for call in existing["calls"]
-        ]
+        [walk_json_value(call, call_fn, existing_context) for call in existing["calls"]]
         if existing
         else []
     )
@@ -461,16 +555,26 @@ def condense_event(
 
 
 def events_attachment_fn(
-    attachments: MutableMapping[str, str], log_images: bool = True
+    attachments: MutableMapping[str, str],
+    log_images: bool = True,
+    escape_refs: bool = False,
 ) -> Callable[[str], str]:
+    """Content function for events: strip images when requested and pool text over 100 characters.
+
+    Args:
+        attachments: Attachment map extracted content is written to.
+        log_images: Keep base64 images (otherwise they are removed).
+        escape_refs: Store a string that begins with `attachment://` or
+            `tc://` as an attachment of its own, so it reads back as written.
+            Only for raw values: a reference already in the input would be
+            stored as literal text.
+    """
     create_attachment = attachment_fn(attachments)
 
-    # for events, we want to strip images when requested and
-    # create attachments for text > 100
     def fn(text: str) -> str:
         if not log_images and is_data_uri(text):
             return BASE_64_DATA_REMOVED
-        elif len(text) > 100:
+        elif len(text) > 100 or (escape_refs and _has_ref_prefix(text)):
             return create_attachment(text)
         else:
             return text
@@ -479,18 +583,28 @@ def events_attachment_fn(
 
 
 def messages_attachment_fn(
-    attachments: MutableMapping[str, str], log_images: bool = True
+    attachments: MutableMapping[str, str],
+    log_images: bool = True,
+    escape_refs: bool = False,
 ) -> Callable[[str], str]:
+    """Content function for messages: pool or strip images, keep text inline.
+
+    Args:
+        attachments: Attachment map extracted content is written to.
+        log_images: Pool base64 images as attachments (otherwise they are
+            removed).
+        escape_refs: As for `events_attachment_fn`.
+    """
     create_attachment = attachment_fn(attachments)
 
-    # for messages, we only want to handle images (either stripping
-    # them or turning them into attachments as required)
     def fn(text: str) -> str:
         if is_data_uri(text):
             if log_images:
                 return create_attachment(text)
             else:
                 return BASE_64_DATA_REMOVED
+        elif escape_refs and _has_ref_prefix(text):
+            return create_attachment(text)
         else:
             return text
 
@@ -502,7 +616,13 @@ def existing_attachments_content_fn(
     rewritten_attachments: set[str],
     content_fn: Callable[[str], str],
 ) -> Callable[[str], str]:
-    """Apply a content policy to values referenced by existing attachments."""
+    """Apply a content policy to values referenced by existing attachments.
+
+    A string that begins with `attachment://` and names one of the
+    `existing` attachments is taken as a reference, and the policy is applied
+    to the attachment's value. A legacy `tc://` reference to one of them is
+    kept as it is. Every other string goes through the policy as it is.
+    """
 
     def fn(text: str) -> str:
         if text.startswith(ATTACHMENT_PROTOCOL):
@@ -513,6 +633,9 @@ def existing_attachments_content_fn(
                 if rewritten != text:
                     rewritten_attachments.add(hash)
                 return rewritten
+        elif text.startswith(CONTENT_PROTOCOL):
+            if text.removeprefix(CONTENT_PROTOCOL) in existing:
+                return text
         return content_fn(text)
 
     return fn
@@ -535,7 +658,6 @@ def resolve_attachment_fn(attachments: Mapping[str, str]) -> Callable[[str], str
 
     def content_fn(text: str) -> str:
         # migrate previous flavor of content reference
-        CONTENT_PROTOCOL = "tc://"
         if text.startswith(CONTENT_PROTOCOL):
             text = text.replace(CONTENT_PROTOCOL, ATTACHMENT_PROTOCOL, 1)
         if text.startswith(ATTACHMENT_PROTOCOL):
@@ -1079,7 +1201,9 @@ def walk_model_event(
             tools=walk_tools(event.tools, content_fn, context),
             input=walk_chat_messages(event.input, content_fn, context),
             output=walk_model_output(event.output, content_fn, context),
-            call=walk_model_call(event.call, content_fn, context),
+            call=walk_model_call(
+                event.call, context.get("call_fn", content_fn), context
+            ),
         ),
     )
 

@@ -109,6 +109,7 @@ from inspect_ai.log import (
 )
 from inspect_ai.log._condense import (
     SampleSerializationError,
+    condense_raw_sample,
     condense_sample,
     is_log_serializable,
     resolve_events_attachments,
@@ -3970,14 +3971,14 @@ async def log_sample(
         # still finalizes the buffer for live viewing.
         if logger.buffer_db is None or from_memory:
             await logger.complete_sample(
-                condense_sample(eval_sample, log_images), flush=True
+                condense_raw_sample(eval_sample, log_images), flush=True
             )
             return eval_sample
 
         # Events were bounded-evicted from memory: stream them back from the buffer
         # DB (the only place the full history still lives) without re-materializing
         # the whole sample in memory at once.
-        logging_sample = condense_sample(
+        logging_sample = condense_raw_sample(
             eval_sample.model_copy(update={"events": [], "events_data": None}),
             log_images,
         )
@@ -4017,7 +4018,7 @@ async def log_sample(
         )
         fallback_sample = sample_serialization_fallback(eval_sample, ex)
         await logger.complete_sample(
-            condense_sample(fallback_sample, log_images), flush=True
+            condense_raw_sample(fallback_sample, log_images), flush=True
         )
         return fallback_sample
 
@@ -4439,9 +4440,22 @@ def _seed_error_retries(sample: EvalSample) -> list[EvalRetryError]:
     Carries forward the sample's own `error_retries` (genuine failures from
     earlier attempts) and appends the terminal error — but only when that
     error is a genuine failure. A cancellation (sibling failure tore the
-    task down) is skipped so it doesn't inflate the retry count.
+    task down) is skipped so it doesn't inflate the retry count. Events come
+    back with their attachments resolved, as in the live sample that
+    `condense_raw_sample` condenses for the log.
     """
-    seed = list(sample.error_retries or [])
+    seed = [
+        retry.model_copy(
+            update={
+                "events": resolve_events_attachments(
+                    retry.events, sample.attachments, "full"
+                )
+            }
+        )
+        if retry.events is not None
+        else retry
+        for retry in sample.error_retries or []
+    ]
     if sample.error is not None and not _is_cancellation_error(sample.error):
         seed.append(_eval_retry_error_from_sample(sample))
     return seed
