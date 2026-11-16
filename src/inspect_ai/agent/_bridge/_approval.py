@@ -31,16 +31,14 @@ from typing import TYPE_CHECKING, Any, NamedTuple, NoReturn, Sequence
 
 from inspect_ai._sentinel._context import checks_tool_calls
 from inspect_ai._util.format import format_function_call
-from inspect_ai._util.json import json_equal
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._bridge._sentinel import (
     Produced,
     SentinelCheck,
+    json_exact,
     sentinel_tool_call,
 )
-from inspect_ai.agent._bridge.types import AgentBridge, DispatchedCall
-from inspect_ai.event._approval import ApprovalEvent
-from inspect_ai.event._sentinel import SentinelEvent
+from inspect_ai.agent._bridge.types import AgentBridge, BridgedToolId
 from inspect_ai.model._call_tools import (
     _CHANGED_IN_PLACE,
     _SENTINEL_MODIFIED_FUNCTION,
@@ -108,9 +106,6 @@ class BridgeApproval(NamedTuple):
     sentinel: list[SentinelCheck] | None = None
     """With an active sentinel, each handed call's result check and alternate targets."""
 
-    recorded: list[list[ApprovalEvent | SentinelEvent]] | None = None
-    """The approvals and `tool_call` steps recorded for each call, which take the id it is handed over under (`sentinel_tokens`)."""
-
 
 async def apply_bridge_tool_approval(
     bridge: AgentBridge,
@@ -118,15 +113,17 @@ async def apply_bridge_tool_approval(
     history: list[ChatMessage],
     tools: Sequence[ToolInfo | Tool] = (),
     producer: Produced | None = None,
+    execution_ids: Sequence[str] | None = None,
 ) -> BridgeApproval:
     """Approve the tool calls in a bridged model response.
 
     Calls are approved in order and evaluation stops at the first non-approval, so a
     human isn't asked to decide on calls that are about to be discarded anyway.
     `terminate` doesn't return, and neither does a `modify` decision that changes the
-    function called or the call's id: that is an error in the approver, and fails
-    the sample. An `approve` from an approver that changed the call it was shown in
-    place is a rejection. Both are judged against a snapshot of the call taken
+    function called or the call's id, or, while a sentinel is active, gives
+    arguments JSON can't carry exactly (`_modified_arguments_error`): that is an
+    error in the approver, and fails the sample. An `approve` from an approver
+    that changed the call it was shown in place is a rejection. Both are judged against a snapshot of the call taken
     before review, by the rules native execution uses (`approver_result_error`).
 
     Each call is reviewed as each tool it would run (`AgentBridge.reviewed_calls`),
@@ -138,8 +135,8 @@ async def apply_bridge_tool_approval(
 
     When a sentinel is active, once every call is approved each possible target
     goes through its `tool_call` stage in order: its `reject`, `modify` and
-    `terminate` take effect like an approver's, and a `modify` that changes the
-    function called or the call's id fails the sample. The response carries the
+    `terminate` take effect like an approver's, and a `modify` fails the sample
+    where an approver's would. The response carries the
     `tool_result` check for each call handed to the scaffold (`_sentinel.py`).
     A generation that is an agent turn has already been through the
     `model_input` and `model_output` stages inside `Model.generate()`; the
@@ -166,15 +163,15 @@ async def apply_bridge_tool_approval(
         producer: The generation whose output object `output` is, if known
             (`util._Generations`): its `ModelEvent`, and the agent span it ran
             in, whose conversation the call's steps are in.
+        execution_ids: The id of each call's handout, in order, which its
+            approvals and `tool_call` steps record as their `execution_id`
+            (`_Handouts.hand_over`); `None` records none.
 
     Returns:
         The response for the scaffold, plus the messages to replay to the model when
         the response was rejected.
     """
-    from inspect_ai.approval._apply import (
-        apply_tool_approval_recorded,
-        have_tool_approval,
-    )
+    from inspect_ai.approval._apply import apply_tool_approval, have_tool_approval
     from inspect_ai.approval._approval import Approval
     from inspect_ai.model._call_tools import approver_result_error
 
@@ -205,20 +202,25 @@ async def apply_bridge_tool_approval(
         # the caller hands to `_track_state` is untouched.
         approval_history = history + [output.message]
         message = output.message.text
-        recorded: list[list[ApprovalEvent | SentinelEvent]] = [[] for _ in tool_calls]
         modified: dict[int, dict[str, Any]] = {}
-        sentinel_reviewed: list[list[tuple[ToolCall, ToolCallViewer | None]]] = []
+        sentinel_reviewed: list[
+            list[tuple[ToolCall, ToolCallViewer | None, BridgedToolId | None]]
+        ] = []
         for index, call in enumerate(tool_calls):
+            execution_id = execution_ids[index] if execution_ids is not None else None
             reviewed_calls = bridge.reviewed_calls(call, tools)
             selected_reviewed = reviewed_calls.calls[0]
             if approval_active:
                 for target in reviewed_calls.calls:
                     reviewed = deepcopy(target)
                     shown = deepcopy(target)
-                    approved, approval, events = await apply_tool_approval_recorded(
-                        message, reviewed, None, approval_history
+                    approved, approval = await apply_tool_approval(
+                        message,
+                        reviewed,
+                        None,
+                        approval_history,
+                        execution_id=execution_id,
                     )
-                    recorded[index].extend(events)
                     error = (
                         approver_result_error(shown, reviewed, approval)
                         if approved
@@ -250,14 +252,23 @@ async def apply_bridge_tool_approval(
                         and approval.decision == "modify"
                         and approval.modified is not None
                     ):
-                        if len(reviewed_calls.calls) > 1:
-                            failure = RuntimeError(
+                        # with no sentinel no result is checked, and the
+                        # scaffold is handed the arguments' JSON form, as on main
+                        error = (
+                            _modified_arguments_error("An approver", approval.modified)
+                            if sentinel_active
+                            else None
+                        )
+                        if error is None and len(reviewed_calls.calls) > 1:
+                            error = (
                                 f"An approver modified a call to '{shown.function}' "
                                 "that would run several bridged tools sharing a "
                                 "description. A modified call can't be approved for "
                                 "all of them; give the bridged tools distinct "
                                 "descriptions."
                             )
+                        if error is not None:
+                            failure = RuntimeError(error)
                             bridge.request_fail(failure)
                             raise failure
                         modified[index] = reviewed_calls.dispatch(
@@ -271,6 +282,7 @@ async def apply_bridge_tool_approval(
                     zip(
                         [selected_reviewed, *reviewed_calls.calls[1:]],
                         reviewed_calls.viewers,
+                        reviewed_calls.targets,
                     )
                 )
             )
@@ -280,7 +292,7 @@ async def apply_bridge_tool_approval(
             checks = []
             for index, (call, targets) in enumerate(zip(tool_calls, sentinel_reviewed)):
                 target_checks: list[SentinelCheck] = []
-                for reviewed, viewer in targets:
+                for reviewed, viewer, bridged_tool in targets:
                     shown = deepcopy(reviewed)
                     offered = deepcopy(reviewed)
                     try:
@@ -291,7 +303,7 @@ async def apply_bridge_tool_approval(
                             offered,
                             viewer,
                             producer,
-                            recorded[index],
+                            execution_ids[index] if execution_ids is not None else None,
                         )
                     except ToolApprovalError as ex:
                         return BridgeApproval(
@@ -338,23 +350,20 @@ async def apply_bridge_tool_approval(
                             failure = RuntimeError(error)
                             bridge.request_fail(failure)
                             raise failure
-                        checked = decision.modified
+                        # only the arguments are adopted, as for an approver's
+                        # modify: the handed call keeps everything else
+                        checked = replace(shown, arguments=decision.modified.arguments)
                         modified[index] = bridge.reviewed_calls(call, tools).dispatch(
                             checked.arguments
                         )
                     target_checks.append(
                         SentinelCheck(
-                            handed=replace(
-                                call, arguments=modified.get(index, call.arguments)
-                            ),
                             call=checked,
                             viewer=viewer,
                             message=message,
                             message_id=output.message.id,
                             producer=producer,
-                            modified=not json_equal(
-                                modified.get(index, call.arguments), call.arguments
-                            ),
+                            target=bridged_tool,
                         )
                     )
                 checks.append(
@@ -367,20 +376,33 @@ async def apply_bridge_tool_approval(
     if modified:
         output = with_modified_arguments(output, modified)
 
-    return BridgeApproval(output, None, checks, recorded)
+    return BridgeApproval(output, None, checks)
 
 
 def _sentinel_modify_error(shown: ToolCall, modified: ToolCall) -> str | None:
-    """The native error for a sentinel `modify` that changes the function or id."""
+    """The error for a sentinel `modify` that changes the function or id (the native one), or gives arguments JSON can't carry exactly."""
     if modified.function != shown.function:
         return _SENTINEL_MODIFIED_FUNCTION.format(modified.function, shown.function)
-    return _modified_id_error("A sentinel monitor", shown, modified)
+    who = "A sentinel monitor"
+    return _modified_id_error(who, shown, modified) or _modified_arguments_error(
+        who, modified
+    )
 
 
-def _handed_arguments(
-    dispatched: DispatchedCall | None, reviewed: ToolCall
-) -> dict[str, Any]:
-    return dispatched.dispatch(reviewed.arguments) if dispatched else reviewed.arguments
+def _modified_arguments_error(who: str, modified: ToolCall) -> str | None:
+    """The error for a `modify` whose arguments JSON can't carry exactly.
+
+    The scaffold is handed the call as JSON. Natively such a modify is
+    refused too: its arguments must rebuild to themselves.
+    """
+    if json_exact(modified.arguments):
+        return None
+    return (
+        f"{who} modified a call to '{modified.function}' with arguments JSON "
+        "can't carry exactly (a tuple, bytes, a set or a subclass of a JSON "
+        "type, say). A bridged call is handed to the scaffold as JSON, so a "
+        "modify must give JSON values."
+    )
 
 
 def with_modified_arguments(
@@ -424,22 +446,20 @@ def rejection_messages(
     intended.
 
     `rejected` is one of `output`'s calls, found by position, as parallel calls can
-    share an id. The turn is replayed with each call under a fresh id carrying
-    its own replay state (`replay_ids`), answered by its own result.
+    share an id. The turn is replayed as it was generated, under the model's ids.
     """
-    from inspect_ai.agent._bridge._sentinel import replay_ids
-
-    calls = output.message.tool_calls or []
+    tool_calls = output.message.tool_calls or []
     position = next(
-        (index for index, call in enumerate(calls) if call is rejected),
-        next((index for index, call in enumerate(calls) if call.id == rejected.id), -1),
+        (index for index, call in enumerate(tool_calls) if call is rejected),
+        next(
+            (index for index, call in enumerate(tool_calls) if call.id == rejected.id),
+            -1,
+        ),
     )
-    message = replay_ids(output).message
-    tool_calls = message.tool_calls or []
     others = len(tool_calls) - 1
     description = describe_call(rejected)
 
-    messages: list[ChatMessage] = [message]
+    messages: list[ChatMessage] = [output.message]
     for index, call in enumerate(tool_calls):
         if index == position:
             text = explanation

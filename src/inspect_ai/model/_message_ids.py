@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, TypeVar, cast
@@ -11,6 +10,7 @@ import mmh3
 from shortuuid import uuid as shortuuid
 
 from inspect_ai._util.content import Content, ContentReasoning, ContentText
+from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import json_normalize_numbers, jsonable_python
 from inspect_ai.model._assistant_internal import copy_assistant_internal
 
@@ -175,13 +175,7 @@ def content_hash(message: ChatMessage) -> str:
     equals the same text as a content list. Empty text shows nothing, so an
     empty string, an empty list and a list with an empty text part are equal.
     """
-    return _content_digest(json.dumps(_shown(message), default=str))
-
-
-def _content_digest(shown: str) -> str:
-    # an id and the placement of a message rest on it, and the agent controls
-    # its messages, so it must be collision-resistant (`message_json_hash`)
-    return hashlib.sha256(shown.encode("utf-8", errors="backslashreplace")).hexdigest()
+    return mm3_hash(json.dumps(_shown(message), default=str))
 
 
 def same_content(a: ChatMessage, b: ChatMessage) -> bool:

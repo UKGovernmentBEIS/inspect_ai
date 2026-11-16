@@ -161,9 +161,29 @@ def is_claude_fable_5_1_model(model_name: str) -> bool:
     Both models reject forced tool choice; only Fable 5.1 additionally binds
     thinking blocks to their originating conversation prefix ("Claude Mythos
     5.1 doesn't run this check"). The 5.1 behaviors are assumed to persist in
-    later point releases.
+    later point releases (see `is_claude_fable_5_2_model` for 5.2's changes).
     """
     return _CLAUDE_FABLE_5_POINT_RELEASE.search(model_name) is not None
+
+
+# Fable 5.2 and later point releases, with the same exclusions as
+# _CLAUDE_FABLE_5_POINT_RELEASE (base release, 1M-context and date suffixes).
+# Mythos 5.2 is documented alike but is not matched until verified live; it
+# keeps the Mythos 5.1 handling.
+_CLAUDE_FABLE_5_2_OR_LATER = re.compile(
+    r"claude-fable-5[-.](?:[2-9]|[1-9]\d)(?![0-9A-Za-z])"
+)
+
+
+def is_claude_fable_5_2_model(model_name: str) -> bool:
+    """Fable 5.2 or a later Fable 5 point release.
+
+    On top of the 5.1 behaviors, Fable 5.2 rejects the `computer_20251124`
+    tool on every platform except Bedrock. This is assumed to persist in
+    later point releases.
+    https://platform.claude.com/docs/en/models/fable-5-2/whats-new-fable-5-2
+    """
+    return _CLAUDE_FABLE_5_2_OR_LATER.search(model_name) is not None
 
 
 # Opus 5.5 and later point releases (5-5, 5.5, 5-6, ..., 5-99) but not the base

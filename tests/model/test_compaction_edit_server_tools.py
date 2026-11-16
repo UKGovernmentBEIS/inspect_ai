@@ -29,11 +29,14 @@ from inspect_ai.model._compaction.edit import TOOL_RESULT_REMOVED, CompactionEdi
 from inspect_ai.tool import Tool, ToolDef, ToolResult
 
 
-def _create_web_search_tool(provider: str) -> Tool:
+def _create_web_search_tool(
+    provider: str, anthropic_options: dict[str, Any] | None = None
+) -> Tool:
     """Create a web_search tool configured for the specified provider.
 
     Args:
         provider: Either "anthropic" or "openai"
+        anthropic_options: Anthropic web search options (e.g. a tool `type`).
 
     Returns:
         A web_search tool that will use the provider's native implementation.
@@ -50,7 +53,9 @@ def _create_web_search_tool(provider: str) -> Tool:
 
     options: dict[str, Any] = {}
     if provider == "anthropic":
-        options["anthropic"] = {}  # Empty dict enables native web search
+        options["anthropic"] = (
+            anthropic_options or {}
+        )  # Empty dict enables native web search
     elif provider == "openai":
         options["openai"] = {}  # Empty dict enables native web search
 
@@ -199,10 +204,13 @@ async def check_server_tool_compaction(
 @skip_if_no_anthropic
 @pytest.mark.slow
 async def test_server_tool_compaction_anthropic_web_search() -> None:
-    """Test Anthropic native web_search tool compaction doesn't cause 400 errors."""
-    tools = [_create_web_search_tool("anthropic")]
+    """Test Anthropic native web_search tool compaction doesn't cause 400 errors.
+
+    Pins web_search_20250305; the _filtering test covers web_search_20260209.
+    """
+    tools = [_create_web_search_tool("anthropic", {"type": "web_search_20250305"})]
     await check_server_tool_compaction(
-        "anthropic/claude-sonnet-4-5",
+        "anthropic/claude-sonnet-5-5",
         tools=tools,
     )
 
@@ -239,9 +247,9 @@ async def test_server_tool_compaction_openai_web_search() -> None:
 @pytest.mark.slow
 async def test_server_tool_compaction_anthropic_with_thinking() -> None:
     """Test Anthropic server tool compaction combined with thinking compaction."""
-    tools = [_create_web_search_tool("anthropic")]
+    tools = [_create_web_search_tool("anthropic", {"type": "web_search_20250305"})]
     await check_server_tool_compaction(
-        "anthropic/claude-sonnet-4-5",
+        "anthropic/claude-sonnet-4-6",
         tools=tools,
         config=GenerateConfig(reasoning_tokens=2000),
     )

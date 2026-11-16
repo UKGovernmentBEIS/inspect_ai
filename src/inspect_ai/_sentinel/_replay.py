@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 from inspect_ai._util.content import Content
 from inspect_ai._util.json import json_equal, jsonable_python
-from inspect_ai.agent._bridge.sandbox.host_tool import delivered_host_tool_content
 from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._event import Event
@@ -103,9 +102,9 @@ def steps_from_events(
 
     In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later; older or unknown versions omit them and warn once when a selected human approver appears. A `tool_call` step whose call an approver changed has no `view.context`: the `ApprovalEvent` view describes the call the approver was shown, and live renders the changed call's context again, which the log does not record. A log is refused where the call an approval approved (its modified call, else the call it records) is not the call its `ToolEvent` records, unless a recorded sentinel modify changed the call again to the one the `ToolEvent` records. Inspect before 0.3.277 wrote such logs, including for a call an approver changed in place and approved without a modified call, and they are refused whatever version the header records, since a retried eval keeps its completed samples under a newer header. This includes an approved call whose tool records other arguments than it was given, such as `memory()` resolving a path: the log does not show which implementation ran. Replay such a transcript from its messages instead. Where such a call has no recorded step and its `ToolEvent` has a parsing or approval error, it may have been refused before it ran or raised the error after running, so replay skips its tool steps with a warning naming the call instead of refusing the log.
 
-    A tool call is joined to the model call that proposed it by the id of the message its `ToolEvent` records (`call_message_id`, written since inspect_ai #6143), and to its result by its tool message's id (`message_id`). Where the event records no proposing message (an older log), or the id names several model calls' output (a cached output reused), a native call's producer is the latest model call that proposed its id (in the call's own conversation, where model calls in several conversations proposed it), a bridge's generation included. A native call's recorded checks are those under its id between its own events: its `tool_call` check after its producer and before its tool span, and its `tool_result` check after its tool span and before a later model call proposed its id again in its conversation.
+    A tool call is joined to the model call that proposed it by the id of the message its `ToolEvent` records (`call_message_id`, written since inspect_ai #6143), and a call no model call proposed (a pre-filled message) to the message holding it, by the same id. Where the event records no proposing message (an older log), or the id names several model calls' output (a cached output reused), a native call's producer is the latest model call that proposed its id before the call (in the call's own conversation, where model calls in several conversations proposed it), a bridge's generation included.
 
-    A host call a sandbox bridge ran (`ToolEvent.metadata["bridge"]`) is replayed where its event ties it to its proposal and its run exactly: its proposing message is one model call's output holding the call under the model's id (`proposal_id`), and either the bridge linked the run to its answer (`message_id`) or a check the bridge recorded names the proposal and the run (`SentinelEvent.execution_id`, else the call id). Its `tool_call` step is the call as the bridge checked it, under the model's id, with the host tool's name and the arguments it ran with (a sentinel's modify aside), once per proposal, keyed by the id its first run has; each run's `tool_result` step holds the result as the service delivered it, keyed by the run's id: rebuilt from the `ToolEvent`'s result as the service converts it, except that an error's text is the tool's, not the service's wrapper, and a single content item other than an image, which the event records as a list of one, is delivered as that list. Other host calls, and the calls a bridged scaffold ran itself, which leave no `ToolEvent`, are skipped, and a warning names them. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A bridge's tool checks are recorded in spans named `sentinel_bridge`, so a native call under an id a bridge also checked keeps its own checks.
+    A host call a sandbox bridge ran (`ToolEvent.metadata["bridge"]`) is replayed where its event ties it to its proposal and its run exactly: its proposing message is one model call's output holding the call under the model's id (`proposal_id`), and either the bridge linked the run to the tool message the scaffold reported its result in (`message_id`) or the bridge's `tool_call` check names the run's handout (`SentinelEvent.execution_id`). Its `tool_call` step is the call as the bridge checked it, under the id the scaffold was handed it under, with the host tool's name and the arguments it ran with (a sentinel's modify aside), once per handout. Its `tool_result` step holds the tool message `message_id` names, which the bridge checked when the scaffold's next request carried it; a run with no such link has no `tool_result` step. Step ids are unique in a sample, so a host call under an id a native call or an earlier replayed host call has is skipped. Other host calls, and the calls a bridged scaffold ran itself, which leave no `ToolEvent`, are skipped, and a warning names them. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A bridge's tool checks are recorded in spans named `sentinel_bridge`, so a native call under an id a bridge also checked keeps its own checks.
 
     A transcript Scout imported from another source (`eval_info` is None) replays from its events where Scout records which model calls its messages come from (`messages_from`): its turns are inferred as for a log without origins, and its tool steps come from its messages, each assistant message joined by its id to the turn whose output it is, which gives the steps that turn's input, tools and conversation; a message no one turn made is placed after the last message before it that one did, with no input. Its tool events are not read: importers record them without the model's call ids.
 
@@ -441,9 +440,23 @@ class _Proposals:
         self._by_conversation: dict[tuple[str, str], _Proposal] = {}
         # the one conversation proposing each id; None once several have
         self._conversation: dict[str, str | None] = {}
+        # every proposal of each id, in log order, and whether those up to
+        # each one are of one conversation (`execution_owner`)
+        self._history: dict[str, list[_Proposal]] = {}
+        self._one_conversation: dict[str, list[bool]] = {}
+        # the proposals of each id by their output message's id
+        self._by_message: dict[tuple[str, str | None], list[_Proposal]] = {}
 
     def add(self, proposal: _Proposal) -> None:
         id = proposal.call.id
+        history = self._history.setdefault(id, [])
+        single = self._one_conversation.setdefault(id, [])
+        single.append(
+            not history
+            or (single[-1] and history[-1].conversation == proposal.conversation)
+        )
+        history.append(proposal)
+        self._by_message.setdefault((id, proposal.message.id), []).append(proposal)
         self._latest[id] = proposal
         self._by_span[(id, proposal.event.span_id)] = proposal
         self._by_conversation[(id, proposal.conversation)] = proposal
@@ -463,6 +476,59 @@ class _Proposals:
         found = self._by_conversation.get((id, conversation))
         return found if found is not None else self._by_span.get((id, span_id))
 
+    def named(self, id: str, message_id: str | None, before: int) -> list[_Proposal]:
+        """The proposals of the call `id` in the output message `message_id` (`ToolEvent.call_message_id`) complete before the event at `before`: several only where one output was returned again (a cache hit), or holds the id twice."""
+        if message_id is None:
+            return []
+        return [
+            proposal
+            for proposal in self._by_message.get((id, message_id), [])
+            if proposal.position < before
+        ]
+
+    def exact(
+        self, id: str | None, message_id: str | None, before: int
+    ) -> _Proposal | None:
+        """The one proposal `named`, or None where there is none or several."""
+        named = self.named(id, message_id, before) if id is not None else []
+        return named[0] if len(named) == 1 else None
+
+    def execution_owner(
+        self,
+        id: str,
+        span_id: str | None,
+        conversation: str,
+        message_id: str | None,
+        before: int,
+    ) -> _Proposal | None:
+        """The proposal a native call came from, by the rules of `owner` among the proposals complete before the call's first recorded event (`before`).
+
+        The proposal whose output message ran the call (`ToolEvent.call_message_id`)
+        is exact; several share it only where one output was returned again
+        (a cache hit), which proposes the same call. Without one (a log
+        written before the id, or a message the agent edited or built), any
+        proposal of the id before `before` is taken. For an execution
+        (`ToolEvent.execution_id`), `before` is the completion of its first
+        approval, which runs before its check, else the begin of its
+        `tool_call` check span (`_first_event_of`). A turn proposed while that
+        check awaited comes after it and is never taken; a turn proposed while
+        an approval awaited comes before the approval's completion, and can
+        be. For a call recorded without one, it is the call's `ToolEvent`.
+        """
+        named = self.named(id, message_id, before)
+        if named:
+            return _owned(named, None, span_id, conversation)
+        history = self._history.get(id, [])
+        end = bisect_left(history, before, key=lambda p: p.position)
+        if end == 0:
+            return None
+        return _owned(
+            history[:end],
+            self._one_conversation[id][end - 1],
+            span_id,
+            conversation,
+        )
+
     def approval_key(
         self, id: str, owner: _Proposal | None, conversation: str
     ) -> tuple[str, str | None]:
@@ -472,6 +538,25 @@ class _Proposals:
         if owner is not None:
             return (id, owner.conversation)
         return (id, conversation if self.proposed(id) else None)
+
+
+def _owned(
+    proposals: Sequence[_Proposal],
+    one_conversation: bool | None,
+    span_id: str | None,
+    conversation: str,
+) -> _Proposal | None:
+    """`_Proposals.owner` among `proposals`, in log order; `one_conversation` says whether they are of one conversation, None to find out."""
+    if one_conversation is None:
+        one_conversation = len({proposal.conversation for proposal in proposals}) == 1
+    if one_conversation:
+        return proposals[-1]
+    found = next(
+        (p for p in reversed(proposals) if p.conversation == conversation), None
+    )
+    if found is not None:
+        return found
+    return next((p for p in reversed(proposals) if p.event.span_id == span_id), None)
 
 
 @dataclass
@@ -488,17 +573,11 @@ class _Call:
     seq: int
     # the call's `tool` span (_tool_spans)
     tool_span: str | None
-    # whether its producer, or the message holding a call no model call
-    # produced, was found by the id its ToolEvent records (`call_message_id`)
-    by_id: bool = False
     # the sentinel spans of the call's checks (_take_checks)
     before_span: str | None = None
     after_span: str | None = None
-    # where a later call under its id was produced: its result check began
-    # before then (_take_checks)
-    until: int | None = None
-    # for a sandbox bridge's host call, whether it is its proposal's first run,
-    # which has the proposal's tool_call step
+    # for a sandbox bridge's host call, whether it is its handout's first run,
+    # which has the handout's tool_call step
     first_run: bool = True
 
 
@@ -567,11 +646,14 @@ class _Driver:
         # (stage, step id) -> the sentinel span of the step, for generate steps
         self.step_spans: dict[tuple[SentinelStage, str], str] = {}
         # (stage, call id) -> the sentinel spans of native tool steps with that
-        # id, in log order: a model can reuse a call id
+        # id that name no execution, in log order: a model can reuse a call id
         self.tool_spans: dict[tuple[SentinelStage, str], list[str]] = {}
-        # (stage, call id, run) -> the sentinel spans of bridge tool checks
-        # (BRIDGE_CHECK_SPAN), in log order; the run is the id the scaffold was
-        # handed the call under (`execution_id`, else the call id)
+        # (stage, execution id) -> the sentinel spans of native tool steps
+        # that name the execution they judged (`SentinelEvent.execution_id`)
+        self.execution_spans: dict[tuple[SentinelStage, str], list[str]] = {}
+        # (stage, call id, handout) -> the sentinel spans of bridge tool checks
+        # (BRIDGE_CHECK_SPAN), in log order; the handout is the one the check
+        # names (`execution_id`), else the call id
         self.bridge_spans: dict[tuple[SentinelStage, str, str], list[str]] = {}
         self.span_events: dict[str, list[SentinelEvent]] = {}
         # the sentinel spans whose invocation raised or was cancelled
@@ -587,13 +669,13 @@ class _Driver:
         self.skipped: list[str] = []
         # call id -> the indexes of the model events that proposed it
         self.proposed: dict[str, list[int]] = {}
-        # output message id -> the indexes of the model events that produced it
-        # (more than one for a cached output reused)
-        self.outputs: dict[str, list[int]] = {}
-        # (call id, run) -> the approvals recorded for it, in log order
-        self.run_approvals: dict[tuple[str, str], list[tuple[int, ApprovalEvent]]] = {}
-        # (producer index, call id) of each host call proposal run so far
-        self.runs: dict[tuple[int, str], str] = {}
+        # the ids of model calls' output messages
+        self.outputs: set[str] = set()
+        # the approvals recorded for each handout (`execution_id`), else, in a
+        # log from before the id, for each call id, in log order
+        self.run_approvals: dict[str, list[tuple[int, ApprovalEvent]]] = {}
+        # (producer index, call id, handout) of each host call handout run so far
+        self.runs: set[tuple[int, str, str | None]] = set()
         # the ids of native calls, and of the host runs replayed
         self.native_ids: set[str] = set()
         self.host_runs: set[str] = set()
@@ -635,6 +717,11 @@ class _Driver:
         # approvals a ToolEvent can consume, by call id and owning conversation
         # (None before any model call proposed the id)
         approvals: dict[tuple[str, str | None], tuple[int, ApprovalEvent]] = {}
+        # approvals that name the execution they judged, by its id
+        execution_approvals: dict[str, tuple[int, ApprovalEvent]] = {}
+        # the index of the first approval naming each execution, recorded when
+        # the approval completed
+        first_approvals: dict[str, int] = {}
         approval_entries: list[tuple[int, ApprovalEvent, str]] = []
         unplaced_approvals: list[tuple[int, ApprovalEvent]] = []
         consumed_approvals: set[int] = set()
@@ -658,7 +745,7 @@ class _Driver:
                 calls_made.add(event.uuid)
                 message_id = producing_message_id(event)
                 if message_id is not None:
-                    self.outputs.setdefault(message_id, []).append(index)
+                    self.outputs.add(message_id)
                     message = event.output.choices[0].message
                     proposed_in = self._conversation(event)
                     for tool_call in message.tool_calls or []:
@@ -693,14 +780,18 @@ class _Driver:
                 if self.imported or self._in_sentinel_span(event.span_id):
                     continue
                 self.run_approvals.setdefault(
-                    (event.call.id, event.execution_id or event.call.id), []
+                    event.execution_id or event.call.id, []
                 ).append((index, event))
                 own = self._conversation(event)
                 owner = proposals.owner(event.call.id, event.span_id, own)
-                approvals[proposals.approval_key(event.call.id, owner, own)] = (
-                    index,
-                    event,
-                )
+                if event.execution_id is not None:
+                    execution_approvals[event.execution_id] = (index, event)
+                    first_approvals.setdefault(event.execution_id, index)
+                else:
+                    approvals[proposals.approval_key(event.call.id, owner, own)] = (
+                        index,
+                        event,
+                    )
                 if owner is None and proposals.proposed(event.call.id):
                     unplaced_approvals.append((index, event))
                 else:
@@ -716,17 +807,28 @@ class _Driver:
                 if self.imported or self._in_sentinel_span(event.span_id):
                     continue
                 own = self._conversation(event)
-                # the model call that proposed it, by the message id its event
-                # records, else, in a log from before that id or where it is
-                # ambiguous, the latest proposal of its call id (`_Proposals`);
-                # a host call is not given a proposal by call id
-                owner = self._proposal_by_id(event)
                 # a call no model call produced (a pre-filled message): the
-                # message holding it, by the same id
-                prefilled = None if owner is not None else self._prefilled_by_id(event)
-                by_id = owner is not None or prefilled is not None
-                if not by_id and not _bridged(event):
-                    owner = proposals.owner(event.id, event.span_id, own)
+                # message holding it, by the id its event records
+                prefilled = None if _bridged(event) else self._prefilled_by_id(event)
+                if _bridged(event):
+                    # a host call is not given a proposal by call id
+                    owner = proposals.exact(
+                        _proposal_id(event), event.call_message_id, index
+                    )
+                elif prefilled is not None:
+                    owner = None
+                else:
+                    owner = proposals.execution_owner(
+                        event.id,
+                        event.span_id,
+                        own,
+                        event.call_message_id,
+                        index
+                        if event.execution_id is None
+                        else self._first_event_of(
+                            event.execution_id, index, first_approvals
+                        ),
+                    )
                 producer: ModelEvent | None = None
                 produced_at = -1
                 assistant: ChatMessageAssistant | None
@@ -751,6 +853,8 @@ class _Driver:
                 recorded_approval = (
                     None
                     if _bridged(event)
+                    else execution_approvals.pop(event.execution_id, None)
+                    if event.execution_id is not None
                     else approvals.pop(
                         proposals.approval_key(event.id, owner, own), None
                     )
@@ -768,7 +872,6 @@ class _Driver:
                     recorded_approval[1] if recorded_approval is not None else None,
                     self._next_seq(3),
                     tool_spans.get(index),
-                    by_id,
                 )
                 calls.append(entry)
 
@@ -809,12 +912,6 @@ class _Driver:
                         (index, 2),
                         self._next_seq(),
                     )
-        _bound_result_checks(
-            calls,
-            lambda call: (
-                call.producer is not None and is_agent_turn(self._origin(call.producer))
-            ),
-        )
         self.native_ids = {c.event.id for c in calls if not _bridged(c.event)}
         for entry in calls:
             self._take_checks(entry)
@@ -856,9 +953,13 @@ class _Driver:
         key = (event.stage, event.step_id)
         if event.stage in ("tool_call", "tool_result"):
             if self.begins[span][1].name == BRIDGE_CHECK_SPAN:
-                run = event.execution_id or event.step_id
+                handout = event.execution_id or event.step_id
                 self.bridge_spans.setdefault(
-                    (event.stage, event.step_id, run), []
+                    (event.stage, event.step_id, handout), []
+                ).append(span)
+            elif event.execution_id is not None:
+                self.execution_spans.setdefault(
+                    (event.stage, event.execution_id), []
                 ).append(span)
             else:
                 self.tool_spans.setdefault(key, []).append(span)
@@ -1041,9 +1142,18 @@ class _Driver:
         )
 
     def _take_checks(self, call: _Call) -> None:
-        """Pair a native call with the first of its recorded checks no earlier call took, in log order.
+        """Pair a native call with its recorded checks.
 
-        A call its approver refused never ran, so takes no result check.
+        A call whose `ToolEvent` records its `execution_id` takes the checks
+        that name it, wherever they are in the log. Otherwise (a log written
+        before the id) it takes the first of its recorded checks under its
+        call id that no earlier call took, in log order. Then a call that
+        never ran takes no result check, which is then a later call's under
+        its id: one its approver refused, or one rejected before its step was
+        built (invalid or malformed arguments, an unknown tool), which has a
+        parsing or approval error and no check of the call. A tool that
+        raised such an error itself ran after that check, and keeps its
+        result check.
         """
         event = call.event
         tool_span = call.tool_span
@@ -1054,38 +1164,50 @@ class _Driver:
         if _bridged(event):
             self._take_bridge_checks(call, begin, end)
             return
+        if event.execution_id is not None:
+            call.before_span = self._execution_span_of("tool_call", event.execution_id)
+            call.after_span = self._execution_span_of("tool_result", event.execution_id)
+            return
         call.before_span = self._tool_span_of(
             ("tool_call", event.id), call.produced_at, begin
         )
-        if end is not None and not _approval_refused(call.approval):
+        never_ran = _approval_refused(call.approval) or (
+            call.before_span is None
+            and event.error is not None
+            and event.error.type in ("parsing", "approval")
+        )
+        if end is not None and not never_ran:
             call.after_span = self._tool_span_of(
-                ("tool_result", event.id),
-                end,
-                call.until,
-                ending=event.failed is True,
+                ("tool_result", event.id), end, ending=event.failed is True
             )
 
     def _take_bridge_checks(self, call: _Call, begin: int, end: int | None) -> None:
-        """Pair a sandbox bridge's host call with its recorded checks, by the call's id and the id of the run they checked.
+        """Pair a sandbox bridge's host call with its recorded checks, by the id the call was handed to the scaffold under and the handout they checked.
 
         The bridge checks every call of a response before the scaffold gets it,
-        so a proposal's `tool_call` check is before its first run, under the id
-        its first run has (#6370: `execution_id`, else the call id); each run's
-        result is checked after its tool span ends, under the run's own id.
+        so a handout's `tool_call` check is before its first run; its result
+        is checked when the scaffold's next request carries it, after the run.
+        Both are under the id the scaffold was handed the call under, which
+        its first run's event has, and name the handout (`execution_id`,
+        #6370); a result check names none where the bridge could not tell
+        which handout it answers, and is not paired. In a log from before the
+        handout ids, they are paired by the call id alone.
         """
         proposal = call.proposal
-        if not call.by_id or proposal is None:
+        if call.producer is None or proposal is None:
             return
-        run = (call.produced_at, proposal.id)
+        event = call.event
+        run = (call.produced_at, proposal.id, event.execution_id)
         call.first_run = run not in self.runs
-        self.runs.setdefault(run, call.event.id)
+        self.runs.add(run)
+        handout = event.execution_id or event.id
         if call.first_run:
             call.before_span = self._bridge_span_of(
-                ("tool_call", proposal.id, call.event.id), call.produced_at, begin
+                ("tool_call", event.id, handout), call.produced_at, begin
             )
         if end is not None:
             call.after_span = self._bridge_span_of(
-                ("tool_result", proposal.id, call.event.id), end
+                ("tool_result", event.id, handout), end
             )
 
     def _bridge_span_of(
@@ -1094,7 +1216,7 @@ class _Driver:
         after: int,
         before: int | None = None,
     ) -> str | None:
-        """The first bridge check with this stage, call id and run that no call has taken and begins between the events at `after` and `before`."""
+        """The first bridge check with this stage, call id and handout that no call has taken and begins between the events at `after` and `before`."""
         spans = self.bridge_spans.get(key, [])
         for at, span in enumerate(spans):
             position = self.begins[span][0]
@@ -1141,26 +1263,36 @@ class _Driver:
             and approval.modified is not None
             else None
         )
-        checked = before_span is not None or (
-            tool_span is not None
-            # the call was rejected before its step was built: by validation
-            # or a viewer that raised, or with every instance abstaining, by
-            # a tool that raised ToolParsingError or ToolApprovalError itself,
-            # which reads the same
-            and (event.error is None or event.error.type not in ("parsing", "approval"))
-            and proposal.parse_error is None
-            and (
-                call.producer is None
-                or any(tool.name == proposal.function for tool in call.producer.tools)
-            )
-            and (
-                approval is None
-                or approval.decision == "approve"
-                or (
-                    approval.decision == "modify"
-                    and (
-                        approver_modified is None
-                        or approver_modified.function == proposal.function
+        checked = (
+            before_span is not None
+            # a result check paired by execution id is of a call that ran
+            or (after_span is not None and event.execution_id is not None)
+            or (
+                tool_span is not None
+                # the call was rejected before its step was built: by
+                # validation or a viewer that raised, or with every instance
+                # abstaining, by a tool that raised ToolParsingError or
+                # ToolApprovalError itself, which reads the same
+                and (
+                    event.error is None
+                    or event.error.type not in ("parsing", "approval")
+                )
+                and proposal.parse_error is None
+                and (
+                    call.producer is None
+                    or any(
+                        tool.name == proposal.function for tool in call.producer.tools
+                    )
+                )
+                and (
+                    approval is None
+                    or approval.decision == "approve"
+                    or (
+                        approval.decision == "modify"
+                        and (
+                            approver_modified is None
+                            or approver_modified.function == proposal.function
+                        )
                     )
                 )
             )
@@ -1279,18 +1411,18 @@ class _Driver:
         (`call_message_id`, #6143), naming one model call's output with one
         call under the model's id (`proposal_id`). That id names the reply the
         bridge granted the run to, which is the reply that ran only where the
-        bridge could tell: so the run must also be linked to its answer
-        (`message_id`, which the bridge sets only for a reply placed and run
-        once, with no other reply's pending call matching the run), or a check
-        the bridge recorded must name the proposal and the run (#6370). Its run
-        must not share its id with a native call or an earlier run, since step
-        ids are unique in a sample. Else replay skips its steps, and warns.
+        bridge could tell: so the run must also be linked to the result the
+        scaffold reported (`message_id`, which the bridge sets only for a
+        reply placed and run once, with no other reply's pending call matching
+        the run), or a check the bridge recorded must name the run's handout
+        (`execution_id`, #6370). Its run must not share its id with a native
+        call or an earlier run, since step ids are unique in a sample. Else
+        replay skips its steps, and warns.
         """
         return (
-            call.by_id
             # step ids are unique in a sample: a native call, or an earlier
             # run, under the run's id keeps it
-            and call.event.id not in self.native_ids
+            call.event.id not in self.native_ids
             and call.event.id not in self.host_runs
             and call.producer is not None
             and call.proposal is not None
@@ -1306,14 +1438,13 @@ class _Driver:
         """The steps of a sandbox bridge's host call, as the bridge built them live.
 
         The bridge checks each call of a response before the scaffold gets it,
-        once per proposal, as the host tool it runs (`reviewed_calls`): under
-        the model's call id, with the host tool's name and the arguments
-        approval left. It checks each run's result after the run, as the
-        service delivered it, which replay rebuilds from the `ToolEvent`'s
-        result as the service converts it (`delivered_host_tool_content()`);
-        its step is
-        keyed by the id the run has (`execution_id`, else the call id), as is
-        its `tool_call` step for its proposal's first run.
+        once per handout, as the host tool it runs (`reviewed_calls`): under
+        the id it hands the call over under, with the host tool's name and the
+        arguments approval left. It checks the result when the scaffold's
+        next request carries it, as the tool message the scaffold sent, which
+        the run's event names where the bridge linked it (`message_id`). Both
+        steps are keyed by the id the call was handed over under, which the
+        handout's first run has.
         """
         event = call.event
         proposal = call.proposal
@@ -1334,7 +1465,10 @@ class _Driver:
             arguments = approver_modified.arguments
         else:
             arguments = _reviewed_arguments(proposal)
-        before_call = replace(proposal, function=event.function, arguments=arguments)
+        # under the id the scaffold was handed it under, which its first run has
+        before_call = replace(
+            proposal, id=event.id, function=event.function, arguments=arguments
+        )
         shown = approval.view if approval is not None else None
         if modify is None:
             before_view = ToolCallView(
@@ -1375,35 +1509,18 @@ class _Driver:
                 self._cut(before_span, (call.produced_at, 3)), call.seq, build_before
             )
             self._settle_at_end(before_span)
-        ran = after_span is not None or (
-            (
-                event.error is None
-                or event.error.type not in ("parsing", "approval", "cancelled")
-            )
-            and not event.failed
-            and not event.pending
-        )
-        if not ran:
+        result = self._reported_result(event)
+        if result is None:
+            # its result check, if any, still publishes its decisions
+            self._settle_at_end(after_span)
+            if after_span is not None:
+                self.skipped.append(event.id)
             return
         after_call = replace(
             modify if modify is not None else before_call,
             function=event.function,
             arguments=event.arguments,
         )
-        # as the service delivered it (an error's content is the tool's),
-        # answering the id the run has; under the agent's tool message's id
-        # where the bridge linked it, else, so that replay is deterministic,
-        # its event's
-        result = ChatMessageTool(
-            id=event.message_id or event.uuid,
-            content=cast(str | list[Content], event.result)
-            if event.error is not None
-            else delivered_host_tool_content(event.result),
-            tool_call_id=event.id,
-            function=event.function,
-            error=event.error,
-        )
-        truncated = self._truncated(event)
 
         def build_after() -> None:
             step = after_tool_call(
@@ -1414,7 +1531,8 @@ class _Driver:
                 view=ToolCallView(call=event.view or _default_view(after_call)),
                 result=result,
                 output=None,
-                truncated=truncated,
+                # as live, which checks the scaffold's message, not the cut
+                truncated=None,
                 producer=producer,
                 agent_messages=None,
                 record=self._record(conversation),
@@ -1425,13 +1543,26 @@ class _Driver:
         self._at_point(after_cut, call.seq + 2, build_after)
         self._settle_at_end(after_span)
 
+    def _reported_result(self, event: ToolEvent) -> ChatMessageTool | None:
+        """The tool message the agent reported a host call's result in, which the bridge linked to its run (`ToolEvent.message_id`)."""
+        if event.message_id is None:
+            return None
+        return next(
+            (
+                message
+                for message in self._messages_by_id_all().get(event.message_id, [])
+                if isinstance(message, ChatMessageTool)
+            ),
+            None,
+        )
+
     def _run_approval(self, call: _Call) -> ApprovalEvent | None:
-        """The last approval recorded for a host call's proposal between its model call and its run, by the call's id and the run its proposal was handed as (#6370)."""
+        """The last approval recorded for a host call's handout between its model call and its run, by the handout's id (#6370), else, in a log from before it, by the model's call id."""
         proposal = call.proposal
         assert proposal is not None
-        handed = self.runs.get((call.produced_at, proposal.id), call.event.id)
         found = None
-        for index, approval in self.run_approvals.get((proposal.id, handed), []):
+        key = call.event.execution_id or proposal.id
+        for index, approval in self.run_approvals.get(key, []):
             if call.produced_at < index < call.index:
                 found = approval
         return found
@@ -1585,6 +1716,29 @@ class _Driver:
                 return spans.pop(at)
         return None
 
+    def _first_event_of(
+        self, execution_id: str, index: int, first_approvals: dict[str, int]
+    ) -> int:
+        """The index of the first event of a native execution: the start of its `tool_call` check, the completion of its first approval, or its `ToolEvent` (`index`).
+
+        Each is recorded after the generation that proposed the call is. A
+        check's span begins when the check starts, but an approval is recorded
+        when it completes, so the bound excludes a turn proposed while the
+        check awaited, not one proposed while an approval awaited.
+        """
+        first = [index]
+        if execution_id in first_approvals:
+            first.append(first_approvals[execution_id])
+        spans = self.execution_spans.get(("tool_call", execution_id))
+        if spans:
+            first.append(self.begins[spans[0]][0])
+        return min(first)
+
+    def _execution_span_of(self, stage: SentinelStage, execution_id: str) -> str | None:
+        """The first native check at `stage` that names this execution and no call has taken."""
+        spans = self.execution_spans.get((stage, execution_id))
+        return spans.pop(0) if spans else None
+
     def _ended_call(self, span: str) -> bool:
         """Whether the result check failed or decided to terminate."""
         return span in self.failed or any(
@@ -1605,6 +1759,10 @@ class _Driver:
             for span in spans:
                 self._settle_at_end(span)
                 unmatched.append(call_id)
+        for spans in self.execution_spans.values():
+            for span in spans:
+                self._settle_at_end(span)
+                unmatched.append(self.span_events[span][0].step_id)
         if self.skipped:
             logging.getLogger(__name__).warning(
                 "Replay skipped the tool steps of calls an agent bridge checked or "
@@ -1870,30 +2028,6 @@ class _Driver:
             tool_call_id=event.id,
             function=event.function,
             error=event.error,
-        )
-
-    def _proposal_by_id(self, event: ToolEvent) -> _Proposal | None:
-        """The model call that proposed a call, by the message id its event records (`call_message_id`).
-
-        None where the event records none (a log from before #6143, or a call
-        the bridge could not verify), or where the id is not one earlier model
-        call's output holding exactly one call under the call's id: a cached
-        output reused by several model calls has one id.
-        """
-        call_id = _proposal_id(event)
-        message_id = event.call_message_id
-        if message_id is None or call_id is None:
-            return None
-        found = self.outputs.get(message_id, [])
-        if len(found) != 1:
-            return None
-        producer = cast(ModelEvent, self.events[found[0]])
-        message = producer.output.choices[0].message
-        proposed = self._calls_by_id(message).get(call_id)
-        if proposed is None:
-            return None
-        return _Proposal(
-            found[0], message, producer, proposed, self._conversation(producer)
         )
 
     def _prefilled_by_id(
@@ -2202,48 +2336,6 @@ def _reviewed_arguments(call: ToolCall) -> dict[str, Any]:
     if call.function == "call_mcp_tool" and isinstance(target, dict):
         return cast(dict[str, Any], target)
     return call.arguments
-
-
-def _bound_result_checks(
-    calls: list[_Call], by_a_turn: Callable[[_Call], bool]
-) -> None:
-    """Bound where each native call's result check can begin: before the agent turn that proposed a later call under its id in its conversation.
-
-    Live checks a call's result before its batch returns, so before the
-    conversation's next turn; without the bound, a call that never reached its
-    result check (its arguments failed validation) took a later call's. Only a
-    turn bounds it: a reviewer's or a tool's own model call can run between a
-    call's tool span and its result check.
-    """
-    groups: dict[tuple[str, str], list[_Call]] = {}
-    for call in calls:
-        if not _bridged(call.event) and by_a_turn(call):
-            groups.setdefault((call.event.id, call.conversation), []).append(call)
-    bounds: dict[int, int | None] = {}
-    for group in groups.values():
-        # the nearest later call's producer, and the nearest after that one
-        nearest: int | None = None
-        beyond: int | None = None
-        for call in reversed(group):
-            produced = call.produced_at
-            if nearest is not None and nearest > produced:
-                bounds[call.index] = nearest
-            elif nearest == produced:
-                bounds[call.index] = beyond
-            if nearest != produced:
-                beyond, nearest = nearest, produced
-    # a call no turn produced (a pre-filled message, a reviewer's own call) is
-    # bounded by the first turn after it that proposed its id
-    turns = {
-        key: sorted(call.produced_at for call in group) for key, group in groups.items()
-    }
-    for call in calls:
-        if call.index in bounds:
-            call.until = bounds[call.index]
-        elif not _bridged(call.event) and not by_a_turn(call):
-            later = turns.get((call.event.id, call.conversation), [])
-            at = bisect_right(later, call.index)
-            call.until = later[at] if at < len(later) else None
 
 
 def _bridged(event: ToolEvent) -> bool:

@@ -280,7 +280,7 @@ def test_openai_responses_tool_types() -> None:
 @skip_if_no_anthropic
 @flaky_retry(max_retries=3)
 def test_anthropoic_tool_types() -> None:
-    check_tool_types("anthropic/claude-sonnet-4-5")
+    check_tool_types("anthropic/claude-sonnet-5")
 
 
 @skip_if_no_google

@@ -124,6 +124,7 @@ def test_stream_convert_preserves_log_updates(
         ],
         ProvenanceData(author="alice", reason="qa"),
     )
+    log.total_samples = 7
     write_eval_log(log, str(edited_input))
 
     convert_eval_logs(
@@ -150,6 +151,7 @@ def test_stream_convert_preserves_log_updates(
     assert "qa_reviewed" in raw.get("tags", [])
     assert raw.get("metadata", {}).get("reviewer") == "alice"
     assert len(raw.get("log_updates", [])) == 1
+    assert raw.get("total_samples") == 7
 
 
 @pytest.mark.parametrize(

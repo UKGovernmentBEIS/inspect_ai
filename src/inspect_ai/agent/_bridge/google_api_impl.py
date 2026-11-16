@@ -5,7 +5,7 @@ import hashlib
 import json
 from collections import Counter, deque
 from logging import getLogger
-from typing import Any, Literal, NamedTuple
+from typing import AbstractSet, Any, Callable, Literal, NamedTuple
 
 from shortuuid import uuid
 
@@ -59,6 +59,7 @@ from .util import (
     client_json_schema,
     client_request_object,
     client_request_string,
+    gemini_first_call_signature,
     relax_tool_choice_for_withheld,
     resolve_bridge_model,
     resolve_generate_config,
@@ -134,19 +135,17 @@ async def inspect_google_api_request_impl(
         tool_choice_from_google_tool_config(tool_config), tools
     )
 
-    # with a sentinel, calls are handed over and read back under the ids the
-    # bridge gives them, which identify each execution's result
+    # with a sentinel, calls are handed over and read back under their ids,
+    # which identify each execution's result
     call_ids = active_sentinel() is not None
 
     # translate messages
-    issued_ids = set(bridge._sentinel_results.identities) if call_ids else set()
     inferred_results: list[ChatMessageTool] = []
     messages = messages_from_google_contents(
         contents,
         system_instruction,
         inferred_results,
-        call_ids=call_ids,
-        issued_ids=issued_ids,
+        handed=bridge._handouts.wire_names if call_ids else None,
     )
     await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
@@ -186,13 +185,14 @@ async def inspect_google_api_request_impl(
         output, model.api.model_name, call_ids=call_ids
     )
     debug_log("SCAFFOLD RESPONSE", response)
-    # re-parse the JSON the client receives (e.g. integer argument keys become strings)
+    # re-parse the JSON the client receives (e.g. integer argument keys become
+    # strings) as a later request's history is parsed, so an unchanged echo
+    # matches it
     wire_content = json.loads(json.dumps(response["candidates"][0]["content"]))
     transported = messages_from_google_contents(
         [wire_content],
         None,
-        call_ids=call_ids,
-        issued_ids=set(bridge._sentinel_results.identities) if call_ids else None,
+        handed=bridge._handouts.wire_names if call_ids else None,
     )
 
     # update state if we have more messages than the last generation
@@ -392,23 +392,23 @@ def messages_from_google_contents(
     system_instruction: dict[str, Any] | list[Any] | None,
     inferred_results: list[ChatMessageTool] | None = None,
     *,
-    call_ids: bool = False,
-    issued_ids: set[str] | None = None,
+    handed: Callable[[str], AbstractSet[str] | None] | None = None,
 ) -> list[ChatMessage]:
-    """Inspect messages for a Gemini request's contents.
+    """Inspect messages for Google contents.
 
-    With `call_ids` (a sentinel is active), a call takes the id its
-    `functionCall` carries and a result the id its `functionResponse` carries
-    (`_function_part_id`). Without it, ids the parts carry are ignored: a call
-    gets an id derived from itself.
+    With `handed` (a sentinel is active; the function of the call the bridge
+    handed over under an id), a call takes the id its `functionCall` carries
+    and a result the id its `functionResponse` carries (`_function_part_id`),
+    and such a result is not inferred. Otherwise ids the parts carry are
+    ignored, as follows.
 
-    A `functionResponse` that carries no id it can take names its function
-    but not its call, so it takes the id of the next pending call of the
-    previous model turn with that name. The id is read only when that turn
-    had one call with the name and one response names it. Otherwise it is
-    inferred from order (several calls) or another response may be the
-    call's answer (several responses), and every response naming the
-    function without an id is appended to `inferred_results`.
+    A `functionResponse` names its function but not its call, so it takes
+    the id of the next pending call of the previous model turn with that
+    name. The id is read only when that turn had one call with the name and
+    one response names it. Otherwise it is inferred from order (several
+    calls) or another response may be the call's answer (several
+    responses), and every response naming the function is appended to
+    `inferred_results`.
     """
     messages: list[ChatMessage] = []
 
@@ -475,7 +475,7 @@ def messages_from_google_contents(
 
         if role == "user":
             user_content, tool_messages = _extract_user_parts(
-                parts, pending_tool_calls, call_ids, issued_ids
+                parts, pending_tool_calls, handed
             )
             if user_content:
                 # strip duplicate system prompt prefix
@@ -497,14 +497,12 @@ def messages_from_google_contents(
             func_response_parts = [p for p in parts if _is_function_response_part(p)]
             if func_response_parts:
                 _, tool_messages = _extract_user_parts(
-                    func_response_parts, pending_tool_calls, call_ids, issued_ids
+                    func_response_parts, pending_tool_calls, handed
                 )
                 messages.extend(tool_messages)
 
             other_parts = [p for p in parts if not _is_function_response_part(p)]
-            assistant_content, tool_calls = _extract_model_parts(
-                other_parts, call_ids, issued_ids
-            )
+            assistant_content, tool_calls = _extract_model_parts(other_parts, handed)
 
             if tool_calls:
                 settle_pending()
@@ -512,7 +510,7 @@ def messages_from_google_contents(
                 for tc in tool_calls:
                     pending_tool_calls.setdefault(
                         tc.function,
-                        _PendingCalls(deque(), functions[tc.function] > 1, []),
+                        _PendingCalls(_CallQueue(), functions[tc.function] > 1, []),
                     ).ids.append(tc.id)
 
             # Only emit an assistant turn when it carries real content or tool calls;
@@ -577,23 +575,32 @@ def _strip_system_prompt_prefix(
 
 
 def _function_part_id(
-    part: dict[str, Any], name: str, issued_ids: set[str] | None = None
+    part: dict[str, Any],
+    name: str,
+    handed: Callable[[str], AbstractSet[str] | None],
 ) -> str | None:
     """The id a functionCall or functionResponse carries, as the bridge handed it over.
 
-    An exact issued id takes precedence over the prefix gemini-cli may add.
+    Gemini CLI may prefix an id with the call's name (`name__id`), as the
+    part gives it or stripped (`generic_tool` for a blank one). A handed id
+    is taken as it is. Otherwise a prefix of either form is stripped only
+    from the id of a call handed over to a function of that name: `handed`
+    gives the names Gemini can send the calls handed over under an id as
+    (`_Handouts.wire_names`), which for calls sharing an id are those of any
+    of theirs. Each id read as another this way is one `_echoes` gives for
+    the call, so no other call has it (`_Handouts.reused`).
     """
     part_id = part.get("id")
     if not isinstance(part_id, str) or not part_id:
         return None
-    prefix = f"{name.strip() or 'generic_tool'}__"
-    if issued_ids is None:
-        return part_id.removeprefix(prefix) or None
-    if issued_ids is not None and part_id in issued_ids:
+    if handed(part_id) is not None:
         return part_id
-    stripped = part_id.removeprefix(prefix)
-    if issued_ids is not None and stripped in issued_ids:
-        return stripped
+    # neither form's prefix starts with the other's, so at most one is the id's
+    for form in (name, name.strip() or "generic_tool"):
+        if part_id.startswith(f"{form}__"):
+            names = handed(part_id[len(form) + 2 :])
+            if names is not None and name in names:
+                return part_id[len(form) + 2 :]
     return part_id
 
 
@@ -603,10 +610,52 @@ def _is_function_response_part(part: Any) -> bool:
     )
 
 
+class _CallQueue:
+    """Call ids awaiting a result, in call order, indexed by id.
+
+    `remove` takes an id's earliest remaining occurrence (a result naming its
+    call); `popleft` takes the earliest remaining call (a result without an
+    id). Each is amortized O(1), so pairing a batch is linear in any order.
+    """
+
+    def __init__(self) -> None:
+        self._order: deque[str] = deque()
+        self._remaining: Counter[str] = Counter()
+        # occurrences `remove` took that `popleft` has yet to pass in `_order`;
+        # they are always the earliest ones of their id still in `_order`
+        self._removed: Counter[str] = Counter()
+        self._count = 0
+
+    def append(self, call_id: str) -> None:
+        self._order.append(call_id)
+        self._remaining[call_id] += 1
+        self._count += 1
+
+    def remove(self, call_id: str) -> None:
+        """Take `call_id`'s earliest remaining occurrence, if any remains."""
+        if self._remaining[call_id] > 0:
+            self._remaining[call_id] -= 1
+            self._removed[call_id] += 1
+            self._count -= 1
+
+    def popleft(self) -> str:
+        while True:
+            call_id = self._order.popleft()
+            if self._removed[call_id] > 0:
+                self._removed[call_id] -= 1
+                continue
+            self._remaining[call_id] -= 1
+            self._count -= 1
+            return call_id
+
+    def __bool__(self) -> bool:
+        return self._count > 0
+
+
 class _PendingCalls(NamedTuple):
     """The calls of the previous model turn with one function name, not yet answered."""
 
-    ids: deque[str]
+    ids: _CallQueue
 
     shared: bool
     """Whether the turn had more than one call with the name."""
@@ -618,8 +667,7 @@ class _PendingCalls(NamedTuple):
 def _extract_user_parts(
     parts: list[dict[str, Any]],
     pending_tool_calls: dict[str, _PendingCalls],
-    call_ids: bool = False,
-    issued_ids: set[str] | None = None,
+    handed: Callable[[str], AbstractSet[str] | None] | None = None,
 ) -> tuple[list[Content] | str | None, list[ChatMessageTool]]:
     # pending_tool_calls maps function_name -> call_ids from the previous
     # model message, used to match functionResponse with the correct tool_use_id.
@@ -657,18 +705,17 @@ def _extract_user_parts(
             func_name = func_response.get("name", "")
             response = func_response.get("response", {})
 
+            pending = pending_tool_calls.get(func_name)
             response_id = (
-                _function_part_id(func_response, func_name, issued_ids)
-                if call_ids
+                _function_part_id(func_response, func_name, handed)
+                if handed is not None
                 else None
             )
-            pending = pending_tool_calls.get(func_name)
             if response_id is not None:
                 # the id of the call it answers, as the bridge handed it over
                 call_id = response_id
-                if pending is not None and call_id in pending.ids:
+                if pending is not None:
                     pending.ids.remove(call_id)
-                # read, not inferred
                 pending = None
             elif pending is not None and pending.ids:
                 call_id = pending.ids.popleft()
@@ -743,8 +790,7 @@ def _capsule_signature_reasoning(
 
 def _extract_model_parts(
     parts: list[dict[str, Any]],
-    call_ids: bool = False,
-    issued_ids: set[str] | None = None,
+    handed: Callable[[str], AbstractSet[str] | None] | None = None,
 ) -> tuple[list[Content] | None, list[ToolCall]]:
     """Extract assistant content and function calls from model parts.
 
@@ -823,14 +869,14 @@ def _extract_model_parts(
             if not isinstance(args, dict):
                 args = {"value": args}
 
-            # with call ids, the id the bridge handed over, which the scaffold
-            # sends back; otherwise (or failing that), deterministic for
-            # message ID stability, unchanged by a JSON round-trip of the
-            # arguments (5.0 sent back as 5); `surrogatepass` encodes a lone
-            # surrogate in the name losslessly
+            # with a sentinel, the id the bridge handed over, which the scaffold
+            # sends back; otherwise (or failing that), deterministic for message
+            # ID stability, unchanged by a JSON round-trip of the arguments (5.0
+            # sent back as 5); `surrogatepass` encodes a lone surrogate in the
+            # name losslessly
             call_id = (
-                _function_part_id(func_call, func_name, issued_ids)
-                if call_ids
+                _function_part_id(func_call, func_name, handed)
+                if handed is not None
                 else None
             ) or ""
             if not call_id:
@@ -859,6 +905,14 @@ def _extract_model_parts(
 def gemini_response_from_output(
     output: ModelOutput, model_name: str, *, call_ids: bool = False
 ) -> dict[str, Any]:
+    """The Gemini response for `output`.
+
+    The first call carries the one signature the response hands over, and the
+    same reasoning is embedded as a text part (`reasoning_to_think_tag`): that
+    of the call's own anchor, or none (`gemini_first_call_signature`). A
+    response without calls embeds its last signed reasoning. With `call_ids`
+    (a sentinel is active), each call carries its id.
+    """
     parts: list[dict[str, Any]] = []
     working_reasoning_block: ContentReasoning | None = None
 
@@ -875,6 +929,7 @@ def gemini_response_from_output(
                         working_reasoning_block = c
 
     if output.message.tool_calls:
+        working_reasoning_block = gemini_first_call_signature(output.message)
         for idx, tc in enumerate(output.message.tool_calls):
             if tc.function == "computer":
                 name, args = gemini_action_from_tool_call(tc)

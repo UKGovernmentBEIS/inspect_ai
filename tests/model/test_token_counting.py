@@ -2,6 +2,7 @@
 
 import base64
 import os
+from enum import Enum
 
 from test_helpers.utils import (
     skip_if_no_anthropic,
@@ -70,6 +71,28 @@ def test_count_text_tokens_with_special_tokens():
     assert result > 0
 
 
+async def test_count_tool_tokens_enum_default():
+    """count_tool_tokens should handle a parameter whose default is an Enum member."""
+
+    class Unit(Enum):
+        CELSIUS = "celsius"
+        FAHRENHEIT = "fahrenheit"
+
+    tool = ToolInfo(
+        name="get_weather",
+        description="Get the current weather for a location.",
+        parameters=ToolParams(
+            properties={
+                "unit": ToolParam(
+                    type="string", enum=["celsius", "fahrenheit"], default=Unit.CELSIUS
+                ),
+            },
+        ),
+    )
+    tool_token_count = await get_model("mockllm/model").count_tool_tokens([tool])
+    assert tool_token_count > 0
+
+
 @skip_if_no_openai
 async def test_openai_count_tokens():
     """Test OpenAI token counting using tiktoken."""
@@ -85,7 +108,7 @@ async def test_openai_count_tokens():
 @skip_if_no_anthropic
 async def test_anthropic_count_tokens():
     """Test Anthropic token counting using native API."""
-    model = get_model("anthropic/claude-sonnet-4-5")
+    model = get_model("anthropic/claude-sonnet-5-5")
 
     token_count = await model.count_tokens(TEST_MESSAGE)
 
@@ -97,7 +120,7 @@ async def test_anthropic_count_tokens():
 @skip_if_no_anthropic
 async def test_anthropic_count_tool_tokens():
     """Test Anthropic tool token counting using native API."""
-    model = get_model("anthropic/claude-sonnet-4-5")
+    model = get_model("anthropic/claude-sonnet-5-5")
 
     tool_token_count = await model.count_tool_tokens([TEST_TOOL])
 
@@ -115,7 +138,7 @@ async def test_anthropic_count_tokens_consecutive_tool_messages():
     when an assistant message had multiple tool_calls and each tool response
     was in a separate ChatMessageTool.
     """
-    model = get_model("anthropic/claude-sonnet-4-5")
+    model = get_model("anthropic/claude-sonnet-5-5")
 
     # Create a conversation with an assistant message containing multiple tool calls
     # followed by separate tool response messages (as happens with CompactionTrim)

@@ -2281,7 +2281,7 @@ async def _server_items_output(reply: ServerItemsReply) -> ModelOutput:
             )
             output = ModelOutput(
                 model="mockllm/model",
-                choices=openai_responses_chat_choices("gpt-5", response, []).choices,
+                choices=openai_responses_chat_choices("gpt-5", response, []),
             )
         case "anthropic_completed":
             output = await _anthropic_output(
@@ -2854,6 +2854,9 @@ SameClientCase = Literal[
     "bridged",
     "config",
     "call_temperature",
+    "default_endpoint",
+    "trailing_slash",
+    "env_endpoint",
     "endpoint",
     "account",
     "model_args",
@@ -2867,7 +2870,9 @@ SameClientCase = Literal[
 @pytest.mark.parametrize("turn", ["pending", "completed_and_pending"])
 @pytest.mark.parametrize("client", get_args(SameClientCase))
 async def test_response_filter_regeneration_keeps_replay_state_only_from_bridged_client(
-    client: SameClientCase, turn: Literal["pending", "completed_and_pending"]
+    client: SameClientCase,
+    turn: Literal["pending", "completed_and_pending"],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Only the bridged Anthropic client's own regeneration keeps its id and pending work.
 
@@ -2876,20 +2881,46 @@ async def test_response_filter_regeneration_keeps_replay_state_only_from_bridged
     generation whose config adds headers or body fields (e.g. an alternate
     `x-api-key`); its reply is an edit that carries none of that work into the
     bridged model's next input, and its completed server items are rejected.
-    Another temperature, per model or per call, is the same client.
+    Another temperature, per model or per call, is the same client, as is a
+    base URL naming the endpoint the bridged client resolved (the default,
+    one from the environment, or the same URL with a trailing slash).
     """
     from unittest.mock import patch
 
     from inspect_ai.model._providers.anthropic import _pending_container_for_input
 
+    monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+    if client == "env_endpoint":
+        monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://alternate.example.com")
     init_sample_anthropic_assistant_internal()
     regenerated = await _regenerated_output(turn)
     model_name = "anthropic/claude-sonnet-4-5"
-    model = get_model(model_name, api_key="primary-key", memoize=False)
+    model = get_model(
+        model_name,
+        api_key="primary-key",
+        base_url="https://alternate.example.com"
+        if client == "trailing_slash"
+        else None,
+        memoize=False,
+    )
     call_config = GenerateConfig()
     match client:
         case "bridged":
             judge = model
+        case "default_endpoint":
+            judge = get_model(
+                model_name,
+                api_key="primary-key",
+                base_url="https://api.anthropic.com",
+                memoize=False,
+            )
+        case "trailing_slash" | "env_endpoint":
+            judge = get_model(
+                model_name,
+                api_key="primary-key",
+                base_url="https://alternate.example.com/",
+                memoize=False,
+            )
         case "config":
             judge = get_model(
                 model_name,
@@ -2944,7 +2975,14 @@ async def test_response_filter_regeneration_keeps_replay_state_only_from_bridged
 
     bridge = AgentBridge(AgentState(messages=[]))
     bridge.response_filter = regenerate
-    own = client in ("bridged", "config", "call_temperature")
+    own = client in (
+        "bridged",
+        "config",
+        "call_temperature",
+        "default_endpoint",
+        "trailing_slash",
+        "env_endpoint",
+    )
     with (
         patch.object(model.api, "generate", generate),
         patch.object(judge.api, "generate", generate),
@@ -2984,6 +3022,123 @@ async def test_response_filter_regeneration_keeps_replay_state_only_from_bridged
         assert handed.id != regenerated.message.id
         assert PENDING_CODE not in json.dumps(await _render_anthropic(handed))
         assert _pending_container_for_input([handed]) is None
+
+
+_DEFAULT_ENDPOINTS = {
+    "anthropic/claude-sonnet-4-5": "https://api.anthropic.com",
+    "openai/gpt-4.1": "https://api.openai.com/v1",
+    "google/gemini-2.5-flash": "https://generativelanguage.googleapis.com",
+}
+
+
+@pytest.mark.parametrize("model_name", list(_DEFAULT_ENDPOINTS))
+@pytest.mark.parametrize(
+    "endpoints",
+    [
+        "default_endpoint",
+        "default_endpoint_slash",
+        "trailing_slash",
+        "case_and_port",
+        "env_endpoint",
+        "endpoint",
+        "account",
+    ],
+)
+def test_same_client_compares_the_endpoint_each_client_resolved(
+    model_name: str, endpoints: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Base URLs naming the endpoint a client resolved are the same client.
+
+    An explicit default endpoint, one from the environment, or a base URL that
+    differs only by a trailing slash, letter case or the scheme's default port
+    is the endpoint the bridged client uses; another endpoint or API key is
+    another client.
+    """
+    from inspect_ai.agent._bridge.util import _same_client
+
+    env_var = {
+        "anthropic": "ANTHROPIC_BASE_URL",
+        "openai": "OPENAI_BASE_URL",
+        "google": "GOOGLE_BASE_URL",
+    }[model_name.split("/")[0]]
+    for name in ("ANTHROPIC_BASE_URL", "OPENAI_BASE_URL", "GOOGLE_BASE_URL"):
+        monkeypatch.delenv(name, raising=False)
+    default = _DEFAULT_ENDPOINTS[model_name]
+    alternate = "https://alternate.example.com/v1"
+    bridged_url: str | None = None
+    judge_key = "primary-key"
+    match endpoints:
+        case "default_endpoint":
+            judge_url = default
+        case "default_endpoint_slash":
+            judge_url = default + "/"
+        case "trailing_slash":
+            bridged_url, judge_url = alternate, alternate + "/"
+        case "case_and_port":
+            bridged_url = alternate
+            judge_url = "HTTPS://Alternate.Example.com:443/v1"
+        case "env_endpoint":
+            monkeypatch.setenv(env_var, alternate)
+            judge_url = alternate + "/"
+        case "endpoint":
+            judge_url = alternate
+        case "account":
+            judge_url, judge_key = default, "other-key"
+        case _:
+            raise AssertionError(endpoints)
+    bridged = get_model(
+        model_name, api_key="primary-key", base_url=bridged_url, memoize=False
+    )
+    judge = get_model(model_name, api_key=judge_key, base_url=judge_url, memoize=False)
+
+    assert bridged.api.base_url != judge.api.base_url
+    assert _same_client(judge, bridged) == (endpoints not in ("endpoint", "account"))
+
+
+@pytest.mark.parametrize(
+    ("a", "b", "same"),
+    [
+        ("https://api.example.com/v1", "HTTPS://API.Example.com:443/v1/", True),
+        ("http://localhost:80/v1", "http://localhost/v1", True),
+        ("https://api.example.com/v1#frag", "https://api.example.com/v1", True),
+        ("https://api.example.com/v1", "https://api.example.com/V1", False),
+        ("https://api.example.com/v1", "https://api.example.com:8443/v1", False),
+        ("https://api.example.com/v1", "http://api.example.com/v1", False),
+        ("https://u:p@api.example.com/v1", "https://api.example.com/v1", False),
+        ("https://api.example.com/v1?t=a", "https://api.example.com/v1?t=b", False),
+        ("http://[::1]:8000/v1", "http://[::1]:8000/v1/", True),
+    ],
+)
+def test_normalized_endpoint_keeps_what_can_name_another_endpoint(
+    a: str, b: str, same: bool
+) -> None:
+    from inspect_ai.agent._bridge.util import _normalized_endpoint
+
+    assert (_normalized_endpoint(a) == _normalized_endpoint(b)) == same
+
+
+def test_same_client_with_an_unresolved_lazy_vllm_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A lazy vLLM model whose server is not yet resolved has no client to read.
+
+    It is not the client of one whose server is resolved, and comparing them
+    doesn't fail.
+    """
+    from inspect_ai.agent._bridge.util import _same_client
+    from inspect_ai.model._providers.vllm import VLLMAPI
+
+    monkeypatch.setattr("inspect_ai.model._providers.vllm._vllm_servers", {})
+    monkeypatch.setenv("VLLM_BASE_URL", "http://localhost:8000/v1")
+    resolved = get_model("vllm/meta/llama", memoize=False)
+    unresolved = get_model("vllm/meta/llama", memoize=False)
+    assert isinstance(resolved.api, VLLMAPI)
+    resolved.api._resolve_server()
+
+    assert resolved.model_args == unresolved.model_args
+    assert not hasattr(unresolved.api, "client")
+    assert not _same_client(unresolved, resolved)
+    assert not _same_client(resolved, unresolved)
 
 
 RegenerationConfig = Literal[
@@ -3108,6 +3263,118 @@ async def test_response_filter_regeneration_of_a_request_with_agent_headers(
     assert await _render_anthropic(handed) == await _render_anthropic(
         regenerated.message
     )
+
+
+@pytest.mark.parametrize("server_items", [False, True])
+@pytest.mark.parametrize("headers", ["none", "foreign"])
+async def test_response_filter_regeneration_through_a_sidecar(
+    headers: Literal["none", "foreign"],
+    server_items: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A regeneration through a sentinel sidecar is the bridged client's own.
+
+    Inspect adds `x-inspect-context` to each call through the sidecar, the
+    filter's own `model.generate(...)` included, and the bridged request's
+    config is resolved without it. The regeneration still keeps its id and
+    its completed server search. Adding another header (an alternate
+    `x-api-key`) is still another client: its reply gets an edited id and its
+    server items are rejected.
+    """
+    import httpx2
+    from test_helpers.stand_in_sidecar import StandInSidecar, Turn
+
+    from inspect_ai import Task, eval_async
+    from inspect_ai.dataset import Sample
+    from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+
+    class ServerItemsSidecar(StandInSidecar):
+        def _handle(self, request: httpx2.Request) -> httpx2.Response:
+            response = super()._handle(request)
+            if request.url.path == "/v1/messages" and len(self.model_calls) == 2:
+                payload = response.json()
+                payload["content"] += PENDING_SPAN_BLOCKS["completed_and_pending"]
+                return httpx2.Response(200, json=payload)
+            return response
+
+    proceed = {"outcome": "proceed", "steps": []}
+    stand_in = (ServerItemsSidecar if server_items else StandInSidecar)(
+        turns=[
+            Turn(text="first", judgment=proceed),
+            Turn(text="regenerated", judgment=proceed),
+        ]
+    )
+    model = get_model(
+        "anthropic/claude-haiku-4-5",
+        api_key="test-key",
+        base_url="http://proxy.test",
+        memoize=False,
+        streaming=False,
+        config=GenerateConfig(max_tokens=1024),
+        http_client=stand_in.http_client(),
+    )
+    seen: dict[str, str] = {}
+
+    async def regenerate(
+        model: Model, output: ModelOutput, generate_input: GenerateInput
+    ) -> ModelOutput | None:
+        config = (
+            GenerateConfig(extra_headers={"x-api-key": "alternate-key"})
+            if headers == "foreign"
+            else GenerateConfig()
+        )
+        replacement = await model.generate(generate_input.input, config=config)
+        seen["regenerated"] = replacement.message.id or ""
+        return replacement
+
+    @solver
+    def through_bridge() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            bridge = AgentBridge(
+                AgentState(messages=state.messages), response_filter=regenerate
+            )
+            output, _ = await bridge_generate(
+                bridge,
+                model,
+                state.messages,
+                [],
+                None,
+                GenerateConfig(),
+                requested_model=None,
+            )
+            seen["handed"] = output.message.id or ""
+            state.messages.append(output.message)
+            return state
+
+        return solve
+
+    [log] = await eval_async(
+        Task(dataset=[Sample(input="Hi")], solver=through_bridge()),
+        model=model,
+        sentinel_proxy="auto",
+        log_dir=str(tmp_path),
+        fail_on_error=False,
+    )
+
+    assert log.samples is not None
+    [sample] = log.samples
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert len(model_events) == 2
+    assert all(
+        "x-inspect-context" in (e.config.extra_headers or {}) for e in model_events
+    )
+    if headers == "foreign" and server_items:
+        assert sample.error is not None
+        assert "server tool use 'srvtoolu_ws'" in sample.error.message
+        return
+    assert sample.error is None
+    if headers == "none":
+        assert seen["handed"] == seen["regenerated"]
+    else:
+        assert seen["handed"] != seen["regenerated"]
 
 
 def test_bridged_generation_config_allowlist_names_generate_config_fields() -> None:

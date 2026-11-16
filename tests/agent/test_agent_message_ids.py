@@ -6,6 +6,7 @@ the final messages, in each `ModelEvent`'s input and output, in each
 `ToolEvent`, and in the log read back (`.eval` and `.json`) must agree.
 """
 
+import base64
 import contextlib
 import json
 from pathlib import Path
@@ -40,7 +41,7 @@ from inspect_ai.agent import Agent, AgentState, agent, agent_bridge, handoff, re
 from inspect_ai.agent._bridge import bridge as bridge_module
 from inspect_ai.agent._bridge import types as bridge_types
 from inspect_ai.agent._bridge.responses_impl import filter_duplicate_assistant_content
-from inspect_ai.agent._bridge.types import AgentBridge, _unplaced_key
+from inspect_ai.agent._bridge.types import AgentBridge, _Received, _unplaced_key
 from inspect_ai.agent._bridge.util import apply_message_ids
 from inspect_ai.dataset import Sample
 from inspect_ai.event import ModelEvent, ToolEvent
@@ -1786,7 +1787,7 @@ async def test_compaction_after_re_derived_ids_keeps_the_latest_replys_id(
         kept = [ChatMessageUser(content="Summary: listed the files once.")]
         await scaffold.request([task, first_back, old_result], second)
     bridge._record_transported_reply(second, [second_back])
-    [event] = _awaiting(bridge, second)
+    [event] = _awaiting(bridge, second, result="NEW")
 
     with recording_placements() as placements:
         ids = await scaffold.request(
@@ -2718,7 +2719,7 @@ def _awaiting(
     reply: ChatMessageAssistant,
     executions: int = 1,
     index: int = 0,
-    result: str = "",
+    result: str = "a.txt",
 ) -> list[ToolEvent]:
     """Host tool events for call `index` of `reply`, as executing a granted call records them."""
     assert reply.id is not None and reply.tool_calls is not None
@@ -2731,7 +2732,9 @@ def _awaiting(
     ]
     for event in events:
         bridge._await_result_message(
-            handed_calls(bridge, reply.id, reply.tool_calls)[index], event
+            handed_calls(bridge, reply.id, reply.tool_calls)[index],
+            event,
+            _Received(result),
         )
     return events
 
@@ -2892,8 +2895,8 @@ async def test_host_results_sent_late_still_link(delay: str) -> None:
     )
     scaffold = _Scaffold(AgentBridge(AgentState(messages=[task])))
     await scaffold.request([task], reply)
-    [event_a] = _awaiting(scaffold.bridge, reply, index=0)
-    [event_b] = _awaiting(scaffold.bridge, reply, index=1)
+    [event_a] = _awaiting(scaffold.bridge, reply, index=0, result="A")
+    [event_b] = _awaiting(scaffold.bridge, reply, index=1, result="B")
 
     if delay == "split-parallel":
         first = await scaffold.request([task, reply, _result("call_a", "A")])
@@ -2969,7 +2972,7 @@ def _link_copy(
         event = ToolEvent(
             id=call.id, function=call.function, arguments=call.arguments, result=result
         )
-        bridge._await_result_message(tracked[position], event)
+        bridge._await_result_message(tracked[position], event, _Received(result))
         events.append(event)
     tool_messages = [
         ChatMessageTool(
@@ -2988,20 +2991,39 @@ def _link_copy(
     return [event.message_id for event in events]
 
 
-def test_host_result_links_to_the_answer_whatever_its_content() -> None:
-    """`message_id` names the answer to the call, not a message holding `result`."""
+@pytest.mark.parametrize(
+    "answer,linked",
+    [
+        ("contents of file a", True),
+        ("Output:\ncontents of file a\n", True),
+        ("MCP error -32001: Request timed out", False),
+    ],
+    ids=["result", "result within other text", "client timeout"],
+)
+def test_host_result_links_only_an_answer_holding_it(answer: str, linked: bool) -> None:
+    """`message_id` names the call's answer only when the answer holds its result.
+
+    A scaffold whose client gave up on the call answers it without the result.
+    """
     handed = [_read("a", "a")]
 
-    ids = _link_copy(handed, [(0, "A")], handed, [(handed[0], "edited")])
+    ids = _link_copy(handed, [(0, "contents of file a")], handed, [(handed[0], answer)])
 
-    assert ids == ["result-0"]
+    assert ids == ["result-0" if linked else None]
 
+
+# validates as `internal` (pydantic's limit is ~255) but is too deep to serialize
+_TOO_DEEP = base64.b64encode(("[" * 250 + "]" * 250).encode()).decode()
 
 _LITERAL_MARKERS = {
     "unpadded": "The marker is <content-internal>example</content-internal>.",
     "not_utf8": "<content-internal>abcd</content-internal> is the marker",
     "not_json": "Wrap it as <content-internal>bm90IGpzb24=</content-internal>.",
     "unpaired": "Open with <content-internal> and close with </content-internal>.",
+    # decodes, but the value can't be a content object's `internal`
+    "too_deep": f"See <content-internal>{_TOO_DEEP}</content-internal>.",
+    "think_too_deep": f'See <think internal="{_TOO_DEEP}">quoted</think> here.',
+    "think_not_json": '<think internal="bm90IGpzb24=">quoted</think> is the marker',
 }
 
 
@@ -3075,9 +3097,9 @@ def _wire_text(dialect: Dialect, turns: list[dict[str, Any]]) -> str:
 async def test_literal_internal_marker_is_text_in_every_dialect(
     dialect: Dialect, literal: str
 ) -> None:
-    """Text quoting the content-internal marker is delivered and kept as written.
+    """Text quoting an internal-state marker is delivered and kept as written.
 
-    Only a marker body the bridge itself encoded is internal state; recognizing
+    Only a marker the bridge itself encoded is internal state; recognizing
     the reply when the scaffold sends it back must not reject or alter a reply
     or prompt that merely contains the marker (Google, which carries internal
     state natively, is the control).

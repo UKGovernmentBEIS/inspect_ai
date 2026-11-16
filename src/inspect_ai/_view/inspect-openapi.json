@@ -326,7 +326,7 @@
       },
       "ApproverPolicyConfig": {
         "additionalProperties": true,
-        "description": "Configuration format for approver policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\napprovers:\n  - name: human\n    tools: web_browser*, bash, pyhton\n    choices: [approve, reject]\n\n  - name: human\n    tools: computer\n    arguments: {action: key}\n\n  - name: auto\n    tools: *\n    decision: approve\n```",
+        "description": "Configuration format for approver policies.\n\nFor example, here is a configuration in YAML:\n\n```yaml\napprovers:\n  - name: human\n    tools: bash*, python, text_editor\n    choices: [approve, reject]\n\n  - name: human\n    tools: computer\n    arguments: {action: key}\n\n  - name: auto\n    tools: *\n    decision: approve\n```",
         "properties": {
           "arguments": {
             "anyOf": [
@@ -3470,6 +3470,17 @@
             "title": "Tags",
             "type": "array"
           },
+          "total_samples": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Samples"
+          },
           "version": {
             "default": 2,
             "title": "Version",
@@ -4550,7 +4561,9 @@
                   "refusal",
                   "no_response",
                   "grader_failed",
-                  "scoring_failed"
+                  "scoring_failed",
+                  "excluded",
+                  "zeroed"
                 ],
                 "type": "string"
               },
@@ -9940,7 +9953,9 @@
                   "refusal",
                   "no_response",
                   "grader_failed",
-                  "scoring_failed"
+                  "scoring_failed",
+                  "excluded",
+                  "zeroed"
                 ],
                 "type": "string"
               },
@@ -10128,7 +10143,9 @@
                   "refusal",
                   "no_response",
                   "grader_failed",
-                  "scoring_failed"
+                  "scoring_failed",
+                  "excluded",
+                  "zeroed"
                 ],
                 "type": "string"
               },
@@ -12360,6 +12377,17 @@
             "items": {},
             "title": "Events",
             "type": "array"
+          },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Id"
           },
           "failed": {
             "anyOf": [

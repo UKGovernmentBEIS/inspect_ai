@@ -1,8 +1,30 @@
 meta:
   display_name: Meta
   models:
+    # Meta's most capable model, in preview on the Model API. Standard mode only
+    # (no `-contributor` alias) and reasoning is always on, defaulting to `max`
+    # effort. Meta does not publish an output token limit.
+    # https://research.meta.ai/blog/muse-wonder
+    # https://dev.meta.ai/docs/muse-wonder
+    muse-wonder-1.0:
+      display_name: Muse Wonder 1.0
+      release_date: 2026-10-12
+      context_length: 1048576
+      reasoning: True
+      reasoning_effort_default: max
+    # Meta's small model. Standard mode only (no `-contributor` alias) and
+    # reasoning is always on, defaulting to `max` effort.
+    # https://research.meta.ai/blog/muse-ember
+    # https://dev.meta.ai/docs/muse-ember
+    muse-ember-1.0:
+      display_name: Muse Ember 1.0
+      release_date: 2026-11-09
+      context_length: 1048576
+      output_tokens: 524288
+      reasoning: True
+      reasoning_effort_default: max
     # Muse Spark models served by the Meta Model API (https://dev.meta.ai/docs).
-    # Reasoning is always on; the default effort level is undocumented. The
+    # Reasoning is always on, defaulting to `high` effort. The
     # `-contributor` aliases are the same model at a discounted rate in
     # exchange for Meta using the data to improve its products. Meta does not
     # publish a knowledge cutoff for these models, so none is recorded here.
@@ -12,6 +34,7 @@ meta:
       context_length: 1048576
       output_tokens: 131072
       reasoning: True
+      reasoning_effort_default: high
       aliases:
         - muse-spark-1.3-contributor
     muse-spark-1.2:
@@ -20,6 +43,7 @@ meta:
       context_length: 1048576
       output_tokens: 131072
       reasoning: True
+      reasoning_effort_default: high
       aliases:
         - muse-spark-1.2-contributor
     muse-spark-1.1:
@@ -28,3 +52,4 @@ meta:
       context_length: 1048576
       output_tokens: 131072
       reasoning: True
+      reasoning_effort_default: high

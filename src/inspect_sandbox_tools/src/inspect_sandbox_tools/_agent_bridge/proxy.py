@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import errno
 import json
 import os
 import re
+import socket
 import sys
 import time
 import traceback
@@ -21,6 +23,15 @@ from typing import (
     TypeAlias,
 )
 from urllib.parse import parse_qs, unquote, urlparse
+
+from inspect_sandbox_tools._agent_bridge.peer_uid import (
+    PEER_USER_ENV,
+    PeerUser,
+    TableReader,
+    check_connection,
+    read_table,
+    resolve_peer_user,
+)
 
 # ---------- Types ----------
 RequestHandler: TypeAlias = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
@@ -57,11 +68,21 @@ HOP_BY_HOP = {
 class AsyncHTTPServer:
     """Async HTTP server supporting GET/POST with streaming + proxy utilities."""
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 8000) -> None:
+    def __init__(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 8000,
+        peer_user: PeerUser | None = None,
+        read_table: TableReader = read_table,
+    ) -> None:
         self.host = host
         self.port = port
+        self.peer_user = peer_user
+        """The only user whose connections are served, or None to serve any."""
+        self.read_table = read_table
         self.routes: MethodRoutes = {"GET": {}, "POST": {}}
         self.server: asyncio.Server | None = None
+        self.servers: list[asyncio.Server] = []
         self.server_name: str = "asyncio-proxy"
 
     # -------- Routing --------
@@ -412,6 +433,17 @@ class AsyncHTTPServer:
     ) -> None:
         t0 = time.monotonic()
         try:
+            if self.peer_user is not None:
+                check = check_connection(
+                    writer.get_extra_info("socket"), self.peer_user, self.read_table
+                )
+                if check.action == "close":
+                    print(f"connection closed unread: {check.reason}")
+                    return
+                if check.action == "refuse":
+                    await self._refuse(reader, writer, check.reason or "")
+                    return
+
             method, full_path, http_version, headers, body = await self._parse_request(
                 reader, writer
             )
@@ -539,8 +571,37 @@ class AsyncHTTPServer:
             except (BrokenPipeError, ConnectionResetError, OSError):
                 pass
 
+    async def _refuse(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, message: str
+    ) -> None:
+        """Answer a connection the proxy does not serve with HTTP 403.
+
+        The request is read within the usual limits, so the client receives the
+        response rather than a reset, and discarded unparsed.
+        """
+        try:
+            await self._parse_request(reader, writer)
+        except Exception:
+            pass
+        writer.write(
+            self._build_response(
+                403,
+                {
+                    "error": {
+                        "type": "permission_error",
+                        "code": 403,
+                        "message": message,
+                    }
+                },
+            )
+        )
+        await writer.drain()
+
     # -------- Lifecycle --------
     async def start(self) -> None:
+        if self.peer_user is not None:
+            await self._start_for_peer_user(self.peer_user)
+            return
         self.server = await asyncio.start_server(
             self._handle_client, self.host, self.port
         )
@@ -548,11 +609,89 @@ class AsyncHTTPServer:
         async with self.server:
             await self.server.serve_forever()
 
+    async def _start_for_peer_user(self, user: PeerUser) -> None:
+        """Serve `user` on both loopback addresses.
+
+        Binds `127.0.0.1`, then `[::1]` at the same port, so no other user can
+        listen at either address where `localhost` may lead. A sandbox with no
+        IPv6 loopback is served on `127.0.0.1` alone. Prints the listening line
+        the bridge waits for, flushed, once both listen and before accepting.
+
+        Raises:
+            ProxyStartError: An address cannot be bound.
+        """
+        ipv4 = _listen(socket.AF_INET, "127.0.0.1", self.port)
+        self.port = ipv4.getsockname()[1]
+        try:
+            ipv6: socket.socket | None = _listen(socket.AF_INET6, "::1", self.port)
+        except ProxyStartError as ex:
+            if ex.errno not in (errno.EADDRNOTAVAIL, errno.EAFNOSUPPORT):
+                ipv4.close()
+                raise
+            ipv6 = None
+        self.servers = [
+            await asyncio.start_server(
+                self._handle_client, sock=sock, start_serving=False
+            )
+            for sock in (ipv4, ipv6)
+            if sock is not None
+        ]
+        addresses = (
+            f"127.0.0.1:{self.port} and [::1]:{self.port}"
+            if ipv6 is not None
+            else f"127.0.0.1:{self.port}, no IPv6 loopback,"
+        )
+        print(f"{LISTENING_PREFIX}{addresses} for uid {user.uid}", flush=True)
+        await asyncio.gather(*(server.serve_forever() for server in self.servers))
+
     async def stop(self) -> None:
-        if self.server:
-            self.server.close()
-            await self.server.wait_closed()
-            self.server = None
+        for server in [*self.servers, *([self.server] if self.server else [])]:
+            server.close()
+            await server.wait_closed()
+        self.server = None
+        self.servers = []
+
+
+LISTENING_PREFIX = "model_proxy: listening on "
+"""Start of the line a proxy given a user prints once it listens (bridge.py reads it)."""
+
+
+class ProxyStartError(OSError):
+    """The proxy cannot listen at one of its addresses."""
+
+    def __str__(self) -> str:
+        return str(self.strerror)
+
+
+def _listen(family: socket.AddressFamily, host: str, port: int) -> socket.socket:
+    """A socket listening at `host`, bound as asyncio binds (`SO_REUSEADDR`).
+
+    Never `SO_REUSEPORT`, which would let another socket share the port. It
+    listens before the proxy reports listening, so the port cannot be taken
+    between the bind and the listen.
+
+    Raises:
+        ProxyStartError: The socket cannot be created, bound or listen.
+    """
+    display = f"[{host}]:{port}" if family == socket.AF_INET6 else f"{host}:{port}"
+    try:
+        sock = socket.socket(family, socket.SOCK_STREAM)
+    except OSError as ex:
+        raise ProxyStartError(
+            ex.errno, f"cannot listen on {display}: {ex.strerror}"
+        ) from None
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if family == socket.AF_INET6:
+            sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+        sock.bind((host, port))
+        sock.listen(100)
+    except OSError as ex:
+        sock.close()
+        raise ProxyStartError(
+            ex.errno, f"cannot listen on {display}: {ex.strerror}"
+        ) from None
+    return sock
 
 
 def _http_date() -> str:
@@ -690,14 +829,19 @@ def _google_error_body(status: int, message: str) -> dict[str, Any]:
 
 
 async def model_proxy_server(
-    port: int, call_bridge_model_service_async: Any = None
+    port: int,
+    call_bridge_model_service_async: Any = None,
+    peer_user: PeerUser | None = None,
+    read_table: TableReader = read_table,
 ) -> AsyncHTTPServer:
     """Create and configure the model proxy server.
 
     Args:
         port: Port to run the server on
-        instance: Instance of service
         call_bridge_model_service_async: Optional bridge service function for testing
+        peer_user: The only user whose connections are served, on both loopback
+            addresses, or None to serve any connection on `127.0.0.1`
+        read_table: Reads a socket table for the peer check (for testing)
 
     Returns:
         Configured AsyncHTTPServer instance
@@ -708,7 +852,7 @@ async def model_proxy_server(
     )
 
     # setup server
-    server = AsyncHTTPServer(port=port)
+    server = AsyncHTTPServer(port=port, peer_user=peer_user, read_table=read_table)
 
     def _sse_bytes(payload: dict[str, Any]) -> bytes:
         # data-only SSE, as used by OpenAI's Chat Completions stream
@@ -2321,12 +2465,16 @@ async def run_model_proxy_server() -> None:
     # determine port
     port = int(os.getenv("BRIDGE_MODEL_SERVICE_PORT", "13131"))
 
-    # Create server
-    server = await model_proxy_server(port)
-
-    # Run server
     try:
+        # resolved before binding, so a proxy that cannot serve its user never listens
+        user = os.getenv(PEER_USER_ENV)
+        peer_user = resolve_peer_user(user) if user else None
+        server = await model_proxy_server(port, peer_user=peer_user)
         await server.start()
+    except (ValueError, ProxyStartError) as ex:
+        sys.stderr.write(f"model_proxy: {ex}\n")
+        sys.stderr.flush()
+        os._exit(1)
     except Exception as ex:
         sys.stderr.write(f"Unexpected error running model proxy: {ex}\n")
         sys.stderr.write(traceback.format_exc())
