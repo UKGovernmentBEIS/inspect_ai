@@ -308,6 +308,28 @@ def isolate_active_model():
 
 
 @pytest.fixture(autouse=True)
+def isolate_request_had_retry():
+    """Keep the retried-request contextvar from leaking across tests.
+
+    `report_http_retry` marks the request in flight as retried by setting the
+    `_request_had_retry` contextvar, and only a generate under an adaptive
+    connections controller clears it. A test that reports a retry
+    *synchronously* in its own context (calling `report_http_retry`, or a
+    model's `should_retry`, directly) keeps the mark after it returns, so it
+    leaks into later tests. A later test that reads the contextvar during a
+    generate with no controller then finds its request already marked as
+    retried. Restore the contextvar after each test.
+    """
+    from inspect_ai.util._concurrency import _request_had_retry
+
+    token = _request_had_retry.set(_request_had_retry.get())
+    try:
+        yield
+    finally:
+        _request_had_retry.reset(token)
+
+
+@pytest.fixture(autouse=True)
 def fresh_concurrency_registry():
     """Reset the process-global concurrency registry before each test.
 
@@ -976,6 +998,23 @@ def _report_oom_kills(exitstatus: int) -> None:
                 "(meridianlabs-ai/inspect_ai#232 diagnostics)"
             )
         return
+
+
+@pytest.fixture
+def fake_sentinel(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Install `test_helpers.fake_sentinel` as `inspect_sentinel` for the test, reporting `SENTINEL_MIN_VERSION`."""
+    from test_helpers import fake_sentinel as fake
+
+    import inspect_ai._sentinel
+
+    monkeypatch.setitem(sys.modules, "inspect_sentinel", fake)
+    monkeypatch.setitem(sys.modules, "inspect_sentinel._integration", fake)
+    fake.report_version(monkeypatch)
+    yield
+    # _dispatch binds the fake's names when it is imported, so forget it: a
+    # later import meets the block on inspect_sentinel again
+    sys.modules.pop("inspect_ai._sentinel._dispatch", None)
+    vars(inspect_ai._sentinel).pop("_dispatch", None)
 
 
 def pytest_configure(config):

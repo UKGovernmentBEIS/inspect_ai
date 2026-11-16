@@ -18,7 +18,9 @@ turn structure and tool name, and the think-body/thoughtSignature strings still 
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
@@ -31,6 +33,7 @@ from inspect_ai.agent._bridge.google_api_impl import (
     messages_from_google_contents,
 )
 from inspect_ai.model._chat_message import (
+    ChatMessage,
     ChatMessageAssistant,
     ChatMessageTool,
 )
@@ -39,6 +42,7 @@ from inspect_ai.model._openrouter_reasoning import (
     openrouter_reasoning_details_to_reasoning,
     reasoning_to_openrouter_reasoning_details,
 )
+from inspect_ai.tool import ToolCall
 
 _FIXTURE = json.loads(
     (
@@ -157,6 +161,401 @@ def test_google_response_without_logprobs_is_unchanged(
     assert response == expected
     assert "logprobsResult" not in response["candidates"][0]
     assert "avgLogprobs" not in response["candidates"][0]
+
+
+def test_google_response_carries_each_calls_id() -> None:
+    output = ModelOutput.for_tool_call("mockllm/model", "read_file", {"path": "a"})
+    [call] = output.message.tool_calls or []
+    unnamed = ModelOutput.for_tool_call("mockllm/model", "read_file", {"path": "b"})
+    for unnamed_call in unnamed.message.tool_calls or []:
+        unnamed_call.id = ""
+
+    def function_call(output: ModelOutput, call_ids: bool = True) -> object:
+        parts = gemini_response_from_output(output, "model", call_ids=call_ids)[
+            "candidates"
+        ][0]["content"]["parts"]
+        [part] = [part for part in parts if "functionCall" in part]
+        return part["functionCall"]
+
+    assert function_call(output) == {
+        "id": call.id,
+        "name": "read_file",
+        "args": {"path": "a"},
+    }
+    assert function_call(unnamed) == {"name": "read_file", "args": {"path": "b"}}
+    # without a sentinel, as before
+    assert function_call(output, call_ids=False) == {
+        "name": "read_file",
+        "args": {"path": "a"},
+    }
+
+
+def echoed_contents(echoed: str) -> list[dict[str, object]]:
+    return [
+        {"role": "user", "parts": [{"text": "Read a."}]},
+        {
+            "role": "model",
+            "parts": [
+                {
+                    "functionCall": {
+                        "id": echoed,
+                        "name": "read_file",
+                        "args": {"path": "a"},
+                    }
+                }
+            ],
+        },
+        {
+            "role": "user",
+            "parts": [
+                {
+                    "functionResponse": {
+                        "id": echoed,
+                        "name": "read_file",
+                        "response": {"out": "x"},
+                    }
+                }
+            ],
+        },
+    ]
+
+
+def deterministic_id(name: str, args: dict[str, object], position: int) -> str:
+    # the id main derives for a call carrying no id the bridge reads
+    args_str = json.dumps(args, sort_keys=True) if args else ""
+    digest = hashlib.md5(f"{name}:{args_str}:{position}".encode()).hexdigest()[:8]
+    return f"call_{name}_{digest}"
+
+
+def test_google_ids_the_scaffold_echoes_are_ignored_without_call_ids() -> None:
+    messages = messages_from_google_contents(
+        echoed_contents("read_file__read_file_1712_0"), None
+    )
+
+    assistant = next(m for m in messages if isinstance(m, ChatMessageAssistant))
+    tool = next(m for m in messages if isinstance(m, ChatMessageTool))
+    expected = deterministic_id("read_file", {"path": "a"}, 0)
+    assert [call.id for call in assistant.tool_calls or []] == [expected]
+    assert tool.tool_call_id == expected
+
+
+@pytest.mark.parametrize("prefixed", [False, True])
+def test_google_ids_the_scaffold_echoes_are_kept(prefixed: bool) -> None:
+    # gemini-cli prefixes the id it is handed with `<function>__`
+    echoed = "read_file__tok_1" if prefixed else "tok_1"
+    contents = echoed_contents(echoed)
+
+    messages = messages_from_google_contents(
+        contents, None, handed={"tok_1": frozenset({"read_file"})}.get
+    )
+
+    assistant = next(m for m in messages if isinstance(m, ChatMessageAssistant))
+    tool = next(m for m in messages if isinstance(m, ChatMessageTool))
+    assert [call.id for call in assistant.tool_calls or []] == ["tok_1"]
+    assert tool.tool_call_id == "tok_1"
+
+
+@pytest.mark.parametrize(
+    "handed,name,part_id,expected",
+    [
+        # a prefix of the part's name, as it is or stripped, is the id's
+        ({"tok": " read_file"}, " read_file", " read_file__tok", "tok"),
+        ({"tok": " read_file"}, " read_file", "read_file__tok", "tok"),
+        ({"tok": "read_file "}, "read_file ", "read_file __tok", "tok"),
+        ({"tok": ""}, "", "__tok", "tok"),
+        ({"tok": ""}, "", "generic_tool__tok", "tok"),
+        # the stripped name is one the call can come back under
+        ({"tok": " read_file"}, "read_file", "read_file__tok", "tok"),
+        # a handed id is taken as it is
+        (
+            {"tok": " read_file", " read_file__tok": " read_file"},
+            " read_file",
+            " read_file__tok",
+            " read_file__tok",
+        ),
+        # not a prefix of the part's name in either form
+        ({"tok": " read_file"}, "read_file", " read_file__tok", " read_file__tok"),
+        # the id was handed over to another function: the part's name is no
+        # name of its call, so the bridge reserved no such echo of it
+        ({"tok": "status"}, " read_file", " read_file__tok", " read_file__tok"),
+        ({"tok": "read_file"}, " read_file", " read_file__tok", " read_file__tok"),
+        ({"tok": "read_file"}, " read_file", "read_file__tok", "read_file__tok"),
+    ],
+)
+def test_a_google_id_prefixed_with_either_form_of_its_calls_name_is_read_as_the_id(
+    handed: dict[str, str], name: str, part_id: str, expected: str
+) -> None:
+    """Gemini CLI's `name__id` is read as `id` under the name as sent or stripped, only for a call handed over to a function of the part's name."""
+    from inspect_ai.agent._bridge._sentinel import wire_names
+    from inspect_ai.agent._bridge.google_api_impl import _function_part_id
+
+    names = {call_id: wire_names(function) for call_id, function in handed.items()}
+
+    assert _function_part_id({"id": part_id}, name, names.get) == expected
+
+
+def test_a_google_id_is_read_as_a_handed_one_only_where_the_bridge_reserved_it() -> (
+    None
+):
+    """The ids the Google dialect reads as a handed id are echoes the bridge keeps from other calls.
+
+    Each is one `_echoes` gives for the handed call, so `_Handouts.reused`
+    leaves no other call under it. And each echo of the call's id under one of
+    its names, prefixed with that name as it is or stripped, is read as the id.
+    """
+    from itertools import product
+
+    from inspect_ai.agent._bridge._sentinel import _echoes, wire_names
+    from inspect_ai.agent._bridge.google_api_impl import _function_part_id
+
+    functions = ["", " ", "a", " a", "a ", "generic_tool", "computer", "a__b", " a__b"]
+    names = sorted({name for function in functions for name in wire_names(function)})
+    for function, call_id in product(functions, ["r", "a__r", "__r", " r"]):
+        handed = {call_id: wire_names(function)}
+        echoes = _echoes(ToolCall(id=call_id, function=function, arguments={}))
+        for name, prefix in product(names, names):
+            part_id = f"{prefix}__{call_id}"
+            read = _function_part_id({"id": part_id}, name, handed.get)
+            sent = name in handed[call_id] and prefix in (
+                name,
+                name.strip() or "generic_tool",
+            )
+            assert read == (call_id if sent else part_id), (function, name, part_id)
+            assert not sent or part_id in echoes, (function, name, part_id)
+
+
+def test_google_calls_without_ids_keep_their_deterministic_ids() -> None:
+    contents: list[dict[str, object]] = [
+        {"role": "user", "parts": [{"text": "Read a."}]},
+        {
+            "role": "model",
+            "parts": [{"functionCall": {"name": "read_file", "args": {"path": "a"}}}],
+        },
+        {
+            "role": "user",
+            "parts": [
+                {"functionResponse": {"name": "read_file", "response": {"out": "x"}}}
+            ],
+        },
+    ]
+
+    first = messages_from_google_contents(contents, None, handed=lambda _: None)
+    second = messages_from_google_contents(contents, None, handed=lambda _: None)
+
+    [call] = (
+        next(m for m in first if isinstance(m, ChatMessageAssistant)).tool_calls or []
+    )
+    tool = next(m for m in first if isinstance(m, ChatMessageTool))
+    assert call.id.startswith("call_read_file_")
+    assert tool.tool_call_id == call.id
+    assert [m.model_dump(exclude={"id"}) for m in first] == [
+        m.model_dump(exclude={"id"}) for m in second
+    ]
+
+
+def _read_contents(
+    call_ids: list[str], result_ids: Sequence[str | None]
+) -> list[dict[str, object]]:
+    """`read_file` calls under `call_ids`, then results carrying `result_ids`."""
+
+    def with_id(part: dict[str, object], part_id: str | None) -> dict[str, object]:
+        return part if part_id is None else {**part, "id": part_id}
+
+    return [
+        {"role": "user", "parts": [{"text": "Read files."}]},
+        {
+            "role": "model",
+            "parts": [
+                {
+                    "functionCall": with_id(
+                        {"name": "read_file", "args": {"path": str(i)}}, call_id
+                    )
+                }
+                for i, call_id in enumerate(call_ids)
+            ],
+        },
+        {
+            "role": "user",
+            "parts": [
+                {
+                    "functionResponse": with_id(
+                        {"name": "read_file", "response": {"output": str(i)}},
+                        result_id,
+                    )
+                }
+                for i, result_id in enumerate(result_ids)
+            ],
+        },
+    ]
+
+
+def _result_ids(messages: list[ChatMessage]) -> list[str | None]:
+    return [m.tool_call_id for m in messages if isinstance(m, ChatMessageTool)]
+
+
+@pytest.mark.parametrize(
+    "result_ids,expected",
+    [
+        # an explicit id takes its id's earliest remaining call
+        (["a", None, None], ["a", "a", "b"]),
+        # an id-less result takes the earliest remaining call
+        ([None, "a", None], ["a", "a", "b"]),
+        (["b", None, None], ["b", "a", "a"]),
+        # nothing is left to answer: a fresh id (None here)
+        ([None, "b", None, None], ["a", "b", "a", None]),
+        # an explicit id beyond its calls is kept, taking no other call
+        (["a", "a", "a", None], ["a", "a", "a", "b"]),
+    ],
+)
+def test_google_results_pair_by_explicit_id_then_in_call_order(
+    result_ids: list[str | None], expected: list[str | None]
+) -> None:
+    messages = messages_from_google_contents(
+        _read_contents(["a", "a", "b"], result_ids),
+        None,
+        handed=lambda _: frozenset({"read_file"}),
+    )
+
+    paired = _result_ids(messages)
+    assert len(paired) == len(expected)
+    for call_id, want in zip(paired, expected):
+        if want is None:
+            assert call_id is not None and call_id.startswith("call_read_file_")
+        else:
+            assert call_id == want
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_explicit_google_result_ids_pair_with_linear_queue_work(reverse: bool) -> None:
+    """Pairing results that carry their calls' ids is linear in the batch.
+
+    Counts every comparison of a pending call id, including those made in C by
+    the queue's containers, which a line tracer does not see.
+    """
+    from unittest.mock import patch
+
+    from inspect_ai.agent._bridge import google_api_impl
+
+    comparisons = 0
+
+    class CountedId(str):
+        def __eq__(self, other: object) -> bool:
+            nonlocal comparisons
+            comparisons += 1
+            return super().__eq__(other)
+
+        __hash__ = str.__hash__
+
+    class CountedQueue(google_api_impl._CallQueue):
+        def append(self, call_id: str) -> None:
+            super().append(CountedId(call_id))
+
+    def work(n: int) -> int:
+        nonlocal comparisons
+        ids = [f"call_{i}" for i in range(n)]
+        contents = _read_contents(ids, ids[::-1] if reverse else ids)
+        comparisons = 0
+        with patch.object(google_api_impl, "_CallQueue", CountedQueue):
+            messages = messages_from_google_contents(
+                contents, None, handed=lambda _: frozenset({"read_file"})
+            )
+        assert _result_ids(messages) == (ids[::-1] if reverse else ids)
+        return comparisons
+
+    small, large = work(16), work(128)
+    assert small > 0
+    # linear is 8x; scanning the queue for each result is 64x
+    assert large <= 12 * small, (small, large)
+
+
+def test_a_google_round_trip_without_a_sentinel_keeps_mains_ids() -> None:
+    import anyio
+
+    from inspect_ai.agent import AgentState
+    from inspect_ai.agent._bridge.google_api import inspect_google_api_request
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.model import get_model
+
+    inputs: list[list[ChatMessage]] = []
+    outputs = [
+        ModelOutput.for_tool_call("mockllm/model", "read_file", {"path": "a"}),
+        ModelOutput.from_content("mockllm/model", "done"),
+    ]
+
+    def respond(input: list[ChatMessage], *_: object) -> ModelOutput:
+        inputs.append(list(input))
+        return outputs[len(inputs) - 1]
+
+    model = get_model("mockllm/model", custom_outputs=respond, memoize=False)
+    bridge = AgentBridge(AgentState(messages=[]), model_aliases={"inspect": model})
+    tools = [
+        {
+            "functionDeclarations": [
+                {
+                    "name": "read_file",
+                    "description": "Read",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"path": {"type": "string"}},
+                    },
+                }
+            ]
+        }
+    ]
+
+    async def round_trip() -> dict[str, object]:
+        contents: list[dict[str, object]] = [
+            {"role": "user", "parts": [{"text": "Read a."}]}
+        ]
+        response = await inspect_google_api_request(
+            {"model": "inspect", "contents": contents, "tools": tools},
+            None,
+            None,
+            bridge,
+        )
+        [part] = [
+            part
+            for part in response["candidates"][0]["content"]["parts"]
+            if "functionCall" in part
+        ]
+        # gemini-cli synthesizes an id when it is handed none
+        synthesized = "read_file__read_file_1712_0"
+        call = {**part["functionCall"], "id": synthesized}
+        contents += [
+            {"role": "model", "parts": [{"functionCall": call}]},
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "functionResponse": {
+                            "id": synthesized,
+                            "name": "read_file",
+                            "response": {"out": "x"},
+                        }
+                    }
+                ],
+            },
+        ]
+        await inspect_google_api_request(
+            {"model": "inspect", "contents": contents, "tools": tools},
+            None,
+            None,
+            bridge,
+        )
+        return dict(part["functionCall"])
+
+    function_call = anyio.run(round_trip)
+
+    # the response carries no id, and the ids the scaffold sends back are not
+    # read: the call and its result get the id main derives from the call
+    assert function_call == {"name": "read_file", "args": {"path": "a"}}
+    expected = deterministic_id("read_file", {"path": "a"}, 0)
+    assistant = next(m for m in inputs[1] if isinstance(m, ChatMessageAssistant))
+    tool = next(m for m in inputs[1] if isinstance(m, ChatMessageTool))
+    assert assistant.tool_calls == [
+        ToolCall(id=expected, function="read_file", arguments={"path": "a"})
+    ]
+    assert tool.tool_call_id == expected
 
 
 def _assistant_from_parts(parts: list[dict[str, object]]) -> ChatMessageAssistant:

@@ -31,6 +31,7 @@
 | google/gemini-3.8-flash | medium |
 | google/gemini-4-argon | medium |
 | google/gemini-4-carbon | medium |
+| google/gemini-4-hydrogen | high |
 | grok/grok-3-mini | low |
 | grok/grok-4 | no effort scale |
 | grok/grok-4.3 | low |
