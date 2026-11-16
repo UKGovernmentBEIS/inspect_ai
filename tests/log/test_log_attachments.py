@@ -41,6 +41,7 @@ from inspect_ai.log._condense import (
     condense_event,
     condense_raw_sample,
     condense_sample,
+    condensed_sample_summary,
     resolve_sample_attachments,
 )
 from inspect_ai.log._convert import convert_eval_logs
@@ -1426,23 +1427,27 @@ def test_convert_keeps_literals_and_genuine_references(
 
 
 @pytest.mark.parametrize("log_format", ["eval", "json"])
-@pytest.mark.parametrize(
-    "literal",
-    [
+@pytest.mark.parametrize("protocol", ["attachment://", "tc://"])
+def test_summary_input_keeps_literal_reference_text(
+    tmp_path: str, log_format: Literal["eval", "json"], protocol: str
+) -> None:
+    # `named` names the system prompt's attachment; `chained` names the
+    # attachment that holds `named` once it is stored as a literal
+    named = f"{protocol}{_LITERAL_KEY}"
+    chained = f"attachment://{mm3_hash(named)}"
+    texts = [
+        _LITERAL_SYSTEM_PROMPT,
         "attachment://ordinary-user-text",
         "tc://ordinary-user-text",
-        f"attachment://{_LITERAL_KEY}",
-    ],
-)
-def test_summary_input_keeps_literal_reference_text(
-    tmp_path: str, log_format: Literal["eval", "json"], literal: str
-) -> None:
+        named,
+        chained,
+    ]
     task = Task(
         dataset=[
             Sample(
                 input=[
-                    ChatMessageSystem(content=_LITERAL_SYSTEM_PROMPT),
-                    ChatMessageUser(content=literal),
+                    ChatMessageSystem(content=texts[0]),
+                    *[ChatMessageUser(content=text) for text in texts[1:]],
                 ]
             )
         ]
@@ -1456,15 +1461,24 @@ def test_summary_input_keeps_literal_reference_text(
     )
     assert log.location
 
-    [summary] = read_eval_log_sample_summaries(log.location)
-    assert isinstance(summary.input, list)
-    assert summary.input[0].text == _LITERAL_SYSTEM_PROMPT
-    assert summary.input[-1].text == literal
+    def input_texts(input: str | list[ChatMessage]) -> list[str]:
+        assert isinstance(input, list)
+        return [message.text for message in input]
 
-    resolved = read_eval_log(log.location, resolve_attachments=True)
-    assert resolved.samples
-    assert isinstance(resolved.samples[0].input, list)
-    assert resolved.samples[0].input[-1].text == literal
+    # the summaries the recorder stored
+    [summary] = read_eval_log_sample_summaries(log.location)
+    assert input_texts(summary.input) == texts
+
+    # summaries of the sample as read, which mirror its input
+    for resolve in (False, True, "core", "full"):
+        read = read_eval_log(log.location, resolve_attachments=resolve)
+        assert read.samples
+        sample = read.samples[0]
+        assert sample.summary().input == sample.input
+        if resolve:
+            assert input_texts(sample.summary().input) == texts
+        else:
+            assert input_texts(condensed_sample_summary(sample).input) == texts
 
 
 @scorer(metrics=[mean()])

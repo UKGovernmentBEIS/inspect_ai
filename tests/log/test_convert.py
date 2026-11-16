@@ -10,6 +10,7 @@ from test_helpers.chunked_corpus import CORPUS_SMALL_CHUNK_SIZE, ChunkedCorpus
 from inspect_ai import Task
 from inspect_ai import eval as inspect_eval
 from inspect_ai._util.constants import get_deserializing_context
+from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai.dataset import Sample
 from inspect_ai.event import ModelEvent, SampleInitEvent
@@ -48,6 +49,8 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
+from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
 _TESTS_DIR = pathlib.Path(__file__).resolve().parent
 
@@ -852,3 +855,89 @@ def test_convert_chunked_keeps_literal_reference_text(tmp_path: pathlib.Path):
     [model_event] = [e for e in resolved.events if isinstance(e, ModelEvent)]
     assert model_event.input[0].text == system_prompt
     assert model_event.output.message.text == literal
+
+
+def test_convert_chunked_keeps_raw_fields_that_read_like_references(
+    tmp_path: pathlib.Path,
+):
+    """Raw fields stay as written when a literal names an attachment; references still renumber."""
+    system_prompt = "You are a careful assistant who answers in full. " * 4
+    image = "data:image/png;base64," + ("A" * 200)
+    first = f"attachment://{mm3_hash(system_prompt)}"
+    # names the attachment that holds `first`, which is stored as a literal
+    final = f"attachment://{mm3_hash(first)}"
+
+    @solver
+    def ask_again() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            state.store.set("note", final)
+            state.messages.append(ChatMessageUser(content="Again."))
+            return state
+
+        return solve
+
+    @scorer(metrics=[mean()])
+    def explain() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=1, explanation=final)
+
+        return score
+
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", first),
+            ModelOutput.from_content("mockllm/model", final),
+        ],
+    )
+    task = Task(
+        dataset=[
+            Sample(
+                input=[
+                    ChatMessageSystem(content=system_prompt),
+                    ChatMessageUser(
+                        content=[ContentText(text="Look."), ContentImage(image=image)]
+                    ),
+                ],
+                target=final,
+                metadata={"note": final},
+            )
+        ],
+        solver=[generate(), ask_again(), generate()],
+        scorer=explain(),
+    )
+    [log] = inspect_eval(
+        task, model=model, log_dir=str(tmp_path / "logs"), display="none"
+    )
+    assert log.location
+
+    output_dir = tmp_path / "chunked"
+    convert_eval_logs_to_chunked(log.location, str(output_dir), chunk_size=_CHUNK_SIZE)
+
+    with zipfile.ZipFile(output_dir / pathlib.Path(log.location).name) as zf:
+        sample, _ = _reassemble_chunked_sample(zf, 1, 1)
+
+    # raw fields
+    assert sample.output.completion == final
+    assert sample.output.message.text == final
+    assert sample.target == final
+    assert sample.store["note"] == final
+    assert sample.metadata["note"] == final
+    assert sample.scores is not None
+    assert sample.scores["explain"].explanation == final
+
+    # renumbered references still resolve
+    resolved = resolve_sample_attachments(sample, "full")
+    assert isinstance(resolved.input, list)
+    content = resolved.input[1].content
+    assert isinstance(content, list)
+    assert isinstance(content[1], ContentImage)
+    assert content[1].image == image
+    assert resolved.messages[0].text == system_prompt
+    assert [m.text for m in resolved.messages if m.role == "assistant"] == [
+        first,
+        final,
+    ]
+    model_events = [e for e in resolved.events if isinstance(e, ModelEvent)]
+    assert model_events[0].input[0].text == system_prompt
+    assert model_events[-1].output.message.text == final

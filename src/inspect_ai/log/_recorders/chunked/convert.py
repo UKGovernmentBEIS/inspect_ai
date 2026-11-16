@@ -6,6 +6,7 @@ too (see the "Small-sample monolith threshold" amendment in
 ``design/large-samples.md``). See ``format.py`` for the zip layout.
 """
 
+import json
 import os
 import re
 import shutil
@@ -307,6 +308,34 @@ def _attachment_ref_renumberer(
     return renumber
 
 
+def _renumber_shell(
+    shell: dict[str, Any], renumber: Callable[[bytes], bytes]
+) -> dict[str, Any]:
+    """Renumber attachment refs in the shell fields that can hold them.
+
+    Only message-list input and the events of error retries hold attachment
+    references (the shell fields `resolve_sample_attachments` resolves).
+    Other fields (output, target, store, scores) hold raw values, whose text
+    stays as written even when it reads like a reference.
+    """
+
+    def renumbered(value: JsonValue) -> JsonValue:
+        result: JsonValue = json.loads(renumber(to_json_safe(value, indent=None)))
+        return result
+
+    updates: dict[str, Any] = {}
+    if isinstance(shell.get("input"), list):
+        updates["input"] = renumbered(shell["input"])
+    if isinstance(shell.get("error_retries"), list):
+        updates["error_retries"] = [
+            {**retry, "events": renumbered(retry["events"])}
+            if retry.get("events") is not None
+            else retry
+            for retry in shell["error_retries"]
+        ]
+    return {**shell, **updates}
+
+
 def _write_sidecar(zip: ZipFile, entry_name: str, sidecar: BaseModel) -> None:
     """Write a derived sidecar in its canonical JSON form (exclude_none)."""
     zip.writestr(
@@ -326,13 +355,14 @@ def _write_chunked_sample(
 
     zip.writestr(
         shell_entry_name(sample.id, sample.epoch),
-        renumber(to_json_safe(converted.shell, indent=None)),
+        to_json_safe(_renumber_shell(converted.shell, renumber), indent=None),
     )
 
+    # metadata holds raw values, never attachment references
     if sample.metadata:
         zip.writestr(
             metadata_entry_name(sample.id, sample.epoch),
-            renumber(to_json_safe(sample.metadata, indent=None)),
+            to_json_safe(sample.metadata, indent=None),
         )
 
     # derived sidecars: neither contains event payloads (span names, types,

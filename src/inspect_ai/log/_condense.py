@@ -70,7 +70,7 @@ from ..event._store import StoreEvent
 from ..event._subtask import SubtaskEvent
 from ..event._swarm import SwarmEvent
 from ..event._tool import ToolEvent
-from ._log import EvalSample, EventsData
+from ._log import EvalSample, EvalSampleSummary, EventsData
 
 logger = getLogger(__name__)
 
@@ -428,26 +428,28 @@ def escape_literal_event_refs(
     )
 
 
-def summary_input(
-    input: str | list[ChatMessage], attachments: Mapping[str, str]
-) -> str | list[ChatMessage]:
-    """Input for a sample summary, with literal reference text restored.
+def condensed_sample_summary(sample: EvalSample) -> EvalSampleSummary:
+    """Summary of a condensed sample, with literal reference text in its input restored.
 
+    For recorders, which summarize the condensed samples they write.
     Condensing stores literal `attachment://` and `tc://` text as an
-    attachment of its own. Summaries carry no attachments, so the literal is
-    put back. Other references stay as they are.
+    attachment of its own, and summaries carry no attachments, so the
+    literal is put back. As the sample is condensed, a reference whose
+    attachment holds prefixed text is such a literal; other references stay
+    as they are. Not for resolved samples, whose input text is already
+    literal: use `EvalSample.summary()`.
 
     Args:
-       input: Condensed sample input.
-       attachments: The sample's attachments.
+       sample: Condensed sample.
 
     Returns:
-       The input with literal reference text restored.
+       Summary of the sample.
     """
-    if isinstance(input, str) or not any(
+    attachments = sample.attachments
+    if isinstance(sample.input, str) or not any(
         _has_ref_prefix(value) for value in attachments.values()
     ):
-        return input
+        return sample.summary()
 
     def content_fn(text: str) -> str:
         if text.startswith(ATTACHMENT_PROTOCOL):
@@ -456,7 +458,10 @@ def summary_input(
                 return value
         return text
 
-    return walk_input(input, content_fn, WalkContext(message_cache={}, only_core=True))
+    input = walk_input(
+        sample.input, content_fn, WalkContext(message_cache={}, only_core=True)
+    )
+    return sample.model_copy(update={"input": input}).summary()
 
 
 def _condense_sample(sample: EvalSample, log_images: bool, raw: bool) -> EvalSample:

@@ -44,6 +44,7 @@ from inspect_ai.log import (
     EvalStatus,
     HeadlineMetric,
 )
+from inspect_ai.log._condense import condensed_sample_summary
 from inspect_ai.log._log import (
     EvalLog,
     EvalMetricDefinition,
@@ -823,7 +824,7 @@ class TaskLogger:
         self._seeded_pending.discard(_seeded_key(sample.id, sample.epoch))
         if self._buffer_db is not None:
             self._buffer_db.complete_sample(
-                sample.summary(),
+                condensed_sample_summary(sample),
                 sample_metadata=sample.metadata,
                 sample_store=sample.store,
             )

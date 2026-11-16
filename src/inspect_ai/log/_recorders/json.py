@@ -25,6 +25,7 @@ from inspect_ai._util.json import (
 )
 from inspect_ai._util.trace import trace_action
 
+from .._condense import condensed_sample_summary
 from .._config_update import ConfigUpdate
 from .._edit import LogUpdate
 from .._log import (
@@ -162,7 +163,7 @@ class JSONRecorder(FileRecorder):
             ]
         log.samples_by_key[key] = sample
         log.data.samples.append(sample)
-        log.summaries.append(sample.summary())
+        log.summaries.append(condensed_sample_summary(sample))
 
     @override
     async def sample_summaries(self, eval: EvalSpec) -> list[EvalSampleSummary] | None:
