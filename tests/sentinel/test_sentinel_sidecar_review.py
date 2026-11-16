@@ -45,7 +45,7 @@ from inspect_ai._sentinel._sidecar._received import (
     route_fetch_to_sidecar,
 )
 from inspect_ai._sentinel._sidecar._review import (
-    FAILED_TRY,
+    FAILED_TRY_HEADER,
     MAX_ERROR_FETCHES,
     MAX_RESENDS,
 )
@@ -161,7 +161,7 @@ class ReviewingSidecar(StandInSidecar):
     """
     records_dropped: bool = False
     """Whether the sidecar drops the call's records once a person has answered."""
-    error_passing_asks: int = 0
+    error_arriving_lookups: int = 0
     """How many times `request_result` returns `awaiting_reply` after a failure.
 
     It stands for a sidecar that is still receiving the provider's error. The
@@ -197,7 +197,7 @@ class ReviewingSidecar(StandInSidecar):
     The headers arrive, including the sidecar's `x-sentinel-failed-try`. The
     connection fails before the whole body does.
     """
-    pending_lost: int = 0
+    pending_reviews_lost: int = 0
     """How many "pending review" answers are lost with their connection, from the first.
 
     With a large number, every try that the provider's SDK makes on its own
@@ -213,26 +213,26 @@ class ReviewingSidecar(StandInSidecar):
 
     Every `request_result` about a paused call returns it, as the sidecar does.
     """
-    error_lost: bool = False
+    error_hidden_by_pending_review: bool = False
     """Whether Inspect gets "pending review" when the provider fails a resend.
 
     Without it, Inspect gets the provider's error. It stands for a try the
     sidecar answered while another try of the call was with the provider.
     """
-    provider_takes_asks: int = 0
+    provider_busy_lookups: int = 0
     """How many times `request_result` returns `awaiting_reply` for a resend.
 
     The stand-in holds the resend's own connection for 60 seconds, so Inspect's
     attempt at it times out first.
     """
-    lookups_take: list[float] = field(default_factory=list)
+    lookup_durations: list[float] = field(default_factory=list)
     """How long each `request_result` that finds `awaiting_reply` takes, in seconds.
 
     In order. Calls after the list runs out are answered at once.
     """
     awaited_lookups: int = 0
     """How many `request_result` calls found the call at `awaiting_reply`."""
-    reply_judged_asks: int = 0
+    judging_lookups: int = 0
     """How many times `request_result` returns `judging` once the provider has replied.
 
     After that the call is `decided`.
@@ -336,8 +336,8 @@ class ReviewingSidecar(StandInSidecar):
                         )
                 if self.paused[call["params"]["id"]].state == "awaiting_reply":
                     self.awaited_lookups += 1
-                    if self.lookups_take:
-                        self._holds[id(request)] = self.lookups_take.pop(0)
+                    if self.lookup_durations:
+                        self._holds[id(request)] = self.lookup_durations.pop(0)
             else:
                 self.methods.pop("request_result", None)
         return super()._handle(request)
@@ -384,9 +384,9 @@ class ReviewingSidecar(StandInSidecar):
                 "try_number": paused.tries,
                 "reply": {"status": turn.status, "headers": {}, "body": ""},
             }
-            if self.error_lost:
+            if self.error_hidden_by_pending_review:
                 return _refusal("pending review")
-        elif self.provider_takes_asks > 0:
+        elif self.provider_busy_lookups > 0:
             # the provider is still working, and the sidecar will hold its reply
             paused.turn = turn
             paused.state = "awaiting_reply"
@@ -425,10 +425,10 @@ class ReviewingSidecar(StandInSidecar):
         return response
 
     def _pending(self, request: httpx2.Request) -> httpx2.Response:
-        # The sidecar's "pending review" error. While `pending_lost` lasts,
+        # The sidecar's "pending review" error. While `pending_reviews_lost` lasts,
         # the connection fails before the error arrives.
-        if self.pending_lost > 0:
-            self.pending_lost -= 1
+        if self.pending_reviews_lost > 0:
+            self.pending_reviews_lost -= 1
             raise httpx2.ConnectError("The connection was lost.", request=request)
         return _refusal("pending review")
 
@@ -467,7 +467,7 @@ class ReviewingSidecar(StandInSidecar):
                 failed = self._failed(
                     paused.failure["reply"]["status"], self.failure_message
                 )
-            failed.headers[FAILED_TRY] = str(paused.failure["try_number"])
+            failed.headers[FAILED_TRY_HEADER] = str(paused.failure["try_number"])
             failed.headers["x-should-retry"] = "false"
             if self.error_cut_off > 0:
                 self.error_cut_off -= 1
@@ -549,20 +549,20 @@ class ReviewingSidecar(StandInSidecar):
         paused = self.paused[params["id"]]
         if self.records_dropped and paused.reviews:
             return {"id": params["id"], "records": "dropped"}
-        if paused.failure is not None and self.error_passing_asks > 0:
-            self.error_passing_asks -= 1
+        if paused.failure is not None and self.error_arriving_lookups > 0:
+            self.error_arriving_lookups -= 1
             return {"id": params["id"], "records": "held", "state": "awaiting_reply"}
         if paused.state == "judging" and paused.turn is not None:
-            self.reply_judged_asks -= 1
-            if self.reply_judged_asks <= 0:
+            self.judging_lookups -= 1
+            if self.judging_lookups <= 0:
                 paused.state = "decided"
                 paused.judgment = {"outcome": "proceed", "steps": []}
         if paused.state == "awaiting_reply":
-            self.provider_takes_asks -= 1
-            if self.provider_takes_asks <= 0 and self.reply_judged_asks > 0:
+            self.provider_busy_lookups -= 1
+            if self.provider_busy_lookups <= 0 and self.judging_lookups > 0:
                 # the provider has replied, and the sentinel is judging the reply
                 paused.state = "judging"
-            elif self.provider_takes_asks <= 0:
+            elif self.provider_busy_lookups <= 0:
                 # the provider has replied, and the sentinel has judged the reply
                 paused.state = "decided"
                 paused.judgment = {"outcome": "proceed", "steps": []}
@@ -893,7 +893,7 @@ def test_a_person_is_shown_the_conversation_as_inspect_holds_it(
 
 
 @pytest.mark.parametrize("provider", ["anthropic", "openai-api"])
-def test_an_approved_call_gets_the_held_reply_on_the_same_model_event(
+def test_the_held_reply_of_an_approved_call_is_fetched_on_the_same_model_event(
     provider: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     person = Person("approve")
@@ -1019,7 +1019,7 @@ def test_a_rejected_call_goes_on_as_the_models_turn(
     assert _LOOKED_UP == []
 
 
-def test_a_question_that_cant_be_shown_tells_nothing_of_what_it_held(
+def test_a_question_that_cant_be_shown_leaks_none_of_its_contents(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     person = Person("approve")
@@ -1099,7 +1099,7 @@ def test_a_continuation_after_the_held_reply_goes_to_the_model(
 # --- a call paused at its request ---------------------------------------------
 
 
-def test_a_call_paused_at_its_request_is_sent_again_on_the_model_path(
+def test_a_call_paused_at_its_request_is_resent_for_the_provider(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
@@ -1119,7 +1119,7 @@ def test_a_call_paused_at_its_request_is_sent_again_on_the_model_path(
     assert sample.output.completion == "Sunny."
 
 
-def test_a_call_whose_question_closed_before_inspect_asked_gets_its_held_reply(
+def test_inspect_fetches_the_held_reply_of_a_call_whose_question_closed_before_it_asked(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     person = Person("approve")
@@ -1134,14 +1134,14 @@ def test_a_call_whose_question_closed_before_inspect_asked_gets_its_held_reply(
 
     # Inspect asked no person, and fetched the held reply as the call's result
     assert person.asked == []
-    [got] = stand_in.held_reply_requests
-    assert got.headers["x-irid"] == stand_in.model_calls[0].headers["x-irid"]
+    [fetch] = stand_in.held_reply_requests
+    assert fetch.headers["x-irid"] == stand_in.model_calls[0].headers["x-irid"]
     event = _model_events(sample)[0]
     assert event.error is None
     assert _LOOKED_UP == ["Oslo"]
 
 
-def test_a_provider_error_after_a_review_is_inspects_to_retry_under_the_same_id(
+def test_inspect_retries_a_provider_error_after_a_review_under_the_same_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
@@ -1181,7 +1181,7 @@ def test_a_provider_error_after_a_review_is_the_error_the_model_event_records(
     assert len(stand_in.model_calls) == 2
 
 
-def test_the_providers_error_is_got_from_the_sidecar_when_inspect_holds_the_sidecars_own(
+def test_inspect_fetches_the_providers_error_when_it_holds_the_sidecars_own(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
@@ -1189,7 +1189,9 @@ def test_the_providers_error_is_got_from_the_sidecar_when_inspect_holds_the_side
     # retry. Inspect's own try gets "pending review" instead, as it does when
     # another try of the call is with the provider.
     stand_in = ReviewingSidecar(
-        pauses=["tool_result"], turns=[Turn(status=403)], error_lost=True
+        pauses=["tool_result"],
+        turns=[Turn(status=403)],
+        error_hidden_by_pending_review=True,
     )
 
     sample = _sample(_run(stand_in, solver=generate(), fail_on_error=False))
@@ -1203,12 +1205,14 @@ def test_the_providers_error_is_got_from_the_sidecar_when_inspect_holds_the_side
     assert "pending review" not in event.error
     # Inspect fetched the error once from the held-reply path, under the
     # call's id. It didn't resend, because it doesn't retry a 403.
-    [got] = stand_in.held_reply_requests
-    first, sent_on = stand_in.model_calls
-    assert got.headers["x-irid"] == first.headers["x-irid"] == sent_on.headers["x-irid"]
+    [fetch] = stand_in.held_reply_requests
+    first, resend = stand_in.model_calls
+    assert (
+        fetch.headers["x-irid"] == first.headers["x-irid"] == resend.headers["x-irid"]
+    )
 
 
-def test_a_providers_error_got_from_the_sidecar_is_retried_by_inspects_own_rules(
+def test_a_fetched_provider_error_is_retried_by_inspects_own_rules(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
@@ -1217,7 +1221,7 @@ def test_a_providers_error_got_from_the_sidecar_is_retried_by_inspects_own_rules
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(status=529), Turn(text="Sunny.")],
-        error_lost=True,
+        error_hidden_by_pending_review=True,
     )
 
     sample = _sample(_run(stand_in, solver=generate()))
@@ -1230,7 +1234,7 @@ def test_a_providers_error_got_from_the_sidecar_is_retried_by_inspects_own_rules
     assert len(_called(stand_in, "answer_question")) == 1
 
 
-def test_inspect_asks_again_while_a_providers_error_is_still_passing(
+def test_inspect_asks_again_while_a_providers_error_is_still_arriving(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
@@ -1239,8 +1243,8 @@ def test_inspect_asks_again_while_a_providers_error_is_still_passing(
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(status=403)],
-        error_lost=True,
-        error_passing_asks=2,
+        error_hidden_by_pending_review=True,
+        error_arriving_lookups=2,
     )
 
     sample = _sample(
@@ -1257,23 +1261,24 @@ def test_inspect_asks_again_while_a_providers_error_is_still_passing(
 
 
 @pytest.mark.parametrize(
-    "error_lost",
+    "error_hidden_by_pending_review",
     [True, False],
-    ids=["got from the sidecar", "passed on to Inspect's own try"],
+    ids=["fetched from the sidecar", "passed on to Inspect's own try"],
 )
 def test_a_providers_error_that_its_own_code_reads_as_a_reply_is_the_calls_result(
-    error_lost: bool,
+    error_hidden_by_pending_review: bool,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
     # Inspect's Anthropic code reads a "prompt is too long" error as a reply
     # with the stop reason `model_length`, not as an error. With
-    # `error_lost`, Inspect fetches that error from the sidecar. Without it,
-    # Inspect's own resend receives the error from the proxy.
+    # `error_hidden_by_pending_review`, Inspect fetches that error from the
+    # sidecar. Without it, Inspect's own resend receives the error from the
+    # proxy.
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(status=400)],
-        error_lost=error_lost,
+        error_hidden_by_pending_review=error_hidden_by_pending_review,
         failure_message="prompt is too long: 250000 tokens > 200000 maximum",
     )
 
@@ -1288,11 +1293,13 @@ def test_a_providers_error_that_its_own_code_reads_as_a_reply_is_the_calls_resul
     first = stand_in.model_calls[0]
     assert stand_in.cancelled == [first.headers["x-irid"]]
     assert len(stand_in.model_calls) == 2
-    assert len(stand_in.held_reply_requests) == (1 if error_lost else 0)
+    assert len(stand_in.held_reply_requests) == (
+        1 if error_hidden_by_pending_review else 0
+    )
     assert review_module._paused_calls == {}
 
 
-def test_a_refusal_of_the_sidecars_own_that_the_providers_code_reads_as_a_reply_is_not_taken(
+def test_the_sidecars_own_refusal_read_as_a_reply_is_not_used_as_the_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
@@ -1303,7 +1310,7 @@ def test_a_refusal_of_the_sidecars_own_that_the_providers_code_reads_as_a_reply_
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(status=403)],
-        error_lost=True,
+        error_hidden_by_pending_review=True,
         held_reply_statuses=[413],
     )
 
@@ -1323,7 +1330,7 @@ def test_a_refusal_of_the_sidecars_own_that_the_providers_code_reads_as_a_reply_
     assert event.output.stop_reason != "model_length"
 
 
-def test_a_providers_error_whose_connection_failed_part_way_is_asked_for_again(
+def test_a_fetch_of_the_providers_error_that_fails_part_way_is_tried_again(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
@@ -1333,7 +1340,7 @@ def test_a_providers_error_whose_connection_failed_part_way_is_asked_for_again(
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(status=403)],
-        error_lost=True,
+        error_hidden_by_pending_review=True,
         error_cut_off=1,
     )
 
@@ -1351,7 +1358,7 @@ def test_a_providers_error_whose_connection_failed_part_way_is_asked_for_again(
     assert len(stand_in.model_calls) == 2
 
 
-def test_a_refusal_of_the_sidecars_own_is_never_taken_for_the_providers_error(
+def test_the_sidecars_own_refusal_is_never_used_as_the_providers_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
@@ -1361,7 +1368,7 @@ def test_a_refusal_of_the_sidecars_own_is_never_taken_for_the_providers_error(
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(status=403)],
-        error_lost=True,
+        error_hidden_by_pending_review=True,
         held_reply_statuses=[403, 403],
     )
 
@@ -1664,7 +1671,7 @@ def _generates_beside_a_waiting_task() -> Solver:
 
 
 @pytest.mark.parametrize(
-    "pending_lost,holds",
+    "pending_reviews_lost,holds",
     [
         # The provider's client returns the sidecar's "pending review" error
         # without raising it, so Inspect fetches the held reply after the
@@ -1674,10 +1681,10 @@ def _generates_beside_a_waiting_task() -> Solver:
         # raises, and Inspect fetches the held reply inside the attempt's block.
         (10, [(1.0, 0.0)]),
     ],
-    ids=["its error handed back", "its error raised"],
+    ids=["its error returned", "its error raised"],
 )
 def test_a_send_after_a_review_is_the_models_time_while_another_task_waits(
-    pending_lost: int,
+    pending_reviews_lost: int,
     holds: list[tuple[float, float]],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1686,7 +1693,7 @@ def test_a_send_after_a_review_is_the_models_time_while_another_task_waits(
     stand_in = ReviewingSidecar(
         pauses=["tool_call"],
         turns=[Turn(text="Sunny.")],
-        pending_lost=pending_lost,
+        pending_reviews_lost=pending_reviews_lost,
         holds=list(holds),
     )
 
@@ -1750,7 +1757,7 @@ def test_a_persons_review_is_kept_in_the_evals_log(
     assert not [w for w in _warned(sample) if "wasn't used" in w]
 
 
-def test_a_person_whose_answer_came_too_late_is_told_it_wasnt_used(
+def test_a_person_whose_answer_came_too_late_is_warned_it_wasnt_used(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
@@ -1777,7 +1784,7 @@ def test_a_person_whose_answer_came_too_late_is_told_it_wasnt_used(
     assert stand_in.held_reply_requests == []
 
 
-def test_a_person_is_told_when_the_sidecar_cant_say_what_became_of_their_answer(
+def test_a_person_is_warned_when_the_sidecar_cant_say_whether_their_answer_was_used(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
@@ -1804,7 +1811,7 @@ def test_a_pending_review_lost_on_the_way_is_found_and_not_asked_again(
     # "pending review" arrives. So Inspect is left with a connection error,
     # which it would retry.
     stand_in = ReviewingSidecar(
-        pauses=["tool_call"], turns=[_OSLO, Turn()], pending_lost=10
+        pauses=["tool_call"], turns=[_OSLO, Turn()], pending_reviews_lost=10
     )
 
     sample = _sample(_run(stand_in))
@@ -1814,9 +1821,9 @@ def test_a_pending_review_lost_on_the_way_is_found_and_not_asked_again(
     # retry reaches the sidecar as a new model call.
     assert sample.error is None
     assert len(person.asked) == 1
-    [got] = stand_in.held_reply_requests
+    [fetch] = stand_in.held_reply_requests
     first = stand_in.model_calls[0]
-    assert got.headers["x-irid"] == first.headers["x-irid"]
+    assert fetch.headers["x-irid"] == first.headers["x-irid"]
     assert _LOOKED_UP == ["Oslo"]
 
 
@@ -1833,7 +1840,9 @@ def test_a_call_given_up_on_after_a_lost_pending_review_is_cancelled_at_once(
     monkeypatch.setattr(acp_module, "request_human_approval_via_acp", acp)
     monkeypatch.setattr(approver_module, "panel_approval", never)
     # the sidecar's "pending review" is lost on every try
-    stand_in = ReviewingSidecar(pauses=["tool_call"], turns=[_OSLO], pending_lost=10)
+    stand_in = ReviewingSidecar(
+        pauses=["tool_call"], turns=[_OSLO], pending_reviews_lost=10
+    )
     cancelled_before_the_sample_ended: list[list[str]] = []
 
     @solver
@@ -1856,7 +1865,7 @@ def test_a_call_given_up_on_after_a_lost_pending_review_is_cancelled_at_once(
     assert cancelled_before_the_sample_ended == [[first.headers["x-irid"]]]
 
 
-def test_a_call_whose_exchanges_keep_being_cut_off_isnt_sent_again_without_end(
+def test_a_call_whose_replies_keep_being_cut_off_isnt_resent_without_end(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
@@ -2011,7 +2020,7 @@ def test_a_rejected_call_counts_only_the_models_time_before_the_person(
     # so Inspect neither fetches nor resends.
     Person("reject", takes=1.0).install(monkeypatch)
     stand_in = ReviewingSidecar(
-        pauses=["tool_call"], turns=[_OSLO, Turn()], pending_lost=10
+        pauses=["tool_call"], turns=[_OSLO, Turn()], pending_reviews_lost=10
     )
 
     sample = _sample(_run(stand_in))
@@ -2050,7 +2059,7 @@ def test_a_send_cut_short_by_the_sample_ending_counts_as_the_models_time(
     stand_in = ReviewingSidecar(
         pauses=["tool_call"],
         turns=[_OSLO, Turn()],
-        pending_lost=10,
+        pending_reviews_lost=10,
         holds=[(30.0, 0.0)],
         when_held=end_the_sample_in_a_second,
     )
@@ -2059,7 +2068,7 @@ def test_a_send_cut_short_by_the_sample_ending_counts_as_the_models_time(
 
     assert log.samples is not None
     [sample] = log.samples
-    [got] = stand_in.held_reply_requests
+    [fetch] = stand_in.held_reply_requests
     # The stand-in held the fetch from its arrival until the sample's end cut
     # it short. Inspect was inside a send for all of that time, so it counts
     # as working time.
@@ -2070,7 +2079,7 @@ def test_a_send_cut_short_by_the_sample_ending_counts_as_the_models_time(
     assert sample.working_time >= (held.ended - held.began) - 0.1
 
 
-def test_a_request_sent_again_waits_for_an_operators_hard_pause(
+def test_a_resend_waits_for_an_operators_hard_pause(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     paused_at: list[float] = []
@@ -2096,8 +2105,8 @@ def test_a_request_sent_again_waits_for_an_operators_hard_pause(
     # Inspect sent the resend only after the process was resumed
     assert sample.output.completion == "Sunny."
     assert not process_paused()
-    [_, sent_on_at] = stand_in.held_at
-    assert sent_on_at - paused_at[0] >= 0.4
+    [_, resend_at] = stand_in.held_at
+    assert resend_at - paused_at[0] >= 0.4
 
 
 # --- a call's timeout ---------------------------------------------------------
@@ -2124,7 +2133,7 @@ def test_the_time_a_person_takes_isnt_counted_toward_the_calls_timeout(
     assert sample.output.completion == "Sunny."
 
 
-def test_a_try_that_times_out_while_the_provider_works_is_followed_to_its_reply(
+def test_inspect_waits_for_the_reply_to_a_try_that_timed_out_while_the_provider_worked(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # The person takes 2.5 seconds, and Inspect's attempt at the resend times
@@ -2137,7 +2146,7 @@ def test_a_try_that_times_out_while_the_provider_works_is_followed_to_its_reply(
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(text="Sunny.")],
-        provider_takes_asks=25,
+        provider_busy_lookups=25,
     )
 
     sample = _sample(_run(stand_in, solver=generate(), timeout=3, attempt_timeout=1))
@@ -2150,7 +2159,7 @@ def test_a_try_that_times_out_while_the_provider_works_is_followed_to_its_reply(
     assert stand_in.cancelled == []
 
 
-def test_a_call_whose_timeout_passes_while_the_provider_works_is_closed_at_the_sidecar(
+def test_a_call_that_times_out_while_the_provider_works_is_cancelled_at_the_sidecar(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
@@ -2158,7 +2167,7 @@ def test_a_call_whose_timeout_passes_while_the_provider_works_is_closed_at_the_s
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(text="Sunny.")],
-        provider_takes_asks=1_000_000,
+        provider_busy_lookups=1_000_000,
     )
 
     # The sample's time limit is a safety net. If the call outlived its
@@ -2193,8 +2202,8 @@ def test_a_lookup_under_way_when_the_calls_timeout_passes_is_given_up(
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(text="Sunny.")],
-        provider_takes_asks=1_000_000,
-        lookups_take=[0.0, 10.0],
+        provider_busy_lookups=1_000_000,
+        lookup_durations=[0.0, 10.0],
     )
 
     log = _run(
@@ -2231,7 +2240,7 @@ def test_the_sidecar_isnt_asked_again_once_the_calls_timeout_has_passed(
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(text="Sunny.")],
-        provider_takes_asks=2,
+        provider_busy_lookups=2,
     )
 
     log = _run(
@@ -2263,8 +2272,8 @@ def test_a_reply_that_came_within_the_calls_timeout_is_judged_past_it(
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(text="Sunny.")],
-        provider_takes_asks=2,
-        reply_judged_asks=6,
+        provider_busy_lookups=2,
+        judging_lookups=6,
     )
 
     began = time.monotonic()
@@ -2277,7 +2286,7 @@ def test_a_reply_that_came_within_the_calls_timeout_is_judged_past_it(
     assert stand_in.cancelled == []
 
 
-async def test_a_followed_call_asked_about_again_isnt_bound_by_its_timeout(
+async def test_a_second_question_after_the_providers_reply_isnt_bound_by_the_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(lookup_module, "AWAITED_REPLY_PAUSE", 0.01)
@@ -2313,7 +2322,7 @@ async def test_a_followed_call_asked_about_again_isnt_bound_by_its_timeout(
 
     with receiving_call(Sidecar(), timeout=1) as received:
         # a paused call with half of its timeout left
-        received.request_id = received.reviewed_id = "request_1"
+        received.request_id = received.reviewed_request_id = "request_1"
         received.sent = received.paused = True
         received.began = time.monotonic() - 0.5
         looked = await lookup_module.request_result(received, replied=False)
@@ -2327,7 +2336,7 @@ async def test_a_followed_call_asked_about_again_isnt_bound_by_its_timeout(
 # --- a call Inspect gives up on -----------------------------------------------
 
 
-def test_a_call_whose_review_fails_is_closed_at_once_with_its_question_logged(
+def test_a_call_whose_review_fails_is_cancelled_at_once_with_its_question_logged(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
@@ -2413,7 +2422,7 @@ async def test_a_call_cancelled_while_a_person_decides_is_cancelled_at_the_sidec
 
     async def call(received: ReceivedCall) -> None:
         # a paused call that the sentinel is still judging
-        received.request_id = received.reviewed_id = "request_1"
+        received.request_id = received.reviewed_request_id = "request_1"
         received.sent = received.paused = True
         waiting.set()
         await refused_output("model", lambda: False, lambda: False, send_again)
@@ -2439,7 +2448,7 @@ def test_a_request_is_sent_to_the_held_reply_path_only_for_its_own_call() -> Non
         )
 
     with receiving_call() as received:
-        received.reviewed_id = "request_1"
+        received.reviewed_request_id = "request_1"
         # the hook leaves the path alone while no fetch is under way
         sent = request("request_1")
         route_fetch_to_sidecar(sent)

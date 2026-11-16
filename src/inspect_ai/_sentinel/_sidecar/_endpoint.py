@@ -71,7 +71,9 @@ class EvalAccess:
             "mac": sign(self.token, eval_call_message(method, self.eval_id, timestamp)),
         }
 
-    def answer(self, id: str, decision: str, reason: str | None) -> dict[str, Any]:
+    def answer_params(
+        self, id: str, decision: str, reason: str | None
+    ) -> dict[str, Any]:
         """The params for `answer_question`, signed now.
 
         The signature covers the answer itself.
@@ -139,7 +141,9 @@ class Sidecar:
             raise SidecarCallError(
                 "answer_question", "the eval hasn't registered with the sidecar"
             )
-        return await self.call("answer_question", access.answer(id, decision, reason))
+        return await self.call(
+            "answer_question", access.answer_params(id, decision, reason)
+        )
 
     async def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         """Call a method of the endpoint for evals, and return its result.

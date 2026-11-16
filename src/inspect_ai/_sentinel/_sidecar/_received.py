@@ -184,7 +184,7 @@ class ReceivedCall:
         """What `request_result` said of the latest attempt, once asked."""
         self.judgment: Judgment | None = None
         """What the sidecar decided of the latest attempt, once `request_result` said."""
-        self.reviewed_id: str | None = None
+        self.reviewed_request_id: str | None = None
         """The `x-irid` of the call, once a sentinel has asked a person about it.
 
         The sidecar keeps a paused call as one model call under this id. So
@@ -235,20 +235,20 @@ class ReceivedCall:
         Set once Inspect has asked the sidecar about the attempt's last request
         and has nothing more to fetch or resend.
         """
-        self.failures: set[int] = set()
+        self.handled_failures: set[int] = set()
         """The numbers of the failed tries that Inspect has handled.
 
         The sidecar reports each try that failed at the provider. A try whose
         error the sidecar holds counts as handled once Inspect has fetched that
         error.
         """
-        self.questions_lost = 0
+        self.question_list_failures = 0
         """How many `list_pending_questions` calls in a row got no answer.
 
         The call didn't reach the sidecar, or its answer was lost. A
         `request_result` call in between doesn't reset the count.
         """
-        self.answers_lost = 0
+        self.answer_send_failures = 0
         """How many `answer_question` calls in a row got no answer.
 
         The call didn't reach the sidecar, or its answer was lost. A
@@ -262,7 +262,7 @@ class ReceivedCall:
 
         Inspect keeps them so that it never shows a question twice.
         """
-        self.asked_about: dict[str, tuple[str, float]] = {}
+        self.answer_details: dict[str, tuple[str, float]] = {}
         """Details of each question that a person answered here, by question id.
 
         Each entry is the name of the function that the question's call was for,
@@ -270,14 +270,14 @@ class ReceivedCall:
         """
         self.reviews_logged: set[str] = set()
         """The ids of the resolved questions whose records are in the eval's log."""
-        self.answers_unknown: set[str] = set()
+        self.warned_unknown_answers: set[str] = set()
         """The ids of the answered questions that Inspect has warned about.
 
         A person answered each here, but the sidecar no longer holds the call's
         records. So Inspect can't tell whether the answer was used, and has
         logged a warning that says so.
         """
-        self.answered: set[str] = set()
+        self.settled_questions: set[str] = set()
         """The ids of the questions that need no answer sent.
 
         The sidecar accepted an answer to each, or no longer holds it.
@@ -305,7 +305,7 @@ class ReceivedCall:
 
         Earlier attempts already counted that time as waiting.
         """
-        self.judging_noted: dict[str, float] = {}
+        self.judging_recorded: dict[str, float] = {}
         """The sidecar's judging time as last reported, by request id.
 
         The sidecar reports a running total for the call. So the amount added
@@ -361,7 +361,7 @@ def begin_attempt() -> None:
             and received.looked is None
             # A paused call keeps its id on a retry, and Inspect asks for its
             # usage under that id, so the id is not added to `unasked`.
-            and received.request_id != received.reviewed_id
+            and received.request_id != received.reviewed_request_id
         ):
             received.unasked.append(received.request_id)
         received.request_id = None
@@ -377,8 +377,8 @@ def begin_attempt() -> None:
         received.error_is_final = False
         received.sends = []
         received.judging_before_attempt = (
-            received.judging_noted.get(received.reviewed_id, 0.0)
-            if received.reviewed_id is not None
+            received.judging_recorded.get(received.reviewed_request_id, 0.0)
+            if received.reviewed_request_id is not None
             else 0.0
         )
 
@@ -403,7 +403,7 @@ def request_id_to_reuse() -> str | None:
     received = _received.get()
     if received is None or received.request_id is not None:
         return None
-    return received.reviewed_id
+    return received.reviewed_request_id
 
 
 def route_fetch_to_sidecar(request: Any) -> None:
@@ -425,8 +425,8 @@ def route_fetch_to_sidecar(request: Any) -> None:
         return
     from inspect_ai.model._providers.util.hooks import HttpHooks
 
-    if received.reviewed_id is None or (
-        request.headers.get(HttpHooks.REQUEST_ID_HEADER) != received.reviewed_id
+    if received.reviewed_request_id is None or (
+        request.headers.get(HttpHooks.REQUEST_ID_HEADER) != received.reviewed_request_id
     ):
         return
     body = _body_digest(request)
@@ -495,7 +495,7 @@ def report_sent(request_id: str) -> None:
         received.try_sent_at = sample_clock()
 
 
-def note_send(received: ReceivedCall) -> None:
+def record_send(received: ReceivedCall) -> None:
     """Record a send of the latest attempt's request that has returned.
 
     Records nothing if no try of the request went out.
@@ -504,7 +504,7 @@ def note_send(received: ReceivedCall) -> None:
         received.sends.append(Send(received.try_sent_at, sample_clock()))
 
 
-def note_judging_time(received: ReceivedCall, judging_time: float | None) -> None:
+def record_judging_time(received: ReceivedCall, judging_time: float | None) -> None:
     """Add the growth in the sidecar's judging time to the call's latest send.
 
     The sidecar reports its judging time for the call as a running total. It
@@ -514,8 +514,8 @@ def note_judging_time(received: ReceivedCall, judging_time: float | None) -> Non
     """
     if judging_time is None or received.request_id is None:
         return
-    before = received.judging_noted.get(received.request_id, 0.0)
-    received.judging_noted[received.request_id] = max(before, judging_time)
+    before = received.judging_recorded.get(received.request_id, 0.0)
+    received.judging_recorded[received.request_id] = max(before, judging_time)
     if judging_time > before and received.sends:
         received.sends[-1].judging += judging_time - before
 

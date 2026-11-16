@@ -31,12 +31,12 @@ from ._received import (
     ReceivedCall,
     WithheldTurn,
     current_receiving,
-    note_send,
+    record_send,
 )
 
 _ENDED = "A sentinel in the sidecar ended the sample."
 
-SentAgain = ModelOutput | tuple[ModelOutput | Exception, ModelCall]
+SendAgainResult = ModelOutput | tuple[ModelOutput | Exception, ModelCall]
 """What a provider's `generate` returns when Inspect sends a call's request again."""
 
 _TOOL_CALL = TypeAdapter(ToolCall)
@@ -75,9 +75,9 @@ async def refused_output(
     model: str,
     retryable: Callable[[], bool],
     bridged: Callable[[], bool],
-    send_again: Callable[[], Awaitable[SentAgain]] | None = None,
+    send_again: Callable[[], Awaitable[SendAgainResult]] | None = None,
     response_headers: "ResponseHeaders | None" = None,
-) -> ModelOutput | SentAgain | None:
+) -> ModelOutput | SendAgainResult | None:
     """A refusal of the current agent call, as the model output Inspect acts on, or None if the call wasn't refused by a sidecar's decision.
 
     A rejected turn is the model's turn, whose calls are answered with approval errors, as in process. A turn refused because the sample ended is the model's turn if the sidecar was handed one, else empty. An error Inspect retries, such as a 503, isn't looked up while it is retried: the sidecar is asked with `request_result` only of an error Inspect won't retry.
@@ -125,35 +125,35 @@ async def refused_output(
     # because a call that turns out to be paused for a person is timed send by
     # send.
     if not received.sends:
-        note_send(received)
+        record_send(received)
     # Inspect doesn't look up an error it will retry, with two exceptions: a
     # call that is already paused for a person, whose state only the sidecar
     # knows, and a sidecar that can ask a person through the eval (below).
-    retried = retryable()
+    will_retry = retryable()
     if (
-        received.reviewed_id is None
-        and retried
+        received.reviewed_request_id is None
+        and will_retry
         and not getattr(received.sidecar, "review", False)
     ):
         return None
     try:
-        if received.reviewed_id is None and retried:
+        if received.reviewed_request_id is None and will_retry:
             # The error may hide the sidecar's "pending review" answer, for
             # example when the connection failed before that answer arrived.
             # Inspect's retry gets a new `x-irid`, which the sidecar would
             # judge as a new call, so Inspect asks the sidecar first. If no
             # person was asked about the call, Inspect retries as usual.
             await request_result(received, replied=False)
-            if received.reviewed_id is None:
+            if received.reviewed_request_id is None:
                 return None
         if received.looked is None:
             await request_result(received, replied=False)
-        if send_again is None or received.reviewed_id is None:
+        if send_again is None or received.reviewed_request_id is None:
             return _refusal(received.judgment, model, bridged())
         from ._review import finish_paused_call
 
         after = await finish_paused_call(
-            received, send_again, retried, response_headers
+            received, send_again, will_retry, response_headers
         )
     except BaseException:
         # Inspect is giving up on the call. It was cancelled while a person

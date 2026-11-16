@@ -21,9 +21,9 @@ from ._received import (
     JudgingUsage,
     Judgment,
     ReceivedCall,
-    note_judging_time,
     parse_judging_usage,
     parse_judgment,
+    record_judging_time,
     timeout_left,
 )
 
@@ -70,7 +70,7 @@ SAMPLE_FAILURES: tuple[type[Exception], ...] = (
 """The errors a call through a sidecar raises to fail its sample, which a sandbox-bridged agent must not be handed as a provider's error to retry."""
 
 
-class Failure(NamedTuple):
+class ProviderFailure(NamedTuple):
     """A failed provider exchange, as the sidecar reports it for a paused call."""
 
     try_number: int
@@ -97,7 +97,7 @@ class Looked(NamedTuple):
     """What the sidecar decided, once decided."""
     records: str | None = None
     """What the sidecar said of its records of the call, when it said."""
-    failure: Failure | None = None
+    failure: ProviderFailure | None = None
     """The provider's last failed exchange for the call.
 
     Set with `awaiting_resend`, when the call is in that state because the
@@ -134,7 +134,7 @@ async def request_result(received: ReceivedCall, replied: bool) -> Looked:
     await record_unasked_usage(received)
     received.looked = looked
     received.judgment = looked.judgment
-    note_judging_time(received, looked.judging_time)
+    record_judging_time(received, looked.judging_time)
     record_judging_usage(_not_yet_recorded(received, looked.judging_usage))
     return looked
 
@@ -244,26 +244,26 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
     # Whether to handle the states that human review added. Inspect doesn't
     # for a sidecar that asks no person through the eval, or for a call that
     # returned a reply.
-    reviews = bool(getattr(sidecar, "review", False)) and not replied
+    handles_reviews = bool(getattr(sidecar, "review", False)) and not replied
     awaited_pause = AWAITED_REPLY_PAUSE
     # Whether the sidecar's last answer was `awaiting_reply` for a paused
     # call, which means the provider still has the request. While this is
     # set, the call's `timeout` limits the waiting. Inspect starts no lookup
     # after the timeout has passed, and abandons a lookup that is in progress
     # when it passes. An answer that arrives before then is used.
-    following = False
+    provider_has_request = False
     # Whether to repeat a lookup that got no answer. Inspect repeats it when
     # a person was, or may have been, asked about the call, because the
     # person's decision is held only at the sidecar. Inspect doesn't repeat
     # any other lookup.
-    asks_again = reviews or received.reviewed_id is not None
-    lost = 0
+    repeats_lost_lookup = handles_reviews or received.reviewed_request_id is not None
+    lost_lookups = 0
     result: dict[str, Any] = {}
     with suspend_token_limit(), suspend_turn_limit(), suspend_working_limit():
         while True:
-            left = timeout_left(received) if following else None
+            left = timeout_left(received) if provider_has_request else None
             if left is not None and left <= 0:
-                return await _out_of_time(received, result)
+                return await _cancel_timed_out_call(received, result)
             asked = time.monotonic()
             with anyio.move_on_after(left) as within:
                 try:
@@ -272,11 +272,11 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                         {
                             "id": received.request_id,
                             # The sidecar holds its answer only while it is
-                            # judging. While Inspect follows a call, it asks
-                            # with no wait. So it learns at once when the
-                            # judging has begun, which means the provider
-                            # has replied.
-                            "wait": 0 if following else RESULT_WAIT,
+                            # judging. While the provider has the request,
+                            # Inspect asks with no wait. So it learns at once
+                            # when the judging has begun, which means the
+                            # provider has replied.
+                            "wait": 0 if provider_has_request else RESULT_WAIT,
                         },
                     )
                 except SidecarCallError as ex:
@@ -284,7 +284,11 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                         raise SentinelProxyError(
                             f"The sentinel sidecar at {sidecar.origin} won't take the eval's calls, so it won't say what it decided of them: {ex}"
                         ) from ex
-                    if ex.code is None and asks_again and lost < LOOKUP_RETRIES:
+                    if (
+                        ex.code is None
+                        and repeats_lost_lookup
+                        and lost_lookups < LOOKUP_RETRIES
+                    ):
                         # The lookup didn't reach the sidecar, or its answer
                         # was lost, for example because the proxy failed for
                         # a moment. Repeating it is safe: it asks the person
@@ -292,18 +296,18 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                         # repeats it at most `LOOKUP_RETRIES` times in a
                         # row, and never repeats a lookup that the sidecar
                         # answered with an error.
-                        lost += 1
-                        await anyio.sleep(LOOKUP_RETRY_PAUSE * 2 ** (lost - 1))
+                        lost_lookups += 1
+                        await anyio.sleep(LOOKUP_RETRY_PAUSE * 2 ** (lost_lookups - 1))
                         continue
                     return Looked("unavailable", str(ex))
             if within.cancelled_caught:
-                return await _out_of_time(received, result)
-            lost = 0
+                return await _cancel_timed_out_call(received, result)
+            lost_lookups = 0
             records = result.get("records")
             if records != "held":
-                from ._review import reviews_unavailable
+                from ._review import warn_reviews_unavailable
 
-                reviews_unavailable(received, str(records))
+                warn_reviews_unavailable(received, str(records))
                 return Looked(
                     "unavailable",
                     f"the sidecar's records are {records}",
@@ -311,20 +315,20 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                 )
             # Log how each question about the call was resolved, and warn if
             # an answer that a person gave here was not used.
-            from ._review import note_reviews
+            from ._review import log_reviews
 
-            note_reviews(received, result)
+            log_reviews(received, result)
             state = result.get("state")
             if state == "decided":
                 listed = result.get("reviews")
-                if reviews and isinstance(listed, list) and listed:
+                if handles_reviews and isinstance(listed, list) and listed:
                     # A person was asked about the call, but every question
                     # had closed before Inspect asked. The sidecar still
                     # treats the call as paused and holds any reply for it.
                     # So Inspect records the id, under which it fetches that
                     # reply.
-                    received.reviewed_id = received.request_id
-                _ended(received)
+                    received.reviewed_request_id = received.request_id
+                _mark_ended(received)
                 judgment = result.get("judgment")
                 if not isinstance(judgment, dict):
                     return _judging(
@@ -335,30 +339,31 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                     Looked("decided", judgment=parse_judgment(judgment)), result
                 )
             if state == "not_judged":
-                _ended(received)
+                _mark_ended(received)
                 return _judging(Looked("not_judged", str(result.get("reason"))), result)
-            if reviews and state == "awaiting_review":
+            if handles_reviews and state == "awaiting_review":
                 # A sentinel asked a person about the call, and the sidecar
                 # has paused it. No connection waits for the person. Inspect
                 # shows the person the question, sends their answer, and then
                 # asks the sidecar for the call's state again.
                 from ._review import ask_person, mark_paused
 
-                # If Inspect was following the call, a question means that
+                # If the provider had the request, a question means that
                 # the provider has replied. Inspect may never have seen the
-                # `judging` state in between, because it asks about a
-                # followed call with no wait. So it stops following, and the
-                # call's `timeout` no longer limits the wait.
-                following = False
+                # `judging` state in between, because it asks with no wait
+                # while the provider has the request. So the flag is
+                # cleared, and the call's `timeout` no longer limits the
+                # wait.
+                provider_has_request = False
                 mark_paused(received)
                 await ask_person(received)
                 continue
             if (
                 replied
                 and state == "awaiting_resend"
-                and received.reviewed_id is not None
+                and received.reviewed_request_id is not None
             ):
-                failure = _failure(result.get("failure"))
+                failure = _parse_failure(result.get("failure"))
                 if failure is not None and failure.status is not None:
                     # The provider answered the request that the sidecar
                     # passed on with an error, and the proxy returned that
@@ -372,10 +377,10 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                     # with an error.
                     from ._review import cancel_paused_call
 
-                    received.failures.add(failure.try_number)
+                    received.handled_failures.add(failure.try_number)
                     await cancel_paused_call(received)
                     return _judging(Looked("not_judged", "provider_error"), result)
-            if reviews and state == "awaiting_resend":
+            if handles_reviews and state == "awaiting_resend":
                 from ._review import mark_paused
 
                 mark_paused(received)
@@ -384,7 +389,7 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                     Looked(
                         "awaiting_resend",
                         str(reason) if reason is not None else None,
-                        failure=_failure(result.get("failure")),
+                        failure=_parse_failure(result.get("failure")),
                     ),
                     result,
                 )
@@ -392,23 +397,23 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
             # the sidecar is judging it from then: a call that came back with
             # a reply the sidecar still awaits got past the sidecar
             if state == "awaiting_reply":
-                if reviews and received.reviewed_id is not None:
+                if handles_reviews and received.reviewed_request_id is not None:
                     # A paused call whose request returned an error to
                     # Inspect, while the provider still has a request that
                     # the sidecar passed on, or its reply is still on the
                     # way through the proxy. Inspect's own request may have
                     # timed out, which doesn't mean the provider stopped.
                     # The sidecar keeps the call, and will hold the reply
-                    # when it arrives. So Inspect follows the call: it asks
-                    # the sidecar again after a pause, and sends the
+                    # when it arrives. So Inspect waits for that reply: it
+                    # asks the sidecar again after a pause, and sends the
                     # provider nothing more. The call's `timeout` limits
                     # the wait, as it limits the call's retries. The
                     # sample's time limit and its cancellation end the wait
                     # too.
-                    following = True
+                    provider_has_request = True
                     left = timeout_left(received)
                     if left is not None and left <= 0:
-                        return await _out_of_time(received, result)
+                        return await _cancel_timed_out_call(received, result)
                     await anyio.sleep(
                         awaited_pause if left is None else min(awaited_pause, left)
                     )
@@ -430,16 +435,18 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                 return _judging(
                     Looked("unavailable", f"the sidecar's state is {state!r}"), result
                 )
-            # The state is `judging`, so the provider has replied. Inspect
-            # stops following, because a reply is judged with no deadline.
-            following = False
+            # The state is `judging`, so the provider has replied. The
+            # flag is cleared, because a reply is judged with no deadline.
+            provider_has_request = False
             # a sidecar that answered at once didn't hold the answer, and
             # isn't asked again at once
             if time.monotonic() - asked < UNHELD_PAUSE:
                 await anyio.sleep(UNHELD_PAUSE)
 
 
-async def _out_of_time(received: ReceivedCall, result: dict[str, Any]) -> Looked:
+async def _cancel_timed_out_call(
+    received: ReceivedCall, result: dict[str, Any]
+) -> Looked:
     # The call's `timeout` passed while the provider still had the request of
     # a paused call. Inspect cancels the call at the sidecar, so that the
     # sidecar keeps nothing for it. `result` is the sidecar's last answer
@@ -456,7 +463,7 @@ async def _out_of_time(received: ReceivedCall, result: dict[str, Any]) -> Looked
     )
 
 
-def _ended(received: ReceivedCall) -> None:
+def _mark_ended(received: ReceivedCall) -> None:
     # the sidecar says the call has ended, so it is no longer paused there
     if received.paused:
         from ._review import mark_ended
@@ -464,7 +471,7 @@ def _ended(received: ReceivedCall) -> None:
         mark_ended(received)
 
 
-def _failure(failure: object) -> Failure | None:
+def _parse_failure(failure: object) -> ProviderFailure | None:
     if not isinstance(failure, dict):
         return None
     number = failure.get("try_number")
@@ -472,7 +479,7 @@ def _failure(failure: object) -> Failure | None:
         return None
     reply = failure.get("reply")
     status = reply.get("status") if isinstance(reply, dict) else None
-    return Failure(number, status if isinstance(status, int) else None)
+    return ProviderFailure(number, status if isinstance(status, int) else None)
 
 
 def _judging(looked: Looked, result: dict[str, Any]) -> Looked:

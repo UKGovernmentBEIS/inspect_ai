@@ -37,7 +37,7 @@ from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.util._limit import LimitExceededError
 
-from .._person import HUMAN_CHOICES, chosen, escalation_lines, human_view
+from .._person import HUMAN_CHOICES, chosen_decision, escalation_lines, human_view
 from ._endpoint import (
     QUESTION_ANSWERED,
     UNKNOWN_QUESTION,
@@ -45,7 +45,7 @@ from ._endpoint import (
     SidecarCallError,
 )
 from ._lookup import SAMPLE_FAILURES, Looked, request_result
-from ._received import ReceivedCall, note_send
+from ._received import ReceivedCall, record_send
 
 if TYPE_CHECKING:
     from inspect_ai.model._response_headers import ResponseHeaders
@@ -66,7 +66,7 @@ If the sidecar doesn't answer in time, it closes the call later, when the
 sample ends.
 """
 
-FAILED_TRY = "x-sentinel-failed-try"
+FAILED_TRY_HEADER = "x-sentinel-failed-try"
 """The header that marks a provider's error fetched from the sidecar.
 
 The sidecar adds it to a provider's error that it returns from its held-reply
@@ -88,7 +88,7 @@ MAX_ERROR_FETCHES = 2
 After that, Inspect treats the call's judgment as unavailable.
 """
 
-_OWN_OUTCOMES: tuple[type[Exception], ...] = (
+_INSPECT_OWN_ERRORS: tuple[type[Exception], ...] = (
     LimitExceededError,
     TerminateSampleError,
     *SAMPLE_FAILURES,
@@ -123,7 +123,7 @@ class PausedCallResult(Generic[R]):
 async def finish_paused_call(
     received: ReceivedCall,
     send_again: Callable[[], Awaitable[R]],
-    retried: bool,
+    will_retry: bool,
     response_headers: "ResponseHeaders | None" = None,
 ) -> PausedCallResult[R]:
     """Get the result of a model call that was paused for human review.
@@ -168,7 +168,7 @@ async def finish_paused_call(
             `request_result` last returned.
         send_again: Sends the call's model request again, and returns what
             the provider's `generate` returns.
-        retried: Whether Inspect will retry the error that the original
+        will_retry: Whether Inspect will retry the error that the original
             request returned.
         response_headers: The headers of the latest response. The sidecar's
             `x-sentinel-failed-try` header marks a provider error that was
@@ -186,7 +186,7 @@ async def finish_paused_call(
     returned_error: R | None = None
     # This function is not given the original request's error. It knows only
     # whether Inspect will retry it.
-    latest = _LatestError(retried=retried)
+    latest = _LatestError(will_retry=will_retry)
     while True:
         looked = received.looked
         if looked is None:
@@ -216,13 +216,13 @@ async def finish_paused_call(
             response_headers.latest = None
         try:
             result = await send_again()
-        except _OWN_OUTCOMES:
+        except _INSPECT_OWN_ERRORS:
             # raised by Inspect itself, so the sidecar has nothing to say
             raise
         except Exception as ex:
             raised = ex
-            if error_try is not None and _failed_try(ex) == error_try:
-                return _provider_failed(
+            if error_try is not None and _failed_try_number(ex) == error_try:
+                return _record_fetched_failure(
                     received, error_try, PausedCallResult(raised=ex)
                 )
             latest = _LatestError(status=status_code_of(ex), from_later_send=True)
@@ -230,19 +230,19 @@ async def finish_paused_call(
         finally:
             # Record the request's time however it ended, including when it
             # was cancelled or stopped by a limit.
-            note_send(received)
+            record_send(received)
             received.fetching = False
             received.fetch_body = None
             if received.request_id is None:
                 # The HTTP hook never ran, so no request was sent. Restore
                 # the call's id.
-                received.request_id = received.reviewed_id
-        error = _error(result)
+                received.request_id = received.reviewed_request_id
+        error = _returned_exception(result)
         if error_try is not None:
             marked = (
-                _failed_try(error)
+                _failed_try_number(error)
                 if error is not None
-                else _failed_try_of(
+                else _failed_try_number_in(
                     response_headers.latest if response_headers is not None else None
                 )
             )
@@ -258,7 +258,7 @@ async def finish_paused_call(
                 )
                 continue
             if error is not None:
-                return _provider_failed(
+                return _record_fetched_failure(
                     received, error_try, PausedCallResult(returned_error=result)
                 )
             # The fetched provider error is one that the provider's code
@@ -266,7 +266,7 @@ async def finish_paused_call(
             # long. Inspect uses it as the call's result and sends nothing
             # more. The sidecar still waits for a resend, so Inspect cancels
             # the call there.
-            received.failures.add(error_try)
+            received.handled_failures.add(error_try)
             await cancel_paused_call(received)
             return PausedCallResult(reply=result)
         if error is None:
@@ -288,7 +288,7 @@ async def finish_paused_call(
 class _LatestError:
     # What Inspect knows about the error from the call's latest request.
     status: int | None = None
-    retried: bool = False
+    will_retry: bool = False
     """Whether Inspect will retry the error.
 
     Known only for the original request's error.
@@ -300,7 +300,7 @@ class _LatestError:
     """
 
 
-def _error(result: object) -> Exception | None:
+def _returned_exception(result: object) -> Exception | None:
     # A provider's `generate` can return an error as its output without
     # raising it.
     output = result[0] if isinstance(result, tuple) and result else result
@@ -319,9 +319,10 @@ def _next_step(
         if looked.reason is not None and failure is not None:
             # The provider failed a request that the sidecar passed on, and
             # the sidecar waits for a resend. If the try's number is in
-            # `failures`, Inspect has already handled this failure: it sends
-            # nothing, and retries or fails the call by its usual rules.
-            if failure.try_number in received.failures:
+            # `handled_failures`, Inspect has already handled this failure:
+            # it sends nothing, and retries or fails the call by its usual
+            # rules.
+            if failure.try_number in received.handled_failures:
                 return None
             if failure.status is not None:
                 # The provider returned an error, and the sidecar holds it.
@@ -331,7 +332,7 @@ def _next_step(
                 # to one try while another try was with the provider.
                 asked = received.error_fetches.get(failure.try_number, 0)
                 if asked >= MAX_ERROR_FETCHES:
-                    _unavailable(
+                    _mark_judgment_unavailable(
                         received,
                         "the sidecar didn't answer with the provider's error it holds for the call",
                     )
@@ -340,14 +341,14 @@ def _next_step(
                 return "fetch_error"
             # The provider's reply was cut off, so there is no provider error
             # to fetch. The try failed the way a dropped connection does.
-            received.failures.add(failure.try_number)
-            if latest.retried or (latest.from_later_send and latest.status is None):
+            received.handled_failures.add(failure.try_number)
+            if latest.will_retry or (latest.from_later_send and latest.status is None):
                 # Inspect already holds an error it will retry, or a failed
                 # connection from a fetch or a resend. It keeps that error,
                 # and its own retry resends under the call's `x-irid`.
                 return None
             received.resent = False
-        elif latest.retried:
+        elif latest.will_retry:
             # Inspect is already retrying the original error. That retry is
             # the resend: it goes out under the call's `x-irid`, after
             # Inspect's usual wait.
@@ -356,9 +357,9 @@ def _next_step(
             # Inspect already resent the request, and the sidecar still waits
             # for a resend. So the sidecar didn't accept that request as the
             # paused call's.
-            _unavailable(
+            _mark_judgment_unavailable(
                 received,
-                "the sidecar didn't take the request sent again for the call it waits for",
+                "the sidecar didn't accept the resent request as the paused call's",
             )
             return None
         if received.resends >= MAX_RESENDS:
@@ -370,14 +371,14 @@ def _next_step(
         looked.state == "decided"
         and looked.judgment is not None
         and looked.judgment.outcome == "proceed"
-        and received.reviewed_id is not None
+        and received.reviewed_request_id is not None
     ):
         if not received.reply_fetch_tried:
             received.reply_fetch_tried = True
             return "fetch_reply"
         # Inspect already tried to fetch the reply, and the fetch returned an
         # error.
-        _unavailable(
+        _mark_judgment_unavailable(
             received,
             "the sidecar didn't answer with the provider's reply it holds for the call"
             if received.fetch_sent
@@ -386,16 +387,18 @@ def _next_step(
     return None
 
 
-def _failed_try(error: BaseException) -> int | None:
+def _failed_try_number(error: BaseException) -> int | None:
     # The try's number, if `error` is a provider's error fetched from the
     # sidecar's held-reply path. The sidecar's `x-sentinel-failed-try` header
     # on the error's response gives the number. None for anything else: the
     # sidecar's own refusal, or an error with no complete response, such as a
     # connection that failed part way.
-    return _failed_try_of(getattr(getattr(error, "response", None), "headers", None))
+    return _failed_try_number_in(
+        getattr(getattr(error, "response", None), "headers", None)
+    )
 
 
-def _failed_try_of(headers: Any) -> int | None:
+def _failed_try_number_in(headers: Any) -> int | None:
     # The try's number from the sidecar's `x-sentinel-failed-try` header, or
     # None if the headers lack it. When a provider's code read an error
     # response as a result, there is no error to take headers from. The
@@ -404,23 +407,23 @@ def _failed_try_of(headers: Any) -> int | None:
     if headers is None:
         return None
     try:
-        return int(headers.get(FAILED_TRY))
+        return int(headers.get(FAILED_TRY_HEADER))
     except (TypeError, ValueError, AttributeError):
         return None
 
 
-def _provider_failed(
+def _record_fetched_failure(
     received: ReceivedCall, try_number: int, after: PausedCallResult[R]
 ) -> PausedCallResult[R]:
     # Inspect has fetched the provider's error for a failed try. Only now is
     # the failure recorded as handled, so that a fetch that fails can be tried
     # again.
-    received.failures.add(try_number)
+    received.handled_failures.add(try_number)
     received.error_is_final = True
     return after
 
 
-def _unavailable(received: ReceivedCall, reason: str) -> None:
+def _mark_judgment_unavailable(received: ReceivedCall, reason: str) -> None:
     received.looked = Looked("unavailable", reason)
     received.judgment = None
 
@@ -450,7 +453,7 @@ _CAUSES = {
 """Why a question was cancelled, worded for the person who answered it."""
 
 
-def note_reviews(received: ReceivedCall, result: dict[str, Any]) -> None:
+def log_reviews(received: ReceivedCall, result: dict[str, Any]) -> None:
     """Log the sidecar's record of each resolved question about the call.
 
     `request_result` returns a record for each question a sentinel asked a
@@ -477,7 +480,7 @@ def note_reviews(received: ReceivedCall, result: dict[str, Any]) -> None:
         received.reviews_logged.add(id)
         transcript().info(
             {
-                "request": received.reviewed_id or received.request_id,
+                "request": received.reviewed_request_id or received.request_id,
                 "review": {
                     name: record[name]
                     for name in _REVIEW_FIELDS
@@ -486,10 +489,10 @@ def note_reviews(received: ReceivedCall, result: dict[str, Any]) -> None:
             },
             source="sentinel sidecar",
         )
-        _tell_if_unused(received, record, result)
+        _warn_if_answer_unused(received, record, result)
 
 
-def reviews_unavailable(received: ReceivedCall, records: str) -> None:
+def warn_reviews_unavailable(received: ReceivedCall, records: str) -> None:
     """Warn that Inspect can't learn whether a person's answers were used.
 
     The sidecar no longer holds the call's records, so Inspect can't read what
@@ -502,16 +505,16 @@ def reviews_unavailable(received: ReceivedCall, records: str) -> None:
             `unknown`.
     """
     for id, (decision, _) in received.decisions.items():
-        if id in received.reviews_logged or id in received.answers_unknown:
+        if id in received.reviews_logged or id in received.warned_unknown_answers:
             continue
-        received.answers_unknown.add(id)
-        function, _ = received.asked_about.get(id, ("a tool", 0.0))
+        received.warned_unknown_answers.add(id)
+        function, _ = received.answer_details.get(id, ("a tool", 0.0))
         logger.warning(
             f"Inspect couldn't learn whether a person's answer ({decision}) to the sentinel sidecar's question about the call to {function} was used: the sidecar's records of the call are {records}."
         )
 
 
-def _tell_if_unused(
+def _warn_if_answer_unused(
     received: ReceivedCall, record: dict[str, Any], result: dict[str, Any]
 ) -> None:
     # Warn the person who answered this question here, if the sentinel was not
@@ -525,7 +528,7 @@ def _tell_if_unused(
     resolution = record.get("resolution")
     if resolution == "answered" and record.get("decision") == decision:
         return
-    function, answered_at = received.asked_about.get(id, ("a tool", 0.0))
+    function, answered_at = received.answer_details.get(id, ("a tool", 0.0))
     if resolution == "timed_out":
         why = "the question had timed out, where the sidecar's operator set a review timeout, and the sentinel was given the cautious answer"
     elif resolution == "cancelled":
@@ -534,11 +537,11 @@ def _tell_if_unused(
     else:
         why = f"the sentinel was given another answer ({record.get('decision')})"
     logger.warning(
-        f"A person's answer ({decision}) to the sentinel sidecar's question about the call to {function} wasn't used: {why}{_how_long_before(record, answered_at)}. {_came_to(result)}"
+        f"A person's answer ({decision}) to the sentinel sidecar's question about the call to {function} wasn't used: {why}{_time_before_answer_text(record, answered_at)}. {_call_status_text(result)}"
     )
 
 
-def _how_long_before(record: dict[str, Any], answered_at: float) -> str:
+def _time_before_answer_text(record: dict[str, Any], answered_at: float) -> str:
     # Text saying how long before the person's answer the question was
     # resolved. It compares the sidecar's clock with Inspect's. The two are
     # close, because the sidecar refuses a signed call whose timestamp is more
@@ -552,7 +555,7 @@ def _how_long_before(record: dict[str, Any], answered_at: float) -> str:
     return f", about {minutes} minute{'s' if minutes != 1 else ''} before the answer"
 
 
-def _came_to(result: dict[str, Any]) -> str:
+def _call_status_text(result: dict[str, Any]) -> str:
     # A sentence saying where the call stands now, for the person whose
     # answer wasn't used.
     state = result.get("state")
@@ -560,10 +563,10 @@ def _came_to(result: dict[str, Any]) -> str:
     if state == "decided" and isinstance(judgment, dict):
         outcome = judgment.get("outcome")
         return {
-            "proceed": "The call went on.",
+            "proceed": "The call went ahead.",
             "reject": "The call was rejected.",
             "terminate": "The sample was ended.",
-        }.get(str(outcome), f"The call came to {outcome}.")
+        }.get(str(outcome), f"The call ended with the outcome {outcome}.")
     if state == "not_judged":
         return f"The call was not judged ({result.get('reason')})."
     if state == "awaiting_review":
@@ -594,7 +597,7 @@ async def ask_person(received: ReceivedCall) -> None:
             # The sidecar answered with an error of its own, as it does for a
             # call it can't read or refuses. Asking again would get the same
             # answer, so the review fails here.
-            raise _refused(sidecar, ex) from ex
+            raise _refusal_error(sidecar, ex) from ex
         # The call didn't reach the sidecar, or its answer was lost. Inspect
         # waits and returns, and the caller asks again. Inspect gives up after
         # `LOOKUP_RETRIES` failures in a row, the same limit as for a lost
@@ -602,14 +605,16 @@ async def ask_person(received: ReceivedCall) -> None:
         # reaching the sidecar. It doesn't bound how long a person may take.
         from ._lookup import LOOKUP_RETRIES, LOOKUP_RETRY_PAUSE
 
-        received.questions_lost += 1
-        if received.questions_lost > LOOKUP_RETRIES:
+        received.question_list_failures += 1
+        if received.question_list_failures > LOOKUP_RETRIES:
             raise SentinelProxyError(
                 f"The sentinel sidecar at {sidecar.origin} couldn't be asked for the questions it holds for a person: {ex}"
             ) from ex
-        await anyio.sleep(LOOKUP_RETRY_PAUSE * 2 ** (received.questions_lost - 1))
+        await anyio.sleep(
+            LOOKUP_RETRY_PAUSE * 2 ** (received.question_list_failures - 1)
+        )
         return
-    received.questions_lost = 0
+    received.question_list_failures = 0
     listed = result.get("questions")
     if not isinstance(listed, list) or not all(
         isinstance(question, dict)
@@ -628,7 +633,7 @@ async def ask_person(received: ReceivedCall) -> None:
         question
         for question in listed
         if question["request_id"] == received.request_id
-        and question["id"] not in received.answered
+        and question["id"] not in received.settled_questions
     ]
     if not questions:
         # The question closed, or the sidecar is still processing its answer.
@@ -641,33 +646,33 @@ async def ask_person(received: ReceivedCall) -> None:
             # the model call's time.
             shown = time.monotonic()
             try:
-                received.decisions[id] = await _decision(received, question)
+                received.decisions[id] = await _get_decision(received, question)
             finally:
                 received.person_time += time.monotonic() - shown
             call = question.get("call")
             function = call.get("function") if isinstance(call, dict) else None
-            received.asked_about[id] = (str(function or "a tool"), time.time())
+            received.answer_details[id] = (str(function or "a tool"), time.time())
         # If the answer doesn't reach the sidecar, Inspect sends the stored
         # answer again later, and doesn't ask the person again. It waits
         # between sends, and gives up after `LOOKUP_RETRIES` failures in a
         # row, as for a lost `request_result`. Meanwhile the sidecar keeps
         # saying the question is open, which doesn't reset the count.
-        lost = await _answer(sidecar, id, *received.decisions[id])
+        lost = await _send_answer(sidecar, id, *received.decisions[id])
         if lost is None:
-            received.answers_lost = 0
-            received.answered.add(id)
+            received.answer_send_failures = 0
+            received.settled_questions.add(id)
             continue
         from ._lookup import LOOKUP_RETRIES, LOOKUP_RETRY_PAUSE
 
-        received.answers_lost += 1
-        if received.answers_lost > LOOKUP_RETRIES:
+        received.answer_send_failures += 1
+        if received.answer_send_failures > LOOKUP_RETRIES:
             raise SentinelProxyError(
                 f"A person's answer couldn't be sent to the sentinel sidecar at {sidecar.origin}: {lost}"
             ) from lost
-        await anyio.sleep(LOOKUP_RETRY_PAUSE * 2 ** (received.answers_lost - 1))
+        await anyio.sleep(LOOKUP_RETRY_PAUSE * 2 ** (received.answer_send_failures - 1))
 
 
-async def _decision(
+async def _get_decision(
     received: ReceivedCall, question: dict[str, Any]
 ) -> tuple[str, str | None]:
     # Returns the person's choice and their reason. If Inspect can't show
@@ -684,7 +689,7 @@ async def _decision(
             f"The sentinel sidecar at {received.sidecar.origin} asked a person a question with no choice Inspect can offer: {choices}."
         )
     try:
-        return await _ask(question, offered, received.history)
+        return await _show_question(question, offered, received.history)
     except Exception as ex:
         # Only the error's type is reported. Its text may contain the
         # question's contents: a validation error quotes the values it
@@ -701,7 +706,7 @@ async def _decision(
         )
 
 
-async def _ask(
+async def _show_question(
     question: dict[str, Any],
     offered: list[ApprovalDecision],
     history: list[ChatMessage],
@@ -729,10 +734,10 @@ async def _ask(
         # rejected call in it is redacted, as the sidecar returned it.
         history,
     )
-    return chosen(approval, offered)
+    return chosen_decision(approval, offered)
 
 
-async def _answer(
+async def _send_answer(
     sidecar: Any, id: str, decision: str, reason: str | None
 ) -> SidecarCallError | None:
     # Returns None if the sidecar accepted the answer, or no longer holds the
@@ -744,7 +749,7 @@ async def _answer(
         if ex.code in (UNKNOWN_QUESTION, QUESTION_ANSWERED):
             # The question closed while the person decided, for example
             # because it expired or its call ended. The next `request_result`
-            # returns its record, and `note_reviews` then warns the person
+            # returns its record, and `log_reviews` then warns the person
             # that their answer wasn't used.
             logger.debug(
                 f"The sentinel sidecar at {sidecar.origin} no longer held a question when a person answered it: {ex}"
@@ -756,11 +761,11 @@ async def _answer(
                 f"A person's answer couldn't be sent to the sentinel sidecar at {sidecar.origin}: {ex}"
             )
             return ex
-        raise _refused(sidecar, ex) from ex
+        raise _refusal_error(sidecar, ex) from ex
     return None
 
 
-def _refused(sidecar: Any, ex: SidecarCallError) -> SentinelProxyError:
+def _refusal_error(sidecar: Any, ex: SidecarCallError) -> SentinelProxyError:
     return SentinelProxyError(
         f"The sentinel sidecar at {sidecar.origin} won't take the eval's calls about a person's review: {ex}"
     )
@@ -787,19 +792,21 @@ def mark_paused(received: ReceivedCall) -> None:
     Inspect stores the call's `x-irid`, so that every later request for the call
     reuses it.
     """
-    received.reviewed_id = received.request_id
+    received.reviewed_request_id = received.request_id
     received.paused = True
     sample_uuid = _sample_uuid()
-    if sample_uuid is not None and received.reviewed_id is not None:
-        _paused_calls.setdefault(sample_uuid, {})[received.reviewed_id] = received
+    if sample_uuid is not None and received.reviewed_request_id is not None:
+        _paused_calls.setdefault(sample_uuid, {})[received.reviewed_request_id] = (
+            received
+        )
 
 
 def _clear_paused(received: ReceivedCall) -> None:
     received.paused = False
     sample_uuid = _sample_uuid()
     calls = _paused_calls.get(sample_uuid) if sample_uuid is not None else None
-    if calls is not None and received.reviewed_id is not None:
-        calls.pop(received.reviewed_id, None)
+    if calls is not None and received.reviewed_request_id is not None:
+        calls.pop(received.reviewed_request_id, None)
         if not calls:
             _paused_calls.pop(cast(str, sample_uuid), None)
 
@@ -822,10 +829,10 @@ async def cancel_paused_call(received: ReceivedCall | None) -> None:
     teardown of a cancelled sample can't be interrupted. If the sidecar doesn't
     answer, it closes the call when the sample ends, or when the run expires.
     """
-    if received is None or not received.paused or received.reviewed_id is None:
+    if received is None or not received.paused or received.reviewed_request_id is None:
         return
     _clear_paused(received)
-    await _cancel(received, received.reviewed_id)
+    await _cancel(received, received.reviewed_request_id)
 
 
 async def cancel_paused_calls(sample_uuid: str) -> None:
@@ -852,7 +859,7 @@ async def _cancel(received: ReceivedCall, request_id: str) -> None:
                 "request_result", {"id": request_id, "wait": 0}
             )
             if result.get("records") == "held":
-                note_reviews(received, result)
+                log_reviews(received, result)
         except Exception as ex:
             logger.debug(
                 f"The sentinel sidecar at {sidecar.origin} couldn't be told a call was given up: {ex}"

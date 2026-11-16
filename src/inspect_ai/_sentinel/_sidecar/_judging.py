@@ -53,7 +53,7 @@ def count_judging_as_waiting(
     if received is None or attempts.last_attempt is None:
         return 0.0
     start, end = attempts.last_attempt
-    if received.reviewed_id is not None and received.sends:
+    if received.reviewed_request_id is not None and received.sends:
         # A call that was paused for a person. Only its sends are the model's
         # time. The time before, between and after the sends went to the
         # provider SDK's own retries, to the person, and to judging that the
@@ -67,12 +67,12 @@ def count_judging_as_waiting(
         ]
         for gap_start, gap_end in gaps:
             if gap_end > gap_start:
-                _waited(attempts, gap_start, gap_end)
+                _count_as_waiting(attempts, gap_start, gap_end)
         judging = 0.0
         for send in sends:
             judged = min(send.judging, send.end - send.start)
             if judged > 0:
-                _waited(attempts, send.end - judged, send.end)
+                _count_as_waiting(attempts, send.end - judged, send.end)
                 judging += judged
     else:
         looked = received.looked
@@ -86,7 +86,7 @@ def count_judging_as_waiting(
             max(looked.judging_time - received.judging_before_attempt, 0.0),
             end - start,
         )
-        _waited(attempts, end - judging, end)
+        _count_as_waiting(attempts, end - judging, end)
     if not judging:
         return 0.0
     if isinstance(event, ModelEvent):
@@ -99,7 +99,7 @@ def count_judging_as_waiting(
     return judging
 
 
-def _waited(attempts: ModelAttempts, start: float, end: float) -> None:
+def _count_as_waiting(attempts: ModelAttempts, start: float, end: float) -> None:
     # count [start, end] as waiting: the call was not waiting on the model
     add_sample_wait(start, end, completed=False)
     attempts.exclude(start, end)
@@ -123,6 +123,6 @@ def time_of_sends() -> float | None:
     from ._received import current_receiving
 
     received = current_receiving()
-    if received is None or received.reviewed_id is None or not received.sends:
+    if received is None or received.reviewed_request_id is None or not received.sends:
         return None
     return sum(send.end - send.start for send in received.sends)

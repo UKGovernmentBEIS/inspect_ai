@@ -93,7 +93,7 @@ def human_view(
     return view
 
 
-def chosen(
+def chosen_decision(
     approval: Approval, offered: list[ApprovalDecision]
 ) -> tuple[ApprovalDecision, str | None]:
     """Return what the person chose, and their reason.

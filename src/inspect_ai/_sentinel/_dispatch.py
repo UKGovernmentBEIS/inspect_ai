@@ -104,7 +104,7 @@ from ._context import (
     active_task_metadata,
 )
 from ._conversation import current_conversation
-from ._person import chosen, escalation_lines, human_view, offered_choices
+from ._person import chosen_decision, escalation_lines, human_view, offered_choices
 from ._scope import BRIDGE_CHECK_SPAN, sentinel_scope
 from ._steps import (
     ConversationRecord,
@@ -556,7 +556,7 @@ class _HostNative:
                 _human_view(step, escalations),
                 list(conversation),
             )
-        decision, reason = chosen(approval, offered)
+        decision, reason = chosen_decision(approval, offered)
         return HumanAnswer(decision=decision, reason=reason)
 
 
