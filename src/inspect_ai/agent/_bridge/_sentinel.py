@@ -49,7 +49,11 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
-from inspect_ai.agent._bridge.types import AgentBridge, BridgedToolId
+from inspect_ai.agent._bridge.types import (
+    AgentBridge,
+    BridgedToolId,
+    target_execution_id,
+)
 from inspect_ai.model._call_tools import (
     decisive_sentinel_exception,
     repeated_call_ids,
@@ -213,7 +217,8 @@ class _Handed(NamedTuple):
 
     execution_id: str | None
     """The id of the call's latest handout, which its approvals, steps and host
-    `ToolEvent`s record as their `execution_id`, or None for a call only in a
+    `ToolEvent`s record in their `execution_id` with the bridged tool each
+    judged or ran (`target_execution_id`), or None for a call only in a
     rejected turn."""
 
     ambiguous: bool = False
@@ -830,7 +835,9 @@ class _Handouts:
                     result.message,
                     reject_on_viewer_error=len(result.checks) > 1,
                     view=result.views[index],
-                    execution_id=result.execution_id,
+                    execution_id=target_execution_id(
+                        result.execution_id, result.checks[index].target
+                    ),
                 )
             except Exception as ex:
                 self.failed.setdefault(digest, ex)

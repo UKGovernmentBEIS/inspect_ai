@@ -38,7 +38,11 @@ from inspect_ai.agent._bridge._sentinel import (
     json_exact,
     sentinel_tool_call,
 )
-from inspect_ai.agent._bridge.types import AgentBridge, BridgedToolId
+from inspect_ai.agent._bridge.types import (
+    AgentBridge,
+    BridgedToolId,
+    target_execution_id,
+)
 from inspect_ai.model._call_tools import (
     _CHANGED_IN_PLACE,
     _SENTINEL_MODIFIED_FUNCTION,
@@ -165,8 +169,9 @@ async def apply_bridge_tool_approval(
             (`util._Generations`): its `ModelEvent`, and the agent span it ran
             in, whose conversation the call's steps are in.
         execution_ids: The id of each call's handout, in order, which its
-            approvals and `tool_call` steps record as their `execution_id`
-            (`_Handouts.hand_over`); `None` records none.
+            approvals and `tool_call` steps record as their `execution_id`,
+            with the bridged tool they review (`target_execution_id`;
+            `_Handouts.hand_over`); `None` records none.
         span_ids: The span to record each call's `ApprovalEvent`s in, in
             order: the one its host tool runs will be recorded in (the
             proposing `ModelEvent`'s, where a `ModelEventSink` placed it
@@ -218,7 +223,9 @@ async def apply_bridge_tool_approval(
             reviewed_calls = bridge.reviewed_calls(call, tools)
             selected_reviewed = reviewed_calls.calls[0]
             if approval_active:
-                for target in reviewed_calls.calls:
+                for target, bridged_tool in zip(
+                    reviewed_calls.calls, reviewed_calls.targets
+                ):
                     reviewed = deepcopy(target)
                     shown = deepcopy(target)
                     approved, approval = await apply_tool_approval(
@@ -226,7 +233,7 @@ async def apply_bridge_tool_approval(
                         reviewed,
                         None,
                         approval_history,
-                        execution_id=execution_id,
+                        execution_id=target_execution_id(execution_id, bridged_tool),
                         span_id=span_id,
                     )
                     error = (
@@ -311,7 +318,12 @@ async def apply_bridge_tool_approval(
                             offered,
                             viewer,
                             producer,
-                            execution_ids[index] if execution_ids is not None else None,
+                            target_execution_id(
+                                execution_ids[index]
+                                if execution_ids is not None
+                                else None,
+                                bridged_tool,
+                            ),
                         )
                     except ToolApprovalError as ex:
                         return BridgeApproval(

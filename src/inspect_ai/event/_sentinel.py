@@ -62,7 +62,8 @@ class SentinelEvent(BaseEvent):
 
     Set for a native tool call. In an agent bridge, a `tool_call` step names the
     handout it reviewed, and a `tool_result` step the handout whose result the
-    scaffold reported (a host tool's result too), or `None` when the bridge
+    scaffold reported (a host tool's result too), with the bridged tool the
+    step judged, as a host `ToolEvent` records it; or `None` when the bridge
     can't tell which handout that is: a call id handed out more than once or
     shared by calls of one response, or one the bridge never handed out.
     `None` at the generate stages, and in logs written before this field.

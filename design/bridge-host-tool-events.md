@@ -175,27 +175,34 @@ the id is `_execute_granted()`'s order.
 
 Each response the bridge hands to the agent is a handout of each of its
 calls. `bridge_generate()` mints an id for each call's handout before the
-call is reviewed, and records it on the call's `ApprovalEvent`s and
-`tool_call` sentinel steps, on the bridge's record of the call id
-(`_Handed.execution_id`, kept in the checkpoint), and on the call's grants
-(`_Proposal.execution_id`). A host `ToolEvent` that consumed a grant carries
-it as `execution_id`, so every run of one handout (a call denoting several
-bridged tools can run once per tool) has the same `execution_id` and its own
-event id. A run whose request matched the grants of more than one handout
-records `None`: the bridge already can't tell which handout it ran for
-(`_Proposal.ambiguous`), as a handout's response may never have reached the
-agent, or two agents may run the same call in the other order. A handout is not an execution: the same call handed out again (a
-retry or a cache hit) is a new handout, with a new id, under the same call
-id.
+call is reviewed, and keeps it on the bridge's record of the call id
+(`_Handed.execution_id`, kept in the checkpoint) and on the call's grants
+(`_Proposal.execution_id`). A call denoting several bridged tools (a shared
+description) is approved, checked and run once per tool, so a handout's run
+of one bridged tool is an execution: its id is the handout's with the tool's
+server and name, `<handout>/<server>/<tool>` (`target_execution_id`). The
+call's `ApprovalEvent`s and `tool_call` sentinel steps record it, one per
+tool reviewed, and so does the host `ToolEvent` that consumed that tool's
+grant. Consumers that pair a check or an approval with its run by
+`execution_id` then pair each with the run of the tool it judged, whatever
+order the agent runs the tools in. A call no bridged tool serves (an
+in-process bridge's) records the handout's id. A run whose request matched
+the grants of more than one handout records `None`: the bridge already can't
+tell which handout it ran for (`_Proposal.ambiguous`), as a handout's
+response may never have reached the agent, or two agents may run the same
+call in the other order. A handout is not an execution: the same call handed
+out again (a retry or a cache hit) is a new handout, with a new id, under the
+same call id.
 
 A `tool_result` step is checked when the agent's next request carries the
-result (see Sentinel below), under the call id the agent reports. It
-records the handout's id while that is the call id's only handout. Once the
-call id is handed out again, or when calls of one response share it, the
-bridge can't tell which handout a result answers, and the step's
-`execution_id` is `None`; so it is for a call id the bridge never handed
-out. The host `ToolEvent`'s own id never names a step: a second run's event
-gets a fresh id, while the result the agent reports is of the handout.
+result (see Sentinel below), under the call id the agent reports, once per
+tool the call denotes. It records the handout's execution of that tool while
+the handout is the call id's only one. Once the call id is handed out again,
+or when calls of one response share it, the bridge can't tell which handout
+a result answers, and the step's `execution_id` is `None`; so it is for a
+call id the bridge never handed out. The host `ToolEvent`'s own id never
+names a step: a second run's event gets a fresh id, while the result the
+agent reports is of the handout.
 
 Native tool calls get an `execution_id` per `ToolEvent` too
 (`execute_tools()`), which their approvals and both sentinel tool stages
@@ -552,7 +559,8 @@ proposal, and fixing the pairing would mean keeping evicted grants.
   whatever name the agent declared, through the same resolution the grants
   use (`reviewed_calls()`); a call denoting several bridged tools is approved
   separately for each, and the resulting `ApprovalEvent`s carry the id the
-  call is handed over under and its handout's `execution_id`. They are
+  call is handed over under and the handout's execution of the tool each
+  reviewed (see Execution ids). They are
   recorded in the span the call's host runs are (the proposing `ModelEvent`'s,
   where a `ModelEventSink` placed it in a sub-agent's span), so the viewer
   finds them in the run's conversation; the approvers run in the current
@@ -563,7 +571,8 @@ proposal, and fixing the pairing would mean keeping evicted grants.
   next request carries it (`sentinel_tool_results()`), each in a
   `sentinel_bridge` span under the request, not under the tool span: the
   request carries the call's id, which the MCP call does not. The steps
-  record the handout's `execution_id` (see Execution ids). Sentinel replay
+  record the handout's execution of the tool they judged (see Execution
+  ids). Sentinel replay
   rebuilds no tool stage for a `ToolEvent` with `metadata["bridge"]`, and
   warns.
 - **Hooks, control server, TUI, dataframes.** Pending host events drive the
