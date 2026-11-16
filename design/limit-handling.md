@@ -1303,6 +1303,24 @@ rejection exemption applies to it alone.
   responses completed, such as a context-length 400 after a
   malformed-function-call response (`google.py:905-914`), which carries the
   earlier responses' usage and also has `_rejection` set.
+- That converted-error output must carry the usage of every response that
+  completed. Today it takes `attempts_usage` and
+  `attempts_input_context_tokens`, which advance only when a whole
+  continued attempt returns (`google.py:870-874`), so the legs of a
+  continuation in progress are dropped: a continuation leg that reported 42
+  tokens followed by a context-length 400 returns `usage=None`, and every
+  completed response reported usage, so neither `usage_missing` nor the
+  rejection exemption would mark the loss. The handled-error branch
+  instead sets `handled.usage = chain.usage` and `handled.input_context_tokens
+  = chain.input_context_tokens` (the first request's input size), with
+  `usage_incomplete()` when `chain.usage_missing`; `attempts_usage` and
+  `attempts_input_context_tokens` go. Google's batch route makes no
+  continuations (`google.py:1000-1003`). Raised failures and cancellations
+  are unchanged: they return no output, as for any failed attempt.
+  Anthropic's continuation chain already reports its accumulated usage on a
+  converted-error return (`chain.report()`, `anthropic.py:1112-1135`), and
+  the LiteLLM proxy sums each discarded attempt before retrying, so neither
+  drops completed responses.
 - The LiteLLM proxy keeps `discarded_missing: bool` beside
   `discarded_usage`, set when a discarded attempt's output is missing by
   the rule above, and marks the final output when it is set, or when the
@@ -1659,6 +1677,13 @@ documented. Behaviour changes:
   count as calls without usage under a cost limit: the reported part is
   recorded and logged as today, then the cost limits are marked and the
   call raises `UnmeteredCallError`. Without a cost limit nothing changes.
+- **Google rejections during a continuation keep the completed usage.** A
+  Google call whose continuation is rejected (for example a context-length
+  400 after a continuation leg) now returns the usage of every response
+  that completed before the rejection, where today it returns the usage of
+  completed attempts only, or `None`. Token and cost limits, logged usage
+  and the sample's totals count those responses; the rejected request
+  itself is still not charged.
 - **Disabling a marked cost limit.** Setting a marked cost limit to `None`
   turns it off, as for any cost limit; setting a number again raises its
   marked error at the next check ("Unmetered calls").
@@ -1828,6 +1853,16 @@ under trio with `--runtrio`.
     marked; the same with a fully reported first response, and a
     standalone context-length 400, are not marked; the LiteLLM proxy's
     retry loop gives the same three results;
+  - rejection during a continuation, streamed and not: a continuation leg
+    reporting 42 tokens followed by a context-length 400 returns a
+    `model_length` output with usage 42 and the first request's input size;
+    a complete malformed-call attempt, then a continuation leg, then the
+    400, returns the sum of all three completed responses; under a cost
+    limit both are charged and not marked.
+    `test_continuation_failing_partway_fails_like_one_request` changes its
+    converted-400 expectations from `usage is None` and
+    `input_context_tokens is None` to the completed legs' usage and input
+    size; its raised-failure cases are unchanged;
   - partial usage: in `tests/model/providers/test_google.py`, a call over
     a stubbed SDK client whose first response is a `CONTINUATION` with no
     usage and whose last reports zero tokens returns an output marked
@@ -2010,7 +2045,10 @@ Each step is one PR, in this order. Each keeps the suite green.
    check also marks, ahead of the rejection exemption. Partial usage:
    `_ContinuationChain.usage_missing` in
    `src/inspect_ai/model/_providers/google.py`, applied to the chain's
-   output and to `handle_client_error()` outputs, and `discarded_missing` in
+   output and to `handle_client_error()` outputs, which now take
+   `chain.usage` and `chain.input_context_tokens` in place of
+   `attempts_usage` and `attempts_input_context_tokens`; and
+   `discarded_missing` in
    `src/inspect_ai/model/_providers/litellm_proxy.py`. The rejection
    converters listed under "Unmetered calls": `openai_handle_bad_request()`
    in `_openai.py` for `APIStatusError` only, and each provider's converter
