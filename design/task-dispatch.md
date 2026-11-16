@@ -1417,9 +1417,16 @@ test that waits on a run is bounded with `fail_after`.
   `Dockerfile` in each directory), on a seed sample and on a sample a
   `SampleSource` adds, select the task directory's file in
   `task_init_environment`, `task_init` and `sample_init`; with a file-based
-  config beside the task and a conflicting `.env` and relative `env_file`
-  in both the task and the launch directory, `task_init` and `sample_init`
-  both get the values from the compose file's directory;
+  config beside the task and a relative `env_file` of the same name, with
+  different values, in both the task and the launch directory, `task_init`
+  and `sample_init` both get the `env_file` values from the compose file's
+  directory; for interpolation, the test runs from a launch directory whose
+  `.env` `init_dotenv()` loads into the process environment at run start,
+  and the task directory has its own `.env`: a variable only the task
+  directory's `.env` sets is interpolated from it, and one both set takes
+  the launch value, which the compose subprocess inherits and which wins
+  over the project's `.env`, as today, in both `task_init` and
+  `sample_init`;
   the `SAMPLE_METADATA_*` values reach `compose build` through the project's
   `env`, and a Docker subclass overriding `task_init_environment` gets its own
   values there; a stub non-Docker provider whose `task_init_environment`

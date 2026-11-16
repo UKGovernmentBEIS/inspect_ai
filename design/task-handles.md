@@ -73,7 +73,9 @@ All of these are new API; no existing eval waits on a handle or uses
 - A task fed through a handle is never retried automatically, and
   `eval_retry()` refuses its log. Its log is returned and listed with the
   run's other logs but does not decide `eval_set()`'s result or a
-  selection-mode worker's: its creator's log does.
+  selection-mode worker's: its creator's log does. When an eval set
+  resumes, its log is never taken as a requested task's log, and a
+  selection worker refuses it as a resume log.
 - A fed task's log records the dataset name `samples_from_handle`, which is
   refused for any other dataset.
 - The run's `--limit`, `--sample-id` and `--epochs` do not apply to a task
@@ -183,7 +185,15 @@ Non-goals:
   any log's task (`eval_retry_async`).
 - `eval_set()` judges the result from every log `eval()` returns
   (`all_evals_succeeded`, also its retry predicate), added tasks' logs
-  included; later rounds match logs only to requested tasks.
+  included; later rounds match logs only to requested tasks. It matches by
+  `task_identifier()` (`src/inspect_ai/_eval/evalset.py`), which leaves the
+  dataset out: after the log-directory check
+  (`validate_eval_set_prerequisites`), the listed logs feed task-id reuse
+  (`to_eval_set_task`, through `write_eval_set_info`), the pending-task
+  check, `list_latest_eval_logs` (newest log per task,
+  `log_samples_complete`, older-log cleanup) and the retries built from it
+  (`as_previous_tasks`). A selection worker matches its `resume` log to the
+  selected task by identifier too (`_resumed_task`).
 - A second `eval()` in the same process while one runs is refused ("Multiple
   concurrent calls to eval_async are not allowed"). A child `inspect eval`
   process starts its own control server by default and publishes a discovery
@@ -307,6 +317,8 @@ the sample it sent still runs and its result is dropped.
   - its log passed to `eval_retry()`: `PrerequisiteError` from
     `eval_retry_async`, by the log's dataset name, before any task is
     resolved ("Logs and eval sets");
+  - its log given as a selection worker's `resume` log: `PrerequisiteError`
+    from `_resumed_task` ("Requested-task matching skips fed logs");
   - as a `PreviousTask` or a `ResolvedTask` (with or without a prior sample
     source): `ValueError` ("tasks fed through a handle must start fresh;
     pass the Task");
@@ -551,6 +563,22 @@ class PortRequest:
   `task_with(registered_task(), dataset=samples_from_handle())` after the
   `@task` function returned, whose log names that factory and whose
   rebuilt task would have the factory's own dataset.
+- **Requested-task matching skips fed logs.** A fed task built with
+  `task_with(registered_task(), ...)` from a factory the eval set requests
+  has that requested task's identifier, since `task_identifier()` leaves
+  the dataset out. So a newer successful fed log would be taken as the
+  requested task's log, and a resumed set would skip that task although
+  its own log failed. `eval_set()` therefore keeps the log-directory check
+  on every listed log, as today, and then drops the logs whose dataset name
+  is `samples_from_handle` from the list it matches against requested
+  tasks: task-id reuse, the pending-task check, `list_latest_eval_logs`
+  (newest log, coverage, older-log cleanup) and the retries built from it.
+  The fed logs stay in the log directory and are never cleaned up as a
+  requested task's older logs, and the identifier format is unchanged.
+  `_resumed_task` refuses a resume log with that dataset name, before it
+  recovers it: `PrerequisiteError` ("The log '<resume>' selected for
+  resuming task '<identifier>' is the log of a task fed through a handle
+  (samples_from_handle()); resume the task from its own log").
 
 ### Waits and limits
 
@@ -664,11 +692,10 @@ needs.
 - **An `EvalSpec.send_samples` field** marking a fed task's log, read by
   `eval_retry()`, `task_identifier()`, selection resume and `eval_set()`'s
   result. It is a log schema change with a coordinated viewer update; the
-  reserved dataset name marks the log with a field every log already has.
-  The identifier collision a `task_identifier()` read would guard needs a
-  requested task with the same file, name and arguments as the fed task but another dataset, which is the
-  exposure any edit of a task's dataset already has, since
-  `task_identifier()` leaves the dataset out.
+  reserved dataset name marks the log with a field every log already has,
+  and eval-set matching reads it to keep a fed task built with `task_with`
+  from a requested factory, which shares that task's identifier, from
+  standing in for it.
 - **Refusing `eval_retry()` when the rebuilt task's dataset is
   `samples_from_handle()`**, with an in-process set of fed task ids for the
   eval set's result. A task adapted with `task_with` after its `@task`
@@ -803,6 +830,17 @@ test touched), with mockllm models; every test that waits is bounded with
     holds the only Docker permit: the warning names `docker` and
     `inspect ctl config --max-sandboxes N`, and raising the limit lets the
     run complete.
+- `tests/test_eval_set.py`: in one log directory, a requested task from a
+  registered factory whose solver fails, and a newer successful fed task
+  adapted from the same factory with `task_with` (added by another
+  requested task), whose logs share an identifier: a resumed
+  `eval_set(retry_immediate=False)` on that directory does not take the
+  fed log as the requested task's: it reruns the requested task from its
+  own failed log (and, with its solver still failing, reports failure),
+  keeps that log's task id in the eval-set info, and leaves the fed log in
+  the directory; a selection worker given the fed log as its
+  `resume` raises the `PrerequisiteError` above, and given the requested
+  task's own failed log resumes it.
 - `tests/test_sample_source.py` (tasks fed through a handle):
   - a fed task's log records `eval.dataset.name == "samples_from_handle"`;
     a `Task` whose dataset is a `MemoryDataset` named `samples_from_handle`,
@@ -899,7 +937,9 @@ One PR, after step 3 of
   for its creator's model; the `eval_resolve_tasks` refusal;
   `eval_retry_async` refusing a log by its dataset name; `max_tasks`,
   `max_samples` and `max_sandboxes` docstrings), `_eval/evalset.py`
-  (`all_evals_succeeded` skipping logs with the reserved dataset name),
+  (`all_evals_succeeded` skipping logs with the reserved dataset name; the
+  logs matched to requested tasks dropping them after
+  `validate_eval_set_prerequisites`; `_resumed_task` refusing one),
   `__init__.py` (exports), `docs/task-source.qmd` (handles, stopping
   rollouts with `cancel()`, `fail_on_error=False` for rollout tasks),
   `docs/parallelism.qmd`, `docs/reference`. Tests: those above.
@@ -935,6 +975,10 @@ from the log, without the schema field dropped then).
 - A handle for tasks a `TaskSource` returns from `next_tasks()`.
 - Recording the creator in the eval log; see
   [task-dispatch.md](task-dispatch.md#interactions-with-related-changes).
+- inspect_steward's log observation, which groups attempts by
+  `task_identifier` without the dataset name, skipping fed logs so that it
+  never offers one as a task's attempt or resume log; a worker given one
+  refuses it ("Requested-task matching skips fed logs").
 - Showing open handle waits in `inspect ctl task list`: a per-task count of
   waits in the control state, a `GET /tasks` field and a CLI column.
 - Counting a fed task's token or cost usage against its creator's limits.
