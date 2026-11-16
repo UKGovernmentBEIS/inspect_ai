@@ -629,6 +629,9 @@ class _Driver:
         self.seq = 0
         self.built: list["ReplayStep"] = []
         self.ids: set[tuple[str, str]] = set()
+        # call id -> the execution whose tool steps replay names by it (None
+        # for a call whose ToolEvent names no execution)
+        self.call_steps: dict[str, str | None] = {}
         self.span_steps: dict[str, tuple["Step", str]] = {}
         # the ids of the calls whose tool steps replay skips
         self.skipped: list[str] = []
@@ -1175,6 +1178,7 @@ class _Driver:
         )
         if not checked:
             return
+        step_id = self._tool_step_id(event)
         ran = after_span is not None or (
             (event.error is None or event.error.type not in ("parsing", "approval"))
             and not event.failed
@@ -1243,7 +1247,7 @@ class _Driver:
                 agent_messages=None,
                 record=self._record(conversation),
             )
-            self._built(event.id, "tool_call", step, before_span)
+            self._built(step_id, "tool_call", step, before_span)
 
         self._at_point(self._cut(before_span, (begin, 1)), call.seq, build_before)
         self._settle_at_end(before_span)
@@ -1274,7 +1278,7 @@ class _Driver:
                 agent_messages=None,
                 record=self._record(conversation),
             )
-            self._built(event.id, "tool_result", step, after_span)
+            self._built(step_id, "tool_result", step, after_span)
 
         after_cut = self._cut(after_span, (end if end is not None else call.index, 3))
         self._at_point(after_cut, call.seq + 2, build_after)
@@ -1301,6 +1305,21 @@ class _Driver:
                     return None
                 return spans.pop(at)
         return None
+
+    def _tool_step_id(self, event: ToolEvent) -> str:
+        """The id of the tool steps replay builds for a native execution: its call id, unless an earlier execution's steps took that id, then its `execution_id`.
+
+        Live records each execution's steps under the call id, so two
+        executions of one id (a retry after a tool error, a provider that
+        repeats ids) share it there; a replayed step id must be unique for its
+        stage. An execution takes its id once, so both its stages share it. A
+        `ToolEvent` that names no execution (a log written before the id)
+        keeps its call id.
+        """
+        holder = self.call_steps.setdefault(event.id, event.execution_id)
+        if event.execution_id is None or holder == event.execution_id:
+            return event.id
+        return event.execution_id
 
     def _first_event_of(
         self, execution_id: str, index: int, first_approvals: dict[str, int]

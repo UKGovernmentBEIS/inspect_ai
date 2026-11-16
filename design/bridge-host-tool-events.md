@@ -199,7 +199,12 @@ gets a fresh id, while the result the agent reports is of the handout.
 
 Native tool calls get an `execution_id` per `ToolEvent` too
 (`execute_tools()`), which their approvals and both sentinel tool stages
-record. Sentinel replay pairs a native call with its checks by it.
+record. Sentinel replay pairs a native call with its checks by it. Live
+records every execution's tool steps under the call id, but a replayed step
+id must be unique for its stage, so when two executions of one call id are
+rebuilt (a retry after a tool error, a provider that repeats ids), the first
+keeps the call id and each later one is named by its `execution_id`. A log
+without the ids replays as before.
 
 A `_Proposal` is referenced only by its grants, so pairing state lives in the
 bounded grant store (1024 entries) and is dropped with the last of its grants,

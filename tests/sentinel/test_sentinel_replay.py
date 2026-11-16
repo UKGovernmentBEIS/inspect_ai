@@ -10057,6 +10057,140 @@ def test_a_call_that_raised_after_running_keeps_its_result_check_without_a_call_
     assert old.step.call.function == "addition"
 
 
+@pytest.mark.parametrize("probed", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_call_that_raised_and_its_same_id_retry_replay_as_two_executions(
+    probed: bool,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # a tool raises ToolParsingError, and the model retries the call under the
+    # same id (a provider that repeats ids), with only a result check, or with
+    # a probe at every stage too
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    Panel("approve", "reviewed the run").install(monkeypatch)
+    attempts: list[str] = []
+    seen: dict[str, Step] = {}
+
+    @tool
+    def parse_once() -> Tool:
+        async def execute(text: str) -> str:
+            """Fail to parse the first input.
+
+            Args:
+                text: The input.
+            """
+            attempts.append(text)
+            if len(attempts) == 1:
+                raise ToolParsingError("could not parse the input")
+            return f"parsed {text}"
+
+        return execute
+
+    log = eval(
+        Task(
+            dataset=[Sample(input="Parse it")],
+            solver=[use_tools(parse_once()), generate()],
+            sentinel=[
+                *([r7_probe(seen, copies=True)] if probed else []),
+                h_ask("tool_result", ["approve"]),
+            ],
+        ),
+        model=outputs(
+            *(
+                ModelOutput.for_tool_call(
+                    "mockllm/model",
+                    tool_name="parse_once",
+                    tool_arguments={"text": text},
+                    tool_call_id="tool_call_0_0",
+                )
+                for text in ("first", "second")
+            ),
+            done(),
+        ),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert [e.id for e in runs] == ["tool_call_0_0", "tool_call_0_0"]
+    assert [e.error.type if e.error else None for e in runs] == ["parsing", None]
+    executions = [e.execution_id for e in runs]
+    assert None not in executions and executions[0] != executions[1]
+
+    # each run is its own execution: the first keeps the call id, and the
+    # retry, whose call id is taken, is named by its execution id
+    with caplog.at_level(logging.WARNING):
+        replay = replayed(log)
+    assert replay_warnings(caplog) == []
+    answer = {"human": HumanAnswer(decision="approve", reason="reviewed the run")}
+    assert [
+        (s.stage, s.id, s.step.call.arguments, dict(s.recorded_answers))
+        for s in replay
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    ] == [
+        ("tool_call", "tool_call_0_0", {"text": "first"}, {}),
+        ("tool_result", "tool_call_0_0", {"text": "first"}, answer),
+        ("tool_call", executions[1], {"text": "second"}, {}),
+        ("tool_result", executions[1], {"text": "second"}, answer),
+    ]
+    if probed:
+        assert_tool_steps_equal_live_by_execution(log, seen, replay)
+        # a log without execution ids, where both runs passed a call check,
+        # can't be replayed, as before
+        with pytest.raises(MalformedLogError, match="Two tool_call steps"):
+            replay_events(log, without_execution_ids(events))
+        return
+
+    # a log without execution ids replays the retry alone, warning that the
+    # first run's result check matches no call
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        old = replay_events(log, without_execution_ids(events))
+    assert "match no tool call" in caplog.text
+    assert [
+        (s.stage, s.id, s.step.call.arguments)
+        for s in old
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    ] == [
+        ("tool_call", "tool_call_0_0", {"text": "second"}),
+        ("tool_result", "tool_call_0_0", {"text": "second"}),
+    ]
+
+
+def assert_tool_steps_equal_live_by_execution(
+    log: EvalLog, seen: dict[str, Step], replay: Sequence["ReplayStep"]
+) -> None:
+    """Compare each replayed native tool step with the one `r7_probe(seen, copies=True)` saw live at its stage and execution: live records two executions of one call id under the same step id."""
+    events = logged_sample(log).events
+    live = {
+        (e.stage, e.execution_id): seen[e.explanation or ""]
+        for e in events
+        if isinstance(e, SentinelEvent)
+        and e.path == "r7_probe"
+        and e.stage in ("tool_call", "tool_result")
+    }
+    # a replayed step's id is its call id, or the execution id of a later
+    # execution of that call id
+    first: dict[str, str | None] = {}
+    for e in events:
+        if isinstance(e, ToolEvent):
+            first.setdefault(e.id, e.execution_id)
+    rebuilt = {
+        (s.stage, first.get(s.id, s.id)): s
+        for s in replay
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    }
+    assert set(rebuilt) == set(live)
+    for (stage, execution), step in live.items():
+        assert_step_equals_live(
+            (stage, execution or ""), rebuilt[(stage, execution)], step
+        )
+
+
 def test_each_native_run_names_its_approvals_and_steps() -> None:
     # a model that repeats a call id across turns
     repeated = [
@@ -10069,7 +10203,6 @@ def test_each_native_run_names_its_approvals_and_steps() -> None:
         for x in (1, 2)
     ]
     seen: dict[str, Step] = {}
-    # not replayed: replay keys a call's steps by its id
     log = eval(
         Task(
             dataset=[Sample(input="What is 1 + 1?", target="2")],
@@ -10099,3 +10232,18 @@ def test_each_native_run_names_its_approvals_and_steps() -> None:
         for e in events
         if isinstance(e, SentinelEvent) and e.stage.startswith("model")
     ] == [None] * 6
+
+    # replay names the second run's steps by its execution id, the call id
+    # being the first's
+    replay = replayed(log)
+    assert [
+        (s.stage, s.id, s.step.call.arguments)
+        for s in replay
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    ] == [
+        ("tool_call", "call_0", {"x": 1, "y": 1}),
+        ("tool_result", "call_0", {"x": 1, "y": 1}),
+        ("tool_call", executions[1], {"x": 2, "y": 1}),
+        ("tool_result", executions[1], {"x": 2, "y": 1}),
+    ]
+    assert_tool_steps_equal_live_by_execution(log, seen, replay)
