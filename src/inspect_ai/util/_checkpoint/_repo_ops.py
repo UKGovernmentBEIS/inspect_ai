@@ -21,6 +21,7 @@ import anyio.abc
 from anyio.streams.buffered import BufferedByteReceiveStream
 
 from inspect_ai.util._restic.ops import restic_env
+from inspect_ai.util._restic.summary import SNAPSHOT_ID_PATTERN
 
 _MAX_LS_LINE_BYTES = 1024 * 1024
 """Longest ``restic ls --json`` record accepted: a node record is its
@@ -101,7 +102,7 @@ async def _run_restic(
     return proc
 
 
-SNAPSHOT_ID_RE = re.compile(r"^[0-9a-f]{8,64}$")
+SNAPSHOT_ID_RE = re.compile(SNAPSHOT_ID_PATTERN)
 """A restic snapshot id as reported by ``restic backup`` (full 64-hex in
 practice; a unique prefix is accepted the way restic's CLI accepts one)."""
 
