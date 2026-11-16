@@ -208,13 +208,15 @@ Errors are consumed in these places:
   covered.
 - `suspend_token_limit()` and `suspend_turn_limit()` stop recording *and*
   checking for their kind (`_limit.py:620-646`, `:796-820`). Cost has no
-  suspension on this branch's base. This design builds on the cost
-  suspension proposed in UKGovernmentBEIS/inspect_ai#6517:
+  suspension in the code read for this design; approval, review and
+  sentinel calls suspend token, turn and working limits only. The design
+  requires a cost suspension (implementation plan, step 0):
   `suspend_cost_limit()`, under which `record_model_cost()` records nothing
-  and `check_cost_limit()` does nothing, and `suspend_limits()`, which
-  suspends cost, token, turn and working limits together and is used by
-  in-process sentinel dispatch, the sentinel sidecar's result lookup, tool
-  approval and tool review. Model and role usage still record that spend.
+  and `check_cost_limit()` does nothing, also for `cost_limit()` scopes
+  opened inside the block, and `suspend_limits()`, which suspends cost,
+  token, turn and working limits together and is used by in-process
+  sentinel dispatch, the sentinel sidecar's result lookup, tool approval
+  and tool review. Model and role usage still record the suspended spend.
 - Failed attempts are not charged. When an attempt raises (an HTTP error
   response, a timeout, a connection reset, a cancellation), the attempt's
   `ModelEvent` is completed with the error and no usage is recorded
@@ -540,17 +542,20 @@ decision ranks it (see "Not this design").
 `apply_limits()` handles an exception escaping its body in three steps:
 
 1. **Covered or not.** The exception is a *covered exit* when every leaf is
-   a `LimitExceededError` covered by the scope: its `source` is in the chain
-   and is one of the scope's limits or a node entered below one of them
-   (walking `source._outer` reaches one of the scope's limits). Anything
-   else propagates unchanged: an unrelated error, a termination, a
+   a `LimitExceededError` covered by the scope: its `source` is one of the
+   scope's limits (of any kind, in the chain or not: a `time_limit()` or
+   `working_limit()` passed to `run()` or `apply_limits()` is the scope's
+   own, as today), or a chain node entered below one of the scope's chain
+   limits (walking `source._outer` reaches one of them). Anything else
+   propagates unchanged: an unrelated error, a termination, a
    cancellation, a limit of an enclosing or sibling scope, or a limit error
    whose source is unknown. A sourceless `custom` error (documented in
    `docs/setting-limits.qmd:278-288`, and raised by inspect_swarm members)
    is never covered, so a group holding a covered token error and a
    sourceless custom error propagates, as it does today.
 2. **Reconcile.** For a covered exit, the candidate is its outermost limit
-   (`outermost_limit()`; a bare error is its own), and the winner is the
+   (`outermost_limit()`; a bare error is its own; a time or working limit,
+   outside the chain, ranks after every chain limit, rule 4), and the winner is the
    outer of that candidate and the limits that count at exit on the scope's
    own and enclosing nodes ("Reconciling an exit" under "The owner's exit
    check").
@@ -563,10 +568,15 @@ decision ranks it (see "Not this design").
    unchanged, as it does today.
 
 Every swallowed leaf is the scope's own or a descendant's, whose scope this
-one ends anyway. A bare error from one of the scope's own limits is caught as
-today (`src/inspect_ai/util/_limit.py:158-160`, `:181-184`); a bare error
-from a descendant still propagates unless one of the scope's own or
-enclosing limits counts further out.
+one ends anyway. A bare error from one of the scope's own limits, a time
+limit included, is caught as today (`src/inspect_ai/util/_limit.py:158-160`,
+`:174-187`), also when it is raised as the limits exit (a time limit raises
+from its cancel scope's exit, inside the `ExitStack`), unless one of the
+scope's own or enclosing chain limits counts further out, which then wins;
+`run(limits=[time_limit(...)])` and the deepagent callers of
+`apply_limits()` keep returning their own time limit error. A bare error from
+a descendant still propagates unless one of the scope's own or enclosing
+limits counts further out.
 
 A request refused before dispatch, for example one that was queued for a
 connection slot, the pause gate or a retry while another call reached a limit,
@@ -821,6 +831,44 @@ The `_raised` mark is per node and is never cleared, so it survives the
 cancellation that loses the error itself. For the sample's own limits it
 also survives a checkpoint resume ("Checkpoints").
 
+### Token metering must not decrease
+
+The exit check, the sample's final decision and the pre-dispatch refusal read
+a node's state after its error may have been lost, so they rely on metered
+usage never decreasing as calls are recorded: a limit that has been reached
+stays reached. Cost and turns only grow. A token limit's `type` can today be
+an arithmetic formula over cumulative `input` and `output` tokens, with `+`,
+`-`, `*`, `/` and unary minus (`_compile_token_formula()` and
+`_TokenMetering.value()`, `src/inspect_ai/util/_limit.py:331-445`;
+`docs/setting-limits.qmd:164`, `:461`). Some formulas decrease as tokens are
+used: under `token_limit(10, type="input - output")`, two returns of 20 input
+and 1 output tokens, then 1 input and 20 output tokens, take metered usage
+from 19 to 0, so a swallowed error leaves a limit that refuses nothing and
+does not count at exit.
+
+A survey of this repository, inspect_swarm, inspect_sentinel, inspect_swe
+and inspect_petri finds only `all`, `output`, `input` and non-negative
+weighted sums such as `(input * 0.1) + output` in use. So formulas are
+limited to that family: a *non-negative weighted sum*,
+`c + a * input + b * output` with `a >= 0` and `b >= 0` (any constant `c`).
+Its floor never decreases as either count grows.
+
+`_compile_token_formula()` checks the family after its existing syntax
+validation, at construction: it evaluates the formula at `(0, 0)`, `(1, 0)`
+and `(0, 1)` to obtain `c`, `a` and `b`, requires `a >= 0` and `b >= 0`, and
+requires the formula to equal `c + a * input + b * output` (relative
+tolerance `1e-9`) at `(1000, 1)`, `(1, 1000)` and `(12345, 678)`, which
+rejects products and quotients of the variables. A formula that fails, or
+raises while being evaluated (`input / output` divides by zero at `(0, 0)`),
+raises `ValueError`: "token limit: formula '<formula>' must be a
+non-negative weighted sum of input and output, such as '(input * 0.1) +
+output'; formulas whose value can decrease as tokens are used are not
+supported." Every token limit is built through `_TokenMetering`, so the check
+covers `token_limit()`, `TokenLimit` (task and eval configuration and the
+`--token-limit` string form), a `TokenLimit` read back from a log for a
+retry, and inspect_swarm's member limits restored with
+`token_limit(value, type=...)` (`inspect_swarm/src/inspect_swarm/_member.py:980`).
+
 ### Checkpoints
 
 A checkpoint stores the sample roots' usage, and a normal resume restores
@@ -991,9 +1039,11 @@ ranks them. The guarantees below are about work in tasks the runtime owns.
    spend under a cost limit is therefore at most the limit, plus the calls
    already in flight when it was reached or marked, plus what the
    limit does not see: failed attempts, which the retry policy bounds
-   (`max_retries`, unlimited by default), and one call for each cancellation
-   of a scope with a call in flight. Approval, review and sentinel spend is
-   not counted at all (rule 5).
+   (`max_retries`, unlimited by default), and every dispatched call that is
+   cancelled before its usage is recorded (one cancelled scope can cancel
+   several, such as a bridge's concurrent requests or a member's background
+   work). Approval, review and sentinel spend is not counted at all
+   (rule 5).
 
 The sample's time limit (a cancel scope around the solvers) and working limit
 (a sample-wide cancellation) are outside these guarantees. They end the sample
@@ -1018,8 +1068,11 @@ that fails (an error response, a timeout, a connection reset, an empty
 stream) and a call cancelled in flight (decision: Ransom, 2026-11-16). A
 provider may still bill some of them. Spend under a cost limit can therefore
 exceed it by the cost of failed attempts, which Inspect retries up to
-`max_retries` (unlimited by default) and `timeout`, and by one call for each
-cancellation of a scope with a call in flight. The retry policy is the only
+`max_retries` (unlimited by default) and `timeout`, and by the cost of every
+dispatched call that is cancelled before its usage is recorded; one
+cancelled scope can cancel several calls at once (the bridge's sandbox
+service runs one task per pending request,
+`src/inspect_ai/util/_sandbox/service.py:441-449`). The retry policy is the only
 bound on failed attempts.
 
 **Marking.** `mark_unmetered(reason: str)` (in `_limit.py`) sets
@@ -1180,12 +1233,19 @@ each of these interactions as a case of its own. Under the rules above they beco
 - **Promotions.** A retry or in-flight request that replaces a kept member
   limit with an enclosing swarm limit is rule 8 itself, so it needs no
   separate case.
-- **Limit errors inside tools.** A swarm cap or lever reached inside a
-  member's tool, or inside a synchronous deepagent subagent, now reaches the
-  member wrapper at once instead of at the member's next model call. The cap
-  node's `stop_swarm` call in `_check_self` is then needed only for timing,
-  not correctness, and the wrapper could start the stop when it classifies
-  the error.
+- **Limit errors inside tools.** A swarm cap or lever reached in a member's
+  foreground, inside a tool or a synchronous deepagent subagent, now reaches
+  the member wrapper at once instead of at the member's next model call. The
+  cap node's `stop_swarm` call in `_check_self` stays, and is still needed
+  for correctness: errors from a member's background work are contained by
+  the member's background owner (`MemberBackground._run()`,
+  `inspect_swarm/src/inspect_swarm/_background.py:138`), and the member
+  runner classifies only an exception that escapes the member
+  (`_member.py:637`, `:662`). A background call that crosses a cap is
+  therefore never classified by the wrapper, and only the callback starts
+  the swarm's stop. Removing the callback would need the swarm to reconcile
+  its caps when a member returns or drains, which is the swarm's own
+  change, not a consequence of this design.
 - **The reserve.** Guarantees 1 to 3 let the runtime catch a sample limit and
   stop its members in an orderly way, so the 5% reserve no longer has to
   keep the stop orderly. It would still leave room for a final step that
@@ -1281,8 +1341,7 @@ their bound (decision: Ransom, 2026-11-16).
 **Charge approval, review and sentinel calls to cost limits.** Keeps one
 budget for everything the sample spends, but a policy's spend then ends
 the agent's sample, and an unpriced policy model would be refused. They are
-suspended like tokens and turns (decision: Ransom, 2026-11-16, building on
-the cost suspension in UKGovernmentBEIS/inspect_ai#6517).
+suspended like tokens and turns (decision: Ransom, 2026-11-16).
 
 **Warn about unpriced calls instead of refusing them.** Keeps evals with an
 unpriced approver, monitor or subagent model running, but a cost limit then
@@ -1353,8 +1412,8 @@ documented. Behaviour changes:
   nothing, and failed attempts are retried as today. Spend under a cost
   limit can exceed it by the cost a provider bills for those attempts, with
   `max_retries` (unlimited by default) and `timeout` as the only bound on
-  failed attempts, and by one call per cancellation of a scope with a call
-  in flight.
+  failed attempts, and by the cost of every dispatched call cancelled
+  before its usage is recorded (one cancelled scope can cancel several).
 - **Calls with no usage under a cost limit fail.** A provider response with
   no usage, under an active cost limit, now raises an `UnmeteredCallError`
   after the call and marks the cost limits it ran under as reached, so no
@@ -1396,6 +1455,13 @@ documented. Behaviour changes:
   changing it.
 - **Bridge.** A bridged agent's kept limit is now the outermost of every
   limit its requests and host tools reached, whatever their kinds.
+- **Token limit formulas.** A token limit `type` formula must now be a
+  non-negative weighted sum of `input` and `output` ("Token metering must
+  not decrease"); `token_limit(10, type="input - output")` and formulas
+  that multiply or divide the two counts raise `ValueError` when the limit
+  is built, including when an eval with such a formula is retried from its
+  log. No such formula was found in use. `all`, `output`, `input` and
+  weighted sums such as `(input * 0.1) + output` are unchanged.
 - **Private internals.** `_encloses()`, `_sample_roots()` and `_in_tree()`
   are removed. `_TurnLimit._check_self()` gains a parameter. Chain nodes gain
   `_outer`, `_in_chain` and `_raised`, and cost nodes `_unmetered`.
@@ -1413,8 +1479,9 @@ documented. Behaviour changes:
 - **Docs.** `docs/setting-limits.qmd` and `docs/_agent_limits.md` state the
   precedence rule, that tool-based agents return a message for their own
   limits (an enclosing limit ends the caller), the new turn semantics, the
-  suspension rule, and that every model called under a cost limit needs cost
-  data.
+  suspension rule, that every model called under a cost limit needs cost
+  data, and that a token formula must be a non-negative weighted sum (the
+  formula paragraphs at `docs/setting-limits.qmd:164` and `:461`).
 
 ## Security
 
@@ -1512,7 +1579,10 @@ under trio with `--runtrio`.
   the same with a child `cost_limit()`.
 - `tests/util/test_limit_token.py`: inside `suspend_limits()`, a call is not
   refused by a reached token, turn or cost limit, but is refused by a
-  `dispatch_guard()`.
+  `dispatch_guard()`; `token_limit()` and `TokenLimit` (including the
+  `"input-output:10"` string form) refuse `input - output`, `input / output`
+  and `input * output` with the family message, and accept `all`, `output`,
+  `input`, `(input * 0.1) + output` and `2 * input - input`.
 - `tests/util/test_limit.py`, `run()` and `apply_limits()`: an owned limit
   raised inside the agent's task group is returned; a group with a foreign
   leaf propagates; a group of an owned token limit and a sourceless `custom`
@@ -1532,6 +1602,10 @@ under trio with `--runtrio`.
     limit over, returns the cost limit; the same where the sibling pushes an
     enclosing `cost_limit()` over raises that enclosing limit from `run()`;
     the same with a foreign or non-limit error escaping is unchanged;
+  - own limits outside the chain: `apply_limits([time_limit(...)],
+    catch_errors=True)` and `run(limits=[time_limit(...)])` still catch and
+    return their own time limit error, including one raised as the limits
+    exit (the existing `test_apply_limits_handles_time_limit` stays);
   - descendant-exit reconciliation, beside it: `run(limits=[cost_limit(1)])`
     whose agent enters a child `token_limit(1)` around `tg_collect()`, where
     the child's token limit escapes first and a sibling's call, finishing in
@@ -1621,15 +1695,16 @@ under trio with `--runtrio`.
 Each step is one PR, in this order. Each keeps the suite green.
 
 0. **Prerequisite: cost suspension.** `suspend_cost_limit()` and
-   `suspend_limits()`, used by in-process sentinel dispatch, the sidecar
-   result lookup, tool approval and tool review, as proposed in
-   UKGovernmentBEIS/inspect_ai#6517. The steps below assume it.
+   `suspend_limits()` in `_limit.py`, with the behaviour stated under
+   "Current behaviour", used by in-process sentinel dispatch, the sidecar
+   result lookup, tool approval and tool review. The steps below assume it.
 1. **The chain and one check.** `src/inspect_ai/util/_limit.py`:
    `_limit_chain`, `_outer`/`_in_chain`/`_raised`, push/pop, `_chain_depth`,
    `_rank`, `outermost_limit`, `first_or_outermost_limit`, `_outer_than`,
    `_check_marked`, `check_limits`, `counting_limit`, `final_sample_limit`,
    `record_model_call`,
-   `_TurnLimit._check_self(raise_for_equal)`, `record_turn` recording only.
+   `_TurnLimit._check_self(raise_for_equal)`, `record_turn` recording only,
+   the non-negative weighted sum check in `_compile_token_formula()`.
    `src/inspect_ai/model/_model.py`: `record_and_check_model_usage(check=)`,
    the inner generation recording without a check, the outer frame's
    `record_turn()` then `check_limits()`, `_check_limits_before_dispatch`.
