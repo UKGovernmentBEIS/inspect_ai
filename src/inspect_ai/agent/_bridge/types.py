@@ -49,7 +49,7 @@ from inspect_ai.model._model import (
 )
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_call import ToolCall, ToolCallViewer
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
@@ -169,6 +169,17 @@ class DispatchedCall(NamedTuple):
     """Arguments for the dispatcher call that make the target call with the given ones."""
 
 
+class BridgedToolId(NamedTuple):
+    """Identity of one bridged tool: its server and its name there.
+
+    Servers may serve tools of the same name, so the name alone doesn't
+    identify one.
+    """
+
+    server: str
+    tool: str
+
+
 class ReviewedCalls(NamedTuple):
     """The calls approval reviews for one tool call in a bridged response."""
 
@@ -177,6 +188,12 @@ class ReviewedCalls(NamedTuple):
 
     dispatch: Callable[[dict[str, Any]], dict[str, Any]]
     """Arguments for the tool call that make a reviewed call with the given ones."""
+
+    viewers: list[ToolCallViewer | None]
+    """The registered viewer for each reviewed target, in the same order."""
+
+    targets: list[BridgedToolId | None]
+    """The bridged tool each reviewed call runs, in the same order (None for a call no bridged tool serves)."""
 
 
 def _unchanged(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -250,6 +267,37 @@ class AgentBridge:
             lambda: self._compaction_prefix,
             state.messages.copy(),
             value_type=list[ChatMessage],
+        )
+        # deferred: `_sentinel` imports this module
+        from ._sentinel import (
+            _Handouts,
+            _SavedHandouts,
+            history_ids,
+            inherited_result_keys,
+        )
+
+        # kept as a string the bridge encodes itself, which the checkpoint's
+        # writer can't change (`_SavedHandouts.encoded`). A checkpoint written
+        # without them exempts no result and reserves the ids of its prefix
+        # and its conversation; an incomplete one fails to restore
+        handouts = self._cp.track(
+            "bridge_handouts", lambda: self._handouts.saved().encoded(), ""
+        )
+        self._handouts = _Handouts(
+            _SavedHandouts.decoded(handouts)
+            if handouts
+            else _SavedHandouts(
+                reserved_ids=sorted(
+                    history_ids(self._compaction_prefix)
+                    | history_ids(restored_messages)
+                ),
+                handed={},
+                checked=[],
+                inherited=sorted(inherited_result_keys(state.messages))
+                if self._cp.attempt == "initial"
+                else [],
+            ),
+            viewer=self._bridged_tool_viewer,
         )
         # checkpointed hashes: changing `content_hash` or `edit_id` changes what a
         # resumed sample matches against
@@ -633,6 +681,18 @@ class AgentBridge:
         """
         return None
 
+    def _host_tool_viewer(
+        self, call: ToolCall, tools: Sequence[ToolInfo | Tool]
+    ) -> ToolCallViewer | None:
+        return None
+
+    def _bridged_tool_viewer(self, target: BridgedToolId) -> ToolCallViewer | None:
+        """The viewer of the bridged tool `target`, if the bridge serves it.
+
+        In-process bridges serve no tools; `SandboxAgentBridge` overrides this.
+        """
+        return None
+
     def reviewed_calls(
         self, call: ToolCall, tools: Sequence[ToolInfo | Tool]
     ) -> ReviewedCalls:
@@ -647,8 +707,15 @@ class AgentBridge:
         """
         dispatched = self.dispatched_call(call)
         if dispatched is not None:
-            return ReviewedCalls([dispatched.target], dispatched.dispatch)
-        return ReviewedCalls([call], _unchanged)
+            return ReviewedCalls(
+                [dispatched.target],
+                dispatched.dispatch,
+                [self._host_tool_viewer(call, tools)],
+                [None],
+            )
+        return ReviewedCalls(
+            [call], _unchanged, [self._host_tool_viewer(call, tools)], [None]
+        )
 
     def compaction(
         self, tools: Sequence[ToolInfo | Tool], model: Model
@@ -1200,6 +1267,16 @@ class AgentBridge:
                 self._record_form(choice.message.id, content_hash(choice.message))
         for choice, form in zip(output.choices, transported):
             self._record_transported_reply(choice.message, form)
+        if transported:
+            self._handouts.read_back(
+                output.message.tool_calls or [],
+                [
+                    call
+                    for message in transported[0]
+                    if isinstance(message, ChatMessageAssistant)
+                    for call in message.tool_calls or []
+                ],
+            )
 
         # every choice's thread, since the scaffold may continue any of them;
         # the primary's last, so it stays kept when the window is full

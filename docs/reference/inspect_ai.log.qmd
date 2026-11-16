@@ -31,6 +31,9 @@ description: List, read, write, and analyse logs.
 ### edit_score
 ### invalidate_samples
 ### uninvalidate_samples
+### exclude_samples
+### DispositionResult
+### SampleSelector
 ### LogUpdate
 ### LogEdit
 ### MetadataEdit
