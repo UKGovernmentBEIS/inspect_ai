@@ -66,6 +66,12 @@ if TYPE_CHECKING:
 _MAX_AWAITED_RESULTS = 256
 """Host tool calls tracked for their result message, beyond which the oldest replies' are dropped."""
 
+_RESULT_EVIDENCE = 256
+"""How much of the start of the text a scaffold received for a host tool call its linked answer must hold (scaffolds truncate long results)."""
+
+_MIN_CONTAINED_RESULT = 16
+"""Shortest host tool result text a linked answer may hold among other text; a shorter one must be a whole text of the answer (`_answer_texts`)."""
+
 _MAX_RECENT_THREADS = 16
 """Recent requests and generations kept, each in place of the kept ones it extends, whose replies can contest a thread's placement (see `_contested`)."""
 
@@ -154,6 +160,16 @@ class _AwaitedReply:
 
     events: dict[int, "ToolEvent | None"] = field(default_factory=dict)
     """Per executed call's position, its execution, or `None` once the call is settled (linked, or left unlinked)."""
+
+    received: dict[int, "_Received"] = field(default_factory=dict)
+    """Per executed call's position, what the scaffold received for it (`_holds_result`)."""
+
+
+class _Received(NamedTuple):
+    """What the scaffold received for a host tool call, which its result message must hold (`_holds_result`)."""
+
+    text: str
+    """The start of the first text the scaffold received (for an error, the error's text), stripped, at most `_RESULT_EVIDENCE` characters (empty if it received none)."""
 
 
 class DispatchedCall(NamedTuple):
@@ -563,9 +579,16 @@ class AgentBridge:
         return [_HandedCall(reply, position) for position in range(len(calls))]
 
     def _await_result_message(
-        self, handed: _HandedCall, event: "ToolEvent", linkable: bool = True
+        self,
+        handed: _HandedCall,
+        event: "ToolEvent",
+        received: _Received,
+        linkable: bool = True,
     ) -> None:
         """Set `event.message_id` when the scaffold first sends the result of `handed`.
+
+        `received` is what the scaffold received for the call, which the
+        message must hold.
 
         The result reaches the bridge only when the scaffold sends it back in a
         later request (`_link_result_messages`). A second execution of the call,
@@ -585,6 +608,7 @@ class AgentBridge:
             handed.reply.id, _AwaitedReply(handed.reply.calls, handed.reply.handed_at)
         )
         executed = handed.position in reply.events
+        reply.received[handed.position] = received
         reply.events[handed.position] = (
             event
             if linkable
@@ -619,7 +643,9 @@ class AgentBridge:
         its content (`sent_in`, per tool message the latest earlier request
         that did), so it was first sent after the execution completed: a
         message sent before, or equal to one sent before, may hold another
-        result. Any other result settles
+        result. A scaffold that gave up on the call (its own client timeout)
+        answers it without the result after the execution completed, so the
+        message must also hold the result (`_holds_result`). Any other result settles
         the call unlinked, as does a result whose call id the dialect inferred
         from order (`inferred`). A call with no result yet keeps waiting.
         """
@@ -661,13 +687,16 @@ class AgentBridge:
                 if not answers:
                     continue
                 reply.events[position] = None
+                answer = messages[answers[0]]
                 if (
                     len(answers) == 1
                     and answers[0] in fresh
                     and answers[0] not in inferred
                     and sent_in.get(answers[0], 0) <= reply.handed_at
+                    and isinstance(answer, ChatMessageTool)
+                    and _holds_result(answer, reply.received[position])
                 ):
-                    event.message_id = messages[answers[0]].id
+                    event.message_id = answer.id
                     transcript()._event_updated(event)
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
@@ -1443,6 +1472,94 @@ def _named_result_key(message: ChatMessageTool, call: ToolCall | None) -> str:
     """
     answered = json.dumps(_call_key(call)) if call else f"function:{message.function}"
     return content_hash(message.model_copy(update={"tool_call_id": answered}))
+
+
+def _holds_result(answer: ChatMessageTool, received: _Received) -> bool:
+    """Whether `answer` holds what the scaffold `received` for a host tool call.
+
+    Evidence that the scaffold received the execution's result before it sent
+    `answer`: a scaffold that gave up on the call (its own client timeout)
+    answers it without the result, after the execution completed. Scaffolds
+    reformat, wrap and truncate results, so the evidence is the start of the
+    received text (the first `_RESULT_EVIDENCE` characters) within the
+    answer, within a string of JSON the answer holds (`_answer_texts`), or
+    JSON-escaped once or twice within the answer's text, with or without
+    ASCII escapes (a scaffold may cut its JSON so it no longer parses, and a
+    content result is JSON inside the scaffold's JSON). For an error, the
+    text is the error the RPC raised (`str()` of it, which for an OS error
+    differs from the message the event records), not counting the service's
+    `Error calling method call_tool:` prefix, which a denied call's answer
+    carries too. A text shorter than `_MIN_CONTAINED_RESULT` may appear in
+    any message by chance (a short error is shown behind a prefix), so it
+    must be a whole text of the answer. With no text (an empty result, an
+    inline image with no caption, an error with no text) nothing links.
+    Linear in the answer's size: a few escapings of one bounded text are
+    compared.
+    """
+    expected = received.text
+    if not expected:
+        return False
+    texts = _answer_texts(answer)
+    if len(expected) < _MIN_CONTAINED_RESULT:
+        return expected in texts
+    evidence = expected[:_RESULT_EVIDENCE]
+    forms = {evidence}
+    for ascii_once in (False, True):
+        escaped = json.dumps(evidence, ensure_ascii=ascii_once)[1:-1]
+        forms.add(escaped)
+        for ascii_twice in (False, True):
+            forms.add(json.dumps(escaped, ensure_ascii=ascii_twice)[1:-1])
+    return any(form in text for form in forms for text in texts)
+
+
+def _answer_texts(answer: ChatMessageTool) -> set[str]:
+    """The texts a result may appear as in `answer`, stripped.
+
+    Its text, each text part, and every string in JSON they hold (other than
+    a `"type"` tag) are each a text, and so is every string in JSON such a
+    string holds, one level down. Scaffolds wrap results in JSON (a list of
+    MCP content blocks, a Google `functionResponse`), escaping them, and a
+    host tool's content result reaches them as JSON already. Each level
+    parses strings of the level above, so the work stays linear.
+    """
+    parts = (
+        [answer.content]
+        if isinstance(answer.content, str)
+        else [content.text for content in answer.content if content.type == "text"]
+    )
+    texts = {answer.text.strip()}
+    for part in parts:
+        texts.add(part.strip())
+        for string in _json_strings(part) or []:
+            texts.add(string)
+            texts.update(_json_strings(string) or [])
+    return texts
+
+
+def _json_strings(text: str) -> list[str] | None:
+    """The strings in `text` parsed as a JSON object or array, stripped, other than `"type"` tags.
+
+    `None` if `text` isn't a JSON object or array.
+    """
+    text = text.strip()
+    if not text.startswith(("{", "[")):
+        return None
+    try:
+        value = json.loads(text)
+    except (ValueError, RecursionError):
+        return None
+    strings: list[str] = []
+    pending: list[tuple[Any, str | None]] = [(value, None)]
+    while pending:
+        item, key = pending.pop()
+        if isinstance(item, str):
+            if key != "type":
+                strings.append(item.strip())
+        elif isinstance(item, dict):
+            pending.extend((v, k) for k, v in item.items())
+        elif isinstance(item, list):
+            pending.extend((v, None) for v in item)
+    return strings
 
 
 def _unplaced_key(message: ChatMessage) -> str:

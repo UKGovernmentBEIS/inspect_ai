@@ -459,6 +459,11 @@ The link is exact when all of these hold:
 - Exactly one tool message answers it, by call id, before the next assistant
   message with tool calls, and that message is new in the request: one sent
   before, or equal to one sent before, may hold another result.
+- That message contains the start of the result the agent received
+  (`_holds_result()`). The bridge can't see whether the response reached
+  the agent: the in-sandbox proxy reads the response file even after the
+  agent's MCP client gave up on the call (its own timeout), and the agent
+  then answers with its timeout error, after the execution completed.
 
 Otherwise `message_id` stays `None`. This includes a Google result whose call
 id the dialect inferred from order (a call sharing its function with another),
