@@ -4,7 +4,7 @@ import math
 from copy import deepcopy
 from typing import NamedTuple, Sequence, TypeAlias
 
-from inspect_ai.scorer._metric import Score, ScoreEdit, score_is_excluded
+from inspect_ai.scorer._metric import UNCHANGED, Score, ScoreEdit, score_is_excluded
 
 from ._edit import ProvenanceData
 from ._log import EvalLog, EvalSample
@@ -296,6 +296,16 @@ def _uncounted(verdict: Score) -> str | None:
             "transcript references (the verdict cites messages or events of "
             "the empty attempt, which this sample's transcript does not hold)"
         )
+    for field, text in (
+        ("value", value),
+        ("answer", verdict.answer),
+        ("explanation", verdict.explanation),
+    ):
+        if text == UNCHANGED:
+            return (
+                f"the {field} is {UNCHANGED!r}, which a score edit reads as "
+                "keeping the current one"
+            )
     return None
 
 

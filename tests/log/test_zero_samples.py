@@ -256,6 +256,24 @@ def test_zero_samples_verdict_rule(tmp_path: Path) -> None:
     )
     _refused(log, verdicts(match=cited, includes="I"), ["a"], "transcript references")
 
+    # the score-edit sentinel would keep the target's field instead of copying it
+    for field in ("value", "answer", "explanation"):
+        sentinel = Score(value="I").model_copy(update={field: "UNCHANGED"})
+        _refused(
+            log,
+            verdicts(match=sentinel, includes="I"),
+            ["a"],
+            f"'match': the {field} is 'UNCHANGED'",
+        )
+    # ... including for a later target with no score, after a valid one
+    scoreless = log.model_copy(deep=True)
+    del _sample(scoreless, "b").scores["match"]
+    later = empty.model_copy(deep=True)
+    _sample(later, "b").scores["match"] = Score(value="UNCHANGED")
+    _refused(
+        scoreless, later, ["a", "b"], "'b' \\(epoch 1\\): score 'match': the value"
+    )
+
     # an empty references list cites nothing
     uncited = Score(value="I", metadata={"scanner_references": []})
     result = zero_samples(
