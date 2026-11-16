@@ -1,6 +1,9 @@
-"""Asking a person about a tool call through Inspect's human approval surfaces.
+"""Ask a person about a tool call through Inspect's human approval surfaces.
 
-A sentinel in the eval's own process asks through `human()`, and one in a sidecar asks through the sidecar's questions. Both show the call the same way and read the person's choice the same way, so what a person sees doesn't depend on where the sentinel runs.
+A sentinel in the eval's own process asks through `human()`. A sentinel in a
+sidecar asks through the sidecar's questions. Both show the call the same way
+and read the person's choice the same way, so what the person sees doesn't
+depend on where the sentinel runs.
 """
 
 from collections.abc import Iterable, Sequence
@@ -16,14 +19,18 @@ from inspect_ai.review._human import (
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallView
 
 HUMAN_CHOICES = ("approve", "reject", "terminate")
-"""What a person can be offered: Inspect's human approval surfaces can't edit a tool call."""
+"""The choices a person can be offered.
+
+There is no `modify`, because Inspect's human approval surfaces can't edit a tool
+call.
+"""
 
 
 def offered_choices(choices: Sequence[str]) -> list[ApprovalDecision]:
-    """The choices a person is offered, in the order given.
+    """Check the choices to offer a person, and return them in the order given.
 
     Raises:
-        ValueError: If one isn't a choice a person can be offered.
+        ValueError: If a choice is not one of `HUMAN_CHOICES`.
     """
     offered: list[ApprovalDecision] = []
     for choice in choices:
@@ -37,7 +44,11 @@ def offered_choices(choices: Sequence[str]) -> list[ApprovalDecision]:
 
 
 def escalation_lines(escalations: Iterable[tuple[str, str | None]]) -> str:
-    """The escalations a person is shown, one to a line: each escalating instance's name, and why it escalated if it said."""
+    """The escalations to show a person, one per line.
+
+    Each line has the name of the instance that escalated, and its reason if it
+    gave one.
+    """
     return escape_placeholders(
         "\n".join(
             f"- {name}: {explanation}" if explanation else f"- {name}"
@@ -49,12 +60,16 @@ def escalation_lines(escalations: Iterable[tuple[str, str | None]]) -> str:
 def human_view(
     view: ToolCallView, escalated: str | None, result: ChatMessageTool | None
 ) -> ToolCallView:
-    """A call's view as a person is shown it: with who escalated it above the call, and with its result below once it has run.
+    """Build the view of a call that a person is shown.
+
+    The escalations go above the call. The call's result goes below it, once
+    the call has run.
 
     Args:
         view: The call's own view.
-        escalated: The escalations, as `escalation_lines` writes them, or None if there are none.
-        result: The call's result, at the stage after it ran.
+        escalated: The escalations, as `escalation_lines` writes them, or None
+            if there are none.
+        result: The call's result, when the person is asked after the call ran.
     """
     if escalated is not None:
         block = f"**Escalated by**\n\n{fenced(escalated)}"
@@ -81,7 +96,11 @@ def human_view(
 def chosen(
     approval: Approval, offered: list[ApprovalDecision]
 ) -> tuple[ApprovalDecision, str | None]:
-    """What the person chose, and their reason. A prompt closed without one of the choices offered fails closed: `reject` if it was offered, otherwise `terminate`."""
+    """Return what the person chose, and their reason.
+
+    If the prompt closed without one of the offered choices, the answer fails
+    closed: `reject` if it was offered, otherwise `terminate`.
+    """
     if approval.decision in offered:
         return approval.decision, approval.explanation
     # the reason says the person did not choose, since later steps read

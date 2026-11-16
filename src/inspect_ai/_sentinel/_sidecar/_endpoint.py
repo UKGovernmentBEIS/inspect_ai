@@ -28,10 +28,13 @@ UNAUTHORIZED = -32010
 """The sidecar's error for a call whose token or signature doesn't match the token it keeps for the eval, or whose timestamp is outside its window."""
 
 UNKNOWN_QUESTION = -32011
-"""The sidecar's error for an answer to a question it doesn't hold for the eval: one that closed, or whose call ended."""
+"""The sidecar's error code for an answer to a question it doesn't hold for the eval.
+
+The question has closed, or its call has ended.
+"""
 
 QUESTION_ANSWERED = -32012
-"""The sidecar's error for another answer to a question it already took an answer to."""
+"""The sidecar's error code for an answer to a question that already has an answer."""
 
 
 class SentinelProxyError(RuntimeError):
@@ -69,7 +72,10 @@ class EvalAccess:
         }
 
     def answer(self, id: str, decision: str, reason: str | None) -> dict[str, Any]:
-        """The params of an answer to a question of the sidecar's, with a signature that covers the answer, made now."""
+        """The params for `answer_question`, signed now.
+
+        The signature covers the answer itself.
+        """
         timestamp = now()
         params: dict[str, Any] = {
             "eval_id": self.eval_id,
@@ -96,7 +102,10 @@ class Sidecar:
     version: int = 1
     """The version of the endpoint for evals Inspect speaks to it."""
     review: bool = False
-    """Whether the sidecar puts a sentinel's question for a person to the eval, to show in Inspect's approval UI."""
+    """Whether the sidecar sends a sentinel's questions for a person to the eval.
+
+    Inspect shows them in its approval UI.
+    """
     access: EvalAccess | None = field(default=None, repr=False)
     """The eval's id and token for this sidecar, shared by every model of the task whose calls go through it."""
     _ids: "count[int]" = field(default_factory=lambda: count(1), repr=False)
@@ -117,10 +126,13 @@ class Sidecar:
     async def answer_question(
         self, id: str, decision: str, reason: str | None
     ) -> dict[str, Any]:
-        """Send a person's answer to a question of the sidecar's, signed so that the signature covers the answer.
+        """Send a person's answer to one of the sidecar's questions.
+
+        The call's signature covers the answer, so it can't be reused to send a
+        different answer.
 
         Raises:
-            SidecarCallError: If the call failed, or the sidecar didn't take the answer.
+            SidecarCallError: If the call failed, or the sidecar refused the answer.
         """
         access = self.access
         if access is None or access.registrations == 0:
@@ -287,7 +299,8 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
             f"The sentinel sidecar at {origin} releases replies early ({release!r}), which Inspect doesn't support yet. Run the sidecar with `--release whole`."
         )
     version = max(v for v in versions if v in VERSIONS)
-    # a sidecar that doesn't say, as one from before it asked evals, asks none
+    # A sidecar that doesn't report `review`, such as one from before sidecars
+    # could ask a person through an eval, asks no questions through the eval.
     review = info.get("review") is True
     return Sidecar(origin, release, client.sdk, version, review)
 

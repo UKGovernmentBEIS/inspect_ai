@@ -30,7 +30,14 @@ def count_judging_as_waiting(
 
     Called once the call is done, whatever it came to, and before its attempts are committed: committed, the attempts' time would be work that a wait can't take back. The proxy held the call's last attempt while the sidecar judged it, so the time is taken from the end of that attempt, and from the call's `ModelEvent`: its working time and its output's `time`, which then hold the model's own time, as for a call judged in process. Nothing is counted where the sidecar wasn't asked, as for a call cancelled in flight, since waiting for its answer here would hold up the cancellation.
 
-    A call a person was asked about is sent more than once, and the proxy held each send while the sidecar judged it, so each send's judging is taken from its end. The time outside its sends, the person's among it, is counted as waiting too. That includes the time Inspect spent asking the sidecar about a call the provider still had after Inspect's own send timed out. Inspect can't tell the provider's part of that time from the sidecar's judging or a person's, so the call's working time can undercount such a provider's work.
+    A call that was paused for a person is sent more than once. The proxy held
+    each send while the sidecar judged it, so each send's judging time is taken
+    from the end of that send. The time outside the sends, which includes the
+    person's time, is counted as waiting too. So is the time Inspect spent
+    asking the sidecar about a call that the provider still had after Inspect's
+    own send timed out. Inspect can't separate the provider's part of that time
+    from the sidecar's judging or the person's time, so the call's working time
+    can undercount the provider's work in that case.
 
     Args:
         received: What is kept of the call, with the sidecar's answer once it was asked.
@@ -47,11 +54,11 @@ def count_judging_as_waiting(
         return 0.0
     start, end = attempts.last_attempt
     if received.reviewed_id is not None and received.sends:
-        # A call a person was asked about: only its sends were the model's
-        # time. The time before, between and after them went to the
-        # provider SDK's own retries, the person and the sidecar's judging
-        # with no send open, whatever the call came to. Each send's
-        # judging is taken from its end.
+        # A call that was paused for a person. Only its sends are the model's
+        # time. The time before, between and after the sends went to the
+        # provider SDK's own retries, to the person, and to judging that the
+        # sidecar did between sends. Count those gaps as waiting. Then take
+        # each send's judging time from the end of that send.
         sends = received.sends
         gaps = [
             (start, sends[0].start),
@@ -71,10 +78,10 @@ def count_judging_as_waiting(
         looked = received.looked
         if looked is None or not looked.judging_time:
             return 0.0
-        # The sidecar adds the time up over a call a person was asked about,
-        # which Inspect may retry under the same id: what earlier attempts
-        # were credited with was waiting already. Never more than the
-        # attempt the proxy held.
+        # For a paused call, the sidecar's `judging_time` is the total over
+        # every try, and Inspect may retry such a call under the same id. So
+        # subtract what earlier attempts already counted as waiting. The
+        # result is never more than the attempt that the proxy held.
         judging = min(
             max(looked.judging_time - received.judging_before_attempt, 0.0),
             end - start,
@@ -93,15 +100,25 @@ def count_judging_as_waiting(
 
 
 def _waited(attempts: ModelAttempts, start: float, end: float) -> None:
-    # the call waited on something other than the model over [start, end]
+    # count [start, end] as waiting: the call was not waiting on the model
     add_sample_wait(start, end, completed=False)
     attempts.exclude(start, end)
 
 
 def time_of_sends() -> float | None:
-    """The time the current agent call spent in its sends, if a person was asked about it, or None for any other call, whose time is that of its successful request.
+    """The time the current agent call spent in its sends, if it was paused.
 
-    The call was sent more than once, or once and then answered from what the sidecar decided. The time outside its sends went to the provider SDK's own retries, the person, the sidecar's judging after the answer, and asking the sidecar what became of the call, and `count_judging_as_waiting` counts it as waiting. Where Inspect's own send timed out while the provider still had the request, the provider's work after that send is outside the sends too, so this time can undercount it.
+    Returns None for a call that was not paused for a person. Such a call's time
+    is that of its successful request.
+
+    A paused call is sent more than once, or sent once and then answered from
+    the sidecar's decision. The time outside its sends went to the provider
+    SDK's own retries, to the person, to the sidecar's judging after the answer,
+    and to Inspect asking the sidecar for the call's state.
+    `count_judging_as_waiting` counts that time as waiting. If Inspect's own
+    send timed out while the provider still had the request, the provider's
+    work after that send is outside the sends too, so this time can undercount
+    it.
     """
     from ._received import current_receiving
 

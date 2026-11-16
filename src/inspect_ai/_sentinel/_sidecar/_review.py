@@ -1,12 +1,23 @@
-"""A person's review of a tool call that a sentinel in a sidecar asked for.
+"""Human review of a tool call, asked for by a sentinel in a sidecar.
 
-A person may take days to answer, so the sidecar holds no connection open for one. It answers the model call at once with an error that says the call is waiting, and keeps the call as one model call under the call's `x-irid`. Inspect asks `request_result` after any call that comes back as an error, and acts on what it says of the call:
+A person may take days to answer, so the sidecar holds no connection open
+while it waits. It answers the model request at once with an error, and keeps
+the call's state under the call's `x-irid`. The call is now paused.
 
-- A question is open: Inspect shows it in its human approval surfaces, as it shows a question a sentinel in the eval's own process asks, and sends the person's answer.
-- The sidecar waits for the request, to send it on to the provider: Inspect sends the same request again, under the same `x-irid`.
-- The call is decided with the turn going on, and the sidecar holds the provider's reply: Inspect gets the held reply. It sends the same request again, under the same `x-irid`, to the sidecar's held-reply path, and the sidecar answers with the provider's reply in the provider's place.
+Inspect calls the sidecar's `request_result` after an agent call returns an
+error, and acts on the state it gets:
 
-Each request is sent with the provider's own client, and what comes back is read by the provider's own code, as any reply is. The provider is not called for a held reply.
+- `awaiting_review`: a question is open. Inspect shows it to a person with
+  `human_approver`, the same way it shows a question from a sentinel inside
+  the eval's own process. It sends the person's answer to the sidecar.
+- `awaiting_resend`: the provider still has to be called. Inspect resends the
+  request under the same `x-irid`, and the proxy passes it on to the provider.
+- `decided`, with the outcome `proceed`: the sidecar holds the provider's
+  reply. Inspect fetches it from the sidecar's held-reply path. The provider
+  is not called again.
+
+Inspect makes every fetch and resend with the provider's own client, so the
+provider's own code reads the response as it reads any reply.
 """
 
 import time
@@ -42,26 +53,51 @@ if TYPE_CHECKING:
 logger = getLogger(__name__)
 
 NO_QUESTION_PAUSE = 0.5
-"""How long to wait before asking the sidecar again when it says a question is open for the call and lists none, as when the question closed meanwhile, in seconds."""
+"""Seconds to wait before asking again when the sidecar lists no question for the call.
+
+The sidecar said a question was open. So the question closed in between, or the
+sidecar is still processing its answer.
+"""
 
 CANCEL_TIMEOUT = 5.0
-"""How long a call Inspect gives up on waits for the sidecar to take its cancellation, in seconds. The sidecar closes the call with its sample otherwise."""
+"""Seconds Inspect waits for the sidecar to accept the cancellation of a paused call.
+
+If the sidecar doesn't answer in time, it closes the call later, when the
+sample ends.
+"""
 
 FAILED_TRY = "x-sentinel-failed-try"
-"""The header a sidecar adds to a provider's error it serves from its held-reply path: the number of the failed try the error is of. No refusal of the sidecar's own has it."""
+"""The header that marks a provider's error fetched from the sidecar.
+
+The sidecar adds it to a provider's error that it returns from its held-reply
+path. Its value is the number of the try that failed. The sidecar's own refusals
+never have it.
+"""
 
 MAX_RESENDS = 3
-"""How many times one attempt at a call sends its request again for the sidecar to send on to the provider. Past that, the latest error stands, and Inspect retries or fails the call by its own rules, with its own waits: a provider whose exchanges keep being cut off isn't called again at once without end."""
+"""The most times one attempt at a call resends its request for the provider.
+
+After that, Inspect keeps the latest error, and retries or fails the call by its
+usual rules, with its usual waits. Without the limit, Inspect would call a
+provider whose replies keep getting cut off again and again, with no wait.
+"""
 
 MAX_ERROR_FETCHES = 2
-"""How many times the provider's error for one failed try is asked of the sidecar before the call's judgment is taken to be unavailable."""
+"""The most times Inspect tries to fetch the provider's error for one failed try.
+
+After that, Inspect treats the call's judgment as unavailable.
+"""
 
 _OWN_OUTCOMES: tuple[type[Exception], ...] = (
     LimitExceededError,
     TerminateSampleError,
     *SAMPLE_FAILURES,
 )
-"""The errors of a request sent again that are Inspect's own outcomes, which no sidecar explains."""
+"""Errors that Inspect itself raises during a fetch or a resend.
+
+They are a limit, a terminated sample and a failed sample. Inspect re-raises
+them at once, because the sidecar has nothing to say about them.
+"""
 
 _TOOL_CALL = TypeAdapter(ToolCall)
 
@@ -70,14 +106,18 @@ R = TypeVar("R")
 
 @dataclass
 class PausedCallResult(Generic[R]):
-    """What an agent call a person was asked about came to, once its request was sent again as the sidecar says."""
+    """The result of a model call that was paused for human review."""
 
     reply: R | None = None
-    """What the provider's `generate` returned for a request sent again that brought a reply."""
+    """The reply, if a fetch or a resend returned one."""
     raised: Exception | None = None
-    """The error the last request sent again raised, where no request brought a reply."""
+    """The error that the last fetch or resend raised, if none returned a reply."""
     returned_error: R | None = None
-    """What the provider's `generate` returned for the last request sent again, where it handed back an error it didn't raise."""
+    """The error that the last fetch or resend returned without raising it.
+
+    A provider's `generate` can return an error as its output. Set only if no
+    fetch or resend returned a reply.
+    """
 
 
 async def finish_paused_call(
@@ -86,25 +126,66 @@ async def finish_paused_call(
     retried: bool,
     response_headers: "ResponseHeaders | None" = None,
 ) -> PausedCallResult[R]:
-    """Send the request of an agent call a person was asked about again, as the sidecar says, and say what it came to.
+    """Get the result of a model call that was paused for human review.
 
-    The sidecar has been asked what became of the call, and a person shown its questions. While the sidecar says there is a request to send, it is sent, and the sidecar asked again if it comes back as an error. A request is sent to get the reply the sidecar holds, to get the provider's error the sidecar holds, or for the sidecar to send on to the provider.
+    The sidecar holds no connection open while a person decides. So the
+    original request returned an error, and the sidecar kept the call's
+    state. Inspect has now sent the person's answer to the sidecar. It does
+    not yet know what the sentinel decided after that answer, or whether the
+    provider has replied.
 
-    A provider's error got from the sidecar is the call's error from then on: it is raised or handed back as the provider's own client gave it, and Inspect retries or fails the call for it by its own rules.
+    So Inspect gets the call's state from the sidecar's `request_result`,
+    and acts on it:
+
+    - `decided`, with the outcome `proceed`: the sentinel let the turn go
+      ahead, but Inspect has no reply yet. `request_result` returns the
+      decision, and the sidecar holds the provider's reply. Inspect fetches
+      the reply from the sidecar's held-reply path (`HELD_REPLY_PATH`).
+    - `awaiting_resend`, with a provider error in `failure`: the provider
+      failed the call, and the sidecar holds its error. Inspect fetches the
+      error the same way, then treats it as it treats any provider error.
+    - `awaiting_resend` otherwise: the provider still has to be called, and
+      only the proxy calls it. Inspect resends the request as an ordinary
+      model request, through the proxy. If Inspect is already retrying the
+      original error, that retry is the resend.
+    - Any other state, such as `decided` with `reject`: Inspect sends
+      nothing. The caller acts on the sidecar's decision.
+
+    A fetch and a resend both call `send_again`, which sends the call's
+    model request. For a fetch, Inspect's HTTP hook sends that request to
+    the held-reply path, because only the provider's client code can read
+    the reply, and that code can only send its model request. The sidecar
+    ignores the body, finds the call by its `x-irid`, and returns what it
+    holds. The provider is not called.
+
+    A fetch or a resend can fail, and a resend can be paused for another
+    question. So if one returns an error, Inspect gets the state again. It
+    resends at most `MAX_RESENDS` times, and fetches one error at most
+    `MAX_ERROR_FETCHES` times.
 
     Args:
-        received: What is kept of the call, with what `request_result` last said of it.
-        send_again: Sends the call's request with the provider's client, and returns what the provider's `generate` does.
-        retried: Whether Inspect retries the error the call's own request came to.
-        response_headers: Where the call's HTTP hooks keep the headers of its latest response. A provider's error the sidecar served is known by its header there, whether the provider's code raised it or read it as a reply.
+        received: Inspect's record of the call, including the state that
+            `request_result` last returned.
+        send_again: Sends the call's model request again, and returns what
+            the provider's `generate` returns.
+        retried: Whether Inspect will retry the error that the original
+            request returned.
+        response_headers: The headers of the latest response. The sidecar's
+            `x-sentinel-failed-try` header marks a provider error that was
+            fetched from the sidecar.
+
+    Returns:
+        The reply, if a fetch or a resend returned one. Otherwise the last
+        error one returned, or nothing if no request was sent.
 
     Raises:
-        SentinelProxyError: If the sidecar won't take the eval's calls or a person's answer.
+        SentinelProxyError: If the sidecar refuses Inspect's
+            `request_result` call or the person's answer.
     """
     raised: Exception | None = None
     returned_error: R | None = None
-    # the error the call's own request came to isn't handed here, so it is
-    # known only by whether Inspect retries it
+    # This function is not given the original request's error. It knows only
+    # whether Inspect will retry it.
     latest = _LatestError(retried=retried)
     while True:
         looked = received.looked
@@ -114,15 +195,16 @@ async def finish_paused_call(
         if step is None:
             received.error_is_final = True
             return PausedCallResult(raised=raised, returned_error=returned_error)
-        # the failed try whose error is asked of the sidecar, if that is what
-        # is sent for
+        # the number of the failed try whose error this step fetches, if it
+        # fetches one
         error_try = (
             looked.failure.try_number
             if step == "fetch_error" and looked.failure is not None
             else None
         )
-        # the request sent again is a new send of the same model call, which
-        # the HTTP hooks give the call's id
+        # A fetch or a resend is a new request for the same model call. Reset
+        # the per-request state, and clear `request_id` so that the HTTP hook
+        # reuses the call's `x-irid`.
         received.fetching = step != "resend"
         received.request_id = None
         received.sent = False
@@ -130,12 +212,12 @@ async def finish_paused_call(
         received.judgment = None
         raised, returned_error = None, None
         if response_headers is not None:
-            # so that only this send's response is read
+            # so that only this request's response headers are read
             response_headers.latest = None
         try:
             result = await send_again()
         except _OWN_OUTCOMES:
-            # Inspect's own outcomes, which no sidecar explains
+            # raised by Inspect itself, so the sidecar has nothing to say
             raise
         except Exception as ex:
             raised = ex
@@ -146,12 +228,14 @@ async def finish_paused_call(
             latest = _LatestError(status=status_code_of(ex), from_later_send=True)
             continue
         finally:
-            # timed however it ended, cancelled or cut short by a limit too
+            # Record the request's time however it ended, including when it
+            # was cancelled or stopped by a limit.
             note_send(received)
             received.fetching = False
             received.fetch_body = None
             if received.request_id is None:
-                # no request was begun, so the call keeps its id
+                # The HTTP hook never ran, so no request was sent. Restore
+                # the call's id.
                 received.request_id = received.reviewed_id
         error = _error(result)
         if error_try is not None:
@@ -163,10 +247,11 @@ async def finish_paused_call(
                 )
             )
             if marked != error_try:
-                # Not the provider's error the sidecar served, whatever the
-                # provider's code made of the response: a refusal of the
-                # sidecar's own, which that code may even read as a reply.
-                # Nothing is taken from it, and the sidecar is asked again.
+                # The response is not the provider's error that Inspect tried
+                # to fetch, because it lacks the sidecar's header for that
+                # try. It is the sidecar's own refusal, which the provider's
+                # code may even have read as a reply. Inspect ignores it and
+                # gets the state again.
                 latest = _LatestError(
                     status=status_code_of(error) if error is not None else None,
                     from_later_send=True,
@@ -176,20 +261,22 @@ async def finish_paused_call(
                 return _provider_failed(
                     received, error_try, PausedCallResult(returned_error=result)
                 )
-            # The provider's error, which its own code reads as a reply, as
-            # Anthropic's does a prompt that is too long. Inspect acts on it
-            # as the call's result and sends nothing more, so the call is
-            # closed at the sidecar, which still waits for its request.
+            # The fetched provider error is one that the provider's code
+            # reads as a reply, as Anthropic's code reads a prompt that is too
+            # long. Inspect uses it as the call's result and sends nothing
+            # more. The sidecar still waits for a resend, so Inspect cancels
+            # the call there.
             received.failures.add(error_try)
             await cancel_paused_call(received)
             return PausedCallResult(reply=result)
         if error is None:
-            # The call brought a reply, and what the sidecar decided of it is
-            # asked as it is after any reply. The reply the sidecar held is
-            # of a call that has ended there. A reply to a request the
-            # sidecar sent on may be the provider's error, which its own code
-            # read as a reply: the sidecar then still waits for the request,
-            # so the call stays open here until it has been asked.
+            # A reply. The caller asks the sidecar for its decision on it
+            # with `request_result`, as it does after any reply. A fetched
+            # reply belongs to a call that has ended at the sidecar, so the
+            # call is no longer paused. A reply to a resend may be a provider
+            # error that the provider's code read as a reply. The sidecar then
+            # still waits for a resend, so the call stays marked as paused
+            # until the caller has asked.
             if step != "resend":
                 _clear_paused(received)
             return PausedCallResult(reply=result)
@@ -199,16 +286,23 @@ async def finish_paused_call(
 
 @dataclass
 class _LatestError:
-    # what is known of the error Inspect holds for the call's latest request
+    # What Inspect knows about the error from the call's latest request.
     status: int | None = None
     retried: bool = False
-    """Whether Inspect retries the error. Known only of the error the call's own request came to."""
+    """Whether Inspect will retry the error.
+
+    Known only for the original request's error.
+    """
     from_later_send: bool = False
-    """Whether the error is one a request sent again here came to, so its status is known."""
+    """Whether the error is from a fetch or a resend made here.
+
+    If so, its status is known.
+    """
 
 
 def _error(result: object) -> Exception | None:
-    # a provider hands back an error it didn't raise as its output
+    # A provider's `generate` can return an error as its output without
+    # raising it.
     output = result[0] if isinstance(result, tuple) and result else result
     return output if isinstance(output, Exception) else None
 
@@ -216,24 +310,25 @@ def _error(result: object) -> Exception | None:
 def _next_step(
     received: ReceivedCall, looked: Looked, latest: _LatestError
 ) -> Literal["fetch_reply", "fetch_error", "resend"] | None:
-    # Which request of the call is sent next, for what the sidecar says of
-    # the call: `held_reply` to get the reply the sidecar holds, `failure` to
-    # get the provider's error it holds, `model` for the sidecar to send on
-    # to the provider, or None if nothing is sent and the latest error stands.
+    # The next step for the call's state: `fetch_reply` to fetch the reply
+    # the sidecar holds, `fetch_error` to fetch the provider's error it holds,
+    # `resend` to resend the request for the provider, or None to send nothing
+    # and keep the latest error.
     if looked.state == "awaiting_resend":
         failure = looked.failure
         if looked.reason is not None and failure is not None:
-            # The provider's exchange failed, and the sidecar waits for the
-            # request because of it. Inspect retries or fails a call for the
-            # provider's error by its own rules.
+            # The provider failed a request that the sidecar passed on, and
+            # the sidecar waits for a resend. If the try's number is in
+            # `failures`, Inspect has already handled this failure: it sends
+            # nothing, and retries or fails the call by its usual rules.
             if failure.try_number in received.failures:
                 return None
             if failure.status is not None:
-                # The provider answered the try with an error, which the
-                # sidecar holds. It is got from the sidecar and read as the
-                # provider's own, whatever error Inspect holds for the call:
-                # that one may be the sidecar's word that the call waited, for
-                # a try it answered while another was with the provider.
+                # The provider returned an error, and the sidecar holds it.
+                # Inspect fetches it and reads it as the provider's own. It
+                # doesn't use the error it already holds for the call, because
+                # that may be a "pending review" error: the sidecar's answer
+                # to one try while another try was with the provider.
                 asked = received.error_fetches.get(failure.try_number, 0)
                 if asked >= MAX_ERROR_FETCHES:
                     _unavailable(
@@ -243,21 +338,24 @@ def _next_step(
                     return None
                 received.error_fetches[failure.try_number] = asked + 1
                 return "fetch_error"
-            # The reply was cut off, so there is no error of the provider's
-            # to get: the try failed as a connection does.
+            # The provider's reply was cut off, so there is no provider error
+            # to fetch. The try failed the way a dropped connection does.
             received.failures.add(failure.try_number)
             if latest.retried or (latest.from_later_send and latest.status is None):
-                # Inspect holds a failed connection, or an error it retries
-                # anyway: it stands, and a retry is sent under the call's id
+                # Inspect already holds an error it will retry, or a failed
+                # connection from a fetch or a resend. It keeps that error,
+                # and its own retry resends under the call's `x-irid`.
                 return None
             received.resent = False
         elif latest.retried:
-            # Inspect sends the call again itself, under the call's id, after
-            # its own wait
+            # Inspect is already retrying the original error. That retry is
+            # the resend: it goes out under the call's `x-irid`, after
+            # Inspect's usual wait.
             return None
         if received.resent:
-            # sent again already, and the sidecar still waits for it: it
-            # didn't take the request for the same one
+            # Inspect already resent the request, and the sidecar still waits
+            # for a resend. So the sidecar didn't accept that request as the
+            # paused call's.
             _unavailable(
                 received,
                 "the sidecar didn't take the request sent again for the call it waits for",
@@ -277,7 +375,8 @@ def _next_step(
         if not received.reply_fetch_tried:
             received.reply_fetch_tried = True
             return "fetch_reply"
-        # asked for already, and the request came back as an error
+        # Inspect already tried to fetch the reply, and the fetch returned an
+        # error.
         _unavailable(
             received,
             "the sidecar didn't answer with the provider's reply it holds for the call"
@@ -288,19 +387,20 @@ def _next_step(
 
 
 def _failed_try(error: BaseException) -> int | None:
-    # The number of the failed try that an error is a provider's error of,
-    # served by the sidecar's held-reply path, by the sidecar's own header on
-    # the response the error was read from. None for anything else: a refusal
-    # of the sidecar's own, and an error with no response read whole, as one
-    # whose connection failed part way.
+    # The try's number, if `error` is a provider's error fetched from the
+    # sidecar's held-reply path. The sidecar's `x-sentinel-failed-try` header
+    # on the error's response gives the number. None for anything else: the
+    # sidecar's own refusal, or an error with no complete response, such as a
+    # connection that failed part way.
     return _failed_try_of(getattr(getattr(error, "response", None), "headers", None))
 
 
 def _failed_try_of(headers: Any) -> int | None:
-    # the number in the sidecar's header, where the headers have it. For a
-    # result that a provider's code read from an error response, they are
-    # those the call's HTTP hooks kept of its latest response, which was read
-    # whole, as the provider's code made a result of it
+    # The try's number from the sidecar's `x-sentinel-failed-try` header, or
+    # None if the headers lack it. When a provider's code read an error
+    # response as a result, there is no error to take headers from. The
+    # caller then passes the headers that the HTTP hook stored for the latest
+    # response.
     if headers is None:
         return None
     try:
@@ -312,9 +412,9 @@ def _failed_try_of(headers: Any) -> int | None:
 def _provider_failed(
     received: ReceivedCall, try_number: int, after: PausedCallResult[R]
 ) -> PausedCallResult[R]:
-    # The provider's error for a failed try has been got from the sidecar,
-    # whole. The try is acted on from here, and not before: a request for the
-    # error that fails leaves it to be asked for again.
+    # Inspect has fetched the provider's error for a failed try. Only now is
+    # the failure recorded as handled, so that a fetch that fails can be tried
+    # again.
     received.failures.add(try_number)
     received.error_is_final = True
     return after
@@ -338,7 +438,7 @@ _REVIEW_FIELDS = (
     "cause",
     "resolved",
 )
-"""What a review record in the eval's log holds, as the sidecar's `request_result` gives it."""
+"""The fields of a `request_result` review record that go into the eval's log."""
 
 _CAUSES = {
     "replaced_attempt": "a later attempt at the sample had begun",
@@ -347,17 +447,22 @@ _CAUSES = {
     "cancelled": "the call had been cancelled",
     "stopped": "the sidecar had stopped it",
 }
-"""Why a question's wait was stopped, in words for the person who answered it."""
+"""Why a question was cancelled, worded for the person who answered it."""
 
 
 def note_reviews(received: ReceivedCall, result: dict[str, Any]) -> None:
-    """Keep what the sidecar says became of each question a sentinel asked a person about the call.
+    """Log the sidecar's record of each resolved question about the call.
 
-    Each question's record goes into the eval's log once the question has ended, whether or not a step was judged with it, with the call's `x-irid` and the number of the try it was asked at. A person here whose answer the record shows wasn't used is told so, with why.
+    `request_result` returns a record for each question a sentinel asked a
+    person about the call. Once a question is resolved (answered, timed out or
+    cancelled), Inspect writes its record to the eval's log with the call's
+    `x-irid`. It logs each record once, whether or not the call was judged. If
+    the record shows that an answer a person gave here wasn't used, Inspect
+    logs a warning that says why.
 
     Args:
-        received: What is kept of the call.
-        result: The sidecar's answer to `request_result`, with its records latest.
+        received: Inspect's record of the call.
+        result: The sidecar's answer to `request_result`.
     """
     from inspect_ai.log._transcript import transcript
 
@@ -385,11 +490,16 @@ def note_reviews(received: ReceivedCall, result: dict[str, Any]) -> None:
 
 
 def reviews_unavailable(received: ReceivedCall, records: str) -> None:
-    """Tell a person here whose answer's fate can't be learned, as the sidecar no longer holds the call's records.
+    """Warn that Inspect can't learn whether a person's answers were used.
+
+    The sidecar no longer holds the call's records, so Inspect can't read what
+    happened to the questions a person answered here. It warns once for each
+    such answer.
 
     Args:
-        received: What is kept of the call.
-        records: What the sidecar said of its records of the call: `dropped` or `unknown`.
+        received: Inspect's record of the call.
+        records: The sidecar's `records` value for the call: `dropped` or
+            `unknown`.
     """
     for id, (decision, _) in received.decisions.items():
         if id in received.reviews_logged or id in received.answers_unknown:
@@ -404,9 +514,9 @@ def reviews_unavailable(received: ReceivedCall, records: str) -> None:
 def _tell_if_unused(
     received: ReceivedCall, record: dict[str, Any], result: dict[str, Any]
 ) -> None:
-    # A person here answered the question, and its record says what the
-    # sentinel was given. An answer the sidecar took is not thereby one that
-    # was used: the record says, and not whether the answer could be sent.
+    # Warn the person who answered this question here, if the sentinel was not
+    # given their answer. The record says what the sentinel was given. That
+    # the sidecar accepted the answer doesn't show that it was used.
     id = record["id"]
     chosen = received.decisions.get(id)
     if chosen is None:
@@ -429,8 +539,10 @@ def _tell_if_unused(
 
 
 def _how_long_before(record: dict[str, Any], answered_at: float) -> str:
-    # how long before the person answered the question had ended, by the
-    # sidecar's clock and Inspect's, which a signed call keeps close
+    # Text saying how long before the person's answer the question was
+    # resolved. It compares the sidecar's clock with Inspect's. The two are
+    # close, because the sidecar refuses a signed call whose timestamp is more
+    # than its window (5 minutes by default) from its own clock.
     resolved = record.get("resolved")
     if not isinstance(resolved, (int, float)) or answered_at <= resolved:
         return ""
@@ -441,7 +553,8 @@ def _how_long_before(record: dict[str, Any], answered_at: float) -> str:
 
 
 def _came_to(result: dict[str, Any]) -> str:
-    # where the call stands, for the person whose answer wasn't used
+    # A sentence saying where the call stands now, for the person whose
+    # answer wasn't used.
     state = result.get("state")
     judgment = result.get("judgment")
     if state == "decided" and isinstance(judgment, dict):
@@ -459,12 +572,17 @@ def _came_to(result: dict[str, Any]) -> str:
 
 
 async def ask_person(received: ReceivedCall) -> None:
-    """Show a person each question the sidecar holds for the call, and send it their answers.
+    """Show a person each open question for the call, and send their answers.
 
-    Only the call's own questions are shown, by the call's `x-irid`, and each once, so no question is shown by two samples or twice by one.
+    Inspect lists the sample's open questions with `list_pending_questions`,
+    and shows only those whose `request_id` is this call's `x-irid`. It shows
+    each question once. So two samples never show the same question, and one
+    sample never shows it twice.
 
     Raises:
-        SentinelProxyError: If the sidecar won't take the eval's calls, or won't take the answer a person gave or the one that fails closed.
+        SentinelProxyError: If the sidecar refuses Inspect's calls, or refuses
+            an answer: the person's, or the cautious one Inspect sends when it
+            can't show the question.
     """
     sidecar = received.sidecar
     try:
@@ -473,16 +591,15 @@ async def ask_person(received: ReceivedCall) -> None:
         )
     except SidecarCallError as ex:
         if ex.code is not None:
-            # An error the sidecar itself answered with, as it gives for a
-            # call it can't read or won't take. Asking again would get the
-            # same, so the review fails here, as it does for an answer the
-            # sidecar won't take.
+            # The sidecar answered with an error of its own, as it does for a
+            # call it can't read or refuses. Asking again would get the same
+            # answer, so the review fails here.
             raise _refused(sidecar, ex) from ex
-        # The request didn't reach the sidecar, or its answer didn't come
-        # back. It is asked again, with the call's state, after a wait, as a
-        # lookup lost on the way is, and as many times. That bounds how long
-        # Inspect goes on without reaching the sidecar, and not how long a
-        # person may take to answer.
+        # The call didn't reach the sidecar, or its answer was lost. Inspect
+        # waits and returns, and the caller asks again. Inspect gives up after
+        # `LOOKUP_RETRIES` failures in a row, the same limit as for a lost
+        # `request_result`. The limit bounds how long Inspect goes on without
+        # reaching the sidecar. It doesn't bound how long a person may take.
         from ._lookup import LOOKUP_RETRIES, LOOKUP_RETRY_PAUSE
 
         received.questions_lost += 1
@@ -500,10 +617,10 @@ async def ask_person(received: ReceivedCall) -> None:
         and isinstance(question.get("request_id"), str)
         for question in listed
     ):
-        # A list Inspect can't read is never taken for an empty one: the
-        # sidecar goes on saying a question is open, and Inspect would go on
-        # asking with nothing to show a person. What the list held isn't
-        # told, as a question holds a call's arguments.
+        # Inspect never treats a list it can't read as an empty list. The
+        # sidecar would keep saying a question is open, and Inspect would
+        # keep asking with nothing to show a person. The error leaves out
+        # the list's contents, because a question holds a call's arguments.
         raise SentinelProxyError(
             f"The sentinel sidecar at {sidecar.origin} listed the questions it holds for a person in a form Inspect can't read."
         )
@@ -514,13 +631,14 @@ async def ask_person(received: ReceivedCall) -> None:
         and question["id"] not in received.answered
     ]
     if not questions:
-        # the question closed, or its answer is being taken
+        # The question closed, or the sidecar is still processing its answer.
         await anyio.sleep(NO_QUESTION_PAUSE)
         return
     for question in questions:
         id = question["id"]
         if id not in received.decisions:
-            # the time the person takes is theirs, not the model call's
+            # The time the person takes to decide is counted apart from
+            # the model call's time.
             shown = time.monotonic()
             try:
                 received.decisions[id] = await _decision(received, question)
@@ -529,11 +647,11 @@ async def ask_person(received: ReceivedCall) -> None:
             call = question.get("call")
             function = call.get("function") if isinstance(call, dict) else None
             received.asked_about[id] = (str(function or "a tool"), time.time())
-        # An answer the sidecar couldn't be sent is sent again, and the
-        # person isn't asked again. It is sent again after a wait, as a
-        # lookup lost on the way is asked again, and as many times: the
-        # sidecar goes on saying the question is open, which doesn't begin
-        # the count afresh.
+        # If the answer doesn't reach the sidecar, Inspect sends the stored
+        # answer again later, and doesn't ask the person again. It waits
+        # between sends, and gives up after `LOOKUP_RETRIES` failures in a
+        # row, as for a lost `request_result`. Meanwhile the sidecar keeps
+        # saying the question is open, which doesn't reset the count.
         lost = await _answer(sidecar, id, *received.decisions[id])
         if lost is None:
             received.answers_lost = 0
@@ -552,7 +670,9 @@ async def ask_person(received: ReceivedCall) -> None:
 async def _decision(
     received: ReceivedCall, question: dict[str, Any]
 ) -> tuple[str, str | None]:
-    # what the person chose; a question Inspect can't show them fails closed
+    # Returns the person's choice and their reason. If Inspect can't show
+    # the question, it answers with caution: `reject` if offered, otherwise
+    # `terminate`.
     choices = question.get("choices")
     offered: list[ApprovalDecision] = [
         cast(ApprovalDecision, choice)
@@ -566,10 +686,11 @@ async def _decision(
     try:
         return await _ask(question, offered, received.history)
     except Exception as ex:
-        # Only the error's type is told. Its text may hold what the question
-        # held, as a validation error's holds the values it couldn't read,
-        # the call's arguments among them. The warning goes into the eval's
-        # log, and the reason is what the model is told of the rejected call.
+        # Only the error's type is reported. Its text may contain the
+        # question's contents: a validation error quotes the values it
+        # couldn't read, and those include the call's arguments. The warning
+        # goes into the eval's log, and the reason is shown to the model for
+        # the rejected call.
         failed = type(ex).__name__
         logger.warning(
             f"A question from the sentinel sidecar at {received.sidecar.origin} couldn't be shown to a person, so it is answered with caution ({failed})."
@@ -585,8 +706,8 @@ async def _ask(
     offered: list[ApprovalDecision],
     history: list[ChatMessage],
 ) -> tuple[ApprovalDecision, str | None]:
-    # the question, in Inspect's human approval surfaces, as a sentinel in
-    # the eval's own process asks one
+    # Shows the question with Inspect's `human_approver`, the same way a
+    # sentinel inside the eval's own process asks one.
     call = _TOOL_CALL.validate_python(question.get("call"))
     view = ToolCallView.model_validate(question.get("view") or {})
     escalations = [
@@ -604,8 +725,8 @@ async def _ask(
             escalation_lines(escalations) if escalations else None,
             ChatMessageTool.model_validate(result) if result is not None else None,
         ),
-        # the conversation as Inspect holds it, with each rejected call
-        # redacted as the sidecar gave it, and not the sidecar's copy
+        # Inspect's own copy of the conversation, not the sidecar's. Each
+        # rejected call in it is redacted, as the sidecar returned it.
         history,
     )
     return chosen(approval, offered)
@@ -614,22 +735,23 @@ async def _ask(
 async def _answer(
     sidecar: Any, id: str, decision: str, reason: str | None
 ) -> SidecarCallError | None:
-    # None once the sidecar took the answer, or holds the question no
-    # longer; otherwise the failure that kept the answer from reaching it
+    # Returns None if the sidecar accepted the answer, or no longer holds the
+    # question. Otherwise returns the error that kept the answer from
+    # reaching the sidecar.
     try:
         await sidecar.answer_question(id, decision, reason)
     except SidecarCallError as ex:
         if ex.code in (UNKNOWN_QUESTION, QUESTION_ANSWERED):
-            # The question closed while the person decided, as when it
-            # expired or its call ended. What became of it is asked next, and
-            # the person is told then that their answer wasn't used
-            # (`note_reviews`).
+            # The question closed while the person decided, for example
+            # because it expired or its call ended. The next `request_result`
+            # returns its record, and `note_reviews` then warns the person
+            # that their answer wasn't used.
             logger.debug(
                 f"The sentinel sidecar at {sidecar.origin} no longer held a question when a person answered it: {ex}"
             )
             return None
         if ex.code is None:
-            # the call didn't reach the sidecar, or its answer didn't come back
+            # The call didn't reach the sidecar, or its answer was lost.
             logger.debug(
                 f"A person's answer couldn't be sent to the sentinel sidecar at {sidecar.origin}: {ex}"
             )
@@ -652,11 +774,19 @@ def _sample_uuid() -> str | None:
 
 
 _paused_calls: dict[str, dict[str, ReceivedCall]] = {}
-"""The calls the sidecars hold open for each running sample, by the sample's uuid: each call's `x-irid`, with what is kept of the call."""
+"""The paused calls of each running sample.
+
+Keyed by the sample's uuid, then by the call's `x-irid`. Each value is Inspect's
+record of the call.
+"""
 
 
 def mark_paused(received: ReceivedCall) -> None:
-    """Note that the sidecar holds the call open: a person was asked about it, and it has not ended."""
+    """Record that the sidecar has paused the call for a person's review.
+
+    Inspect stores the call's `x-irid`, so that every later request for the call
+    reuses it.
+    """
     received.reviewed_id = received.request_id
     received.paused = True
     sample_uuid = _sample_uuid()
@@ -675,15 +805,22 @@ def _clear_paused(received: ReceivedCall) -> None:
 
 
 def mark_ended(received: ReceivedCall) -> None:
-    """Note that the sidecar says the call has ended, so it holds it open no longer."""
+    """Record that the call has ended at the sidecar, so it is no longer paused."""
     if received.paused:
         _clear_paused(received)
 
 
 async def cancel_paused_call(received: ReceivedCall | None) -> None:
-    """Cancel, at the sidecar, a call a person was asked about that Inspect gives up on while the sidecar still holds it open.
+    """Tell the sidecar to cancel a paused call that Inspect has given up on.
 
-    A call that is cancelled, or fails, while it waits for a person leaves a question nobody will answer, and a request the sidecar may still send on. The sidecar is told, so it closes the call with nothing decided. It doesn't wait long on a sidecar that doesn't answer, as a cancelled sample's teardown can't be interrupted: the sidecar closes the call when the sample ends, or at its run expiry.
+    When Inspect cancels or fails a call that is paused, the sidecar is left
+    with a question nobody will answer, and may still pass a request for the
+    call on to the provider. So Inspect calls `cancel_paused_request`, and the
+    sidecar closes the call with nothing decided.
+
+    Inspect waits at most `CANCEL_TIMEOUT` seconds for the sidecar, because the
+    teardown of a cancelled sample can't be interrupted. If the sidecar doesn't
+    answer, it closes the call when the sample ends, or when the run expires.
     """
     if received is None or not received.paused or received.reviewed_id is None:
         return
@@ -692,17 +829,21 @@ async def cancel_paused_call(received: ReceivedCall | None) -> None:
 
 
 async def cancel_paused_calls(sample_uuid: str) -> None:
-    """Cancel, at their sidecars, the calls a sample leaves open when it ends: those a person was asked about that nothing closed, as when the sample was cancelled while Inspect waited to retry one."""
+    """Tell the sidecars to cancel the calls a sample leaves paused when it ends.
+
+    A call is left paused when nothing finished or cancelled it, for example
+    when the sample was cancelled while Inspect waited to retry the call.
+    """
     for request_id, received in _paused_calls.pop(sample_uuid, {}).items():
         await _cancel(received, request_id)
 
 
 async def _cancel(received: ReceivedCall, request_id: str) -> None:
-    # The sidecar is told the call is given up, and is then asked once what
-    # became of it, so that the record of a question the cancellation closed
-    # is in the eval's log. A call closed only when its sample ends is too
-    # late for that: the sample's log is written first. Neither holds up the
-    # sample for long.
+    # Inspect calls `cancel_paused_request`, then calls `request_result` once,
+    # so that the record of a question the cancellation closed goes into the
+    # eval's log. Leaving the sidecar to close the call when the sample ends
+    # would be too late, because the sample's log is written first. Both calls
+    # share one `CANCEL_TIMEOUT`, so they don't hold up the sample for long.
     sidecar = received.sidecar
     with anyio.CancelScope(shield=True), anyio.move_on_after(CANCEL_TIMEOUT):
         try:

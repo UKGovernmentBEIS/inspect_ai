@@ -1891,9 +1891,9 @@ class Model:
                 timeout_cm: anyio.CancelScope | contextlib.nullcontext[None],
                 idle_scope: anyio.CancelScope | None,
             ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-                # One send of the attempt to the provider, under the timeouts
-                # it is given. An attempt is sent again when a sentinel sidecar
-                # paused its call while a person decided (`send_again` below).
+                # Send the attempt's request once, under the timeouts given.
+                # `send_again` below calls this again when a sentinel sidecar
+                # has paused the call for a person.
                 assert isinstance(event, ModelEvent)
                 idle_cm = (
                     idle_scope if idle_scope is not None else contextlib.nullcontext()
@@ -1931,28 +1931,30 @@ class Model:
                         raise AttemptTimeoutError(attempt_timeout)
                 return sent
 
-            # the error of the attempt's latest send after its first, which
-            # is then the attempt's error in place of the first send's
+            # The error that the latest `send_again` raised, if it raised one.
+            # It replaces the first send's error as the attempt's error.
             sent_again_error: Exception | None = None
 
             async def send_again() -> (
                 ModelOutput | tuple[ModelOutput | Exception, ModelCall]
             ):
-                # Called only through `refused_output`, for an agent call
-                # that a sentinel sidecar paused while a person decided, once
-                # or more. What the earlier send streamed is dropped, and so
-                # is an earlier send's error.
+                # Called only through `refused_output`, one or more times, for
+                # an agent call that a sentinel sidecar paused for a person.
+                # Each call drops what the earlier send streamed, and the
+                # earlier send's error.
                 nonlocal sent_again_error
                 sent_again_error = None
-                # an operator's hard pause holds this send too, as it holds
-                # an attempt's first: a person may answer while it is closed
+                # An operator's hard pause holds this send, as it holds an
+                # attempt's first send, because a person may answer while the
+                # pause is in effect.
                 await wait_generate_dispatch(self, connection)
                 stream_observer.discard_partial_output()
                 try:
-                    # The first send's timeouts are spent, so this send has
-                    # its own. It is counted as an attempt in flight too:
-                    # where the provider handed its error back, the
-                    # attempt's own block has ended by now.
+                    # The first send used up its timeouts, so this send gets
+                    # its own. It is also counted as an attempt in flight,
+                    # because the attempt's own `attempts.attempt()` block
+                    # has already ended if the provider returned its error
+                    # without raising it.
                     with attempts.attempt():
                         return await send(
                             anyio.move_on_after(attempt_timeout)
@@ -1966,7 +1968,8 @@ class Model:
                     sent_again_error = ex
                     raise
                 finally:
-                    # the attempt runs from its first send to this one's end
+                    # the attempt lasts from its first send to the end of
+                    # this send
                     attempts.last_attempt = (time_start, sample_clock())
 
             with (
@@ -1991,8 +1994,8 @@ class Model:
                 except Exception as ex:
                     # A sidecar's refusal of an agent call is acted on as the
                     # model's turn, as an in-process sentinel's decision is.
-                    # Where a person was asked about the call, what the call
-                    # came to once it was sent again takes the error's place.
+                    # If the sidecar paused the call for a person, the paused
+                    # call's result replaces the error.
                     raised = ex
                     refused = await _refused_or_complete(
                         refused_output(
@@ -2070,8 +2073,9 @@ class Model:
                 if refused is not None:
                     stream_observer.discard_partial_output()
                     if isinstance(refused, tuple):
-                        # the call sent again, with the record of its request,
-                        # and the attempt ends when that send did
+                        # The paused call's result, with the `ModelCall` of
+                        # the send that returned it. The attempt ends when
+                        # that send ended.
                         output, call = refused
                         time_end = sample_clock()
                         time_elapsed = time_end - time_start
@@ -2112,12 +2116,13 @@ class Model:
             if output.input_context_tokens is None:
                 output.input_context_tokens = usage_input_tokens(output.usage)
 
-            # A call a person was asked about took the time of its sends
-            # (None for any other). The time outside them is not the
-            # model's as far as Inspect can tell: the person's, the
-            # sidecar's, and the time spent asking the sidecar about a call
-            # the provider still had after Inspect's own send timed out,
-            # which undercounts that provider's work.
+            # A call that was paused for a person is timed by its sends
+            # (`time_of_sends` returns None for any other call). As far as
+            # Inspect can tell, the time outside the sends is not the model's.
+            # It went to the person, to the sidecar, and to asking the sidecar
+            # about a call that the provider still had after Inspect's own
+            # send timed out. That last part can undercount the provider's
+            # work.
             sends_took = time_of_sends()
 
             # update output with time (call.time captures time spent
@@ -2721,7 +2726,9 @@ async def _refused_or_complete(
     event: BaseModel,
     complete_with_error: Callable[[], None],
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall] | None:
-    """A sidecar's refusal of a failed attempt, or what the attempt came to once it was sent again after a person's review, completing the attempt's event with its error if the lookup is cancelled or fails.
+    """A sidecar's refusal of a failed attempt, or a paused call's result.
+
+    Completes the attempt's event with its error if the lookup is cancelled or fails.
 
     The lookup can wait on a sidecar still judging, so the sample's time limit or an interim-scoring deadline can cancel it, and an unauthorized eval raises: either way the event must not stay pending in the live transcript and the log. It records the attempt's own error; what interrupted the lookup propagates as the sample's. An event an intervention producer (ACP operator-cancel) already completed is left alone.
     """

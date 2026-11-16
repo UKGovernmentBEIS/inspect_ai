@@ -1,6 +1,13 @@
-"""A person's review of a call that a sentinel in a sidecar asks for, and what a call with no sidecar is spared of it.
+"""Tests of human review through a sidecar, in Inspect's sidecar client.
 
-The stand-in here keeps a call a person is asked about as one model call under its `x-irid`, as the sidecar does: it answers the call's request with an error while the question is open, and afterwards answers the same request, sent to its held-reply path, with the provider's reply it held.
+A sentinel in a sidecar can ask a person about a tool call. The sidecar then
+pauses the model call: it answers the request with a "pending review" error
+and keeps the call under its `x-irid`. Once the person has answered, Inspect
+fetches the provider's reply from the sidecar's held-reply path, or resends
+the request so that the proxy passes it on to the provider.
+
+`ReviewingSidecar` stands in for the proxy and the sidecar, and pauses calls
+the same way. The first tests check that a call with no sidecar is unchanged.
 """
 
 import asyncio
@@ -83,10 +90,14 @@ def weather() -> Tool:
 
 @dataclass
 class _Paused:
-    """A model call the stand-in asked a person about, kept as one model call under its `x-irid`."""
+    """A model call that the stand-in paused for a person, kept under its `x-irid`."""
 
     stage: str
-    """`tool_call` for a call paused at its reply, which the stand-in holds; `tool_result` for one paused at its request, which went to no provider yet."""
+    """Where the call was paused.
+
+    `tool_call`: at its reply, which the stand-in holds. `tool_result`: at its
+    request, before the provider was called.
+    """
     route: str
     state: str = "awaiting_review"
     turn: Turn | None = None
@@ -96,81 +107,166 @@ class _Paused:
     reason: str | None = None
     tries: int = 0
     reviews: list[dict[str, Any]] = field(default_factory=list)
-    """What became of each question asked about the call, as `request_result` gives it."""
+    """The record of each question about the call, as `request_result` returns it."""
     judging_time: float = 0.0
-    """How long the sentinel judged the call while the proxy held its sends, added up over them."""
+    """How long the sentinel spent judging the call's requests, in seconds, in total."""
 
 
 @dataclass
 class _HeldRequest:
-    """A request the stand-in held before answering, as a proxy holds a call, with when the hold began and ended on the monotonic clock."""
+    """A request the stand-in held before answering it, as a proxy holds a call.
+
+    `began` and `ended` are when the hold began and ended, on the monotonic
+    clock.
+    """
 
     path: str
     began: float
     ended: float = 0.0
     finished: bool = False
-    """Whether the hold ran its whole time. A hold whose client went away, as when the call was cancelled or timed out, ended before that."""
+    """Whether the hold ran its full time.
+
+    False if the client went away first, for example because the call was
+    cancelled or timed out.
+    """
 
 
 @dataclass
 class ReviewingSidecar(StandInSidecar):
-    """A stand-in whose sentinel asks a person about model calls, as a sidecar that pauses the model call does."""
+    """A stand-in sidecar that pauses model calls and asks a person about them."""
 
     pauses: list[str] = field(default_factory=list)
-    """Where each new model call is paused, in order: `tool_call` or `tool_result`. A call past the last isn't paused."""
+    """Where to pause each new model call, in order: `tool_call` or `tool_result`.
+
+    Calls after the list runs out aren't paused.
+    """
     paused: dict[str, _Paused] = field(default_factory=dict)
     cancelled: list[str] = field(default_factory=list)
     held_reply_statuses: list[int] = field(default_factory=list)
-    """Error statuses the held-reply path answers with first, in order, before it answers with what it holds. They are the sidecar's own refusals, without the header that marks a provider's error."""
+    """Error statuses that the held-reply path returns first, in order.
+
+    After them it returns what it holds. They stand for the sidecar's own
+    refusals, so they lack the header that marks a provider's error.
+    """
     expires: bool = False
-    """Whether a question times out at the sidecar before the person answers: the sentinel is given the cautious answer, a rejection, and the person's answer is refused as one for a question that has closed."""
+    """Whether each question times out at the sidecar before the person answers.
+
+    The sidecar then rejects the call, and refuses the person's answer because
+    the question has closed.
+    """
     judged_step: bool = False
-    """Whether the judgment of a call a person approved has the step that asked, naming its question."""
+    """Whether an approved call's judgment includes the step that asked the question.
+
+    The step names the question's id.
+    """
     records_dropped: bool = False
-    """Whether the sidecar no longer holds the call's records once a person has answered."""
+    """Whether the sidecar drops the call's records once a person has answered."""
     error_passing_asks: int = 0
-    """How many times, once the provider has failed a try, `request_result` still says the sidecar awaits the reply: the error's body is passing, and the sidecar tells of the error only once it is whole."""
+    """How many times `request_result` returns `awaiting_reply` after a failure.
+
+    It stands for a sidecar that is still receiving the provider's error. The
+    sidecar reports the failure only once it has the whole error.
+    """
     failure_message: str | None = None
-    """The message of the provider's error, in Anthropic's format, in place of the stand-in's own: as the held-reply path serves it, and as the try that is sent on is answered with it."""
+    """A message for the provider's error, in Anthropic's format.
+
+    It replaces the stand-in's default error body, both on the try passed on
+    to the provider and on the held-reply path.
+    """
     lookups_lost: int = 0
-    """How many `request_result` calls about a paused call, once a person has answered, the proxy answers with a 502, so that they never reach the sidecar."""
+    """How many `request_result` calls the proxy fails with a 502.
+
+    Only calls about a paused call whose question is no longer open count.
+    They never reach the sidecar.
+    """
     lookups_refused: int = 0
-    """How many such calls the sidecar itself answers with an error."""
+    """How many of those `request_result` calls the sidecar answers with an error."""
     questions_lost: int = 0
-    """How many `list_pending_questions` calls the proxy answers with a 502, so that they never reach the sidecar."""
+    """How many `list_pending_questions` calls the proxy fails with a 502.
+
+    They never reach the sidecar.
+    """
     answers_lost: int = 0
-    """How many `answer_question` calls the proxy answers with a 502, so that they never reach the sidecar."""
+    """How many `answer_question` calls the proxy fails with a 502.
+
+    They never reach the sidecar.
+    """
     error_cut_off: int = 0
-    """How many times the held-reply path's answer with the provider's error has its connection fail part way through the body, after its headers, the sidecar's marker among them, have come."""
+    """How many fetches of the provider's error lose their connection part way.
+
+    The headers arrive, including the sidecar's `x-sentinel-failed-try`. The
+    connection fails before the whole body does.
+    """
     pending_lost: int = 0
-    """How many of the paused call's requests, from the first, lose their connection before the sidecar's "pending review" comes back: every try the provider's SDK makes by itself, for a large enough number."""
+    """How many "pending review" answers are lost with their connection, from the first.
+
+    With a large number, every try that the provider's SDK makes on its own
+    fails this way.
+    """
     cut_off: bool = False
-    """Whether every try that is sent on is cut off at the provider, with Inspect's own try answered with an error that has a status."""
+    """Whether the provider's reply is cut off on every try passed on to it.
+
+    The stand-in then reports `cut_off`, and answers Inspect's try with a 400.
+    """
     judge_usage: dict[str, Any] | None = None
-    """The judge model's usage, added up over the call, that every `request_result` about a paused call gives, as the sidecar does."""
+    """The judge model's usage for the whole call.
+
+    Every `request_result` about a paused call returns it, as the sidecar does.
+    """
     error_lost: bool = False
-    """Whether the try that is sent on is answered with the sidecar's own "pending review" when the provider fails it, and not with the provider's error: what Inspect holds when a try of its was answered while another was with the provider."""
+    """Whether Inspect gets "pending review" when the provider fails a resend.
+
+    Without it, Inspect gets the provider's error. It stands for a try the
+    sidecar answered while another try of the call was with the provider.
+    """
     provider_takes_asks: int = 0
-    """How many times `request_result` still says the sidecar awaits the reply of the try it sent on to the provider, before the reply has come and been judged. That try's own connection is held far longer, so Inspect's attempt at it times out first."""
+    """How many times `request_result` returns `awaiting_reply` for a resend.
+
+    The stand-in holds the resend's own connection for 60 seconds, so Inspect's
+    attempt at it times out first.
+    """
     lookups_take: list[float] = field(default_factory=list)
-    """How long the sidecar takes to answer each `request_result` that finds the call awaiting the provider's reply, in order, in seconds. Those past the list's end are answered at once."""
+    """How long each `request_result` that finds `awaiting_reply` takes, in seconds.
+
+    In order. Calls after the list runs out are answered at once.
+    """
     awaited_lookups: int = 0
-    """How many `request_result` calls found the call awaiting the provider's reply."""
+    """How many `request_result` calls found the call at `awaiting_reply`."""
     reply_judged_asks: int = 0
-    """How many times, once the provider's reply has come, `request_result` says the sidecar is judging it, before it is decided."""
+    """How many times `request_result` returns `judging` once the provider has replied.
+
+    After that the call is `decided`.
+    """
     closed_before_asked: bool = False
-    """Whether the question about a call paused at its reply times out before Inspect first asks about the call, and the sentinel's cautious answer still lets the turn go on."""
+    """Whether a `tool_call` question times out before Inspect first looks the call up.
+
+    The call is then `decided` with `proceed`, so the turn still goes ahead.
+    """
     sdk_retries: bool = True
-    """Whether the provider's SDK may retry a provider's error on a try that is sent on. Without, the error comes back to Inspect, as `x-should-retry: false` makes it."""
+    """Whether the provider's SDK may retry a provider's error on a resend.
+
+    If not, the stand-in adds `x-should-retry: false`, so the SDK returns the
+    error to Inspect.
+    """
     holds: list[tuple[float, float]] = field(default_factory=list)
+    """How long the proxy holds each request of a paused call, in order, in seconds.
+
+    Each pair is the whole hold, and how much of it the sentinel spent judging.
+    """
     held_at: list[float] = field(default_factory=list)
-    """When each request given a hold came, on the monotonic clock."""
-    """For each request of a paused call, in order: how long the proxy holds it before answering, and how much of that the sentinel spent judging it, in seconds."""
+    """When each request that was given a hold arrived, on the monotonic clock."""
 
     when_held: Callable[[], None] | None = None
-    """Called as the stand-in begins to hold a request, in the task of the call that sent it, so that a test can time something from the hold's start."""
+    """Called when the stand-in begins to hold a request.
+
+    It runs in the task of the call that sent the request, so a test can time
+    something from the start of the hold.
+    """
     held_requests: list[_HeldRequest] = field(default_factory=list)
-    """Each request the stand-in held, in the order they came, with how long it was really held: a busy machine holds one longer than it was told to."""
+    """Each request the stand-in held, in order, with when its hold began and ended.
+
+    A busy machine can hold a request longer than `holds` asked.
+    """
 
     def __post_init__(self) -> None:
         assert self.info is not None
@@ -187,8 +283,8 @@ class ReviewingSidecar(StandInSidecar):
         response = self._handle(request)
         hold = self._holds.pop(id(request), 0.0)
         if hold:
-            # timed here, where the request is held, so that a test can
-            # compare what Inspect counted with what really happened
+            # The stand-in times the hold itself, so a test can compare the
+            # time Inspect counted with the time the request was really held.
             held = _HeldRequest(request.url.path, time.monotonic())
             self.held_requests.append(held)
             if self.when_held is not None:
@@ -273,8 +369,9 @@ class ReviewingSidecar(StandInSidecar):
             return self._pending(request)
         paused.tries += 1
         if paused.state != "awaiting_resend":
-            # no other try is sent on, and a call that has ended is read
-            # with `request_result`
+            # Only a call at `awaiting_resend` is passed on to the provider.
+            # Any other try gets "pending review", and Inspect reads the
+            # call's state with `request_result`.
             return self._pending(request)
         if self.cut_off:
             paused.reason = "cut_off"
@@ -290,7 +387,7 @@ class ReviewingSidecar(StandInSidecar):
             if self.error_lost:
                 return _refusal("pending review")
         elif self.provider_takes_asks > 0:
-            # with the provider, whose reply the sidecar will hold
+            # the provider is still working, and the sidecar will hold its reply
             paused.turn = turn
             paused.state = "awaiting_reply"
             self._holds[id(request)] = 60.0
@@ -318,7 +415,8 @@ class ReviewingSidecar(StandInSidecar):
     def _held(
         self, request: httpx2.Request, response: httpx2.Response
     ) -> httpx2.Response:
-        # held by the proxy, part of the time while the sentinel judged it
+        # The proxy holds the request for `hold` seconds, and the sentinel
+        # spends `judging` seconds of that judging it.
         if self.holds:
             hold, judging = self.holds.pop(0)
             self._holds[id(request)] = hold
@@ -327,7 +425,8 @@ class ReviewingSidecar(StandInSidecar):
         return response
 
     def _pending(self, request: httpx2.Request) -> httpx2.Response:
-        # the sidecar's "pending review", unless the connection is lost first
+        # The sidecar's "pending review" error. While `pending_lost` lasts,
+        # the connection fails before the error arrives.
         if self.pending_lost > 0:
             self.pending_lost -= 1
             raise httpx2.ConnectError("The connection was lost.", request=request)
@@ -357,8 +456,8 @@ class ReviewingSidecar(StandInSidecar):
             and paused.reason == "provider_error"
             and paused.failure is not None
         ):
-            # the provider's error, marked with the try it is of, and not to
-            # be sent again for by the SDK itself
+            # The provider's error. `x-sentinel-failed-try` names the failed
+            # try, and `x-should-retry: false` stops the SDK retrying the fetch.
             failed = _MODEL_ROUTES[paused.route](
                 Turn(status=paused.failure["reply"]["status"]),
                 bool(asked.get("stream")),
@@ -390,7 +489,8 @@ class ReviewingSidecar(StandInSidecar):
     def _unaccepted(self, method: str, params: dict[str, Any]) -> dict[str, Any] | None:
         if method != "answer_question":
             return super()._unaccepted(method, params)
-        # an answer's signature covers the answer
+        # the signature of `answer_question` also covers the question's id,
+        # the decision and the reason
         held = self.tokens.get(params.get("eval_id", ""))
         if held is None:
             return self._refuse(UNAUTHORIZED, "no token held for the eval")
@@ -412,7 +512,7 @@ class ReviewingSidecar(StandInSidecar):
         if self.expires:
             paused = self.paused[params["id"].removeprefix("question_")]
             if paused.state == "awaiting_review":
-                # it timed out twelve minutes before the person answered
+                # the question timed out twelve minutes before the person answered
                 ended = time.time() - 12 * 60
                 paused.reviews.append(
                     {
@@ -460,10 +560,10 @@ class ReviewingSidecar(StandInSidecar):
         if paused.state == "awaiting_reply":
             self.provider_takes_asks -= 1
             if self.provider_takes_asks <= 0 and self.reply_judged_asks > 0:
-                # the provider's reply has come, and is being judged
+                # the provider has replied, and the sentinel is judging the reply
                 paused.state = "judging"
             elif self.provider_takes_asks <= 0:
-                # the provider's reply has come, and was judged
+                # the provider has replied, and the sentinel has judged the reply
                 paused.state = "decided"
                 paused.judgment = {"outcome": "proceed", "steps": []}
         result: dict[str, Any] = {
@@ -571,7 +671,7 @@ class ReviewingSidecar(StandInSidecar):
 
 
 class _CutOff(httpx2.AsyncByteStream):
-    # a body whose connection fails part way
+    # a response body whose connection fails part way through
     async def __aiter__(self) -> AsyncIterator[bytes]:
         yield b'{"type": "err'
         raise httpx2.ReadError("The connection was lost.")
@@ -582,7 +682,7 @@ def _refusal(message: str) -> httpx2.Response:
 
 
 class Person:
-    """A person at Inspect's approval panel, who picks the same choice each time they are asked."""
+    """A person at Inspect's approval panel, who gives the same answer every time."""
 
     def __init__(
         self,
@@ -596,7 +696,7 @@ class Person:
         self.takes = takes
         """How long they take to answer, in seconds."""
         self.meanwhile = meanwhile
-        """What happens while they decide, before their answer is given."""
+        """Something to run once they have decided, before the panel returns."""
         self.asked: list[tuple[str, ToolCall, ToolCallView, list[str]]] = []
         self.shown: list[list[ChatMessage]] = []
         """The conversation the panel was given with each question."""
@@ -668,20 +768,23 @@ def _model_events(sample: EvalSample) -> list[ModelEvent]:
 
 
 _SDK_RETRY_WAITS = 0.375 + 0.75
-"""The least Anthropic's SDK waits, in seconds, before its second and third tries of a request whose connection failed: half a second and then a second, each shortened by up to a quarter."""
+"""The least Anthropic's SDK waits before its second and third tries, in seconds.
+
+After a failed connection it waits half a second, then a second, each
+shortened by up to a quarter.
+"""
 
 
 def _event_waiting(event: ModelEvent) -> float:
-    # How much of a model event, from its start to its end, was not the
-    # model's work, in seconds. A slow machine adds to the event's whole time
-    # and to its working time alike, so this holds what was counted as
-    # waiting however slow the machine.
+    # The part of a model event's duration that was not working time, in
+    # seconds. A slow machine adds the same amount to the duration and to the
+    # working time, so the difference doesn't depend on the machine's speed.
     assert event.completed is not None and event.working_time is not None
     return (event.completed - event.timestamp).total_seconds() - event.working_time
 
 
 def _sample_waiting(sample: EvalSample) -> float:
-    # the same for a sample: its whole time less its working time
+    # the same for a sample: its total time minus its working time
     assert sample.total_time is not None and sample.working_time is not None
     return sample.total_time - sample.working_time
 
@@ -719,7 +822,8 @@ async def test_with_no_sidecar_a_requests_path_is_untouched() -> None:
             headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
             json={},
         )
-        # a request that names a sample, of a call no person was asked about
+        # this request names a sample, but its call isn't paused, so the hook
+        # leaves its path alone
         with receiving_call():
             await client.post(
                 "http://provider.test/v1/messages",
@@ -749,7 +853,7 @@ async def test_with_no_sidecar_refused_output_returns_at_once() -> None:
 
     assert _received.get() is None
     assert await refused_output("model", retryable, lambda: False, send_again) is None
-    # nothing was asked of the provider, and nothing was sent
+    # `refused_output` called neither `retryable` nor `send_again`
     assert asked == []
 
 
@@ -782,8 +886,8 @@ def test_a_person_is_shown_the_conversation_as_inspect_holds_it(
 
     _run(stand_in)
 
-    # the messages the call was sent with, from the eval's own process: the
-    # sidecar's question holds no conversation
+    # The person sees the messages Inspect sent with the call. Inspect
+    # supplies them itself, because the sidecar's question has none.
     [history] = person.shown
     assert [(m.role, m.text) for m in history] == [("user", "What's the weather?")]
 
@@ -798,7 +902,7 @@ def test_an_approved_call_gets_the_held_reply_on_the_same_model_event(
 
     sample = _sample(_run(stand_in, provider))
 
-    # the person saw the call, with who escalated it
+    # the person saw the call, and the monitor that escalated it
     [(message, call, view, choices)] = person.asked
     assert (message, call.function, call.arguments) == (
         "Checking.",
@@ -808,8 +912,9 @@ def test_an_approved_call_gets_the_held_reply_on_the_same_model_event(
     assert view.call is not None and "risk_monitor: A new city." in view.call.content
     assert choices == ["approve", "reject", "terminate"]
 
-    # the same request went twice under one id: to the model, then to the
-    # sidecar's held-reply path, and the provider was called once for it
+    # Inspect sent the same request twice under one `x-irid`: first to the
+    # model's path, then to the held-reply path as a fetch. The provider was
+    # called once.
     route = "/v1/messages" if provider == "anthropic" else "/v1/chat/completions"
     first, second, third = [
         r for r in stand_in.requests if r.url.path in (route, HELD_REPLY_PATH)
@@ -817,13 +922,13 @@ def test_an_approved_call_gets_the_held_reply_on_the_same_model_event(
     assert (first.url.path, second.url.path) == (route, HELD_REPLY_PATH)
     assert first.headers["x-irid"] == second.headers["x-irid"]
     assert first.content == second.content
-    # the next call is another model call, with an id of its own
+    # the next model call has an `x-irid` of its own
     assert third.url.path == route
     assert third.headers["x-irid"] != first.headers["x-irid"]
     assert stand_in.refused == []
 
-    # one model event for the call, with the reply, the record of the request
-    # that brought it, and the usage counted once
+    # The call has one model event. It holds the reply, the response to the
+    # request that fetched it, and usage that is counted once.
     turn_event, last_event = _model_events(sample)
     assert turn_event.error is None and turn_event.pending is None
     assert [c.function for c in turn_event.output.message.tool_calls or []] == [
@@ -837,7 +942,7 @@ def test_an_approved_call_gets_the_held_reply_on_the_same_model_event(
         turn_event.output.usage.input_tokens
         + (last_event.output.usage.input_tokens if last_event.output.usage else 0)
     )
-    # the call ran once it was approved
+    # the tool ran once the person approved the call
     assert _LOOKED_UP == ["Oslo"]
     assert stand_in.cancelled == []
 
@@ -881,7 +986,7 @@ def test_a_held_reply_keeps_its_response_ids_and_its_stream(
 
     sample = _sample(log)
     [event] = _model_events(sample)
-    # the held reply was asked for as a stream, and read as one
+    # Inspect fetched the held reply as a stream, and read it as one
     [held] = stand_in.held_reply_requests
     assert json.loads(held.content)["stream"] is True
     assert streamed, "the held reply's deltas reached the stream handler"
@@ -902,7 +1007,8 @@ def test_a_rejected_call_goes_on_as_the_models_turn(
 
     [answer] = _called(stand_in, "answer_question")
     assert (answer["decision"], answer["reason"]) == ("reject", "Not Oslo.")
-    # no held reply is asked for, and the call is answered with the rejection
+    # Inspect fetches no held reply, and answers the tool call with the
+    # person's rejection
     assert stand_in.held_reply_requests == []
     [tool_message] = [m for m in sample.messages if isinstance(m, ChatMessageTool)]
     assert tool_message.error is not None
@@ -925,8 +1031,8 @@ def test_a_question_that_cant_be_shown_tells_nothing_of_what_it_held(
     secret = "sk-not-to-be-told"
 
     def unreadable(params: dict[str, Any]) -> dict[str, Any]:
-        # a question whose call Inspect can't read: its arguments are a list,
-        # and hold a secret
+        # Inspect can't read this question's call, because its arguments are
+        # a list. The list holds a secret.
         questions = listed(params)
         for question in questions["questions"]:
             question["call"]["arguments"] = ["--api-key", secret]
@@ -936,15 +1042,15 @@ def test_a_question_that_cant_be_shown_tells_nothing_of_what_it_held(
 
     sample = _sample(_run(stand_in))
 
-    # the question fails closed, and no person is asked
+    # no person is asked, and Inspect answers `reject` in their place
     assert person.asked == []
     [answer] = _called(stand_in, "answer_question")
     assert answer["decision"] == "reject"
-    # The reason sent with the answer is what the model is told. It names the
-    # error's type, and has nothing of its text, which holds the arguments.
+    # The model sees the reason sent with the answer. The reason names the
+    # error's type and leaves out its text, which contains the arguments.
     assert "ValidationError" in answer["reason"]
     assert secret not in answer["reason"]
-    # the warning in the eval's log likewise
+    # the same goes for the warning in the eval's log
     [warned] = [w for w in _warned(sample) if "couldn't be shown" in w]
     assert "ValidationError" in warned
     assert secret not in warned
@@ -962,7 +1068,7 @@ def test_an_sdk_retry_of_the_held_reply_request_keeps_the_path(
 
     sample = _sample(_run(stand_in))
 
-    # the SDK sent the request again itself, to the same path, under the same id
+    # the SDK retried the fetch itself, to the same path, under the same id
     first, second = stand_in.held_reply_requests
     assert first.headers["x-irid"] == second.headers["x-irid"]
     assert first.content == second.content
@@ -974,8 +1080,8 @@ def test_a_continuation_after_the_held_reply_goes_to_the_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
-    # the held reply pauses its turn, so the provider continues it with a
-    # request that has another body
+    # The held reply stops with `pause_turn`, so Inspect's provider code
+    # sends a continuation request, which has a different body.
     stand_in = ReviewingSidecar(
         pauses=["tool_call"],
         turns=[Turn(text="Searching.", stop_reason="pause_turn"), Turn()],
@@ -1001,8 +1107,8 @@ def test_a_call_paused_at_its_request_is_sent_again_on_the_model_path(
 
     sample = _sample(_run(stand_in, solver=generate()))
 
-    # the request went twice to the model's path under one id, and the
-    # sidecar sent the second on to the provider
+    # Inspect sent the request twice to the model's path under one `x-irid`.
+    # The second is the resend, which the sidecar passed on to the provider.
     first, second = stand_in.model_calls
     assert first.headers["x-irid"] == second.headers["x-irid"]
     assert first.content == second.content
@@ -1018,15 +1124,15 @@ def test_a_call_whose_question_closed_before_inspect_asked_gets_its_held_reply(
 ) -> None:
     person = Person("approve")
     person.install(monkeypatch)
-    # the question timed out before Inspect first asked about the call, and
-    # the sidecar decided to let the turn go on
+    # the question timed out before Inspect first looked the call up, and
+    # the sidecar decided `proceed`
     stand_in = ReviewingSidecar(
         pauses=["tool_call"], turns=[_OSLO, Turn()], closed_before_asked=True
     )
 
     sample = _sample(_run(stand_in))
 
-    # nobody here was asked, and the turn the sidecar held is the call's
+    # Inspect asked no person, and fetched the held reply as the call's result
     assert person.asked == []
     [got] = stand_in.held_reply_requests
     assert got.headers["x-irid"] == stand_in.model_calls[0].headers["x-irid"]
@@ -1039,7 +1145,7 @@ def test_a_provider_error_after_a_review_is_inspects_to_retry_under_the_same_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
-    # the provider fails the request the sidecar sent on, then answers
+    # the provider fails the resend with a 529, then answers the retry
     stand_in = ReviewingSidecar(
         pauses=["tool_result"], turns=[Turn(status=529), Turn(text="Sunny.")]
     )
@@ -1049,7 +1155,7 @@ def test_a_provider_error_after_a_review_is_inspects_to_retry_under_the_same_id(
     assert sample.output.completion == "Sunny."
     ids = {r.headers["x-irid"] for r in stand_in.model_calls}
     assert len(ids) == 1
-    # the person was asked once, whatever was sent since
+    # the person was asked once, however many times the request was sent
     assert len(_called(stand_in, "answer_question")) == 1
 
 
@@ -1057,16 +1163,16 @@ def test_a_provider_error_after_a_review_is_the_error_the_model_event_records(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
-    # the provider refuses the request the sidecar sent on, with an error
-    # Inspect doesn't retry, and which the provider's client raises
+    # The provider answers the resend with a 403. Inspect doesn't retry a
+    # 403, and the provider's client raises it.
     stand_in = ReviewingSidecar(pauses=["tool_result"], turns=[Turn(status=403)])
 
     log = _run(stand_in, solver=generate(), fail_on_error=False)
 
     sample = _sample(log)
     assert sample.error is not None
-    # the call's one event holds the provider's error, which is the error the
-    # sample failed with, and not the sidecar's word that the call waited
+    # The call's one model event holds the provider's error, and the sample
+    # fails with the same error, not with the sidecar's "pending review".
     [event] = _model_events(sample)
     assert event.pending is None
     assert event.error is not None
@@ -1079,24 +1185,24 @@ def test_the_providers_error_is_got_from_the_sidecar_when_inspect_holds_the_side
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
-    # The provider refuses the request the sidecar sent on, with an error
-    # Inspect doesn't retry. The try Inspect holds was answered "pending
-    # review", as one is that comes while another is with the provider.
+    # The provider answers the resend with a 403, which Inspect doesn't
+    # retry. Inspect's own try gets "pending review" instead, as it does when
+    # another try of the call is with the provider.
     stand_in = ReviewingSidecar(
         pauses=["tool_result"], turns=[Turn(status=403)], error_lost=True
     )
 
     sample = _sample(_run(stand_in, solver=generate(), fail_on_error=False))
 
-    # the call fails with the provider's error, on the sample and on the
-    # call's one event, and not with the sidecar's word that the call waited
+    # The sample and the call's one model event both fail with the
+    # provider's error, not with the sidecar's "pending review".
     assert sample.error is not None and "403" in sample.error.message
     [event] = _model_events(sample)
     assert event.pending is None
     assert event.error is not None and "403" in event.error
     assert "pending review" not in event.error
-    # it was got once from the held-reply path, under the call's id, and the
-    # provider wasn't called again for an error Inspect doesn't retry
+    # Inspect fetched the error once from the held-reply path, under the
+    # call's id. It didn't resend, because it doesn't retry a 403.
     [got] = stand_in.held_reply_requests
     first, sent_on = stand_in.model_calls
     assert got.headers["x-irid"] == first.headers["x-irid"] == sent_on.headers["x-irid"]
@@ -1106,7 +1212,8 @@ def test_a_providers_error_got_from_the_sidecar_is_retried_by_inspects_own_rules
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
-    # the provider is overloaded, then answers; Inspect holds "pending review"
+    # the provider returns a 529, then answers the retry; Inspect's own try
+    # gets "pending review"
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(status=529), Turn(text="Sunny.")],
@@ -1115,8 +1222,8 @@ def test_a_providers_error_got_from_the_sidecar_is_retried_by_inspects_own_rules
 
     sample = _sample(_run(stand_in, solver=generate()))
 
-    # Inspect retries an overloaded provider, and the retry is sent on under
-    # the call's id, with the person asked once
+    # Inspect fetches the 529 and retries it. The sidecar passes the retry
+    # on to the provider under the call's id, and the person is asked once.
     assert sample.output.completion == "Sunny."
     assert len({r.headers["x-irid"] for r in stand_in.model_calls}) == 1
     assert len(stand_in.held_reply_requests) == 1
@@ -1127,8 +1234,8 @@ def test_inspect_asks_again_while_a_providers_error_is_still_passing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
-    # the sidecar says the provider failed only once the error's body has all
-    # passed, and is asked twice before then
+    # The sidecar reports the provider's failure only once it has the whole
+    # error. Until then `request_result` returns `awaiting_reply`, twice here.
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(status=403)],
@@ -1142,8 +1249,8 @@ def test_inspect_asks_again_while_a_providers_error_is_still_passing(
         )
     )
 
-    # the call fails with the provider's error, and not as a call whose
-    # reply the sidecar never saw
+    # the call fails with the provider's error, not as a call whose reply
+    # the sidecar never saw
     assert sample.error is not None and "403" in sample.error.message
     assert "never saw a reply" not in sample.error.message
     assert len(stand_in.held_reply_requests) == 1
@@ -1159,10 +1266,10 @@ def test_a_providers_error_that_its_own_code_reads_as_a_reply_is_the_calls_resul
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
-    # Anthropic's code reads a prompt that is too long as a reply that
-    # stopped for the model's length, and not as an error. The proxy passes
-    # the provider's error on to the try the sidecar sent on, which is
-    # Inspect's own unless another try of the call was with the provider.
+    # Inspect's Anthropic code reads a "prompt is too long" error as a reply
+    # with the stop reason `model_length`, not as an error. With
+    # `error_lost`, Inspect fetches that error from the sidecar. Without it,
+    # Inspect's own resend receives the error from the proxy.
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(status=400)],
@@ -1172,12 +1279,12 @@ def test_a_providers_error_that_its_own_code_reads_as_a_reply_is_the_calls_resul
 
     log = _run(stand_in, solver=generate(), sentinel_proxy="required")
 
-    # as with no review: the sample goes on with the provider's answer
+    # as without a review, the sample continues with the provider's answer
     sample = _sample(log)
     assert sample.error is None
     assert sample.output.stop_reason == "model_length"
-    # Inspect sends nothing more, so the call is closed at the sidecar, which
-    # waited for its request
+    # Inspect sends nothing more, so it cancels the call at the sidecar,
+    # which was still at `awaiting_resend`
     first = stand_in.model_calls[0]
     assert stand_in.cancelled == [first.headers["x-irid"]]
     assert len(stand_in.model_calls) == 2
@@ -1189,9 +1296,10 @@ def test_a_refusal_of_the_sidecars_own_that_the_providers_code_reads_as_a_reply_
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
-    # The provider refused the request the sidecar sent on. The held-reply
-    # path first answers with a 413 of its own, unmarked, which Anthropic's
-    # code reads as a reply that stopped for the model's length.
+    # The provider answers the resend with a 403. The held-reply path first
+    # returns a 413 of the sidecar's own, without the header that marks a
+    # provider's error. Inspect's Anthropic code reads a 413 as a reply with
+    # the stop reason `model_length`.
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(status=403)],
@@ -1205,8 +1313,8 @@ def test_a_refusal_of_the_sidecars_own_that_the_providers_code_reads_as_a_reply_
         )
     )
 
-    # nothing is taken from the sidecar's own refusal: the error is asked for
-    # again, and the call fails with the provider's
+    # Inspect ignores the sidecar's own refusal. It fetches the error again,
+    # and the call fails with the provider's error.
     assert sample.error is not None and "403" in sample.error.message
     assert len(stand_in.held_reply_requests) == 2
     # and the refusal was never the call's result
@@ -1219,9 +1327,9 @@ def test_a_providers_error_whose_connection_failed_part_way_is_asked_for_again(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
-    # The provider refused the request the sidecar sent on. The first answer
-    # with its error loses its connection after the headers, the sidecar's
-    # marker among them, and before the body has all come.
+    # The provider answers the resend with a 403. Inspect's first fetch of
+    # that error loses its connection after the headers, which include the
+    # sidecar's marker, and before the whole body arrives.
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(status=403)],
@@ -1235,9 +1343,9 @@ def test_a_providers_error_whose_connection_failed_part_way_is_asked_for_again(
         )
     )
 
-    # the failure isn't taken as handled until the error has come whole: it
-    # is asked for again, and the call fails with the provider's error,
-    # without the provider being called again
+    # Inspect counts the failure as handled only once it has the whole
+    # error. So it fetches the error again, and the call fails with the
+    # provider's error. The provider is not called again.
     assert sample.error is not None and "403" in sample.error.message
     assert len(stand_in.held_reply_requests) >= 2
     assert len(stand_in.model_calls) == 2
@@ -1247,8 +1355,9 @@ def test_a_refusal_of_the_sidecars_own_is_never_taken_for_the_providers_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
-    # the held-reply path refuses with the status the provider's error has,
-    # and without the header that marks a provider's error
+    # The held-reply path returns refusals of the sidecar's own. They have
+    # the same status as the provider's error, but not the header that marks
+    # a provider's error.
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(status=403)],
@@ -1258,14 +1367,14 @@ def test_a_refusal_of_the_sidecars_own_is_never_taken_for_the_providers_error(
 
     sample = _sample(_run(stand_in, solver=generate(), fail_on_error=False))
 
-    # asked for a bounded number of times, and the failed try is never taken
-    # to have been acted on
+    # Inspect fetches the error `MAX_ERROR_FETCHES` times, then gives up, and
+    # the sample fails. The provider is not called again.
     assert len(stand_in.held_reply_requests) == MAX_ERROR_FETCHES
     assert sample.error is not None
     assert len(stand_in.model_calls) == 2
 
 
-# --- what became of each question, in the log and for the person ---------------
+# --- lost calls to the sidecar, and each question's record in the log ---------
 
 
 def test_a_lookup_lost_on_the_way_doesnt_give_up_a_call_a_person_approved(
@@ -1273,15 +1382,16 @@ def test_a_lookup_lost_on_the_way_doesnt_give_up_a_call_a_person_approved(
 ) -> None:
     monkeypatch.setattr(lookup_module, "LOOKUP_RETRY_PAUSE", 0.01)
     Person("approve").install(monkeypatch)
-    # the proxy fails once, for the lookup that follows the person's answer
+    # the proxy fails the first `request_result` after the person's answer
     stand_in = ReviewingSidecar(
         pauses=["tool_call"], turns=[_OSLO, Turn()], lookups_lost=1
     )
 
     sample = _sample(_run(stand_in))
 
-    # the sidecar is asked again, and the approved call goes on: the person
-    # isn't asked twice, the call isn't cancelled, and its held reply is got
+    # Inspect calls `request_result` again, and the approved call continues.
+    # The person isn't asked twice, the call isn't cancelled, and Inspect
+    # fetches the held reply.
     assert stand_in.lookups_lost == 0
     assert sample.error is None
     assert len(_called(stand_in, "answer_question")) == 1
@@ -1298,9 +1408,9 @@ def test_lookups_that_keep_being_lost_are_asked_again_only_so_many_times(
 
     log = _run(stand_in, solver=generate(), fail_on_error=False)
 
-    # The lookup is lost, and so is each of the times it is asked again. The
-    # call's judgment is then unavailable, and the call is given up: it is
-    # cancelled at the sidecar, which is asked once more for its records.
+    # The proxy fails the lookup and every retry of it. Inspect then treats
+    # the call's judgment as unavailable and gives up on the call. It cancels
+    # the call at the sidecar, and looks it up once more for its records.
     assert log.samples is not None
     [sample] = log.samples
     assert sample.error is not None
@@ -1321,8 +1431,9 @@ def test_a_lookup_the_sidecar_answers_with_an_error_isnt_asked_again(
 
     log = _run(stand_in, solver=generate(), fail_on_error=False)
 
-    # an error the sidecar itself gave is its answer: one lookup after the
-    # person's answer, and one after the call is cancelled
+    # Inspect doesn't retry an error that the sidecar itself returned. It
+    # makes one lookup after the person's answer, and one after it cancels
+    # the call.
     assert log.samples is not None
     [sample] = log.samples
     assert sample.error is not None
@@ -1339,18 +1450,18 @@ def test_questions_the_sidecar_wont_list_fail_the_review_at_once(
     asked: list[dict[str, Any]] = []
 
     def invalid(params: dict[str, Any]) -> dict[str, Any]:
-        # an error of the sidecar's own, which asking again wouldn't change
+        # the sidecar's own error, which a retry would not change
         asked.append(params)
         return stand_in._refuse(-32602, "The call's parameters can't be read.")
 
     stand_in.methods["list_pending_questions"] = invalid
 
-    # the sample's own limit is far off: it ends a review that goes on
-    # asking, so that such a test fails and doesn't hang
+    # The sample's time limit is a safety net. If the review kept asking,
+    # the limit would end it, so the test would fail and not hang.
     log = _run(stand_in, solver=generate(), fail_on_error=False, time_limit=10)
 
-    # asked once, and the sample fails on the sidecar's error; the call is
-    # closed at the sidecar, which still holds its question
+    # Inspect asks once, and the sample fails with the sidecar's error.
+    # Inspect cancels the call at the sidecar, which still holds the question.
     assert log.samples is not None
     [sample] = log.samples
     assert sample.error is not None and sample.limit is None
@@ -1366,7 +1477,8 @@ def test_questions_lost_on_the_way_are_asked_for_again(
     monkeypatch.setattr(lookup_module, "LOOKUP_RETRY_PAUSE", 0.01)
     person = Person("approve")
     person.install(monkeypatch)
-    # the proxy fails as many times as Inspect asks again, and then answers
+    # the proxy fails `list_pending_questions` `LOOKUP_RETRIES` times, the
+    # most Inspect retries, and then answers
     stand_in = ReviewingSidecar(
         pauses=["tool_call"],
         turns=[_OSLO, Turn()],
@@ -1375,7 +1487,7 @@ def test_questions_lost_on_the_way_are_asked_for_again(
 
     sample = _sample(_run(stand_in))
 
-    # the person is shown the question once it is got, and the call goes on
+    # once Inspect has the question it shows the person, and the call continues
     assert stand_in.questions_lost == 0
     assert sample.error is None
     assert len(person.asked) == 1
@@ -1393,9 +1505,10 @@ def test_questions_that_keep_being_lost_are_asked_for_only_so_many_times(
 
     log = _run(stand_in, solver=generate(), fail_on_error=False, time_limit=10)
 
-    # The sidecar goes on saying a question is open, and that doesn't begin
-    # the count afresh: after the first loss and each time it is asked again,
-    # the review fails and the call is closed at the sidecar.
+    # Between failures, `request_result` keeps returning `awaiting_review`,
+    # and that doesn't reset the count. After the first failure and
+    # `LOOKUP_RETRIES` retries, the review fails, and Inspect cancels the
+    # call at the sidecar.
     assert log.samples is not None
     [sample] = log.samples
     assert sample.error is not None and sample.limit is None
@@ -1412,7 +1525,8 @@ def test_an_answer_lost_on_the_way_is_sent_again_without_asking_the_person_again
     monkeypatch.setattr(lookup_module, "LOOKUP_RETRY_PAUSE", 0.01)
     person = Person("approve")
     person.install(monkeypatch)
-    # the proxy fails as many times as Inspect sends again, and then answers
+    # the proxy fails `answer_question` `LOOKUP_RETRIES` times, the most
+    # Inspect retries, and then answers
     stand_in = ReviewingSidecar(
         pauses=["tool_call"],
         turns=[_OSLO, Turn()],
@@ -1421,7 +1535,8 @@ def test_an_answer_lost_on_the_way_is_sent_again_without_asking_the_person_again
 
     sample = _sample(_run(stand_in))
 
-    # the answer the person gave once reaches the sidecar, and the call goes on
+    # the person is asked once, their answer reaches the sidecar, and the
+    # call continues
     assert stand_in.answers_lost == 0
     assert sample.error is None
     assert len(person.asked) == 1
@@ -1437,21 +1552,22 @@ def test_an_answer_that_keeps_being_lost_is_sent_only_so_many_times(
     person.install(monkeypatch)
     stand_in = ReviewingSidecar(pauses=["tool_call"], turns=[_OSLO], answers_lost=100)
 
-    # the sample's own limit is far off: it ends a review that goes on
-    # sending, so that such a test fails and doesn't hang
+    # The sample's time limit is a safety net. If the review kept sending
+    # the answer, the limit would end it, so the test would fail and not hang.
     log = _run(stand_in, solver=generate(), fail_on_error=False, time_limit=10)
 
-    # The sidecar goes on listing the question and saying it is open, and
-    # neither begins the count afresh: after the first loss and each time the
-    # answer is sent again, the review fails. The person was asked once.
+    # Between failures, the sidecar keeps listing the question and returning
+    # `awaiting_review`, and neither resets the count. After the first
+    # failure and `LOOKUP_RETRIES` retries, the review fails. The person was
+    # asked once.
     assert log.samples is not None
     [sample] = log.samples
     assert sample.error is not None and sample.limit is None
     assert "answer couldn't be sent" in sample.error.message
     assert 100 - stand_in.answers_lost == 1 + lookup_module.LOOKUP_RETRIES
     assert len(person.asked) == 1
-    # The call is closed at the sidecar when the review fails, not when the
-    # sample ends, so the record of its question is in the sample's log.
+    # Inspect cancels the call at the sidecar when the review fails, not
+    # when the sample ends. So the question's record is in the sample's log.
     [first] = stand_in.model_calls
     assert stand_in.cancelled == [first.headers["x-irid"]]
     [logged] = _reviews_logged(sample)
@@ -1502,13 +1618,13 @@ def test_questions_listed_in_a_form_inspect_cant_read_fail_the_review_at_once(
 
     stand_in.methods["list_pending_questions"] = listing
 
-    # the sample's own limit is far off: it ends a review that goes on
-    # asking, so that such a test fails and doesn't hang
+    # The sample's time limit is a safety net. If the review kept asking,
+    # the limit would end it, so the test would fail and not hang.
     log = _run(stand_in, solver=generate(), fail_on_error=False, time_limit=10)
 
-    # A list that can't be read isn't taken for one with no questions, which
-    # Inspect would go on asking for. The review fails on the first, nobody
-    # is asked, and the error tells nothing of what a question held.
+    # Inspect doesn't treat an unreadable list as an empty one, because it
+    # would then keep asking. The review fails on the first list, no person
+    # is asked, and the error shows nothing from the questions.
     assert log.samples is not None
     [sample] = log.samples
     assert sample.error is not None and sample.limit is None
@@ -1516,7 +1632,8 @@ def test_questions_listed_in_a_form_inspect_cant_read_fail_the_review_at_once(
     assert "Oslo" not in sample.error.message
     assert len(asked) == 1
     assert person.asked == []
-    # closed at the sidecar at once, so the question's record is in the log
+    # Inspect cancels the call at the sidecar at once, so the question's
+    # record is in the log
     [first] = stand_in.model_calls
     assert stand_in.cancelled == [first.headers["x-irid"]]
     [logged] = _reviews_logged(sample)
@@ -1525,7 +1642,7 @@ def test_questions_listed_in_a_form_inspect_cant_read_fail_the_review_at_once(
 
 @solver
 def _generates_beside_a_waiting_task() -> Solver:
-    # one model call, while another task of the sample waits on something
+    # makes one model call while another task of the sample is in `sample_wait`
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         waiting = anyio.Event()
         done = anyio.Event()
@@ -1537,7 +1654,7 @@ def _generates_beside_a_waiting_task() -> Solver:
 
         async with anyio.create_task_group() as tasks:
             tasks.start_soon(waits)
-            # the other task's wait is open before the call begins
+            # the other task is waiting before the model call begins
             await waiting.wait()
             state.output = await get_model().generate(state.messages)
             done.set()
@@ -1549,11 +1666,12 @@ def _generates_beside_a_waiting_task() -> Solver:
 @pytest.mark.parametrize(
     "pending_lost,holds",
     [
-        # the provider's client hands the sidecar's "pending review" back, so
-        # the held reply is got after the attempt's own block has ended
+        # The provider's client returns the sidecar's "pending review" error
+        # without raising it, so Inspect fetches the held reply after the
+        # attempt's own block has ended.
         (0, [(0.0, 0.0), (1.0, 0.0)]),
-        # every try of the first send loses its connection, so the client
-        # raises, and the held reply is got inside the attempt's block
+        # Every try of the first send loses its connection, so the client
+        # raises, and Inspect fetches the held reply inside the attempt's block.
         (10, [(1.0, 0.0)]),
     ],
     ids=["its error handed back", "its error raised"],
@@ -1564,7 +1682,7 @@ def test_a_send_after_a_review_is_the_models_time_while_another_task_waits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
-    # the send that gets the held reply takes a second
+    # the fetch of the held reply takes a second
     stand_in = ReviewingSidecar(
         pauses=["tool_call"],
         turns=[Turn(text="Sunny.")],
@@ -1574,8 +1692,8 @@ def test_a_send_after_a_review_is_the_models_time_while_another_task_waits(
 
     sample = _sample(_run(stand_in, solver=_generates_beside_a_waiting_task()))
 
-    # that second is the model's, for the sample as for the model event,
-    # though another task of the sample was waiting all the while
+    # That second counts as working time, for the sample and for the model
+    # event, even though another task of the sample was waiting throughout.
     assert stand_in.holds == []
     [event] = _model_events(sample)
     assert event.working_time is not None and sample.working_time is not None
@@ -1612,8 +1730,8 @@ def test_a_persons_review_is_kept_in_the_evals_log(
 
     sample = _sample(_run(stand_in))
 
-    # the question's record, once, with the call's id and the try it was
-    # asked at
+    # the log has the question's record once, with the call's id and the
+    # number of the try that asked
     [logged] = _reviews_logged(sample)
     first = stand_in.model_calls[0]
     assert logged["request"] == first.headers["x-irid"]
@@ -1624,11 +1742,11 @@ def test_a_persons_review_is_kept_in_the_evals_log(
         "call_1",
     )
     assert (review["decision"], review["resolution"]) == ("approve", "answered")
-    # and the step that asked names the question, so the two are found together
+    # the step that asked names the question's id, which links the two
     [step] = [e for e in sample.events if isinstance(e, SentinelEvent)]
     assert step.metadata is not None
     assert step.metadata["sentinel_sidecar"]["reviews"] == [review["id"]]
-    # an answer that was used is nothing to tell the person of
+    # the person's answer was used, so no warning says otherwise
     assert not [w for w in _warned(sample) if "wasn't used" in w]
 
 
@@ -1642,19 +1760,19 @@ def test_a_person_whose_answer_came_too_late_is_told_it_wasnt_used(
 
     sample = _sample(_run(stand_in))
 
-    # the person is told, plainly, with why, how long before, and what the
-    # call came to
+    # The warning tells the person that their answer wasn't used, why, how
+    # long before their answer the question closed, and how the call ended.
     [told] = [w for w in _warned(sample) if "wasn't used" in w]
     assert "A person's answer (approve)" in told and "the call to weather" in told
     assert "the question had timed out" in told
     assert "about 12 minutes before the answer" in told
     assert "The call was rejected." in told
-    # the record of a question nobody answered in time is in the log too,
-    # though no step was judged with it
+    # The log also has the record of the question that timed out, though
+    # the judgment has no step for it.
     [logged] = _reviews_logged(sample)
     assert logged["review"]["resolution"] == "timed_out"
     assert "decision" not in logged["review"]
-    # and the call went as the sidecar decided, not as the person chose
+    # the call ended as the sidecar decided, not as the person chose
     assert _LOOKED_UP == []
     assert stand_in.held_reply_requests == []
 
@@ -1669,7 +1787,8 @@ def test_a_person_is_told_when_the_sidecar_cant_say_what_became_of_their_answer(
 
     sample = _sample(_run(stand_in, fail_on_error=False))
 
-    # neither that the answer was used nor that it wasn't
+    # the warning says Inspect couldn't learn whether the answer was used,
+    # and doesn't claim that it wasn't
     [told] = [w for w in _warned(sample) if "couldn't learn whether" in w]
     assert "a person's answer (approve)" in told and "dropped" in told
     assert not [w for w in _warned(sample) if "wasn't used" in w]
@@ -1681,18 +1800,18 @@ def test_a_pending_review_lost_on_the_way_is_found_and_not_asked_again(
 ) -> None:
     person = Person("approve")
     person.install(monkeypatch)
-    # Every try the provider's SDK makes of the paused call loses its
-    # connection before the sidecar's "pending review" comes back, so Inspect
-    # holds an error it retries.
+    # Every try of the paused call loses its connection before the sidecar's
+    # "pending review" arrives. So Inspect is left with a connection error,
+    # which it would retry.
     stand_in = ReviewingSidecar(
         pauses=["tool_call"], turns=[_OSLO, Turn()], pending_lost=10
     )
 
     sample = _sample(_run(stand_in))
 
-    # The sidecar is asked about the call first, so the person is asked once,
-    # the held reply is got under the call's own id, and Inspect's retry is
-    # never another model call at the sidecar.
+    # Inspect looks the call up before it retries. So the person is asked
+    # once, Inspect fetches the held reply under the call's own id, and no
+    # retry reaches the sidecar as a new model call.
     assert sample.error is None
     assert len(person.asked) == 1
     [got] = stand_in.held_reply_requests
@@ -1720,8 +1839,8 @@ def test_a_call_given_up_on_after_a_lost_pending_review_is_cancelled_at_once(
     @solver
     def gives_up_on_one_call() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            # the solver stops waiting for the call while the person decides,
-            # and the sample goes on
+            # the solver gives up on the call while the person is still
+            # deciding, and the sample continues
             with anyio.move_on_after(5):
                 await generate(state)
             cancelled_before_the_sample_ended.append(list(stand_in.cancelled))
@@ -1731,8 +1850,8 @@ def test_a_call_given_up_on_after_a_lost_pending_review_is_cancelled_at_once(
 
     _run(stand_in, solver=gives_up_on_one_call())
 
-    # the call is cancelled at the sidecar when it is given up on, not only
-    # when the sample ends
+    # Inspect cancels the call at the sidecar as soon as the solver gives up
+    # on it, without waiting for the sample to end
     first = stand_in.model_calls[0]
     assert cancelled_before_the_sample_ended == [[first.headers["x-irid"]]]
 
@@ -1747,8 +1866,8 @@ def test_a_call_whose_exchanges_keep_being_cut_off_isnt_sent_again_without_end(
         _run(stand_in, solver=generate(), fail_on_error=False, time_limit=30)
     )
 
-    # sent on a bounded number of times, after which the error stands and the
-    # call fails by Inspect's own rules
+    # Inspect resends `MAX_RESENDS` times. Then it stops, and the call fails
+    # with the last error.
     assert sample.error is not None
     assert len(stand_in.model_calls) == 1 + MAX_RESENDS
 
@@ -1757,7 +1876,8 @@ def test_a_reviewed_calls_judge_usage_is_counted_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
-    # every lookup of the paused call gives the same usage, added up over it
+    # every `request_result` about the paused call returns the same usage,
+    # which is the total for the whole call
     stand_in = ReviewingSidecar(
         pauses=["tool_call"],
         turns=[_OSLO, Turn()],
@@ -1766,7 +1886,7 @@ def test_a_reviewed_calls_judge_usage_is_counted_once(
 
     sample = _sample(_run(stand_in))
 
-    # it was looked up more than once, and its usage is counted once
+    # Inspect looked the call up more than once, and counted the usage once
     paused_id = stand_in.model_calls[0].headers["x-irid"]
     looked_up = [
         call
@@ -1782,11 +1902,12 @@ def test_a_reviewed_calls_judge_usage_is_counted_once(
 @pytest.mark.parametrize(
     "stage,holds,model_time",
     [
-        # the provider replied before the sentinel asked, and the held reply
-        # is got at once
+        # The provider replied before the sentinel asked. The first request
+        # is held 1 second, 0.4 of it judging, and the fetch returns at once.
         ("tool_call", [(1.0, 0.4), (0.0, 0.0)], 0.6),
-        # the sentinel asked before the provider was called, and judged the
-        # reply of the send it sent on
+        # The sentinel asked before the provider was called. The first
+        # request is held 0.5 seconds, all of it judging. The resend is held
+        # 1 second, 0.3 of it judging the reply.
         ("tool_result", [(0.5, 0.5), (1.0, 0.3)], 0.7),
     ],
 )
@@ -1796,7 +1917,7 @@ def test_a_reviewed_call_counts_only_the_models_time_in_its_sends(
     model_time: float,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # the person takes a second, which is theirs, not the model's
+    # the person takes a second, which is not working time
     Person("approve", takes=1.0).install(monkeypatch)
     stand_in = ReviewingSidecar(
         pauses=[stage], turns=[_OSLO, Turn()], holds=list(holds)
@@ -1804,7 +1925,8 @@ def test_a_reviewed_call_counts_only_the_models_time_in_its_sends(
 
     sample = _sample(_run(stand_in))
 
-    # each send's time counts, less the sentinel's judging in it
+    # each request's time counts as working time, minus the sentinel's
+    # judging during it
     assert stand_in.holds == []
     event = _model_events(sample)[0]
     assert event.working_time is not None and event.output.time is not None
@@ -1812,8 +1934,8 @@ def test_a_reviewed_call_counts_only_the_models_time_in_its_sends(
     assert event.output.time == event.working_time
     assert sample.working_time is not None
     assert sample.working_time >= model_time - 0.1
-    # the person's second between the sends, and the sentinel's judging in
-    # them, are waiting, for the event and for the sample
+    # The person's second and the sentinel's judging count as waiting, for
+    # the event and for the sample.
     judging = sum(judged for _, judged in holds)
     assert _event_waiting(event) >= 1.0 + judging - 0.1
     assert _sample_waiting(sample) >= 1.0 + judging - 0.1
@@ -1825,10 +1947,11 @@ def test_a_reviewed_call_inspect_retries_counts_only_its_own_judging(
     Person("approve").install(monkeypatch)
     # Inspect retries at once, so the test needn't wait
     monkeypatch.setattr(AnthropicAPI, "retry_wait", lambda self: wait_none())
-    # The sentinel judges the request 0.3 seconds before it asks. The
-    # provider fails the request the sidecar sends on, and its error is got
-    # from the sidecar. Inspect retries the call under its id, and that try
-    # is sent on and held 0.8 seconds, 0.2 of them judging its reply.
+    # The sentinel judges the first request for 0.3 seconds before it asks.
+    # The provider fails the resend with a 529, and Inspect fetches that
+    # error from the sidecar. Inspect then retries the call under the same
+    # id. The sidecar passes the retry on, and it is held 0.8 seconds, 0.2 of
+    # them judging the reply.
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(status=529), Turn(text="Sunny.")],
@@ -1838,16 +1961,16 @@ def test_a_reviewed_call_inspect_retries_counts_only_its_own_judging(
 
     sample = _sample(_run(stand_in, solver=generate()))
 
-    # the retry is charged its own model time; the earlier judging was
-    # waiting already, with the attempt it was in
+    # The retry's working time is its own. The earlier 0.3 seconds of
+    # judging already counted as waiting in the attempt they belong to.
     assert stand_in.holds == []
     assert sample.output.completion == "Sunny."
     event = _model_events(sample)[-1]
     assert event.working_time is not None
-    # 0.6 seconds of the retry were the model's: the 0.3 seconds judged in
-    # the earlier attempt are not taken from it again
+    # 0.6 seconds of the retry are working time. The 0.3 seconds of judging
+    # from the earlier attempt are not subtracted a second time.
     assert event.working_time >= 0.5
-    # and its own 0.2 seconds of judging are waiting
+    # the retry's own 0.2 seconds of judging count as waiting
     assert _event_waiting(event) >= 0.2 - 0.05
 
 
@@ -1855,10 +1978,10 @@ def test_a_reviewed_call_that_fails_counts_only_the_models_time_in_its_sends(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
-    # The request sent on after the person approved is retried by the
-    # provider's SDK after a 529, with the SDK's own wait, and that try is
-    # held 0.3 seconds and refused by the provider. Its error is got from
-    # the sidecar, and the sample fails on it.
+    # After the person approves, Inspect resends. The provider answers 529,
+    # and the provider's SDK retries after its own wait. That retry is held
+    # 0.3 seconds, and the provider answers 403. Inspect fetches the 403 from
+    # the sidecar, and the sample fails with it.
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(status=529), Turn(status=403)],
@@ -1870,11 +1993,11 @@ def test_a_reviewed_call_that_fails_counts_only_the_models_time_in_its_sends(
     sample = _sample(log)
     assert sample.error is not None and "403" in sample.error.message
     assert stand_in.holds == []
-    # The try the provider refused was held 0.3 seconds, which is the model's
-    # time. The sentinel's judging of the first send, 0.3 seconds, and the
-    # SDK's wait before its last try, 0.375 seconds at least, are waiting,
-    # whatever the call came to. They are measured against the sample's whole
-    # time: a slow machine adds to the working time and to the whole alike.
+    # The try that got the 403 was held 0.3 seconds, which is working time.
+    # The sentinel's 0.3 seconds of judging on the first request, and the
+    # SDK's wait of at least 0.375 seconds before its retry, count as waiting
+    # even though the call failed. Waiting is the sample's total time minus
+    # its working time, because a slow machine adds the same amount to both.
     assert sample.working_time is not None
     assert sample.working_time >= 0.2
     assert _sample_waiting(sample) >= 0.6
@@ -1884,8 +2007,8 @@ def test_a_rejected_call_counts_only_the_models_time_before_the_person(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Every try of the paused call loses its connection before the sidecar's
-    # "pending review" comes back, so it is never sent again. The person
-    # takes a second to reject it.
+    # "pending review" arrives. The person takes a second to reject the call,
+    # so Inspect neither fetches nor resends.
     Person("reject", takes=1.0).install(monkeypatch)
     stand_in = ReviewingSidecar(
         pauses=["tool_call"], turns=[_OSLO, Turn()], pending_lost=10
@@ -1893,10 +2016,10 @@ def test_a_rejected_call_counts_only_the_models_time_before_the_person(
 
     sample = _sample(_run(stand_in))
 
-    # The call's own time is its lost tries', and the person's second isn't
-    # in it, for the event or for the sample. The SDK's waits between those
-    # tries are waiting as well, so the person's second is looked for on top
-    # of them: the waits alone come to less.
+    # The call's working time is the time of its lost tries. The person's
+    # second is not in it, for the event or for the sample. The SDK's waits
+    # between tries also count as waiting, so the assertions below look for
+    # the person's second on top of those waits.
     assert stand_in.held_reply_requests == []
     # three tries of the call, so the SDK waited twice
     first = stand_in.model_calls[0].headers["x-irid"]
@@ -1914,15 +2037,16 @@ def test_a_send_cut_short_by_the_sample_ending_counts_as_the_models_time(
     Person("approve").install(monkeypatch)
 
     def end_the_sample_in_a_second() -> None:
-        # timed from when the request is held, so that however long the
-        # sample took to get there, the send is cut short a second into it
+        # The timer starts when the stand-in begins to hold the request. So
+        # the sample ends one second into the hold, however long the sample
+        # took to get there.
         active = sample_active()
         assert active is not None
         asyncio.get_running_loop().call_later(1.0, active.interrupt, "score")
 
     # Every try of the paused call loses its connection before the sidecar's
-    # "pending review" comes back. Once the person approves, the request
-    # that gets the held reply is held until the sample is ended.
+    # "pending review" arrives. Once the person approves, the stand-in holds
+    # the fetch of the held reply until the sample ends.
     stand_in = ReviewingSidecar(
         pauses=["tool_call"],
         turns=[_OSLO, Turn()],
@@ -1936,9 +2060,9 @@ def test_a_send_cut_short_by_the_sample_ending_counts_as_the_models_time(
     assert log.samples is not None
     [sample] = log.samples
     [got] = stand_in.held_reply_requests
-    # The request was held from when it came until the sample's end cut it
-    # short, as the stand-in timed it: that time was with the model, inside
-    # the send, and counts as work.
+    # The stand-in held the fetch from its arrival until the sample's end cut
+    # it short. Inspect was inside a send for all of that time, so it counts
+    # as working time.
     [held] = stand_in.held_requests
     assert not held.finished
     assert held.ended - held.began >= 0.9
@@ -1969,8 +2093,7 @@ def test_a_request_sent_again_waits_for_an_operators_hard_pause(
 
     sample = _sample(_run(stand_in, solver=generate()))
 
-    # the request the sidecar sends on to the provider went out only once
-    # the process was resumed
+    # Inspect sent the resend only after the process was resumed
     assert sample.output.completion == "Sunny."
     assert not process_paused()
     [_, sent_on_at] = stand_in.held_at
@@ -1987,7 +2110,7 @@ def test_the_time_a_person_takes_isnt_counted_toward_the_calls_timeout(
     Person("approve", takes=1.5).install(monkeypatch)
     # Inspect retries at once, so the test needn't wait
     monkeypatch.setattr(AnthropicAPI, "retry_wait", lambda self: wait_none())
-    # the provider fails the request the sidecar sends on, then answers
+    # the provider fails the resend with a 529, then answers the retry
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(status=529), Turn(text="Sunny.")],
@@ -1996,20 +2119,21 @@ def test_the_time_a_person_takes_isnt_counted_toward_the_calls_timeout(
 
     sample = _sample(_run(stand_in, solver=generate(), timeout=1))
 
-    # the provider's failure is retried, as it would be had nobody been asked
+    # Inspect retries the provider's failure, as it would if no person had
+    # been asked
     assert sample.output.completion == "Sunny."
 
 
 def test_a_try_that_times_out_while_the_provider_works_is_followed_to_its_reply(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # The person takes 2.5 seconds, and Inspect's attempt at the request the
-    # sidecar sends on times out after another second: more than the call's
-    # timeout of 3 with the person's time, and well within it without.
+    # The person takes 2.5 seconds, and Inspect's attempt at the resend times
+    # out a second later. That is more than the call's timeout of 3 seconds
+    # if the person's time counts, and well within it if not.
     Person("approve", takes=2.5).install(monkeypatch)
     monkeypatch.setattr(lookup_module, "AWAITED_REPLY_PAUSE", 0.01)
     monkeypatch.setattr(lookup_module, "AWAITED_REPLY_PAUSE_MAX", 0.01)
-    # the provider is still working for 25 asks of the sidecar
+    # `request_result` returns `awaiting_reply` 25 times while the provider works
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(text="Sunny.")],
@@ -2018,8 +2142,8 @@ def test_a_try_that_times_out_while_the_provider_works_is_followed_to_its_reply(
 
     sample = _sample(_run(stand_in, solver=generate(), timeout=3, attempt_timeout=1))
 
-    # Inspect went on asking until the reply had come, got it from the
-    # sidecar, and sent nothing more to the provider meanwhile
+    # Inspect kept calling `request_result` until the provider had replied,
+    # then fetched the reply from the sidecar. It did not resend meanwhile.
     assert sample.output.completion == "Sunny."
     assert len(stand_in.model_calls) == 2
     assert len(stand_in.held_reply_requests) == 1
@@ -2030,15 +2154,15 @@ def test_a_call_whose_timeout_passes_while_the_provider_works_is_closed_at_the_s
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
-    # the provider never answers the request the sidecar sent on
+    # the provider never answers the resend
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(text="Sunny.")],
         provider_takes_asks=1_000_000,
     )
 
-    # the sample's own limit is far off: it ends a call that outlives its
-    # timeout, so that such a test fails and doesn't hang
+    # The sample's time limit is a safety net. If the call outlived its
+    # timeout, the limit would end it, so the test would fail and not hang.
     log = _run(
         stand_in,
         solver=generate(),
@@ -2048,9 +2172,9 @@ def test_a_call_whose_timeout_passes_while_the_provider_works_is_closed_at_the_s
         time_limit=30,
     )
 
-    # the call fails once its timeout has passed, and not before; its own
-    # timeout ends it, and not the sample's limit; and the sidecar is told
-    # it is given up
+    # The call fails when its timeout passes, and not before. Its own
+    # timeout ends it, not the sample's limit. Inspect then cancels the call
+    # at the sidecar.
     assert log.samples is not None
     [sample] = log.samples
     assert sample.error is not None and sample.limit is None
@@ -2064,8 +2188,8 @@ def test_a_lookup_under_way_when_the_calls_timeout_passes_is_given_up(
 ) -> None:
     Person("approve").install(monkeypatch)
     monkeypatch.setattr(lookup_module, "AWAITED_REPLY_PAUSE", 0.01)
-    # The provider never answers. The sidecar says so at once the first time
-    # it is asked, and takes ten seconds to say it again.
+    # The provider never answers. The sidecar answers the first
+    # `request_result` at once, and takes ten seconds over the second.
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(text="Sunny.")],
@@ -2082,9 +2206,9 @@ def test_a_lookup_under_way_when_the_calls_timeout_passes_is_given_up(
         time_limit=30,
     )
 
-    # the call fails when its timeout passes, and not before; the lookup the
-    # sidecar took ten seconds over was given up, and not waited out; and the
-    # sidecar is told the call is given up
+    # The call fails when its timeout passes, and not before. Inspect
+    # abandons the ten-second lookup without waiting for it, and cancels the
+    # call at the sidecar.
     assert log.samples is not None
     [sample] = log.samples
     assert sample.error is not None and sample.limit is None
@@ -2100,9 +2224,9 @@ def test_the_sidecar_isnt_asked_again_once_the_calls_timeout_has_passed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     Person("approve").install(monkeypatch)
-    # Inspect next asks five seconds after the first time, or when the
-    # call's timeout passes if that is sooner. The provider's reply comes
-    # meanwhile, which only asking again would tell.
+    # Inspect waits five seconds between lookups, or until the call's
+    # timeout passes if that is sooner. The provider replies during the wait,
+    # which only another lookup would show.
     monkeypatch.setattr(lookup_module, "AWAITED_REPLY_PAUSE", 5.0)
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
@@ -2118,7 +2242,8 @@ def test_the_sidecar_isnt_asked_again_once_the_calls_timeout_has_passed(
         attempt_timeout=1,
     )
 
-    # the call's time is up, so it fails without asking, and is closed
+    # the call's timeout has passed, so it fails without another lookup,
+    # and Inspect cancels it at the sidecar
     assert log.samples is not None
     [sample] = log.samples
     assert sample.error is not None
@@ -2132,9 +2257,9 @@ def test_a_reply_that_came_within_the_calls_timeout_is_judged_past_it(
 ) -> None:
     Person("approve").install(monkeypatch)
     monkeypatch.setattr(lookup_module, "AWAITED_REPLY_PAUSE", 0.01)
-    # The provider's reply comes within the call's timeout of 2 seconds.
-    # The sidecar then judges it for six asks, half a second apart, which
-    # ends after the timeout has passed.
+    # The provider replies within the call's timeout of 2 seconds. The
+    # sidecar then returns `judging` for six lookups, half a second apart,
+    # so the judging ends after the timeout has passed.
     stand_in = ReviewingSidecar(
         pauses=["tool_result"],
         turns=[Turn(text="Sunny.")],
@@ -2145,7 +2270,8 @@ def test_a_reply_that_came_within_the_calls_timeout_is_judged_past_it(
     began = time.monotonic()
     sample = _sample(_run(stand_in, solver=generate(), timeout=2, attempt_timeout=1))
 
-    # judging a reply has no deadline, as for any call: the call is decided
+    # judging a reply has no deadline, for this call as for any other, so
+    # the call is decided and not cancelled
     assert time.monotonic() - began > 2
     assert sample.output.completion == "Sunny."
     assert stand_in.cancelled == []
@@ -2156,10 +2282,9 @@ async def test_a_followed_call_asked_about_again_isnt_bound_by_its_timeout(
 ) -> None:
     monkeypatch.setattr(lookup_module, "AWAITED_REPLY_PAUSE", 0.01)
     monkeypatch.setattr(review_module, "NO_QUESTION_PAUSE", 0.01)
-    # What the sidecar says of the call each time it is asked. The provider
-    # still has the request, then a second question is open, with the judging
-    # of the provider's reply between them never seen, then the call is
-    # decided.
+    # The state each `request_result` returns, in order. First the provider
+    # still has the request. Then a second question is open; Inspect never
+    # saw the `judging` state between the two. Then the call is decided.
     states = ["awaiting_reply", "awaiting_review", "decided"]
     cancelled: list[str] = []
 
@@ -2169,7 +2294,7 @@ async def test_a_followed_call_asked_about_again_isnt_bound_by_its_timeout(
 
         async def eval_call(self, method: str, params: dict[str, Any]) -> Any:
             if method == "list_pending_questions":
-                # the call's timeout passes while the question is dealt with
+                # the call's timeout passes while Inspect handles the question
                 await anyio.sleep(0.6)
                 return {"questions": []}
             if method == "cancel_paused_request":
@@ -2187,13 +2312,14 @@ async def test_a_followed_call_asked_about_again_isnt_bound_by_its_timeout(
             return result
 
     with receiving_call(Sidecar(), timeout=1) as received:
-        # a call a person was asked about, with half of its timeout left
+        # a paused call with half of its timeout left
         received.request_id = received.reviewed_id = "request_1"
         received.sent = received.paused = True
         received.began = time.monotonic() - 0.5
         looked = await lookup_module.request_result(received, replied=False)
 
-    # the provider had replied, so the call is decided, and isn't given up
+    # The provider had replied, so the timeout no longer applies. Inspect
+    # reads the call as decided and doesn't cancel it.
     assert looked.state == "decided"
     assert cancelled == []
 
@@ -2209,7 +2335,7 @@ def test_a_call_whose_review_fails_is_closed_at_once_with_its_question_logged(
     listed = stand_in._list_pending_questions
 
     def only_modify(params: dict[str, Any]) -> dict[str, Any]:
-        # a question with no choice Inspect can offer a person
+        # a question whose only choice is one Inspect can't offer a person
         questions = listed(params)
         for question in questions["questions"]:
             question["choices"] = ["modify"]
@@ -2222,8 +2348,8 @@ def test_a_call_whose_review_fails_is_closed_at_once_with_its_question_logged(
     assert log.samples is not None
     [sample] = log.samples
     assert sample.error is not None
-    # The call is closed at the sidecar when its review fails, not when the
-    # sample ends, so the record of its question is in the sample's log.
+    # Inspect cancels the call at the sidecar when the review fails, not
+    # when the sample ends. So the question's record is in the sample's log.
     [first] = stand_in.model_calls
     assert stand_in.cancelled == [first.headers["x-irid"]]
     [logged] = _reviews_logged(sample)
@@ -2252,11 +2378,11 @@ def test_a_sample_that_times_out_while_a_person_decides_cancels_the_call(
     assert sample.limit is not None and sample.limit.type == "time"
     [first] = stand_in.model_calls
     assert stand_in.cancelled == [first.headers["x-irid"]]
-    # the call's event didn't stay pending
+    # the call's model event is no longer pending
     [event] = _model_events(sample)
     assert event.pending is None
     assert review_module._paused_calls == {}
-    # the record of the question the cancellation closed is in the log
+    # the log has the record of the question that the cancellation closed
     [logged] = _reviews_logged(sample)
     assert logged["request"] == first.headers["x-irid"]
     assert (logged["review"]["resolution"], logged["review"]["cause"]) == (
@@ -2286,7 +2412,7 @@ async def test_a_call_cancelled_while_a_person_decides_is_cancelled_at_the_sidec
         raise AssertionError("nothing is sent for a call still being judged")
 
     async def call(received: ReceivedCall) -> None:
-        # a call a person was asked about, whose answer the sidecar is judging
+        # a paused call that the sentinel is still judging
         received.request_id = received.reviewed_id = "request_1"
         received.sent = received.paused = True
         waiting.set()
@@ -2314,7 +2440,7 @@ def test_a_request_is_sent_to_the_held_reply_path_only_for_its_own_call() -> Non
 
     with receiving_call() as received:
         received.reviewed_id = "request_1"
-        # not while no held reply is being got
+        # the hook leaves the path alone while no fetch is under way
         sent = request("request_1")
         route_fetch_to_sidecar(sent)
         assert sent.url.path == "/v1/messages"
@@ -2324,11 +2450,13 @@ def test_a_request_is_sent_to_the_held_reply_path_only_for_its_own_call() -> Non
         route_fetch_to_sidecar(other)
         assert other.url.path == "/v1/messages"
 
-        # the path is replaced, and the origin and the query are kept
+        # the hook replaces the path, and keeps the origin and the query
         first = request("request_1")
         route_fetch_to_sidecar(first)
         assert str(first.url) == f"http://proxy.test{HELD_REPLY_PATH}?beta=true"
-        # the SDK's retry has the same body; a continuation has another
+        # The SDK's retry has the same body, so it goes to the held-reply
+        # path too. A continuation has a different body, so it goes to the
+        # model.
         retry, continuation = request("request_1"), request("request_1", b'{"m":1}')
         route_fetch_to_sidecar(retry)
         route_fetch_to_sidecar(continuation)

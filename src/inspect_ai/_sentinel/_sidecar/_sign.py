@@ -41,7 +41,11 @@ def eval_call_message(method: str, eval_id: str, timestamp: int) -> list[object]
 def answer_message(
     eval_id: str, timestamp: int, id: str, decision: str, reason: str | None
 ) -> list[object]:
-    """What an answer to a sidecar's question signs: the call, and the answer itself, so a signature copied from one answer can't send another."""
+    """What an answer to a sidecar's question signs: the call and the answer itself.
+
+    Signing the answer means a signature copied from one answer can't be used to
+    send a different answer.
+    """
     return [
         "answer_question",
         eval_id,
