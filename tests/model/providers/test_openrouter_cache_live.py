@@ -7,7 +7,7 @@ file verifies that the markers produce cache hits on the wire, which is what
 the growing history was re-sent uncached on every call.
 
 Run with:
-    pytest --runapi tests/model/providers/test_openrouter_cache_live.py -v
+    pytest --runapi --runslow tests/model/providers/test_openrouter_cache_live.py -v
 """
 
 import random
@@ -19,21 +19,27 @@ from test_helpers.utils import skip_if_no_openrouter
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageSystem,
+    ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
+    ModelOutput,
     get_model,
 )
 from inspect_ai.model._providers.openrouter import SESSION_ID_HEADER
+from inspect_ai.tool import ToolInfo, ToolParam, ToolParams
 
 MODEL = "openrouter/anthropic/claude-haiku-4-5"
 TURNS = 4
-# Anthropic only caches prefixes above a per-model minimum (2048 tokens for
-# Haiku), so the system prompt and each user turn are padded well past it.
+# Anthropic only caches prefixes above a per-model minimum (4096 tokens for
+# Haiku 4.5), so the system prompt and each user turn are padded well past it.
 SYSTEM_WORDS = 3000
 USER_WORDS = 800
-# tokens that may legitimately miss the cache on each call: the new user
-# turn's trailing text plus any per-request framing
+# ModelUsage.input_tokens is already net of cache reads and writes, so it is
+# the uncached count. With a breakpoint on the last block only per-request
+# framing should miss the cache.
 MAX_UNCACHED = 300
+
+Usage = tuple[int, int, int]
 
 
 def _unique_text(n_words: int) -> str:
@@ -44,18 +50,59 @@ def _unique_text(n_words: int) -> str:
     return salt + " " + " ".join(words)
 
 
-async def _run_conversation(thinking: bool) -> list[tuple[int, int, int]]:
-    """Return (input, cache_read, cache_write) per call of a multi-turn chat."""
+def _config(thinking: bool) -> GenerateConfig:
     # Outside a running sample the provider sends no x-session-id, and without
     # one OpenRouter only routes sticky after a cache hit is observed, so the
     # second call could land on a backend with a cold cache. Pin the
     # conversation to one backend the way a sample would.
     session_id = "".join(random.choices(string.ascii_letters, k=24))
-    config = GenerateConfig(
+    return GenerateConfig(
         extra_headers={SESSION_ID_HEADER: session_id},
         reasoning_tokens=1024 if thinking else None,
     )
-    model = get_model(MODEL, config=config)
+
+
+def _usage(output: ModelOutput) -> Usage:
+    """(uncached input, cache_read, cache_write) of one call."""
+    assert output.usage is not None
+    return (
+        output.usage.input_tokens,
+        output.usage.input_tokens_cache_read or 0,
+        output.usage.input_tokens_cache_write or 0,
+    )
+
+
+def _assert_history_cached(usage: list[Usage], may_miss: int | None = None) -> None:
+    """Assert the cached prefix grows on every call after the first.
+
+    `may_miss` names one call that is allowed to read no more than the call
+    before it (it must still not read less).
+    """
+    # first call writes the system prompt (and first user turn) to the cache
+    _, first_read, first_write = usage[0]
+    assert first_write > 0, f"call 0 wrote nothing to the cache: {usage}"
+
+    # every later call reads the whole prior conversation back from the cache,
+    # so the cached prefix grows and only per-request framing is sent uncached
+    previous_read = first_read
+    for call, (uncached, cache_read, _) in enumerate(usage[1:], 1):
+        if call == may_miss:
+            assert cache_read >= previous_read, (
+                f"call {call}: cache read shrank ({previous_read} -> {cache_read}): {usage}"
+            )
+        else:
+            assert cache_read > previous_read, (
+                f"call {call}: cache read did not grow ({previous_read} -> {cache_read}): {usage}"
+            )
+        assert uncached < MAX_UNCACHED, (
+            f"call {call}: {uncached} uncached input tokens, history is not cached: {usage}"
+        )
+        previous_read = cache_read
+
+
+async def _run_conversation(thinking: bool) -> list[Usage]:
+    """Return (uncached input, cache_read, cache_write) per call of a text chat."""
+    model = get_model(MODEL, config=_config(thinking))
     messages: list[ChatMessage] = [
         ChatMessageSystem(
             content="Answer in one short sentence. Reference notes:\n"
@@ -65,17 +112,10 @@ async def _run_conversation(thinking: bool) -> list[tuple[int, int, int]]:
             content=_unique_text(USER_WORDS) + "\nQuestion 0: what colour is the sky?"
         ),
     ]
-    usage: list[tuple[int, int, int]] = []
+    usage: list[Usage] = []
     for turn in range(TURNS):
         output = await model.generate(messages)
-        assert output.usage is not None
-        usage.append(
-            (
-                output.usage.input_tokens,
-                output.usage.input_tokens_cache_read or 0,
-                output.usage.input_tokens_cache_write or 0,
-            )
-        )
+        usage.append(_usage(output))
         messages.append(output.message)
         messages.append(
             ChatMessageUser(
@@ -92,21 +132,88 @@ async def _run_conversation(thinking: bool) -> list[tuple[int, int, int]]:
 async def test_openrouter_anthropic_caches_conversation_history(
     thinking: bool,
 ) -> None:
-    usage = await _run_conversation(thinking)
+    _assert_history_cached(await _run_conversation(thinking))
 
-    # first call writes the system prompt (and first user turn) to the cache
-    first_input, first_read, first_write = usage[0]
-    assert first_write > 0, f"call 0 wrote nothing to the cache: {usage}"
 
-    # every later call reads the whole prior conversation back from the cache,
-    # so the cached prefix grows and only the new turn is sent uncached
-    previous_read = first_read
-    for call, (input_tokens, cache_read, cache_write) in enumerate(usage[1:], 1):
-        uncached = input_tokens - cache_read - cache_write
-        assert cache_read > previous_read, (
-            f"call {call}: cache read did not grow ({previous_read} -> {cache_read}): {usage}"
+LOOKUP = ToolInfo(
+    name="lookup",
+    description="Look up a note by key.",
+    parameters=ToolParams(
+        properties={"key": ToolParam(type="string", description="Note key.")},
+        required=["key"],
+    ),
+)
+
+
+@pytest.mark.anyio
+@pytest.mark.slow
+@pytest.mark.parametrize("thinking", [False, True], ids=["plain", "thinking"])
+@skip_if_no_openrouter
+async def test_openrouter_anthropic_caches_tool_turn(thinking: bool) -> None:
+    """The agent-loop shape: assistant with tool_calls, then a string tool result.
+
+    The history markers convert the string tool result (and the assistant
+    text beside the tool call) to list-form text parts carrying
+    cache_control. Check that OpenRouter accepts both, that the model still
+    reads the tool result, and that the tool turn is read back from the cache.
+    """
+    model = get_model(MODEL, config=_config(thinking))
+    code = "".join(random.choices(string.ascii_uppercase, k=12))
+    messages: list[ChatMessage] = [
+        ChatMessageSystem(
+            content="Answer in one short sentence. Reference notes:\n"
+            + _unique_text(SYSTEM_WORDS)
+        ),
+        ChatMessageUser(
+            content=_unique_text(USER_WORDS)
+            + "\nSay 'Looking that up.' and then call the lookup tool with key"
+            " 'code'. Do not answer before you have the tool result."
+        ),
+    ]
+    usage: list[Usage] = []
+
+    # call 0: the model makes a tool call
+    output = await model.generate(messages, tools=[LOOKUP])
+    usage.append(_usage(output))
+    tool_calls = output.message.tool_calls
+    assert tool_calls, f"expected a tool call, got: {output.message}"
+    assistant = output.message
+    # The assistant message only carries a marker when it has text beside the
+    # tool call, and the model does not reliably write any. Supply it for the
+    # plain string case; a thinking turn is replayed as returned.
+    if isinstance(assistant.content, str) and not assistant.content.strip():
+        assistant = assistant.model_copy(update={"content": "Looking that up."})
+    messages.append(assistant)
+    for tool_call in tool_calls:
+        messages.append(
+            ChatMessageTool(
+                content=_unique_text(USER_WORDS) + f"\nThe code is {code}.",
+                tool_call_id=tool_call.id,
+                function=tool_call.function,
+            )
         )
-        assert uncached < MAX_UNCACHED, (
-            f"call {call}: {uncached} uncached input tokens, history is not cached: {usage}"
+
+    # call 1: string tool result last, assistant with tool_calls before it
+    output = await model.generate(messages, tools=[LOOKUP])
+    usage.append(_usage(output))
+    assert code in output.completion, (
+        f"model did not read the list-form tool result: {output.completion!r}"
+    )
+
+    # later calls read the tool turn back from the cache
+    for turn in range(2, TURNS):
+        messages.append(output.message)
+        messages.append(
+            ChatMessageUser(
+                content=_unique_text(USER_WORDS) + f"\nQuestion {turn}: name a planet."
+            )
         )
-        previous_read = cache_read
+        output = await model.generate(messages, tools=[LOOKUP])
+        usage.append(_usage(output))
+
+    # With extended thinking, Anthropic keeps the tool turn's thinking block in
+    # the prompt while the tool loop is open (call 1) and strips it once a
+    # plain user turn follows (call 2). The prefix written at call 1 then no
+    # longer matches, so call 2 reads only up to the first user turn and
+    # re-writes the tool turn; call 3 reads all of it back.
+    _assert_history_cached(usage, may_miss=2 if thinking else None)
