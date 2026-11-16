@@ -448,10 +448,11 @@ def check_limits(raise_for_equal: bool = False, at_exit: bool = False) -> None:
             node._check_marked(raise_for_equal or (at_exit and node._raised))
 ```
 
-- `_Node._check_marked(raise_for_equal)` raises for a cost node marked
-  unmetered ("Unmetered calls"), and otherwise calls
+- `_Node._check_marked(raise_for_equal)` calls
   `_check_self(raise_for_equal)`; if that raises a `LimitExceededError`, it
-  sets `self._raised = True` before re-raising. Every check path goes
+  sets `self._raised = True` before re-raising. For a cost node marked
+  unmetered whose `_check_self()` returned without raising, it then raises
+  the marked error itself ("Unmetered calls"). Every check path goes
   through it: `check_limits()` and the
   per-kind `check()` methods. inspect_swarm's `_check_self()` overrides are
   therefore marked too.
@@ -853,16 +854,30 @@ limited to that family: a *non-negative weighted sum*,
 `c + a * input + b * output` with `a >= 0` and `b >= 0` (any constant `c`).
 Its floor never decreases as either count grows.
 
-`_compile_token_formula()` checks the family after its existing syntax
-validation, at construction: it evaluates the formula at `(0, 0)`, `(1, 0)`
-and `(0, 1)` to obtain `c`, `a` and `b`, requires `a >= 0` and `b >= 0`, and
-requires the formula to equal `c + a * input + b * output` (relative
-tolerance `1e-9`) at `(1000, 1)`, `(1, 1000)` and `(12345, 678)`, which
-rejects products and quotients of the variables. A formula that fails, or
-raises while being evaluated (`input / output` divides by zero at `(0, 0)`),
-raises `ValueError`: "token limit: formula '<formula>' must be a
-non-negative weighted sum of input and output, such as '(input * 0.1) +
-output'; formulas whose value can decrease as tokens are used are not
+`_compile_token_formula()` enforces the family by its grammar, at
+construction. Its existing AST walk becomes a reduction of the expression to
+three finite coefficients `(c, a, b)`, the formula `c + a * input + b * output`:
+
+- a numeric constant `k` is `(k, 0, 0)`; `input` is `(0, 1, 0)`; `output`
+  is `(0, 0, 1)`;
+- unary plus keeps the coefficients and unary minus negates them;
+- `x + y` and `x - y` add and subtract them;
+- `x * y` is allowed only when one side reduces to a constant (its `a` and
+  `b` are 0), and scales the other side's coefficients by it;
+- `x / y` is allowed only when `y` reduces to a nonzero constant, and scales
+  `x`'s coefficients by `1 / y`;
+- anything else (a product or quotient of two expressions that both depend
+  on `input` or `output`, division by zero, a non-finite coefficient) is
+  refused.
+
+The result must have `a >= 0` and `b >= 0`. Metering then evaluates
+`floor(c + a * input + b * output)` from the coefficients, so what is
+accepted is exactly what is metered. There is no sampling and no tolerance:
+an expression outside the grammar, such as `input * output`,
+`input / output`, `input - output` or a polynomial in `input`, raises
+`ValueError` when the limit is built: "token limit: formula '<formula>' must
+be a non-negative weighted sum of input and output, such as '(input * 0.1)
++ output'; formulas whose value can decrease as tokens are used are not
 supported." Every token limit is built through `_TokenMetering`, so the check
 covers `token_limit()`, `TokenLimit` (task and eval configuration and the
 `--token-limit` string form), a `TokenLimit` read back from a log for a
@@ -1078,11 +1093,31 @@ bound on failed attempts.
 **Marking.** `mark_unmetered(reason: str)` (in `_limit.py`) sets
 `_unmetered = reason` and `_raised = True` on every `_CostLimit` on the
 chain whose limit is not `None`: the cost limits the call would have been
-charged to. A marked node raises in every check: `_check_marked()` raises
-`LimitExceededError("cost", value=<its cost>, limit=<its limit>,
-source=node)` with the message "Cost limit reached: <reason>" before it
-calls `_check_self()`, so inspect_swarm's `_check_self()` overrides need no
-change. Every later dispatch under the node is therefore refused before it
+charged to. A marked node raises in every check, through the same path as a
+numeric one, so that whatever a node does when it is reached (a swarm cap
+asking the swarm to stop) also happens when it is marked:
+
+- `_CostLimit._check_self()` raises the marked error first, when
+  `_unmetered` is set: `LimitExceededError("cost", value=<its cost>,
+  limit=<its limit>, source=node)` with the message "Cost limit reached:
+  <reason>", built by `_CostLimit._marked_error()`. Otherwise it compares
+  cost and limit as today.
+- A subclass that overrides `_check_self()` handles the mark there, as it
+  handles its numeric limit. inspect_swarm's `SwarmCostNode._check_self()`
+  (`inspect_swarm/src/inspect_swarm/_budget.py:529`), which routes its
+  numeric limit through `SwarmNode.exceeded()` (`:385`, where a cap calls
+  `stop_swarm`), checks `self._unmetered` first and calls
+  `self.exceeded("cost", "cost", cost, limit, "", reason=self._unmetered)`.
+  So a cap marked by an unpriced model or a response without usage asks the
+  swarm to stop, as a cap reached by spend does, even when the error is
+  then contained by `MemberBackground._run()` or swallowed by a compaction
+  fallback.
+- As a backstop, `_check_marked()` raises `_marked_error()` itself when a
+  marked cost node's `_check_self()` returns without raising (an override
+  that does not know the mark), so a mark is never ignored, though such an
+  override skips its own notification.
+
+Every later dispatch under the node is therefore refused before it
 is sent (rule 3), in any task that shares the node, whatever happened to the
 error that marked it; a call already in flight raises it after recording;
 and the exit check and the sample's final decision raise it (rule 7). The
@@ -1257,7 +1292,12 @@ each of these interactions as a case of its own. Under the rules above they beco
 What the swarm must change: its `_SwarmTurnNode._check_self()` takes the new
 `raise_for_equal` argument. Its other overrides (`record()`, the token and
 cost `_check_self()`, the message `check()`) are called as today, through
-`_check_marked()`. A member whose model has no cost data, or whose provider
+`_check_marked()`. `SwarmCostNode._check_self()` handles the unmetered mark
+before its pair comparison and routes it through `exceeded()`, so a cap
+marked by an unpriced model or a response without usage calls `stop_swarm`
+("Unmetered calls"); its tests cover both marks, with the error contained by
+`MemberBackground._run()` and with it swallowed by a compaction fallback,
+and assert the stop was requested. A member whose model has no cost data, or whose provider
 returns no usage, under a swarm cost node now marks that node and every
 cost node above it (rule 9), so the swarm needs pricing and usage for every
 member model wherever it uses cost nodes. Approver, reviewer and monitor
@@ -1559,7 +1599,10 @@ under trio with `--runtrio`.
     priced model under the same `cost_limit()` makes no provider call and
     raises the cost limit with the unmetered reason; the same from a sibling
     task under the shared node; an enclosing and an inner cost limit are
-    both marked;
+    both marked; a `_CostLimit` subclass whose `_check_self()` override
+    raises the marked error through its own path is used (its side effect
+    runs), and one whose override ignores the mark still raises the marked
+    error from `_check_marked()`;
   - containment: a missing-usage error swallowed by a hook that logs and
     continues, and by `tg_collect()` beside an owned token limit that
     `run()` catches, each leaves the cost limit marked, so the next call is
@@ -1582,7 +1625,9 @@ under trio with `--runtrio`.
   `dispatch_guard()`; `token_limit()` and `TokenLimit` (including the
   `"input-output:10"` string form) refuse `input - output`, `input / output`
   and `input * output` with the family message, and accept `all`, `output`,
-  `input`, `(input * 0.1) + output` and `2 * input - input`.
+  `input`, `(input * 0.1) + output`, `input / 10 + output` and
+  `2 * input - input`; a polynomial in `input` such as
+  `input + input * (input - 1)` is refused.
 - `tests/util/test_limit.py`, `run()` and `apply_limits()`: an owned limit
   raised inside the agent's task group is returned; a group with a foreign
   leaf propagates; a group of an owned token limit and a sourceless `custom`
@@ -1704,7 +1749,8 @@ Each step is one PR, in this order. Each keeps the suite green.
    `_check_marked`, `check_limits`, `counting_limit`, `final_sample_limit`,
    `record_model_call`,
    `_TurnLimit._check_self(raise_for_equal)`, `record_turn` recording only,
-   the non-negative weighted sum check in `_compile_token_formula()`.
+   the affine grammar and non-negative weights in `_compile_token_formula()`,
+   with metering from the reduced coefficients.
    `src/inspect_ai/model/_model.py`: `record_and_check_model_usage(check=)`,
    the inner generation recording without a check, the outer frame's
    `record_turn()` then `check_limits()`, `_check_limits_before_dispatch`.
@@ -1712,7 +1758,8 @@ Each step is one PR, in this order. Each keeps the suite green.
    `check_limits(at_exit=True)` at restore, and the `limits_raised` key.
    Tests: `tests/util/test_limit*.py`, `tests/checkpoint/test_sample_runtime.py`.
 2. **Unmetered calls.** `_limit.py`: `_CostLimit._unmetered`,
-   `mark_unmetered()`, `UnmeteredCallError`, the marked-node raise in
+   `mark_unmetered()`, `UnmeteredCallError`, `_CostLimit._marked_error()`,
+   the marked raise in `_CostLimit._check_self()` and the backstop in
    `_check_marked()`. `_model.py`: the unpriced check in
    `_check_limits_before_dispatch(model)` and the model passed by
    `generate()`'s and compaction's per-attempt calls; marking and raising
@@ -1765,6 +1812,12 @@ Each step is one PR, in this order. Each keeps the suite green.
    `docs/_turn_limits.md`, and the docstrings of `token_limit()`,
    `cost_limit()`, `turn_limit()`, `suspend_token_limit()`, `apply_limits()`
    and `run()`.
+
+inspect_swarm adapts in its own repository once step 2 is released: its
+`_SwarmTurnNode._check_self()` takes `raise_for_equal`, and its
+`SwarmCostNode._check_self()` routes the unmetered mark through
+`exceeded()`, with tests for a cap marked by an unpriced model and by a
+response without usage ("What inspect_swarm can delete or simplify").
 
 ## Open questions
 
