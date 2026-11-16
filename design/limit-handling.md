@@ -27,8 +27,10 @@ and calls cancelled in flight are not charged, as today, so they can take
 spend past a cost limit. A limit error that reaches its owner stands. When
 none does, a scope that owns limits checks them when it ends normally, and
 so does the sample, once all of its work, background cleanup included, has
-finished. So a limit error that some handler catches and drops is not lost:
-it comes back at the next refused call, or at its owner's exit.
+finished. So, within a running attempt, a limit error that some handler
+catches and drops is not lost: it comes back at the next refused call, or at
+its owner's exit. Checkpoints store usage but not these marks, so a sample
+resumed from a checkpoint can lose a mark set before it.
 
 Together these rules let a runtime that runs several agents catch the sample's
 limit error, stop its agents in an orderly way, and re-raise the error.
@@ -383,7 +385,9 @@ try to carry every limit or accounting error intact through every handler
 that can catch one (a fallback, a hook, a first-error reduction, a cancelled
 delivery). A swallowed error costs time, not budget: the next call under the
 limit is refused before dispatch, and if no limit error reaches the owner,
-its exit check finds the limit. Where Inspect's own code changes how errors
+its exit check finds the limit. That holds within one attempt: a checkpoint
+resume keeps usage but drops the marks ("Checkpoints"). Where Inspect's own
+code changes how errors
 travel (rules 4, 6 and 8), it is so that the right owner hears first, not so
 that the error survives.
 
@@ -865,21 +869,37 @@ cost and turn checks, in that order, with `>` (`sample_runtime.py:153-163`,
 An exceeded root therefore still ends the resumed attempt before it makes a
 call. A resume for scoring (`check=False`) runs no check, as today.
 
-The fresh roots carry neither `_raised` nor `_unmetered`. What that costs:
-each mark recurs after a resume, at the price of at most one more call.
+The fresh roots carry neither `_raised` nor `_unmetered`. The guarantees
+that rest on the marks (a refused or unmetered call ends every later call,
+and a dropped error is found at exit) therefore hold within one attempt, not
+across a resume. A mark comes back only if a call after the resume meets the
+same condition again; otherwise the earlier refusal or unmetered cost, and
+the limit outcome it would have produced, are not recovered:
 
-- A cost limit marked because a model has no price: the resumed sample's
-  first call to that model is refused before dispatch and marks the limit
-  again. Nothing is spent.
+- A cost limit marked because a model has no price: if the resumed sample
+  calls that model again, the call is refused before dispatch and marks the
+  limit again, with nothing spent. If it uses only priced models from then
+  on, the limit is not marked again.
 - A limit that refused a call at exactly its budget is restored at that
-  usage, so the resumed sample's next call is refused by the pre-dispatch
-  check (`>=`), which raises it and sets `_raised` again. Nothing is spent.
-  If the resumed sample makes no further call and returns, it is not
-  recorded as limited, as for a sample that used exactly its budget.
+  usage, so any further call is refused by the pre-dispatch check (`>=`),
+  which raises it and sets `_raised` again, with nothing spent. If the
+  resumed sample makes no further call and returns, it is not recorded as
+  limited, as for a sample that used exactly its budget.
 - A cost limit marked because a response had no usage is restored at its
-  metered cost, possibly under budget. The resumed sample can make one more
-  call to that provider, whose cost is unknown, and that call's response
-  marks the limit again.
+  metered cost, which leaves out that call's cost and may be under budget.
+  The resumed sample can keep calling: a later response without usage marks
+  the limit again, but if later responses report usage (the provider's
+  omission was intermittent, or the agent moved to another priced model),
+  the limit is not marked again, the unmetered cost stays uncounted, and the
+  sample can finish normally under a limit it may have exceeded. A resume
+  from each such checkpoint can add one more unknown cost this way.
+
+The checkpoint window is real: ReAct, for example, ticks its checkpointer
+before each generation (`src/inspect_ai/agent/_react.py:275`, `:557`), so
+a checkpoint can be taken after a swallowed unmetered-call error (from a
+forced compaction whose overflow fallback succeeded) and before the next
+call would have been refused. This is the cost of not storing the marks
+(decision: Ransom, 2026-11-16).
 
 Only the sample's roots are stored: scoped limits (`run()`, a swarm's
 nodes) are re-entered fresh by the resumed agents, as their usage is today.
@@ -1012,6 +1032,11 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    work). Approval, review and sentinel spend is not counted at all
    (rule 5).
 
+Guarantees 2, 4 and 5 rest on node state, which lives for one attempt. A
+checkpoint resume restores usage but not the marks, so a refusal at exactly
+the budget or an unmetered call from before the checkpoint is not carried
+into the resumed attempt ("Checkpoints").
+
 The sample's time limit (a cancel scope around the solvers) and working limit
 (a sample-wide cancellation) are outside these guarantees. They end the sample
 by cancellation, which the runtime cannot hold.
@@ -1096,8 +1121,9 @@ Every later dispatch under the node is therefore refused before it
 is sent (rule 3), in any task that shares the node, whatever happened to the
 error that marked it; a call already in flight raises it after recording;
 and the owners' exit checks raise it (rule 7). The mark is never cleared,
-as the `_raised` mark is not. A checkpoint does not store it; the mark
-recurs after a resume ("Checkpoints").
+as the `_raised` mark is not, within one attempt. A checkpoint does not
+store it: after a resume it comes back only if a later call meets the same
+condition again ("Checkpoints").
 
 **Disabling a marked limit.** Setting a cost limit's value to `None` turns
 it off, today and with a mark: `state.cost_limit = None` (which checks at
@@ -1468,8 +1494,9 @@ reductions such as `tg_collect()`, the sentinel wrapper, a bridge delivery
 that a cancellation can displace) re-raise or forward it. Each review of
 that approach found another such handler, and the list is open-ended: any
 user or extension code can catch an exception. The rules here make the
-nodes the record instead, so a handler that swallows a limit or an
-unmetered-call error delays it by at most one call and cannot lose it.
+nodes the record instead, so within one attempt a handler that swallows a
+limit or an unmetered-call error delays it by at most one call and cannot
+lose it (a checkpoint resume drops the marks, "Checkpoints").
 Inspect still changes its own handlers where that decides *which owner*
 hears first (rules 4, 6 and 8), not merely whether the error survives.
 
@@ -1484,8 +1511,10 @@ chain). An error that reaches its owner stands (decision: Ransom,
 
 **Store the marks in checkpoints.** Two optional payload keys would carry
 `_unmetered` and `_raised` across a resume, so a resumed sample ends on a
-marked limit before any call. Without them each mark recurs within at most
-one call ("Checkpoints"); the keys were cut (decision: Ransom, 2026-11-16).
+marked limit before any call. Without them a mark comes back after a
+resume only if a later call meets the same condition again, and an earlier
+unmetered cost or refusal can stay unrecovered ("Checkpoints"); the keys
+were cut (decision: Ransom, 2026-11-16).
 
 **Raise a monitor's limit bare from the sentinel wrapper.** With cost
 suspended for monitors, the only limit a monitor can meet is the bridge
@@ -1670,8 +1699,11 @@ documented. Behaviour changes:
   `record_turn()` no longer checks. inspect_swarm is the only known user of
   these classes (above).
 - **Persisted data and the viewer.** The checkpoint sample-runtime payload
-  is unchanged and does not store the new marks, so a resumed sample meets
-  each mark again within at most one call ("Checkpoints"). `EvalSampleLimit`, `SampleLimitEvent` and `EvalConfig` limit fields keep
+  is unchanged and does not store the new marks. A resumed sample is
+  limited by a mark again only if a later call meets the same condition;
+  otherwise an unmetered cost or an exact-budget refusal from before the
+  checkpoint is not recovered, and the sample can finish normally
+  ("Checkpoints"). `EvalSampleLimit`, `SampleLimitEvent` and `EvalConfig` limit fields keep
   their shapes, and old logs read the same. No generated TypeScript type
   changes.
 - **Docs.** `docs/setting-limits.qmd` and `docs/_agent_limits.md` state the
@@ -1709,8 +1741,9 @@ documented. Behaviour changes:
   set only by Inspect's provider converters from an error response, never
   from response content a model or sandbox controls. Because the bound comes
   from node state, a handler that swallows the error, in Inspect or in user
-  code, cannot extend it. Failed attempts and cancelled calls are outside
-  the bound, as today.
+  code, cannot extend it within one attempt. Failed attempts and cancelled
+  calls are outside the bound, as today, and so is an unmetered cost from
+  before a checkpoint resume ("Checkpoints").
 
 ## Testing
 
