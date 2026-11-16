@@ -1,20 +1,36 @@
 """Tests for score editing functionality."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
-from inspect_ai import Task, eval_async, task
+from inspect_ai import Epochs, Task, eval_async, task
+from inspect_ai._eval.score import score_async
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.event._score_edit import ScoreEditEvent
-from inspect_ai.log import read_eval_log_sample_async, write_eval_log_async
+from inspect_ai.log import (
+    EvalLog,
+    exclude_samples,
+    read_eval_log_sample_async,
+    write_eval_log_async,
+)
 from inspect_ai.log._edit import ProvenanceData
+from inspect_ai.log._log import EvalMetricDefinition
 from inspect_ai.log._metric import recompute_metrics
 from inspect_ai.log._score import edit_score
-from inspect_ai.scorer import Score, Target, accuracy, mean, scorer
-from inspect_ai.scorer._metric import ScoreEdit
+from inspect_ai.scorer import (
+    Score,
+    Target,
+    accuracy,
+    exact,
+    includes,
+    match,
+    mean,
+    scorer,
+)
+from inspect_ai.scorer._metric import ScoreEdit, score_is_excluded
 from inspect_ai.scorer._scorer import Scorer
 from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.solver._solver import Solver
@@ -903,3 +919,280 @@ async def test_legacy_score_edit_without_reason_keeps_reason() -> None:
     edited = scores["single_metric_scorer"]
     assert edited.reason == "grade_parse_failure"
     assert edited.metadata == {"unscored_reason": "grade_parse_failure"}
+
+
+# exclude_samples
+
+
+def _provenance(reason: str = "environment was broken") -> ProvenanceData:
+    return ProvenanceData(author="operator", reason=reason)
+
+
+@scorer(metrics=[accuracy()])
+def metadata_value_scorer() -> Scorer:
+    """Scores `C` or `I` from the sample's `values` metadata, one per epoch."""
+
+    async def score(state: TaskState, target: Target):
+        return Score(
+            value=state.metadata["values"][state.epoch - 1],
+            answer=f"answer {state.sample_id}",
+            metadata={"epoch": state.epoch},
+        )
+
+    return score
+
+
+@solver
+def fail_on_sample(sample_id: str) -> Solver:
+    async def run(state: TaskState, generate: Generate) -> TaskState:
+        if state.sample_id == sample_id:
+            raise RuntimeError("sample failed")
+        return state
+
+    return run
+
+
+@solver
+def write_solver_key() -> Solver:
+    async def run(state: TaskState, generate: Generate) -> TaskState:
+        state.scores = {} if state.scores is None else state.scores
+        state.scores["solver_key"] = Score(value=1.0)
+        return state
+
+    return run
+
+
+def _value_task(values: dict[str, list[str]], **kwargs: Any) -> Task:
+    return Task(
+        dataset=MemoryDataset(
+            [
+                Sample(id=id, input="", metadata={"values": v})
+                for id, v in values.items()
+            ]
+        ),
+        scorer=kwargs.pop("scorer", metadata_value_scorer()),
+        **kwargs,
+    )
+
+
+@pytest.mark.anyio
+async def test_exclude_samples_edits_every_key():
+    """Deduplicated, appended and solver-written keys are all excluded."""
+    log = (
+        await eval_async(
+            Task(
+                dataset=MemoryDataset(
+                    [Sample(id="a", input="", target="x"), Sample(id="b", input="")]
+                ),
+                solver=write_solver_key(),
+                scorer=[match(), includes(), match()],
+            ),
+            model="mockllm/model",
+        )
+    )[0]
+    log = await score_async(log, [exact()], action="append")
+    sample = log.samples[0]
+    assert sorted(sample.scores) == [
+        "exact",
+        "includes",
+        "match",
+        "match1",
+        "solver_key",
+    ]
+    sample.scores["includes"].metadata = {"unscored_reason": "legacy", "k": 1}
+    originals = {name: s.model_copy(deep=True) for name, s in sample.scores.items()}
+    other_scores = log.samples[1].model_dump_json(include={"scores"})
+
+    provenance = _provenance()
+    result = exclude_samples(log, ["a"], provenance)
+
+    assert result.applied == [("a", 1)]
+    assert result.unchanged == []
+    for name, original in originals.items():
+        edited = sample.scores[name]
+        assert score_is_excluded(edited), name
+        assert edited.explanation == "environment was broken"
+        assert edited.answer == original.answer
+        assert edited.history[0].value == original.value
+        assert edited.history[-1].provenance == provenance
+    assert sample.scores["includes"].metadata == {"k": 1}
+    assert sample.scores["includes"].history[0].metadata == {
+        "unscored_reason": "legacy",
+        "k": 1,
+    }
+    assert sample.scores["match"].metadata == originals["match"].metadata
+    assert sum(isinstance(e, ScoreEditEvent) for e in sample.events) == len(originals)
+    assert log.samples[1].model_dump_json(include={"scores"}) == other_scores
+    match_score = next(s for s in log.results.scores if s.name == "match")
+    assert match_score.unscored_samples == 1
+
+
+@pytest.mark.anyio
+async def test_exclude_samples_errored_sample_without_scores():
+    log = (
+        await eval_async(
+            Task(
+                dataset=MemoryDataset(
+                    [Sample(id="a", input=""), Sample(id="b", input="")]
+                ),
+                solver=fail_on_sample("b"),
+                scorer=[match(), includes()],
+            ),
+            model="mockllm/model",
+            fail_on_error=False,
+        )
+    )[0]
+    errored = log.samples[1]
+    assert errored.error is not None and not errored.scores
+
+    result = exclude_samples(log, ["b"], _provenance())
+
+    assert result.applied == [("b", 1)]
+    assert list(errored.scores) == ["match"]
+    assert score_is_excluded(errored.scores["match"])
+    assert errored.error is not None
+
+
+@pytest.mark.anyio
+async def test_exclude_samples_refuses_sample_without_scores_or_scorers():
+    log = (
+        await eval_async(
+            Task(dataset=MemoryDataset([Sample(id="a", input="")])),
+            model="mockllm/model",
+        )
+    )[0]
+    assert log.eval.scorers is None and not log.samples[0].scores
+    before = log.model_dump_json()
+
+    with pytest.raises(ValueError, match="names no scorer"):
+        exclude_samples(log, ["a"], _provenance())
+    assert log.model_dump_json() == before
+
+
+@pytest.mark.anyio
+async def test_exclude_samples_selectors():
+    log = (
+        await eval_async(
+            Task(
+                dataset=MemoryDataset(
+                    [
+                        Sample(input="", metadata={"values": ["C", "C"]})
+                        for _ in range(3)
+                    ]
+                ),
+                scorer=metadata_value_scorer(),
+                epochs=Epochs(2),
+            ),
+            model="mockllm/model",
+        )
+    )[0]
+    assert {s.id for s in log.samples} == {1, 2, 3}
+    before = log.model_dump_json()
+
+    # unmatched selectors are all named and nothing is edited
+    with pytest.raises(ValueError, match=r"'zz', \(1, 5\)"):
+        exclude_samples(log, [1, "zz", (1, 5)], _provenance())
+    assert log.model_dump_json() == before
+    with pytest.raises(ValueError, match="not an id or an"):
+        exclude_samples(log, [cast(Any, (1,))], _provenance())
+
+    # a bare id covers every epoch, a string matches an int id, a pair one epoch
+    result = exclude_samples(log, [1, "2", (3, 2), (1, 1)], _provenance())
+    assert result.applied == [(1, 1), (1, 2), (2, 1), (2, 2), (3, 2)]
+    excluded = {
+        (s.id, s.epoch)
+        for s in log.samples
+        if score_is_excluded(s.scores["metadata_value_scorer"])
+    }
+    assert excluded == set(result.applied)
+
+
+@pytest.mark.anyio
+async def test_exclude_samples_unchanged():
+    log = (
+        await eval_async(_value_task({"a": ["C"], "b": ["C"]}), model="mockllm/model")
+    )[0]
+    exclude_samples(log, ["a"], _provenance())
+    score = log.samples[0].scores["metadata_value_scorer"]
+    history = len(score.history)
+
+    result = exclude_samples(log, ["a", "b"], _provenance())
+    assert result.applied == [("b", 1)]
+    assert result.unchanged == [("a", 1)]
+    assert len(score.history) == history
+
+    # a later edit of the value means the score is no longer excluded
+    edit_score(log, "a", "metadata_value_scorer", ScoreEdit(value=1))
+    result = exclude_samples(log, ["a"], _provenance())
+    assert result.applied == [("a", 1)]
+    assert score_is_excluded(score)
+
+
+@pytest.mark.anyio
+async def test_exclude_samples_recomputes_metrics():
+    log = (
+        await eval_async(
+            _value_task({"a": ["C"], "b": ["I"], "c": ["C"], "d": ["C"]}),
+            model="mockllm/model",
+        )
+    )[0]
+    assert log.results.scores[0].metrics["accuracy"].value == 0.75
+
+    exclude_samples(log, ["b"], _provenance())
+
+    assert log.results.scores[0].metrics["accuracy"].value == 1.0
+    assert log.results.scores[0].scored_samples == 3
+    assert log.results.scores[0].unscored_samples == 1
+
+
+@pytest.mark.anyio
+async def test_exclude_samples_reduces_with_recorded_reducer():
+    # an eval-level reducer recorded for a one-epoch task
+    log = (
+        await eval_async(
+            _value_task({"a": ["C"] * 5, "b": ["I"] * 5}),
+            model="mockllm/model",
+            epochs=Epochs(5, "pass_at_5"),
+        )
+    )[0]
+    assert log.eval.config.epochs_reducer == ["pass_at_5"]
+    exclude_samples(log, [("a", 1)], _provenance())
+    assert [s.reducer for s in log.results.scores] == ["pass_at_5"]
+
+    # majority over C, C, I once epoch 1 is excluded (mean would give 2/3)
+    log = (
+        await eval_async(
+            _value_task({"a": ["C", "C", "C", "I"]}, epochs=Epochs(4, "majority")),
+            model="mockllm/model",
+        )
+    )[0]
+    assert log.eval.config.epochs_reducer == ["majority"]
+    exclude_samples(log, [("a", 1)], _provenance())
+    assert log.results.scores[0].reducer == "majority"
+    assert log.results.scores[0].metrics["accuracy"].value == 1.0
+
+
+@pytest.mark.anyio
+async def test_exclude_samples_refusals_leave_log_unchanged():
+    log = (await eval_async(_value_task({"a": ["C"]}), model="mockllm/model"))[0]
+
+    def refused(log: EvalLog, match: str, reason: str = "broken") -> None:
+        before = log.model_dump_json()
+        with pytest.raises((ValueError, LookupError), match=match):
+            exclude_samples(log, ["a"], _provenance(reason))
+        assert log.model_dump_json() == before
+
+    refused(log.model_copy(update={"status": "started"}), "still being written")
+    refused(log.model_copy(update={"samples": None}), "has no samples")
+    refused(log, "reason is required", reason="")
+    refused(log, "reason is required", reason="  ")
+
+    missing_metric = log.model_copy(deep=True)
+    missing_metric.eval.scorers[0].metrics = [
+        EvalMetricDefinition(name="no_such_metric")
+    ]
+    refused(missing_metric, "no_such_metric.*import")
+
+    missing_reducer = log.model_copy(deep=True)
+    missing_reducer.eval.config.epochs_reducer = ["no_such_reducer"]
+    refused(missing_reducer, "no_such_reducer.*import")
