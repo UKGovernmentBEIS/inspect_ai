@@ -23,8 +23,15 @@ def rollout_task() -> Task:
         fail_on_error=False,  # an errored rollout comes back with its `error` set
     )
 
+@task
+def search() -> Task:
+    return Task(
+        dataset=[Sample(input="Find a misaligned behaviour.")],
+        solver=searcher(n_steps=50),
+    )
+
 @solver
-def search(n_steps: int) -> Solver:
+def searcher(n_steps: int) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         [handle] = enqueue_task(rollout_task())
         async with handle as rollouts:                    # closes on exit
@@ -40,6 +47,12 @@ def search(n_steps: int) -> Solver:
 
     return solve
 ```
+
+With both tasks in `search.py`, run the searcher by name: `inspect eval
+search.py@search`, or `eval_set("search.py@search", ...)`. Loading the
+whole file (`inspect eval search.py`) also loads `rollout_task`, and a task
+fed through a handle cannot run on its own, so that run is refused ("What
+is refused").
 
 `propose_next` is the searcher's own async function and may call a model.
 The rollout task sets `fail_on_error=False`. With the default, the first
@@ -60,7 +73,11 @@ All of these are new API; no existing eval waits on a handle or uses
 `samples_from_handle()`.
 
 - `enqueue_task()` returns `list[TaskHandle]` and stays synchronous; a
-  caller that ignores the result is unchanged.
+  call on the run's event loop that ignores the result is unchanged. A call
+  from a worker thread that copied the run's context, which today buffers
+  the task, raises `RuntimeError`; the worker calls
+  `anyio.from_thread.run_sync(lambda: enqueue_task(...))` instead
+  ([task-dispatch.md](task-dispatch.md#run-shapes-and-what-is-refused)).
 - A task fed through a handle does not count toward `max_tasks`. A
   supervisor that sets `max_tasks` as a ceiling, such as a selection-mode
   worker's, sees one extra running task for each fed task that has been sent
@@ -313,7 +330,11 @@ the sample it sent still runs and its result is dropped.
   - passed to `eval()`, `eval_set()` or a selection worker:
     `PrerequisiteError` from `eval_resolve_tasks` ("task '<task>' takes its
     samples through its handle (samples_from_handle()), so it cannot be run
-    or retried on its own; run or retry the task that adds it");
+    or retried on its own; run or retry the task that adds it"). This
+    includes a whole-file spec: `create_file_tasks()` loads every decorated
+    task in a file given without a task name, so `inspect eval search.py`
+    with the rollout task beside its creator is refused, and the creator is
+    selected by name (`search.py@search`), as the overview shows;
   - its log passed to `eval_retry()`: `PrerequisiteError` from
     `eval_retry_async`, by the log's dataset name, before any task is
     resolved ("Logs and eval sets");
@@ -735,7 +756,12 @@ needs.
 ## Compatibility and migration
 
 Public API: `enqueue_task()` returns `list[TaskHandle]` and stays
-synchronous, so existing calls are unchanged; new `TaskHandle`,
+synchronous, so existing calls on the run's event loop are unchanged; a
+call from a worker thread that copied the run's context, which today
+buffers the task, now raises `RuntimeError`, and the worker calls
+`anyio.from_thread.run_sync(lambda: enqueue_task(...))` instead
+([task-dispatch.md](task-dispatch.md#compatibility-and-migration)). New
+`TaskHandle`,
 `TaskEndedError`, `SampleAbandonedError` and `samples_from_handle`. Existing `SampleSource` tasks are unchanged: only a
 `HandleChannel` gets `stop()`, and only a task fed through a handle ignores
 the run's `--limit`, `--sample-id` and `--epochs` (with the run's epoch
@@ -811,8 +837,13 @@ test touched), with mockllm models; every test that waits is bounded with
     factory's own dataset is an empty ordinary `SampleSource`, is added and
     runs, and `eval_retry()` of its log raises the `PrerequisiteError` above
     before any task is resolved (the factory is not called) and writes no
-    log; off-loop calls raise, and through
-    `anyio.from_thread` succeed;
+    log; off-loop calls raise, including one from `anyio.to_thread.run_sync`
+    (which buffers the task today), and through `anyio.from_thread` succeed;
+  - discovery: with `search` and `rollout_task` in one file, a whole-file
+    load (`eval("search.py")`, `eval_set("search.py")`) raises the
+    `PrerequisiteError` above naming `rollout_task` before any task runs,
+    and `eval("search.py@search")` and `eval_set("search.py@search", ...)`
+    run the searcher and its rollouts;
   - creation from attempt code outside a sample: an `on_task_start` hook
     adds a fed task and a sample of the same attempt sends to it through the
     handle the hook stored; the channel closes when the attempt ends; a fed
@@ -944,7 +975,10 @@ One PR, after step 3 of
   logs matched to requested tasks dropping them after
   `validate_eval_set_prerequisites`; `_resumed_task` refusing one),
   `__init__.py` (exports), `docs/task-source.qmd` (handles, stopping
-  rollouts with `cancel()`, `fail_on_error=False` for rollout tasks),
+  rollouts with `cancel()`, `fail_on_error=False` for rollout tasks, and
+  running the creator by name, `inspect eval search.py@search` and
+  `eval_set("search.py@search", ...)`, when the rollout task shares its
+  file),
   `docs/parallelism.qmd`, `docs/reference`. Tests: those above.
 
 ## Open questions
