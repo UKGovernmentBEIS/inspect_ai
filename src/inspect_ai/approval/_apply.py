@@ -29,6 +29,7 @@ async def apply_tool_approval(
     history: list[ChatMessage],
     *,
     execution_id: str | None = None,
+    span_id: str | None = None,
 ) -> tuple[bool, Approval | None]:
     """Apply the active approval policy to a tool call.
 
@@ -37,7 +38,9 @@ async def apply_tool_approval(
     action that the tool's own view would have shown differently.
 
     `execution_id` names the call's execution, recorded on each `ApprovalEvent`
-    (`ApprovalEvent.execution_id`).
+    (`ApprovalEvent.execution_id`). The events are recorded in `span_id`, else
+    in the current span; the approvers run in the current span either way, so
+    their own calls are recorded where they run.
     """
     approver = _tool_approver.get(None)
     if approver:
@@ -46,7 +49,13 @@ async def apply_tool_approval(
         except ToolCallViewError as ex:
             rejection = Approval(decision="reject", explanation=str(ex))
             record_approval(
-                "policy", message, call, None, rejection, execution_id=execution_id
+                "policy",
+                message,
+                call,
+                None,
+                rejection,
+                execution_id=execution_id,
+                span_id=span_id,
             )
             return False, rejection
 
@@ -63,6 +72,7 @@ async def apply_tool_approval(
                 view=view,
                 history=history,
                 execution_id=execution_id,
+                span_id=span_id,
             )
 
         # process decision

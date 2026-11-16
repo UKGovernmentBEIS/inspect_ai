@@ -22,6 +22,7 @@ async def call_approver(
     history: list[ChatMessage],
     *,
     execution_id: str | None = None,
+    span_id: str | None = None,
 ) -> Approval:
     # the event records the call as presented, which the approver may change
     presented, presented_view = deepcopy(call), deepcopy(view)
@@ -47,6 +48,7 @@ async def call_approver(
         presented_view,
         approval,
         execution_id=execution_id,
+        span_id=span_id,
     )
 
     # return approval
@@ -61,11 +63,13 @@ def record_approval(
     approval: Approval,
     *,
     execution_id: str | None = None,
+    span_id: str | None = None,
 ) -> None:
     """Record an approval decision as an `ApprovalEvent`.
 
     The event holds copies of the call, view and modified call, since the
-    event stores objects by reference and later code can change them.
+    event stores objects by reference and later code can change them. It is
+    recorded in `span_id`, else in the current span.
     """
     from inspect_ai.log._transcript import transcript
 
@@ -74,6 +78,7 @@ def record_approval(
             message=message,
             call=deepcopy(call),
             execution_id=execution_id,
+            span_id=span_id,
             view=deepcopy(view),
             approver=approver_name,
             decision=approval.decision,

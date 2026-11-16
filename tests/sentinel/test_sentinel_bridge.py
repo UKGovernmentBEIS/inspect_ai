@@ -50,7 +50,11 @@ from inspect_ai.agent._bridge._sentinel import _SavedHandouts
 from inspect_ai.agent._bridge.sandbox.service import _forward_provider_errors
 from inspect_ai.agent._bridge.sandbox.service import call_tool as call_host_tool
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
-from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.types import (
+    AgentBridge,
+    BridgedToolId,
+    target_execution_id,
+)
 from inspect_ai.agent._bridge.util import bridge_generate
 from inspect_ai.approval import (
     Approval,
@@ -2391,11 +2395,17 @@ def test_each_handout_of_a_repeated_host_call_names_its_run_and_steps(
         "host_1",
         "host_1",
     ]
-    handouts = [e.execution_id for e in executions]
-    assert None not in handouts and handouts[0] != handouts[1]
+    # each run is its handout's run of read_file
+    suffix = "/host/read_file"
+    assert all(e.execution_id and e.execution_id.endswith(suffix) for e in executions)
+    handouts = [(e.execution_id or "").removesuffix(suffix) for e in executions]
+    assert handouts[0] != handouts[1]
 
-    # each run's approvals and tool_call steps, one per target, name its handout
-    targets = 2 if shared else 1
+    # each handout's approvals and tool_call steps, one per target, name its
+    # run of that target
+    targets = [BridgedToolId("host", "read_file")]
+    if shared:
+        targets.append(BridgedToolId("copy", "read_copy"))
     for index, execution in enumerate(executions):
         run = events[events.index(generations[index]) : events.index(execution)]
         approvals = [e for e in run if isinstance(e, ApprovalEvent)]
@@ -2405,8 +2415,9 @@ def test_each_handout_of_a_repeated_host_call_names_its_run_and_steps(
         assert (
             [e.execution_id for e in approvals]
             == [e.execution_id for e in steps]
-            == [handouts[index]] * targets
+            == [target_execution_id(handouts[index], target) for target in targets]
         )
+    assert executions[0].execution_id == target_execution_id(handouts[0], targets[0])
 
     # a result names its handout while that is the id's only one; once the call
     # is handed out again, which handout a result answers can't be told
@@ -2415,13 +2426,243 @@ def test_each_handout_of_a_repeated_host_call_names_its_run_and_steps(
         for e in events
         if isinstance(e, SentinelEvent) and e.stage == "tool_result"
     ]
-    unknown = [("saw contents 1", None)] * targets + [
+    unknown = [("saw contents 1", None)] * len(targets) + [
         ("saw contents 2", None)
-    ] * targets
+    ] * len(targets)
     if cached:
         assert results == unknown
     else:
-        assert results == [("saw contents 1", handouts[0])] * targets + unknown
+        assert (
+            results
+            == [
+                ("saw contents 1", target_execution_id(handouts[0], target))
+                for target in targets
+            ]
+            + unknown
+        )
+
+
+@approver(name="bridge_approving")
+def approving() -> Approver:
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        return Approval(decision="approve", explanation="looks fine")
+
+    return approve
+
+
+@solver
+def routed_host_call(approver: str) -> Solver:
+    """A sandbox scaffold whose generations a model event sink routes into the sub-agent span `sub-agent` (as inspect_swe's consumers do), running one host call under an approval policy.
+
+    `approver` is `custom` (an approver of its own), `own-call` (one that runs
+    a native call of its own under the agent's call id), or `auto`.
+    """
+    bridged = generate
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        read = ToolCall(
+            id="host_1", function="mcp__host__read_file", arguments=READ.arguments
+        )
+        async with span("outer", type="agent", id="outer"):
+            transcript()._event(
+                SpanBeginEvent(
+                    id="sub-agent", parent_id="outer", type="agent", name="sub"
+                )
+            )
+            model = Scripted(calls_output(read), calls_output())
+            bridge = sandbox_bridge(AsyncMock(return_value="contents"))
+            bridge.model_event_sink = SubAgentSink()
+            policy = {
+                "custom": approving(),
+                "own-call": running_its_own_call(),
+                "auto": auto_approver(),
+            }[approver]
+            bridge.approval = [
+                ApprovalPolicy(policy, "read_file"),
+                ApprovalPolicy(auto_approver(), "*"),
+            ]
+            history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+            output = await bridged(bridge, model, history, declare_read_file())
+            [handed] = output.message.tool_calls or []
+            result = await call_host_tool(bridge)("host", "read_file", READ.arguments)
+            history += [
+                output.message,
+                ChatMessageTool(
+                    content=str(result),
+                    tool_call_id=handed.id,
+                    function=handed.function,
+                ),
+            ]
+            await bridged(bridge, model, history, declare_read_file())
+            transcript()._event(SpanEndEvent(id="sub-agent"))
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("approver", ["custom", "own-call", "auto"])
+def test_a_routed_host_calls_approval_is_in_its_generations_span(
+    approver: str, tmp_path: Path
+) -> None:
+    [log] = eval(
+        Task(
+            dataset=[Sample(input=TASK)],
+            solver=routed_host_call(approver),
+            sentinel=[reporting_results()],
+        ),
+        model="mockllm/model",
+        log_format="json",
+        log_dir=str(tmp_path),
+    )
+    assert log.status == "success", log.error
+    [sample] = read_eval_log(log.location).samples or []
+    events = sample.events
+
+    # the agent's generations and its host run are in the routed span
+    [run] = [e for e in events if isinstance(e, ToolEvent) and e.metadata]
+    assert run.span_id == "sub-agent"
+    generations = [e for e in events if isinstance(e, ModelEvent)]
+    agents = [e for e in generations if e.input[0].text == TASK]
+    assert {e.span_id for e in agents} == {"sub-agent"}
+
+    # so is the call's approval, which names the run's handout
+    approvals = [e for e in events if isinstance(e, ApprovalEvent)]
+    assert [
+        (e.span_id, e.execution_id) for e in approvals if e.call.function == "read_file"
+    ] == [("sub-agent", run.execution_id)]
+
+    # an approver's own generation, call and approval stay where it ran
+    own = [
+        *(e for e in generations if e not in agents),
+        *(e for e in events if isinstance(e, ToolEvent) and not e.metadata),
+        *(e for e in approvals if e.call.function == "lookup"),
+    ]
+    assert len(own) == (3 if approver == "own-call" else 0)
+    assert {e.span_id for e in own} <= {"outer"}
+
+
+@monitor
+def naming_targets() -> MonitorGroup:
+    """Report the tool each check judged."""
+
+    async def before(context: Context, step: BeforeToolCall) -> Observation | None:
+        return Observation.score(0.1, f"checked {step.call.function}")
+
+    async def after(context: Context, step: AfterToolCall) -> Observation | None:
+        return Observation.score(0.2, f"saw {step.call.function}")
+
+    return MonitorGroup(before, after)
+
+
+@protocol
+def rejecting_the_result_of(function: str) -> Protocol:
+    async def after(
+        context: Context, step: AfterToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if step.call.function != function:
+            return None
+        return Decision(action="reject", explanation=f"rejected {function}")
+
+    return after
+
+
+@approver(name="bridge_naming_targets")
+def approving_targets() -> Approver:
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        return Approval(decision="approve", explanation=f"approved {call.function}")
+
+    return approve
+
+
+@solver
+def shared_handout_run_in_reverse() -> Solver:
+    """A sandbox scaffold handed one call that denotes two bridged tools sharing a description, which it runs in the reverse of the order they were reviewed in."""
+    bridged = generate
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        read = ToolCall(
+            id="host_1", function="mcp__host__read_file", arguments=READ.arguments
+        )
+        model = Scripted(calls_output(read), calls_output())
+        bridge = sandbox_bridge(AsyncMock(return_value="contents"))
+        bridge.register_bridged_tools(
+            "copy", {"read_copy": read_copy(AsyncMock(return_value="contents"))}
+        )
+        bridge.approval = [ApprovalPolicy(approving_targets(), "*")]
+        history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+        output = await bridged(bridge, model, history, declare_read_file())
+        [handed] = output.message.tool_calls or []
+        await call_host_tool(bridge)("copy", "read_copy", READ.arguments)
+        await call_host_tool(bridge)("host", "read_file", READ.arguments)
+        history += [
+            output.message,
+            ChatMessageTool(
+                content="contents", tool_call_id=handed.id, function=handed.function
+            ),
+        ]
+        await bridged(bridge, model, history, declare_read_file())
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("rejected", [False, True])
+def test_each_target_of_a_shared_handout_is_its_own_execution(
+    rejected: bool, tmp_path: Path
+) -> None:
+    # each check names the tool it judged; with `rejected`, a protocol
+    # rejects one tool's result only
+    [log] = eval(
+        Task(
+            dataset=[Sample(input=TASK)],
+            solver=shared_handout_run_in_reverse(),
+            sentinel=rejecting_the_result_of("read_file")
+            if rejected
+            else naming_targets(),
+        ),
+        model="mockllm/model",
+        log_format="json",
+        log_dir=str(tmp_path),
+    )
+    assert log.status == "success", log.error
+    [sample] = read_eval_log(log.location).samples or []
+    events = sample.events
+
+    # the tools ran in the reverse of review order
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert [e.function for e in runs] == ["read_copy", "read_file"]
+    executions = {e.function: e.execution_id for e in runs}
+    assert None not in executions.values()
+    assert executions["read_copy"] != executions["read_file"]
+
+    # each tool's approval and checks name that tool's run
+    approvals = [e for e in events if isinstance(e, ApprovalEvent)]
+    assert sorted((e.call.function, e.execution_id) for e in approvals) == sorted(
+        executions.items()
+    )
+    steps = [
+        (e.stage, e.explanation, e.execution_id)
+        for e in events
+        if isinstance(e, SentinelEvent)
+    ]
+    if rejected:
+        assert steps == [("tool_result", "rejected read_file", executions["read_file"])]
+    else:
+        assert sorted(steps) == sorted(
+            (stage, f"{verb} {function}", execution)
+            for function, execution in executions.items()
+            for stage, verb in (("tool_call", "checked"), ("tool_result", "saw"))
+        )
 
 
 async def test_a_result_of_a_handout_run_twice_names_the_handout() -> None:
@@ -2456,14 +2697,18 @@ async def test_a_result_of_a_handout_run_twice_names_the_handout() -> None:
             declare_read_file(),
         )
 
-    # the second run takes a fresh event id, and both name the handout
+    # the second run takes a fresh event id; each is the handout's run of its
+    # own tool
     runs = [e for e in transcript().events if isinstance(e, ToolEvent)]
     assert runs[0].id == "host_1" and runs[1].id not in ("host_1", "")
-    [handout] = {e.execution_id for e in runs}
+    handout = bridge._handouts.handed["host_1"].execution_id
     assert handout is not None
-    # the report's checks, one per tool, are of the handout, not of a run
+    targets = [BridgedToolId("host", "read_file"), BridgedToolId("copy", "read_copy")]
+    executions = [target_execution_id(handout, target) for target in targets]
+    assert [e.execution_id for e in runs] == executions
+    # the report's checks, one per tool, are of the handout's run of each
     results = [e for e in sentinel_events() if e.stage == "tool_result"]
-    assert [e.execution_id for e in results] == [handout, handout]
+    assert [e.execution_id for e in results] == executions
 
 
 @pytest.mark.parametrize("runs", [1, 2])
