@@ -214,7 +214,8 @@ id must be unique for its stage, so when two executions of one call id are
 rebuilt (a retry after a tool error, a provider that repeats ids), the first
 keeps the call id and each later one is named by its `execution_id`. Replay
 names a host run's steps by the same rule, under the id the call was handed
-over under, so native and bridged executions of one call id share it. A log
+over under, so native and bridged executions of one call id share it. The
+`human_decisions` of later steps keep the call id, as live records it. A log
 without the ids replays as before.
 
 A `_Proposal` is referenced only by its grants, so pairing state lives in the

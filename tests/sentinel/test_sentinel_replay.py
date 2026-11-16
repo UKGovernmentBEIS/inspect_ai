@@ -11511,3 +11511,66 @@ def test_each_native_run_names_its_approvals_and_steps() -> None:
         ("tool_result", executions[1], {"x": 2, "y": 1}),
     ]
     assert_tool_steps_equal_live_by_execution(log, seen, replay)
+
+
+@pytest.mark.parametrize("stage", ["tool_call", "tool_result"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_person_s_decisions_at_two_runs_of_one_call_id_keep_its_step_id(
+    stage: str, backend: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a model that repeats a call id across turns, with a person deciding each
+    # run at `stage`: later steps see both decisions under the recorded call
+    # id, though replay names the second run's steps by its execution id
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    Panel("approve", "the sum is right").install(monkeypatch)
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="What is 1 + 1?", target="2")],
+            solver=[use_tools(addition()), generate()],
+            sentinel=[
+                r7_probe(seen, copies=True),
+                h_ask(stage, ["approve"]),
+            ],
+        ),
+        model=outputs(
+            *(
+                ModelOutput.for_tool_call(
+                    "mockllm/model",
+                    tool_name="addition",
+                    tool_arguments={"x": x, "y": 1},
+                    tool_call_id="call_0",
+                )
+                for x in (1, 2)
+            ),
+            done(),
+        ),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    executions = [e.execution_id for e in events if isinstance(e, ToolEvent)]
+    assert None not in executions and executions[0] != executions[1]
+    probed = [
+        e for e in events if isinstance(e, SentinelEvent) and e.path == "r7_probe"
+    ]
+    live = [seen[e.explanation or ""] for e in probed]
+    assert [(d.stage, d.step_id) for d in live[-1].human_decisions or []] == [
+        (stage, "call_0"),
+        (stage, "call_0"),
+    ]
+
+    replay = replayed(log)
+    assert [s.id for s in replay if s.stage == stage] == ["call_0", executions[1]]
+    assert [(d.stage, d.step_id) for d in replay[-1].step.human_decisions or []] == [
+        (stage, "call_0"),
+        (stage, "call_0"),
+    ]
+    assert [(s.stage, s.step.conversation) for s in replay] == [
+        (e.stage, step.conversation) for e, step in zip(probed, live, strict=True)
+    ]
+    for rebuilt, step in zip(replay, live, strict=True):
+        assert comparable(rebuilt.step.human_decisions) == comparable(
+            step.human_decisions
+        ), rebuilt.id
