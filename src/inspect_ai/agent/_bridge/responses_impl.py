@@ -1452,14 +1452,15 @@ def filter_duplicate_assistant_content(
     """Remove copied input items while preserving distinct output items.
 
     Output item IDs distinguish repeated text runs separated by reasoning or
-    tool use. For input without IDs, remove repeated copies of the complete
-    sequence rather than comparing individual text runs.
+    tool use. Remove copies of the complete sequence before comparing individual
+    items so that copies with only some IDs retain their original content order.
     """
-    if all(item_id is None and group for item_id, group in input) and any(
+    if all(group for _, group in input) and any(
         c.type == "text" and c.internal for _, group in input for c in group
     ):
         group_keys = [
-            tuple(json.dumps(jsonable_python(c)) for c in group) for _, group in input
+            (item_id, tuple(json.dumps(jsonable_python(c)) for c in group))
+            for item_id, group in input
         ]
         for size in range(1, len(input) // 2 + 1):
             if len(input) % size == 0 and group_keys == group_keys[:size] * (

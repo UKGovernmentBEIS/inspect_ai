@@ -3494,8 +3494,10 @@ async def test_a_computer_call_that_cant_replay_natively_replays_with_its_result
 
 
 @pytest.mark.parametrize("duplicate", [False, True])
+@pytest.mark.parametrize("reasoning_id", [None, "bridge_reasoning"])
 def test_responses_bridge_preserves_idless_text_around_reasoning(
     duplicate: bool,
+    reasoning_id: str | None,
 ) -> None:
     from typing import cast
 
@@ -3510,7 +3512,21 @@ def test_responses_bridge_preserves_idless_text_around_reasoning(
         list[ResponseInputItemParam],
         [
             {"role": "assistant", "content": "first" + content_internal_tag(state)},
-            {"role": "assistant", "content": "<think>middle</think>"},
+            {
+                "type": "message",
+                "id": reasoning_id,
+                "role": "assistant",
+                "status": "completed",
+                "content": [
+                    {
+                        "type": "output_text",
+                        "text": "<think>middle</think>",
+                        "annotations": [],
+                    }
+                ],
+            }
+            if reasoning_id is not None
+            else {"role": "assistant", "content": "<think>middle</think>"},
             {"role": "assistant", "content": "first" + content_internal_tag(state)},
         ],
     )
