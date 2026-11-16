@@ -59,7 +59,6 @@ from inspect_ai._util.content import (
     ContentAudio,
     ContentDocument,
     ContentImage,
-    ContentReasoning,
     ContentText,
     ContentToolUse,
     ContentVideo,
@@ -6876,8 +6875,10 @@ def surrogate_host_scaffold(outcome: Literal["result", "error"]) -> Agent:
     return execute
 
 
-SURROGATE_TEXT = "decoded \ud800 text"
-ESCAPED_SURROGATE_TEXT = "decoded \\ud800 text"
+SURROGATE_TEXT = "decoded \ud800 text of file a"
+"""A host result holding a lone surrogate, long enough to link by its JSON escape (`_MIN_CONTAINED_RESULT`)."""
+
+ESCAPED_SURROGATE_TEXT = "decoded \\ud800 text of file a"
 
 
 @pytest.mark.parametrize("outcome", ["result", "error"])
@@ -7725,83 +7726,6 @@ async def _host_result_link(
     return event.message_id == sent
 
 
-EMPTY_ANSWERS = {
-    "empty": ("", True),
-    "empty in json": (json.dumps({"output": ""}), True),
-    "empty content block": (json.dumps([{"type": "text", "text": ""}]), True),
-    "client timeout": (CLIENT_TIMEOUT, False),
-    "empty beside a timeout in json": (
-        json.dumps({"output": "", "error": CLIENT_TIMEOUT}),
-        False,
-    ),
-    "empty content block beside a timeout": (
-        json.dumps(
-            [{"type": "text", "text": ""}, {"type": "text", "text": CLIENT_TIMEOUT}]
-        ),
-        False,
-    ),
-}
-"""Answers to a host call returning empty text, and whether each holds its result."""
-
-
-@pytest.mark.parametrize("answer", list(EMPTY_ANSWERS))
-@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
-async def test_empty_host_result_links_only_an_empty_answer(
-    dialect: HostDialect, answer: str
-) -> None:
-    """An empty host result links an answer holding no text, however wrapped, but not one with a timeout beside an empty field."""
-    text, links = EMPTY_ANSWERS[answer]
-    assert await _host_result_link(dialect, "", lambda _: text) is links
-
-
-REASONING_TIMEOUT: JsonValue = [{"type": "reasoning", "reasoning": CLIENT_TIMEOUT}]
-"""A Completions tool answer holding a client timeout as reasoning, not media or text."""
-
-
-@pytest.mark.parametrize(
-    "result,answer,links",
-    [
-        pytest.param(
-            ContentImage(image=PNG),
-            REASONING_TIMEOUT,
-            False,
-            id="image answered by reasoning",
-        ),
-        pytest.param("", REASONING_TIMEOUT, False, id="empty answered by reasoning"),
-        pytest.param("", [], True, id="empty answered by no parts"),
-    ],
-)
-async def test_host_result_answered_by_reasoning_links_nothing(
-    result: ToolResult, answer: JsonValue, links: bool
-) -> None:
-    """Reasoning in a Completions tool answer is neither the media nor the empty text a host result needs.
-
-    The image control is a unit case (`test_host_result_evidence_in_an_answer`):
-    a model without tool result images gets the image in a new user message.
-    """
-    assert await _host_result_link("completions", result, lambda _: answer) is links
-
-
-TIMEOUT_WORDING = "Request timed out"
-"""A host result or error the wording of `CLIENT_TIMEOUT` holds."""
-
-
-@pytest.mark.parametrize("answered", ["reply", "client timeout"])
-@pytest.mark.parametrize("raised", [False, True], ids=["result", "error"])
-@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
-async def test_host_result_within_a_client_timeout_links_nothing(
-    dialect: HostDialect, raised: bool, answered: str
-) -> None:
-    """A host result or error within a client timeout's wording doesn't link that timeout; the scaffold's reply does."""
-    result = ToolError(TIMEOUT_WORDING) if raised else TIMEOUT_WORDING
-    links = await _host_result_link(
-        dialect,
-        result,
-        lambda text: text if answered == "reply" else CLIENT_TIMEOUT,
-    )
-    assert links is (answered == "reply")
-
-
 UNICODE_RESULT = "café menu\n" + "\n".join(
     f"{n}. crème brûlée, «tarte»" for n in range(60)
 )
@@ -7915,17 +7839,13 @@ async def test_host_error_links_the_answer_holding_the_error_raised(
 
 
 class _ServedHostCall(SandboxService):
-    """A sandbox service serving one queued `call_tool` request, its sandbox I/O faked.
-
-    `write` runs as the response is written, and may block or raise.
-    """
+    """A sandbox service serving one queued `call_tool` request, its sandbox I/O faked."""
 
     def __init__(
         self,
         bridge: SandboxAgentBridge,
         tool: str,
         arguments: dict[str, Any],
-        write: Callable[[], Awaitable[None]],
     ) -> None:
         super().__init__("bridge_model_service", cast(SandboxEnvironment, None))
         self.add_method("call_tool", call_host_tool(bridge))
@@ -7938,7 +7858,6 @@ class _ServedHostCall(SandboxService):
                 "params": {"server": "host", "tool": tool, "arguments": arguments},
             }
         )
-        self._write = write
         self.responses: list[dict[str, Any]] = []
 
     async def serve(self) -> None:
@@ -7949,28 +7868,22 @@ class _ServedHostCall(SandboxService):
         return ExecResult(success=True, returncode=0, stdout=self._request, stderr="")
 
     async def _write_text_file(self, dir: str, name: str, contents: str) -> None:
-        await self._write()
         self.responses.append(json.loads(contents))
 
     async def _remove_request_file(self, request_file: str) -> None:
         pass
 
 
-@pytest.mark.parametrize(
-    "shape", ["written", "answered before written", "write failed", "cancelled"]
-)
+@pytest.mark.parametrize("shape", ["result", "cancelled"])
 @pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
-async def test_host_result_links_only_once_its_response_is_written(
+async def test_host_call_served_by_the_sandbox_service_links_its_answer(
     dialect: HostDialect, shape: str
 ) -> None:
-    """A host call served by the sandbox service links only an answer sent after its response was written.
+    """A host call served by the sandbox service links the answer holding its result.
 
-    The scaffold can't hold the result before the service writes the RPC's
-    response, so an answer sent while the write is pending links nothing,
-    also when sent again after it. A response that is never written (the
-    write fails, or the call is cancelled) leaves the call unlinked whatever
-    the scaffold answers. As a control, an answer sent after the response
-    was written links.
+    A call cancelled before it completes is never answered with its result,
+    so it stays unlinked even when the scaffold's answer holds the error
+    Inspect records for it.
     """
     model = get_model(
         "mockllm/model",
@@ -7978,23 +7891,16 @@ async def test_host_result_links_only_once_its_response_is_written(
             tool_calls_output(
                 ToolCall(id="call_read", function="read_file", arguments={"path": "p"})
             ),
-            *[ModelOutput.from_content("mockllm/model", "Noted.")] * 2,
+            ModelOutput.from_content("mockllm/model", "Noted."),
         ],
     )
-    running, writing, release = anyio.Event(), anyio.Event(), anyio.Event()
+    running = anyio.Event()
 
     async def result(path: str) -> str:
         running.set()
         if shape == "cancelled":
             await anyio.sleep_forever()
         return _host_contents(path)
-
-    async def write() -> None:
-        writing.set()
-        if shape == "answered before written":
-            await release.wait()
-        if shape == "write failed":
-            raise RuntimeError("Failed to write the response")
 
     bridge = SandboxAgentBridge(
         state=AgentState(messages=[ChatMessageUser(content="Read p.")]),
@@ -8008,7 +7914,6 @@ async def test_host_result_links_only_once_its_response_is_written(
     )
     [info] = declare("read_file")
     conversation = _HostConversation(dialect, "Read p.", info)
-    # the answer holds the recorded result even where the scaffold can't have it
     answer = (
         "Host tool call was cancelled before completing."
         if shape == "cancelled"
@@ -8016,27 +7921,21 @@ async def test_host_result_links_only_once_its_response_is_written(
     )
     with recorded_transcript() as recorded:
         [(_, arguments)] = calls = await conversation.request(bridge)
-        service = _ServedHostCall(bridge, "read_file", arguments, write)
+        service = _ServedHostCall(bridge, "read_file", arguments)
         async with anyio.create_task_group() as tg:
             tg.start_soon(service.serve)
             if shape == "cancelled":
                 await running.wait()
                 tg.cancel_scope.cancel()
-            elif shape == "answered before written":
-                await writing.wait()
-                conversation.results(calls, [answer])
-                await conversation.request(bridge)
-                release.set()
-        if shape != "answered before written":
-            conversation.results(calls, [answer])
+        conversation.results(calls, [answer])
         await conversation.request(bridge)
 
     [event] = [e for e in recorded.events if isinstance(e, ToolEvent)]
     assert event.result == ("" if shape == "cancelled" else _host_contents("p"))
-    assert len(service.responses) == (shape in ("written", "answered before written"))
+    assert len(service.responses) == (shape == "result")
     model_events = [e for e in recorded.events if isinstance(e, ModelEvent)]
     [sent] = [m.id for m in model_events[-1].input if m.role == "tool"]
-    assert event.message_id == (sent if shape == "written" else None)
+    assert event.message_id == (sent if shape == "result" else None)
 
 
 def _tool_answer(content: str | list[Content]) -> ChatMessageTool:
@@ -8185,70 +8084,7 @@ DENIED = (
             False,
             id="short equal to a type tag",
         ),
-        pytest.param("", None, "", True, id="empty"),
-        pytest.param("", None, "[]", True, id="empty json"),
-        pytest.param("", None, CLIENT_TIMEOUT, False, id="empty answered by a timeout"),
-        pytest.param(
-            "",
-            None,
-            [ContentReasoning(reasoning=CLIENT_TIMEOUT)],
-            False,
-            id="empty answered by reasoning",
-        ),
-        pytest.param(
-            "",
-            None,
-            [ContentText(text=""), ContentReasoning(reasoning="")],
-            False,
-            # a part other than text fails closed
-            id="empty answered by empty text and reasoning",
-        ),
-        pytest.param(
-            TIMEOUT_WORDING,
-            None,
-            CLIENT_TIMEOUT,
-            False,
-            id="result within a timeout",
-        ),
-        pytest.param(
-            TIMEOUT_WORDING,
-            None,
-            json.dumps({"error": CLIENT_TIMEOUT}),
-            False,
-            id="result within a timeout in gemini json",
-        ),
-        pytest.param(
-            "timed out awaiting tools/call",
-            None,
-            "tool call error: timed out awaiting tools/call after 60s",
-            False,
-            id="result within a codex timeout",
-        ),
-        pytest.param(
-            "",
-            TIMEOUT_WORDING,
-            CLIENT_TIMEOUT,
-            False,
-            id="error within a timeout",
-        ),
-        pytest.param(
-            "",
-            TIMEOUT_WORDING,
-            MCP_ERROR + TIMEOUT_WORDING,
-            True,
-            id="error within a timeout as raised",
-        ),
-        *[
-            pytest.param("", None, text, holds, id=f"empty answered by {name}")
-            for name, (text, holds) in EMPTY_ANSWERS.items()
-        ],
-        pytest.param(
-            "",
-            None,
-            [ContentText(text=""), ContentText(text=CLIENT_TIMEOUT)],
-            False,
-            id="empty answered by an empty part beside a timeout",
-        ),
+        pytest.param("", None, "", False, id="empty"),
         *[
             pytest.param(
                 result,
@@ -8283,9 +8119,6 @@ DENIED = (
             "", MISSING_FILE, CLIENT_TIMEOUT, False, id="error answered by a timeout"
         ),
         pytest.param("", "", MCP_ERROR, False, id="error with no text"),
-        pytest.param(
-            "", "", "", False, id="error with no text answered by an empty message"
-        ),
         pytest.param("", "not found", MCP_ERROR + "not found", False, id="short error"),
         pytest.param(
             [ContentText(text=""), ContentText(text=LONG_RESULT)],
@@ -8298,22 +8131,8 @@ DENIED = (
             [ContentImage(image="data:image/png;base64,AAAA")],
             None,
             [ContentImage(image="data:image/png;base64,AAAA")],
-            True,
+            False,
             id="image",
-        ),
-        pytest.param(
-            [ContentImage(image="data:image/png;base64,AAAA")],
-            None,
-            CLIENT_TIMEOUT,
-            False,
-            id="image answered by a timeout",
-        ),
-        pytest.param(
-            [ContentImage(image="data:image/png;base64,AAAA")],
-            None,
-            [ContentReasoning(reasoning=CLIENT_TIMEOUT)],
-            False,
-            id="image answered by reasoning",
         ),
         pytest.param(
             MEDIA_RESULTS["captioned image"],
@@ -8407,9 +8226,10 @@ def test_host_result_evidence_in_an_answer(
     """An answer holds a host result when it holds the start of the first text the scaffold received for it, however wrapped; a short text must be a whole text of it.
 
     Media with no text reaches the scaffold as the RPC sends it: an image URL
-    or path as text, other media as JSON, an inline image as an image.
-    `error` is the text the RPC raised instead of returning `result`; the
-    prefix the service adds to it is no evidence.
+    or path as text, other media as JSON. A result with no text (empty, or an
+    inline image) holds nothing, so it links no answer. `error` is the text
+    the RPC raised instead of returning `result`; the prefix the service adds
+    to it is no evidence.
     """
     output, _ = _recorded_result("read_file", result, None)
     received = (

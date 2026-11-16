@@ -1,5 +1,4 @@
 import json
-import re
 from collections import Counter, deque
 from dataclasses import dataclass, field
 from enum import IntEnum
@@ -72,15 +71,6 @@ _RESULT_EVIDENCE = 256
 
 _MIN_CONTAINED_RESULT = 16
 """Shortest host tool result text a linked answer may hold among other text; a shorter one must be a whole text of the answer (`_answer_texts`)."""
-
-_CLIENT_TIMEOUTS = (
-    "MCP error -32001: Request timed out",
-    "timed out awaiting tools/call",
-)
-"""What scaffolds' MCP clients answer a call they gave up waiting on with (the MCP SDKs, Codex)."""
-
-_MEDIA_TYPES = frozenset({"image", "audio", "video", "document"})
-"""Content types of the media a host tool result may reach a scaffold as."""
 
 _MAX_RECENT_THREADS = 16
 """Recent requests and generations kept, each in place of the kept ones it extends, whose replies can contest a thread's placement (see `_contested`)."""
@@ -179,13 +169,7 @@ class _Received(NamedTuple):
     """What the scaffold received for a host tool call, which its result message must hold (`_holds_result`)."""
 
     text: str
-    """The start of a text the scaffold received, stripped, at most `_RESULT_EVIDENCE` characters (empty if it received none)."""
-
-    media: bool = False
-    """Whether, with no `text`, it received media (not text)."""
-
-    error: bool = False
-    """Whether `text` is the error the call raised instead of returning a result."""
+    """The start of the first text the scaffold received (for an error, the error's text), stripped, at most `_RESULT_EVIDENCE` characters (empty if it received none)."""
 
 
 class DispatchedCall(NamedTuple):
@@ -611,10 +595,9 @@ class AgentBridge:
         its content (`sent_in`, per tool message the latest earlier request
         that did), so it was first sent after the execution completed: a
         message sent before, or equal to one sent before, may hold another
-        result. The execution is awaited only once its result was handed to
-        the scaffold, but a scaffold that gave up on the call (its own client
-        timeout) answers it without the result, so the message must also hold
-        the result (`_holds_result`). Any other result settles
+        result. A scaffold that gave up on the call (its own client timeout)
+        answers it without the result after the execution completed, so the
+        message must also hold the result (`_holds_result`). Any other result settles
         the call unlinked, as does a result whose call id the dialect inferred
         from order (`inferred`). A call with no result yet keeps waiting.
         """
@@ -1421,48 +1404,35 @@ def _holds_result(answer: ChatMessageTool, received: _Received) -> bool:
     `answer`: a scaffold that gave up on the call (its own client timeout)
     answers it without the result, after the execution completed. Scaffolds
     reformat, wrap and truncate results, so the evidence is the start of the
-    received text (`_RESULT_EVIDENCE`) within the answer, within a string of
-    JSON the answer holds (`_answer_texts`), or JSON-escaped once or twice
-    within the answer's text, with or without ASCII escapes (a scaffold may
-    cut its JSON so it no longer parses, and a content result is JSON inside
-    the scaffold's JSON). An error with no text links nothing. A text shorter
-    than `_MIN_CONTAINED_RESULT` may appear in any message by chance, so it
-    must be a whole text of the answer. A text within a client timeout's
-    wording (`_CLIENT_TIMEOUTS`) links no answer holding that wording. With no
-    text, the answer must hold only text parts, each innermost text empty
-    (`_innermost_texts`: a timeout beside an empty field is not empty), or,
-    for media, hold a media part (`_MEDIA_TYPES`; reasoning is not media).
+    received text (the first `_RESULT_EVIDENCE` characters) within the
+    answer, within a string of JSON the answer holds (`_answer_texts`), or
+    JSON-escaped once or twice within the answer's text, with or without
+    ASCII escapes (a scaffold may cut its JSON so it no longer parses, and a
+    content result is JSON inside the scaffold's JSON). For an error, the
+    text is the error the RPC raised (`str()` of it, which for an OS error
+    differs from the message the event records), not counting the service's
+    `Error calling method call_tool:` prefix, which a denied call's answer
+    carries too. A text shorter than `_MIN_CONTAINED_RESULT` may appear in
+    any message by chance (a short error is shown behind a prefix), so it
+    must be a whole text of the answer. With no text (an empty result, an
+    inline image with no caption, an error with no text) nothing links.
     Linear in the answer's size: a few escapings of one bounded text are
     compared.
     """
-    if received.error and not received.text:
+    expected = received.text
+    if not expected:
         return False
-    expected = _escape_surrogates(received.text)
     texts = _answer_texts(answer)
-    if expected:
-        if any(
-            expected in timeout and timeout in text
-            for timeout in _CLIENT_TIMEOUTS
-            for text in texts
-        ):
-            return False
-        if len(expected) < _MIN_CONTAINED_RESULT:
-            return expected in texts
-        evidence = expected[:_RESULT_EVIDENCE]
-        forms = {evidence}
-        for ascii_once in (False, True):
-            escaped = json.dumps(evidence, ensure_ascii=ascii_once)[1:-1]
-            forms.add(escaped)
-            for ascii_twice in (False, True):
-                forms.add(json.dumps(escaped, ensure_ascii=ascii_twice)[1:-1])
-        return any(form in text for form in forms for text in texts)
-    if isinstance(answer.content, str):
-        return not received.media and not any(_innermost_texts(answer))
-    if received.media:
-        return any(content.type in _MEDIA_TYPES for content in answer.content)
-    return all(content.type == "text" for content in answer.content) and not any(
-        _innermost_texts(answer)
-    )
+    if len(expected) < _MIN_CONTAINED_RESULT:
+        return expected in texts
+    evidence = expected[:_RESULT_EVIDENCE]
+    forms = {evidence}
+    for ascii_once in (False, True):
+        escaped = json.dumps(evidence, ensure_ascii=ascii_once)[1:-1]
+        forms.add(escaped)
+        for ascii_twice in (False, True):
+            forms.add(json.dumps(escaped, ensure_ascii=ascii_twice)[1:-1])
+    return any(form in text for form in forms for text in texts)
 
 
 def _answer_texts(answer: ChatMessageTool) -> set[str]:
@@ -1470,44 +1440,27 @@ def _answer_texts(answer: ChatMessageTool) -> set[str]:
 
     Its text, each text part, and every string in JSON they hold (other than
     a `"type"` tag) are each a text, and so is every string in JSON such a
-    string holds, one level down; JSON holding no string counts as empty.
-    Scaffolds wrap results in JSON (a list of MCP content blocks, a Google
-    `functionResponse`), escaping them, and a host tool's content result
-    reaches them as JSON already. Each level parses strings of the level
-    above, so the work stays linear. A lone surrogate is compared in its
-    escaped form, as a JSON round trip may leave it (`_escape_surrogates`).
+    string holds, one level down. Scaffolds wrap results in JSON (a list of
+    MCP content blocks, a Google `functionResponse`), escaping them, and a
+    host tool's content result reaches them as JSON already. Each level
+    parses strings of the level above, so the work stays linear.
     """
+    parts = (
+        [answer.content]
+        if isinstance(answer.content, str)
+        else [content.text for content in answer.content if content.type == "text"]
+    )
     texts = {answer.text.strip()}
-    for part in _text_parts(answer):
+    for part in parts:
         texts.add(part.strip())
         for string in _json_strings(part) or []:
             texts.add(string)
             texts.update(_json_strings(string) or [])
-    return {_escape_surrogates(text) for text in texts}
-
-
-def _innermost_texts(answer: ChatMessageTool) -> list[str]:
-    """The texts of `answer` (`_answer_texts`) with the JSON wrapping them removed, stripped.
-
-    Per text part: the strings of JSON it holds, or of JSON such a string
-    holds, in place of that JSON; else the part.
-    """
-    texts: list[str] = []
-    for part in _text_parts(answer):
-        for string in _json_strings(part) or [part.strip()]:
-            texts.extend(_json_strings(string) or [string])
     return texts
 
 
-def _text_parts(answer: ChatMessageTool) -> list[str]:
-    """The text of `answer`, or each of its text parts."""
-    if isinstance(answer.content, str):
-        return [answer.content]
-    return [content.text for content in answer.content if content.type == "text"]
-
-
 def _json_strings(text: str) -> list[str] | None:
-    """The strings in `text` parsed as a JSON object or array, stripped, other than `"type"` tags; `[""]` if it holds none.
+    """The strings in `text` parsed as a JSON object or array, stripped, other than `"type"` tags.
 
     `None` if `text` isn't a JSON object or array.
     """
@@ -1529,15 +1482,7 @@ def _json_strings(text: str) -> list[str] | None:
             pending.extend((v, k) for k, v in item.items())
         elif isinstance(item, list):
             pending.extend((v, None) for v in item)
-    return strings or [""]
-
-
-_SURROGATE = re.compile("[\ud800-\udfff]")
-
-
-def _escape_surrogates(text: str) -> str:
-    """`text` with each surrogate code point written as its JSON escape."""
-    return _SURROGATE.sub(lambda match: f"\\u{ord(match.group()):04x}", text)
+    return strings
 
 
 def _unplaced_key(message: ChatMessage) -> str:
