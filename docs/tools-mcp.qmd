@@ -122,7 +122,7 @@ def map_task():
     )
 ```
 
-In this example we use all of the tool made available by the server. You can also select a subset of tools (this is covered below in [Tool Selection](#tool-selection)).
+In this example we use all of the tools made available by the server. You can also select a subset of tools (this is covered below in [Tool Selection](#tool-selection)).
 
 #### ToolSource
 
