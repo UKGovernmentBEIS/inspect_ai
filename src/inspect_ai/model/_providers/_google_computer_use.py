@@ -19,6 +19,7 @@ from ._google_computer_use_name import (
     gemini_computer_action_name,
     gemini_computer_action_names,
 )
+from ._google_reasoning import GeminiComputerCall
 
 # Default display dimensions matching MAX_SCALING_TARGETS["FWXGA"] in _x11_client.py.
 # These should stay in sync with the dimensions used by the container.
@@ -188,7 +189,25 @@ def gemini_replay_action_name(tool_call: ToolCall, sent: str | None = None) -> s
     return gemini_computer_action_name(tool_call.arguments)
 
 
-def gemini_replay_args(action_name: str, tool_call: ToolCall) -> dict[str, object]:
+def gemini_replay_args(
+    action_name: str, tool_call: ToolCall, sent: GeminiComputerCall | None = None
+) -> dict[str, object]:
+    """The arguments a computer call replays with as `action_name`.
+
+    The arguments it was `sent` with (from its reasoning anchor,
+    `gemini_computer_calls`) when it replays as that action and they still
+    parse as its arguments: this keeps fields Inspect does not parse
+    (`intent`) and coordinates that do not round-trip through screen pixels.
+    Otherwise they are rebuilt from its arguments, as for a call approval or
+    a filter changed.
+    """
+    if (
+        sent is not None
+        and sent.args is not None
+        and sent.action == action_name
+        and _parse_gemini_action(action_name, dict(sent.args)) == tool_call.arguments
+    ):
+        return dict(sent.args)
     # go_back, go_forward and search are parsed as other Inspect actions, so
     # their arguments are rebuilt in their own schema when that reproduces the
     # call's current arguments (which an edit may have changed).

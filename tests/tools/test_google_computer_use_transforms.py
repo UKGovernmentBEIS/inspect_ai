@@ -776,3 +776,192 @@ async def test_gemini_computer_results_under_a_shared_id_name_their_own_calls(
     ]
     assert calls == ["click_at", "type_text_at"]
     assert responses == [("click_at", "clicked"), ("type_text_at", "typed")]
+
+
+def _parsed_message(
+    *calls: tuple[str, dict[str, object]], call_id: str | None = None
+) -> ChatMessageAssistant:
+    """The message Inspect parses from a Gemini response with these computer calls."""
+    from google.genai.types import Candidate, Content, FinishReason, Part
+
+    from inspect_ai.model._providers.google import completion_choice_from_candidate
+
+    candidate = Candidate(
+        content=Content(
+            role="model",
+            parts=[
+                Part(
+                    function_call=FunctionCall(
+                        id=call_id or f"call_{i}", name=name, args=dict(args)
+                    ),
+                    thought_signature=b"signature" if i == 0 else None,
+                )
+                for i, (name, args) in enumerate(calls)
+            ],
+        ),
+        finish_reason=FinishReason.STOP,
+    )
+    return completion_choice_from_candidate(
+        "gemini-3-flash-preview", candidate, computer_use=True
+    ).message
+
+
+async def _replayed_calls(message: ChatMessageAssistant) -> list[FunctionCall]:
+    content = await google_content(MagicMock(), message)
+    return [p.function_call for p in content.parts or [] if p.function_call]
+
+
+# Calls with fields Inspect's computer arguments don't hold (`intent`), or with
+# coordinates that don't round-trip through screen pixels (y 2, 6 and 11 come
+# back as 3, 7 and 12).
+GEMINI_CALLS_WITH_UNPARSED_ARGS: list[tuple[str, dict[str, object]]] = [
+    ("go_back", {"intent": "Navigate back to the previous page."}),
+    ("go_forward", {"intent": "Go forward to the second page."}),
+    ("search", {"intent": "Go to the search engine."}),
+    ("search", {"query": "inspect ai", "intent": "Search for inspect ai."}),
+    ("open_web_browser", {"intent": "Open the browser."}),
+    ("navigate", {"url": "https://example.com", "intent": "Open the site."}),
+    ("click_at", {"x": 500, "y": 500, "intent": "Click the button."}),
+    ("click_at", {"x": 500, "y": 2}),
+    ("hover_at", {"x": 3, "y": 6}),
+    (
+        "type_text_at",
+        {"x": 500, "y": 11, "text": "hello", "intent": "Type the query."},
+    ),
+    ("key_combination", {"keys": "Control+C", "intent": "Copy."}),
+    ("scroll_at", {"x": 500, "y": 500, "direction": "up", "magnitude": 450}),
+    (
+        "drag_and_drop",
+        {"x": 100, "y": 2, "destination_x": 800, "destination_y": 6},
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "name,args",
+    GEMINI_CALLS_WITH_UNPARSED_ARGS,
+    ids=[f"{name}-{i}" for i, (name, _) in enumerate(GEMINI_CALLS_WITH_UNPARSED_ARGS)],
+)
+async def test_gemini_computer_call_replays_the_args_it_was_sent_with(
+    name: str, args: dict[str, object]
+) -> None:
+    message = _parsed_message((name, args))
+    [call] = message.tool_calls or []
+    assert "intent" not in call.arguments
+    # rebuilt from the Inspect call, the arguments differ
+    assert (await _replay(call)).args != args
+
+    [replayed] = await _replayed_calls(message)
+
+    assert (replayed.id, replayed.name, replayed.args) == (call.id, name, args)
+
+
+@pytest.mark.parametrize(
+    "name,args,edited,action,expected",
+    [
+        (
+            "click_at",
+            {"x": 500, "y": 2, "intent": "Click the link."},
+            {"action": "left_click", "coordinate": [683, 384]},
+            "click_at",
+            {"x": 500, "y": 500},
+        ),
+        (
+            "go_back",
+            {"intent": "Go back."},
+            {"action": "key", "text": "ctrl+c"},
+            "key_combination",
+            {"keys": "control+c"},
+        ),
+        (
+            "search",
+            {"query": "a query", "intent": "Search."},
+            {"action": "navigate", "text": "https://allowed.example"},
+            "search",
+            {"query": "https://allowed.example"},
+        ),
+    ],
+    ids=["click_at-moved", "go_back-key", "search-query"],
+)
+async def test_edited_gemini_computer_call_replays_rebuilt_args(
+    name: str,
+    args: dict[str, object],
+    edited: dict[str, object],
+    action: str,
+    expected: dict[str, object],
+) -> None:
+    message = _parsed_message((name, args))
+    [call] = message.tool_calls or []
+    call.arguments = edited
+
+    [replayed] = await _replayed_calls(message)
+
+    assert (replayed.name, replayed.args) == (action, expected)
+
+
+def test_gemini_computer_args_replay_only_under_the_action_they_were_sent_as() -> None:
+    from inspect_ai.model._providers._google_computer_use import gemini_replay_args
+    from inspect_ai.model._providers._google_reasoning import GeminiComputerCall
+
+    # an action Inspect doesn't know parses as a screenshot, which replays as
+    # wait_5_seconds; the arguments it was sent with are not that action's
+    call = ToolCall(
+        id="call", function="computer", arguments={"action": "wait", "duration": 5}
+    )
+    sent = GeminiComputerCall("unknown_action", {"intent": "Wait."})
+
+    assert gemini_replay_args("wait_5_seconds", call, sent) == {}
+    assert gemini_replay_args(
+        "wait_5_seconds", call, sent._replace(action="wait_5_seconds")
+    ) == {"intent": "Wait."}
+
+
+async def test_gemini_computer_call_logged_without_its_args_replays_rebuilt_args() -> (
+    None
+):
+    message = _parsed_message(("go_back", {"intent": "Go back."}))
+    assert not isinstance(message.content, str)
+    for part in message.content:
+        assert isinstance(part.internal, dict)
+        del part.internal["gemini_computer_args"]
+    logged = ChatMessageAssistant.model_validate_json(message.model_dump_json())
+
+    [replayed] = await _replayed_calls(logged)
+
+    assert (replayed.name, replayed.args) == ("go_back", {})
+
+
+async def test_gemini_computer_call_args_survive_a_logged_message() -> None:
+    args = {"x": 500, "y": 2, "intent": "Click the link."}
+    message = _parsed_message(("click_at", args))
+    logged = ChatMessageAssistant.model_validate_json(message.model_dump_json())
+
+    [replayed] = await _replayed_calls(logged)
+
+    assert (replayed.name, replayed.args) == ("click_at", args)
+
+
+async def test_gemini_computer_calls_under_a_shared_id_replay_rebuilt_args() -> None:
+    message = _parsed_message(
+        ("click_at", {"x": 500, "y": 2, "intent": "Click."}),
+        ("go_back", {"intent": "Go back."}),
+        call_id="shared",
+    )
+
+    replayed = await _replayed_calls(message)
+
+    assert [(c.name, c.args) for c in replayed] == [
+        ("click_at", {"x": 500, "y": 3}),
+        ("key_combination", {"keys": "alt+left"}),
+    ]
+
+
+async def test_gemini_computer_call_args_leave_out_its_safety_decision() -> None:
+    args = {"x": 500, "y": 500, "intent": "Click."}
+    message = _parsed_message(
+        ("click_at", {**args, "safety_decision": {"decision": "require_confirmation"}})
+    )
+
+    [replayed] = await _replayed_calls(message)
+
+    assert replayed.args == args
