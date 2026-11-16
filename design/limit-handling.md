@@ -1813,7 +1813,7 @@ Each step is one PR, in this order. Each keeps the suite green.
    `cost_limit()`, `turn_limit()`, `suspend_token_limit()`, `apply_limits()`
    and `run()`.
 
-inspect_swarm adapts in its own repository once step 2 is released: its
+inspect_swarm adapts in its own repository, alongside step 2: its
 `_SwarmTurnNode._check_self()` takes `raise_for_equal`, and its
 `SwarmCostNode._check_self()` routes the unmetered mark through
 `exceeded()`, with tests for a cap marked by an unpriced model and by a
