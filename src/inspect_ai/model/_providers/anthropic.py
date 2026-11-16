@@ -148,6 +148,8 @@ from inspect_ai._util.http import (
 )
 from inspect_ai._util.http_defaults_httpx2 import (
     DEFAULT_REQUEST_TIMEOUT,
+    REQUEST_TIMEOUT_ENV,
+    connect_timeout,
     default_async_client,
     default_timeout,
 )
@@ -246,6 +248,12 @@ from .util import (
 from .util.hooks import HttpxHooks
 
 logger = getLogger(__name__)
+
+ANTHROPIC_GENERATE_TIMEOUT = 1800.0
+"""Read deadline (seconds) for generate calls."""
+
+AUTO_STREAMING_MAX_TOKENS = 8192
+"""`max_tokens` at or above which generate streams by default."""
 
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 AZUREAI_ANTHROPIC_API_KEY = "AZUREAI_ANTHROPIC_API_KEY"
@@ -544,6 +552,43 @@ class AnthropicAPI(ModelAPI):
         )
         model_args["http_client"] = default_async_client()
         return model_args
+
+    def _generate_timeout(
+        self, request: dict[str, Any], streaming: bool
+    ) -> httpx2.Timeout | anthropic.NotGiven:
+        """Request budget for a generate call.
+
+        A non-streaming response sends nothing until the whole message is
+        ready, and a proxy that buffers server-sent events does the same to a
+        streaming one, so a very long input can outlast the SDK's 10 minute
+        read deadline. That timeout is retried, every attempt fails the same
+        way, and with Inspect's default unlimited retries the sample never
+        finishes, so the read deadline is raised.
+
+        A budget set by the caller (`timeout` model arg or
+        `INSPECT_HTTP_REQUEST_TIMEOUT`) is left alone. So is a non-streaming
+        request above the auto-streaming threshold: an explicit timeout would
+        skip the SDK's check that rejects non-streaming requests whose output
+        may take longer than 10 minutes.
+        """
+        if (
+            "timeout" in self.model_args
+            or os.environ.get(REQUEST_TIMEOUT_ENV, "").strip()
+            or self.client.timeout != anthropic.DEFAULT_TIMEOUT
+        ):
+            return anthropic.NOT_GIVEN
+        if (
+            not streaming
+            and (request.get("max_tokens") or 0) > AUTO_STREAMING_MAX_TOKENS
+        ):
+            return anthropic.NOT_GIVEN
+        sdk_timeout = anthropic.DEFAULT_TIMEOUT
+        return httpx2.Timeout(
+            connect=connect_timeout(),
+            read=ANTHROPIC_GENERATE_TIMEOUT,
+            write=sdk_timeout.write,
+            pool=sdk_timeout.pool,
+        )
 
     def _create_client(
         self,
@@ -1301,10 +1346,14 @@ class AnthropicAPI(ModelAPI):
                 )
             head_message = await self._batcher.generate_for_request(request)
         elif streaming:
-            async with self.client.messages.stream(**request) as stream:
+            async with self.client.messages.stream(
+                **request, timeout=self._generate_timeout(request, True)
+            ) as stream:
                 head_message, _ = await _capture_compaction_from_stream(stream)
         else:
-            head_message = await self.client.messages.create(**request, stream=False)
+            head_message = await self.client.messages.create(
+                **request, stream=False, timeout=self._generate_timeout(request, False)
+            )
 
         head_model_output, continuation_required = await model_output_from_message(
             self.client,
@@ -1778,7 +1827,8 @@ class AnthropicAPI(ModelAPI):
     # see https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests
     def auto_streaming(self, config: GenerateConfig) -> bool:
         return self.is_using_thinking(config) or (
-            config.max_tokens is not None and config.max_tokens >= 8192
+            config.max_tokens is not None
+            and config.max_tokens >= AUTO_STREAMING_MAX_TOKENS
         )
 
     def is_thinking_model(self) -> bool:
@@ -4610,6 +4660,20 @@ async def model_output_from_message(
         output_tokens = sum(
             it.get("output_tokens", 0) for it in iterations if isinstance(it, dict)
         )
+        cache_writes = [
+            it.get("cache_creation_input_tokens")
+            for it in iterations
+            if isinstance(it, dict)
+        ]
+        cache_reads = [
+            it.get("cache_read_input_tokens")
+            for it in iterations
+            if isinstance(it, dict)
+        ]
+        if any(v is not None for v in cache_writes):
+            input_tokens_cache_write = sum(v or 0 for v in cache_writes)
+        if any(v is not None for v in cache_reads):
+            input_tokens_cache_read = sum(v or 0 for v in cache_reads)
         # the first iteration read the request's input (later ones read a
         # compacted or extended version of it)
         first = next((it for it in iterations if isinstance(it, dict)), None)
@@ -5486,6 +5550,7 @@ async def _capture_compaction_from_stream(
     """
     compaction_content: str | None = None
     container: Container | None = None
+    iterations: Any = None
     # tool_use blocks by content index, so input_json_delta fragments can be
     # attributed to their call id / function when reported as stream deltas
     tool_blocks: dict[int, Any] = {}
@@ -5545,6 +5610,7 @@ async def _capture_compaction_from_stream(
                 report_model_stream_progress()
         elif event.type == "message_delta":
             usage = getattr(event, "usage", None)
+            iterations = getattr(usage, "iterations", None) or iterations
             report_model_stream_progress(
                 getattr(usage, "output_tokens", None) if usage is not None else None
             )
@@ -5556,6 +5622,10 @@ async def _capture_compaction_from_stream(
     # WORKAROUND (see above): patch the container the SDK snapshot dropped
     if message.container is None and container is not None:
         message.container = container
+
+    # patch the usage.iterations the SDK snapshot dropped
+    if iterations is not None and getattr(message.usage, "iterations", None) is None:
+        setattr(message.usage, "iterations", iterations)
 
     # Fix up compaction blocks with captured content
     if compaction_content is not None:

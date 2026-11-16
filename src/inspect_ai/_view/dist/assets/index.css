@@ -1062,7 +1062,7 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   font-size: var(--inspect-font-size-smallest);
   padding: 0.1em 0.5em;
 }
-._outer_i2ek3_1 {
+._outer_6cugq_1 {
   /* Positioned so the block-left sticky toggle's containing block is this
      wrapper — keeps sticky behavior scoped to the panel instead of leaking
      to some arbitrary positioned ancestor up the tree. */
@@ -1078,11 +1078,11 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   flex-grow: 1;
 }
 
-._expandablePanel_i2ek3_17 {
+._expandablePanel_6cugq_17 {
   position: relative;
 }
 
-._expandableBordered_i2ek3_21 {
+._expandableBordered_6cugq_21 {
   border: solid var(--bs-light-border-subtle) 1px;
   padding: 0.5em;
 }
@@ -1099,16 +1099,11 @@ button._segment_116ql_10._disabled_116ql_51:hover {
    gradient) so the affordance works on any surface, regardless of the
    panel's bg. The inline-right toggle is a sibling of this wrapper, so it
    stays fully opaque. */
-._expandableTruncated_i2ek3_38 {
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    black calc(100% - 3rem),
-    transparent
-  );
+._expandableTruncated_6cugq_38 {
   mask-image: linear-gradient(to bottom, black calc(100% - 3rem), transparent);
 }
 
-._moreToggle_i2ek3_47 {
+._moreToggle_6cugq_42 {
   display: flex;
   margin-top: 0;
   height: 20px;
@@ -1118,14 +1113,14 @@ button._segment_116ql_10._disabled_116ql_51:hover {
   color: var(--bs-link-color);
 }
 
-._moreToggle_i2ek3_47._bordered_i2ek3_57 {
+._moreToggle_6cugq_42._bordered_6cugq_52 {
   border-top: solid var(--bs-light-border-subtle) 1px;
 }
 
 /* Double class beats Bootstrap's `.btn` regardless of stylesheet order —
    in scout, Bootstrap loads after this module and its 6px 12px padding
    overflowed the fixed-height toggle bar. */
-._moreToggle_i2ek3_47 ._moreToggleButton_i2ek3_64 {
+._moreToggle_6cugq_42 ._moreToggleButton_6cugq_59 {
   font-size: var(--inspect-font-size-smaller);
   border: none;
   padding: 0rem 0.5rem;
@@ -1136,7 +1131,7 @@ button._segment_116ql_10._disabled_116ql_51:hover {
 /* Fills the panel so its sticky child is bounded by the panel's rect.
    pointer-events: none lets clicks pass through to the content behind;
    the sticky child re-enables pointer events on itself. */
-._inlineToggleHolder_i2ek3_75 {
+._inlineToggleHolder_6cugq_70 {
   position: absolute;
   inset: 0;
   display: flex;
@@ -1153,13 +1148,13 @@ button._segment_116ql_10._disabled_116ql_51:hover {
    becomes that container and pins the toggle to the panel's bottom edge —
    off screen for a panel taller than the viewport. Consumers that round a
    frame's corners must use `overflow: clip`, not `hidden`. */
-._inlineToggleSticky_i2ek3_92 {
+._inlineToggleSticky_6cugq_87 {
   position: sticky;
   bottom: 0.25em;
   pointer-events: auto;
 }
 
-._moreToggle_i2ek3_47._blockLeft_i2ek3_98 {
+._moreToggle_6cugq_42._blockLeft_6cugq_93 {
   width: fit-content;
   margin-top: 0.2em;
   margin-bottom: 0.5em;
@@ -1174,7 +1169,7 @@ button._segment_116ql_10._disabled_116ql_51:hover {
    panel's own toggle; static, a clipped-away toggle stays out of sight.
    Block-left toggles stay sticky: they sit on the other side.
    `static` (not `relative`) so the stacking `bottom` doesn't shift it. */
-._collapsedContent_i2ek3_113 ._inlineToggleSticky_i2ek3_92 {
+._collapsedContent_6cugq_108 ._inlineToggleSticky_6cugq_87 {
   position: static;
 }
 ._carouselThumbs_1dfia_1 {
@@ -16761,7 +16756,7 @@ a._citationLink_1gzkd_9:hover {
 ._interactive_1c7cn_25:hover {
   background: var(--inspect-msg-label-bg-hover);
 }
-._bar_pg4l8_1 {
+._bar_1wkhg_1 {
   --glint: rgba(64, 72, 104, 0.1);
   --label: #5c5c63;
 
@@ -16778,7 +16773,7 @@ a._citationLink_1gzkd_9:hover {
   background: var(--bs-body-bg);
 }
 
-._bar_pg4l8_1::before {
+._bar_1wkhg_1::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -16791,14 +16786,14 @@ a._citationLink_1gzkd_9:hover {
   );
   background-size: 220% 100%;
   background-repeat: no-repeat;
-  animation: _gen-sweep_pg4l8_1 2.8s linear infinite;
+  animation: _gen-sweep_1wkhg_1 2.8s linear infinite;
 }
 
-._barLabelOnly_pg4l8_34 {
+._barLabelOnly_1wkhg_34 {
   justify-content: flex-start;
 }
 
-._label_pg4l8_38 {
+._label_1wkhg_38 {
   position: relative;
   font-weight: 400;
   font-size: 13.5px;
@@ -16807,24 +16802,24 @@ a._citationLink_1gzkd_9:hover {
   color: var(--label);
 }
 
-._ell_pg4l8_47 {
+._ell_1wkhg_47 {
   display: inline-flex;
 }
 
-._ell_pg4l8_47 i {
+._ell_1wkhg_47 i {
   font-style: normal;
-  animation: _gen-ell_pg4l8_1 1.5s ease-in-out infinite both;
+  animation: _gen-ell_1wkhg_1 1.5s ease-in-out infinite both;
 }
 
-._ell_pg4l8_47 i:nth-child(2) {
+._ell_1wkhg_47 i:nth-child(2) {
   animation-delay: 0.18s;
 }
 
-._ell_pg4l8_47 i:nth-child(3) {
+._ell_1wkhg_47 i:nth-child(3) {
   animation-delay: 0.36s;
 }
 
-._attempt_pg4l8_64 {
+._attempt_1wkhg_64 {
   position: relative;
   font-family: var(--bs-font-monospace);
   font-size: 11px;
@@ -16834,7 +16829,7 @@ a._citationLink_1gzkd_9:hover {
   background: color-mix(in oklab, var(--bs-secondary-color) 15%, transparent);
 }
 
-@keyframes _gen-sweep_pg4l8_1 {
+@keyframes _gen-sweep_1wkhg_1 {
   0% {
     background-position: 180% 0;
   }
@@ -16843,7 +16838,7 @@ a._citationLink_1gzkd_9:hover {
   }
 }
 
-@keyframes _gen-ell_pg4l8_1 {
+@keyframes _gen-ell_1wkhg_1 {
   0%,
   80%,
   100% {
@@ -16854,23 +16849,21 @@ a._citationLink_1gzkd_9:hover {
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  ._bar_pg4l8_1 {
-    --glint: rgba(255, 255, 255, 0.08);
-    --label: #c2c2c9;
-  }
+[data-bs-theme="dark"] ._bar_1wkhg_1 {
+  --glint: rgba(255, 255, 255, 0.08);
+  --label: #c2c2c9;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  ._bar_pg4l8_1::before,
-  ._ell_pg4l8_47 i {
+  ._bar_1wkhg_1::before,
+  ._ell_1wkhg_47 i {
     animation: none;
   }
-  ._ell_pg4l8_47 i {
+  ._ell_1wkhg_47 i {
     opacity: 0.55;
   }
 }
-._bar_q6epo_1 {
+._bar_14x5r_1 {
   --glint: rgba(64, 72, 104, 0.1);
   --label: #5c5c63;
 
@@ -16886,7 +16879,7 @@ a._citationLink_1gzkd_9:hover {
   background: var(--bs-body-bg);
 }
 
-._bar_q6epo_1::before {
+._bar_14x5r_1::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -16899,21 +16892,21 @@ a._citationLink_1gzkd_9:hover {
   );
   background-size: 220% 100%;
   background-repeat: no-repeat;
-  animation: _le-sweep_q6epo_1 2.8s linear infinite;
+  animation: _le-sweep_14x5r_1 2.8s linear infinite;
 }
 
-._compact_q6epo_33 {
+._compact_14x5r_33 {
   border: none;
   background: transparent;
   padding: 8px;
   gap: 8px;
 }
 
-._compact_q6epo_33::before {
+._compact_14x5r_33::before {
   display: none;
 }
 
-._spinner_q6epo_44 {
+._spinner_14x5r_44 {
   position: relative;
   flex: none;
   width: 14px;
@@ -16921,10 +16914,10 @@ a._citationLink_1gzkd_9:hover {
   border-radius: 50%;
   border: 2px solid color-mix(in oklab, var(--label) 25%, transparent);
   border-top-color: var(--label);
-  animation: _le-spin_q6epo_1 0.8s linear infinite;
+  animation: _le-spin_14x5r_1 0.8s linear infinite;
 }
 
-._label_q6epo_55 {
+._label_14x5r_55 {
   position: relative;
   font-weight: 400;
   font-size: 13.5px;
@@ -16933,28 +16926,28 @@ a._citationLink_1gzkd_9:hover {
   color: var(--label);
 }
 
-._compact_q6epo_33 ._label_q6epo_55 {
+._compact_14x5r_33 ._label_14x5r_55 {
   font-size: 11.5px;
 }
 
-._ell_q6epo_68 {
+._ell_14x5r_68 {
   display: inline-flex;
 }
 
-._ell_q6epo_68 i {
+._ell_14x5r_68 i {
   font-style: normal;
-  animation: _le-ell_q6epo_1 1.5s ease-in-out infinite both;
+  animation: _le-ell_14x5r_1 1.5s ease-in-out infinite both;
 }
 
-._ell_q6epo_68 i:nth-child(2) {
+._ell_14x5r_68 i:nth-child(2) {
   animation-delay: 0.18s;
 }
 
-._ell_q6epo_68 i:nth-child(3) {
+._ell_14x5r_68 i:nth-child(3) {
   animation-delay: 0.36s;
 }
 
-@keyframes _le-sweep_q6epo_1 {
+@keyframes _le-sweep_14x5r_1 {
   0% {
     background-position: 180% 0;
   }
@@ -16963,13 +16956,13 @@ a._citationLink_1gzkd_9:hover {
   }
 }
 
-@keyframes _le-spin_q6epo_1 {
+@keyframes _le-spin_14x5r_1 {
   to {
     transform: rotate(360deg);
   }
 }
 
-@keyframes _le-ell_q6epo_1 {
+@keyframes _le-ell_14x5r_1 {
   0%,
   80%,
   100% {
@@ -16980,20 +16973,18 @@ a._citationLink_1gzkd_9:hover {
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  ._bar_q6epo_1 {
-    --glint: rgba(255, 255, 255, 0.08);
-    --label: #c2c2c9;
-  }
+[data-bs-theme="dark"] ._bar_14x5r_1 {
+  --glint: rgba(255, 255, 255, 0.08);
+  --label: #c2c2c9;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  ._bar_q6epo_1::before,
-  ._spinner_q6epo_44,
-  ._ell_q6epo_68 i {
+  ._bar_14x5r_1::before,
+  ._spinner_14x5r_44,
+  ._ell_14x5r_68 i {
     animation: none;
   }
-  ._ell_q6epo_68 i {
+  ._ell_14x5r_68 i {
     opacity: 0.55;
   }
 }
@@ -23953,6 +23944,135 @@ a._turnButton_loteg_100 {
 ._eventsList_sou2s_45 {
   padding-bottom: 1rem;
 }
+/* A message's own line breaks, wrapped to the column; three-line-clamp caps it. */
+._contentLines_1rjek_2 {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+._view_1pobl_1 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  width: 100%;
+  padding: 0.6em 1em 1em;
+}
+
+._grid_1pobl_9 {
+  position: relative;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  overflow: hidden;
+}
+
+._send_1pobl_16 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  padding: 0.5em 0.7em;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  background: var(--bs-body-bg);
+}
+
+._sendRefused_1pobl_26 {
+  border-color: var(--bs-danger);
+}
+
+._header_1pobl_30,
+._line_1pobl_31 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.5em;
+  min-width: 0;
+}
+
+._line_1pobl_31 {
+  padding: 0.1em 0.7em;
+}
+
+._time_1pobl_43 {
+  font-variant-numeric: tabular-nums;
+}
+
+._agent_1pobl_47 {
+  font-weight: 600;
+}
+
+._meta_1pobl_51 {
+  margin-left: auto;
+}
+
+._detail_1pobl_55 {
+  overflow-wrap: anywhere;
+}
+
+._content_1pobl_59 {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+._refused_1pobl_64 {
+  color: var(--bs-danger);
+}
+._container_1tduz_1 {
+  display: flex;
+  flex-direction: column;
+  row-gap: 0.25rem;
+  min-width: 10rem;
+}
+
+._row_1tduz_8 {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin-bottom: 0;
+}
+
+._checkbox_1tduz_15 {
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+._statusCell_4ypz5_1 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Fill the grid cell so the icon centers within the column (the DataGrid
+   * cell is a flex box that would otherwise leave this content-sized box
+   * flush-left). Matches the AG grid, where the block cell filled the width. */
+  width: 100%;
+}
+
+._error_4ypz5_11 {
+  color: var(--bs-danger);
+}
+
+._success_4ypz5_15 {
+  color: var(--bs-success);
+}
+
+._cancelled_4ypz5_19 {
+  color: var(--bs-secondary);
+}
+/* Cell helpers exposed for column renderers. */
+._cell_8nkqa_2 {
+  line-height: var(--bs-body-line-height);
+}
+
+._wrapAnywhere_8nkqa_6 {
+  overflow-wrap: break-word;
+}
+
+._noLeft_8nkqa_10 {
+  padding-left: 0;
+}
+
+._score_8nkqa_14 {
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 ._tabControls_6sqvk_1 {
   position: sticky;
   z-index: 1001;
@@ -24160,27 +24280,6 @@ a._turnButton_loteg_100 {
   margin: 0.5em 0;
   font-size: clamp(0.3rem, 1.1vw, 0.8rem) !important;
 }
-._statusCell_4ypz5_1 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* Fill the grid cell so the icon centers within the column (the DataGrid
-   * cell is a flex box that would otherwise leave this content-sized box
-   * flush-left). Matches the AG grid, where the block cell filled the width. */
-  width: 100%;
-}
-
-._error_4ypz5_11 {
-  color: var(--bs-danger);
-}
-
-._success_4ypz5_15 {
-  color: var(--bs-success);
-}
-
-._cancelled_4ypz5_19 {
-  color: var(--bs-secondary);
-}
 ._row_5mttp_1 {
   display: flex;
   gap: 16px;
@@ -24335,25 +24434,6 @@ a._turnButton_loteg_100 {
 ._message_x9ww7_19 {
   text-align: center;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* Cell helpers exposed for column renderers. */
-._cell_8nkqa_2 {
-  line-height: var(--bs-body-line-height);
-}
-
-._wrapAnywhere_8nkqa_6 {
-  overflow-wrap: break-word;
-}
-
-._noLeft_8nkqa_10 {
-  padding-left: 0;
-}
-
-._score_8nkqa_14 {
-  text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -26407,24 +26487,6 @@ pre._value_8citi_25 {
    * sample count past the viewport. Shrinking to the pane makes the grid
    * the horizontal scroller and keeps the footer pinned in view. */
   min-width: 0;
-}
-._container_1tduz_1 {
-  display: flex;
-  flex-direction: column;
-  row-gap: 0.25rem;
-  min-width: 10rem;
-}
-
-._row_1tduz_8 {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  margin-bottom: 0;
-}
-
-._checkbox_1tduz_15 {
-  margin-right: 0.5rem;
-  cursor: pointer;
 }
 ._root_1dunz_1 {
   display: flex;

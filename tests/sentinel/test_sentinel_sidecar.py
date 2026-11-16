@@ -2,6 +2,7 @@ import contextlib
 import json
 import logging
 from collections.abc import Awaitable, Callable
+from math import inf, nan
 from pathlib import Path
 from typing import Any, Literal
 
@@ -30,8 +31,8 @@ from inspect_ai._sentinel._sidecar._endpoint import (
     proxy_client,
 )
 from inspect_ai._sentinel._sidecar._events import SIDECAR_METADATA
-from inspect_ai._sentinel._sidecar._lookup import RESULT_WAIT
-from inspect_ai._sentinel._sidecar._received import receiving_call
+from inspect_ai._sentinel._sidecar._lookup import RESULT_WAIT, request_result
+from inspect_ai._sentinel._sidecar._received import ReceivedCall, receiving_call
 from inspect_ai._sentinel._sidecar._sign import model_request_message, sign
 from inspect_ai._sentinel._sidecar._task import (
     MONITOR_STATE_COPY,
@@ -67,6 +68,8 @@ from inspect_ai.model import (
     ModelOutput,
     get_model,
 )
+from inspect_ai.model._model_data.model_data import ModelCost
+from inspect_ai.model._model_info import clear_model_info_cache, set_model_cost
 from inspect_ai.model._providers.util.hooks import HttpxHooks
 from inspect_ai.scorer import (
     Score,
@@ -2640,6 +2643,719 @@ def test_each_report_says_which_models_judged_it(
         assert warnings == []
 
 
+_JUDGING_USAGE: list[dict[str, Any]] = [
+    {
+        "role": "monitor",
+        "model": "anthropic/claude-judge",
+        "usage": {
+            "input_tokens": 900,
+            "output_tokens": 100,
+            "total_tokens": 1000,
+            "total_cost": 0.5,
+        },
+    },
+    {
+        "model": "openai/gpt-judge",
+        "usage": {"input_tokens": 40, "output_tokens": 10, "total_tokens": 50},
+    },
+]
+
+
+def test_the_sidecars_judging_usage_is_in_the_usage_and_toward_no_limit() -> None:
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(
+                judgment={"outcome": "proceed", "steps": []},
+                judging={"judging_usage": _JUDGING_USAGE},
+            )
+        ]
+    )
+    # the judge's 1,050 tokens and $0.50 would cross both, if they counted
+    task = Task(
+        dataset=[Sample(input="What's the weather?")],
+        solver=[generate()],
+        token_limit=100,
+        cost_limit=0.1,
+    )
+
+    # a cost limit needs the agent's model priced
+    set_model_cost(
+        "anthropic/claude-haiku-4-5",
+        ModelCost(input=1.0, output=5.0, input_cache_write=1.25, input_cache_read=0.1),
+    )
+    try:
+        [log] = eval(task, model=_model(stand_in), display="none")
+    finally:
+        clear_model_info_cache()
+
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert (sample.error, sample.limit) == (None, None)
+    # beside the agent's own usage, by model and by role, as in process: a
+    # model the monitor named is the 'sentinel' role's
+    for usage in (sample.model_usage, log.stats.model_usage):
+        assert usage["anthropic/claude-haiku-4-5"].total_tokens == 7
+        assert usage["anthropic/claude-judge"].total_tokens == 1000
+        assert usage["anthropic/claude-judge"].total_cost == 0.5
+        assert usage["openai/gpt-judge"].total_tokens == 50
+    for usage in (sample.role_usage, log.stats.role_usage):
+        assert usage["monitor"].total_tokens == 1000
+        assert usage["sentinel"].total_tokens == 50
+
+
+_REJECTED_WHOLE = {
+    "status": 400,
+    "judgment": {
+        "outcome": "reject",
+        "withheld": {
+            "message": _turn_json(("call_1", None)),
+            "results": {"call_1": "Oslo is not allowed."},
+            "redacted": ["call_1"],
+        },
+    },
+}
+
+
+def _judge_usage(tokens: int) -> list[dict[str, Any]]:
+    return [
+        {
+            "role": "monitor",
+            "model": "anthropic/claude-judge",
+            "usage": {
+                "input_tokens": tokens,
+                "output_tokens": 0,
+                "total_tokens": tokens,
+            },
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("first_judged", "judge_tokens"),
+    [(True, 1100), (False, 100)],
+    ids=["asked about", "unknown to the sidecar"],
+)
+def test_the_judging_usage_of_an_attempt_inspect_retried_is_recorded(
+    first_judged: bool, judge_tokens: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The first attempt's request is judged, with the judge's 1,000 tokens
+    # billed, and the provider fails it. Inspect retries it under another
+    # request id, whose judging bills 100 more.
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(
+                status=529,
+                judgment={"outcome": "proceed", "steps": []} if first_judged else None,
+                judging={"judging_usage": _judge_usage(1000)},
+            ),
+            Turn(
+                judgment={"outcome": "proceed", "steps": []},
+                judging={"judging_usage": _judge_usage(100)},
+            ),
+        ]
+    )
+    # no retries in the provider's SDK, so Inspect retries the call itself;
+    # its backoff is not waited out
+    model = get_model(
+        _MODELS["anthropic"],
+        base_url="http://proxy.test",
+        api_key="test-key",
+        memoize=False,
+        http_client=stand_in.http_client(),
+        max_retries=0,
+    )
+    monkeypatch.setattr(model.api, "retry_wait", lambda: wait_none())
+
+    [log] = eval(
+        Task(dataset=[Sample(input="Hi.")], solver=generate()),
+        model=model,
+        display="none",
+    )
+
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is None
+    assert sample.model_usage["anthropic/claude-judge"].total_tokens == judge_tokens
+    unavailable = [
+        e
+        for e in sample.events
+        if isinstance(e, InfoEvent)
+        and isinstance(e.data, dict)
+        and e.data.get("judging_usage") == "unavailable"
+    ]
+    # usage that can't be had is noted, so it reads as unknown rather than none
+    assert len(unavailable) == (0 if first_judged else 1)
+
+
+def test_an_earlier_attempt_still_being_judged_is_noted_as_incomplete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The sidecar is still judging the first attempt, which Inspect retried,
+    # and has billed 300 judge tokens for it so far. The retry's judging
+    # bills 100.
+    def still_judging(params: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "id": params["id"],
+            "records": "held",
+            "state": "judging",
+            "judging_usage": _judge_usage(300),
+        }
+
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(status=529),
+            Turn(
+                judgment={"outcome": "proceed", "steps": []},
+                judging={"judging_usage": _judge_usage(100)},
+            ),
+        ],
+        methods={"request_result": still_judging},
+    )
+    model = get_model(
+        _MODELS["anthropic"],
+        base_url="http://proxy.test",
+        api_key="test-key",
+        memoize=False,
+        http_client=stand_in.http_client(),
+        max_retries=0,
+    )
+    monkeypatch.setattr(model.api, "retry_wait", lambda: wait_none())
+
+    [log] = eval(
+        Task(dataset=[Sample(input="Hi.")], solver=generate()),
+        model=model,
+        display="none",
+    )
+
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is None
+    # what was billed so far counts, and the transcript says it may be short
+    assert sample.model_usage["anthropic/claude-judge"].total_tokens == 400
+    incomplete = [
+        e
+        for e in sample.events
+        if isinstance(e, InfoEvent)
+        and isinstance(e.data, dict)
+        and e.data.get("judging_usage") == "incomplete"
+    ]
+    assert len(incomplete) == 1
+
+
+def test_an_earlier_attempts_usage_is_recorded_when_the_last_fails_unsent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The first attempt is sent and judged, with the judge's 1,000 tokens
+    # billed, and the provider fails it. Inspect retries, and the retry fails
+    # as the provider builds its request, so the retry is never looked up.
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    built = AnthropicAPI.completion_config
+    attempts = 0
+
+    def completion_config(self: AnthropicAPI, config: GenerateConfig) -> Any:
+        nonlocal attempts
+        attempts += 1
+        if attempts > 1:
+            raise ValueError("The model doesn't take this setting.")
+        return built(self, config)
+
+    monkeypatch.setattr(AnthropicAPI, "completion_config", completion_config)
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(
+                status=529,
+                judgment={"outcome": "proceed", "steps": []},
+                judging={"judging_usage": _judge_usage(1000)},
+            )
+        ]
+    )
+    model = get_model(
+        _MODELS["anthropic"],
+        base_url="http://proxy.test",
+        api_key="test-key",
+        memoize=False,
+        http_client=stand_in.http_client(),
+        max_retries=0,
+    )
+    monkeypatch.setattr(model.api, "retry_wait", lambda: wait_none())
+
+    [log] = eval(
+        Task(dataset=[Sample(input="Hi.")], solver=generate()),
+        model=model,
+        display="none",
+    )
+
+    assert log.samples is not None
+    sample = log.samples[0]
+    # the retry's error stands, and the first attempt's judging was billed
+    assert sample.error is not None
+    assert "The model doesn't take this setting." in sample.error.message
+    assert sample.model_usage["anthropic/claude-judge"].total_tokens == 1000
+    assert len(stand_in.model_calls) == 1
+
+
+@pytest.mark.parametrize(
+    "latest",
+    [
+        {"judgment": {"outcome": "proceed", "steps": []}},
+        {
+            "status": 400,
+            "judgment": {
+                "outcome": "reject",
+                "withheld": {
+                    "message": _turn_json(("call_1", None)),
+                    "results": {"call_1": "Oslo is not allowed."},
+                    "redacted": ["call_1"],
+                },
+            },
+        },
+    ],
+    ids=["a turn that goes on", "a turn refused whole"],
+)
+def test_an_earlier_attempts_usage_that_cant_be_read_fails_the_sample(
+    latest: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # the first attempt is judged and retried, and its usage can't be read;
+    # the retry's answer is read first, and must not let the error be lost
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(
+                status=529,
+                judgment={"outcome": "proceed", "steps": []},
+                judging={"judging_usage": {"bad": 1}},
+            ),
+            Turn(**latest),
+            Turn(),
+        ]
+    )
+    model = get_model(
+        _MODELS["anthropic"],
+        base_url="http://proxy.test",
+        api_key="test-key",
+        memoize=False,
+        http_client=stand_in.http_client(),
+        max_retries=0,
+    )
+    monkeypatch.setattr(model.api, "retry_wait", lambda: wait_none())
+
+    [log] = eval(
+        Task(dataset=[Sample(input="Hi.")], solver=generate()),
+        model=model,
+        display="none",
+    )
+
+    assert log.samples is not None
+    error = log.samples[0].error
+    assert error is not None
+    assert "judging usage can't be read" in error.message
+
+
+def test_judging_usage_the_sidecar_didnt_price_is_priced_as_in_process() -> None:
+    # the agent's model judges too, and the sidecar has no price for it
+    judge = {
+        "role": "monitor",
+        "model": "anthropic/claude-haiku-4-5",
+        "usage": {"input_tokens": 900, "output_tokens": 100, "total_tokens": 1000},
+    }
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(
+                judgment={"outcome": "proceed", "steps": []},
+                judging={"judging_usage": [judge]},
+            )
+        ]
+    )
+    task = Task(dataset=[Sample(input="What's the weather?")], solver=[generate()])
+
+    set_model_cost(
+        "anthropic/claude-haiku-4-5",
+        ModelCost(input=1.0, output=5.0, input_cache_write=1.25, input_cache_read=0.1),
+    )
+    try:
+        [log] = eval(task, model=_model(stand_in), display="none")
+    finally:
+        clear_model_info_cache()
+
+    assert log.samples is not None
+    sample = log.samples[0]
+    # the judge's 900 tokens in and 100 out, at $1 and $5 per million
+    judged = 900 * 1.0 / 1e6 + 100 * 5.0 / 1e6
+    assert sample.role_usage["monitor"].total_cost == pytest.approx(judged)
+    # beside the agent's own 5 in and 2 out, under the one model
+    agent = 5 * 1.0 / 1e6 + 2 * 5.0 / 1e6
+    usage = sample.model_usage["anthropic/claude-haiku-4-5"]
+    assert usage.total_cost == pytest.approx(judged + agent)
+
+
+@pytest.mark.parametrize(
+    "decided",
+    [
+        {
+            "calls": [("call_1", "weather", {"city": "Oslo"})],
+            "judgment": {"outcome": "proceed", "steps": []},
+        },
+        _REJECTED_WHOLE,
+    ],
+    ids=["a turn that goes on", "a turn refused whole"],
+)
+def test_the_time_the_sidecar_spent_judging_is_waiting(decided: dict[str, Any]) -> None:
+    def run(judging_time: float | None) -> tuple[float, float]:
+        # the proxy holds the call a second, judging_time of it for its
+        # sidecar; a turn it refuses comes back as an error Inspect recovers
+        stand_in = StandInSidecar(
+            turns=[
+                Turn(
+                    **decided,
+                    judging={"judging_time": judging_time} if judging_time else None,
+                    delay=1.0,
+                ),
+                Turn(),
+            ]
+        )
+        task = Task(
+            dataset=[Sample(input="What's the weather?")],
+            solver=[use_tools(weather()), generate()],
+        )
+        [log] = eval(task, model=_model(stand_in), display="none")
+        assert log.samples is not None
+        sample = log.samples[0]
+        call = next(e for e in sample.events if isinstance(e, ModelEvent))
+        assert sample.working_time is not None and call.working_time is not None
+        # the call shows the model's own time, as in process
+        assert call.output.time == call.working_time
+        return sample.working_time, call.working_time
+
+    sample_unjudged, call_unjudged = run(None)
+    sample_judged, call_judged = run(0.9)
+
+    # As in process, the agent is charged only the model's time: for the
+    # sample, which its working limit reads, and for the call. The amounts
+    # are checked against a fake clock in tests/util/test_limit_working.py;
+    # here, on the real clock, only that the judging came out.
+    assert call_unjudged >= 1.0
+    assert call_judged < call_unjudged - 0.5
+    assert sample_judged < sample_unjudged - 0.5
+
+
+@pytest.mark.parametrize("limit", ["token", "cost", "turn"])
+@pytest.mark.parametrize("answered", [True, False], ids=["answered", "lookup failed"])
+def test_judging_time_past_a_limit_is_waiting_where_the_sidecar_answered(
+    limit: str, answered: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The reply takes the sample past its token, cost or turn limit, which
+    # Inspect checks once the reply is recorded, and the sidecar is
+    # asked about it only to record what it decided. Where it answers, its
+    # judging is waiting, and the call's event shows the model's own time, as
+    # in process, where a sentinel never judges a reply that ended the sample;
+    # where the lookup fails, nothing is taken out of either. Either way the
+    # call's attempts are committed once.
+    from inspect_ai._util.working import ModelAttempts
+
+    committed = 0
+    commit = ModelAttempts.commit
+
+    def counting(self: ModelAttempts) -> None:
+        nonlocal committed
+        committed += 1
+        commit(self)
+
+    monkeypatch.setattr(ModelAttempts, "commit", counting)
+
+    def run(judging_time: float | None) -> tuple[float, float]:
+        nonlocal committed
+        committed = 0
+        # the proxy holds the call a second, judging_time of it for its sidecar
+        stand_in = StandInSidecar(
+            turns=[
+                Turn(
+                    judgment={"outcome": "proceed", "steps": []},
+                    judging={"judging_time": judging_time} if judging_time else None,
+                    delay=1.0,
+                )
+            ],
+            echoed={} if answered else {"request_result": 400},
+        )
+        task = Task(
+            dataset=[Sample(input="What's the weather?")],
+            solver=generate(),
+            token_limit=6 if limit == "token" else None,
+            # the reply's 5 input and 2 output tokens cost $0.000015 at the
+            # rates set below, and the call is sent at $0
+            cost_limit=0.00001 if limit == "cost" else None,
+            turn_limit=0 if limit == "turn" else None,
+        )
+        # a cost limit needs the agent's model priced
+        if limit == "cost":
+            set_model_cost(
+                "anthropic/claude-haiku-4-5",
+                ModelCost(
+                    input=1.0, output=5.0, input_cache_write=1.25, input_cache_read=0.1
+                ),
+            )
+        try:
+            [log] = eval(task, model=_model(stand_in), display="none")
+        finally:
+            clear_model_info_cache()
+        assert log.samples is not None
+        sample = log.samples[0]
+        assert sample.limit is not None and sample.limit.type == limit
+        [call] = stand_in.model_calls
+        assert _looked_up(stand_in) == [call.headers["x-irid"]]
+        assert committed == 1
+        assert sample.working_time is not None
+        event = next(e for e in sample.events if isinstance(e, ModelEvent))
+        assert event.output.time is not None
+        return sample.working_time, event.output.time
+
+    sample_unjudged, call_unjudged = run(None)
+    sample_judged, call_judged = run(0.9)
+
+    assert sample_unjudged >= 1.0 and call_unjudged >= 1.0
+    if answered:
+        assert sample_judged < sample_unjudged - 0.5
+        assert call_judged < call_unjudged - 0.5
+    else:
+        assert sample_judged > sample_unjudged - 0.5
+        assert call_judged > call_unjudged - 0.5
+
+
+@solver
+def _generate_once(seen: list[ModelOutput]) -> Solver:
+    # the output the agent receives from one model call
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        seen.append(await get_model().generate(state.messages, tools=state.tools))
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("judging_time", [None, 0.9], ids=["unjudged", "judged"])
+def test_a_refusal_recovered_once_retries_are_spent_charges_none_of_the_held_attempt(
+    judging_time: float | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The proxy holds the call a second and refuses it with a status Inspect
+    # retries, which isn't looked up until no retries are left. Inspect's retry
+    # loop counts every retryable attempt as waiting, the last one too, so none
+    # of the held second is charged, with or without the sidecar's judging
+    # time. The refusal Inspect recovers has no time of the model's own.
+    from inspect_ai._util.working import ModelAttempts
+
+    committed = 0
+    commit = ModelAttempts.commit
+
+    def counting(self: ModelAttempts) -> None:
+        nonlocal committed
+        committed += 1
+        commit(self)
+
+    monkeypatch.setattr(ModelAttempts, "commit", counting)
+    refused: dict[str, Any] = _REJECTED_WHOLE | {"status": 503}
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(
+                **refused,
+                judging={"judging_time": judging_time} if judging_time else None,
+                delay=1.0,
+            )
+        ]
+    )
+    # no retries in the provider's SDK or in Inspect
+    model = get_model(
+        _MODELS["anthropic"],
+        base_url="http://proxy.test",
+        api_key="test-key",
+        memoize=False,
+        http_client=stand_in.http_client(),
+        max_retries=0,
+    )
+    seen: list[ModelOutput] = []
+    task = Task(
+        dataset=[Sample(input="What's the weather?")],
+        solver=[use_tools(weather()), _generate_once(seen)],
+    )
+
+    [log] = eval(task, model=model, max_retries=0, display="none")
+
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is None
+    [call] = stand_in.model_calls
+    assert _looked_up(stand_in) == [call.headers["x-irid"]]
+    [output] = seen
+    assert not output.empty
+    assert output.time is None
+    assert committed == 1
+    assert sample.total_time is not None and sample.total_time >= 1.0
+    assert sample.working_time is not None and sample.working_time < 0.5
+
+
+def test_a_sample_cancelled_while_the_proxy_holds_its_call_ends_on_its_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The time limit ends the sample before the sidecar is asked about the
+    # call. The call's attempts are still committed, without an answer: for a
+    # call through a sidecar, the caller commits them, not `_generate`.
+    from inspect_ai._util.working import ModelAttempts
+
+    committed = 0
+    commit = ModelAttempts.commit
+
+    def counting(self: ModelAttempts) -> None:
+        nonlocal committed
+        committed += 1
+        commit(self)
+
+    monkeypatch.setattr(ModelAttempts, "commit", counting)
+    stand_in = StandInSidecar(
+        turns=[
+            Turn(
+                judgment={"outcome": "proceed", "steps": []},
+                judging={"judging_time": 2.5},
+                delay=3.0,
+            )
+        ]
+    )
+    task = Task(
+        dataset=[Sample(input="What's the weather?")],
+        solver=[generate()],
+        time_limit=1,
+    )
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    assert log.status == "success"
+    assert log.samples is not None
+    sample = log.samples[0]
+    assert sample.error is None
+    assert sample.limit is not None and sample.limit.type == "time"
+    # the one model call's attempts, once
+    assert committed == 1
+
+
+def _usage_entry(
+    model: str = "openai/gpt-judge", role: str | None = None, **usage: Any
+) -> dict[str, Any]:
+    # a judging_usage entry, with the given usage fields in place of its own
+    entry: dict[str, Any] = {
+        "model": model,
+        "usage": {"input_tokens": 40, "output_tokens": 10, "total_tokens": 50} | usage,
+    }
+    if role is not None:
+        entry["role"] = role
+    return entry
+
+
+@pytest.mark.parametrize(
+    ("judging", "unreadable"),
+    [
+        ({"judging_usage": [{"model": "openai/gpt-judge"}]}, "judging usage"),
+        ({"judging_usage": False}, "judging usage"),
+        ({"judging_usage": {}}, "judging usage"),
+        ({"judging_usage": [_usage_entry(input_tokens="900")]}, "judging usage"),
+        ({"judging_usage": [_usage_entry(output_tokens=True)]}, "judging usage"),
+        ({"judging_usage": [_usage_entry(input_tokens=-5)]}, "judging usage"),
+        ({"judging_usage": [_usage_entry(total_cost=-1.0)]}, "judging usage"),
+        (
+            {"judging_usage": [{"model": "openai/gpt-judge", "usage": {}}]},
+            "judging usage",
+        ),
+        ({"judging_usage": [_usage_entry(model="")]}, "judging usage"),
+        ({"judging_usage": [_usage_entry(role="")]}, "judging usage"),
+        ({"judging_time": -1.0}, "judging time"),
+        ({"judging_time": "1.5"}, "judging time"),
+        ({"judging_time": True}, "judging time"),
+    ],
+    ids=[
+        "an entry without usage",
+        "usage that isn't a list",
+        "usage that is an object",
+        "a count written as text",
+        "a count that is a boolean",
+        "a negative count",
+        "a negative cost",
+        "usage with no counts",
+        "an empty model",
+        "an empty role",
+        "a negative time",
+        "a time written as text",
+        "a time that is a boolean",
+    ],
+)
+def test_judging_fields_that_cant_be_read_fail_the_sample(
+    judging: dict[str, Any], unreadable: str
+) -> None:
+    stand_in = StandInSidecar(
+        turns=[Turn(judgment={"outcome": "proceed", "steps": []}, judging=judging)]
+    )
+    task = Task(dataset=[Sample(input="What's the weather?")], solver=[generate()])
+
+    [log] = eval(task, model=_model(stand_in), display="none")
+
+    # never taken for a sidecar that billed nothing, or judged for no time
+    assert log.samples is not None
+    error = log.samples[0].error
+    assert error is not None
+    assert f"{unreadable} can't be read" in error.message
+
+
+class _AnswersOnce:
+    """A sidecar whose `request_result` answers with the given fields, which JSON written by Python can't hold but a sidecar's raw JSON can."""
+
+    origin = "http://proxy.test"
+
+    def __init__(self, fields: dict[str, Any]) -> None:
+        self.fields = fields
+
+    async def eval_call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "id": params["id"],
+            "records": "held",
+            "state": "decided",
+            "judgment": {"outcome": "proceed", "steps": []},
+            **self.fields,
+        }
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("fields", "unreadable"),
+    [
+        ({"judging_time": nan}, "judging time"),
+        ({"judging_time": inf}, "judging time"),
+        (
+            {
+                "judging_usage": [
+                    {
+                        "model": "openai/gpt-judge",
+                        "usage": {
+                            "input_tokens": 1,
+                            "output_tokens": 1,
+                            "total_tokens": 2,
+                            "total_cost": nan,
+                        },
+                    }
+                ]
+            },
+            "judging usage",
+        ),
+    ],
+    ids=[
+        "a time that isn't a number",
+        "an infinite time",
+        "a cost that isn't a number",
+    ],
+)
+async def test_judging_fields_that_arent_finite_cant_be_read(
+    fields: dict[str, Any], unreadable: str
+) -> None:
+    received = ReceivedCall(_AnswersOnce(fields))
+    received.request_id = "irid-1"
+
+    with pytest.raises(ValueError, match=f"{unreadable} can't be read"):
+        await request_result(received, replied=True)
+
+
 def test_both_generate_stages_report_the_generates_id() -> None:
     proceed = {"action": "proceed"}
     stand_in = StandInSidecar(
@@ -4294,7 +5010,13 @@ def test_a_limit_tripped_before_a_retry_dispatches_looks_nothing_up(
     assert log.samples is not None
     [sample] = log.samples
     assert sample.limit is not None and sample.limit.type == "token"
-    assert _looked_up(stand_in) == []
+    asked = _registered(stand_in, "request_result")
+    # nothing was looked up as this attempt's judgment, which waits
+    assert [params["id"] for params in asked if "wait" in params] == []
+    # the first attempt was sent, and its judging may have been billed, so it
+    # is asked about once, for that usage only
+    [first] = {call.headers["x-irid"] for call in stand_in.model_calls}
+    assert [params["id"] for params in asked if "wait" not in params] == [first]
 
 
 def test_a_failed_copy_of_monitor_state_still_cleans_up() -> None:

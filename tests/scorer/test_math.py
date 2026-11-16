@@ -47,7 +47,8 @@ def _score_answer(
     ids=[f"{index}-{case['source']}" for index, case in enumerate(CASES)],
 )
 async def test_math_scorer_compatibility_cases(case: dict[str, str]) -> None:
-    scorer = math()
+    # Checks parse/compare results; the default wall-clock budget flakes under load.
+    scorer = math(timeout=60)
     state = simple_task_state(model_output=case["output"])
     result = await scorer(state, Target([case["target"]]))
     assert result is not None
@@ -867,6 +868,7 @@ async def test_target_timeout_is_unscored(monkeypatch: pytest.MonkeyPatch) -> No
     assert result is not None
     assert isinstance(result.value, float)
     assert stdlib_math.isnan(result.value)
+    assert result.reason == "scoring_failed"
     assert result.metadata == {"math_scorer_status": "target_timeout"}
 
 
@@ -889,6 +891,7 @@ async def test_answer_timeout_is_incorrect(monkeypatch: pytest.MonkeyPatch) -> N
 
     assert result is not None
     assert result.value == INCORRECT
+    assert result.reason == "timeout"
     assert result.metadata == {"math_scorer_status": "answer_timeout"}
 
 

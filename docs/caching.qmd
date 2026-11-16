@@ -43,7 +43,7 @@ eval("arc.py", cache=True)
 You can also use caching with lower-level `generate()` calls (e.g. a model instance you have obtained with `get_model()`. For example:
 
 ``` python
-model = get_model("anthropic/claude-sonnet-4-20250514")
+model = get_model("anthropic/claude-sonnet-5-5")
 output = model.generate(
   input, config=GenerateConfig(cache = True)
 )

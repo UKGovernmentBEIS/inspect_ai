@@ -24,16 +24,18 @@ def parse_sample_metadata(
     *,
     id: str | int,
     epoch: int,
+    field: str = "metadata",
 ) -> dict[str, Any] | None:
-    """Parse persisted sample metadata, warning when it is not a JSON object."""
+    """Parse persisted sample metadata (or another sample `field`), warning when it is not a JSON object."""
     try:
         value = json.loads(contents)
         if not isinstance(value, dict):
-            raise ValueError("sample metadata must be a JSON object")
+            raise ValueError(f"sample {field} must be a JSON object")
         return value
     except ValueError as ex:
         logger.warning(
-            "Unable to read sample metadata for id=%s epoch=%s: %s",
+            "Unable to read sample %s for id=%s epoch=%s: %s",
+            field,
             id,
             epoch,
             ex,
@@ -182,6 +184,11 @@ class SampleBuffer(abc.ABC):
     @abc.abstractmethod
     def get_sample_metadata(self, id: str | int, epoch: int) -> dict[str, Any] | None:
         """Get the full metadata persisted for a sample, if available."""
+        ...
+
+    @abc.abstractmethod
+    def get_sample_store(self, id: str | int, epoch: int) -> dict[str, Any] | None:
+        """Get the final store persisted for a completed sample, if available."""
         ...
 
     @abc.abstractmethod

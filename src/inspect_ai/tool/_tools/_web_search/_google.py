@@ -27,6 +27,9 @@ Page Content: {text}
 """
 
 
+GOOGLE_CSE_ENDPOINT = "https://www.googleapis.com/customsearch/v1"
+
+
 class GoogleOptions(BaseModel):
     num_results: int | None = None
     max_provider_calls: int | None = None
@@ -113,26 +116,27 @@ def google_search_provider(
 
     async def _search(query: str, start_idx: int) -> list[SearchLink]:
         # List of allowed parameters can be found https://developers.google.com/custom-search/v1/reference/rest/v1/cse/list
+        # The API key goes in the X-Goog-Api-Key header rather than the `key`
+        # query parameter so that it is never part of a logged or raised URL.
         search_params = {
             "q": query,
-            "key": google_api_key,
             "cx": google_cse_id,
             "start": start_idx,
         }
-        search_url = "https://www.googleapis.com/customsearch/v1?" + urlencode(
-            search_params
-        )
+        search_url = f"{GOOGLE_CSE_ENDPOINT}?{urlencode(search_params)}"
 
         # retry up to 5 times over a period of up to 1 minute
         @retry(
             wait=wait_exponential_jitter(),
             stop=stop_after_attempt(5) | stop_after_delay(60),
             retry=retry_if_exception(httpx_should_retry),
-            before_sleep=log_httpx_retry_attempt(search_url),
+            before_sleep=log_httpx_retry_attempt(GOOGLE_CSE_ENDPOINT),
         )
         async def execute_search() -> httpx.Response:
             # See https://developers.google.com/custom-search/v1/reference/rest/v1/Search
-            return await client.get(search_url)
+            return await client.get(
+                search_url, headers={"X-Goog-Api-Key": google_api_key}
+            )
 
         result = await execute_search()
         data = result.json()

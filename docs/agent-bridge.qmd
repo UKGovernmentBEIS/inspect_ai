@@ -256,7 +256,7 @@ The `sandbox_agent_bridge()` serves only models the eval chose. A request is rou
 
 1.  A name in `model_aliases` goes to the model it maps to.
 2.  A name the `model_resolver` returns a model for goes to that model.
-3.  `"inspect"`, and the eval's own model name (e.g. `claude-sonnet-4-5` for an eval on `anthropic/claude-sonnet-4-5`), go to the eval's model.
+3.  `"inspect"`, and the eval's own model name (e.g. `claude-sonnet-5-5` for an eval on `anthropic/claude-sonnet-5-5`), go to the eval's model.
 4.  Any other name, including `inspect/<model>` names and model role names, also goes to the eval's model. The bridge logs a warning once for each such name, and the `requested_model` field of the model event in the transcript records the name the agent sent.
 
 Pass `model` to send unmatched names (and the eval's own model name) to another model instead, e.g. `model="inspect/openai/gpt-6-luna"`.
@@ -269,7 +269,7 @@ from inspect_ai.model import get_model
 async with sandbox_agent_bridge(
     state,
     model_aliases={
-        "claude-haiku-4-5": get_model("anthropic/claude-haiku-4-5"),
+        "claude-haiku-5-5": get_model("anthropic/claude-haiku-5-5"),
         "subagent": get_model(role="subagent"),
     },
 ) as bridge:
