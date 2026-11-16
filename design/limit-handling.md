@@ -839,7 +839,7 @@ usage never decreasing as calls are recorded: a limit that has been reached
 stays reached. Cost and turns only grow. A token limit's `type` can today be
 an arithmetic formula over cumulative `input` and `output` tokens, with `+`,
 `-`, `*`, `/` and unary minus (`_compile_token_formula()` and
-`_TokenMetering.value()`, `src/inspect_ai/util/_limit.py:331-445`;
+`_TokenMetering.value()`, `src/inspect_ai/util/_limit.py:331-453`;
 `docs/setting-limits.qmd:164`, `:461`). Some formulas decrease as tokens are
 used: under `token_limit(10, type="input - output")`, two returns of 20 input
 and 1 output tokens, then 1 input and 20 output tokens, take metered usage
