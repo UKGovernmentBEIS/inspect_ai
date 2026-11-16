@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 
@@ -868,6 +868,16 @@ def _score_edit_with_none(field: str) -> ScoreEdit:
     return ScoreEdit(**values)
 
 
+def _dump_score_edit_selection(
+    edit: ScoreEdit,
+    selection: Literal["include", "exclude"],
+    selected: Any,
+) -> dict[str, Any]:
+    kwargs = {selection: selected}
+    dumped = edit.model_dump(mode="json", exclude_none=True, **kwargs)
+    return dumped
+
+
 @pytest.mark.parametrize("field", ["answer", "explanation", "reason"])
 def test_score_edit_explicit_none_fields_serialize_as_null(field: str) -> None:
     edit = _score_edit_with_none(field)
@@ -905,13 +915,13 @@ def test_score_edit_none_fields_respect_field_selection(
     [
         ("exclude", False, True),
         ("exclude", True, False),
-        ("include", False, False),
+        ("include", False, True),
         ("include", True, True),
     ],
 )
 def test_score_edit_none_fields_respect_mapping_selection(
     field: str,
-    selection: str,
+    selection: Literal["include", "exclude"],
     selected: bool,
     expected_present: bool,
 ) -> None:
@@ -921,21 +931,140 @@ def test_score_edit_none_fields_respect_mapping_selection(
         if selection == "include"
         else {field: selected}
     )
-
-    if selection == "include":
-        dumped = edit.model_dump(
-            mode="json",
-            exclude_none=True,
-            include=selected_fields,
-        )
-    else:
-        dumped = edit.model_dump(
-            mode="json",
-            exclude_none=True,
-            exclude=selected_fields,
-        )
+    dumped = _dump_score_edit_selection(edit, selection, selected_fields)
 
     assert (field in dumped) is expected_present
+
+
+@pytest.mark.parametrize("field", ["answer", "explanation", "reason"])
+@pytest.mark.parametrize(
+    ("selection", "selection_value", "expected_present"),
+    [
+        ("include", {"__all__": True}, True),
+        ("include", {"__all__": False}, True),
+        ("include", {"__all__"}, True),
+        ("exclude", {"__all__": True}, False),
+        ("exclude", {"__all__": False}, True),
+        ("exclude", {"__all__"}, False),
+    ],
+)
+def test_score_edit_none_fields_respect_all_selection(
+    field: str,
+    selection: Literal["include", "exclude"],
+    selection_value: Any,
+    expected_present: bool,
+) -> None:
+    edit = _score_edit_with_none(field)
+    dumped = _dump_score_edit_selection(edit, selection, selection_value)
+
+    assert (field in dumped) is expected_present
+
+
+@pytest.mark.parametrize("field", ["answer", "explanation", "reason"])
+@pytest.mark.parametrize(
+    ("selection", "selection_kind", "expected_present"),
+    [
+        ("include", "field", True),
+        ("include", "field_all", True),
+        ("exclude", "field_all", True),
+        ("exclude", "all_field", True),
+        ("exclude", "all_true_field_false", True),
+        ("exclude", "all_true_field_all", True),
+        ("exclude", "all_true_field_ellipsis", False),
+    ],
+)
+def test_score_edit_none_fields_respect_scalar_mapping_selection(
+    field: str,
+    selection: Literal["include", "exclude"],
+    selection_kind: str,
+    expected_present: bool,
+) -> None:
+    edit = _score_edit_with_none(field)
+    selection_cases: dict[str, dict[str, Any]] = {
+        "field": {field: False},
+        "field_all": {field: {"__all__": True}},
+        "all_field": {"__all__": {field: True}},
+        "all_true_field_false": {"__all__": True, field: False},
+        "all_true_field_all": {"__all__": True, field: {"__all__": True}},
+        "all_true_field_ellipsis": {"__all__": True, field: ...},
+    }
+    selected = selection_cases[selection_kind]
+
+    dumped = _dump_score_edit_selection(edit, selection, selected)
+
+    assert (field in dumped) is expected_present
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "expected_present"),
+    [
+        (
+            {"include": {"history": {0: {"reason": True}}}},
+            True,
+        ),
+        (
+            {"include": {"history": {"__all__": {"reason": True}}}},
+            True,
+        ),
+        (
+            {"exclude": {"history": {0: {"reason": True}}}},
+            False,
+        ),
+        (
+            {"exclude": {"history": {"__all__": {"reason": True}}}},
+            False,
+        ),
+        (
+            {"exclude": {"history": {0: {"__all__": True, "reason": False}}}},
+            True,
+        ),
+    ],
+)
+def test_score_edit_none_reason_respects_nested_selection(
+    kwargs: dict[str, Any],
+    expected_present: bool,
+) -> None:
+    score = Score(
+        value="C",
+        history=[ScoreEdit(value="C", reason=None)],
+    )
+
+    dumped = score.model_dump(mode="json", exclude_none=True, **kwargs)
+    edit = dumped["history"][0]
+
+    assert ("reason" in edit) is expected_present
+
+
+def test_score_edit_none_reason_respects_nested_all_set() -> None:
+    score = Score(
+        value="C",
+        history=[ScoreEdit(value="C", reason=None)],
+    )
+
+    dumped = score.model_dump(
+        mode="json",
+        exclude_none=True,
+        exclude={"history": {"__all__"}},
+    )
+
+    assert dumped["history"] == []
+
+
+@pytest.mark.parametrize("mode", ["validation", "serialization"])
+def test_score_edit_json_schema_keeps_typed_fields(
+    mode: Literal["validation", "serialization"],
+) -> None:
+    schema = ScoreEdit.model_json_schema(mode=mode)
+
+    assert set(schema["properties"]) == {
+        "value",
+        "answer",
+        "explanation",
+        "reason",
+        "metadata",
+        "provenance",
+    }
+    assert "#/$defs/ScoreEdit" not in json.dumps(schema)
 
 
 def test_score_edit_default_reason_serializes_as_unchanged() -> None:

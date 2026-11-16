@@ -96,13 +96,42 @@ UNCHANGED: Literal["UNCHANGED"] = "UNCHANGED"
 """Sentinel value to indicate an unchanged field in score edits."""
 
 
-def _selection_selects_field(field_name: str, selection: Any) -> bool:
-    """Whether a Pydantic include/exclude selection applies to a field."""
+def _is_full_selection(value: Any) -> bool:
+    """Whether a Pydantic selection value fully selects a field.
+
+    Pydantic treats ``True`` and ``Ellipsis`` as "fully selected"; other
+    values only partially select a value.
+    """
+    return value is True or value is ...
+
+
+def _selection_includes_field(field_name: str, selection: Any) -> bool:
+    """Whether a Pydantic ``include`` selection keeps ``field_name``.
+
+    ``include`` uses membership, not truthiness: ``include={"reason": False}``
+    still emits ``reason``. ``__all__`` is a default for every field, so its
+    presence keeps all fields.
+    """
+    if selection is None:
+        return True
+    return field_name in selection or "__all__" in selection
+
+
+def _selection_excludes_field(field_name: str, selection: Any) -> bool:
+    """Whether a Pydantic ``exclude`` selection fully drops ``field_name``.
+
+    ``exclude`` uses truthiness: ``exclude={"reason": False}`` keeps the field,
+    and ``exclude={"reason": {"nested": True}}`` only partially selects a
+    mapping value, which has no effect on a scalar. A field-level entry
+    overrides ``__all__``.
+    """
     if selection is None:
         return False
     if isinstance(selection, Mapping):
-        return bool(selection.get(field_name, False))
-    return field_name in selection
+        if field_name in selection:
+            return _is_full_selection(selection[field_name])
+        return _is_full_selection(selection.get("__all__"))
+    return field_name in selection or "__all__" in selection
 
 
 class ScoreEdit(BaseModel):
@@ -170,10 +199,8 @@ class ScoreEdit(BaseModel):
         data = cast(dict[str, Any], handler(self))
 
         for field_name in ("answer", "explanation", "reason"):
-            included = info.include is None or _selection_selects_field(
-                field_name, info.include
-            )
-            excluded = _selection_selects_field(field_name, info.exclude)
+            included = _selection_includes_field(field_name, info.include)
+            excluded = _selection_excludes_field(field_name, info.exclude)
             if (
                 field_name in self.model_fields_set
                 and getattr(self, field_name) is None
