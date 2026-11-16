@@ -57,6 +57,10 @@ def test_project_name_random_suffix(task_name: str, prefix: str) -> None:
     assert is_inspect_project(name)
 
 
+def test_project_name_changes_for_the_same_task() -> None:
+    assert task_project_name("same-task") != task_project_name("same-task")
+
+
 @pytest.mark.parametrize(
     "name", ["inspect-gpqa_diamond-im7d3n2", "inspect-task-ielnkhh"]
 )

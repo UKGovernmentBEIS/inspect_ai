@@ -204,7 +204,7 @@ async def project_cleanup_shutdown(cleanup: bool) -> None:
                 title_style="bold",
                 title_justify="left",
             )
-            table.add_column("Sample ID")
+            table.add_column("Sample ID", overflow="fold")
             table.add_column("Epoch")
             table.add_column("Container(s)", no_wrap=True)
             for project in shutdown_projects:

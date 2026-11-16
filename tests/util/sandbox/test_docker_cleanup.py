@@ -582,6 +582,41 @@ async def test_reported_projects_print_their_cleanup_commands(
         assert any(f" {project_name}-default-1 " in line for line in lines)
 
 
+@pytest.mark.parametrize("width", [80, 120])
+async def test_reported_projects_preserve_long_sample_ids(
+    fake_docker: FakeDocker,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    width: int,
+) -> None:
+    """Retained samples remain distinguishable when their IDs must wrap."""
+    monkeypatch.setattr(
+        cleanup_module, "print", Console(width=width, force_terminal=False).print
+    )
+    sample_ids = [f"sample-{'0123456789' * 3}-{n}" for n in (1, 2)]
+    logs = await eval_async(
+        Task(
+            name="gpqa_diamond_long",
+            dataset=[Sample(id=sample_id, input="hello") for sample_id in sample_ids],
+            sandbox="docker",
+            solver=generate(),
+        ),
+        model="mockllm/model",
+        sandbox_cleanup=False,
+    )
+
+    assert logs[0].status == "success"
+    output = capsys.readouterr().out
+    rows = [line.split("│") for line in output.splitlines() if line.startswith("│")]
+    rendered_ids = "".join(row[1].strip() for row in rows[1:])
+    for sample_id in sample_ids:
+        assert sample_id in rendered_ids
+    assert len(rendered_ids) == sum(len(sample_id) for sample_id in sample_ids)
+    assert [row[2].strip() for row in rows[1:] if row[2].strip()] == ["1", "1"]
+    for project_name in fake_docker.running:
+        assert f"{project_name}-default-1" in output
+
+
 async def test_reported_compose_config_project_is_cleaned_up_by_name(
     fake_docker: FakeDocker, monkeypatch: pytest.MonkeyPatch
 ) -> None:
