@@ -1845,10 +1845,11 @@ def r7_runs_a_bridged_host_tool(
     report: bool = False,
     host_tool: Tool | None = None,
     routed: bool = False,
+    drops: Sequence[str] = (),
 ) -> Agent:
     """A scaffold that declares the host tool (`host_tool`, else `addition`) as `name` (or calls it through Antigravity's `call_mcp_tool` dispatcher) and runs the call the bridge hands it, after one more model request if `request_before_running`.
 
-    With `report`, it then sends the result, with a note of its own, in its next request, which is when the bridge checks it. With `routed`, a model event sink routes its generations into the sub-agent span `sub-agent`, as inspect_swe's consumers do.
+    With `report`, it then sends the result, with a note of its own, in its next request, which is when the bridge checks it. With `routed`, a model event sink routes its generations into the sub-agent span `sub-agent`, as inspect_swe's consumers do. It runs the call without the arguments `drops` names, as Antigravity runs a call without its proposal's `toolSummary`.
     """
 
     async def execute(state: AgentState) -> AgentState:
@@ -1922,6 +1923,7 @@ def r7_runs_a_bridged_host_tool(
         arguments = json.loads(proposed.function.arguments)
         if name == "call_mcp_tool":
             arguments = arguments["Arguments"]
+        arguments = {k: v for k, v in arguments.items() if k not in drops}
         result = await call_tool(bridge)("host", "addition", arguments)
         if report:
             await inspect_completions_api_request(
@@ -2508,6 +2510,96 @@ def test_an_approved_bridged_host_tool_call_replays(
     assert [s.stage for s in replay if s.stage.startswith("tool")] == [
         "tool_call",
         "tool_result",
+    ]
+
+
+@approver
+def r7_bookkeeping_approver(decision: str) -> Approver:
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        if decision == "modify":
+            return Approval(
+                decision="modify",
+                modified=replace(call, arguments={**call.arguments, "x": 2}),
+            )
+        return Approval(decision="approve")
+
+    return approve
+
+
+@protocol
+def r7_adds_two() -> Protocol:
+    async def rewrite(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        modified = replace(step.call, arguments={**step.call.arguments, "y": 2})
+        return Decision(action="modify", modified=modified)
+
+    return rewrite
+
+
+@pytest.mark.parametrize("name", ["mcp__host__addition", "call_mcp_tool"])
+@pytest.mark.parametrize(
+    "change", ["none", "approver_approve", "approver_modify", "sentinel_modify"]
+)
+def test_a_host_call_run_without_a_bookkeeping_argument_replays_as_checked(
+    name: str, change: str
+) -> None:
+    # Ransom's review 5929855182 B2: Antigravity proposes `toolSummary` with a
+    # call's arguments and runs the call without it; live checks the call, at
+    # both stages, as the bridge reviewed it, `toolSummary` and all
+    seen: dict[str, Step] = {}
+    arguments: dict[str, Any] = {"x": 1, "y": 1, "toolSummary": "adding"}
+    proposed = (
+        call(name, ServerName="host", ToolName="addition", Arguments=arguments)
+        if name == "call_mcp_tool"
+        else call(name, **arguments)
+    )
+    approval = (
+        [ApprovalPolicy(r7_bookkeeping_approver(change.split("_")[1]), "*")]
+        if change.startswith("approver")
+        else None
+    )
+    log = run_logged(
+        as_solver(
+            r7_runs_a_bridged_host_tool(
+                name, approval, report=True, drops=["toolSummary"]
+            )
+        ),
+        outputs(proposed, done()),
+        sentinel=[
+            r7_probe(seen, copies=True),
+            *([r7_adds_two()] if change == "sentinel_modify" else []),
+        ],
+    )
+    events = logged_sample(log).events
+    [ran] = [e for e in events if isinstance(e, ToolEvent)]
+    assert ran.metadata is not None and ran.metadata["bridge"]["grant"] == "consumed"
+    checked = {
+        "none": arguments,
+        "approver_approve": arguments,
+        "approver_modify": {**arguments, "x": 2},
+        "sentinel_modify": {**arguments, "y": 2},
+    }[change]
+    ran_with = {k: v for k, v in checked.items() if k != "toolSummary"}
+    assert ran.arguments == ran_with
+    live = live_steps(logged_sample(log), seen)
+    tool_steps = [
+        step
+        for step in live.values()
+        if isinstance(step, BeforeToolCall | AfterToolCall)
+    ]
+    assert [type(step) for step in tool_steps] == [BeforeToolCall, AfterToolCall]
+    # the before stage sees the call as approved, the sentinel's modify after it
+    before_checked = arguments if change == "sentinel_modify" else checked
+    assert tool_steps[0].call.arguments == before_checked
+    assert tool_steps[1].call.arguments == checked
+    assert "toolSummary" in str(tool_steps[0].view.call)
+    replay = assert_logged_replay_equals_live(log, seen)
+    assert tool_step_calls(replay) == [
+        ("tool_call", "addition", before_checked),
+        ("tool_result", "addition", checked),
     ]
 
 
@@ -7928,6 +8020,41 @@ def test_an_operator_cancel_is_a_known_difference() -> None:
     [call_id] = [id for stage, id in live if stage == "tool_call"]
     assert replay - live == {("tool_result", call_id)}
     assert live <= replay
+
+
+@scorer(metrics=[])
+def r7_scores_with_a_bridged_agent() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        await r7_runs_a_bridged_host_tool(report=True)(AgentState(messages=[]))
+        return Score(value=1)
+
+    return score
+
+
+@pytest.mark.parametrize("origins", [True, False])
+def test_a_task_scorer_s_bridged_host_call_has_no_tool_steps(origins: bool) -> None:
+    # Ransom's review 5929855182 B1: the scorers' scope is final live, so the
+    # bridge checks none of a scorer's host calls, though the run is linked to
+    # the result its scaffold reported
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        generate(),
+        outputs(done(), call("mcp__host__addition", x=1, y=1), done()),
+        sentinel=[r7_probe(seen, copies=True)],
+        scorer=r7_scores_with_a_bridged_agent(),
+    )
+    events = logged_sample(log).events
+    [ran] = [e for e in events if isinstance(e, ToolEvent)]
+    assert ran.metadata is not None and "bridge" in ran.metadata
+    assert ran.message_id is not None
+    assert [e.stage for e in events if isinstance(e, SentinelEvent)] == [
+        "model_input",
+        "model_output",
+    ]
+    replay = replay_events(log, events if origins else without_origins(events))
+    assert [(s.stage, s.id) for s in replay] == list(
+        live_steps(logged_sample(log), seen)
+    )
 
 
 def test_a_task_scorer_s_unrecorded_tool_calls_have_no_tool_steps() -> None:

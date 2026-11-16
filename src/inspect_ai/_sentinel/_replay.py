@@ -104,7 +104,7 @@ def steps_from_events(
 
     A tool call is joined to the model call that proposed it by the id of the message its `ToolEvent` records (`call_message_id`, written since inspect_ai #6143), and a call no model call proposed (a pre-filled message) to the message holding it, by the same id. Where the id names several model calls' output (a cached output reused), a native call's producer is the latest of those model calls before the call, in the call's own conversation where they are in several. Where the event records no proposing message (an older log), or the id names no model call's output, it is the latest model call that proposed the call's id before the call (in the call's own conversation, where model calls in several conversations proposed it), a bridge's generation included.
 
-    A host call a sandbox bridge ran (`ToolEvent.metadata["bridge"]`) is replayed where its event ties it to its proposal and its run exactly: its proposing message is one model call's output holding the call under the model's id (`proposal_id`), and either the bridge linked the run to the tool message the scaffold reported its result in (`message_id`) or a bridge check of the call, its `tool_call` or its `tool_result` check, names the run's execution (`SentinelEvent.execution_id`, the handout's run of that host tool; in a log from before the execution ids, a check under the call's id). Its `tool_call` step is the call as the bridge checked it, under the id the scaffold was handed it under, with the host tool's name and the arguments it ran with (a sentinel's modify aside). Its `tool_result` step holds the tool message `message_id` names, which the bridge checked when the scaffold's next request carried it; a run with no such link has no `tool_result` step, even where its result check linked the run. A run whose event has a fresh id (a shared handout's second tool) is not tied to its checks, which have the id the call was handed over under, so it is skipped. Other host calls, and the calls a bridged scaffold ran itself, which leave no `ToolEvent`, are skipped, and a warning names them. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A bridge's tool checks are recorded in spans named `sentinel_bridge`, so a native call under an id a bridge also checked keeps its own checks.
+    A host call a sandbox bridge ran (`ToolEvent.metadata["bridge"]`) is replayed where its event ties it to its proposal and its run exactly: its proposing message is one model call's output holding the call under the model's id (`proposal_id`), and either the bridge linked the run to the tool message the scaffold reported its result in (`message_id`) or a bridge check of the call, its `tool_call` or its `tool_result` check, names the run's execution (`SentinelEvent.execution_id`, the handout's run of that host tool; in a log from before the execution ids, a check under the call's id). Its `tool_call` step is the call as the bridge checked it, under the id the scaffold was handed it under, with the host tool's name and the arguments it reviewed: the proposal's (a dispatcher call's target's), or an approver's modify of them, which a scaffold may run without bookkeeping fields it proposed (Antigravity's `toolSummary`). Its `tool_result` step checks that call, or a sentinel's modify of it, and holds the tool message `message_id` names, which the bridge checked when the scaffold's next request carried it; a run with no such link has no `tool_result` step, even where its result check linked the run. A run whose event has a fresh id (a shared handout's second tool) is not tied to its checks, which have the id the call was handed over under, so it is skipped. Other host calls, and the calls a bridged scaffold ran itself, which leave no `ToolEvent`, are skipped, and a warning names them. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A host call no check recorded, whose model call was made where live checks no tool calls (a scorer's, `_checks_tool_calls`), has no steps, as a native call has none. A bridge's tool checks are recorded in spans named `sentinel_bridge`, so a native call under an id a bridge also checked keeps its own checks.
 
     A transcript Scout imported from another source (`eval_info` is None) replays from its events where Scout records which model calls its messages come from (`messages_from`): its turns are inferred as for a log without origins, and its tool steps come from its messages, each assistant message joined by its id to the turn whose output it is, which gives the steps that turn's input, tools and conversation; a message no one turn made is placed after the last message before it that one did, with no input. A call under an id an earlier call in the messages has is skipped, with a warning, as step ids are unique in a sample. Its tool events are not read: importers record them without the model's call ids.
 
@@ -1119,7 +1119,8 @@ class _Driver:
         A host call a sandbox bridge ran (`metadata["bridge"]`) has no paired
         approval, so is not checked: its approval may record the call under the
         scaffold's name and its `ToolEvent` under the host tool's, and replay
-        takes the arguments it ran with from its run (`_host_call`).
+        takes the arguments it reviewed from its proposal and approval
+        (`_host_call`).
         """
         approval = call.approval
         event = call.event
@@ -1241,6 +1242,12 @@ class _Driver:
         if _bridged(event):
             handed_again = event.id in self.bridged_ids
             self.bridged_ids.add(event.id)
+            if (
+                call.before_span is None
+                and call.after_span is None
+                and not self._checks_tool_calls(event, call.producer)
+            ):
+                return
             step_id = self._host_step_id(event) if self._links_host_call(call) else None
             if step_id is not None:
                 self._host_call(call, step_id, begin, end, handed_again)
@@ -1476,9 +1483,11 @@ class _Driver:
         The bridge checks each call of a response before the scaffold gets it,
         once per handout and host tool it denotes (`reviewed_calls`): under
         the id it hands the call over under, with the host tool's name and the
-        arguments approval left. It checks the result when the scaffold's
-        next request carries it, as the tool message the scaffold sent, which
-        the run's event names where the bridge linked it (`message_id`). Both
+        arguments approval left, which are not the run's where the scaffold
+        drops a bookkeeping field it proposed. It checks the result when the
+        scaffold's next request carries it, as the tool message the scaffold
+        sent, which the run's event names where the bridge linked it
+        (`message_id`), with that call or a sentinel's modify of it. Both
         steps have `step_id` (`_host_step_id`). A run named by its execution
         under an id an earlier host run has (`handed_again`) has a
         `tool_result` step only where a result check names its execution: a
@@ -1500,33 +1509,24 @@ class _Driver:
             if approval is not None and approval.decision == "modify"
             else None
         )
-        modify = self._sentinel_modify(before_span, event)
-        if modify is None:
-            arguments = event.arguments
-        elif approver_modified is not None:
-            arguments = approver_modified.arguments
-        else:
-            arguments = _reviewed_arguments(proposal)
+        modify = self._host_sentinel_modify(before_span, event)
+        arguments = (
+            approver_modified.arguments
+            if approver_modified is not None
+            else _reviewed_arguments(proposal)
+        )
         # under the id the scaffold was handed it under, which its first run has
         before_call = replace(
             proposal, id=event.id, function=event.function, arguments=arguments
         )
         shown = approval.view if approval is not None else None
-        if modify is None:
-            before_view = ToolCallView(
-                context=shown.context
-                if shown is not None and approver_modified is None
-                else None,
-                call=event.view or _default_view(before_call),
-            )
-        else:
-            # a sentinel's modify replaced the event's view with the modified
-            # call's, and the tool's viewer is not in the log
-            before_view = ToolCallView(
-                call=shown.call
-                if shown is not None and approver_modified is None
-                else None
-            )
+        # the call the sentinel was shown, before any modify of its own
+        before_view = ToolCallView(
+            context=shown.context
+            if shown is not None and approver_modified is None
+            else None,
+            call=event.view or _default_view(before_call),
+        )
         producer = self._producer(call.producer)
         conversation = call.conversation
         assistant_id = assistant.id or ""
@@ -1565,10 +1565,11 @@ class _Driver:
             if dropped or after_span is not None:
                 self.skipped.append(event.id)
             return
-        after_call = replace(
-            modify if modify is not None else before_call,
-            function=event.function,
-            arguments=event.arguments,
+        # a sentinel's modify changes only the arguments of the call it checked
+        after_call = (
+            replace(before_call, arguments=modify.arguments)
+            if modify is not None
+            else before_call
         )
 
         def build_after() -> None:
@@ -1591,6 +1592,34 @@ class _Driver:
         after_cut = self._cut(after_span, (end if end is not None else call.index, 3))
         self._at_point(after_cut, call.seq + 2, build_after)
         self._settle_at_end(after_span)
+
+    def _host_sentinel_modify(
+        self, span: str | None, event: ToolEvent
+    ) -> ToolCall | None:
+        """The sentinel's modify of a host call that the run carried out, as `_sentinel_modify` finds a native call's.
+
+        A scaffold may run a call without bookkeeping arguments it proposed
+        (Antigravity's `toolSummary`), which the bridge grants on a closed
+        schema (`consume_tool_execution_grant`), so a modify whose arguments
+        hold the run's, each equal, is the one that ran where none is equal
+        to them.
+        """
+        exact = self._sentinel_modify(span, event)
+        if exact is not None or span is None:
+            return exact
+        ran = event.arguments
+        for recorded in self.span_events.get(span, []):
+            modified = recorded.modified
+            if (
+                recorded.status == "reported"
+                and recorded.kind == "decision"
+                and recorded.action == "modify"
+                and modified is not None
+                and ran.keys() <= modified.arguments.keys()
+                and json_equal({key: modified.arguments[key] for key in ran}, ran)
+            ):
+                return modified
+        return None
 
     def _reported_result(self, event: ToolEvent) -> ChatMessageTool | None:
         """The tool message the agent reported a host call's result in, which the bridge linked to its run (`ToolEvent.message_id`)."""
