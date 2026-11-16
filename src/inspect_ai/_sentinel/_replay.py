@@ -24,6 +24,7 @@ from inspect_ai.event._timeline import (
     TimelineSpan,
     _call_failed,
     _timeline_build,
+    is_utility_wrapper,
 )
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.model._chat_message import (
@@ -39,7 +40,7 @@ from inspect_ai.tool._tool_call import (
 from inspect_ai.util._span import AGENT_SPAN_TYPE
 
 from ._conversation import SpanConversations
-from ._scope import is_agent_turn
+from ._scope import is_checked_turn
 from ._steps import (
     ConversationRecord,
     FoldInput,
@@ -501,7 +502,7 @@ _HUMAN_FACTORY = "inspect_sentinel/human"
 
 # the origins of regions that are not final, so the tool calls of a model call
 # made there are checked live
-_NON_FINAL = {"agent", "tool", "setup"}
+_NON_FINAL = {"agent", "utility", "tool", "setup"}
 
 
 class _Driver:
@@ -607,7 +608,7 @@ class _Driver:
                         proposals.add(
                             _Proposal(index, message, event, tool_call, proposed_in)
                         )
-                if not is_agent_turn(self._origin(event)):
+                if not is_checked_turn(self._origin(event)):
                     continue
                 conversation = self._conversation(event)
                 self._at(index, 2, partial(self._fold, conversation, event))
@@ -1508,7 +1509,10 @@ def _event_key(event: Event) -> object:
 
 
 def _timeline_conversations(timeline: Timeline) -> dict[object, str]:
-    """The conversation of each event a stored timeline holds."""
+    """The conversation of each event a stored timeline holds.
+
+    A call the timeline wrapped as utility stays in the conversation of the agent span holding it, as live it was made there.
+    """
     conversations: dict[object, str] = {}
 
     def walk(span: TimelineSpan, conversation: str) -> None:
@@ -1518,7 +1522,10 @@ def _timeline_conversations(timeline: Timeline) -> dict[object, str]:
             else:
                 walk(
                     item,
-                    item.id if item.span_type == AGENT_SPAN_TYPE else conversation,
+                    item.id
+                    if item.span_type == AGENT_SPAN_TYPE
+                    and not is_utility_wrapper(item)
+                    else conversation,
                 )
         for branch in span.branches:
             walk(branch, branch.id)

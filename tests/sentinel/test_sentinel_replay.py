@@ -52,6 +52,7 @@ from inspect_ai.event import (
     TimelineEvent,
     TimelineSpan,
     ToolEvent,
+    timeline_build,
 )
 from inspect_ai.event._pool import condense_model_event_inputs
 from inspect_ai.event._sentinel import SentinelStage
@@ -5390,6 +5391,86 @@ def test_a_call_run_in_a_final_region_has_no_tool_steps() -> None:
         inferred="a model_origin() region",
     )
     assert not [s for s in replay if s.stage.startswith("tool")]
+
+
+@solver
+def r7_makes_a_bridged_utility_call() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        from inspect_ai.agent._bridge.context import (
+            AgentBridgeContext,
+            set_agent_bridge_context,
+        )
+        from inspect_ai.agent._bridge.types import AgentBridge
+        from inspect_ai.agent._bridge.util import bridge_generate
+
+        async def classifying(*args: Any) -> None:
+            set_agent_bridge_context(AgentBridgeContext("utility"))
+            return None
+
+        tools = [addition()]
+        output, _ = await bridge_generate(
+            AgentBridge(AgentState(messages=state.messages), filter=classifying),
+            get_model(),
+            state.messages,
+            tools,
+            None,
+            GenerateConfig(),
+            requested_model=None,
+        )
+        await execute_tools([*state.messages, output.message], tools)
+        state.output = await get_model().generate(state.messages)
+        return state
+
+    return solve
+
+
+def test_a_bridged_utility_call_replays_as_checked_as_it_ran() -> None:
+    replay = assert_replay_equals_live(
+        r7_makes_a_bridged_utility_call(),
+        outputs(call("addition", x=1, y=1), done()),
+    )
+    # both calls are checked at their generate stages, and the utility call's
+    # tool call at its tool stages, as live
+    assert [s.stage for s in replay if s.stage.startswith("model")] == [
+        "model_input",
+        "model_output",
+    ] * 2
+    assert [s for s in replay if s.stage.startswith("tool")]
+
+
+def test_a_bridged_utility_call_replays_in_its_conversation_with_a_stored_timeline() -> (
+    None
+):
+    seen: dict[str, Step] = {}
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=r7_makes_a_bridged_utility_call(),
+        sentinel=[r7_probe(seen, copies=True)],
+    )
+    model = outputs(call("addition", x=1, y=1), done())
+    [log] = eval(task, model=model)
+    assert log.status == "success", log.error
+    assert log.location
+    [sample] = read_eval_log(log.location, resolve_attachments="full").samples or []
+    stored = timeline_build(sample.events)
+    # the timeline shows the utility call in a span of its own
+    wrapped = [
+        span
+        for span in stored.root.content
+        if isinstance(span, TimelineSpan) and span.utility
+    ]
+    assert len(wrapped) == 1
+
+    def conversations(replay: list["ReplayStep"]) -> list[int]:
+        """Each step's conversation, numbered by first appearance (a stored timeline names its own)."""
+        named: dict[str, int] = {}
+        return [named.setdefault(s.step.conversation, len(named)) for s in replay]
+
+    # the steps replayed with the stored timeline fall into the conversations
+    # they ran in: the utility call's with its agent's
+    live = conversations(assert_logged_replay_equals_live(log, seen))
+    assert set(live) == {0}
+    assert conversations(replayed(log, timeline=stored)) == live
 
 
 @scorer(metrics=[])

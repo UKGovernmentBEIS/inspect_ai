@@ -14,7 +14,7 @@ def model_origin(origin: Literal["environment", "helper"]) -> Iterator[None]:
     - `"environment"`: the setup being evaluated against, such as an auditor model or a simulated user.
     - `"helper"`: a scaffold's own helper call in its loop, such as its own summarizer.
 
-    A sentinel checks only agent turns at its generate stages, and the transcript timeline shows other calls as utility.
+    A sentinel checks only agent turns (and a bridged agent's calls classified as `"utility"`) at its generate stages, and the transcript timeline shows other calls as utility.
 
     ```python
     with model_origin("environment"):

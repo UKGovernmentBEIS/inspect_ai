@@ -4,7 +4,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from math import inf, nan
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import anyio
 import httpx2
@@ -1448,6 +1448,64 @@ def test_only_the_agents_calls_name_their_sample() -> None:
     named = [_context(r) is not None for r in stand_in.model_calls]
     # the agent's turn, then the grader's, which no sidecar judges in process
     assert named == [True, False]
+
+
+@solver
+def _bridged_request(kind: str) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        from inspect_ai.agent import AgentState
+        from inspect_ai.agent._bridge.context import (
+            AgentBridgeContext,
+            set_agent_bridge_context,
+        )
+        from inspect_ai.agent._bridge.types import AgentBridge
+        from inspect_ai.agent._bridge.util import bridge_generate
+        from inspect_ai.model import GenerateConfig, model_origin
+
+        async def classifying(*args: Any) -> None:
+            if kind != "helper":
+                set_agent_bridge_context(AgentBridgeContext(cast(Any, kind)))
+            return None
+
+        bridge = AgentBridge(AgentState(messages=state.messages), filter=classifying)
+        request = bridge_generate(
+            bridge,
+            get_model(),
+            state.messages,
+            [],
+            None,
+            GenerateConfig(),
+            requested_model=None,
+        )
+        if kind == "helper":
+            with model_origin("helper"):
+                await request
+        else:
+            await request
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("mode", ["auto", "required"])
+@pytest.mark.parametrize(
+    ("kind", "judged"), [("root", True), ("utility", True), ("helper", False)]
+)
+def test_a_bridged_call_classified_as_utility_is_judged(
+    kind: str, judged: bool, mode: Any
+) -> None:
+    # a required sidecar must also have decided each call it judged
+    stand_in = StandInSidecar(
+        methods={
+            "request_result": _answers(_decided({"outcome": "proceed", "steps": []}))
+        }
+    )
+    task = Task(dataset=[Sample(input="Hi.")], solver=_bridged_request(kind))
+
+    [log] = eval(task, model=_model(stand_in), sentinel_proxy=mode, display="none")
+
+    assert log.status == "success", log.error
+    assert [_context(r) is not None for r in stand_in.model_calls] == [judged]
 
 
 @solver
@@ -4529,6 +4587,40 @@ def _sandbox_bridged_turn(
         return state
 
     return solve
+
+
+@pytest.mark.parametrize("kind,origin", [("utility", "utility"), ("root", "agent")])
+def test_a_sandbox_bridged_call_classified_as_utility_is_judged(
+    monkeypatch: pytest.MonkeyPatch, kind: str, origin: str
+) -> None:
+    from inspect_ai.agent._bridge.context import (
+        AgentBridgeContext,
+        set_agent_bridge_context,
+    )
+
+    async def classifying(*args: Any) -> None:
+        set_agent_bridge_context(AgentBridgeContext(cast(Any, kind)))
+        return None
+
+    stand_in = StandInSidecar(
+        methods={
+            "request_result": _answers(_decided({"outcome": "proceed", "steps": []}))
+        }
+    )
+    task = Task(
+        dataset=[Sample(input="Hi.")],
+        solver=_sandbox_bridged_turn(monkeypatch, filter=classifying),
+    )
+
+    [log] = eval(
+        task, model=_model(stand_in), sentinel_proxy="required", display="none"
+    )
+
+    assert log.status == "success", log.error
+    assert log.samples is not None
+    [sample] = log.samples
+    assert [e.origin for e in sample.events if isinstance(e, ModelEvent)] == [origin]
+    assert [_context(r) is not None for r in stand_in.model_calls] == [True]
 
 
 def test_a_sandbox_bridged_sample_the_sidecar_never_accepted_is_never_retried_or_scored(
