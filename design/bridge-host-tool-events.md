@@ -212,7 +212,8 @@ record. Sentinel replay pairs a native call with its checks by it. Live
 records every execution's tool steps under the call id, but a replayed step
 id must be unique for its stage, so when two executions of one call id are
 rebuilt (a retry after a tool error, a provider that repeats ids), the first
-keeps the call id and each later one is named by its `execution_id`. A log
+keeps the call id and each later one is named by its `execution_id`. The
+`human_decisions` of later steps keep the call id, as live records it. A log
 without the ids replays as before.
 
 A `_Proposal` is referenced only by its grants, so pairing state lives in the

@@ -114,7 +114,7 @@ def steps_from_events(
         human_approvers: The registry names of approvers that are people, whose `ApprovalEvent`s are `human_decisions` in a log from an eval that ran no sentinel and records inspect_ai 0.3.277 or later.
 
     Returns:
-        The steps, in the order they ran live. A native tool step's id is its call id, as live records it (`step_id`), but for a later execution of a call id an earlier rebuilt execution already took (a retry after a tool error, a provider that repeats ids): that execution's steps are named by its `ToolEvent.execution_id`, which each of its live `SentinelEvent`s records. A `ToolEvent` that records no `execution_id` keeps its call id.
+        The steps, in the order they ran live. A native tool step's id is its call id, as live records it (`step_id`), but for a later execution of a call id an earlier rebuilt execution already took (a retry after a tool error, a provider that repeats ids): that execution's steps are named by its `ToolEvent.execution_id`, which each of its live `SentinelEvent`s records; a person's decision there still reaches later steps' `human_decisions` under the call id, as live. A `ToolEvent` that records no `execution_id` keeps its call id.
 
     Raises:
         ValueError: `eval_info` is `None`, the log predates Inspect 0.3.100 or its samples have an earlier layout (or it has an unknown version and completed spanless native tool events), or the call an approval approved is not the call its `ToolEvent` records. Replay such transcripts from their messages instead.
@@ -632,7 +632,7 @@ class _Driver:
         # call id -> the execution whose tool steps replay names by it (None
         # for a call whose ToolEvent names no execution)
         self.call_steps: dict[str, str | None] = {}
-        self.span_steps: dict[str, tuple["Step", str]] = {}
+        self.span_steps: dict[str, "Step"] = {}
         # the ids of the calls whose tool steps replay skips
         self.skipped: list[str] = []
         # call id -> the indexes of the model events that proposed it
@@ -1512,7 +1512,7 @@ class _Driver:
         answers: dict[str, "HumanAnswer"] = {}
         if span is not None:
             answers = self._recorded_answers(span)
-            self.span_steps[span] = (step, step_id)
+            self.span_steps[span] = step
         self.built.append(
             ReplayStep(
                 id=step_id,
@@ -1530,6 +1530,10 @@ class _Driver:
         self._at(self.ends[span], 2, lambda: self._settle(span))
 
     def _settle(self, span: str) -> None:
+        """Publish the `human()` decisions kept at the step checked in `span`, under the step id live recorded (`SentinelEvent.step_id`).
+
+        That is not always the replayed step's id: a later execution of a call id is named by its `execution_id` in replay, while live records its call id.
+        """
         from inspect_sentinel._integration import kept_human_decision, supersedes
 
         events = self.span_events.get(span, [])
@@ -1537,7 +1541,7 @@ class _Driver:
             return
         built = self.span_steps.get(span)
         if built is not None:
-            conversation = built[0].conversation
+            conversation = built.conversation
         else:
             conversation = self._skipped_conversation(span, events)
         kept: list["HumanDecision"] = []
@@ -1548,7 +1552,7 @@ class _Driver:
             if event.status == "reported":
                 if built is not None:
                     decision = kept_human_decision(
-                        event.factory, built[0], built[1], reported
+                        event.factory, built, event.step_id, reported
                     )
                 else:
                     decision = _unbuilt_tool_decision(event, reported)
