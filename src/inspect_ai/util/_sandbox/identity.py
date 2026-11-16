@@ -75,7 +75,9 @@ def sandbox_identity(
     `read_file()` or `write_file()` path, and a `sandbox_with()` lookup that is
     not `on_path`. `exec()` with no `cwd` runs in it. An absolute path or `cwd`
     is kept. Inspect's own sandbox operations and calls on the provider
-    returned by `as_type()` do not use the scope's `cwd`.
+    returned by `as_type()` do not use the scope's `cwd`, except that an
+    `exec_remote()` in Inspect's own sandbox operations with no `cwd` still
+    runs in it; a relative `cwd` there is kept unchanged.
 
     The scope is held in a context variable, so tasks started inside the block
     inherit it.
