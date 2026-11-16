@@ -101,7 +101,7 @@ async def refused_output(
     if received is None or not received.sent:
         return None
     # the error of a request sent again stands, once the sidecar was asked
-    if received.error_stands:
+    if received.error_is_final:
         return None
     # the attempt's first send came back as an error, and it is timed, in
     # case a person was asked about the call and it is sent again
@@ -131,9 +131,9 @@ async def refused_output(
             await request_result(received, replied=False)
         if send_again is None or received.reviewed_id is None:
             return _refusal(received.judgment, model, bridged())
-        from ._review import result_after_review
+        from ._review import finish_paused_call
 
-        after = await result_after_review(
+        after = await finish_paused_call(
             received, send_again, retried, response_headers
         )
     except BaseException:
@@ -144,9 +144,9 @@ async def refused_output(
         # and the record of that question is in the sample's log: a call
         # left open is closed only when the sample ends, after its log is
         # written.
-        from ._review import cancel_open_call
+        from ._review import cancel_paused_call
 
-        await cancel_open_call(received)
+        await cancel_paused_call(received)
         raise
     if after.reply is not None:
         return after.reply
@@ -155,7 +155,7 @@ async def refused_output(
         return refusal
     if after.raised is not None:
         raise after.raised
-    return after.handed_back
+    return after.returned_error
 
 
 async def refusal_after_error(
@@ -178,12 +178,12 @@ async def refusal_after_error(
         return None
     if received.looked is None:
         await request_result(received, replied=False)
-    if received.open:
+    if received.paused:
         # Inspect has stopped retrying a call a person was asked about, so
         # nothing waits for it
-        from ._review import cancel_open_call
+        from ._review import cancel_paused_call
 
-        await cancel_open_call(received)
+        await cancel_paused_call(received)
     # A sidecar the task requires that keeps no record of the call may have
     # lost the eval in a restart, and what it holds for the attempt may have
     # begun afresh since, so it is never copied, as for a lost sample.

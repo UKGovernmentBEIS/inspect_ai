@@ -168,7 +168,7 @@ async def end_sidecar_sample(sample_uuid: str, cancelled: bool = False) -> None:
     sidecars = task_sidecars()
     if sidecars is not None:
         # a call a person was asked about that the sample leaves open
-        from ._review import cancel_open_calls
+        from ._review import cancel_paused_calls
 
-        await cancel_open_calls(sample_uuid)
+        await cancel_paused_calls(sample_uuid)
         await sidecars.end_sample(sample_uuid, tell=not cancelled)

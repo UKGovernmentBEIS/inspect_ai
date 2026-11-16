@@ -163,21 +163,21 @@ class ReceivedCall:
         """What the sidecar decided of the latest attempt, once `request_result` said."""
         self.reviewed_id: str | None = None
         """The `x-irid` of a call a sentinel asked a person about. The sidecar keeps such a call as one model call under that id, so every later request of the call is sent under it, a retry's included: a new id would be judged afresh, and the person asked again."""
-        self.open = False
+        self.paused = False
         """Whether the sidecar holds the call open: a person was asked about it, and it has not ended. A call left open when Inspect gives up on it is cancelled at the sidecar."""
-        self.getting_held_reply = False
+        self.fetching = False
         """Whether the request now being sent is the one that gets the reply the sidecar holds for the call, so it goes to the sidecar's held-reply path and not to the model."""
-        self.held_reply_body: bytes | None = None
+        self.fetch_body: bytes | None = None
         """A digest of the body of the request sent to get the held reply. The SDK's retries of that request have the same body and go to the same path; a later request of the provider's, such as a continuation, has another and goes to the model."""
-        self.asked_for_held_reply = False
+        self.reply_fetch_tried = False
         """Whether the latest attempt sent a request to get the reply the sidecar holds for the call. It is sent once for an attempt."""
-        self.held_reply_requested = False
+        self.fetch_sent = False
         """Whether a request of the latest attempt went to the sidecar's held-reply path."""
-        self.sent_on_model_path = False
+        self.resent = False
         """Whether the latest attempt sent the call's request again for the provider, and no try the sidecar sent on has been cut off at the provider since. Sent once more, the sidecar would only wait for it again."""
-        self.model_sends = 0
+        self.resends = 0
         """How many times the latest attempt sent the call's request again for the sidecar to send on to the provider."""
-        self.error_stands = False
+        self.error_is_final = False
         """Whether the sidecar was asked what became of the latest attempt after its last request, and nothing more is to be sent: the error that request came to stands."""
         self.failures: set[int] = set()
         """The tries the sidecar said failed at the provider that Inspect has acted on, by number. A try whose error the sidecar holds is acted on once that error has been got from it."""
@@ -185,7 +185,7 @@ class ReceivedCall:
         """How many times in a row the sidecar couldn't be asked for the call's questions, because the request didn't reach it or its answer didn't come back. Asking what became of the call meanwhile doesn't end the count."""
         self.answers_lost = 0
         """How many times in a row a person's answer couldn't be sent to the sidecar, because the request didn't reach it or its answer didn't come back. Asking for the call's questions, or what became of the call, meanwhile doesn't end the count."""
-        self.failure_fetches: dict[int, int] = {}
+        self.error_fetches: dict[int, int] = {}
         """How many times the provider's error for a failed try was asked of the sidecar, by the try's number."""
         self.decisions: dict[str, tuple[str, str | None]] = {}
         """What a person chose for each of the sidecar's questions they were shown for the call, by the question's id, with their reason. None is shown twice."""
@@ -263,13 +263,13 @@ def begin_attempt() -> None:
         received.sent = False
         received.looked = None
         received.judgment = None
-        received.getting_held_reply = False
-        received.held_reply_body = None
-        received.asked_for_held_reply = False
-        received.held_reply_requested = False
-        received.sent_on_model_path = False
-        received.model_sends = 0
-        received.error_stands = False
+        received.fetching = False
+        received.fetch_body = None
+        received.reply_fetch_tried = False
+        received.fetch_sent = False
+        received.resent = False
+        received.resends = 0
+        received.error_is_final = False
         received.sends = []
         received.judging_before_attempt = (
             received.judging_noted.get(received.reviewed_id, 0.0)
@@ -293,7 +293,7 @@ def request_id_to_reuse() -> str | None:
     return received.reviewed_id
 
 
-def use_held_reply_path(request: Any) -> None:
+def route_fetch_to_sidecar(request: Any) -> None:
     """Send a model request to the sidecar's held-reply path, if it is the request that gets the reply the sidecar holds for the current agent call.
 
     Every other request is left as it is: one of a call no sidecar judges, one of a call no person was asked about, and one sent for the provider. The SDK's retries of the request go to the same path. A later request the provider makes in the same send, such as a continuation, has another body, and goes to the model.
@@ -302,7 +302,7 @@ def use_held_reply_path(request: Any) -> None:
         request: The request about to be sent, as the SDK's HTTP client built it. Its path is replaced, and its origin and query are kept.
     """
     received = _received.get()
-    if received is None or not received.getting_held_reply:
+    if received is None or not received.fetching:
         return
     from inspect_ai.model._providers.util.hooks import HttpHooks
 
@@ -311,12 +311,12 @@ def use_held_reply_path(request: Any) -> None:
     ):
         return
     body = _body_digest(request)
-    if received.held_reply_body is None:
-        received.held_reply_body = body
-    elif received.held_reply_body != body:
+    if received.fetch_body is None:
+        received.fetch_body = body
+    elif received.fetch_body != body:
         return
     request.url = request.url.copy_with(path=HELD_REPLY_PATH)
-    received.held_reply_requested = True
+    received.fetch_sent = True
 
 
 def _body_digest(request: Any) -> bytes:

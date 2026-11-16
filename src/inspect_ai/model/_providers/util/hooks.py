@@ -23,7 +23,7 @@ from inspect_ai._sentinel._sidecar._received import (
     report_request_id,
     report_sent,
     request_id_to_reuse,
-    use_held_reply_path,
+    route_fetch_to_sidecar,
 )
 from inspect_ai._util.constants import HTTP
 from inspect_ai._util.http import parse_retry_after
@@ -452,7 +452,7 @@ class HttpxHooks(HttpHooks):
             from inspect_ai._sentinel._sidecar._call import sign_context
 
             sign_context(request.headers, str(request.url))
-            use_held_reply_path(request)
+            route_fetch_to_sidecar(request)
 
     async def response_hook(self, response: HttpxResponseLike) -> None:
         message = f'{response.request.method} {response.request.url} "{response.http_version} {response.status_code} {response.reason_phrase}" '

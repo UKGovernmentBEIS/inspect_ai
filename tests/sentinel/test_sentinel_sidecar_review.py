@@ -35,12 +35,12 @@ from inspect_ai._sentinel._sidecar._received import (
     _received,
     receiving_call,
     request_id_to_reuse,
-    use_held_reply_path,
+    route_fetch_to_sidecar,
 )
 from inspect_ai._sentinel._sidecar._review import (
     FAILED_TRY,
-    FAILURE_FETCHES,
-    MODEL_SENDS,
+    MAX_ERROR_FETCHES,
+    MAX_RESENDS,
 )
 from inspect_ai._util.working import sample_wait
 from inspect_ai.approval import Approval
@@ -137,7 +137,7 @@ class ReviewingSidecar(StandInSidecar):
     lookups_refused: int = 0
     """How many such calls the sidecar itself answers with an error."""
     questions_lost: int = 0
-    """How many `pending_questions` calls the proxy answers with a 502, so that they never reach the sidecar."""
+    """How many `list_pending_questions` calls the proxy answers with a 502, so that they never reach the sidecar."""
     answers_lost: int = 0
     """How many `answer_question` calls the proxy answers with a 502, so that they never reach the sidecar."""
     error_cut_off: int = 0
@@ -175,9 +175,9 @@ class ReviewingSidecar(StandInSidecar):
     def __post_init__(self) -> None:
         assert self.info is not None
         self.info["review"] = True
-        self.methods.setdefault("pending_questions", self._pending_questions)
+        self.methods.setdefault("list_pending_questions", self._list_pending_questions)
         self.methods.setdefault("answer_question", self._answer_question)
-        self.methods.setdefault("cancel_request", self._cancel_request)
+        self.methods.setdefault("cancel_paused_request", self._cancel_paused_request)
 
     @property
     def held_reply_requests(self) -> list[httpx2.Request]:
@@ -218,7 +218,7 @@ class ReviewingSidecar(StandInSidecar):
                 return self._held(request, self._paused_call(request, irid))
         if path == ENDPOINT:
             call = json.loads(request.content)
-            if call["method"] == "pending_questions" and self.questions_lost > 0:
+            if call["method"] == "list_pending_questions" and self.questions_lost > 0:
                 self.questions_lost -= 1
                 return httpx2.Response(502, text="Bad Gateway")
             if call["method"] == "answer_question" and self.answers_lost > 0:
@@ -272,7 +272,7 @@ class ReviewingSidecar(StandInSidecar):
                     paused.judgment = {"outcome": "proceed", "steps": []}
             return self._pending(request)
         paused.tries += 1
-        if paused.state != "awaiting_request":
+        if paused.state != "awaiting_resend":
             # no other try is sent on, and a call that has ended is read
             # with `request_result`
             return self._pending(request)
@@ -353,7 +353,7 @@ class ReviewingSidecar(StandInSidecar):
         asked = json.loads(request.content)
         if (
             paused is not None
-            and paused.state == "awaiting_request"
+            and paused.state == "awaiting_resend"
             and paused.reason == "provider_error"
             and paused.failure is not None
         ):
@@ -487,7 +487,7 @@ class ReviewingSidecar(StandInSidecar):
             ]
         return result
 
-    def _pending_questions(self, params: dict[str, Any]) -> dict[str, Any]:
+    def _list_pending_questions(self, params: dict[str, Any]) -> dict[str, Any]:
         return {
             "questions": [
                 {
@@ -545,10 +545,10 @@ class ReviewingSidecar(StandInSidecar):
                 "steps": [step] if self.judged_step else [],
             }
         else:
-            paused.state = "awaiting_request"
+            paused.state = "awaiting_resend"
         return {"id": params["id"], "decision": params["decision"]}
 
-    def _cancel_request(self, params: dict[str, Any]) -> dict[str, Any]:
+    def _cancel_paused_request(self, params: dict[str, Any]) -> dict[str, Any]:
         self.cancelled.append(params["id"])
         paused = self.paused.get(params["id"])
         if paused is not None:
@@ -921,7 +921,7 @@ def test_a_question_that_cant_be_shown_tells_nothing_of_what_it_held(
     stand_in = ReviewingSidecar(
         pauses=["tool_call"], turns=[_OSLO, Turn(text="I can't look that up.")]
     )
-    listed = stand_in._pending_questions
+    listed = stand_in._list_pending_questions
     secret = "sk-not-to-be-told"
 
     def unreadable(params: dict[str, Any]) -> dict[str, Any]:
@@ -932,7 +932,7 @@ def test_a_question_that_cant_be_shown_tells_nothing_of_what_it_held(
             question["call"]["arguments"] = ["--api-key", secret]
         return questions
 
-    stand_in.methods["pending_questions"] = unreadable
+    stand_in.methods["list_pending_questions"] = unreadable
 
     sample = _sample(_run(stand_in))
 
@@ -1182,7 +1182,7 @@ def test_a_providers_error_that_its_own_code_reads_as_a_reply_is_the_calls_resul
     assert stand_in.cancelled == [first.headers["x-irid"]]
     assert len(stand_in.model_calls) == 2
     assert len(stand_in.held_reply_requests) == (1 if error_lost else 0)
-    assert review_module._open_calls == {}
+    assert review_module._paused_calls == {}
 
 
 def test_a_refusal_of_the_sidecars_own_that_the_providers_code_reads_as_a_reply_is_not_taken(
@@ -1260,7 +1260,7 @@ def test_a_refusal_of_the_sidecars_own_is_never_taken_for_the_providers_error(
 
     # asked for a bounded number of times, and the failed try is never taken
     # to have been acted on
-    assert len(stand_in.held_reply_requests) == FAILURE_FETCHES
+    assert len(stand_in.held_reply_requests) == MAX_ERROR_FETCHES
     assert sample.error is not None
     assert len(stand_in.model_calls) == 2
 
@@ -1343,7 +1343,7 @@ def test_questions_the_sidecar_wont_list_fail_the_review_at_once(
         asked.append(params)
         return stand_in._refuse(-32602, "The call's parameters can't be read.")
 
-    stand_in.methods["pending_questions"] = invalid
+    stand_in.methods["list_pending_questions"] = invalid
 
     # the sample's own limit is far off: it ends a review that goes on
     # asking, so that such a test fails and doesn't hang
@@ -1456,7 +1456,7 @@ def test_an_answer_that_keeps_being_lost_is_sent_only_so_many_times(
     assert stand_in.cancelled == [first.headers["x-irid"]]
     [logged] = _reviews_logged(sample)
     assert logged["review"]["resolution"] == "cancelled"
-    assert review_module._open_calls == {}
+    assert review_module._paused_calls == {}
 
 
 def _without(question: dict[str, Any], member: str) -> dict[str, Any]:
@@ -1493,14 +1493,14 @@ def test_questions_listed_in_a_form_inspect_cant_read_fail_the_review_at_once(
     person = Person("approve")
     person.install(monkeypatch)
     stand_in = ReviewingSidecar(pauses=["tool_call"], turns=[_OSLO])
-    listed = stand_in._pending_questions
+    listed = stand_in._list_pending_questions
     asked: list[dict[str, Any]] = []
 
     def listing(params: dict[str, Any]) -> dict[str, Any]:
         asked.append(params)
         return unreadable(listed(params)["questions"])
 
-    stand_in.methods["pending_questions"] = listing
+    stand_in.methods["list_pending_questions"] = listing
 
     # the sample's own limit is far off: it ends a review that goes on
     # asking, so that such a test fails and doesn't hang
@@ -1750,7 +1750,7 @@ def test_a_call_whose_exchanges_keep_being_cut_off_isnt_sent_again_without_end(
     # sent on a bounded number of times, after which the error stands and the
     # call fails by Inspect's own rules
     assert sample.error is not None
-    assert len(stand_in.model_calls) == 1 + MODEL_SENDS
+    assert len(stand_in.model_calls) == 1 + MAX_RESENDS
 
 
 def test_a_reviewed_calls_judge_usage_is_counted_once(
@@ -2168,11 +2168,11 @@ async def test_a_followed_call_asked_about_again_isnt_bound_by_its_timeout(
         review = True
 
         async def eval_call(self, method: str, params: dict[str, Any]) -> Any:
-            if method == "pending_questions":
+            if method == "list_pending_questions":
                 # the call's timeout passes while the question is dealt with
                 await anyio.sleep(0.6)
                 return {"questions": []}
-            if method == "cancel_request":
+            if method == "cancel_paused_request":
                 cancelled.append(params["id"])
                 return {"id": params["id"], "cancelled": True}
             assert method == "request_result"
@@ -2189,7 +2189,7 @@ async def test_a_followed_call_asked_about_again_isnt_bound_by_its_timeout(
     with receiving_call(Sidecar(), timeout=1) as received:
         # a call a person was asked about, with half of its timeout left
         received.request_id = received.reviewed_id = "request_1"
-        received.sent = received.open = True
+        received.sent = received.paused = True
         received.began = time.monotonic() - 0.5
         looked = await lookup_module.request_result(received, replied=False)
 
@@ -2206,7 +2206,7 @@ def test_a_call_whose_review_fails_is_closed_at_once_with_its_question_logged(
 ) -> None:
     Person("approve").install(monkeypatch)
     stand_in = ReviewingSidecar(pauses=["tool_call"], turns=[_OSLO])
-    listed = stand_in._pending_questions
+    listed = stand_in._list_pending_questions
 
     def only_modify(params: dict[str, Any]) -> dict[str, Any]:
         # a question with no choice Inspect can offer a person
@@ -2215,7 +2215,7 @@ def test_a_call_whose_review_fails_is_closed_at_once_with_its_question_logged(
             question["choices"] = ["modify"]
         return questions
 
-    stand_in.methods["pending_questions"] = only_modify
+    stand_in.methods["list_pending_questions"] = only_modify
 
     log = _run(stand_in, solver=generate(), fail_on_error=False)
 
@@ -2228,7 +2228,7 @@ def test_a_call_whose_review_fails_is_closed_at_once_with_its_question_logged(
     assert stand_in.cancelled == [first.headers["x-irid"]]
     [logged] = _reviews_logged(sample)
     assert logged["review"]["resolution"] == "cancelled"
-    assert review_module._open_calls == {}
+    assert review_module._paused_calls == {}
 
 
 def test_a_sample_that_times_out_while_a_person_decides_cancels_the_call(
@@ -2255,7 +2255,7 @@ def test_a_sample_that_times_out_while_a_person_decides_cancels_the_call(
     # the call's event didn't stay pending
     [event] = _model_events(sample)
     assert event.pending is None
-    assert review_module._open_calls == {}
+    assert review_module._paused_calls == {}
     # the record of the question the cancellation closed is in the log
     [logged] = _reviews_logged(sample)
     assert logged["request"] == first.headers["x-irid"]
@@ -2278,7 +2278,7 @@ async def test_a_call_cancelled_while_a_person_decides_is_cancelled_at_the_sidec
         async def eval_call(self, method: str, params: dict[str, Any]) -> Any:
             if method == "request_result":
                 return {"id": params["id"], "records": "held", "state": "judging"}
-            assert method == "cancel_request"
+            assert method == "cancel_paused_request"
             cancelled.append(params["id"])
             return {"id": params["id"], "cancelled": True}
 
@@ -2288,7 +2288,7 @@ async def test_a_call_cancelled_while_a_person_decides_is_cancelled_at_the_sidec
     async def call(received: ReceivedCall) -> None:
         # a call a person was asked about, whose answer the sidecar is judging
         received.request_id = received.reviewed_id = "request_1"
-        received.sent = received.open = True
+        received.sent = received.paused = True
         waiting.set()
         await refused_output("model", lambda: False, lambda: False, send_again)
 
@@ -2300,7 +2300,7 @@ async def test_a_call_cancelled_while_a_person_decides_is_cancelled_at_the_sidec
             tg.cancel_scope.cancel()
 
     assert cancelled == ["request_1"]
-    assert received.open is False
+    assert received.paused is False
 
 
 def test_a_request_is_sent_to_the_held_reply_path_only_for_its_own_call() -> None:
@@ -2316,21 +2316,21 @@ def test_a_request_is_sent_to_the_held_reply_path_only_for_its_own_call() -> Non
         received.reviewed_id = "request_1"
         # not while no held reply is being got
         sent = request("request_1")
-        use_held_reply_path(sent)
+        route_fetch_to_sidecar(sent)
         assert sent.url.path == "/v1/messages"
 
-        received.getting_held_reply = True
+        received.fetching = True
         other = request("request_2")
-        use_held_reply_path(other)
+        route_fetch_to_sidecar(other)
         assert other.url.path == "/v1/messages"
 
         # the path is replaced, and the origin and the query are kept
         first = request("request_1")
-        use_held_reply_path(first)
+        route_fetch_to_sidecar(first)
         assert str(first.url) == f"http://proxy.test{HELD_REPLY_PATH}?beta=true"
         # the SDK's retry has the same body; a continuation has another
         retry, continuation = request("request_1"), request("request_1", b'{"m":1}')
-        use_held_reply_path(retry)
-        use_held_reply_path(continuation)
+        route_fetch_to_sidecar(retry)
+        route_fetch_to_sidecar(continuation)
         assert retry.url.path == HELD_REPLY_PATH
         assert continuation.url.path == "/v1/messages"

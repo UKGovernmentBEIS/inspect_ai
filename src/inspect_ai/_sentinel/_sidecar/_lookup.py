@@ -70,8 +70,8 @@ class Failure(NamedTuple):
 class Looked(NamedTuple):
     """What `request_result` said of the call's latest attempt."""
 
-    state: Literal["decided", "not_judged", "unavailable", "awaiting_request"]
-    """`awaiting_request` is of a call a person was asked about, which the sidecar keeps as one model call: it waits for the same request, to send it on to the provider."""
+    state: Literal["decided", "not_judged", "unavailable", "awaiting_resend"]
+    """`awaiting_resend` is of a call a person was asked about, which the sidecar keeps as one model call: it waits for the same request, to send it on to the provider."""
     reason: str | None = None
     """Why the call wasn't judged, or why the judgment is unavailable."""
     judgment: Judgment | None = None
@@ -79,7 +79,7 @@ class Looked(NamedTuple):
     records: str | None = None
     """What the sidecar said of its records of the call, when it said."""
     failure: Failure | None = None
-    """The provider's last failed exchange, with `awaiting_request`, where the sidecar waits for the request because that exchange failed."""
+    """The provider's last failed exchange, with `awaiting_resend`, where the sidecar waits for the request because that exchange failed."""
     judging_time: float | None = None
     """How long the sidecar spent judging the call's latest attempt, in seconds, while the call waited on the proxy. For a call a person was asked about, it is added up over every try of the call."""
     judging_usage: list[JudgingUsage] | None = None
@@ -309,19 +309,19 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                 # the call as one model call from here, and no connection
                 # waits: the person is shown the question, and the sidecar is
                 # asked again once they have answered.
-                from ._review import ask_person, opened
+                from ._review import ask_person, mark_paused
 
                 # A followed call is asked about without waiting, so the
                 # judging between the provider's reply and this question may
                 # never have been seen. The provider has replied all the
                 # same, so the call's `timeout` bounds the wait no longer.
                 following = False
-                opened(received)
+                mark_paused(received)
                 await ask_person(received)
                 continue
             if (
                 replied
-                and state == "awaiting_request"
+                and state == "awaiting_resend"
                 and received.reviewed_id is not None
             ):
                 failure = _failure(result.get("failure"))
@@ -334,19 +334,19 @@ async def _request_result(received: ReceivedCall, replied: bool) -> Looked:
                     # the reply as the call's result and sends nothing more,
                     # so the call is closed at the sidecar. It reads as any
                     # call whose provider answered with an error: not judged.
-                    from ._review import cancel_open_call
+                    from ._review import cancel_paused_call
 
                     received.failures.add(failure.try_number)
-                    await cancel_open_call(received)
+                    await cancel_paused_call(received)
                     return _judging(Looked("not_judged", "provider_error"), result)
-            if reviews and state == "awaiting_request":
-                from ._review import opened
+            if reviews and state == "awaiting_resend":
+                from ._review import mark_paused
 
-                opened(received)
+                mark_paused(received)
                 reason = result.get("reason")
                 return _judging(
                     Looked(
-                        "awaiting_request",
+                        "awaiting_resend",
                         str(reason) if reason is not None else None,
                         failure=_failure(result.get("failure")),
                     ),
@@ -406,9 +406,9 @@ async def _out_of_time(received: ReceivedCall, result: dict[str, Any]) -> Looked
     # of a call a person was asked about. The sidecar is told the call is
     # given up, so it holds nothing for it any longer. `result` is the last
     # answer the sidecar gave about the call.
-    from ._review import cancel_open_call
+    from ._review import cancel_paused_call
 
-    await cancel_open_call(received)
+    await cancel_paused_call(received)
     return _judging(
         Looked(
             "unavailable",
@@ -420,10 +420,10 @@ async def _out_of_time(received: ReceivedCall, result: dict[str, Any]) -> Looked
 
 def _ended(received: ReceivedCall) -> None:
     # a call a person was asked about is held open at the sidecar no longer
-    if received.open:
-        from ._review import ended
+    if received.paused:
+        from ._review import mark_ended
 
-        ended(received)
+        mark_ended(received)
 
 
 def _failure(failure: object) -> Failure | None:
