@@ -21,6 +21,16 @@ of a public `install_skills()` call that names a user. A provider whose
 rather than reading or writing as the default user. The scope and the marker
 stay private to inspect_ai.
 
+The same calls also use the scope's `cwd`. `exec()` with no `cwd` runs in it,
+and every relative path the caller gives resolves against it: a `cwd` passed
+to `exec()` or `exec_remote()`, a `read_file()` or `write_file()` path, and a
+`sandbox_with()` file lookup. A relative path therefore names the same file
+in all of them. Absolute paths are kept, and marked operations are
+unaffected. Docker
+runs the commands behind `write_file()` from `/`, as it already does for
+`read_file()`, so an absolute path works for a user who cannot enter the
+image's working directory.
+
 Companion packages that install tooling into the sandbox (inspect_swe) must
 follow the existing trust-model contracts before they run inside a scope.
 Shared artifacts at fixed paths are provisioned inside the marker and verified
@@ -76,15 +86,14 @@ Goals:
   the marked modules.
 - A provider that cannot perform a file operation as a user fails loudly inside
   a scope instead of quietly using the default user.
+- Inside a scope with a `cwd`, the same calls use it as their default working
+  directory, and `exec()`, `exec_remote()`, the file calls and `sandbox_with()`
+  agree on what a relative path names (see [The scope's `cwd` at the boundary](#the-scopes-cwd-at-the-boundary)).
 - The trust model's "Sandbox identity scopes" and "File-operation users"
   sections describe the new contract.
 
 Non-goals:
 
-- **The scope's `cwd` at the boundary.** Only the user is applied. A
-  `read_file()` or `write_file()` call has no `cwd` parameter, so applying
-  `cwd` to `exec()` alone would make the same relative path name different
-  files in `exec()` and `read_file()`.
 - **Strictness at the boundary.** An explicit user is kept, as in
   `exec_remote()`. A caller that names a user, such as `user="root"`, has made
   a choice in code. The model-facing built-in tools stay strict as they are
@@ -130,7 +139,7 @@ Current callers of the resolver:
 | `bash()`, `python()`, `grep()`, `list_files()`, `read_file()` tool | strict, plus scope `cwd` | `tool/_tools/_execute.py:110-114`, `:173-178`, `_grep.py:72-76`, `_list_files.py:44-48`, `_read_file.py:58-62` |
 | `bash_session()`, `text_editor()` | strict | `tool/_tools/_bash_session.py:251`, `_text_editor.py:134` |
 | Sandbox-tools request `user` param (`exec_remote()`, MCP servers, bridge CLI) | lenient | `util/_sandbox/_cli.py:36-53` |
-| `exec_remote()` working directory | scope `cwd` when unset | `util/_sandbox/exec_remote.py:356` |
+| `exec_remote()` working directory | scope `cwd` when unset; a relative `cwd` is joined to it | `util/_sandbox/exec_remote.py:356` |
 | `computer()`, `web_browser()`, `skill()` | refuse in a scope | `tool/_tools/_computer/_common.py:357`, `_web_browser/_back_compat.py:102`, `_sandbox_tools_utils/_legacy_helpers.py:40`, `_skill/tool.py:60-61` |
 
 `SandboxEnvironment.exec()`, `read_file()` and `write_file()` do not consult the
@@ -273,8 +282,82 @@ forwards it or raises (see
 [Providers that cannot take a file user](#providers-that-cannot-take-a-file-user)).
 The event options therefore show the user each operation actually ran as.
 
-Only the proxy changes. `SandboxEnvironment`'s abstract methods, provider
-implementations and `as_type()` are untouched.
+For the user, only the proxy changes. `SandboxEnvironment`'s abstract
+methods, provider implementations and `as_type()` are untouched.
+
+### The scope's `cwd` at the boundary
+
+Inside a scope with a `cwd`, a plain `exec()` used to run in the provider's
+default working directory, which is the image's `WORKDIR` for Docker. On
+images whose `WORKDIR` is `/root` (Docker's default, inspect_swarm's Docker
+isolation test, and eval images such as inspect_evals' threecb), a member
+cannot enter that directory. Some runc versions refuse to start the command
+(`chdir to cwd ... permission denied`); runc 1.2 starts it, but anything that
+uses the working directory, such as `ls .` or a relative path, fails.
+inspect_swe's setup commands, running as the member inside a scope, would have
+to pass `cwd` on every call. Earlier versions of this design kept `cwd` out of
+the boundary, because `read_file()` and `write_file()` take no `cwd`, and
+applying it to `exec()` alone would make the same relative path name different
+files in `exec()` and in the file calls. The rules below apply it to all three
+calls (decision: Ransom, 2026-11-12).
+
+The proxy now resolves paths in the same calls, after it resolves the user:
+
+```python
+cwd = sandbox_operation_cwd(self, cwd)      # exec()
+file = sandbox_operation_file(self, file)   # read_file(), write_file()
+```
+
+Inside a scope for the sandbox that has a `cwd`, and outside any
+`framework_sandbox_operation()`:
+
+- `exec()` with no `cwd` runs in the scope's `cwd`.
+- A relative `cwd`, or a relative `read_file()` or `write_file()` path, is
+  joined to the scope's `cwd`. `SandboxEnvironment.exec()` documents a
+  relative `cwd` as relative to the default working directory, and inside the
+  scope that directory is the scope's `cwd`.
+- An absolute `cwd` or path is kept.
+
+The same join applies wherever else a caller gives a relative path inside the
+scope (decision: Ransom, 2026-11-12):
+
+- `exec_remote()` resolves its `cwd` with `sandbox_identity_cwd()`, which now
+  joins a relative `cwd` to the scope's `cwd`, so `exec_remote(cwd="sub")` and
+  `exec(cwd="sub")` run in the same directory. Inside a marked operation, such
+  as an in-loop scorer, a relative `cwd` is kept, as raw `exec()` keeps it
+  there. The model-facing tools that call it with no `cwd` are unchanged.
+- `sandbox_with(file)` resolves a relative `file` with
+  `sandbox_operation_file()` for each sandbox before probing it, so a file a
+  member wrote with `write_file("result.txt")` is found by
+  `sandbox_with("result.txt")`. The probe itself stays a framework operation
+  and runs as the default user. The discovery cache key holds the path each
+  sandbox is probed with, so a lookup made in one scope, or outside any scope,
+  is not reused in another. `on_path=True` lookups are unchanged.
+
+These rules do not depend on the user. A call that names `user="root"` and no
+`cwd` also runs in the scope's `cwd`, as `exec_remote()` already does, so the
+same relative path names the same file whoever the call runs as. Marked
+operations keep the provider's default directory, as they keep its default
+user. Outside a scope, in a scope without a `cwd`, on another sandbox and
+through `as_type()`, nothing changes. The `SandboxEvent` records the resolved
+`cwd` in its options and the resolved path in its `file`, as it records the
+resolved user.
+
+`util/_sandbox/identity.py` defines `SANDBOX_OPERATIONS_USE_SCOPE_CWD = True` so
+that inspect_swe can tell whether the installed inspect_ai applies the scope's
+`cwd` here, as it checks for the bridge's peer-user constant.
+
+A provider's own commands must also work for a user who cannot enter the
+default working directory. Docker's `read_file()` already runs `tar` with
+`--workdir /`. Its `write_file()` ran `mkdir -p`, `tee` and the `ls` of its
+permission-denied diagnostic in the default working directory, as the
+requested user. They now run from `/`; the path is absolute by then, and the
+diagnostic lists the destination's parent instead of `.`. Under runc 1.2 the
+absolute-path commands already succeeded from an unreadable working
+directory; the change matters on runtimes that refuse to start a command
+there. The `local` provider runs only as the
+current user, in its own temporary directory, and writes files with Python
+I/O, so it has no such command.
 
 ### The framework-operation marker
 
@@ -380,7 +463,8 @@ ways of calling it:
     provider whose `write_file()` takes no `user`, the explicit member raises
     `SandboxUserUnsupportedError`, as any member file write does there. A
     relative `dir` still resolves against the provider's working directory,
-    not the scope's cwd, so it must be writable by the member (see
+    not the scope's cwd, because its `pwd` runs through the marked
+    `privileged_exec()`, so it must be writable by the member (see
     [Compatibility](#compatibility-and-migration)).
   - When it returns `None` (outside a scope, or inside a marked block such as
     in-loop scoring), the install takes the legacy path unchanged: a write
@@ -597,13 +681,20 @@ Inside a scope:
 
 - **Custom tools, solvers and scaffold code** that pass no user now run as the
   scope's user. This is the intended change.
+- **Working directory.** Inside a scope with a `cwd`, an `exec()` with no
+  `cwd` runs there instead of in the provider's default directory, and
+  relative `cwd`s (of `exec()` and `exec_remote()`), file paths and
+  `sandbox_with()` lookups resolve against it. Code that relied on the
+  provider's default directory inside a scope must pass an absolute `cwd` or
+  path.
 - **Providers without file users** raise on unmarked `read_file()` and
   `write_file()` calls that pass no user. `exec()` is unaffected, because every
   provider surveyed accepts `exec(user=...)`.
 - **Eval logs.** A `SandboxEvent` for a defaulted call now records `user` in
   its options, where it was absent before. `options` is a free-form dict, and
-  existing logs read back unchanged. No schema or generated TypeScript type
-  changes.
+  existing logs read back unchanged. Inside a scope with a `cwd`, an `exec()`
+  event also records the `cwd` it ran in, and a file event records the
+  resolved path. No schema or generated TypeScript type changes.
 - **`install_skills()` callers** that pass a `user` see no change. Callers
   that omit it get skills owned by the member inside a scope, as described
   under [Public `install_skills()`](#public-install_skills). Relative skill
@@ -743,6 +834,19 @@ the async conventions in AGENTS.md, so they run under asyncio and, with
 - `test_framework_operation_marker_sites`: the tripwire. It walks `src/` and
   asserts that `framework_sandbox_operation` appears only in the allowlisted
   modules.
+- `test_operations_use_the_scope_cwd`: inside a scope with a `cwd`, an
+  `exec()` with no `cwd` runs there, a relative `cwd` and relative file paths
+  are joined to it (an explicit user included), and absolute ones are kept.
+  The events record the resolved values.
+- `test_scope_cwd_is_not_used_by_framework_operations_or_elsewhere`: marked
+  operations, `as_type()`, a scope without a `cwd`, a scope on another sandbox
+  and no scope leave `cwd` and paths unchanged.
+- `test_inside_a_scope_resolves_to_the_scope`: `sandbox_identity_cwd()` joins a
+  relative `cwd` to the scope's `cwd` and keeps an absolute one.
+- `test_file_discovery_follows_the_scope_cwd`: on the `local` provider, a
+  scoped `write_file("result.txt")` is found by `sandbox_with("result.txt")`
+  in the scope, the same lookup outside the scope does not reuse that result,
+  and the absolute path is found anywhere.
 
 `tests/tools/sandbox_tools_utils/test_sandbox_tools.py`:
 
@@ -759,6 +863,8 @@ Other files:
 
 - `tests/util/sandbox/test_exec_remote.py`: an `exec_remote()` call inside a
   scope is unchanged. Its launch transport exec passes the tools user.
+  `test_identity_scope_resolves_a_relative_cwd`: a relative `cwd` is sent
+  joined to the scope's `cwd`, and unchanged inside a marked operation.
 - `tests/checkpoint/test_snapshot_strategy.py` (which already calls
   `copy_out()`): inside a scope, a chunk read passes no user to a provider
   that lacks file users, and passes `"root"` to one that has them.
@@ -801,6 +907,19 @@ Other files:
   `PermissionError`. After both scopes, injection state shows the default
   identity. PR CI runs the slow tests under `tests/tools/`
   (`.github/workflows/build.yml:612`).
+
+- `tests/util/sandbox/test_docker_read_file.py`:
+  `test_write_file_commands_run_from_the_root_directory` checks that every
+  command behind Docker's `write_file()` runs with `--workdir /`, and the
+  Docker slow test
+  `test_docker_file_operations_work_for_a_user_outside_the_working_directory`
+  writes and reads an absolute path as uid 65534 with `working_dir: /root`.
+- Docker slow test `test_custom_tools_use_the_scope_cwd` in
+  `tests/tools/sandbox_tools_utils/test_sandbox_tools.py`: on an image whose
+  working directory is `/root`, inside `sandbox_identity("w1",
+  cwd="/home/w1")`, `exec()` runs in the home, a relative `write_file()` is
+  read back with `exec(["cat", ...])`, and a write to `/scratch/w1/.codex/...`
+  succeeds.
 
 No inspect_ai test needs a model provider or network. Apart from the Docker
 test, all of them use fakes and run in the ordinary test job.
@@ -862,6 +981,3 @@ None. In-loop scoring keeps the default user
   providers need `user` on `read_file()` and `write_file()` before custom file
   operations work inside a scope there. That work belongs in each provider's
   repository.
-- **The scope's `cwd` for raw `exec()`.** Applying it to `exec()` alone
-  would make `exec()` and `read_file()` resolve the same relative path
-  differently (see [Goals and non-goals](#goals-and-non-goals)).
