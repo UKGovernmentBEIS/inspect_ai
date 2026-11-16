@@ -633,8 +633,9 @@ prices for role models, which it cannot tell apart by use ("No price:
 refused before dispatch"). Their spend is still recorded in model and role
 usage and in the sample's reported cost.
 
-The one check that runs for suspended calls, and did not before, is
-`dispatch_guard()`. The bridge's guard is the only guard. Once the bridge has
+The one check newly enabled for suspended calls is `dispatch_guard()`;
+message limits, which suspension never covered, are still checked as
+today. The bridge's guard is the only guard. Once the bridge has
 kept a limit, its agent is ending, so an approval, review or sentinel call
 made inside one of its requests is refused like any other model call. The
 approval fails with the kept limit's copy, the request gets the kept limit's
@@ -683,10 +684,22 @@ The in-process sentinel wrapper is unchanged: it still wraps any exception
 escaping a monitor or protocol in `SentinelFailure`
 (`src/inspect_ai/_sentinel/_dispatch.py:315-316`). Under rule 5 a monitor's
 own model calls run with token, turn and cost limits suspended, so they
-cannot reach one of those limits. The one limit error a monitor can meet is
-a dispatch guard's refusal: a monitor call made inside a bridged request
-after the bridge kept a limit, which raises a copy of the kept limit. It
-leaves `generate()` wrapped, and the bridge's `_forward_provider_errors()`
+cannot reach one of those limits. Two limit errors remain possible.
+
+- **A message limit.** Suspension leaves message limits active, and
+  `generate()` checks the innermost message limit before dispatch
+  (`src/inspect_ai/model/_model.py:1041-1044`,
+  `src/inspect_ai/util/_limit.py:744-758`), so a monitor whose own prompt
+  reaches an inherited message cap raises a message limit. It keeps
+  today's handling: the wrapper turns it into a `SentinelFailure`, and in a
+  bridge that becomes an ordinary error reply with no kept limit. Message
+  limits are outside the chain's exit checks, so nothing records it later.
+  This design does not change it.
+- **A dispatch guard's refusal**: a monitor call made inside a bridged
+  request after the bridge kept a limit, which raises a copy of the kept
+  limit. The rest of this section is about this case.
+
+The guard's refusal leaves `generate()` wrapped, and the bridge's `_forward_provider_errors()`
 answers it as it answers any other error today: an error reply to the
 scaffold, with a logged warning (`service.py:153-166`;
 `SentinelFailure` is not one of the sidecar failures that fail the sample).
@@ -1535,10 +1548,11 @@ unmetered cost or refusal can stay unrecovered ("Checkpoints"); the keys
 were cut (decision: Ransom, 2026-11-16).
 
 **Raise a monitor's limit bare from the sentinel wrapper.** With cost
-suspended for monitors, the only limit a monitor can meet is the bridge
-guard's refusal, and the bridge has already kept that limit, so unwrapping
-it changes only the reply the scaffold sees (decision: Ransom,
-2026-11-16).
+suspended for monitors, the token, turn and cost limit a monitor can meet
+is the bridge guard's refusal, and the bridge has already kept that limit,
+so unwrapping it changes only the reply the scaffold sees. A message limit
+a monitor reaches keeps today's `SentinelFailure` handling ("Sentinel
+failures") (decision: Ransom, 2026-11-16).
 
 **Exempt role models at start by name.** Skipping the start-time price
 check only for roles such as `monitor` would keep the early failure for
