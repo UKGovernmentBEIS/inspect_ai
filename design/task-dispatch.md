@@ -1015,7 +1015,11 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
   `await` in it, it removes the entry from the pending list; when `counted`,
   adds one to `in_flight` and to the entry's model count, as today's pick
   does; moves the record into `attempt`; creates the attempt's fresh
-  `TaskCancel` and cancel scope and stores them on the record, requesting
+  `TaskCancel` and cancel scope and stores them on the record, with the
+  `TaskCancel`'s `can_retry` set from the record's remaining retry budget,
+  as `run_one` passes it to `_run_task` today (always false for a fed task,
+  task-handles.md "Retries"), so `task_run`'s retry pre-mark and
+  `register_eval(will_retry=...)` read the intended value, requesting
   `abort` on the `TaskCancel` when `abort_requested` is set; and schedules
   `run_one(entry, cancel, scope, counted)` in the attempt group. A counted
   `run_one` gives its slot and model count back once, in the synchronous
@@ -1097,9 +1101,16 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
 - **`debug_errors`** is passed to the dispatcher at every `max_tasks`.
 
 `max_tasks` counts attempts in flight, including one building its
-sandboxes, with one exception that
-[task-handles.md](task-handles.md#tasks-fed-through-a-handle) adds: a task
-fed through a handle does not count.
+sandboxes, with two exceptions, both started by the uncounted pass: a record
+cancelled while queued (`abort_requested`), whose attempt runs until its
+abort ends, including its report to the `TaskSource`, and, as
+[task-handles.md](task-handles.md#tasks-fed-through-a-handle) adds, a task
+fed through a handle. So `max_tasks` bounds counted attempts, not every
+live attempt: an aborting record and its `task_complete` callback can run
+beside `max_tasks` counted attempts. The `max_tasks` docstrings
+(`eval()`, `eval_async()`, `eval_set()`, `eval_retry()`) and
+`docs/parallelism.qmd` say so for the aborting record (task-handles.md adds
+the fed-task exception).
 
 #### Sandbox setup in the attempt
 
@@ -1955,14 +1966,18 @@ state in the single `eval_run`), so the setup fixes come first.
    `_run_task`'s single `notify_task_source` call with its two exceptions,
    the dispatcher's synchronous `start_attempt` removing the entry from
    pending, counting it when counted, moving the record into `attempt` and
-   creating the attempt's fresh `TaskCancel` and scope, aborting it when
+   creating the attempt's fresh `TaskCancel` (its `can_retry` from the
+   remaining retry budget) and scope, aborting it when
    `abort_requested` is set, which `run_one` passes to `_run_task`;
    `run_one` dropping the pair when it publishes a retry or ends the
    record, and its closed and abort checks, the
    run's task
    names seeded from `eval_set_tasks`, `startup_sandboxes` and the record's
    resolution cache for every task; `prepare_options`, `TaskInjection`,
-   `PreparedFeed`, `_empty_feed` removed), `_eval/eval.py` (one `eval_run`),
+   `PreparedFeed`, `_empty_feed` removed), `_eval/eval.py` (one `eval_run`;
+   the `max_tasks` docstrings, with `_eval/evalset.py`'s and
+   `docs/parallelism.qmd`, naming the uncounted abort of a task cancelled
+   while queued),
    `_eval/task/run.py` (an explicit checkpoint, then `logger.init()`, at the start of `task_run`; the
    seed's `startup_sandboxes` call after the task-start hooks;
    `on_row_opened()` and `on_registered()`;

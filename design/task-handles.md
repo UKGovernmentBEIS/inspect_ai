@@ -416,7 +416,7 @@ the sample it sent still runs and its result is dropped.
 @dataclass(eq=False)
 class TaskAttempt:                     # one per run_one attempt
     record: TaskRecord
-    ended: bool = False                # set in the step run_one gives its slot back
+    ended: bool = False                # set where run_one publishes a retry or ends the record, counted or not
     channels: list[HandleChannel] = field(default_factory=list)   # channels of tasks it added
 
 _attempt: ContextVar[TaskAttempt | None]   # set by run_one around _run_task
@@ -586,8 +586,10 @@ class PortRequest:
   `TaskCancel.apply`, which `start_attempt` creates with the attempt's
   cancel scope, calls `channel.close()`; [task-dispatch.md](task-dispatch.md#phases-and-cancelling)),
   the end of the creator's attempt (`run_one` sets
-  `ended` and closes the attempt's channels in the step it gives its slot
-  back) and `RunQueue.end`. Closing a channel whose record is still `queued`
+  `ended` and closes the attempt's channels in the synchronous step in which
+  it publishes a retry or ends the record, its exception exit included, for
+  a counted and an uncounted attempt alike, so a fed task that is itself a
+  creator closes its channels when it ends) and `RunQueue.end`. Closing a channel whose record is still `queued`
   with no request ends the record with no log, unless its `abort_requested`
   is set (cancelled while queued): that record stays queued for the
   dispatcher to start its abort attempt, which ends it with the abort log
@@ -605,8 +607,9 @@ class PortRequest:
   its unresolved `enqueue_sample()` calls raise `TaskEndedError` with that
   log, and the calls already returned keep their runs. The creator holds
   the search state and every result returned, and decides whether to add a
-  fresh task. `run_one` passes `can_retry=False` to `_run_task` for such a
-  task and queues no retry for it, so no retry is pre-marked or reported
+  fresh task. `start_attempt` (task-dispatch.md "Starting an attempt")
+  creates such a task's `TaskCancel` with `can_retry=False`, whatever the
+  run's retry budget, and `run_one` queues no retry for it, so no retry is pre-marked or reported
   (`will_retry` is false), and a retry the task requests itself through its
   `TaskCancel` is not honoured, as for a task with no retries left.
 - **Logs and eval sets.** A fed task's log is an ordinary log whose
@@ -735,7 +738,9 @@ that a handle wait depends on, and none is lent:
 The warning is advice: holders that finish release what they hold. The
 `max_tasks`, `max_samples`, `max_sandboxes` and `max_connections`
 docstrings, `docs/parallelism.qmd` and the handle docs in
-`docs/task-source.qmd` state the fed-task exception to `max_tasks` and the
+`docs/task-source.qmd` state the fed-task exception to `max_tasks` (beside
+the exception for a task cancelled while queued that task-dispatch.md
+documents) and the
 `max_sandboxes`, `max_samples` and `max_connections` headroom a waiting run
 needs.
 
@@ -1097,7 +1102,8 @@ that guarantee.
   included, and clearing its `epochs`, the run's epoch reducer, `limit` and
   `sample_id`; `_attempt` set in `run_one`; the
   uncounted start step; channels closed with the creator's attempt; no
-  retry, and `can_retry=False`, for fed tasks; `channel.close()` from the
+  retry, and `can_retry=False` on the `TaskCancel` that `start_attempt`
+  creates, for fed tasks; `channel.close()` from the
   attempt's `TaskCancel.apply` that `start_attempt` creates), `_eval/task/task.py` (`resolve_dataset_or_source`
   naming a `HandleChannel`'s dataset and refusing the reserved name for any
   other), `_eval/eval.py` (`_resolve_enqueued_tasks` resolving a fed task
