@@ -397,7 +397,7 @@ class _Node:
     parent: Self | None  # nearest ancestor of the same kind (unchanged)
     _outer: _Node | None  # nearest ancestor of any kind in the chain
     _in_chain: bool  # set when pushed; never cleared
-    _raised: bool  # set when this node's check raises; cleared when its limit changes
+    _raised_at: float | None  # the node's effective limit when its check last raised
 
 
 ```
@@ -460,16 +460,23 @@ def check_limits(raise_for_equal: bool = False, at_exit: bool = False) -> None:
         if isinstance(node, _CostLimit) and cost_limit_tree.is_suspended():
             continue
         if isinstance(node, (_TokenLimit, _CostLimit, _TurnLimit)):
-            # raises (with its SampleLimitEvent) and sets node._raised
-            node._check_marked(raise_for_equal or (at_exit and node._raised))
+            # raises (with its SampleLimitEvent) and sets node._raised_at
+            node._check_marked(raise_for_equal or (at_exit and node._refused_at_budget()))
 ```
 
 - `_Node._check_marked(raise_for_equal)` calls
   `_check_self(raise_for_equal)`; if that raises a `LimitExceededError`, it
-  sets `self._raised = True` before re-raising. Every check path goes
-  through it: `check_limits()` and the
-  per-kind `check()` methods. inspect_swarm's `_check_self()` overrides
-  therefore set `_raised` too.
+  sets `self._raised_at = self.limit` (the effective limit, a live override
+  included) before re-raising. Every check path goes through it:
+  `check_limits()` and the per-kind `check()` methods. inspect_swarm's
+  `_check_self()` overrides therefore set the mark too.
+- `_Node._refused_at_budget() -> bool` is `self._raised_at is not None and
+  self._raised_at == self.limit`: the node raised under the budget in force
+  now. It reads the effective limit, so any way the budget changes (a
+  `limit` setter, a live override set or cleared through
+  `set_sample_limit_override()`) is covered without hooking the change. A
+  node whose limit is `None` is never reached by count, so the mark does not
+  matter for it (an inspect_swarm lever raises on its own state).
 - The top-level generation records, then checks, once. The inner generation
   (`_model.py:1989`) calls `record_and_check_model_usage(..., check=False)`,
   which records the call's usage and cost (`record_model_call()`) and the
@@ -845,8 +852,9 @@ Background deepagent subagents already read the scope after their block
 propagates.
 
 **What raises at exit.** A node raises if it is exceeded (`> limit`), or if
-it is reached (`== limit`) and has raised before (`_raised`): the exit check
-passes `raise_for_equal=node._raised` for each node. So:
+it is reached (`== limit`) and was refused at that same budget
+(`_refused_at_budget()`): the exit check passes
+`raise_for_equal=node._refused_at_budget()` for each node. So:
 
 - A sample that used exactly its token budget, or took exactly its N turns,
   and returned without trying another call, is not recorded as limited.
@@ -855,20 +863,29 @@ passes `raise_for_equal=node._raised` for each node. So:
   request refused at the sample's budget and kept, then a hard stop that
   cancels the bridge before the kept limit is delivered; or a runtime that
   dropped the error.
-- A limit that raised and whose budget was then changed (for example by a
-  solver that catches the sample token limit and sets `state.token_limit`
-  higher) counts only by its new budget: the `limit` setters of token, cost
-  and turn nodes clear `_raised` when the value changes, so a node retuned
-  from 10 to 20 that later ends at exactly 20 without a refusal at 20 does
-  not raise, and one refused at 20 does.
+- A limit that raised and whose effective budget then changed counts only
+  by the budget in force at exit. The budget can change through a `limit`
+  setter (a solver that catches the sample token limit and sets
+  `state.token_limit` higher) or through a live override of the sample's
+  token or message limit (`inspect ctl`, `set_sample_limit_override()`,
+  `src/inspect_ai/util/_limit_overrides.py:71-100`), which the root node's
+  `limit` getter reads on every access (`src/inspect_ai/util/_limit.py:1083-1086`)
+  without calling the setter. Because the mark stores the budget it was
+  refused at, both paths are handled the same way: a node refused at 10 whose
+  budget becomes 20 (by the setter, by setting an override, or by clearing an
+  override back to a launch budget of 20) and that ends at exactly 20 without
+  a refusal at 20 does not raise; one refused at 20 does. A budget changed
+  back to 10 after a refusal at 10 counts that refusal again.
 
-The `_raised` mark is per node and survives the cancellation that loses the
-error itself; only a change of the node's limit clears it. A checkpoint does
-not store it ("Checkpoints").
+The `_raised_at` mark is per node and survives the cancellation that loses
+the error itself; a change of the node's effective budget makes it not
+count, without clearing it. A checkpoint does not store it ("Checkpoints").
 
 **Plain `with` blocks.** A `with token_limit(...)`, `cost_limit(...)` or
 `turn_limit(...)` block entered directly, not through `apply_limits()` or
-`run()`, gets no exit check, as today. Its author owns it and may catch its
+`run()`, gets no exit check, as today (decision: Ransom, 2026-11-17).
+Automatic recovery of a swallowed limit error covers `apply_limits()`,
+`run()` and the sample. Its author owns it and may catch its
 error inside the block on purpose, which an exit check would raise again;
 inspect_swarm also enters its member nodes this way (`_run_member()`,
 through an `ExitStack`) and handles their errors itself. The rule for a plain block is therefore: while the block is
@@ -939,7 +956,7 @@ retry, and inspect_swarm's member limits restored with
 
 ### Checkpoints
 
-Checkpoints are unchanged, and do not store the `_raised` mark (decision:
+Checkpoints are unchanged, and do not store the `_raised_at` mark (decision:
 Ransom, 2026-11-16). A checkpoint stores the sample roots' usage, and a
 normal resume restores it into fresh roots and checks them:
 `dump_sample_runtime()` writes the token usage, cost and turns
@@ -954,10 +971,10 @@ call. A resume for scoring (`check=False`) runs no check, as today, and
 marks the roots it reseeds so that exit checks skip them ("The owner's exit
 check").
 
-The fresh roots carry no `_raised` mark, so the exit check's handling of a
+The fresh roots carry no `_raised_at` mark, so the exit check's handling of a
 limit reached exactly holds within one attempt. A limit that refused a call
 at exactly its budget is restored at that usage, so any further call is
-refused by the pre-dispatch check (`>=`), which raises it and sets `_raised`
+refused by the pre-dispatch check (`>=`), which raises it and sets `_raised_at`
 again, with nothing spent. If the resumed sample makes no further call and
 returns, it is not recorded as limited, as for a sample that used exactly
 its budget.
@@ -1029,7 +1046,7 @@ async def generate_forwarding_errors(json_data, headers=None):
   has unwound or returned, after a pending enclosing cancellation
   (`bridge.py:340-395`, unchanged). If the agent is cancelled first, the kept
   limit is not raised there. Its node raised when it was reached, so it
-  carries the `_raised` mark. It refuses every later call under it (rule
+  carries the `_raised_at` mark. It refuses every later call under it (rule
   3), and when no other limit error reaches its owner, rule 7 raises it
   when that owner ends normally: an `apply_limits()` scope, or the sample's
   exit check when the solvers return, whether the limit is exceeded or was
@@ -1129,7 +1146,7 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    all (rule 5).
 
 Guarantees 2 and 4 rest on node state, which lives for one attempt. A
-checkpoint resume restores usage but not the `_raised` mark, so a refusal at
+checkpoint resume restores usage but not the `_raised_at` mark, so a refusal at
 exactly the budget from before the checkpoint is not carried into the
 resumed attempt ("Checkpoints").
 
@@ -1394,7 +1411,7 @@ found while the block is open ("Plain `with` blocks").
 **A non-strict exit check (`>=` for every node).** It would catch a refusal
 at exactly the budget without a mark, but would also record as limited every
 sample that used exactly its budget, or took exactly its N turns, and
-returned. The `_raised` mark separates the two.
+returned. The `_raised_at` mark separates the two.
 
 **Carry every limit error intact to its owner.** Make each
 handler that can catch one (fallbacks around compaction, hooks, first-error
@@ -1404,7 +1421,7 @@ that approach found another such handler, and the list is open-ended: any
 user or extension code can catch an exception. The rules here make the
 nodes the record instead, so within one attempt a handler that swallows a
 limit error delays it by at most one call and cannot lose it (a checkpoint
-resume drops the `_raised` mark, "Checkpoints").
+resume drops the `_raised_at` mark, "Checkpoints").
 Inspect still changes its own handlers where that decides *which owner*
 hears first (rules 4, 6 and 8), not merely whether the error survives.
 
@@ -1417,7 +1434,7 @@ path to cover (owned errors, descendants' errors, time limits outside the
 chain). An error that reaches its owner stands (decision: Ransom,
 2026-11-16).
 
-**Store `_raised` in checkpoints.** An optional payload key would carry the
+**Store `_raised_at` in checkpoints.** An optional payload key would carry the
 mark across a resume, so a resumed sample that returns without another call
 is still recorded as limited after a refusal at exactly its budget. The key
 was cut (decision: Ransom, 2026-11-16).
@@ -1625,9 +1642,11 @@ documented. Behaviour changes:
 - **Sidecar-recovered generations count as turns.** A generation that a
   sentinel sidecar recovers as a refusal after a provider error now records
   a turn, as every other top-level generation does.
-- **Changing a limit clears its refusal mark.** Retuning a node
-  (`state.token_limit`, `state.cost_limit`, or a node's `limit`) clears
-  `_raised`, so the exit check judges it by its new budget only.
+- **A refusal counts only at the budget it was refused at.** After a node
+  is retuned (`state.token_limit`, `state.cost_limit`, a node's `limit`, or
+  a live `inspect ctl` override of the sample's token limit, set or
+  cleared), the exit check judges it by the budget then in force; an
+  earlier refusal at another budget does not make it count at equality.
 - **Plain `with` blocks keep no exit check.** As today, a limit reached in
   a plain `with token_limit()` block whose error a handler inside the block
   swallowed is lost if no further call under the block follows; deliberate
@@ -1643,10 +1662,10 @@ documented. Behaviour changes:
   weighted sums such as `(input * 0.1) + output` are unchanged.
 - **Private internals.** `_encloses()`, `_sample_roots()` and `_in_tree()`
   are removed. `_TurnLimit._check_self()` gains a parameter. Chain nodes gain
-  `_outer`, `_in_chain` and `_raised`. `record_turn()` no longer checks. inspect_swarm is the only known user of
+  `_outer`, `_in_chain` and `_raised_at`. `record_turn()` no longer checks. inspect_swarm is the only known user of
   these classes (above).
 - **Persisted data and the viewer.** The checkpoint sample-runtime payload
-  is unchanged and does not store the `_raised` mark, so a resumed sample
+  is unchanged and does not store the `_raised_at` mark, so a resumed sample
   that returns without another call after a refusal at exactly its budget
   is not recorded as limited ("Checkpoints"). `EvalSampleLimit`, `SampleLimitEvent` and `EvalConfig` limit fields keep
   their shapes, and old logs read the same. No generated TypeScript type
@@ -1821,6 +1840,14 @@ under trio with `--runtrio`.
     catch_errors=True)` and `run(limits=[time_limit(...)])` still catch and
     return their own time limit error, including one raised as the limits
     exit (the existing `test_apply_limits_handles_time_limit` stays);
+- `tests/_control/test_limits.py`, live overrides and the exit check: a
+  sample whose root token limit is refused at 10 ends normally at exactly
+  20 and is not recorded as limited, both when an override of 20 is set
+  through `set_sample_limit_override()` after the refusal and when an
+  override of 10 is cleared back to a launch budget of 20; in each case a
+  call refused at 20 (fresh refusal at the new threshold) records the
+  sample as limited by its token limit; and an override set back to 10
+  after a refusal at 10 records it as limited at exactly 10.
 - `tests/checkpoint/test_sample_runtime.py`: the payload is unchanged
   (no new keys); after a dump and normal restore of a token root that
   refused a call at exactly its budget, the next call is refused before
@@ -1924,11 +1951,11 @@ Each step is one PR, in this order. Each keeps the suite green.
    "Current behaviour", used by in-process sentinel dispatch, the sidecar
    result lookup, tool approval and tool review. The steps below assume it.
 1. **The chain and one check.** `src/inspect_ai/util/_limit.py`:
-   `_limit_chain`, `_outer`/`_in_chain`/`_raised`, push/pop, `_chain_depth`,
+   `_limit_chain`, `_outer`/`_in_chain`/`_raised_at`, push/pop, `_chain_depth`,
    `_rank`, `outermost_limit`, `first_or_outermost_limit`, `_outer_than`,
    `_check_marked`, `check_limits`, `record_model_call`,
-   `_TurnLimit._check_self(raise_for_equal)`, the `limit` setters clearing
-   `_raised` on a change, `record_turn` recording only,
+   `_TurnLimit._check_self(raise_for_equal)`, `_refused_at_budget()` (no
+   setter or override-store change), `record_turn` recording only,
    the affine grammar and non-negative weights in `_compile_token_formula()`,
    with metering from the reduced coefficients.
    `src/inspect_ai/model/_model.py`: `record_and_check_model_usage(check=)`,
@@ -1936,7 +1963,7 @@ Each step is one PR, in this order. Each keeps the suite green.
    `record_turn()` then `check_limits()`, the same order in
    `_generate_prepared()` for an output `refusal_after_error()` recovers,
    `_check_limits_before_dispatch`.
-   Tests: `tests/util/test_limit*.py`, `tests/checkpoint/test_sample_runtime.py`
+   Tests: `tests/util/test_limit*.py`, `tests/_control/test_limits.py`, `tests/checkpoint/test_sample_runtime.py`
    (the checkpoint code is unchanged).
 2. **Unpriced models.** `_limit.py`: `UnmeteredCallError`. `_model.py`:
    the unpriced check in `_check_limits_before_dispatch(model)` and the
