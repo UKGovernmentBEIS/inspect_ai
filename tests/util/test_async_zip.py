@@ -18,6 +18,7 @@ from inspect_ai._util.async_bytes_reader import adapt_to_reader
 from inspect_ai._util.async_zip import (
     AsyncZipReader,
     CentralDirectory,
+    TornReadError,
     ZipCrcError,
     is_torn_read,
 )
@@ -900,3 +901,11 @@ def _validation_error() -> ValidationError:
 )
 def test_is_torn_read(ex: BaseException, torn: bool) -> None:
     assert is_torn_read(ex) is torn
+
+
+def test_torn_read_error_is_a_torn_read_and_a_value_error() -> None:
+    # callers catching ValueError, or testing is_torn_read(), around a log
+    # read keep handling a read whose re-reads were spent
+    ex = TornReadError("torn")
+    assert isinstance(ex, ValueError)
+    assert is_torn_read(ex)

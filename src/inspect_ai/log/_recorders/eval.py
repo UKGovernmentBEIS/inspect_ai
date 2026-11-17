@@ -45,7 +45,7 @@ from typing_extensions import override
 
 from inspect_ai._util._async import current_async_backend, tg_collect
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
-from inspect_ai._util.async_zip import AsyncZipReader, is_torn_read
+from inspect_ai._util.async_zip import AsyncZipReader, TornReadError, is_torn_read
 from inspect_ai._util.asyncfiles import (
     S3_COMPOSE_MIN_PREFIX,
     AsyncFilesystem,
@@ -441,7 +441,9 @@ class EvalRecorder(FileRecorder):
                     )
                     return log, reader
 
-                log, reader = await (_read_in_place(read) if in_place else read())
+                log, reader = await (
+                    _read_in_place(read, location) if in_place else read()
+                )
 
                 if etag is not None:
                     log.etag = etag
@@ -852,18 +854,26 @@ async def _write_s3(
 
 async def _read_in_place(
     read: Callable[[], Awaitable[tuple[EvalLog, AsyncZipReader]]],
+    location: str,
 ) -> tuple[EvalLog, AsyncZipReader]:
     """Run a read of a log in place, re-reading it while its reads are torn.
 
-    After ``READ_IN_PLACE_ATTEMPTS`` attempts the last one's error is raised.
+    Raises ``TornReadError``, caused by the last attempt's error, when all
+    ``READ_IN_PLACE_ATTEMPTS`` attempts were torn.
     """
-    for _ in range(READ_IN_PLACE_ATTEMPTS - 1):
+    last: Exception | None = None
+    for _ in range(READ_IN_PLACE_ATTEMPTS):
         try:
             return await read()
         except Exception as ex:
             if not is_torn_read(ex):
                 raise
-    return await read()
+            last = ex
+    assert last is not None
+    raise TornReadError(
+        f"{location} changed during each of {READ_IN_PLACE_ATTEMPTS} reads "
+        f"({str(last) or type(last).__name__})"
+    ) from last
 
 
 async def _s3_download_with_etag(

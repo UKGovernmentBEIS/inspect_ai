@@ -80,6 +80,18 @@ def is_torn_read(ex: BaseException) -> bool:
     return isinstance(ex, _TORN_READ_ERRORS)
 
 
+class TornReadError(ValueError):
+    """A zip another process kept replacing could not be read cleanly.
+
+    Raised when a reader has spent its re-reads of an archive whose every
+    read was torn (see :func:`is_torn_read`), or of a member that never read
+    cleanly. ``__cause__`` is the last attempt's error. The object is likely
+    still being written, so a caller can retry later. A ``ValueError``, like
+    ``ZipCrcError``, so callers that catch ``ValueError`` around a read keep
+    working and ``is_torn_read()`` stays true for it.
+    """
+
+
 def _check_crc(filename: str, entry: ZipEntry, crc: int) -> None:
     if entry.crc32 is not None and crc != entry.crc32:
         raise ZipCrcError(

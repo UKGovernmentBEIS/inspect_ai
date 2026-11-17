@@ -19,7 +19,7 @@ import boto3
 import pytest
 from botocore.exceptions import ClientError
 
-from inspect_ai._util.async_zip import is_torn_read
+from inspect_ai._util.async_zip import TornReadError, is_torn_read
 from inspect_ai._util.asyncfiles import (
     AsyncFilesystem,
     ObjectChangedError,
@@ -220,7 +220,7 @@ async def test_header_read_is_re_read_when_the_log_shrank_past_a_member_offset(
     ] == ["InvalidRange"]
 
 
-async def test_header_read_raises_the_last_torn_error_when_re_reads_are_exhausted(
+async def test_header_read_raises_torn_read_error_when_re_reads_are_exhausted(
     torn_log: _Log,
     log_members: list[tuple[str, bytes]],
     monkeypatch: pytest.MonkeyPatch,
@@ -235,10 +235,14 @@ async def test_header_read_raises_the_last_torn_error_when_re_reads_are_exhauste
         monkeypatch, lambda n: torn_log.put(versions[n % 2])
     )
 
-    with pytest.raises(Exception) as raised:
+    with pytest.raises(TornReadError) as raised:
         await read_eval_log_async(torn_log.location, header_only=True)
 
-    assert is_torn_read(raised.value)
+    assert torn_log.location in str(raised.value)
+    # caused by the last attempt's own torn-read error
+    cause = raised.value.__cause__
+    assert cause is not None and not isinstance(cause, TornReadError)
+    assert is_torn_read(cause)
     assert len(suffix_reads) == READ_IN_PLACE_ATTEMPTS
 
 
