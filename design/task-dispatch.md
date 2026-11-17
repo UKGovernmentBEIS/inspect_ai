@@ -90,8 +90,8 @@ hides a problem):
   `eval()`.
 - An attempt stopped by its own abort or retry request before it wrote a
   final log is reported to the run's `TaskSource` with its unwritten "Task
-  cancelled by user" log, as is a first attempt cancelled while queued;
-  today neither reaches `task_complete`. The location of such a log can
+  cancelled by user" log, a task cancelled while queued included; today
+  none reaches `task_complete`. The location of such a log can
   name a file the attempt never finished or never wrote. How often a source
   hears about a task is unchanged: once per attempt ("Reporting to the
   source").
@@ -105,13 +105,13 @@ hides a problem):
   has finished, as it does for a Ctrl-C during a task. Today the call is
   outside any `eval_run` and `KeyboardInterrupt` propagates from it.
 - Adding a task id already in the run raises `ValueError`.
-- A task cancelled while queued ends with an error log, "cancelled
-  before it started", held in memory and not written to a file. One
-  cancelled after its attempt began but before it registered with the
-  control channel is aborted, as `inspect ctl task cancel` aborts a running
-  task, and ends with today's "Task cancelled by user (abort)" error log,
-  or, when that attempt had already returned an error log, with that log
-  and no retry. `eval()` returns either with the other logs, so an eval set or
+- A task cancelled before it registered with the control channel, while
+  queued or in its attempt, is aborted, as `inspect ctl task cancel` aborts
+  a running task, and ends with today's "Task cancelled by user (abort)"
+  error log; a queued one aborts before it opens a display row or writes a
+  file, so its log is held in memory with an empty `location`. When its
+  attempt had already returned an error log, it ends with that log and no
+  retry. `eval()` returns the log with the other logs, so an eval set or
   selection-mode worker that requested the task reports failure. Under
   `eval_set(retry_immediate=False)` the next round runs such a task again,
   as it does a running task cancelled today.
@@ -372,9 +372,8 @@ The design keeps these, and each section below says how:
 1. **One run, one queue, one dispatcher.** `_eval_async_inner` calls
    `eval_run` once; it owns one `RunQueue` and runs `dispatch_tasks`.
 2. **Every task × model is one record, and every record ends exactly once**
-   (`RunQueue.end`), with the log its last attempt returned, the in-memory
-   error log of a task cancelled before it started, or `None` when dispatch
-   ended first.
+   (`RunQueue.end`), with the log its last attempt returned, or `None` when
+   dispatch ended first.
 3. **A record is visible to the control channel from the moment it is
    added, and after it ends**: in the queued registry until one of its
    attempts first calls `register_eval`, then through its `EvalState`, as
@@ -445,7 +444,7 @@ class TaskRecord:
     options: TaskRunOptions | None    # configured at add, logger constructed; released at end
     phase: TaskPhase = "queued"
     reached: TaskReached = "added"    # furthest milestone of any attempt; kept across retries
-    attempt_cancel: TaskCancel | None = None        # the current attempt's; set on entering `attempt`
+    attempt_cancel: TaskCancel | None = None        # the next or current attempt's; set by run_one or a queued cancel
     attempt_scope: anyio.CancelScope | None = None  # the scope its `apply` cancels; set with it
     log: EvalLog | None = None        # the log run_one stored; the final log once ended
     ended: anyio.Event = field(default_factory=anyio.Event)
@@ -455,8 +454,7 @@ class RunQueue:
     closed: bool
     task_names: list[str]             # eval_set_tasks, then each commit's names
     wake: Wake                        # rung by every phase change and addition, waiters or not
-    uncounted: int                    # display decrements held until the task screen opens
-    pending_reports: list[SourceReport]  # queued-cancel reports owed to the source, until each has run
+    screen_open: bool                 # set while the dispatcher is inside the task screen
     def add(self, resolved: list[ResolvedTask]) -> list[TaskRecord]
     def find(self, task_id: str) -> TaskRecord | None
     def cancel(self, record: TaskRecord) -> None
@@ -609,7 +607,6 @@ today; a `next_tasks()` batch is one call too.
 | from | event | to | made by |
 | --- | --- | --- | --- |
 | (none) | `add` | `queued` | `RunQueue.add` |
-| `queued`, never registered | cancel | `ended`, with the stored log or the cancelled-before-start error log | `RunQueue.cancel` |
 | `queued` | the dispatcher drops a retry carrying the abandon stamp, or dispatch ends | `ended`, with the stored log (`None` if none) | dispatcher; `end_unstarted()` |
 | `queued` | `run_one` begins for the record the dispatcher picked | `attempt` | `run_one`'s first statement |
 | `attempt` | `run_one` publishes a retry | `queued`, with the attempt's log stored | `run_one` |
@@ -654,14 +651,15 @@ queued row and by a handle's `cancel()`, is synchronous:
   attempt or abandons a pending retry (the dispatcher drops it and the
   record ends with its stored log), exactly as `inspect ctl task cancel`
   does today.
-- `queued`, never registered: `RunQueue.end(record, record.log or
-  cancelled_log(record))`, reporting `retry_abandoned` when `record.log` is
-  set (an earlier unregistered attempt failed and its retry was waiting, and
-  the record keeps that attempt's log). This is the only branch that
-  reports it. A first attempt cancelled here (no `record.log`) is reported
-  to the run's `TaskSource`, and a queued retry is not ("Reporting to the
-  source").
-  A queued record holds no recorder entry, so nothing is discarded.
+- `queued`, never registered: an attempt that aborts before it starts.
+  `RunQueue.cancel` creates the record's `attempt_cancel` and scope now,
+  as `run_one` would, requests `abort` on it and rings `wake`; `run_one`
+  later reuses that `TaskCancel` and scope instead of creating them. The
+  dispatcher starts the record on its next pass ("Start rule": an
+  abort-requested record starts at once, uncounted, paused or not), and
+  its `_run_task` aborts at its first checkpoint (below). The record keeps
+  no special outcome: it ends through the abort path like an attempt
+  aborted in its first moments.
 - `attempt`, never registered: the attempt's own abort,
   `record.attempt_cancel.request("abort")`, the call `inspect ctl task
   cancel` makes on a running task's `TaskCancel`. It cancels the attempt's
@@ -673,17 +671,8 @@ queued row and by a handle's `cancel()`, is synchronous:
   after an attempt that ended in error and only an error is retried, and
   `run_one` reads it where it reads `queue.closed` ("No retry once
   closed"), so no retry is published and the record ends with that
-  attempt's log. Neither case reports `retry_abandoned`: an attempt that
-  is still running ends with its new abort log, not a stored one.
-
-`cancelled_log(record)` is `unwritten_task_log(logger, TaskCancelledBeforeStart())`:
-the same in-memory error log a failed log init returns, with status `error`,
-the message "task cancelled before it started", the eval spec the logger
-built at add, and no file. Its `location` is empty: a queued record's logger
-has none ("A task's log starts with its attempt"). So a task cancelled
-before it starts gives `eval()` one log like any other task, and code that
-judges a run by its logs (`all_evals_succeeded`, selection mode) sees a
-failure.
+  attempt's log. No case reports `retry_abandoned`, which stays the answer
+  for a pending retry of a registered task only.
 
 **Aborting an attempt that has not registered.** `run_one` creates the
 attempt's cancel scope and its `TaskCancel`, whose `apply` cancels that
@@ -695,8 +684,13 @@ effect: an AnyIO scope cancelled before it is entered cancels its body at
 the first checkpoint (checked on asyncio and trio). `register_eval`
 receives the same `TaskCancel`, so after registration `cancel_task` reaches
 the same object. The retry-abandon stamp stays only where it is today, for
-a pending retry of a registered task through `cancel_task`. Today's abort
-handling covers every point before registration:
+a pending retry of a registered task through `cancel_task`. A record
+cancelled while queued already holds its aborted `TaskCancel` and scope when
+`run_one` starts it, so `_run_task` aborts at its first checkpoint, at the
+latest inside `logger.init()` before `recorder.log_init()` returns: before
+the display row opens, before `on_task_start` runs and before any log file
+exists, with no logger location. Today's abort handling covers every point
+before registration:
 
 - before the row opens (`logger.init()`, prior-log seeding): the
   cancellation leaves `task_run`, and `_run_task`, finding no result with
@@ -716,18 +710,25 @@ handling covers every point before registration:
 
 `run_one` takes its no-retry branch for an abort and, as today, discards an
 unfinished recorder entry while keeping its destination. The costs
-(decision: Ransom, 2026-11-16): a task cancelled in its first moments, a
-retry included, ends with "Task cancelled by user (abort)", not "cancelled
-before it started" or the earlier attempt's log; it is still an error log,
-so an eval set and a selection-mode worker see a failure. An abort that
+(decisions: Ransom, 2026-11-16 and 2026-11-17): a task cancelled while
+queued or in its first moments, a retry included, ends with "Task cancelled
+by user (abort)", not the earlier attempt's log; it is still an error log,
+so an eval set and a selection-mode worker see a failure. A cancelled queued
+retry is reported to the source once more, as its own aborted attempt. A
+queued cancel takes effect on the dispatcher's next pass, not at once:
+immediately in a run without a `TaskSource`, and after `next_tasks()`
+returns while that call blocks, the record staying listed as queued with
+an abort requested until then. A repeated cancel of such a record answers
+"cancel already requested (abort)". An abort that
 interrupts the header write can leave a partial log file, as an abort of a
 running task can today, and the returned log's `location` names the file
 the attempt was writing, written or not (`unwritten_task_log`, as today).
 
 **Reporting to the source.** One rule: each attempt's outcome reaches the
 run's `TaskSource` once, through `notify_task_source` (which awaits
-`task_complete` and adds what it returns), whatever ended the attempt, and
-so does a first attempt cancelled while queued; nothing is reported twice.
+`task_complete` and adds what it returns), whatever ended the attempt, a
+task cancelled while queued included, since it ends through an aborted
+attempt; nothing is reported twice.
 Delivery stays per attempt, as today: a task that fails and is retried
 twice is reported three times.
 
@@ -748,56 +749,21 @@ twice is reported three times.
   failing hears each failure and is not left waiting after the last.
 - **No attempt, no second report.** An attempt that returns no log of its
   own (a pending retry of a registered task abandoned by the stamp, which
-  ends the record with its earlier attempt's log) reports nothing; nor
-  does a queued retry that is cancelled, or an unregistered attempt aborted
-  after `_run_task` returned: in each case the attempt whose log the record
-  keeps was reported when it returned, or falls under the storage
-  exception.
-- **A first attempt cancelled while queued** has no `_run_task`.
-  `RunQueue.cancel` is synchronous, so `RunQueue.end` in that branch, before
-  it releases `options`, takes the task source, `run_samples`,
-  `debug_errors` and the task name into a report (`SourceReport`) holding the
-  cancelled-before-start log, appends it to `queue.pending_reports` and
-  rings `wake`. On each pass, before its idle test, the dispatcher starts
-  every report not yet started in its attempt group, through
-  `notify_source_guarded` (below); the report removes itself from the list
-  and rings `wake` in a `finally` that covers every exit, dropping its log
-  and source references. A non-empty `pending_reports` counts as not idle,
-  so `next_tasks()` is not called while a report is owed or running, and
-  the tasks a report adds are queued first, the order an attempt gives
-  today. The report inherits the dispatcher's own context: the run's, with
-  the queue bound and no sample or attempt state, so a control-channel
-  cancel's callback can call `enqueue_task()` and return follow-ups, and a
-  cancel from a creator sample carries none of that sample's transcript,
-  model-usage attribution or attempt identity (`_attempt`) into it. A
-  cancel made before the dispatcher enters its group (a seed cancelled
-  while the task screen loads) is started on its first pass. Reports not
-  started when dispatch ends are dropped with the queue, as tasks ended
-  unstarted are not reported either. The cost (decision: Ransom,
-  2026-11-16): a task added and cancelled while `next_tasks()` blocks is
-  reported when that call returns. A source waiting inside that call for
-  the report of a task it added itself was already waiting on its own
-  added task, which does not start until the call returns either.
+  ends the record with its earlier attempt's log) reports nothing; nor does
+  an unregistered attempt aborted after `_run_task` returned: in each case
+  the attempt whose log the record keeps was reported when it returned, or
+  falls under the storage exception. A record ended unstarted when dispatch
+  ends is not reported, as today.
 
-Both paths keep `notify_task_source`'s rules: a callback exception is
-logged (propagated under `debug_errors`), and the tasks a callback returns
-go through `_enqueue_source_tasks`, so after the queue closes they are
-dropped ("Source returns after close are dropped"). Both also keep today's
-guard against a callback that raises a cancellation: `notify_task_source`
-catches only `Exception`, so `_run_task` runs it in a private task group
-and, when the call did not return normally and no cancellation of the run
-caused that, raises `RuntimeError` ("TaskSource.task_complete() for task
-'<task>' raised a cancellation that no cancellation of the run caused."),
-whatever `debug_errors` says. Only the notification half of that check
-moves into one helper, `notify_source_guarded(task_name, log, ...)`, which
-`_run_task` and the queued-cancel report both call. `_run_task` keeps its own
-private group and normal-return check around `task_run`, which turns a
-stray cancellation escaping task cleanup or `on_task_end` into the
-"Task '<task>' raised a cancellation…" error, as today
-(`test_stray_cancellation_after_log_finalized_ends_run`). Run in the
-attempt group, a queued-cancel report's unattributed cancellation would be
-absorbed by that group; the guard turns it into the same contextual run
-error instead, and a real cancellation of the run still propagates.
+The call keeps `notify_task_source`'s rules, as today: a callback exception
+is logged (propagated under `debug_errors`), and the tasks a callback
+returns go through `_enqueue_source_tasks`, so after the queue closes they
+are dropped ("Source returns after close are dropped"). `_run_task` keeps
+today's guards unchanged: its private task group and normal-return check
+turn a cancellation that no cancellation of the run caused, raised by
+`task_complete` or escaping task cleanup, into a contextual `RuntimeError`
+(`test_task_complete_raising_stray_cancellation_ends_run`,
+`test_stray_cancellation_after_log_finalized_ends_run`).
 
 `RunQueue.end` sets `ended`; for a record whose `reached` is not
 `registered`, registers it as a finished eval (below); removes the record
@@ -846,7 +812,7 @@ traceback. A run with a failing task looks as it does today on every
 display and logger format.
 
 **Terminal identity without registration.** A record that ends before any
-attempt calls `register_eval` (cancelled while queued, a startup failure
+attempt calls `register_eval` (cancelled while queued, which aborts before it registers, a startup failure
 such as a failed `init()` or a bad adaptive setting with no retry left, an
 attempt aborted before it registered, a record ended unstarted, a fed task closed before
 any sample was sent) would otherwise vanish from the control channel when
@@ -873,17 +839,18 @@ unstarted at the end of dispatch, aborted or failed in startup before its
 row opened, or, in task-handles.md, a fed task closed before any
 sample was sent) takes one off the total, once. A record whose row opened
 leaves the total unchanged, as today; an abort from `log_start()` on
-completes that row ("Aborting an attempt that has not registered"). The seed's total is set when
-the task screen opens (`task_screen(tasks)` sets it to `len(tasks)`), and
-Textual does that only after its app has loaded, so a seed cancelled while
-it loads would have its decrement overwritten by that reset. So the queue
-holds the decrements itself: `RunQueue.end` adds one to `queue.uncounted`
-while the screen is not yet open, and calls
-`display().update_task_count(-1)` while it is. The dispatcher, on entering
-the body of `_run_task_screen` (Textual's reset is done by then), calls
-`update_task_count(-queue.uncounted)` and marks the screen open; when it
-leaves the screen it marks it closed, and records that end afterwards
-(`end_all()`) change no display. The displays' counting is unchanged.
+completes that row ("Aborting an attempt that has not registered").
+`RunQueue.end` calls `display().update_task_count(-1)` only while
+`queue.screen_open` is set: the dispatcher sets it on entering the body of
+`_run_task_screen`, after Textual's app has loaded and `task_screen(tasks)`
+has set the seed's total, and clears it when it leaves the screen. No
+record that should count ends outside that window: a cancel only requests
+an abort and the dispatcher, inside the screen, runs it; fed tasks are
+closed only by attempt code or by `RunQueue.end`; `end_unstarted()` runs in
+the dispatcher's `finally`, inside the screen. What ends outside it changes
+no display: `end_all()` after the screen has closed, and every record when
+a failure came before the screen opened. The displays' counting is
+unchanged.
 
 The record's sandbox resolution cache (today's run-wide
 `SandboxManager._resolved_no_metadata`, keyed by `(Task, spec)`) is on its
@@ -943,6 +910,7 @@ balancing:
 
 ```
 async with _run_task_screen(...):              # absorbs a cancellation of the run body, as today
+    queue.screen_open = True                   # cleared on leaving the screen
     async with attempt task group:             # today's group: run_one and the throughput reporter
         add_dispatch_waker(queue.wake.set)
         try:
@@ -954,10 +922,11 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
                     entry = pick_balanced(startable entries)
                     if entry is None: break
                     start run_one(entry)
-                [starts outside max_tasks: task-handles.md]
                 if cancelled: break
-                start each queued-cancel report not yet started   # "Reporting to the source"
-                idle = no entry is pending, no attempt runs and queue.pending_reports is empty
+                for each queued record with an abort requested, or (task-handles.md)
+                        fed and holding a request, in queue order:
+                    start run_one(record, counted=False)      # "Start rule"
+                idle = no entry is pending and no attempt runs
                 if idle and source_done: break
                 if idle:
                     more = await task_source.next_tasks()  # inline, as on today's live path
@@ -977,7 +946,14 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
   startable when no control-channel pause holds it
   (`task_dispatch_paused`, as today's dispatch loops check). The dispatcher
   takes the earliest startable record among the least-used models, so at
-  `max_tasks == 1` sequence grouping holds.
+  `max_tasks == 1` sequence grouping holds. One exception, shared with fed
+  tasks' start (task-handles.md): a `queued` record whose abort is
+  requested (cancelled while queued) is started at once, outside
+  `max_tasks` (`run_one(record, counted=False)` does not count toward
+  `in_flight`) and whether or not a pause holds it, since a cancel
+  overrides a pause, as `apply_cancel` already treats it. It is skipped
+  once the dispatcher has latched a cancellation; `end_unstarted()` then
+  ends it with its stored log.
 - **Wakers.** The dispatcher registers `queue.wake.set` with
   `add_dispatch_waker` (`_control/pause.py`) for the run and removes it when
   dispatch ends, as today's dispatch loops do, so a `max_tasks` retune
@@ -988,8 +964,8 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
   awaits `reinit()` and appends the retry at the back of the queue under the
   record's index. The retry's attempt skips the configurations already set
   up in the run and sets up again any whose `task_init` failed. A cancel or
-  drain while a retry waits ends it: at once when no attempt registered,
-  otherwise through the stamp.
+  drain while a retry waits ends it: through its abort on the dispatcher's
+  next pass when no attempt registered, otherwise through the stamp.
   `task_retry_attempts` is one run-wide value: `eval()`'s argument (default
   0), `eval_set()`'s `retry_attempts` (default 10) when `retry_immediate` is
   on (the default) and 0 otherwise, and 0 in a selection-mode worker; there
@@ -1112,22 +1088,20 @@ task id, and `EvalState`s persist across those calls.
   task with history (a legacy retry round), setting `status: "queued"` and
   keeping its history. CLI selectors resolve queued tasks like running ones.
 - `_task_cancel_directive` looks in the registry first. A cancel or drain of
-  a queued record follows `RunQueue.cancel` (ending a `queued` one with the
-  cancelled-before-start error log, or aborting one in its unregistered
-  attempt) and returns `changed: true`,
-  `task_queued: true`, `in_flight: 0` (and `queued: 0` for a drain, whose
-  `queued` is a sample count), plus `retry_abandoned: true` only when a
-  `queued` record ends with the log an earlier unregistered attempt stored;
-  `dry_run` reports without acting. For a record in its unregistered
-  attempt the directive first asks its `attempt_cancel`, dry runs included,
+  a record that has not registered follows `RunQueue.cancel`, which
+  requests its abort, and returns `changed: true`, `task_queued: true`,
+  `in_flight: 0` (and `queued: 0` for a drain, whose `queued` is a sample
+  count); `dry_run` reports without acting. When the record already holds
+  an `attempt_cancel` (cancelled before, or in its attempt), the directive
+  first asks it, dry runs included,
   as today's directive asks a registered attempt's: when an abort is
   already requested it answers `changed: false`, "cancel already requested
   (abort)", and when the attempt has already returned a log that is not an
   error (the `TaskCancel` then accepts nothing) it answers `changed: false`,
   "task already finished", so a repeated cancel or drain while startup or
-  cleanup still holds the record changes nothing. The
-  CLI renders such a result as "queued task … cancelled before it started;
-  no samples ran". `action=score|error` answers 409 ("task … has not
+  cleanup still holds the record changes nothing. The CLI renders such a
+  result as a cancel of a task that ran no samples. `action=score|error`
+  answers 409 ("task … has not
   started, so there are no samples for a resolution to apply to; use cancel
   or drain").
 - `pause_task` and `resume_task` (`_control/pause.py`) look in the registry
@@ -1148,12 +1122,11 @@ task id, and `EvalState`s persist across those calls.
 
 #### Tasks cancelled before they start under `eval_set()`
 
-A task cancelled before it starts ends with the in-memory error log
+A task cancelled before it starts ends with the abort's in-memory error log
 ("Phases and cancelling"), so `eval_set()`'s checks need nothing new:
 `all_evals_succeeded()` reports failure and selection mode returns `False`.
-Under immediate retries (the default) no task retry follows (a queued
-record ends without an attempt, and an abort is never retried), and the
-invocation reports the failure.
+Under immediate retries (the default) no task retry follows, since an abort
+is never retried, and the invocation reports the failure.
 `run_eval` (`evalset.py`) keeps one rule beside its `cancelled`-log check: a
 requested task with no log was still queued when the run was cancelled
 (dispatch ended first), so it raises `KeyboardInterrupt`.
@@ -1518,10 +1491,10 @@ Public API:
   other need one call.
 - `SandboxEnvironment`'s task-level calls run in the launch directory.
 
-Logs: a task cancelled while queued is returned by `eval()` as an
-error log with no file (empty `location`), where today it would have run;
-one cancelled in its attempt before it registers ends with today's abort
-log.
+Logs: a task cancelled while queued is returned by `eval()` with today's
+abort error log ("Task cancelled by user (abort)") and no file (empty
+`location`), where today it would have run; one cancelled in its attempt
+before it registers ends with the same abort log.
 Code that reads `log.location` from `eval()`'s results gets an empty string
 for it, as it already can for a task whose log could not be written. No eval
 log schema, viewer type or config file changes here.
@@ -1540,8 +1513,10 @@ instead of raising from `eval()`.
 
 Control channel: `GET /tasks` gains queued rows (`status: "queued"`); task
 cancel, drain, pause and resume accept queued tasks (`task_queued` in a
-cancel or drain result); a task that ended without starting stays listed as finished, and a
-repeated cancel or drain of it answers "task already finished";
+cancel or drain result; a repeated one before the queued task's abort runs
+answers "cancel already requested (abort)"); a task that ended without
+starting stays listed as finished, and a repeated cancel or drain of it
+answers "task already finished";
 and `CONTROL_API_VERSION` increases. Older CLIs see an unknown status value.
 
 ## Security
@@ -1753,27 +1728,19 @@ test that waits on a run is bounded with `fail_after`.
   `next_tasks()` returning `[]` ends the source without calling the
   resolver; the existing live-injection test passes for a plain task list;
   a source that seeds A and B at `max_tasks=1` and returns from
-  `next_tasks()` only after `task_complete` has reported both, with B
-  cancelled, and in another run drained, while queued behind a running A,
-  and with B aborted while its `logger.init()` is held and while its
-  `log_start()` is held: B is reported once, with the cancelled-before-start
-  log or the abort log, B is not retried, `next_tasks()` returns and the
-  run ends normally, on asyncio and trio; a cancel of B before the task
-  screen opens is reported once the dispatcher enters its group; a queued
-  retry cancelled after its first attempt's log was reported is not
-  reported again; a queued task cancelled through the control channel is
-  reported once, and its callback adds one task with `enqueue_task()` and
-  returns another, and both run; a queued task a creator sample cancels
-  through its handle is reported once, its callback's transcript events and
-  model usage are not attributed to that sample, and an `enqueue_task()` of
-  a `samples_from_handle()` task inside it is refused as outside any
-  attempt; when a queued-cancel report's `task_complete` raises a saved cancellation of
-  its own, the run ends with the `RuntimeError` naming the task on asyncio
-  and trio (as `test_task_complete_raising_stray_cancellation_ends_run`
-  checks for an attempt's report, and as
-  `test_stray_cancellation_after_log_finalized_ends_run` still checks for a
-  cancellation escaping task cleanup), `queue.pending_reports` is empty, and a
-  cancellation of the run during the report propagates as a cancellation; a source that seeds a successful A and a B whose
+  `next_tasks()` only after `task_complete` has reported both, each case
+  ending B through the abort path with one report, the "Task cancelled by
+  user (abort)" log, no retry, no log file, `next_tasks()` released and
+  the run ending normally, on asyncio and trio: B cancelled, and in another
+  run drained, while queued behind a running A; B cancelled while queued
+  and paused (the cancel starts it anyway); B cancelled before the task
+  screen opens (Textual's app load held on an event), counted once off the
+  total; B a queued retry whose first attempt's log init failed, cancelled
+  while it waits (two reports: the failed attempt and the aborted one); B
+  aborted while its `logger.init()` is held and while its `log_start()` is
+  held; the existing stray-cancellation tests
+  (`test_task_complete_raising_stray_cancellation_ends_run`,
+  `test_stray_cancellation_after_log_finalized_ends_run`) pass unchanged; a source that seeds a successful A and a B whose
   `logger.init()` always fails, and returns from `next_tasks()` only after
   `task_complete` has reported A and B's final attempt, with
   `task_retry_attempts` 0 and 2: B is reported once per attempt (once, and
@@ -1786,10 +1753,12 @@ test that waits on a run is bounded with `fail_after`.
 - `tests/test_task_cancel.py` and `tests/_control/test_ctl.py` (invariant 3):
   queued rows in `GET /tasks`, listed and cancellable from the moment
   `enqueue_task()` returns, including while `next_tasks()` blocks forever; a
-  cancel and a drain of a queued record end it with the cancelled-before-start
-  error log (status `error`, empty `location`, returned by `eval_async()`)
-  and return `task_queued: true`, `in_flight: 0` (and `queued: 0`) in
-  `--json` output, rendered as cancelled before it started; `score`/`error`
+  cancel and a drain of a queued record return `task_queued: true`,
+  `in_flight: 0` (and `queued: 0`) in `--json` output and end it, on the
+  dispatcher's next pass, with the abort log (status `error`, empty
+  `location`, no file, returned by `eval_async()`); a repeated cancel and
+  drain before that pass, with and without `--dry-run`, answer
+  `changed: false`, "cancel already requested (abort)"; `score`/`error`
   answer 409; pause and resume of a queued task change its gate and report
   `status: "queued"` with its model, and `--dry-run` changes nothing; under
   `eval_set(retry_immediate=False)`, pause, resume and their `--dry-run` on a
@@ -1809,9 +1778,8 @@ test that waits on a run is bounded with `fail_after`.
   `run_one` awaits the `reinit()` of an unregistered attempt whose log init
   failed publishes no retry, ends the record with that attempt's error log
   and reports no `retry_abandoned`; a cancel of a queued record whose
-  unregistered attempt failed and whose retry is waiting ends it at once
-  with the stored log and reports `retry_abandoned: true`; a second cancel
-  changes nothing;
+  unregistered attempt failed and whose retry is waiting ends it with the
+  abort log and no `retry_abandoned`;
   after a queued record is cancelled, after an unregistered attempt is
   aborted, and after an added task's attempt
   fails before `register_eval` with no retry left (`adaptive_connections=0`,
@@ -1824,12 +1792,11 @@ test that waits on a run is bounded with `fail_after`.
   is held each lower the task total by one, and an abort while
   `log_start()` is held leaves it unchanged, so completed and total match
   once the run ends, under Rich and under Textual; with Textual's app load
-  held on an event, one of two seed
-  tasks cancelled during the load leaves 1/1 once the survivor completes,
-  and the same cancel after the screen opened (the control) does too.
+  held on an event, one of two seed tasks cancelled during the load leaves
+  1/1 once the survivor completes.
 - `tests/test_eval_set.py`: a seed task cancelled while queued under
   immediate retries makes the eval set report failure, with the task's
-  cancelled-before-start error log among its logs and no task retry; every
+  abort log among its logs and no task retry; every
   seed task cancelled reports failure; selection mode returns `False`; a run
   cancelled with a seed task still queued raises `KeyboardInterrupt`; a seed
   task whose sandbox setup fails is retried under immediate retries and
@@ -1889,10 +1856,11 @@ state in the single `eval_run`), so the setup fixes come first.
    `_eval/run.py` (`configure_task()` with the `chdir` kept around the
    logger's construction, `ensure_controllers()` for the seed only,
    `dispatch_tasks()` with the inline `next_tasks()` call and its dispatch
-   waker and its queued-cancel reports, `_run_task`'s single
-   `notify_task_source` call with its two exceptions, the cancellation guard
-   factored into `notify_source_guarded` for both, `run_one`'s move into `attempt` creating the attempt's `TaskCancel`
-   and scope, which `_run_task` takes, and its closed and abort checks, the
+   waker, the uncounted start of an abort-requested record, `RunQueue.cancel`
+   creating a queued record's aborted `TaskCancel`, `_run_task`'s single
+   `notify_task_source` call with its two exceptions, `run_one`'s move into
+   `attempt` creating the attempt's `TaskCancel` and scope (or reusing a
+   queued cancel's), which `_run_task` takes, and its closed and abort checks, the
    run's task
    names seeded from `eval_set_tasks`, `startup_sandboxes` and the record's
    resolution cache for every task; `prepare_options`, `TaskInjection`,
@@ -1900,7 +1868,7 @@ state in the single `eval_run`), so the setup fixes come first.
    `_eval/task/run.py` (`logger.init()` at the start of `task_run`; the
    seed's `startup_sandboxes` call after the task-start hooks;
    `on_row_opened()` and `on_registered()`;
-   `unwritten_task_log` with no location; `TaskCancelledBeforeStart`),
+   `unwritten_task_log` with no location),
    `_display/core/display.py` (`TaskError.from_exception`),
    `_display/core/results.py` and `_display/log/display.py` (rendering the
    snapshot; logging its text as `exc_snapshot`), `_util/logger.py`
@@ -1959,8 +1927,7 @@ than keeping a per-sample key, that the seed's controllers are created
 before it is added and an added task's lazily on its model's first
 `generate`, with no eager call, that
 a record has three phases with registration tracked apart, that the `chdir`
-stays around the synchronous construction of a task's logger, and that a
-task cancelled before it starts ends with an in-memory error log; and
+stays around the synchronous construction of a task's logger; and
 (2026-11-16) that `enqueue_task()` stays synchronous and returns handles,
 reversing the 2026-11-09 decision to make it async once adding a task
 awaited nothing, that an attempt cancelled before it registers is stopped
@@ -1968,11 +1935,13 @@ by its own abort, not the retry-abandon stamp (replacing that part of the
 2026-11-12 three-phase decision), and that cancels under legacy
 `eval_set()` rounds are not refused (replacing the 2026-11-12 refusal),
 that a failed task's display row keeps a frame-free snapshot of its error,
-that a queued cancel's report starts on the dispatcher's next pass, in its
-context (replacing immediate scheduling during a blocked `next_tasks()`),
-and that each attempt's outcome, a failed `init()` and a queued first
-attempt's cancel included, reaches the `TaskSource` through one rule with
-today's two exceptions.
+and that each attempt's outcome, a failed `init()` included, reaches the
+`TaskSource` through one rule with today's two exceptions; and
+(2026-11-17) that a queued cancel becomes an attempt that aborts before it
+starts, started uncounted on the dispatcher's next pass, so it ends and is
+reported through the abort path (replacing the 2026-11-12 in-memory
+"cancelled before it started" log and the 2026-11-16 report on the
+dispatcher's next pass).
 
 ## Not this design
 

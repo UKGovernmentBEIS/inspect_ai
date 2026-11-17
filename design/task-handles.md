@@ -92,10 +92,9 @@ All of these are new API; no existing eval waits on a handle or uses
 - A task fed through a handle is never retried automatically, and
   `eval_retry()` refuses its log. Its log is returned and listed with the
   run's other logs but does not decide `eval_set()`'s result or a
-  selection-mode worker's: its creator's log does. A fed task must have a
-  name of its own: one named like a task the eval set requests, or like a
-  seed task of a plain `eval()`, is refused. Its log's `task_identifier()`
-  is built from its task id, so no ordinary task's identifier matches it.
+  selection-mode worker's: its creator's log does. Its log's
+  `task_identifier()` is built from its task id, so no ordinary task's
+  identifier matches it, whatever the two tasks are named.
   Resuming an eval set whose directory holds
   fed logs, or its later `retry_immediate=False` rounds, needs
   `log_dir_allow_dirty=True`, as for any added task's log.
@@ -306,7 +305,7 @@ including when dispatch ends, so no wait outlives its target:
 
 | how the target ended | `result()` | an unresolved `enqueue_sample()` |
 | --- | --- | --- |
-| an attempt returned a log (success, error, setup failure, log-init failure, abort, a run-level cancellation of a running task), or it was cancelled before it started (its in-memory error log) | that log | `TaskEndedError(log=<that log>)` |
+| an attempt returned a log (success, error, setup failure, log-init failure, abort, including the abort of a task cancelled while queued, a run-level cancellation of a running task) | that log | `TaskEndedError(log=<that log>)` |
 | no log (a fed task closed before any sample was sent, or dispatch ended first) | `None` | `TaskEndedError(log=None)` |
 
 A request that already has its run keeps it; one abandoned raises
@@ -331,13 +330,23 @@ the sample it sent still runs and its result is dropped.
   finished sample. Such a task closes with the attempt like any other.
   `enqueue_task()` checks this before `RunQueue.add` commits anything.
   Elsewhere:
-  - outside any attempt, including `TaskSource.next_tasks()`, which the
-    dispatcher calls: `RuntimeError` from `enqueue_task()`;
-  - returned from a `TaskSource` callback (`task_complete`,
-    `sample_complete`, `sample_abandoned`), whose returns are added with no
-    creator: `RuntimeError` from `RunQueue.add`; a direct `enqueue_task()`
-    call inside a callback that runs within an attempt is attempt code and
-    allowed;
+  - outside any attempt: `RuntimeError` from `enqueue_task()`;
+  - in any `TaskSource` callback (`next_tasks()`, `task_complete`,
+    `sample_complete`, `sample_abandoned`), whether called directly or
+    returned, though `task_complete` and the sample callbacks run inside an
+    attempt and `task_complete` can run after its task's `EvalState` is
+    terminal: `RuntimeError`. Each place Inspect calls a source callback
+    (`notify_task_source` for `task_complete`, `task_run` for
+    `sample_complete` and `sample_abandoned`, the dispatcher for
+    `next_tasks()`) sets `_attempt` to `None` for the call and resets it
+    after (a `ContextVar` token), so the existing check refuses a direct
+    `enqueue_task()` of a fed task with no new condition, and a coroutine
+    the callback starts inherits `None`. Tasks a callback returns are added
+    with no creator, and `RunQueue.add` refuses a fed one. An ordinary
+    `enqueue_task()` from a callback needs no attempt and works as today
+    (decision: Ransom, 2026-11-17, confirming the callback refusal of
+    2026-11-12, whose premise that callbacks run outside attempts was
+    false for `task_complete`);
   - with `epochs` above 1: `ValueError` from `enqueue_task()` ("a task fed
     through its handle runs each sample once; send a sample again to repeat
     it");
@@ -352,19 +361,18 @@ the sample it sent still runs and its result is dropped.
   - its log passed to `eval_retry()`: `PrerequisiteError` from
     `eval_retry_async`, by the log's dataset name, before any task is
     resolved ("Logs and eval sets");
-  - named like a requested or seed task: `ValueError` from `RunQueue.add`
-    ("a task fed through its handle needs its own name, not that of the
-    requested task '<task>'; pass name= to task_with"). The names are
-    `RunQueue.requested_names`, fixed when the queue is created: the
-    `eval_set_tasks` an eval set passes to its rounds and selection
-    workers, and the seed's task names. Names added later are not
-    compared, so a creator can add several rollout tasks from one factory.
-    The name keeps a fed task apart from the tasks of its own run; its
-    identifier keeps its log apart from every ordinary task ("A fed log's
-    identifier");
   - as a `PreviousTask` or a `ResolvedTask` (with or without a prior sample
     source): `ValueError` ("tasks fed through a handle must start fresh;
     pass the Task");
+- **A fed task named like a requested or seed task is not refused.** Its
+  identifier, `…#samples_from_handle/{model}/{task_id}`, already keeps its
+  log apart from every requested task's ("A fed log's identifier"), and
+  every eval-set matching path compares identifiers, not names. The cost:
+  a fed task and a requested task can share a name in the display,
+  `inspect ctl task list` and the viewer, and a control-channel selector by
+  name and model then matches both, so the CLI reports its existing
+  ambiguity error and asks for the task id, as it already does when a
+  creator adds several rollouts from one factory.
 - **A user dataset named `samples_from_handle`**: `ValueError` from
   `resolve_dataset_or_source` ("the dataset name 'samples_from_handle' is
   reserved for tasks fed through a handle"), at `Task` construction or in
@@ -414,16 +422,17 @@ class TaskAttempt:                     # one per run_one attempt
 _attempt: ContextVar[TaskAttempt | None]   # set by run_one around _run_task
 ```
 
-`TaskRecord` gains `channel: HandleChannel | None = None`. `RunQueue`
-gains `requested_names: frozenset[str]`, the eval set's `eval_set_tasks`
-and the seed's task names, set at creation ("What is refused").
+`TaskRecord` gains `channel: HandleChannel | None = None`.
 `RunQueue.add` takes `creator: TaskAttempt | None`, which `enqueue_task()` passes from
-`_attempt`. The dispatcher gains one step after the ordinary picks, skipped
-once it has latched a cancellation:
+`_attempt`. The dispatcher's uncounted start, which task-dispatch.md
+already uses for a record whose abort is requested, also starts each queued
+record with a channel that holds a request, in queue order, if it is
+startable (task-dispatch.md "Start rule"); it is skipped once the
+dispatcher has latched a cancellation:
 
 ```
-    for each queued record with a channel that holds a request, in queue order,
-            if it is startable (task-dispatch.md "Start rule"):
+    for each queued record with an abort requested, or with a channel that
+            holds a request and is startable, in queue order:
         start run_one(record, counted=False)
 ```
 
@@ -598,8 +607,8 @@ class PortRequest:
   decide the eval set's result: `all_evals_succeeded`, which is also
   `eval_set()`'s retry predicate and selection mode's result, skips the
   logs with that dataset name. So a creator that cancels its rollout task,
-  a rollout task cancelled before it started (its in-memory log carries the
-  eval spec built at add), or one that failed and was replaced, does not
+  a rollout task cancelled while queued (its abort log, held in memory,
+  carries the eval spec built at add), or one that failed and was replaced, does not
   fail the set; the creator's own log does, if the creator fails.
   `eval_retry()` refuses a fed task's log: after it recovers its crashed
   logs, as for any log (recovery runs nothing), and before it resolves any
@@ -611,10 +620,9 @@ class PortRequest:
   `task_with(registered_task(), dataset=samples_from_handle())` after the
   `@task` function returned, whose log names that factory and whose
   rebuilt task would have the factory's own dataset.
-- **A fed log's identifier.** The run's own name refusal does not stop a
-  later invocation from requesting an ordinary task with a fed task's name,
-  arguments and model, for example the factory an earlier run's creator
-  adapted with `task_with`. So a fed task's identifier is built from its
+- **A fed log's identifier.** A fed task can have the name, arguments and
+  model of a task an eval set requests, in the same run or a later one, for
+  example the factory a creator adapted with `task_with`. So a fed task's identifier is built from its
   task id: when the dataset name is `samples_from_handle`
   (`task.task.dataset.name` for a `ResolvedTask`, `eval.dataset.name` for a
   log), `task_identifier()` returns
@@ -901,10 +909,10 @@ test touched), with mockllm models; every test that waits is bounded with
     of a fed task queued, in its attempt before `register_eval` and
     running; `close()` and `async with` leaving running rollouts to finish;
   - the terminal-outcome table row by row: a target whose sent sample's
-    setup fails, whose log init fails, cancelled while queued (the
-    cancelled-before-start error log), closed before any sample was sent (no
-    attempt, no log; the display's task total drops by one, as for a queued
-    cancel), and still queued at a latched cancellation (with the waiter in
+    setup fails, whose log init fails, cancelled while queued (its abort
+    log, with no file), closed before any sample was sent (no attempt, no
+    log; the display's task total drops by one, as for an added task ended
+    unstarted), and still queued at a latched cancellation (with the waiter in
     a sibling attempt's shielded cleanup);
   - in `next_tasks()`, a fed task's handle kept from its finished creator:
     `result()` returns the task's log at once and `enqueue_sample()` raises
@@ -916,13 +924,16 @@ test touched), with mockllm models; every test that waits is bounded with
     same, and after that sample settles and the task ends,
     `TaskEndedError`; after `cancel()` once the task has ended,
     `TaskEndedError`;
-  - the name refusal: a fed task built as
+  - a fed task built as
     `task_with(registered_task(), dataset=samples_from_handle())` from a
-    factory the eval set requests, and one named like a seed task of a plain
-    `eval()`, raise the `ValueError` above and add nothing, under `eval()`,
-    `eval_set()` and a selection worker; the same with `name="rollout"`
-    is added and runs, and a creator adds two such rollouts from one
-    factory;
+    factory the eval set requests, under `eval()`, `eval_set()` and a
+    selection worker, is added and runs beside the requested task of the
+    same name, with a different identifier;
+  - in a `TaskSource` run, a `task_complete` called after its task's
+    `EvalState` is terminal that calls `enqueue_task()` with a
+    `samples_from_handle()` task gets the `RuntimeError` and adds nothing,
+    and an ordinary `enqueue_task()` from the same callback adds its task,
+    which runs; the same refusal from `sample_complete`;
   - refusals: a `samples_from_handle()` task added from `next_tasks()`, returned from a `TaskSource` callback, added after
     its creator's attempt ended (by a coroutine the creator left running,
     while another task keeps the run open), with `epochs=2`, passed to
@@ -1080,8 +1091,7 @@ that guarantee.
   other), `_eval/eval.py` (`_resolve_enqueued_tasks` resolving a fed task
   for its creator's model; the `eval_resolve_tasks` refusal;
   `eval_retry_async` refusing a log by its dataset name; `max_tasks`,
-  `max_samples` and `max_sandboxes` docstrings; `requested_names` given to
-  the queue), `_eval/evalset.py`
+  `max_samples` and `max_sandboxes` docstrings), `_eval/evalset.py`
   (`all_evals_succeeded` skipping logs with the reserved dataset name;
   `task_identifier` building a fed task's identifier from its task id),
   `__init__.py` (exports), `docs/task-source.qmd` (handles, stopping
@@ -1089,8 +1099,9 @@ that guarantee.
   running the creator by name, `inspect eval search.py@search` and
   `eval_set("search.py@search", ...)`, when the rollout task shares its
   file, and `log_dir_allow_dirty=True` when resuming such an eval set),
-  `docs/parallelism.qmd`, `docs/reference`, and the name refusal in
-  `RunQueue.add` (`_eval/task/enqueue.py`). Tests: those above.
+  `docs/parallelism.qmd`, `docs/reference`, and `_attempt` set to `None`
+  around each `TaskSource` callback call (`_eval/task/run.py`,
+  `_eval/run.py`). Tests: those above.
 
 ## Open questions
 
@@ -1117,15 +1128,16 @@ reserved dataset name `samples_from_handle`, which `eval_retry()` and the
 eval set's result read (the 2026-11-04 decision's refusal and counting
 from the log, without the schema field dropped then), and a drain, `score`
 or `error` cancel closes the channel, with no separate stopped state
-(narrowing the 2026-11-12 send error order to ended, then closed), and a
-fed task named like a requested or seed task is refused, so fed logs never
-share a requested task's identifier (replacing the eval-set matching filter
-and the coordinated inspect_steward change); and (2026-11-17) a fed task's
+(narrowing the 2026-11-12 send error order to ended, then closed); and
+(2026-11-17) a fed task's
 `task_identifier()` is built from its task id
 (`…#samples_from_handle/{model}/{task_id}`, with no settings hashed;
 2026-11-17), so no ordinary task can produce
 it, with no change to inspect_flow or inspect_steward (replacing the
-2026-11-16 refusal of a fed log under a requested identifier).
+2026-11-16 refusal of a fed log under a requested identifier and, with it,
+the 2026-11-16 refusal of a fed task named like a requested or seed task),
+and fed-task creation is refused in every `TaskSource` callback, by
+clearing `_attempt` for the call.
 
 ## Not this design
 
