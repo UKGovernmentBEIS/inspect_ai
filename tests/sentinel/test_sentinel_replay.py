@@ -8663,6 +8663,49 @@ def test_a_host_call_under_an_id_a_native_call_took_first_keeps_its_result_step(
     assert replay_warnings(caplog) == []
 
 
+@pytest.mark.parametrize("stage", ["tool_call", "tool_result"])
+def test_a_person_s_decision_at_a_renamed_host_run_keeps_its_step_id(
+    stage: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # the host run is named by its execution because a native execution took
+    # its id; live records the person's decision under the id, as replay must
+    Panel("approve", "the sum is right").install(monkeypatch)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r7_defers_a_bridged_host_call(native_first=True)),
+        outputs(
+            r7_tool_calls(
+                ToolCall(
+                    id="shared",
+                    function="mcp__host__addition",
+                    arguments={"x": 1, "y": 1},
+                )
+            ),
+            r7_tool_calls(
+                ToolCall(id="shared", function="addition", arguments={"x": 5, "y": 5})
+            ),
+            done(),
+        ),
+        sentinel=[r7_probe(seen, copies=True), h_ask(stage, ["approve"])],
+        inferred="two threads in one conversation",
+    )
+    events = logged_sample(log).events
+    [host] = [e for e in events if isinstance(e, ToolEvent) and _is_bridged(e)]
+    probed = [
+        e for e in events if isinstance(e, SentinelEvent) and e.path == "r7_probe"
+    ]
+    live = [seen[e.explanation or ""] for e in probed]
+    replay = replayed(log)
+    assert host.execution_id in [s.id for s in replay if s.stage == stage]
+    assert [(d.stage, d.step_id) for d in live[-1].human_decisions or []] == [
+        (stage, "shared"),
+        (stage, "shared"),
+    ]
+    assert comparable(replay[-1].step.human_decisions) == comparable(
+        live[-1].human_decisions
+    )
+
+
 @agent
 def r9_native_before_a_filtered_bridge_call() -> Agent:
     async def execute(state: AgentState) -> AgentState:

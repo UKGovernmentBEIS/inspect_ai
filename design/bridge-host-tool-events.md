@@ -583,7 +583,8 @@ proposal, and fixing the pairing would mean keeping evicted grants.
   call's output holding the call under `proposal_id`, and either its
   `message_id` names the result the agent reported or a check of the call
   names its execution: its `tool_call` check or, where none was recorded (a
-  sentinel that checks results only), its `tool_result` check. The
+  sentinel that checks results only), its `tool_result` check. A host
+  call made in a scorer has none, as a native call has none. The
   `tool_result` step is the tool message `message_id` names, so a run
   without it has none. The steps are named as a native execution's are (see
   Execution ids), so a run under a call id an earlier rebuilt execution
