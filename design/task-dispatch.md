@@ -451,8 +451,8 @@ class TaskRecord:
     options: TaskRunOptions | None    # configured at add, logger constructed; released at end
     phase: TaskPhase = "queued"
     reached: TaskReached = "added"    # furthest milestone of any attempt; kept across retries
-    abort_requested: bool = False     # a cancel while queued and never registered; read by run_one
-    attempt_cancel: TaskCancel | None = None        # the current attempt's, while run_one runs it
+    abort_requested: bool = False     # a cancel while queued and never registered; read by start_attempt
+    attempt_cancel: TaskCancel | None = None        # the current attempt's, from start_attempt until run_one publishes a retry or ends the record
     attempt_scope: anyio.CancelScope | None = None  # the scope its `apply` cancels; set and dropped with it
     log: EvalLog | None = None        # the log run_one stored; the final log once ended
     ended: anyio.Event = field(default_factory=anyio.Event)
@@ -616,25 +616,44 @@ today; a `next_tasks()` batch is one call too.
 | --- | --- | --- | --- |
 | (none) | `add` | `queued` | `RunQueue.add` |
 | `queued` | the dispatcher drops a retry carrying the abandon stamp, or dispatch ends | `ended`, with the stored log (`None` if none) | dispatcher; `end_unstarted()` |
-| `queued` | `run_one` begins for the record the dispatcher picked | `attempt` | `run_one`'s first statement |
+| `queued` | the dispatcher picks it (the counted pick or the uncounted pass) | `attempt` | `start_attempt`, the dispatcher's synchronous start step |
 | `attempt` | `run_one` publishes a retry | `queued`, with the attempt's log stored | `run_one` |
 | `attempt` | `run_one` returns or raises with no retry | `ended`, with the log `run_one` stored (`None` if none) | `run_one` |
 | any but `ended` | the attempt group has exited | `ended`, with the stored log | `end_all()` |
 
 `queued` holds a first attempt and a retry alike, both waiting for a pick; a
-retry is the one with a stored `log`. `attempt` means `run_one` is running
-for the record. The move into `attempt` is `run_one`'s first statement, not
-the dispatcher's pick: if the record ended between the pick and that
-statement (dispatch ending, or in task-handles.md a fed record closed
-empty), `run_one` gives the slot back and returns. A cancel landing there
-finds the record still `queued` and sets `abort_requested`, which `run_one`
-reads as it creates the attempt's pair. A cancellation of the attempt group right after the pick does not
-skip that statement: an AnyIO task started with `start_soon` runs its
-synchronous body up to its first checkpoint even when its group is cancelled
-first (checked on asyncio and trio). Such a `run_one` moves the record into
-`attempt`, is cancelled at its first `await`, and leaves through its
-exception exit, which ends the record (below), so no record stays in
-`attempt`.
+retry is the one with a stored `log`. `attempt` means the dispatcher has
+picked the record and its `run_one` is scheduled or running. The move into
+`attempt` is the dispatcher's pick, not `run_one`'s first statement:
+`start_attempt(entry, counted)` ("Starting an attempt" in § The
+dispatcher), in one synchronous step, removes the entry from the pending
+list, counts it against `in_flight` and its model's count when `counted`
+(the ordinary pick; the uncounted pass does not count it), moves the record
+into `attempt`, creates the attempt's fresh `TaskCancel` and cancel scope
+and stores them on the record, requesting `abort` on the new `TaskCancel`
+when `abort_requested` is set, and schedules `run_one` with them. So a
+cancel sees one of two states only. A record still `queued` has never been
+picked: it gets `abort_requested` and the uncounted start. A record already
+picked, including one whose `run_one` has not yet run its first statement,
+is an attempt that has not registered: the cancel goes to the pair
+`start_attempt` stored on the record, the attempt aborts at `task_run`'s
+explicit first checkpoint, and it keeps its counted slot until it ends,
+exactly as an aborted running task does today; no slot is converted. In that
+window the task holds its slot until its abort finishes, the same as a task
+cancelled a moment later, after its `run_one` has started; its report to
+the `TaskSource` runs inside `_run_task`, before the slot is released, so a
+`task_complete` for it that waits on another task's report at
+`max_tasks=1` waits as it does today for any attempt that ends while holding
+the only slot. Only `run_one`
+(and `end_all()` after the group exits) ends a record in `attempt`:
+`end_unstarted()` and, in task-handles.md, the empty-channel close act on
+`queued` records only, so a scheduled `run_one` always has its attempt to
+run. A cancellation of the attempt group right after the pick does not skip
+`run_one`: an AnyIO task started with `start_soon` runs its synchronous
+body up to its first checkpoint even when its group is cancelled first
+(checked on asyncio and trio). Such a `run_one` is cancelled at its first
+`await` and leaves through its exception exit, which ends the record
+(below), so no record stays in `attempt`.
 
 **`run_one`'s exception exit ends its record.** When `_run_task` raises
 (a cancellation, or an error under `debug_errors`), `run_one` discards an
@@ -665,15 +684,19 @@ queued row and by a handle's `cancel()`, is synchronous:
   `RunQueue.cancel` records the intent, `record.abort_requested = True`,
   and rings `wake`; it creates no `TaskCancel` or scope. The dispatcher
   starts the record on its next pass ("Start rule": a record with
-  `abort_requested` starts at once, uncounted, paused or not), `run_one`
-  creates the attempt's fresh `TaskCancel` and scope as for any attempt and,
-  seeing the flag, requests `abort` on the new pair before `_run_task`
-  enters the scope, so it aborts at its first checkpoint (below). The record keeps
+  `abort_requested` starts at once, uncounted, paused or not);
+  `start_attempt` creates the attempt's fresh `TaskCancel` and scope as for
+  any attempt and, seeing the flag, requests `abort` on the new pair before
+  `run_one` runs, so `_run_task` aborts at its first checkpoint (below). The record keeps
   no special outcome: it ends through the abort path like an attempt
   aborted in its first moments.
 - `attempt`, never registered: the attempt's own abort,
   `record.attempt_cancel.request("abort")`, the call `inspect ctl task
-  cancel` makes on a running task's `TaskCancel`. It cancels the attempt's
+  cancel` makes on a running task's `TaskCancel`. This includes a record
+  picked by the counted pick whose `run_one` has not yet run its first
+  statement: `start_attempt` stored the pair in the step that moved it out
+  of `queued`, so the abort is delivered there, and the attempt keeps its
+  counted slot until it ends. The abort cancels the attempt's
   scope, which encloses only `task_run`, and today's abort handling ends
   the attempt ("Aborting an attempt that has not registered"). An abort is
   never retried. If `_run_task` has already returned (a failed `init()` or
@@ -685,11 +708,12 @@ queued row and by a handle's `cancel()`, is synchronous:
   attempt's log. No case reports `retry_abandoned`, which stays the answer
   for a pending retry of a registered task only.
 
-**Aborting an attempt that has not registered.** `run_one` creates the
-attempt's cancel scope and its `TaskCancel`, whose `apply` cancels that
+**Aborting an attempt that has not registered.** `start_attempt` creates
+the attempt's cancel scope and its `TaskCancel`, whose `apply` cancels that
 scope (today both are created in `_run_task`), in the synchronous step that
-moves the record into `attempt`, stores them on the record and passes them
-to `_run_task`, which enters the scope around `task_run` as today. Every
+moves the record into `attempt`, and stores them on the record; `run_one`
+passes them to `_run_task`, which enters the scope around `task_run` as
+today. Every
 attempt gets a fresh pair; none is carried from one attempt to the next.
 The record holds the pair from that step until the synchronous step in
 which `run_one` publishes a retry (after its last abort and closed checks,
@@ -702,8 +726,8 @@ the first checkpoint (checked on asyncio and trio). `register_eval`
 receives the same `TaskCancel`, so after registration `cancel_task` reaches
 the same object. The retry-abandon stamp stays only where it is today, for
 a pending retry of a registered task through `cancel_task`. For a record
-cancelled while queued, `run_one` requests `abort` on the fresh pair before
-`_run_task` enters the scope, so `_run_task` aborts at its first
+cancelled while queued, `start_attempt` requests `abort` on the fresh pair
+before `run_one` runs, so `_run_task` aborts at its first
 checkpoint. That
 checkpoint must come before any startup side effect, and the recorders do
 not provide one: `EvalRecorder.log_init` reaches a lock first, but
@@ -948,12 +972,11 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
                 while not cancelled and in_flight < effective_max_tasks(parallel):
                     entry = pick_balanced(startable entries)  # skips abort_requested and (task-handles.md) channels
                     if entry is None: break
-                    start run_one(entry)                      # pick_balanced removed it from pending
+                    start_attempt(entry, counted=True)        # "Starting an attempt"
                 if cancelled: break
                 for each pending entry with abort_requested, or (task-handles.md)
                         fed, holding a request and startable, in queue order:
-                    remove it from pending
-                    start run_one(entry, counted=False)       # "Start rule"
+                    start_attempt(entry, counted=False)       # "Start rule"
                 idle = no entry is pending and no attempt runs
                 if idle and source_done: break
                 if idle:
@@ -978,14 +1001,29 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
   tasks' start (task-handles.md): a `queued` record with `abort_requested`
   (cancelled while queued) belongs to the uncounted start alone. The
   ordinary picks skip it, as they skip a record with a channel, so it
-  never takes a counted slot; the uncounted pass takes it from the same
-  pending list the ordinary picks consume, removing the entry before
-  scheduling `run_one(entry, counted=False)`, which does not count toward
-  `in_flight`, so a record is started once however many passes run
-  before its `run_one` does. It starts whether or not a pause holds it,
+  never takes a counted slot; the uncounted pass starts it with
+  `start_attempt(entry, counted=False)`, which takes it from the same
+  pending list the ordinary picks consume and moves it into `attempt` in one
+  synchronous step without counting it toward `in_flight`, so a record is
+  started once however many passes run before its `run_one` does. It starts whether or not a pause holds it,
   since a cancel overrides a pause, as `apply_cancel` already treats it.
   It is skipped once the dispatcher has latched a cancellation;
   `end_unstarted()` then ends it with its stored log.
+- **Starting an attempt.** `start_attempt(entry, counted)` is the one
+  synchronous step that starts every attempt, from the ordinary pick
+  (`counted=True`) and from the uncounted pass (`counted=False`). With no
+  `await` in it, it removes the entry from the pending list; when `counted`,
+  adds one to `in_flight` and to the entry's model count, as today's pick
+  does; moves the record into `attempt`; creates the attempt's fresh
+  `TaskCancel` and cancel scope and stores them on the record, requesting
+  `abort` on the `TaskCancel` when `abort_requested` is set; and schedules
+  `run_one(entry, cancel, scope, counted)` in the attempt group. A counted
+  `run_one` gives its slot and model count back once, in the synchronous
+  step that publishes a retry or ends the record, as today; an uncounted one
+  gives nothing back. A cancel between this step and `run_one`'s first
+  statement finds the record in `attempt` and reaches the stored pair
+  ("Phases and cancelling"), so an attempt picked by the counted pick and
+  cancelled at once holds its slot until its abort ends.
 - **Wakers.** The dispatcher registers `queue.wake.set` with
   `add_dispatch_waker` (`_control/pause.py`) for the run and removes it when
   dispatch ends, as today's dispatch loops do, so a `max_tasks` retune
@@ -1781,7 +1819,14 @@ test that waits on a run is bounded with `fail_after`.
   aborted while its `logger.init()` is held and while its `log_start()` is
   held; with A cancelled while queued ahead of B at `max_tasks=1` and A's
   `task_complete` waiting for B's report, A runs one attempt with one
-  report, uncounted, and B starts in the slot; with the dispatcher made to
+  report, uncounted, and B starts in the slot; with A picked by the counted
+  pick at `max_tasks=1` and cancelled after `start_attempt` returns and
+  before its `run_one` runs its first statement (a test wrapper around
+  `start_attempt` calls `RunQueue.cancel` on the record), A is aborted once
+  at the explicit checkpoint with one report and no startup effects (no
+  log file, no buffer database, no display row, no `on_task_start`), its
+  counted slot is released once when it ends, B starts after that, and
+  `in_flight` and every model count are zero at the end; with the dispatcher made to
   run several passes before an uncounted A's `run_one` begins, A is
   started once; an uncancelled retry gets a fresh `TaskCancel` (a drain of
   its registered attempt takes effect), a cancel while `run_one` awaits
@@ -1908,10 +1953,12 @@ state in the single `eval_run`), so the setup fixes come first.
    waker, the uncounted start of an `abort_requested` record from the
    pending list, `RunQueue.cancel` setting `abort_requested`,
    `_run_task`'s single `notify_task_source` call with its two exceptions,
-   `run_one`'s move into `attempt` creating the attempt's fresh
-   `TaskCancel` and scope, aborting it when `abort_requested` is set,
-   dropping the pair when it publishes a retry or ends the record, which
-   `_run_task` takes, and its closed and abort checks, the
+   the dispatcher's synchronous `start_attempt` removing the entry from
+   pending, counting it when counted, moving the record into `attempt` and
+   creating the attempt's fresh `TaskCancel` and scope, aborting it when
+   `abort_requested` is set, which `run_one` passes to `_run_task`;
+   `run_one` dropping the pair when it publishes a retry or ends the
+   record, and its closed and abort checks, the
    run's task
    names seeded from `eval_set_tasks`, `startup_sandboxes` and the record's
    resolution cache for every task; `prepare_options`, `TaskInjection`,
@@ -1992,7 +2039,9 @@ and that each attempt's outcome, a failed `init()` included, reaches the
 starts, started uncounted on the dispatcher's next pass, so it ends and is
 reported through the abort path (replacing the 2026-11-12 in-memory
 "cancelled before it started" log and the 2026-11-16 report on the
-dispatcher's next pass).
+dispatcher's next pass), and that a record leaves `queued` in the
+dispatcher's pick, so a cancel after the pick aborts a counted attempt that
+keeps its slot until it ends.
 
 ## Not this design
 

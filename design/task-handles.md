@@ -433,14 +433,14 @@ dispatcher has latched a cancellation:
 ```
     for each pending entry with abort_requested, or with a channel that
             holds a request and is startable, in queue order:
-        remove it from pending
-        start run_one(entry, counted=False)
+        start_attempt(entry, counted=False)
 ```
 
 An attempt started this way does not count toward `in_flight`. The
 ordinary picks skip every record that has a channel or `abort_requested`,
-and both passes take an entry out of the same pending list before
-scheduling it, so no record is started twice. `RunQueue.end` closes
+and both passes start an entry through task-dispatch.md's `start_attempt`,
+which takes it out of the same pending list and moves the record into
+`attempt` in one synchronous step, so no record is started twice. `RunQueue.end` closes
 the record's channel, settling every request still unsettled with
 `TaskEndedError(log)`.
 
@@ -583,8 +583,8 @@ class PortRequest:
   synchronous step, so a feeder parked in `next_samples()` wakes and returns
   `None`; a second call does nothing. Every cause uses it: `close()`,
   `result()`, `async with` exit, `cancel()`, a drain, `score` or `error` cancel (the attempt's
-  `TaskCancel.apply`, which `run_one` creates with the attempt's cancel
-  scope, calls `channel.close()`; [task-dispatch.md](task-dispatch.md#phases-and-cancelling)),
+  `TaskCancel.apply`, which `start_attempt` creates with the attempt's
+  cancel scope, calls `channel.close()`; [task-dispatch.md](task-dispatch.md#phases-and-cancelling)),
   the end of the creator's attempt (`run_one` sets
   `ended` and closes the attempt's channels in the step it gives its slot
   back) and `RunQueue.end`. Closing a channel whose record is still `queued`
@@ -1098,7 +1098,7 @@ that guarantee.
   `sample_id`; `_attempt` set in `run_one`; the
   uncounted start step; channels closed with the creator's attempt; no
   retry, and `can_retry=False`, for fed tasks; `channel.close()` from the
-  attempt's `TaskCancel.apply` that `run_one` creates), `_eval/task/task.py` (`resolve_dataset_or_source`
+  attempt's `TaskCancel.apply` that `start_attempt` creates), `_eval/task/task.py` (`resolve_dataset_or_source`
   naming a `HandleChannel`'s dataset and refusing the reserved name for any
   other), `_eval/eval.py` (`_resolve_enqueued_tasks` resolving a fed task
   for its creator's model; the `eval_resolve_tasks` refusal;
