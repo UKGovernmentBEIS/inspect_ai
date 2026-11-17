@@ -425,19 +425,22 @@ _attempt: ContextVar[TaskAttempt | None]   # set by run_one around _run_task
 `TaskRecord` gains `channel: HandleChannel | None = None`.
 `RunQueue.add` takes `creator: TaskAttempt | None`, which `enqueue_task()` passes from
 `_attempt`. The dispatcher's uncounted start, which task-dispatch.md
-already uses for a record whose abort is requested, also starts each queued
+already uses for a record with `abort_requested`, also starts each queued
 record with a channel that holds a request, in queue order, if it is
 startable (task-dispatch.md "Start rule"); it is skipped once the
 dispatcher has latched a cancellation:
 
 ```
-    for each queued record with an abort requested, or with a channel that
+    for each pending entry with abort_requested, or with a channel that
             holds a request and is startable, in queue order:
-        start run_one(record, counted=False)
+        remove it from pending
+        start run_one(entry, counted=False)
 ```
 
-An attempt started this way does not count toward `in_flight`, and the
-ordinary picks skip every record that has a channel. `RunQueue.end` closes
+An attempt started this way does not count toward `in_flight`. The
+ordinary picks skip every record that has a channel or `abort_requested`,
+and both passes take an entry out of the same pending list before
+scheduling it, so no record is started twice. `RunQueue.end` closes
 the record's channel, settling every request still unsettled with
 `TaskEndedError(log)`.
 
@@ -585,13 +588,13 @@ class PortRequest:
   the end of the creator's attempt (`run_one` sets
   `ended` and closes the attempt's channels in the step it gives its slot
   back) and `RunQueue.end`. Closing a channel whose record is still `queued`
-  with no request ends the record with no log, unless the record's abort is
-  requested (cancelled while queued): that record stays queued for the
+  with no request ends the record with no log, unless its `abort_requested`
+  is set (cancelled while queued): that record stays queued for the
   dispatcher to start its abort attempt, which ends it with the abort log
   and one report to the source, or for `end_unstarted()` if dispatch ends
-  first. The abort's own `apply` closes the channel, and so can an explicit
-  `close()` or the creator's attempt ending before the dispatcher's next
-  pass, so the exception covers every close. A creator that forgets to
+  first. `RunQueue.cancel` closes the channel when it sets the flag, and so
+  can an explicit `close()` or the creator's attempt ending before the
+  dispatcher's next pass, so the exception covers every close. A creator that forgets to
   close cannot keep a rollout task open past its own attempt. Samples
   already buffered or running when a drain, `score` or `error` cancel
   closes it follow the directive's existing rules and settle through
