@@ -1,6 +1,8 @@
 import re
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
 from copy import copy
 from dataclasses import fields
 from logging import getLogger
@@ -41,6 +43,7 @@ from inspect_ai._util.registry import registry_info, registry_lookup
 from inspect_ai.approval._approval import Approval, ApprovalDecision
 from inspect_ai.approval._approver import Approver
 from inspect_ai.approval._human.approver import human_approver
+from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sentinel import (
     SentinelAction,
@@ -113,6 +116,7 @@ from ._steps import (
     before_tool_call,
     produced_by,
     producer_of,
+    producing_message_id,
     step_stage,
 )
 
@@ -145,8 +149,8 @@ async def sentinel_before_tool_call(
         view = resolve_tool_call_view(call, viewer, reject_on_error=True)
     except ToolCallViewError as ex:
         raise ToolApprovalError(str(ex)) from ex
+    produced = _producer(call, history, producer, assistant_message)
     conversation = current_conversation()
-    produced = _producer(call, history, producer, assistant_message, conversation)
     step = before_tool_call(
         conversation=conversation,
         message=message,
@@ -205,8 +209,8 @@ async def sentinel_after_tool_call(
     if not _watches(AfterToolCall):
         return
     _require_message_id()
+    produced = _producer(call, history, producer, assistant_message)
     conversation = current_conversation()
-    produced = _producer(call, history, producer, assistant_message, conversation)
     step = after_tool_call(
         conversation=conversation,
         message=message,
@@ -432,18 +436,13 @@ def _producer(
     history: list[ChatMessage] | None,
     producer: ModelEvent | None,
     assistant_message: ChatMessageAssistant | None,
-    conversation: str,
 ) -> Producer | None:
     """What a tool step reads of the model call that produced `call`: `producer`, else the one found in `history` (`_found_producer`).
 
     A `producer` the caller gives counts only if its message (`assistant_message`, else its output message) holds `call`, as for one found in `history` (`_producing_event`).
     """
     if producer is None:
-        return (
-            _found_producer(call, history, conversation)
-            if history is not None
-            else None
-        )
+        return _found_producer(call, history) if history is not None else None
     produced = producer_of(producer, assistant_message)
     if produced is None or not _holds(
         produced.message,
@@ -493,18 +492,21 @@ def _producing_event(call: ToolCall, history: list[ChatMessage]) -> ModelEvent |
 
     Only a model call whose output holds `call` counts. A call the scaffold added to the model's message is not the model's, which is also how replay decides.
     """
-    event = _message_event(call, history)
+    message_id = _assistant_message_id(call, history)
+    event = _message_event(message_id) if message_id is not None else None
     if event is None or not _holds(event.output.message, call, stable=False):
         return None
     return event
 
 
-def _message_event(call: ToolCall, history: list[ChatMessage]) -> ModelEvent | None:
-    """The model call that produced the message in `history` holding `call`, whether or not its output holds `call`."""
+def _assistant_message_id(call: ToolCall, history: list[ChatMessage]) -> str | None:
+    """The id of the message in `history` holding `call`."""
     index = _assistant_index(call, history)
-    message_id = history[index].id if index is not None else None
-    if message_id is None:
-        return None
+    return history[index].id if index is not None else None
+
+
+def _message_event(message_id: str) -> ModelEvent | None:
+    """The latest model call that produced the message `message_id`."""
     try:
         return transcript().history.find_last(produced_by(message_id))
     except TranscriptHistoryUnavailableError:
@@ -513,41 +515,29 @@ def _message_event(call: ToolCall, history: list[ChatMessage]) -> ModelEvent | N
         raise SentinelFailure(ex) from ex
 
 
-class _Turn(NamedTuple):
-    event: str | None
-    """The producing `ModelEvent`'s uuid."""
-
-    producer: Producer
-
-    stable: bool
-    """Whether the producer's message doesn't change: a snapshot, or a copy read back from the transcript's buffer."""
-
-
-def _found_producer(
-    call: ToolCall, history: list[ChatMessage], conversation: str
-) -> Producer | None:
+def _found_producer(call: ToolCall, history: list[ChatMessage]) -> Producer | None:
     """What a tool step reads of the model call found in `history` (`_producing_event`), shared by the steps of its turn.
 
-    A bounded transcript evicts the model call from memory while its turn's steps still run, and each later lookup reads back a new copy of it. So a conversation keeps its latest producer, by the event's uuid, and a step whose call that event produced gets the same producer, before and after eviction. Only a producer whose message doesn't change is kept: a snapshot output (`is_snapshot`), or a copy read back from the buffer, which nothing else holds. An output logged live is read from the event each time, as `_holds` does. The next turn's producer replaces it, so a conversation keeps at most one.
+    A bounded transcript evicts the model call from memory while its turn's steps still run, and a lookup after that reads back a new copy of it. So within one `execute_tools()` call (`tool_turn`), the first step that finds a message's producer keeps it, and later steps for the same message get it without searching the history again. Only a producer whose message doesn't change is kept: a snapshot output (`is_snapshot`), or a copy read back from the buffer, which nothing else holds. An output logged live is found and checked each time.
     """
-    event = _message_event(call, history)
+    message_id = _assistant_message_id(call, history)
+    if message_id is None:
+        return None
+    turn = _tool_turn.get()
+    if turn is not None and turn.transcript is not transcript():
+        turn = None
+    kept = turn.kept(message_id) if turn is not None else None
+    if kept is not None:
+        return kept if _holds(kept.message, call, stable=True) else None
+    event = _message_event(message_id)
     if event is None:
         return None
-    turns = _turns.setdefault(transcript(), {})
-    turn = turns.get(conversation)
-    if turn is None or turn.event != event.uuid:
-        produced = producer_of(event)
-        assert produced is not None
-        turn = _Turn(
-            event.uuid,
-            produced,
-            stable=is_snapshot(produced.message) or not _resident(event),
-        )
-        if event.uuid is not None and turn.stable:
-            turns[conversation] = turn
-    if not _holds(turn.producer.message, call, stable=turn.stable):
-        return None
-    return turn.producer
+    produced = producer_of(event)
+    assert produced is not None
+    stable = is_snapshot(produced.message) or not _resident(event)
+    if turn is not None and stable:
+        turn.keep(message_id, produced)
+    return produced if _holds(produced.message, call, stable=stable) else None
 
 
 def _resident(event: ModelEvent) -> bool:
@@ -558,8 +548,75 @@ def _resident(event: ModelEvent) -> bool:
     return any(resident is event for resident in reversed(history.resident_events))
 
 
-# each conversation's latest producer, per sample (`_found_producer`)
-_turns: "WeakKeyDictionary[Transcript, dict[str, _Turn]]" = WeakKeyDictionary()
+class _ToolTurn:
+    """The producers the tool steps of one `execute_tools()` call have found, by message id (`_found_producer`).
+
+    A producer is kept until the call returns. A nested `execute_tools()` (a tool that runs its own turn) has its own `_ToolTurn`, so it doesn't replace the outer turn's producers.
+
+    A kept producer is what `_message_event` would find only while no other model call that produces the same message id completes: a cached generate output, for one, keeps its message id. So each kept producer records the count of such completions (`_Completions`) when it was found, and is dropped if the count has changed.
+    """
+
+    def __init__(self, transcript: Transcript) -> None:
+        self.transcript = transcript
+        self._kept: dict[str, tuple[Producer, int]] = {}
+
+    def kept(self, message_id: str) -> Producer | None:
+        found = self._kept.get(message_id)
+        if found is None:
+            return None
+        producer, count = found
+        if _Completions.of(self.transcript).count(message_id) != count:
+            del self._kept[message_id]
+            return None
+        return producer
+
+    def keep(self, message_id: str, producer: Producer) -> None:
+        count = _Completions.of(self.transcript).watch(message_id)
+        self._kept[message_id] = (producer, count)
+
+
+class _Completions:
+    """How many times a model call producing each watched message id has completed in a transcript, counted from when the id is first watched.
+
+    One per transcript, subscribed to its events when a tool turn first keeps a producer. Ids are watched only once a tool turn keeps a producer for them, so this holds one count per such message for the rest of the sample. No lock: events are logged on the event loop thread.
+    """
+
+    def __init__(self) -> None:
+        self._counts: dict[str, int] = {}
+
+    @staticmethod
+    def of(transcript: Transcript) -> "_Completions":
+        completions = _completions.get(transcript)
+        if completions is None:
+            completions = _completions[transcript] = _Completions()
+            transcript._subscribe(completions._event)
+        return completions
+
+    def watch(self, message_id: str) -> int:
+        return self._counts.setdefault(message_id, 0)
+
+    def count(self, message_id: str) -> int | None:
+        return self._counts.get(message_id)
+
+    def _event(self, event: Event) -> None:
+        message_id = producing_message_id(event)
+        if message_id is not None and message_id in self._counts:
+            self._counts[message_id] += 1
+
+
+_completions: "WeakKeyDictionary[Transcript, _Completions]" = WeakKeyDictionary()
+
+_tool_turn: ContextVar[_ToolTurn | None] = ContextVar("_tool_turn", default=None)
+
+
+@contextmanager
+def tool_turn() -> Iterator[None]:
+    """Share each producer found by the tool steps of one `execute_tools()` call (`_ToolTurn`)."""
+    token = _tool_turn.set(_ToolTurn(transcript()))
+    try:
+        yield
+    finally:
+        _tool_turn.reset(token)
 
 
 class _HostNative:
