@@ -10921,3 +10921,216 @@ def test_a_modified_call_of_one_response_under_a_shared_id_is_paired_only_by_its
     for step in replay:
         if isinstance(step.step, BeforeToolCall | AfterToolCall):
             assert_step_equals_live((step.stage, step.id), step, live[step.stage])
+
+
+def memory_calls_under_null(*calls: dict[str, Any]) -> ModelOutput:
+    """A response proposing each `memory()` call under the call id `"null"`."""
+    return ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(id="null", function="memory", arguments=arguments)
+                        for arguments in calls
+                    ],
+                ),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+
+
+@protocol
+def r7_moves_memory_a_to_an_unresolved_path() -> Protocol:
+    async def before_call(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if step.call.arguments.get("path") == "/memories/a":
+            return Decision(
+                action="modify",
+                modified=replace(
+                    step.call,
+                    arguments={**step.call.arguments, "path": "/memories/sub/../c"},
+                ),
+                explanation="use c instead",
+            )
+        return None
+
+    return before_call
+
+
+@pytest.mark.parametrize("approved", [False, True])
+@pytest.mark.parametrize("command", ["view", "create"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_modified_memory_call_under_a_shared_id_is_skipped_though_the_tool_resolved_its_path(
+    approved: bool,
+    command: str,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # after Ransom's review 5931343576: memory() records the modify's path
+    # resolved (/memories/c), not as the modify recorded it, so replay missed
+    # the modify and rebuilt the moved call's check of /memories/a from the
+    # call whose arguments the log records
+    from inspect_ai.tool import memory
+
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    if command == "view":
+        tool = memory(
+            initial_data={f"/memories/{name}": name for name in ("a", "b", "c")}
+        )
+        extra: dict[str, Any] = {}
+    else:
+        tool = memory()
+        extra = {"file_text": "x"}
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="Remember")],
+            solver=[use_tools(tool), generate()],
+            sentinel=[
+                r7_probe(seen, copies=True),
+                r7_moves_memory_a_to_an_unresolved_path(),
+            ],
+            approval=[ApprovalPolicy(auto_approver(), "*")] if approved else None,
+        ),
+        model=outputs(
+            memory_calls_under_null(
+                *(
+                    {"command": command, "path": f"/memories/{name}", **extra}
+                    for name in ("a", "b")
+                )
+            ),
+            done(),
+        ),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert all(e.error is None for e in runs)
+    assert sorted((e.arguments["path"] for e in runs), key=str) == [
+        "/memories/b",
+        "/memories/c",
+    ]
+    [modify] = [
+        e for e in events if isinstance(e, SentinelEvent) and e.action == "modify"
+    ]
+    assert modify.modified is not None
+    assert modify.modified.arguments["path"] == "/memories/sub/../c"
+    moved = modify.execution_id
+    assert seen_at(events, seen, "tool_call", moved).call.arguments["path"] == (
+        "/memories/a"
+    )
+
+    if approved:
+        # the approved call is not the call the ToolEvent records, and no
+        # recorded modify names that call, so the log is refused, as before
+        with pytest.raises(
+            ValueError, match="approved call does not match the ToolEvent"
+        ):
+            replayed(log)
+        return
+    with caplog.at_level(logging.WARNING):
+        replay = replayed(log)
+    # without an approval the moved call's steps are skipped, never rebuilt
+    # from the other call
+    [warning] = [w for w in replay_warnings(caplog) if "several calls" in w]
+    assert "'null'" in warning
+    assert replayed_calls(replay) == [
+        (stage, "memory", {"command": command, "path": "/memories/b", **extra})
+        for stage in ("tool_call", "tool_result")
+    ]
+    [kept] = [e.execution_id for e in runs if e.execution_id != moved]
+    for step in replay:
+        if isinstance(step.step, BeforeToolCall | AfterToolCall):
+            assert_step_equals_live(
+                (step.stage, step.id), step, seen_at(events, seen, step.stage, kept)
+            )
+
+    # a log without execution ids can't be replayed, as before
+    with pytest.raises(MalformedLogError, match="Two tool_call steps"):
+        replay_events(log, without_execution_ids(events))
+
+
+def seen_at(
+    events: Sequence[Event], seen: dict[str, Step], stage: str, execution: str | None
+) -> Step:
+    """The step `r7_probe(seen, copies=True)` saw live at `stage` of `execution`."""
+    [step] = [
+        seen[e.explanation or ""]
+        for e in events
+        if isinstance(e, SentinelEvent)
+        and e.path == "r7_probe"
+        and e.stage == stage
+        and e.execution_id == execution
+    ]
+    return step
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_check_with_a_superseded_modify_or_another_decision_pairs_by_arguments(
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # only a reported modify leaves an execution's recorded arguments short of
+    # naming its call: a superseded modify, or a reported decision of another
+    # action, at its check does not
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read them")],
+            solver=[use_tools(read_path()), generate()],
+            sentinel=[r7_probe({})],
+        ),
+        model=outputs(
+            one_response(("read_path", "a.txt"), ("read_path", "b.txt")), done()
+        ),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    probe = next(
+        e
+        for e in events
+        if isinstance(e, SentinelEvent)
+        and e.path == "r7_probe"
+        and e.stage == "tool_call"
+    )
+    decisions = [
+        probe.model_copy(
+            update={
+                "path": "r7_other",
+                "kind": "decision",
+                "status": status,
+                "action": action,
+                "modified": ToolCall(
+                    id="null", function="read_path", arguments={"path": "c.txt"}
+                )
+                if action == "modify"
+                else None,
+            }
+        )
+        for status, action in (("superseded", "modify"), ("reported", "proceed"))
+    ]
+    at = events.index(probe) + 1
+
+    with caplog.at_level(logging.WARNING):
+        replay = replay_events(log, [*events[:at], *decisions, *events[at:]])
+    assert replay_warnings(caplog) == []
+    assert sorted(replayed_calls(replay), key=str) == sorted(
+        [
+            (stage, "read_path", {"path": path})
+            for stage in ("tool_call", "tool_result")
+            for path in ("a.txt", "b.txt")
+        ],
+        key=str,
+    )
