@@ -89,6 +89,7 @@ from ._context import (
 )
 from ._conversation import current_conversation
 from ._person import (
+    ask_about_request,
     ask_about_turn,
     chosen_decision,
     escalation_lines,
@@ -102,6 +103,7 @@ from ._steps import (
     after_tool_call,
     before_generate,
     before_tool_call,
+    not_sent_before,
     produced_by,
     producer_of,
     step_stage,
@@ -374,8 +376,8 @@ def _eval_context() -> EvalContext | None:
     )
 
 
-def record_agent_turn(input: list[ChatMessage]) -> None:
-    _record(current_conversation()).sent.record(input)
+def record_agent_turn(input: list[ChatMessage], model: str) -> None:
+    _record(current_conversation()).record(input, model)
 
 
 def _record(conversation: str) -> ConversationRecord:
@@ -515,25 +517,20 @@ class _HostNative:
         escalations: Escalations,
         choices: Sequence[str],
     ) -> HumanAnswer:
-        if isinstance(step, BeforeGenerate):
-            raise NotImplementedError(
-                f"inspect_ai cannot ask a person at the {step_stage(step)} stage; "
-                "its human approval surfaces show tool calls and assistant turns."
-            )
         if "modify" in choices:
             raise NotImplementedError(
                 "human() cannot offer 'modify' in inspect_ai, since its human "
                 "approval surfaces cannot edit a tool call yet."
             )
-        if isinstance(step, AfterGenerate) and "reject" in choices:
+        if isinstance(step, BeforeGenerate | AfterGenerate) and "reject" in choices:
             raise ValueError(
                 f"human() cannot offer 'reject' at the {step_stage(step)} stage, "
-                "where a turn can only proceed or be terminated."
+                "where a generate can only proceed or be terminated."
             )
         offered = offered_choices(choices)
-        # the approval surfaces show the conversation; a step with no agent's
-        # list shows what the model saw instead, and nothing when that is
-        # unknown too
+        # the approval surfaces are given the conversation; a step with no
+        # agent's list gives what the model saw instead, and nothing when that
+        # is unknown too
         if step.agent_messages is not None:
             conversation = step.agent_messages
         elif step.input is not None:
@@ -541,7 +538,23 @@ class _HostNative:
         else:
             conversation = []
         approve = human_approver(choices=offered)
-        if isinstance(step, AfterGenerate):
+        if isinstance(step, BeforeGenerate):
+            approval = await ask_about_request(
+                approve,
+                step.model,
+                len(step.input),
+                # by this host's record of what the model was sent:
+                # `step.history` is what the conversation has sent any model
+                not_sent_before(
+                    step.input, _record(step.conversation).sent_to(step.model)
+                ),
+                [tool.name for tool in step.tools],
+                step.tool_choice,
+                [(e.name, e.report.explanation) for e in escalations],
+                offered,
+                list(conversation),
+            )
+        elif isinstance(step, AfterGenerate):
             approval = await ask_about_turn(
                 approve,
                 step.output.message if step.output.choices else None,
