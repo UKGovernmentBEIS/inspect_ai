@@ -351,13 +351,16 @@ tokens per call, run against this branch's base):
    several, it chooses the one with the smallest depth. A limit error with no
    node in the chain (a `custom` limit, a time limit, a node never entered)
    ranks after every node that has one.
-5. **A suspended call is invisible to the kinds it suspends and to the
-   bridge guard.** Inside `suspend_token_limit()`, `suspend_turn_limit()` or
-   `suspend_cost_limit()` (or `suspend_limits()`, all of them), limits of
-   that kind neither record nor check the calls made in the block, and the
-   cost rules for unmetered calls (rule 9) skip a call while cost is
-   suspended. The `dispatch_guard()` checks are skipped too, as today.
-   Message limits are still checked.
+5. **A suspended call is invisible to the kinds it suspends.** Inside
+   `suspend_token_limit()`, `suspend_turn_limit()` or `suspend_cost_limit()`
+   (or `suspend_limits()`, all of them), limits of that kind neither record
+   nor check the calls made in the block, and the cost rules for unmetered
+   calls (rule 9) skip a call while cost is suspended. The `dispatch_guard()`
+   checks are skipped while token limits are suspended, as today, so
+   `suspend_token_limit()` and `suspend_limits()` skip them and
+   `suspend_turn_limit()` or `suspend_cost_limit()` alone does not.
+   Approval, review and sentinel calls run under `suspend_limits()`, so they
+   skip the bridge guard. Message limits are still checked.
 6. **The owner handles its error.** Code that did not enter a token, cost or
    turn limit never turns that limit's error into a message, a tool error, a
    reply or a return value. It lets the error propagate. Message limits keep
@@ -504,8 +507,7 @@ def check_limits(raise_for_equal: bool = False, at_exit: bool = False) -> None:
   calls `check_limits(raise_for_equal=True)`, then the unpriced-model check
   (rule 9, "Unmetered calls") when `model` is given, and then the
   `dispatch_guard()` checks, which are skipped while token limits are
-  suspended, as today (`_model.py:3689-3701`; every suspended call suspends
-  tokens, rule 5). It is
+  suspended, as today (`_model.py:3689-3701`, rule 5). It is
   still called per attempt, after the cache lookup, so a cache hit is never
   refused. The per-attempt calls in `generate()` and native compaction pass
   their model. The bridge still calls it at the start of every request,
@@ -541,7 +543,7 @@ limit raises. Rule 4 extends that to every place that combines errors:
 | Where | Today | Now |
 |---|---|---|
 | One check after a call | token tree, then cost tree (priced calls only) | chain root first, every call |
-| Pre-dispatch check | token, cost, then guards (guards skipped when suspended) | chain root first (turns included), then guards (still skipped when suspended) |
+| Pre-dispatch check | token, cost, then guards (guards skipped while tokens are suspended) | chain root first (turns included), then guards (still skipped while tokens are suspended) |
 | Overlapping calls in one task group | the group's first leaf, wherever it is reduced | the outermost limit at each limit-aware reduction below |
 | `_apply_response_filter()`, a group of only limits, terminations and refusals (`agent/_bridge/util.py:493-505`) | its first leaf | `first_or_outermost_limit(group)`; a mixed group is still a `ResponseFilterError` |
 | `apply_limits()` | catches a bare owned error only | catches a group whose leaves are all limit errors and whose outermost is owned (below) |
@@ -618,7 +620,7 @@ error and continue, and the outer limit would then depend on a later check
 
 Rule 5 replaces the separate paths for suspended calls with one rule: a
 suspended kind is neither charged nor checked, and the bridge guard is
-skipped, as today.
+skipped while token limits are suspended, as today.
 Approval, review and in-process sentinel calls, and the wait for a sentinel
 sidecar's result, run under `suspend_limits()`, so they record into and
 check no token, turn or cost limit. That includes the pre-dispatch check, so
@@ -632,9 +634,13 @@ prices for role models, which it cannot tell apart by use ("No price:
 refused before dispatch"). Their spend is still recorded in model and role
 usage and in the sample's reported cost.
 
-Suspended calls also skip `dispatch_guard()`, as they do today
-(`_model.py:3689-3701`), and message limits, which suspension never
-covered, are still checked as today (decision: Ransom, 2026-11-17). The
+Calls made while token limits are suspended also skip `dispatch_guard()`,
+as they do today (`_model.py:3689-3701`); approval, review and sentinel
+calls suspend tokens through `suspend_limits()`, so they skip it. Turn or
+cost suspension alone does not skip the guard, as today: the suspension
+contexts are independent, and only the token one gates the guard. Message
+limits, which suspension never covered, are still checked as today
+(decision: Ransom, 2026-11-17). The
 bridge's guard is the only guard. The cost: once the bridge has kept a
 limit, an approval, review or monitor call made for a request already in
 flight still runs, and its spend counts against no limit. Every later
@@ -739,16 +745,29 @@ purpose, and `restore_sample_runtime()` takes the same `check=False` switch
 for that reason.
 
 **What the owner can miss.** Because an error that reaches its owner
-stands, only the recorded limit type can differ from the outermost limit
-that counts, and only in narrow cleanup races: a limit escapes, and while
-its task group unwinds, a sibling's call that was already in flight
-finishes in cancellation cleanup and pushes another limit over. In
-`run(limits=[outer_cost, inner_token])`, one task can raise the token
+stands, the recorded limit can differ from the outermost limit that counts
+when something replaces the error on its way out. Two cases do this:
+
+- **Cleanup races.** A limit escapes, and while its task group unwinds, a
+  sibling's call that was already in flight finishes in cancellation
+  cleanup and pushes another limit over.
+- **Adapter state copies.** `as_solver()` copies the agent's messages into
+  the `TaskState` in a `finally` after the agent's own limits have exited
+  (`src/inspect_ai/agent/_as_solver.py:72-79`), and that assignment checks
+  the sample's message limit (`TaskState.messages`,
+  `src/inspect_ai/solver/_task_state.py:274-275`). An agent whose token
+  limit escapes after it added messages beyond an outer message limit
+  therefore leaves `as_solver()` with the message limit, the token error
+  as its context. No concurrency is involved, and it does so today.
+
+In both cases the owner records the error that arrives, as the
+exceptional-exit policy says, and does not look at the earlier one. For
+the races: in `run(limits=[outer_cost, inner_token])`, one task can raise the token
 limit while a sibling's cleanup pushes the cost limit over; `tg_collect()`
 keeps the token error and `run()` returns it. At the sample, an inner limit
 can escape the solvers while a background worker's cleanup pushes a sample
-limit over; the sample records the inner limit. Either way the outcome is
-still a limit, nothing is spent beyond the calls already in flight, and a
+limit over; the sample records the inner limit. In every case the outcome
+is still a limit, nothing is spent beyond the calls already in flight, and a
 limit left reached refuses every later call under it (rule 3): an enclosing
 limit pushed over in the race refuses the caller's next call, and its own
 owner's exit check finds it if no call follows.
@@ -990,9 +1009,10 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    call. That covers a runtime, or a bridged agent
    cancelled before its CLI exited, that drops the error. It runs after
    background cleanup, so usage recorded there counts. A limit error that
-   reaches the runner is recorded as it is: it can be an inner limit only
-   when a sample limit was pushed over in cleanup after that limit escaped
-   (see "What the owner can miss"). An exit decided by a non-limit error, a
+   reaches the runner is recorded as it is: it can differ from the
+   outermost sample limit that counts when a limit is pushed over in
+   cleanup after another escaped, or when an adapter's state copy raises a
+   different limit (see "What the owner can miss"). An exit decided by a non-limit error, a
    termination or an operator interrupt keeps that outcome.
 5. **A cost limit meters every call that comes back.** No model without
    cost data is dispatched under a sample or swarm cost limit, and a
@@ -1379,8 +1399,8 @@ hears first (rules 4, 6 and 8), not merely whether the error survives.
 **Reconcile an escaped limit with node state at its owner.** When a limit
 error reaches `apply_limits()` or the sample runner, compare it with the
 outermost limit that counts at that point and report that one instead. It
-would close the cleanup race under "What the owner can miss", where only
-the recorded limit type differs, but each review of it found another exit
+would close the cases under "What the owner can miss", where only the
+recorded limit differs, but each review of it found another exit
 path to cover (owned errors, descendants' errors, time limits outside the
 chain). An error that reaches its owner stands (decision: Ransom,
 2026-11-16).
@@ -1719,7 +1739,10 @@ under trio with `--runtrio`.
   the same with a child `cost_limit()`.
 - `tests/util/test_limit_token.py`: inside `suspend_limits()`, a call is not
   refused by a reached token, turn or cost limit, nor by a
-  `dispatch_guard()`, and a reached message limit still refuses it;
+  `dispatch_guard()`, and a reached message limit still refuses it; inside
+  `suspend_token_limit()` alone the guard is skipped; inside
+  `suspend_turn_limit()` alone and inside `suspend_cost_limit()` alone a
+  `dispatch_guard()` still refuses the call (pinned, as today);
   `token_limit()` and `TokenLimit` (including the `"input-output:10"`
   string form) refuse `input - output`, `input / output`
   and `input * output` with the family message, and accept `all`, `output`,
@@ -1757,6 +1780,12 @@ under trio with `--runtrio`.
 - `tests/util/test_limit.py`, sentinel: a stub in-process monitor whose
   priced model call would exceed a reached sample cost limit is made and
   not charged to it.
+- `tests/agent/test_agent_execute.py`, adapter replacement (pinned, as
+  today): under outer `token_limit(1)` and `message_limit(1)`, an
+  `as_solver()` agent with its own `message_limit(100)` that appends a
+  message and then exceeds the token limit leaves with the outer message
+  limit, its context the token error; with an outer message limit of 10
+  the token error leaves unchanged.
 - `tests/agent/test_agent_execute.py`: a sample token limit reached inside an
   `as_tool()` agent ends the sample with `limit.type == "token"` and no
   further generation; `as_tool()`'s own token limit is still a tool error;
@@ -1874,7 +1903,8 @@ Each step is one PR, in this order. Each keeps the suite green.
    classified converter in that provider's existing test file under
    `tests/model/providers/` (mocked transport, no API key).
 3. **Suspension.** `_limit.py`: `check_limits()` skips suspended cost
-   nodes. The guard checks stay skipped for suspended calls, as today.
+   nodes. The guard checks stay skipped while token limits are suspended,
+   as today, and run under turn-only or cost-only suspension.
    Tests in `tests/util/test_limit_token.py`,
    `tests/util/test_limit_cost.py` and
    `tests/agent/test_bridge_provider_errors.py`.
