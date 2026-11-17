@@ -5,7 +5,7 @@ from copy import copy
 from dataclasses import fields
 from logging import getLogger
 from typing import Any, Literal, NamedTuple, cast
-from weakref import WeakKeyDictionary
+from weakref import WeakKeyDictionary, ref
 
 from inspect_sentinel import (
     AfterGenerate,
@@ -447,7 +447,31 @@ def _producer(
 
 
 def _holds(message: ChatMessageAssistant, call: ToolCall) -> bool:
-    return any(proposed.id == call.id for proposed in message.tool_calls or [])
+    return call.id in _call_ids.of(message)
+
+
+class _CallIds:
+    """Each assistant message's tool call ids, read once per message object.
+
+    A turn's steps share their producer's message (the `ModelEvent`'s snapshot, or the copy an agent bridge handed over), so checking that it holds each step's call reads it once per turn, not once per step. Entries are keyed by identity, since messages aren't hashable, and go with their message. A message's ids are read when it is first checked; these messages aren't changed after the model call. No lock: the sentinel's steps run on the event loop thread.
+    """
+
+    def __init__(self) -> None:
+        self._ids: dict[int, tuple[ref[ChatMessageAssistant], frozenset[str]]] = {}
+
+    def of(self, message: ChatMessageAssistant) -> frozenset[str]:
+        key = id(message)
+        entry = self._ids.get(key)
+        if entry is None or entry[0]() is not message:
+            entry = (
+                ref(message, lambda _: self._ids.pop(key, None)),
+                frozenset(call.id for call in message.tool_calls or []),
+            )
+            self._ids[key] = entry
+        return entry[1]
+
+
+_call_ids = _CallIds()
 
 
 def _producing_event(call: ToolCall, history: list[ChatMessage]) -> ModelEvent | None:
