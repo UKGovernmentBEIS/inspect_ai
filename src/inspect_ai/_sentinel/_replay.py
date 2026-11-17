@@ -2068,15 +2068,20 @@ def _proposed_call(
     Equal calls are one call, and without `arguments` only equal calls name
     one. With `arguments_unused` (the steps take their arguments from the
     log, not the call), calls equal but for their arguments are one call too,
-    where `arguments` match none or several of them.
+    where `arguments` match none or several of them. Arguments are compared
+    by JSON semantics (`json_equal`): `True` and `1` are different arguments.
     """
     named = [c for c in candidates if c.function == function]
-    if named and any(c != named[0] for c in named) and arguments is not None:
+    if (
+        named
+        and any(not _same_call(c, named[0]) for c in named)
+        and arguments is not None
+    ):
         matched = [c for c in named if json_equal(c.arguments, arguments)]
         if matched or not arguments_unused:
             named = matched
     if named and all(
-        c == named[0]
+        _same_call(c, named[0])
         or (
             arguments_unused
             and replace(c, arguments={}) == replace(named[0], arguments={})
@@ -2085,6 +2090,13 @@ def _proposed_call(
     ):
         return named[0]
     return None
+
+
+def _same_call(a: ToolCall, b: ToolCall) -> bool:
+    """Whether `a` and `b` are equal, with their arguments compared by `json_equal`."""
+    return json_equal(a.arguments, b.arguments) and replace(a, arguments={}) == replace(
+        b, arguments={}
+    )
 
 
 def _bridged(event: ToolEvent) -> bool:
