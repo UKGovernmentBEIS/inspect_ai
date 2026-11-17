@@ -95,7 +95,7 @@ All of these are new API; no existing eval waits on a handle or uses
   selection-mode worker's: its creator's log does. A fed task must have a
   name of its own: one named like a task the eval set requests, or like a
   seed task of a plain `eval()`, is refused. Its log's `task_identifier()`
-  includes its task id, so no ordinary task's identifier matches it.
+  is built from its task id, so no ordinary task's identifier matches it.
   Resuming an eval set whose directory holds
   fed logs, or its later `retry_immediate=False` rounds, needs
   `log_dir_allow_dirty=True`, as for any added task's log.
@@ -614,12 +614,16 @@ class PortRequest:
 - **A fed log's identifier.** The run's own name refusal does not stop a
   later invocation from requesting an ordinary task with a fed task's name,
   arguments and model, for example the factory an earlier run's creator
-  adapted with `task_with`. So `task_identifier()` folds the task id into a
-  fed task's identifier: when the dataset name is `samples_from_handle`
+  adapted with `task_with`. So a fed task's identifier is built from its
+  task id: when the dataset name is `samples_from_handle`
   (`task.task.dataset.name` for a `ResolvedTask`, `eval.dataset.name` for a
-  log), the additional-hash input gains `"samples_from_handle:<task_id>"`,
-  where `<task_id>` is `ResolvedTask.id` or the log's `eval.task_id`. The
-  existing `EvalSpec.task_id` meets every requirement, so no field is added:
+  log), `task_identifier()` returns
+  `{task_file}@{task_name}#samples_from_handle/{model}/{task_id}` (without
+  the `{task_file}@` prefix for a task with no source file, as today),
+  where `task_id` is `ResolvedTask.id` or the log's `eval.task_id`. It
+  computes neither the args hash nor the additional hash for a fed task.
+  The existing `EvalSpec.task_id` meets every requirement, so no field is
+  added:
   - it is stored in every log's eval spec, so the identifier recomputed
     from a log header on every read is the one computed at run time;
   - it is unique to the fed task: a fed task is always a fresh `Task`
@@ -633,12 +637,35 @@ class PortRequest:
   - `ResolvedTask.id` is the task id the logger writes, so a `ResolvedTask`
     and its log give the same identifier.
 
-  An ordinary task's identifier is unchanged, and so is the fed task's
-  identifier apart from that input. `TASK_IDENTIFIER_VERSION` is therefore
-  not bumped: inspect_steward refuses a manifest computed under another
-  version, and no ordinary identifier, nor any manifest, changes. Only a
-  log whose user dataset was named `samples_from_handle` before the name
-  was reserved would get a new identifier.
+  The settings are left out because the task id alone makes the
+  identifier unique and stable, nothing matches a fed log by its settings,
+  and the settings are the only inputs on which the `ResolvedTask` branch
+  and the log-header branch can disagree. A fed task's settings are one
+  such disagreement: they resolve task-first ("Tasks fed through a
+  handle"), so the resolved branch, which applies the run's limits over the
+  task's, would hash the run's `message_limit` where the log records the
+  task's own. With no settings in the identifier, no precedence rule is
+  needed in `task_identifier()`.
+
+  No ordinary task can produce this form: an ordinary identifier's part
+  after `#` is the args hash. Ordinary identifiers are unchanged, so
+  `TASK_IDENTIFIER_VERSION` is not bumped: inspect_steward refuses a
+  manifest computed under another version (`_schedule/reconcile.py`),
+  inspect_flow's Delta store names its column
+  `task_identifier_{TASK_IDENTIFIER_VERSION}` (`_store/deltalake.py`), and
+  no ordinary identifier, nor any manifest or store, changes. Only a log whose user
+  dataset was named `samples_from_handle` before the name was reserved
+  would get a new identifier. The consumers treat an identifier as an
+  opaque string: inspect_ai's eval-set code, inspect_flow's runner and Delta
+  store (`_runner/run.py`, `_runner/logs.py`, `_store/deltalake.py`) and
+  inspect_steward's manifest,
+  reconcile, observation and stores (`_evalset/manifest.py`,
+  `_schedule/reconcile.py`, `_evalset/observe.py`, `_store/`) compare it
+  whole, use it as a key, or hash it whole (Steward's score class keys take
+  `digest8(identifier)`); none splits it into its parts. The splitting on
+  `@` in Steward's `_tend/items.py` and `_evalset/classify.py` is of
+  anomaly class keys built from exception types, not of task
+  identifiers.
 
   A fed log in an eval-set directory is then a log of an identifier the set
   does not request, like any added task's: matching never takes it for a
@@ -937,13 +964,15 @@ test touched), with mockllm models; every test that waits is bounded with
   directory with `log_dir_allow_dirty=True`, runs `rollout` rather than
   taking A's fed log, and a selection worker given A's fed log as `resume`
   refuses it as another task's log.
-- `tests/test_eval_set.py` (identifiers): an ordinary task with the same
-  name, arguments and model as a fed task has a different
-  `task_identifier()` from the fed log; the identifier computed from the
-  fed task's `ResolvedTask` equals the one from its log; two fed logs that
-  share a `task_id` and differ in `eval_id`, as attempts of one record
-  would, give one identifier; an ordinary task's identifier is the same as
-  before the change for a stored log.
+- `tests/test_eval_set.py` (identifiers): a fed task whose own
+  `message_limit` and `time_limit` differ from the run's has the same
+  `task_identifier()` from its `ResolvedTask` as from its log, in the form
+  `…#samples_from_handle/<model>/<task_id>`; an ordinary task with the same
+  name, arguments and model as a fed task has a different identifier from
+  the fed log; two fed logs that share a `task_id` and differ in
+  `eval_id`, as attempts of one record would, give one identifier; an
+  ordinary task's identifier is the same as before the change for a stored
+  log.
 - `tests/test_sample_source.py` (tasks fed through a handle):
   - a fed task's log records `eval.dataset.name == "samples_from_handle"`;
     a `Task` whose dataset is a `MemoryDataset` named `samples_from_handle`,
@@ -1043,7 +1072,7 @@ One PR, after step 3 of
   `max_samples` and `max_sandboxes` docstrings; `requested_names` given to
   the queue), `_eval/evalset.py`
   (`all_evals_succeeded` skipping logs with the reserved dataset name;
-  `task_identifier` folding in a fed task's task id),
+  `task_identifier` building a fed task's identifier from its task id),
   `__init__.py` (exports), `docs/task-source.qmd` (handles, stopping
   rollouts with `cancel()`, `fail_on_error=False` for rollout tasks, and
   running the creator by name, `inspect eval search.py@search` and
@@ -1081,7 +1110,9 @@ or `error` cancel closes the channel, with no separate stopped state
 fed task named like a requested or seed task is refused, so fed logs never
 share a requested task's identifier (replacing the eval-set matching filter
 and the coordinated inspect_steward change); and (2026-11-17) a fed task's
-`task_identifier()` folds in its task id, so no ordinary task can produce
+`task_identifier()` is built from its task id
+(`…#samples_from_handle/{model}/{task_id}`, with no settings hashed;
+2026-11-17), so no ordinary task can produce
 it, with no change to inspect_flow or inspect_steward (replacing the
 2026-11-16 refusal of a fed log under a requested identifier).
 
