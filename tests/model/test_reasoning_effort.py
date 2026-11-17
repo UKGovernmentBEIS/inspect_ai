@@ -689,6 +689,8 @@ def _responses_params_for(model_name, config):
         ("gpt-6-luna", "max"),
         ("gpt-6.1-sol", "max"),
         ("gpt-6.1-terra", "max"),
+        ("gpt-6.2-astra", "max"),
+        ("gpt-6.2-sol", "max"),
     ],
 )
 def test_openai_responses_max_effort_by_model(model_name, expected):
@@ -816,6 +818,8 @@ def test_openai_responses_explicit_none_effort_keeps_sampling_params():
         ("gpt-6-luna", True, True),
         ("gpt-6.1-sol", True, True),
         ("gpt-6.1-terra", True, True),
+        ("gpt-6.2-astra", True, True),
+        ("gpt-6.2-sol", True, True),
         ("gpt-5.6-chat", False, False),  # -chat variants don't reason
         ("gpt-4o", False, False),
         ("o3", False, False),
@@ -1105,7 +1109,16 @@ def _assert_sampling_params_sent(params):
 
 @pytest.mark.parametrize(
     "model_name",
-    ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6"],
+    [
+        "gpt-6-astra",
+        "gpt-6-sol",
+        "gpt-6-luna",
+        "gpt-6.1-sol",
+        "gpt-6.1-terra",
+        "gpt-6.2-astra",
+        "gpt-6.2-sol",
+        "gpt-6",
+    ],
 )
 def test_openai_responses_gpt_6_drops_sampling_params_without_effort(model_name):
     params = _responses_params_for(model_name, _SAMPLING_CONFIG)
@@ -1159,7 +1172,7 @@ def test_openai_responses_always_reasoning_models_drop_sampling_params(
     model_name, effort
 ):
     # o-series and gpt-5.0 can't turn reasoning off either; they share the
-    # always_reasons() gate with Astra and GPT-6.1 Sol
+    # always_reasons() gate with Astra, GPT-6.1 Sol, and GPT-6.2
     params = _responses_params_for(
         model_name, _SAMPLING_CONFIG.merge(GenerateConfig(reasoning_effort=effort))
     )
@@ -1175,13 +1188,19 @@ def test_openai_responses_always_reasoning_models_drop_sampling_params(
         "gpt-6.1-sol",
         "openai.gpt-6.1-sol",
         "my-gpt-6.1-sol-deployment",
+        "gpt-6.2-astra",
+        "openai.gpt-6.2-astra",
+        "my-gpt-6.2-astra-deployment",
+        "gpt-6.2-sol",
+        "openai.gpt-6.2-sol",
+        "my-gpt-6.2-sol-deployment",
     ],
 )
 @pytest.mark.parametrize("effort", [None, "none", "low", "max"])
 def test_openai_responses_always_reasoning_gpt_6_drops_sampling_params_regardless_of_effort(
     model_name, effort
 ):
-    # Astra and GPT-6.1 Sol reject sampling params even with `none`, which is
+    # Astra, GPT-6.1 Sol, and GPT-6.2 reject sampling params even with `none`, which is
     # passed through unchanged (the API rejects it)
     params = _responses_params_for(
         model_name, _SAMPLING_CONFIG.merge(GenerateConfig(reasoning_effort=effort))
@@ -1193,7 +1212,15 @@ def test_openai_responses_always_reasoning_gpt_6_drops_sampling_params_regardles
 
 @pytest.mark.parametrize(
     "model_name",
-    ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol", "gpt-6.1-terra"],
+    [
+        "gpt-6-astra",
+        "gpt-6-sol",
+        "gpt-6-luna",
+        "gpt-6.1-sol",
+        "gpt-6.1-terra",
+        "gpt-6.2-astra",
+        "gpt-6.2-sol",
+    ],
 )
 def test_openai_compatible_model_info_gpt_6_is_gpt_5_plus(model_name):
     from inspect_ai.model._providers.openai_compatible import ModelInfo
@@ -1220,6 +1247,12 @@ def test_openai_compatible_model_info_gpt_6_is_gpt_5_plus(model_name):
         ("gpt-6.1-terra", False),
         ("openai.gpt-6.1-terra", False),
         ("my-gpt-6.1-terra-deployment", False),
+        ("gpt-6.2-astra", True),
+        ("openai.gpt-6.2-astra", True),  # bedrock api_model_name prefix
+        ("my-gpt-6.2-astra-deployment", True),  # azure deployment name
+        ("gpt-6.2-sol", True),
+        ("openai.gpt-6.2-sol", True),
+        ("my-gpt-6.2-sol-deployment", True),
         ("gpt-6", False),
         ("gpt-5.6-sol", False),
         ("gpt-5.5", False),
