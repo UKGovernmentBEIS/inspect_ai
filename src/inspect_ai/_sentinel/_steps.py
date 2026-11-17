@@ -236,7 +236,7 @@ class Producer(NamedTuple):
     tools: Sequence[ToolInfo]
     tool_choice: ToolChoice
     message: ChatMessageAssistant
-    """The model call's output message as the event records it, which replay reads back: normally a snapshot (`_snapshot_output`), not the agent's copy, which the agent can change before it runs the calls. A message that cannot be serialized or copied is logged live, so later edits show in it, as for `input`, until a bounded transcript (`INSPECT_TRANSCRIPT_BOUNDED`) moves the event out of memory: then a step gets the message as the transcript's buffer recorded it, without later edits. For an agent bridge that handed calls over under fresh ids, the message with those ids (`Produced.message`)."""
+    """The model call's output message as the event records it, which replay reads back: normally a snapshot (`_snapshot_output`), not the agent's copy, which the agent can change before it runs the calls. A message that cannot be serialized or copied is logged live, so later edits show in it, as for `input`. A bounded transcript (`INSPECT_TRANSCRIPT_BOUNDED`) can move the event out of memory: a tool turn that started before then keeps the event (`tool_turn`), but one that starts after, or a step outside a turn, gets the message as the transcript's buffer recorded it, without later edits. For an agent bridge that handed calls over under fresh ids, the message with those ids (`Produced.message`)."""
 
 
 def producer_of(

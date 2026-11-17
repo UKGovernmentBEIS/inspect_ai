@@ -5,7 +5,7 @@ import re
 import threading
 from collections import Counter
 from collections.abc import Awaitable, Callable, Iterable, Iterator, Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
@@ -2706,7 +2706,7 @@ def assert_share_one_producer(
 def test_a_turn_s_tool_steps_share_its_model_call_across_nested_turns(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A tool that runs its own turn (`generate()` and `execute_tools()`) in the same conversation doesn't change the producer the outer turn's later steps get, and no message id is still watched once the turns end."""
+    """A tool that runs its own turn (`generate()` and `execute_tools()`) in the same conversation doesn't change the producer the outer turn's later steps get."""
     count_provider_reads(monkeypatch)
     inner = get_model(
         "mockllm/inner",
@@ -2774,18 +2774,24 @@ def test_a_turn_s_tool_steps_share_its_model_call_across_nested_turns(
         assert_share_one_producer(inner_steps, [f"inner{i}_0"])
 
 
-async def test_a_tool_turn_ends_when_it_is_cancelled_and_restores_the_outer_turn() -> (
-    None
-):
+@pytest.mark.parametrize("end", ["cancelled", "raised"])
+async def test_a_tool_turn_ends_when_it_is_cancelled_or_raises_and_restores_the_outer_turn(
+    end: str,
+) -> None:
     from inspect_ai._sentinel._dispatch import _tool_turn, tool_turn
 
     init_transcript(Transcript())
     with tool_turn([]):
         outer = _tool_turn.get()
         assert outer is not None
-        with anyio.move_on_after(0):
+        with (
+            anyio.move_on_after(0),
+            pytest.raises(ValueError) if end == "raised" else nullcontext(),
+        ):
             with tool_turn([]):
                 assert _tool_turn.get() is not None and _tool_turn.get() is not outer
+                if end == "raised":
+                    raise ValueError("tool failed")
                 await anyio.sleep_forever()
         assert _tool_turn.get() is outer
     assert _tool_turn.get() is None
@@ -2878,6 +2884,105 @@ def test_a_turn_s_tool_steps_read_its_evicted_model_call_back_once(
     few, many = events_read(8), events_read(32)
     assert (few > 0) == (stages == "evicted")
     assert many == few
+
+
+class _CannotCopy:
+    def __deepcopy__(self, memo: dict[int, Any]) -> "_CannotCopy":
+        raise TypeError("cannot copy")
+
+
+@pytest.mark.parametrize("edit", ["content", "calls"])
+def test_a_turn_s_tool_steps_see_edits_to_an_output_logged_live_after_it_is_evicted(
+    edit: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An output that can't be copied is logged live (`_snapshot_message`). When a bounded transcript evicts its model call during the turn, the turn's later steps still get the event's own message, so an edit the agent made after the first call shows: a changed `content`, or `calls` that no longer hold the step's call."""
+    from inspect_ai._sentinel._steps import producing_message_id
+
+    reads = count_provider_reads(monkeypatch)
+    output = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(id="c0", function="evict_and_edit", arguments={}),
+                        ToolCall(
+                            id="c1", function="addition", arguments={"x": 1, "y": 2}
+                        ),
+                    ],
+                    model="mockllm/model",
+                    metadata={"uncopyable": _CannotCopy()},
+                ),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+    live: list[ChatMessageAssistant] = []
+    evicted: list[bool] = []
+
+    @tool(parallel=False)
+    def evict_and_edit() -> Tool:
+        async def execute() -> str:
+            """Log enough events to evict the model call, then edit its message."""
+            [message] = live
+            for _ in range(4):
+                transcript().info("filler")
+            evicted.append(
+                not any(
+                    producing_message_id(event) == message.id
+                    for event in transcript().history.resident_events
+                )
+            )
+            if edit == "content":
+                message.content = "edited"
+            else:
+                message.tool_calls = (message.tool_calls or [])[:1]
+            return "ok"
+
+        return execute
+
+    @solver
+    def turn() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            model = get_model("mockllm/model", custom_outputs=[output], memoize=False)
+            tools = [evict_and_edit(), addition()]
+            returned = await model.generate(state.messages, tools=tools)
+            live.append(returned.message)
+            state.messages.append(returned.message)
+            await execute_tools(state.messages, tools)
+            return state
+
+        return solve
+
+    before: Seen = []
+    after: list[AfterToolCall] = []
+    task = Task(
+        dataset=[Sample(input="Add.")],
+        solver=turn(),
+        sentinel=[d3_recording(before), d3_recording_after(after)],
+    )
+    log = eval(task, log_dir=str(tmp_path))[0]
+    assert log.status == "success", log.error
+    assert evicted == [True]
+    assert not reads.pages
+    [message] = live
+    c0_before, c1_before = [step for _, step in before]
+    c0_after, c1_after = after
+    assert c0_before.call.id == c0_after.call.id == "c0"
+    assert c1_before.call.id == c1_after.call.id == "c1"
+    # logged live: the step's message is the agent's own
+    assert c0_before.assistant_message is message
+    assert c0_after.assistant_message is message
+    if edit == "content":
+        for step in (c1_before, c1_after):
+            assert step.assistant_message is message
+            assert step.assistant_message.text == "edited"
+    else:
+        # the message no longer holds c1
+        for step in (c1_before, c1_after):
+            assert step.assistant_message is None
+            assert step.input is None
 
 
 def test_model_input_skips_monitor_calls() -> None:
