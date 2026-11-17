@@ -1,4 +1,5 @@
 import ast
+import builtins
 import re
 from textwrap import dedent
 from typing import Set
@@ -116,38 +117,84 @@ def python_allowlist(
     allowed_functions: list[str],
     disallowed_builtins: Set[str] | None = None,
     sensitive_modules: Set[str] | None = None,
-    allow_system_state_modification: bool = False,
 ) -> Approver:
     """
-    Create an approver that checks if Python code uses only allowed modules and functions, and applies additional safety checks.
+    Create an approver that checks if Python code uses only allowed modules and functions.
+
+    Only simple code is ever approved: imports of allowed modules, calls to
+    allowed functions and to functions of allowed modules, variables, literals,
+    operators, `if` and `for`. Everything else is escalated. Arguments are not
+    checked, so allow only functions and modules that are safe however used.
 
     Args:
         allowed_modules (list[str]): List of allowed Python modules.
         allowed_functions (list[str]): List of allowed built-in functions.
-        disallowed_builtins (Set[str] | None): Set of disallowed built-in functions.
-        sensitive_modules (Set[str] | None): Set of sensitive modules to be blocked.
-        allow_system_state_modification (bool): Whether to allow modification of system state.
+        disallowed_builtins (Set[str] | None): Set of built-in functions that are never allowed.
+        sensitive_modules (Set[str] | None): Set of modules that are never allowed.
 
     Returns:
         Approver: A function that approves or rejects Python code based on the allowed list and rules.
     """
-    allowed_modules_set = set(allowed_modules)
-    allowed_functions_set = set(allowed_functions)
-    disallowed_builtins = disallowed_builtins or {
-        "eval",
-        "exec",
-        "compile",
-        "__import__",
-        "open",
-        "input",
-    }
-    sensitive_modules = sensitive_modules or {
-        "os",
-        "sys",
-        "subprocess",
-        "socket",
-        "requests",
-    }
+    never_functions = {"eval", "exec", "compile", "__import__", "open", "input"}
+    functions = set(allowed_functions) - (disallowed_builtins or never_functions)
+    never_modules = {"os", "sys", "subprocess", "socket", "requests"}
+    modules = set(allowed_modules) - (sensitive_modules or never_modules)
+    # the only syntax that is ever approved
+    simple_syntax = "Module Expr Assign AugAssign For If Import ImportFrom alias Call keyword Name Attribute Load Store Constant JoinedStr FormattedValue List Tuple Dict BinOp UnaryOp BoolOp Compare IfExp operator unaryop boolop cmpop"
+    simple_nodes = tuple(getattr(ast, name) for name in simple_syntax.split())
+    builtin_names = set(dir(builtins))
+
+    def review(code: str) -> str | None:
+        """Explain why code can't be approved (returns None if it can)."""
+        # python may decode the code differently than it is parsed here
+        if re.search(r"coding[:=]", code):
+            return "Source encoding declarations are not allowed."
+        nodes = list(ast.walk(ast.parse(code)))
+
+        # names with a fixed meaning: imported modules and callable functions
+        module_names: set[str] = set()
+        function_names = set(functions)
+        for node in nodes:
+            if isinstance(node, ast.Import | ast.ImportFrom):
+                for alias in node.names:
+                    name = alias.asname or alias.name
+                    module, names = alias.name, module_names
+                    if isinstance(node, ast.ImportFrom):
+                        module = "." * node.level + (node.module or "")
+                        names = function_names
+                    if module not in modules:
+                        return f"Module '{module}' is not in the allowed list. Allowed modules: {', '.join(sorted(modules))}"
+                    if (
+                        name in builtin_names | module_names | function_names
+                        or not name.isidentifier()
+                        or "_" in (name[0], alias.name[0])
+                    ):
+                        return f"'{alias.name}' can't be imported as '{name}' (the name must be a plain public name that is not already in use)."
+                    names.add(name)
+
+        for node in nodes:
+            if not isinstance(node, simple_nodes):
+                return f"{type(node).__name__} syntax is not allowed."
+            # fixed names can't be reassigned, and other names can't be built-ins
+            if isinstance(node, ast.Name) and (
+                isinstance(node.ctx, ast.Store)
+                if node.id in module_names | function_names
+                else node.id in builtin_names or node.id.startswith("_")
+            ):
+                return f"Name '{node.id}' is not allowed here (it is private, a built-in that is not in the allowed list, or an import or allowed function being reassigned)."
+            if isinstance(node, ast.Attribute) and not (
+                isinstance(node.value, ast.Name)
+                and node.value.id in module_names
+                and isinstance(node.ctx, ast.Load)
+                and not node.attr.startswith("_")
+            ):
+                return f"Attribute '{node.attr}' is not allowed (only public attributes of imported modules are)."
+            if isinstance(node, ast.Call) and not (
+                isinstance(node.func, ast.Attribute)
+                or (isinstance(node.func, ast.Name) and node.func.id in function_names)
+            ):
+                return f"Function '{ast.unparse(node.func)}' is not in the allowed list. Allowed functions: {', '.join(sorted(functions))}"
+        return None
 
     async def approve(
         message: str,
@@ -155,67 +202,20 @@ def python_allowlist(
         view: ToolCallView,
         history: list[ChatMessage],
     ) -> Approval:
-        # evaluate the first argument no matter its name (for compatiblity
-        # with a broader range of python code executing tools)
-        code = str(next(iter(call.arguments.values()))).strip()
-        if not code:
-            return Approval(decision="reject", explanation="Empty code")
-
-        try:
-            tree = ast.parse(code)
-        except SyntaxError as e:
+        # as in bash_allowlist, the code must be the only argument
+        args = list(call.arguments.values())
+        if len(args) != 1 or not isinstance(args[0], str):
             return Approval(
-                decision="reject", explanation=f"Invalid Python syntax: {str(e)}"
+                decision="escalate",
+                explanation="Expected the code as a single string argument.",
             )
 
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    if alias.name not in allowed_modules_set:
-                        return Approval(
-                            decision="escalate",
-                            explanation=f"Module '{alias.name}' is not in the allowed list. Allowed modules: {', '.join(allowed_modules_set)}",
-                        )
-                    if alias.name in sensitive_modules:
-                        return Approval(
-                            decision="escalate",
-                            explanation=f"Module '{alias.name}' is considered sensitive and not allowed.",
-                        )
-            elif isinstance(node, ast.ImportFrom):
-                if node.module not in allowed_modules_set:
-                    return Approval(
-                        decision="escalate",
-                        explanation=f"Module '{node.module}' is not in the allowed list. Allowed modules: {', '.join(allowed_modules_set)}",
-                    )
-                if node.module in sensitive_modules:
-                    return Approval(
-                        decision="escalate",
-                        explanation=f"Module '{node.module}' is considered sensitive and not allowed.",
-                    )
-            elif isinstance(node, ast.Call):
-                if isinstance(node.func, ast.Name):
-                    if node.func.id not in allowed_functions_set:
-                        return Approval(
-                            decision="escalate",
-                            explanation=f"Function '{node.func.id}' is not in the allowed list. Allowed functions: {', '.join(allowed_functions_set)}",
-                        )
-                    if node.func.id in disallowed_builtins:
-                        return Approval(
-                            decision="escalate",
-                            explanation=f"Built-in function '{node.func.id}' is not allowed for security reasons.",
-                        )
-
-            if not allow_system_state_modification:
-                if isinstance(node, ast.Assign):
-                    for target in node.targets:
-                        if isinstance(target, ast.Attribute) and target.attr.startswith(
-                            "__"
-                        ):
-                            return Approval(
-                                decision="escalate",
-                                explanation="Modification of system state (dunder attributes) is not allowed.",
-                            )
-
+        try:
+            reason = review(args[0])
+        except (SyntaxError, ValueError, RecursionError, MemoryError) as e:
+            return Approval(decision="reject", explanation=f"Invalid Python: {e}")
+        if reason:
+            return Approval(decision="escalate", explanation=reason)
         return Approval(decision="approve", explanation="Python code is approved.")
 
     return approve
