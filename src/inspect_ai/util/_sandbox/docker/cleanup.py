@@ -240,11 +240,10 @@ async def project_cleanup_shutdown(cleanup: bool) -> None:
                 for sample_id, epoch, container_names in rows:
                     console.print()
                     console.print(
-                        f"Sample ID: {sample_id}\nEpoch: {epoch}\n{container_names}",
+                        Text(
+                            f"Sample ID: {sample_id}\nEpoch: {epoch}\n{container_names}"
+                        ),
                         soft_wrap=True,
-                        markup=False,
-                        emoji=False,
-                        highlight=False,
                     )
             print(
                 "\n"
