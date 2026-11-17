@@ -55,11 +55,15 @@ empty attempt, once it passes the verdict rule below, and does not check that
 it is a failure: a scorer that accepts an empty answer (`match()` against a
 target with no letters or digits scores an empty completion `C`) zeroes the
 sample as a success. Getting that verdict by cancelling a re-run as each
-sample starts is neither empty nor deterministic: solver steps before the first
-cancellation checkpoint run, and an agent may reach its first model call.
+sample starts is not empty and depends on timing: solver steps before the
+first cancellation checkpoint run, and an agent may reach its first model
+call.
 
-A solver override that does nothing makes the empty attempt an ordinary,
-deterministic eval, and both dispositions become log-to-log edits.
+The no-op solver skips the main solver without relying on cancellation
+timing. The rest is an ordinary eval, with `Task.setup` and the task's
+scorers as usual (a model-graded scorer still calls its grader, so its
+verdict need not repeat between runs), and both dispositions are log-to-log
+edits.
 
 ## Scope
 
@@ -217,8 +221,10 @@ whole, each failure a `ValueError`:
 - `empty.eval.solver` is `inspect_ai/empty_attempt` or `empty_attempt`.
 - `empty.eval.task == log.eval.task`.
 - The scorer names of the two headers (`[s.name for s in eval.scorers or
-  []]`) are equal, in order, and not empty. A log with appended scorers
-  therefore matches only an empty-attempt log whose task has the full scorer
+  []]`) are equal, in order, and not empty. Only the names are compared, not
+  where they came from: when the log has scorers appended by `inspect score
+  --action append`, the empty-attempt log can get matching entries through
+  the same append rescoring, or from a task that declares the full scorer
   list.
 
 Nothing else about the two runs is compared: the task's code, options and
