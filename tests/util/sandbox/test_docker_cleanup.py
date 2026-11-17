@@ -695,6 +695,8 @@ async def test_reported_projects_preserve_long_container_names(
     [
         ("[red]sample[/red]", 80, True),
         ("[red]sample[/red]", 79, False),
+        ("sample:smile:1", 80, True),
+        ("sample:smile:1", 40, False),
         ("界" * 10, 83, True),
         ("界" * 10, 82, False),
         ("sample\tidentifier", 81, True),

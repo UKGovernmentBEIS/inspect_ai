@@ -243,6 +243,7 @@ async def project_cleanup_shutdown(cleanup: bool) -> None:
                         f"Sample ID: {sample_id}\nEpoch: {epoch}\n{container_names}",
                         soft_wrap=True,
                         markup=False,
+                        emoji=False,
                         highlight=False,
                     )
             print(
