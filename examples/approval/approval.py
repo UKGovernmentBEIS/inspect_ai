@@ -1,5 +1,5 @@
 import ast
-import shlex
+import re
 from textwrap import dedent
 from typing import Set
 
@@ -40,17 +40,21 @@ def bash_allowlist(
     """
     Create an approver that checks if a bash command is in an allowed list.
 
+    Only a single plain command is ever approved: any character that bash
+    might interpret (quotes, newlines, variables, globs, pipes) is rejected.
+    Arguments are not checked, so allow only commands safe with any arguments.
+
     Args:
         allowed_commands (List[str]): List of allowed bash commands.
         allow_sudo (bool, optional): Whether to allow sudo commands. Defaults to False.
-        command_specific_rules (Optional[Dict[str, List[str]]], optional): Dictionary of command-specific rules. Defaults to None.
+        command_specific_rules (Optional[Dict[str, List[str]]], optional): Allowed subcommands (first arguments) for specific commands. Defaults to None.
 
     Returns:
         Approver: A function that approves or rejects bash commands based on the allowed list and rules.
     """
-    allowed_commands_set = set(allowed_commands)
     command_specific_rules = command_specific_rules or {}
-    dangerous_chars = ["&", "|", ";", ">", "<", "`", "$", "(", ")"]
+    # characters that bash always treats literally, and space to separate words
+    plain_command = re.compile(r"[A-Za-z0-9_./:=@%+, -]+")
 
     async def approve(
         message: str,
@@ -58,40 +62,36 @@ def bash_allowlist(
         view: ToolCallView,
         history: list[ChatMessage],
     ) -> Approval:
-        # evaluate the first argument no matter its name (for compatiblity
-        # with a broader range of bash command executing tools)
-        command = str(next(iter(call.arguments.values()))).strip()
-        if not command:
-            return Approval(decision="reject", explanation="Empty command")
-
-        try:
-            tokens = shlex.split(command)
-        except ValueError as e:
-            return Approval(
-                decision="reject", explanation=f"Invalid command syntax: {str(e)}"
-            )
-
-        if any(char in command for char in dangerous_chars):
-            return Approval(
-                decision="reject",
-                explanation=f"Command contains potentially dangerous characters: {', '.join(char for char in dangerous_chars if char in command)}",
-            )
-
-        base_command = tokens[0]
-
-        # Handle sudo
-        if base_command == "sudo":
-            if not allow_sudo:
-                return Approval(decision="reject", explanation="sudo is not allowed")
-            if len(tokens) < 2:
-                return Approval(decision="reject", explanation="Invalid sudo command")
-            base_command = tokens[1]
-            tokens = tokens[1:]
-
-        if base_command not in allowed_commands_set:
+        # the command must be the only argument (whatever its name), so
+        # that what is checked here is exactly what the tool runs
+        args = list(call.arguments.values())
+        if len(args) != 1 or not isinstance(args[0], str):
             return Approval(
                 decision="escalate",
-                explanation=f"Command '{base_command}' is not in the allowed list. Allowed commands: {', '.join(allowed_commands_set)}",
+                explanation="Expected the command as a single string argument.",
+            )
+        command = args[0]
+
+        if not plain_command.fullmatch(command):
+            return Approval(
+                decision="reject",
+                explanation="Only a single plain command is allowed: letters, digits, spaces and _./:=@%+,- (no quotes, variables, globs, pipes, redirects or newlines).",
+            )
+
+        # with only plain characters, bash splits the command into the same words
+        tokens = command.split()
+
+        # Handle sudo
+        if tokens[:1] == ["sudo"]:
+            if not allow_sudo:
+                return Approval(decision="reject", explanation="sudo is not allowed")
+            tokens = tokens[1:]
+
+        base_command = tokens[0] if tokens else ""
+        if base_command not in allowed_commands:
+            return Approval(
+                decision="escalate",
+                explanation=f"Command '{base_command}' is not in the allowed list. Allowed commands: {', '.join(allowed_commands)}",
             )
 
         # Check command-specific rules
