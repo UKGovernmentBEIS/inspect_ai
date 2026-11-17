@@ -30,7 +30,10 @@ Both are Python functions in `inspect_ai.log` (`exclude_samples()`,
 
 The code is [`log/_disposition.py`](../src/inspect_ai/log/_disposition.py)
 (the two functions and their checks), `empty_attempt()` in
-[`solver/_empty.py`](../src/inspect_ai/solver/_empty.py), `score_is_excluded()`
+[`solver/_empty.py`](../src/inspect_ai/solver/_empty.py) (and the eval-set
+selection's `empty_attempt` field in
+[`_eval/eval_set_selection.py`](../src/inspect_ai/_eval/eval_set_selection.py)),
+`score_is_excluded()`
 and the `ScoreReason` vocabulary in
 [`scorer/_metric.py`](../src/inspect_ai/scorer/_metric.py), `reduce_scores()`
 in [`_eval/task/results.py`](../src/inspect_ai/_eval/task/results.py), and
@@ -77,7 +80,9 @@ edits.
 - A disposition never changes a sample's `error`, the log's `status`, or
   which samples an eval-set retry re-runs.
 - The empty attempt is not run by Inspect's disposition code. The operator
-  runs it with the entry point they ran the task with, and its models, task
+  runs it with the entry point they ran the task with (for a worker of an
+  external eval-set runner, through the selection's `empty_attempt` field;
+  see [The empty attempt](#the-empty-attempt)), and its models, task
   arguments, sandbox, limits, policies, epochs, display, hooks and control
   server belong to that eval.
 
@@ -126,10 +131,11 @@ sample ids repeat, and excluded epochs still count toward that repetition
 
 `empty_attempt()` is a `@solver` in `inspect_ai.solver` whose solve function
 returns the state unchanged. It registers as `inspect_ai/empty_attempt`.
-Nothing else in the runner is specific to it: `resolve_plan()` prepends
-`Task.setup` to any solver override, the sample is provisioned as for any
-run, and the task's scorers score the state left by `Task.setup` (an empty
-`output` unless setup wrote one); the override makes no further changes. Its log, the
+It runs as any solver override does: `resolve_plan()` prepends `Task.setup`
+to it, the sample is provisioned as for any run, and the task's scorers
+score the state left by `Task.setup` (an empty `output` unless setup wrote
+one); the override makes no further changes. The one place the runner names
+it is the eval-set selection path, below. Its log, the
 **empty-attempt log**, is an ordinary log whose header records the override
 in `eval.solver`: `inspect_ai/empty_attempt` when it is passed as a Python
 object or by registry name, `empty_attempt` when passed as
@@ -141,10 +147,26 @@ The operator runs it with the entry point they ran the task with:
 inspect eval TASK --solver inspect_ai/empty_attempt --sample-id a,b --log-dir logs/empty
 ```
 
-or `eval(task, solver=empty_attempt(), sample_id=[...], log_dir=...)`, or
-`eval_set()` with the same solver. The advice on running it (its own log
-directory, the original run's settings, `--sample-id` patterns, epochs) is
-in [Zeroing Samples](../docs/eval-logs.qmd#zeroing-samples).
+or `eval(task, solver=empty_attempt(), sample_id=[...], log_dir=...)`. The
+advice on running it (its own log directory, the original run's settings,
+`--sample-id` patterns, epochs) is in
+[Zeroing Samples](../docs/eval-logs.qmd#zeroing-samples).
+
+An eval set needs more than a solver argument. The solver is part of task
+identity, so `eval_set(solver=empty_attempt())` gives each task an
+identifier of its own rather than the original run's; it is a separate eval
+set, in its own log directory. An external runner that drives workers with
+an eval-set selection document (`INSPECT_EVAL_SET_SELECTION`, the wire
+format in
+[`_eval/eval_set_selection.py`](../src/inspect_ai/_eval/eval_set_selection.py))
+sets the selection's `empty_attempt` field instead (schema version 8).
+`eval_set()` then matches the selected tasks to their identifiers with the
+definition's own solver and runs them with `empty_attempt()` as the solver
+override, so the log records `inspect_ai/empty_attempt`. A resumed task
+would reuse samples run with the definition's solver, and its prior log is
+checked against an identifier that an empty attempt's log never carries, so
+a selection that sets `empty_attempt` may not `resume` any task: reading
+the selection raises `PrerequisiteError` naming the resumed tasks.
 
 ## Python API
 
@@ -366,16 +388,30 @@ The implementation removes:
 - the `DispositionResult` export from
   [`log/__init__.py`](../src/inspect_ai/log/__init__.py) and its entry in
   `docs/reference/inspect_ai.log.qmd`;
-- in [`_cli/log.py`](../src/inspect_ai/_cli/log.py): the `--json` option
-  blocks of the `exclude` and `zero` commands, and in `_run_disposition()`
-  the `if result.applied:` write guard, the JSON branch and the per-target
-  print loop, replaced by the one summary line counted with
-  `_select_samples()`;
-- tests: `test_exclude_samples_unchanged`, the `result.unchanged == []` and
-  `result.applied` asserts in `tests/scorer/test_score_editing.py` and
-  `tests/log/test_zero_samples.py` (the selector-expansion test checks the
-  log directly instead), and the `unchanged` and `--json` cases in
-  `tests/_cli/test_log_disposition.py`;
+- in [`_cli/log.py`](../src/inspect_ai/_cli/log.py): the
+  `DispositionResult` import, the `--json` option blocks of the `exclude`
+  and `zero` commands, and in `_run_disposition()` the `if result.applied:`
+  write guard, the JSON branch and the per-target print loop, replaced by
+  the one summary line counted with `_select_samples()`; the `apply`
+  parameter's annotation becomes
+  `Callable[[EvalLog, list[SampleSelector], ProvenanceData], None]`;
+- tests in `tests/scorer/test_score_editing.py` and
+  `tests/log/test_zero_samples.py`: `test_exclude_samples_unchanged` is
+  deleted; elsewhere the `result = ` assignments and the
+  `result.unchanged` and `result.applied` asserts go (the
+  selector-expansion test checks the log directly instead), and so does
+  `test_zero_samples_twice`'s `assert result == ([("a", 1)], [])`, leaving
+  its history and provenance checks;
+- tests in `tests/_cli/test_log_disposition.py` are adjusted, not deleted:
+  `test_log_exclude_command` asserts the summary line where it asserts
+  per-target lines, its `--json` re-exclusion of `a` asserts
+  `excluded 2 samples` and a new history entry instead of the JSON, and its
+  last re-exclusion, which today asserts `unchanged` lines and that nothing
+  is written, now asserts the summary line and lets the write happen;
+  `test_log_exclude_command_write_conflict` drops `--json` and asserts that
+  no summary line is printed; `test_log_zero_command` asserts the summary
+  line where it asserts per-target lines, and its `--json` run of `a`
+  asserts `zeroed 2 samples` instead of the JSON; the `json` import goes;
 - docs: in `docs/eval-logs.qmd`, the `result.applied` / `result.unchanged`
   sentence, the "`--json` prints the result as JSON" sentence, and the
   `result = ` assignments in the two examples.
