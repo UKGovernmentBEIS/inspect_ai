@@ -113,15 +113,48 @@ A `SampleSource` is passed as the **`dataset` argument to `Task`** (just as a
   list indexed after the (possibly disk-paged) seed store; `get_sample(index)`
   dispatches between the two. Each injected sample runs for the task's
   configured `epochs`, like the seed.
-- **Ids** — injected samples without ids get auto-ids continuing the seed's
-  1-based numbering, skipping ids already in use; a duplicate explicit id is a
-  hard error. Ids are compared by their `str()` form, matching
-  `ensure_unique_ids` (log member names and score grouping key on it).
+- **Ids** — each admission of a sample without an id runs as a copy with a
+  generated string id, not the next integer: `dyn-<token>-<counter>`. The
+  token is the attempt's `eval.created` (the time the log file name is
+  built from, to the second) in base 36: 6 characters until 2039. Each
+  attempt's `created` is made later than its prior log's `eval.created`
+  (carried as `EvalSampleSource.prior_created`; an immediate retry uses the
+  failed attempt's), on top of the walk past existing log files. So it
+  holds for `eval_retry` into another log directory, without sample
+  logging, and when the clock went back. Every generated id in the prior
+  log or its checkpoints, including those carried from earlier attempts,
+  has a token at or below the prior's `created`, so a new attempt's ids
+  never repeat one. Two retries of the same log into different log
+  directories that start in the same second (or with the clock running
+  backward) and share a `checkpoints_location` share a checkpoints dir and
+  generated ids, so one can resume the other's checkpoints (accepted:
+  Ransom, 2026-11-05). The counter is the attempt's admission count,
+  zero-padded to 4 digits, and skips any id an explicit sample already
+  holds in any epoch (the seed set, earlier explicit admissions). An
+  explicit sample added under an id this attempt generated is a duplicate,
+  whatever its epoch. Explicit ids, seed or dynamic, are not checked
+  against the generated shape. An explicit id `dyn-<token>-<counter>` with a
+  token later than the attempt's can be taken for a later retry's generated
+  id, and that retry can reuse its prior record or checkpoint: for example a
+  seed with such an id that a resumed eval drops from its seed set. This is
+  an accepted limitation (Ransom, 2026-11-04): it needs an id built to
+  match a future second. Generated ids sort in admission order up to 9,999
+  admissions per attempt, and a retry's ids sort after the prior attempt's;
+  beyond that count, and past a change of token width, they stay unique but
+  no longer sort in order (accepted: Ransom, 2026-11-04). The source's own
+  `Sample` keeps `id=None`, so adding the same object twice runs two
+  samples, and returning it on a retry adds it anonymously again. Retry
+  reuse and checkpoint resume (both keyed on `(id, epoch)`) therefore
+  cannot hand one sample another's prior result. Seed samples keep their
+  position-based integer ids. A duplicate explicit id is a hard error. Ids
+  are compared by their `str()` form, matching `ensure_unique_ids` (log
+  member names and score grouping key on it).
 - **Explicit epochs** — `enqueue_sample(samples, epoch=N)` adds each sample
   as the single run `(id, N)` in its own slot, so one id can run repeatedly
-  under its real id. Uniqueness is on `(id, epoch)`: a seed sample or one
-  added without an epoch reserves `(id, 1..epochs)`. `--limit` counts
-  distinct ids.
+  under its real id. `enqueue_sample` rejects `epoch` for a sample without
+  an id, which would get a new id per add. Uniqueness is on `(id, epoch)`: a
+  seed sample or one added without an epoch reserves `(id, 1..epochs)`.
+  `--limit` counts distinct ids.
 - **Growing totals** — `total_samples` grows as samples are added, updating the
   display denominator (`td.sample_complete`), the fractional `fail_on_error`
   threshold (`SampleErrorHandler.total_samples`), the end-of-run
@@ -183,8 +216,9 @@ dropping samples.
   around the same `Task`); completed samples are reused via the normal
   `EvalSampleSource` lookup, and the reuse path re-fires
   `sample_feed.sample_complete` for each reused sample so a completion-driven
-  source regenerates its follow-ups (which are then themselves reused where
-  regenerated ids match). A source that instead holds internal
+  source regenerates its follow-ups. Only follow-ups with explicit ids are
+  reused where they match; one without an id gets a new generated id and runs
+  again (see **Ids**). A source that instead holds internal
   `next_samples()` state resumes mid-state on retry — it must be resumable
   (or derive its follow-ups from `sample_complete`) for retries to
   reconstruct the run; this is the same determinism contract as `TaskSource`
@@ -261,7 +295,8 @@ dropping samples.
 
 ## Tests
 
-`tests/test_sample_source.py` — generations under one task/log with auto-ids;
+`tests/test_sample_source.py` — generations under one task/log with unique
+ids for added samples;
 seed-only when `next_samples()` is `None`; `sample_complete` returning
 follow-ups chains generations; `from_samples` (callbacks and seed-only); empty
 seed; epochs applied to injected samples; explicit + auto id assignment and

@@ -761,7 +761,8 @@ class Transcript:
             self._event_count += 1
             self._update_pin_state(event)
             self._update_pending(event)
-            self._update_evictable_state(event)
+            if self._bounded and self._is_evictable_event_key(event_key):
+                self._evictable_event_ids.append(event_key)
             if notify_subscribers:
                 self._notify_subscribers(event)
         self._evict_events()

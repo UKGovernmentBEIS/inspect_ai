@@ -1,7 +1,7 @@
 import { i as __toESM } from "./rolldown-runtime.js";
 import { n as require_react, r as require_jsx_runtime, t as require_compiler_runtime } from "./compiler-runtime.js";
 import { t as useLatestRef } from "./useLatestRef.js";
-//#region ../../node_modules/.pnpm/asciinema-player@3.17.0/node_modules/asciinema-player/dist/logging-DeB0koVt.js
+// ../../node_modules/.pnpm/asciinema-player@3.17.0/node_modules/asciinema-player/dist/logging-DeB0koVt.js
 var import_jsx_runtime = require_jsx_runtime();
 var import_compiler_runtime = require_compiler_runtime();
 function parseNpt(time) {
@@ -177,8 +177,7 @@ var PrefixedLogger = class {
 		this.logger.error(`${this.prefix}${message}`, ...args);
 	}
 };
-//#endregion
-//#region ../../node_modules/.pnpm/asciinema-player@3.17.0/node_modules/asciinema-player/dist/core-BSn7GtYU.js
+// ../../node_modules/.pnpm/asciinema-player@3.17.0/node_modules/asciinema-player/dist/core-BSn7GtYU.js
 var Clock = class {
 	constructor(speed = 1) {
 		this.speed = speed;
@@ -2993,8 +2992,7 @@ function getDriver(src) {
 		return (callbacks, opts) => driver(src, callbacks, opts);
 	} else throw new Error(`unsupported driver: ${JSON.stringify(src)}`);
 }
-//#endregion
-//#region ../../node_modules/.pnpm/asciinema-player@3.17.0/node_modules/asciinema-player/dist/opts-Dj5f5MR1.js
+// ../../node_modules/.pnpm/asciinema-player@3.17.0/node_modules/asciinema-player/dist/opts-Dj5f5MR1.js
 var equalFn = (a, b) => a === b;
 var $TRACK = Symbol("solid-track");
 var signalOptions = { equals: equalFn };
@@ -6591,8 +6589,7 @@ function uiOpts(inputOpts, overrides = {}) {
 		...overrides
 	};
 }
-//#endregion
-//#region ../../node_modules/.pnpm/asciinema-player@3.17.0/node_modules/asciinema-player/dist/index.js
+// ../../node_modules/.pnpm/asciinema-player@3.17.0/node_modules/asciinema-player/dist/index.js
 function create(src, elem, opts = {}) {
 	const logger = opts.logger ?? new DummyLogger();
 	const core = new Core(src, coreOpts(opts, { logger }));
@@ -6616,8 +6613,7 @@ function create(src, elem, opts = {}) {
 	};
 	return player;
 }
-//#endregion
-//#region ../../packages/react/src/components/AsciinemaPlayerImpl.tsx
+// ../../packages/react/src/components/AsciinemaPlayerImpl.tsx
 var import_react = /* @__PURE__ */ __toESM(require_react(), 1);
 var AsciinemaPlayerImpl = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(26);
@@ -6773,7 +6769,6 @@ var runPlayback = (command) => {
 };
 function _temp() {}
 function _temp2() {}
-//#endregion
 export { AsciinemaPlayerImpl as default };
 
 //# sourceMappingURL=AsciinemaPlayerImpl.js.map

@@ -1,11 +1,12 @@
 """Tests for the dependency cooldown in pyproject.toml and the CI jobs around it.
 
 pyproject.toml holds back releases younger than seven days, or six hours for a
-list of model provider SDKs and Inspect packages. Dependabot applies the seven
-days to its uv.lock bumps and leaves that list to uv, and every CI job installs
-from a lockfile. The model-data sync script runs without pyproject.toml, so its
-own metadata repeats the policy. Testing against the newest releases happens in
-meridianlabs-ai/canaries, outside this repository.
+list of model provider SDKs. Inspect's own packages have no cooldown (`false`).
+Dependabot applies the seven days to its uv.lock bumps and leaves both lists to
+uv, and every CI job installs from a lockfile. The model-data sync script runs
+without pyproject.toml, so its own metadata repeats the policy. Testing against
+the newest releases happens in meridianlabs-ai/canaries, outside this
+repository.
 """
 
 import ast
@@ -18,6 +19,7 @@ from typing import Any
 
 import pytest
 import yaml
+from packaging.specifiers import SpecifierSet
 
 REPO = pathlib.Path(__file__).parents[1]
 WORKFLOWS = REPO / ".github" / "workflows"
@@ -83,6 +85,8 @@ PROVIDER_INFRASTRUCTURE = {"aiobotocore"}
 # The cooldown for packages in exclude-newer-package, and how uv.lock records it.
 EXEMPT_COOLDOWN = "6 hours"
 EXEMPT_COOLDOWN_SPAN = "PT6H"
+# The exclude-newer-package value for Inspect's own packages: no cooldown.
+IN_HOUSE_COOLDOWN = False
 
 
 def uv_config() -> dict[str, Any]:
@@ -103,6 +107,11 @@ def direct_dependencies() -> set[str]:
         normalize(re.split(r"[^A-Za-z0-9._-]", requirement, maxsplit=1)[0])
         for requirement in requirements
     }
+
+
+def is_in_house(package: str) -> bool:
+    name = normalize(package)
+    return name.startswith("inspect-") or name.startswith("petri")
 
 
 def cooldown_days(exclude_newer: str) -> int:
@@ -229,11 +238,21 @@ def test_provider_packages_are_exempt() -> None:
 def verify_exclude_newer_package(
     config: dict[str, Any], direct: set[str], now: datetime
 ) -> None:
-    # Each entry is "6 hours" or a dated entry younger than the cooldown.
+    # Inspect packages are false. Each other entry is "6 hours" or a dated
+    # entry younger than the cooldown.
     max_age = timedelta(days=cooldown_days(config["exclude-newer"]))
     for package, cooldown in config["exclude-newer-package"].items():
         assert normalize(package) in direct, f"{package} is not a direct dependency"
-        if cooldown != EXEMPT_COOLDOWN:
+        if is_in_house(package):
+            assert cooldown is IN_HOUSE_COOLDOWN, (
+                f"in-house package {package} must be false, not {cooldown!r}"
+            )
+        else:
+            assert cooldown is not IN_HOUSE_COOLDOWN, (
+                f"{package} = false is only for in-house packages"
+            )
+            if cooldown == EXEMPT_COOLDOWN:
+                continue
             age = now - datetime.fromisoformat(cooldown)
             assert timedelta(0) <= age < max_age, (
                 f'dated entry {package} = "{cooldown}" is in the future or stale'
@@ -282,17 +301,31 @@ def test_other_cooldown_value_is_caught() -> None:
         verify_exclude_newer_package(config, direct_dependencies(), datetime.now(UTC))
 
 
+def test_in_house_six_hour_entry_is_caught() -> None:
+    config = uv_config()
+    config["exclude-newer-package"]["inspect-scout"] = EXEMPT_COOLDOWN
+    with pytest.raises(AssertionError, match="must be false"):
+        verify_exclude_newer_package(config, direct_dependencies(), datetime.now(UTC))
+
+
+def test_non_in_house_false_entry_is_caught() -> None:
+    config = uv_config()
+    config["exclude-newer-package"]["boto3"] = IN_HOUSE_COOLDOWN
+    with pytest.raises(AssertionError, match="only for in-house packages"):
+        verify_exclude_newer_package(config, direct_dependencies(), datetime.now(UTC))
+
+
 def verify_dependabot_cooldown(
     config: dict[str, Any], dependabot: dict[str, Any]
 ) -> None:
     cooldown = dependabot["cooldown"]
     assert cooldown["default-days"] == cooldown_days(config["exclude-newer"])
-    # Dependabot's cooldown counts whole days, so it leaves the "6 hours"
-    # entries to uv. Dated entries are locked by hand.
+    # Dependabot's cooldown counts whole days, so it leaves the "6 hours" and
+    # false entries to uv. Dated entries are locked by hand.
     exempt = sorted(
         package
         for package, cooldown in config["exclude-newer-package"].items()
-        if cooldown == EXEMPT_COOLDOWN
+        if cooldown == EXEMPT_COOLDOWN or cooldown is IN_HOUSE_COOLDOWN
     )
     assert sorted(cooldown["exclude"]) == exempt
     # The exempt packages have their own group, listed before the catch-all.
@@ -304,6 +337,41 @@ def verify_dependabot_cooldown(
 
 def test_dependabot_cooldown_matches_pyproject() -> None:
     verify_dependabot_cooldown(uv_config(), dependabot_uv())
+
+
+def verify_dependabot_ignores_are_current(
+    ignores: list[dict[str, Any]], locked: dict[str, str]
+) -> None:
+    # A rule that ignores the locked version is stale: uv.lock moved past it
+    # by hand, and the rule now blocks every update after that.
+    for rule in ignores:
+        name = rule["dependency-name"]
+        for versions in rule.get("versions", []):
+            ignored = SpecifierSet(versions, prereleases=True)
+            assert not ignored.contains(locked[name]), (
+                f'dependabot.yml ignores {name} "{versions}", '
+                f"but uv.lock has {locked[name]}"
+            )
+
+
+def locked_versions() -> dict[str, str]:
+    lock = tomllib.loads((REPO / "uv.lock").read_text())
+    return {
+        package["name"]: package["version"]
+        for package in lock["package"]
+        if "version" in package
+    }
+
+
+def test_dependabot_ignores_are_current() -> None:
+    verify_dependabot_ignores_are_current(dependabot_uv()["ignore"], locked_versions())
+
+
+@pytest.mark.parametrize("locked", ["8.4.2", "8.5.0rc1"])
+def test_stale_dependabot_ignore_is_caught(locked: str) -> None:
+    ignores = [{"dependency-name": "click", "versions": [">=8.2.0"]}]
+    with pytest.raises(AssertionError, match="ignores click"):
+        verify_dependabot_ignores_are_current(ignores, {"click": locked})
 
 
 def script_uv_config() -> dict[str, Any]:

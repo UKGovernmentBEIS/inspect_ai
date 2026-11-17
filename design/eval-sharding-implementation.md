@@ -585,7 +585,7 @@ Choices the parent left open:
 
   | Selection | `eval.shards.selection` | `eval.shards.sample_count` | `eval.dataset.sample_ids` |
   |---|---|---|---|
-  | ids | `"ids"` | absent | the ids, as given |
+  | ids | `"ids"` | absent | the ids in the given order, each with the typed id of the held sample with the same text, and as given when no shard holds it |
   | count | `"count"` | the count | the distinct held ids, sorted by `str(id)` |
   | neither | `"none"` | absent | the distinct held ids, sorted by `str(id)` |
 
@@ -1057,7 +1057,7 @@ well-defined shard, so fresh and incremental merges agree.
 | `eval.eval_id`, `eval.run_id`, `eval.created` | minted at the first merge, then carried from the merged header (parent: one `eval_id` across passes) |
 | `eval.task_id` | computed at the first merge from `<name>` ("The merged log's `task_id`", below), then carried from the merged header |
 | `eval.eval_set_id` | the entries' common `eval_set_id`, else absent |
-| `eval.dataset.sample_ids` | the selection ids when given as ids, else the sorted distinct held ids, typed as in the summaries written ("Recorded selection") |
+| `eval.dataset.sample_ids` | the selection ids in the given order when given as ids, else the sorted distinct held ids; held ids typed as in the summaries written, unheld selection ids as given ("Recorded selection") |
 | `eval.config.sample_id`, `eval.config.limit` | `None` ("Recorded selection") |
 | `eval.shards` | the new field: ledger entries for every current attempt (a read shard's with `samples` the number of keys taken, `selected` the size of its `S_k` and the digest of `S_k`; an unchanged shard's carried as they were), `selection` and `sample_count` ("Recorded selection") |
 | `results` | from "Results"; `total_samples` is the selection size (or, without one, the distinct held ids) times epochs, `completed_samples` the merged samples without `error`; `early_stopping`, `logged_samples`, `metadata` absent |
@@ -1852,7 +1852,8 @@ PR 2. Neither depends on the merge.
   factory's construction context, the model, generate config and roles
   before the task's own overrides, is not in the logs, so a reloaded spec
   can build different metrics or reducers under the same names. Step 5b
-  designs how the CLI gets that context.
+  ([`eval-sharding-merge-cli.md`](eval-sharding-merge-cli.md)) designs
+  how the CLI gets that context.
 - **Mint the merged log's `task_id` whenever `<name>` gives no usable id.**
   A random id breaks the rebuild of a merged log deleted by retry
   cleanup from a leftover companion: the rebuilt log would get a new
@@ -2376,9 +2377,10 @@ and has `--json` (decisions: Ransom, 2026-10-21). Its design must solve
 the task input. A task factory's construction context (the incoming
 model, generate config and model roles, before the task's own `model`,
 `config` and `model_roles` apply) is not in the logs, so the CLI must
-get it from the user or the run, not rebuild it from recorded state. A
-candidate, not a decision: the CLI takes `inspect eval`'s task options
-and resolves the task through eval's own task resolution.
+get it from the user or the run, not rebuild it from recorded state.
+Designed in [`eval-sharding-merge-cli.md`](eval-sharding-merge-cli.md):
+the command takes `inspect eval`'s task options and resolves the task
+through eval's own task resolution.
 
 6. **Eval-set integration.** Startup merge, `selected_sample_ids`,
    `skip_shards`, completeness branch, no recovery of merged logs, cleanup

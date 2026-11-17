@@ -692,17 +692,29 @@ A tuple, e.g. ("docker", "compose.yaml"), is equivalent to SandboxEnvironmentSpe
 
 
 def resolve_sandbox_environment(
-    sandbox: SandboxEnvironmentType | None,
+    sandbox: SandboxEnvironmentType | list[Any] | dict[str, Any] | None,
 ) -> SandboxEnvironmentSpec | None:
-    # do the resolution
-    if isinstance(sandbox, str):
+    """Resolve a sandbox and its shorthands to a `SandboxEnvironmentSpec`.
+
+    Also reads the serialized forms found in logs: the dict a
+    `SandboxEnvironmentSpec` serializes to, and the list that logs written
+    while it was a `NamedTuple` contain.
+
+    Raises:
+        ValueError: If `sandbox` is not one of these forms.
+    """
+    if sandbox is None:
+        return None
+    elif isinstance(sandbox, str):
         return SandboxEnvironmentSpec(type=sandbox)
     elif isinstance(sandbox, SandboxEnvironmentSpec):
         return sandbox
-    elif isinstance(sandbox, tuple):
+    elif isinstance(sandbox, (tuple, list)) and len(sandbox) == 2:
         return SandboxEnvironmentSpec(sandbox[0], sandbox[1])
+    elif isinstance(sandbox, dict):
+        return SandboxEnvironmentSpec.model_validate(sandbox)
     else:
-        return None
+        raise ValueError(f"Invalid sandbox specification: {sandbox!r}")
 
 
 def deserialize_sandbox_specific_config(

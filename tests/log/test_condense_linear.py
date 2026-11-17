@@ -518,15 +518,15 @@ def test_condense_sample_rewritten_history_condenses_correctly() -> None:
     The walk cache and pool dedup are tuned for the common scaffold shape
     where each event's input extends the previous one with the same objects.
     A history rewritten mid-conversation (messages dropped/reordered, fresh
-    objects with equal content) must still dedup equal content into the same
-    pool entry and round-trip every event's input.
+    objects copying a message) must still dedup copies into the same pool
+    entry and round-trip every event's input.
     """
     # content < 100 chars so the events walk leaves it inline and the
     # round-tripped inputs compare equal to the originals
     m0 = ChatMessageUser(content="message zero")
     m1 = ChatMessageUser(content="message one")
-    # fresh object, equal content to m0 (new id): pool dedup must merge them
-    m2 = ChatMessageUser(content="message zero")
+    # fresh object copying m0: pool dedup must merge them
+    m2 = ChatMessageUser(id=m0.id, content="message zero")
     m3 = ChatMessageUser(content="message three")
     m4 = ChatMessageUser(content="message four")
 
@@ -571,8 +571,8 @@ def test_condense_sample_rewritten_history_condenses_correctly() -> None:
     restored = expand_events(condensed.events, condensed.events_data)
     for original_input, restored_event in zip(inputs, restored):
         assert isinstance(restored_event, ModelEvent)
-        assert [(m.role, m.content) for m in restored_event.input] == [
-            (m.role, m.content) for m in original_input
+        assert [(m.id, m.role, m.content) for m in restored_event.input] == [
+            (m.id, m.role, m.content) for m in original_input
         ]
 
 

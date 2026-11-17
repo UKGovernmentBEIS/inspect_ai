@@ -711,3 +711,15 @@ def test_excluding_object_builder_skips_excluded_top_level_keys() -> None:
         builder.event(event, value)
     # only top-level keys are excluded; a same-named nested key is kept
     assert builder.data == {"id": 1, "input": "q", "nested": {"events": "kept"}}
+
+
+def test_excluding_object_builder_builds_only_included_top_level_keys() -> None:
+    from inspect_ai._util.json import ExcludingObjectBuilder, get_ijson_backend
+
+    document = (
+        b'{"id": 1, "events": [{"id": 2}], "unknown": {"id": 3}, "nested": {"x": 4}}'
+    )
+    builder = ExcludingObjectBuilder({"nested"}, include_fields={"id", "nested"})
+    for _prefix, event, value in get_ijson_backend().parse(document):
+        builder.event(event, value)
+    assert builder.data == {"id": 1}

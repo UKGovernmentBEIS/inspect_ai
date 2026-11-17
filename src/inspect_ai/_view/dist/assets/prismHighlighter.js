@@ -1,6 +1,6 @@
 import { t as __commonJSMin } from "./rolldown-runtime.js";
 import { r as isRecord } from "./type.js";
-//#region ../../packages/react/src/hooks/prismManual.ts
+// ../../packages/react/src/hooks/prismManual.ts
 var existing = Reflect.get(globalThis, "Prism");
 if (isRecord(existing)) existing.manual = true;
 else Reflect.set(globalThis, "Prism", { manual: true });
@@ -12,8 +12,7 @@ else Reflect.set(globalThis, "Prism", { manual: true });
 * @namespace
 * @public
 */
-//#endregion
-//#region ../../node_modules/.pnpm/prismjs@1.30.0/node_modules/prismjs/components/prism-bash.js
+// ../../node_modules/.pnpm/prismjs@1.30.0/node_modules/prismjs/components/prism-bash.js
 var import_prism = (/* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var Prism = function(_self) {
 		var lang = /(?:^|\s)lang(?:uage)?-([\w-]+)(?=\s|$)/i;
@@ -1612,8 +1611,7 @@ highlight: function highlight(container) {
 	Prism.languages.sh = Prism.languages.bash;
 	Prism.languages.shell = Prism.languages.bash;
 })(Prism);
-//#endregion
-//#region ../../node_modules/.pnpm/prismjs@1.30.0/node_modules/prismjs/components/prism-clike.js
+// ../../node_modules/.pnpm/prismjs@1.30.0/node_modules/prismjs/components/prism-clike.js
 Prism.languages.clike = {
 	"comment": [{
 		pattern: /(^|[^\\])\/\*[\s\S]*?(?:\*\/|$)/,
@@ -1640,8 +1638,7 @@ Prism.languages.clike = {
 	"operator": /[<>]=?|[!=]=?=?|--?|\+\+?|&&?|\|\|?|[?*/~^%]/,
 	"punctuation": /[{}[\];(),.:]/
 };
-//#endregion
-//#region ../../node_modules/.pnpm/prismjs@1.30.0/node_modules/prismjs/components/prism-javascript.js
+// ../../node_modules/.pnpm/prismjs@1.30.0/node_modules/prismjs/components/prism-javascript.js
 Prism.languages.javascript = Prism.languages.extend("clike", {
 	"class-name": [Prism.languages.clike["class-name"], {
 		pattern: /(^|[^$\w\xA0-\uFFFF])(?!\s)[_$A-Z\xA0-\uFFFF](?:(?!\s)[$\w\xA0-\uFFFF])*(?=\.(?:constructor|prototype))/,
@@ -1751,8 +1748,7 @@ if (Prism.languages.markup) {
 	Prism.languages.markup.tag.addAttribute(/on(?:abort|blur|change|click|composition(?:end|start|update)|dblclick|error|focus(?:in|out)?|key(?:down|up)|load|mouse(?:down|enter|leave|move|out|over|up)|reset|resize|scroll|select|slotchange|submit|unload|wheel)/.source, "javascript");
 }
 Prism.languages.js = Prism.languages.javascript;
-//#endregion
-//#region ../../node_modules/.pnpm/prismjs@1.30.0/node_modules/prismjs/components/prism-json.js
+// ../../node_modules/.pnpm/prismjs@1.30.0/node_modules/prismjs/components/prism-json.js
 Prism.languages.json = {
 	"property": {
 		pattern: /(^|[^\\])"(?:\\.|[^\\"\r\n])*"(?=\s*:)/,
@@ -1778,8 +1774,7 @@ Prism.languages.json = {
 	}
 };
 Prism.languages.webmanifest = Prism.languages.json;
-//#endregion
-//#region ../../node_modules/.pnpm/prismjs@1.30.0/node_modules/prismjs/components/prism-python.js
+// ../../node_modules/.pnpm/prismjs@1.30.0/node_modules/prismjs/components/prism-python.js
 Prism.languages.python = {
 	"comment": {
 		pattern: /(^|[^\\])#.*/,
@@ -1840,8 +1835,7 @@ Prism.languages.python = {
 };
 Prism.languages.python["string-interpolation"].inside["interpolation"].inside.rest = Prism.languages.python;
 Prism.languages.py = Prism.languages.python;
-//#endregion
-//#region ../../node_modules/.pnpm/prismjs@1.30.0/node_modules/prismjs/components/prism-yaml.js
+// ../../node_modules/.pnpm/prismjs@1.30.0/node_modules/prismjs/components/prism-yaml.js
 (function(Prism) {
 	var anchorOrAlias = /[*&][^\s[\]{},]+/;
 	var tag = /!(?:<[\w\-%#;/?:@&=+$,.!~*'()[\]]+>|(?:[a-zA-Z\d-]*!)?[\w\-%#;/?:@&=+$.~*'()]+)?/;
@@ -1919,7 +1913,6 @@ Prism.languages.py = Prism.languages.python;
 	};
 	Prism.languages.yml = Prism.languages.yaml;
 })(Prism);
-//#endregion
 var highlightElement = import_prism.highlightElement;
 export { highlightElement };
 
