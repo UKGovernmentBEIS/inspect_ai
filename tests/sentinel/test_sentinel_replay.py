@@ -2130,13 +2130,22 @@ def test_a_native_call_keeps_its_id_whether_a_host_call_under_it_ran_first(
         replay = assert_replay_skips_bridge_steps(
             log, seen, lambda step: step.call.arguments == {"x": 5, "y": 5}
         )
+    # the native call's steps keep the call id, whatever replay does with host steps
     assert [
-        (s.stage, s.id, s.step.call.function, s.step.call.arguments)
+        (s.stage, s.id, s.step.call.arguments)
         for s in replay
         if isinstance(s.step, BeforeToolCall | AfterToolCall)
+        and s.step.call.function == "addition"
     ] == [
-        ("tool_call", "shared", "addition", {"x": 5, "y": 5}),
-        ("tool_result", "shared", "addition", {"x": 5, "y": 5}),
+        ("tool_call", "shared", {"x": 5, "y": 5}),
+        ("tool_result", "shared", {"x": 5, "y": 5}),
+    ]
+    # host steps are skipped, as on main
+    assert not [
+        s
+        for s in replay
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+        and s.step.call.function != "addition"
     ]
     assert list(dict.fromkeys(replay_warnings(caplog))) == [
         BRIDGE_SKIP_WARNING.format("shared")
