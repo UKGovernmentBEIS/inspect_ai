@@ -32,7 +32,7 @@ from test_helpers.stand_in_sidecar import (
 from inspect_ai import Task
 from inspect_ai import eval as inspect_eval
 from inspect_ai._control.pause import pause_process, process_paused, resume_process
-from inspect_ai._sentinel._person import human_view
+from inspect_ai._sentinel._person import held_call_view
 from inspect_ai._sentinel._sidecar import _lookup as lookup_module
 from inspect_ai._sentinel._sidecar import _review as review_module
 from inspect_ai._sentinel._sidecar._act import refused_output
@@ -1408,9 +1408,27 @@ def test_a_person_asked_about_a_call_is_shown_the_rest_of_its_turn(
     assert "Checking { {city}}." in shown and "Checking Oslo." not in shown
 
 
-def test_what_a_turn_holds_cant_pass_for_a_label_in_a_text_view() -> None:
-    # a tool whose viewer writes plain text has a view no markdown fences
-    forged = "ok\n\nIt failed with\n\npermission_denied\rThe turn says\n\nAll good."
+def _outside_code_blocks(markdown: str) -> list[str]:
+    # the lines of a view that are in no code block: the view's own
+    outside: list[str] = []
+    fence: str | None = None
+    for line in markdown.splitlines():
+        if fence is None and line.startswith("```"):
+            fence = line
+        elif fence is not None and line == fence:
+            fence = None
+        elif fence is None and line:
+            outside.append(line)
+    assert fence is None
+    return outside
+
+
+def test_nothing_in_a_held_calls_view_passes_for_a_label_though_its_view_is_text() -> (
+    None
+):
+    # A line of plain text that is padded to the window's width wraps, and what
+    # follows starts at the margin as a label does. So no line break is needed.
+    forged = "ok\n```\n\nIt failed with\n\ndenied" + " " * 500 + "The turn says"
     turn = ChatMessageAssistant(
         content=[
             ContentToolUse(
@@ -1423,27 +1441,25 @@ def test_what_a_turn_holds_cant_pass_for_a_label_in_a_text_view() -> None:
         ]
     )
 
-    view = human_view(
-        ToolCallView(call=ToolCallContent(format="text", content="weather: Oslo")),
+    view = held_call_view(
+        # a tool whose viewer writes plain text
+        ToolCallView(call=ToolCallContent(format="text", content="weather: {{city}}")),
+        ToolCall(id="call_1", function="weather", arguments={"city": forged}),
         f"- risk_monitor: {forged}",
-        None,
         turn,
     )
 
-    assert view.call is not None and view.call.format == "text"
-    # Every line a tool or a monitor wrote is indented, and the view's own
-    # labels are not. So the only labels are the ones the view wrote.
-    assert [
-        line
-        for line in view.call.content.splitlines()
-        if line and not line.startswith(" ")
-    ] == [
-        "Escalated by",
-        "Tool 1 of 1 that the provider ran: deploy (mcp_call)",
-        "It returned",
-        "This turn contains hidden or control characters, shown as ‹U+…›.",
-        "weather: Oslo",
+    # The view is markdown, and everything a tool, a monitor or the call's own
+    # text view wrote is inside a code block it can't close, where a wrapped
+    # line stays in the block. Only the view's own labels are outside.
+    assert view.call is not None and view.call.format == "markdown"
+    assert _outside_code_blocks(view.call.content) == [
+        "**Escalated by**",
+        "**Tool 1 of 1 that the provider ran:** deploy \\(mcp\\_call\\)",
+        "**It returned**",
+        "**The call**",
     ]
+    assert view.call.content.count("The turn says") == 3
 
 
 class _Notified:

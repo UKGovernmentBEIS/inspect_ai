@@ -47,6 +47,7 @@ from .._person import (
     ask_about_turn,
     chosen_decision,
     escalation_lines,
+    held_call_view,
     human_view,
 )
 from ._endpoint import (
@@ -775,10 +776,10 @@ async def _show_question(
             approve,
             said,
             call,
-            human_view(
+            held_call_view(
                 view,
+                call,
                 escalated,
-                None,
                 ChatMessageAssistant.model_validate(turn)
                 if turn is not None
                 else ChatMessageAssistant(content=said),

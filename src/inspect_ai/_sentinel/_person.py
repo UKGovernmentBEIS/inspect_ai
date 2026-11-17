@@ -9,7 +9,6 @@ reasons too (see `_turn_content`).
 """
 
 import re
-import textwrap
 from collections import Counter
 from collections.abc import Callable, Iterable, Sequence
 from typing import Literal, NamedTuple, cast
@@ -79,10 +78,7 @@ def escalation_lines(escalations: Iterable[tuple[str, str | None]]) -> str:
 
 
 def human_view(
-    view: ToolCallView,
-    escalated: str | None,
-    result: ChatMessageTool | None,
-    turn: ChatMessageAssistant | None = None,
+    view: ToolCallView, escalated: str | None, result: ChatMessageTool | None
 ) -> ToolCallView:
     """Build the view of a call that a person is shown.
 
@@ -94,40 +90,75 @@ def human_view(
         escalated: The escalations, as `escalation_lines` writes them, or None
             if there are none.
         result: The call's result, when the person is asked after the call ran.
-        turn: The turn that made the call, when none of it has reached the
-            person. What it holds besides its tool calls goes between the
-            escalations and the call (see `_turn_content`).
     """
-    above: list[_Section] = []
     if escalated is not None:
-        above.append(_Section("Escalated by", escalated))
-    if turn is not None:
-        safe = _Escaped()
-        above.extend(_turn_content(turn, lambda text: escape_placeholders(safe(text))))
-        if safe.escaped:
-            above.append(_Section(_ESCAPED_NOTICE))
-    if above:
-        if view.call is None or view.call.format == "markdown":
-            shown = [section.markdown() for section in above]
-            if view.call is not None:
-                shown.append(view.call.content)
+        block = f"**Escalated by**\n\n{fenced(escalated)}"
+        if view.call is None:
+            call = ToolCallContent(format="markdown", content=block)
+        elif view.call.format == "markdown":
             call = ToolCallContent(
-                title=view.call.title if view.call is not None else None,
+                title=view.call.title,
                 format="markdown",
-                content="\n\n".join(shown),
+                content=f"{block}\n\n{view.call.content}",
             )
         else:
             call = ToolCallContent(
                 title=view.call.title,
                 format="text",
-                content="\n\n".join(
-                    [*(section.text() for section in above), view.call.content]
-                ),
+                content=f"Escalated by\n\n{escalated}\n\n{view.call.content}",
             )
         view = ToolCallView(context=view.context, call=call)
     if result is not None:
         view = view_with_result(view, result)
     return view
+
+
+def held_call_view(
+    view: ToolCallView,
+    call: ToolCall,
+    escalated: str | None,
+    turn: ChatMessageAssistant,
+) -> ToolCallView:
+    """Build the view of a call whose turn the person has seen none of.
+
+    A sidecar holds the reply that makes the call while it asks, so the view
+    shows what the turn holds besides its tool calls, between the escalations
+    and the call (see `_turn_content`).
+
+    The view is markdown, whatever the call's own view is. Everything an agent
+    wrote above the call is inside a code block it cannot close. A call's text
+    view goes into a code block too, with the call's arguments filled in
+    first: the surfaces wrap plain text to the window, and a wrapped line
+    starts at the margin, where it could pass for one of the view's labels.
+
+    Args:
+        view: The call's own view.
+        call: The call.
+        escalated: The escalations, as `escalation_lines` writes them, or None
+            if there are none.
+        turn: The turn that made the call.
+    """
+    safe = _Escaped()
+    shown = [f"**Escalated by**\n\n{fenced(escalated)}"] if escalated else []
+    shown.extend(
+        section.markdown()
+        for section in _turn_content(turn, lambda text: escape_placeholders(safe(text)))
+    )
+    if safe.escaped:
+        shown.append(f"**{_ESCAPED_NOTICE}**")
+    if view.call is not None and view.call.format == "markdown":
+        shown.append(view.call.content)
+    elif view.call is not None:
+        filled = substitute_tool_call_content(view.call, call.arguments).content
+        shown.append(f"**The call**\n\n{fenced(escape_placeholders(safe(filled)))}")
+    return ToolCallView(
+        context=view.context,
+        call=ToolCallContent(
+            title=view.call.title if view.call is not None else None,
+            format="markdown",
+            content="\n\n".join(shown),
+        ),
+    )
 
 
 def chosen_decision(
@@ -309,10 +340,9 @@ def turn_prompt(
 class _Section(NamedTuple):
     """One thing a view shows above a call: a label written here, then its content.
 
-    Nothing an agent wrote adds structure to the view. As markdown, the
-    content is inside a code block it cannot close. As text, every line of it
-    is indented, and no label is, so no line of it passes for a label. A
-    section with no content is a notice.
+    The content is shown inside a code block it cannot close, so nothing an
+    agent wrote adds structure to the view. A section with no content is a
+    notice.
     """
 
     label: str
@@ -329,16 +359,6 @@ class _Section(NamedTuple):
         if self.name:
             head = f"{head} {_markdown_escaped(self.name)}"
         return head if self.body is None else f"{head}\n\n{fenced(self.body)}"
-
-    def text(self) -> str:
-        head = f"{self.label} {self.name}" if self.name else self.label
-        if self.body is None:
-            return head
-        return f"{head}\n\n{textwrap.indent(self.body, _TEXT_INDENT, lambda _: True)}"
-
-
-_TEXT_INDENT = "    "
-"""What each line of a section's content starts with in a text view."""
 
 
 def _turn_content(
