@@ -401,11 +401,11 @@ An adversarial model is one that may try to bypass controls, tamper with evidenc
 
 ### Sandbox Bridge
 
-With `sandbox_agent_bridge()` the agent runs inside the sandbox, so the sandbox is what contains it. By default the bridge keeps API keys on the host and withholds tools that run outside the sandbox (see [Granted Capabilities](#granted-capabilities)). Anything you grant, including [bridged tools](#bridged-tools), is available to the agent even if the sandbox has no network. Note that most [Inspect SWE](https://meridianlabs-ai.github.io/inspect_swe/#adversarial-models) agents grant web search by default.
+With `sandbox_agent_bridge()` the agent runs inside the sandbox, so the sandbox is what contains it. By default the bridge keeps the model API keys Inspect uses on the host and withholds tools that run outside the sandbox (see [Granted Capabilities](#granted-capabilities)). Credentials you put in the sandbox yourself (for example, through an agent's `env`) can be read by the agent. Anything you grant, including [bridged tools](#bridged-tools), is available to the agent even if the sandbox has no network. Note that most [Inspect SWE](https://meridianlabs-ai.github.io/inspect_swe/#adversarial-models) agents grant web search by default.
 
 Running the agent inside the sandbox has these limits:
 
--   **Any process in the sandbox can call the bridge.** Inspect can't tell the agent apart from other processes in the sandbox.
+-   **By default, any process in the sandbox can call the bridge.** Inspect can't tell the agent apart from other processes in the sandbox. Inside a `sandbox_identity()` scope the bridge accepts only connections from the scope's user, but it still can't tell apart processes running as that user, and root can act as any user.
 
 -   **The transcript is the agent's own account.** Inspect records model calls but doesn't run the agent's tools. The message history and tool results in each request come from the agent, which can misreport them. If you need a reliable record of tool calls, use a native agent such as [`react()`](react-agent.qmd).
 
