@@ -159,6 +159,12 @@
   author: "[Hugging Face](https://github.com/dvsrepo/evaljobs)"
   categories: ["Tooling"]
 
+- name: "[Context.dev Web Search](https://github.com/mrmps/inspect-context-dev)"
+  description: |
+    Web search with query-relevant passages and source citations for Inspect evaluations.
+  author: "[Mike](https://github.com/mrmps)"
+  categories: ["Tooling"]
+
 - name: "[Inspect VS Code](https://marketplace.visualstudio.com/items?itemName=ukaisi.inspect-ai)"
   description: |
     VS Code extension that assists with developing and debugging Inspect evaluations.
