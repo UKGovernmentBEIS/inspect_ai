@@ -431,6 +431,6 @@ Don't use `agent_bridge()` with an adversarial model. The agent and its tools ru
 
 -   Keep log directories out of the agent's reach, and only retry or rescore logs you trust (see [Eval Logs](eval-logs.qmd)).
 
--   If you use `--acp-server`, keep it on the default Unix socket or a loopback port. It has no authentication (see [Intervention](intervention.qmd)).
+-   If you use `--acp-server`, keep it on the default Unix socket. The server has no authentication, so if you use a TCP port make sure the sandbox can't reach it. A loopback port may not be enough: some setups (for example, Docker Desktop with sandbox networking enabled) let a container connect to the host's loopback ports (see [Intervention](intervention.qmd)).
 
 -   Scorers, graders and monitors that read agent output or sandbox files are reading input the model controls.
