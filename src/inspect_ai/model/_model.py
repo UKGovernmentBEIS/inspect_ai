@@ -3529,16 +3529,6 @@ Each hit is confirmed against the serialization hash, so an address reused
 by another message can only find a copy that serializes the same.
 """
 
-_snapshot_copies: "weakref.WeakValueDictionary[int, ChatMessage]" = (
-    weakref.WeakValueDictionary()
-)
-"""Every copy `_snapshot_message` made, by `id()`, while something holds it."""
-
-
-def is_snapshot(message: ChatMessage) -> bool:
-    """Whether `message` is a copy `_snapshot_message` made, which nothing edits, rather than a message it logged live."""
-    return _snapshot_copies.get(id(message)) is message
-
 
 def _snapshot_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
     """Copy messages so later in-place edits do not change a logged input.
@@ -3604,7 +3594,6 @@ def _snapshot_message(message: _MessageT) -> _MessageT:
     _message_snapshots[key] = _Snapshot(
         weakref.ref(copied, _forget_snapshot(key)), digest
     )
-    _snapshot_copies[id(copied)] = copied
     return copied
 
 

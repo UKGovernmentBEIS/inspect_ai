@@ -30,7 +30,6 @@ from inspect_ai.model._chat_message import logged_json
 from inspect_ai.model._model import (
     _snapshot_messages,
     collect_model_events,
-    is_snapshot,
     use_model_event_sink,
 )
 from inspect_ai.tool import ToolCall, ToolCallError
@@ -272,20 +271,6 @@ async def test_model_event_logs_uncopyable_messages_live() -> None:
     assert event.input[0] is message
     assert event.output.message is result.message
     assert event.output.usage == usage
-    assert not is_snapshot(event.input[0])
-    assert not is_snapshot(event.output.message)
-
-
-async def test_model_event_snapshots_are_told_apart_from_live_messages() -> None:
-    init_transcript(Transcript())
-    model = get_model("mockllm/model")
-    message = ChatMessageUser(content="hi")
-
-    result = await model.generate([message])
-
-    [event] = _model_events()
-    assert is_snapshot(event.input[0]) and is_snapshot(event.output.message)
-    assert not is_snapshot(message) and not is_snapshot(result.message)
 
 
 @dataclass(slots=True)

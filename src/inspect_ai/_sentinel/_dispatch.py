@@ -7,7 +7,7 @@ from copy import copy
 from dataclasses import fields
 from logging import getLogger
 from typing import Any, Literal, NamedTuple, cast
-from weakref import WeakKeyDictionary, ref
+from weakref import WeakKeyDictionary
 
 from inspect_sentinel import (
     AfterGenerate,
@@ -43,7 +43,6 @@ from inspect_ai._util.registry import registry_info, registry_lookup
 from inspect_ai.approval._approval import Approval, ApprovalDecision
 from inspect_ai.approval._approver import Approver
 from inspect_ai.approval._human.approver import human_approver
-from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sentinel import (
     SentinelAction,
@@ -67,7 +66,6 @@ from inspect_ai.model._model import (
     Model,
     active_model,
     get_model,
-    is_snapshot,
     model_roles,
     suspend_model_event_sink,
 )
@@ -116,7 +114,6 @@ from ._steps import (
     before_tool_call,
     produced_by,
     producer_of,
-    producing_message_id,
     step_stage,
 )
 
@@ -421,16 +418,11 @@ def _message_id(message_id: str | None) -> str:
     return message_id
 
 
-def _assistant_index(
-    call: ToolCall, history: list[ChatMessage], turn: "_ToolTurn | None" = None
-) -> int | None:
-    """The index of the last assistant message in `history` holding `call`, read through `turn`'s call positions if given (`_ToolTurn.holds`)."""
+def _assistant_index(call: ToolCall, history: list[ChatMessage]) -> int | None:
     for index in range(len(history) - 1, -1, -1):
         message = history[index]
-        if isinstance(message, ChatMessageAssistant) and (
-            turn.holds(message, call.id)
-            if turn is not None
-            else any(tool_call.id == call.id for tool_call in message.tool_calls or [])
+        if isinstance(message, ChatMessageAssistant) and any(
+            tool_call.id == call.id for tool_call in message.tool_calls or []
         ):
             return index
     return None
@@ -442,73 +434,48 @@ def _producer(
     producer: ModelEvent | None,
     assistant_message: ChatMessageAssistant | None,
 ) -> Producer | None:
-    """What a tool step reads of the model call that produced `call`: `producer`, else the one found in `history` (`_found_producer`).
+    """What a tool step reads of the model call that produced `call`: `producer`, else the one found in `history`.
 
-    A `producer` the caller gives counts only if its message (`assistant_message`, else its output message) holds `call`, as for one found in `history` (`_producing_event`).
+    Only a model call whose message (`assistant_message`, else its output message) holds `call` counts. A call the scaffold added to the model's message is not the model's, which is also how replay decides.
     """
-    if producer is None:
-        return _found_producer(call, history) if history is not None else None
-    produced = producer_of(producer, assistant_message)
-    if produced is None or not _holds(
-        produced.message,
-        call,
-        stable=produced.message is not producer.output.message,
+    if producer is not None:
+        produced = producer_of(producer, assistant_message)
+    elif history is not None:
+        produced = _found_producer(call, history)
+    else:
+        return None
+    if produced is None or not any(
+        proposed.id == call.id for proposed in produced.message.tool_calls or []
     ):
         return None
     return produced
 
 
-def _holds(message: ChatMessageAssistant, call: ToolCall, *, stable: bool) -> bool:
-    """Whether `message` holds `call`.
+def _found_producer(call: ToolCall, history: list[ChatMessage]) -> Producer | None:
+    """What a tool step reads of the model call that produced the message in `history` holding `call`.
 
-    A `stable` message (one its owner doesn't change after, such as a bridge's handed copy) or an event output that is a snapshot (`is_snapshot`) has its ids read once (`_CallIds`). Any other message is an output logged live, which can change between steps, so it is read each time.
+    The steps of one `execute_tools()` call get the producer found when it started (`tool_turn`).
     """
-    if stable or is_snapshot(message):
-        return call.id in _call_ids.of(message)
-    return any(proposed.id == call.id for proposed in message.tool_calls or [])
-
-
-class _CallIds:
-    """Each assistant message's tool call ids, read once per message object.
-
-    A turn's steps share their producer's message (the `ModelEvent`'s snapshot, or the copy an agent bridge handed over), so checking that it holds each step's call reads it once per turn, not once per step. Entries are keyed by identity, since messages aren't hashable, and go with their message. A message's ids are read when it is first checked, so only messages that don't change after are given (`_holds`). No lock: the sentinel's steps run on the event loop thread.
-    """
-
-    def __init__(self) -> None:
-        self._ids: dict[int, tuple[ref[ChatMessageAssistant], frozenset[str]]] = {}
-
-    def of(self, message: ChatMessageAssistant) -> frozenset[str]:
-        key = id(message)
-        entry = self._ids.get(key)
-        if entry is None or entry[0]() is not message:
-            entry = (
-                ref(message, lambda _: self._ids.pop(key, None)),
-                frozenset(call.id for call in message.tool_calls or []),
-            )
-            self._ids[key] = entry
-        return entry[1]
-
-
-_call_ids = _CallIds()
+    message_id = _assistant_message_id(call, history)
+    if message_id is None:
+        return None
+    turn = _tool_turn.get()
+    if turn is None:
+        return producer_of(_message_event(message_id))
+    if message_id not in turn:
+        turn[message_id] = producer_of(_message_event(message_id))
+    return turn[message_id]
 
 
 def _producing_event(call: ToolCall, history: list[ChatMessage]) -> ModelEvent | None:
-    """The model call that produced `call`, found by the id of the message holding it.
-
-    Only a model call whose output holds `call` counts. A call the scaffold added to the model's message is not the model's, which is also how replay decides.
-    """
+    """The model call that produced the message in `history` holding `call`."""
     message_id = _assistant_message_id(call, history)
-    event = _message_event(message_id) if message_id is not None else None
-    if event is None or not _holds(event.output.message, call, stable=False):
-        return None
-    return event
+    return _message_event(message_id) if message_id is not None else None
 
 
-def _assistant_message_id(
-    call: ToolCall, history: list[ChatMessage], turn: "_ToolTurn | None" = None
-) -> str | None:
+def _assistant_message_id(call: ToolCall, history: list[ChatMessage]) -> str | None:
     """The id of the message in `history` holding `call`."""
-    index = _assistant_index(call, history, turn)
+    index = _assistant_index(call, history)
     return history[index].id if index is not None else None
 
 
@@ -522,163 +489,35 @@ def _message_event(message_id: str) -> ModelEvent | None:
         raise SentinelFailure(ex) from ex
 
 
-def _found_producer(call: ToolCall, history: list[ChatMessage]) -> Producer | None:
-    """What a tool step reads of the model call found in `history` (`_producing_event`), shared by the steps of its turn.
-
-    A bounded transcript evicts the model call from memory while its turn's steps still run, and a lookup after that reads back a new copy of it. So within one `execute_tools()` call (`tool_turn`), the first step that finds a message's producer keeps it, and later steps for the same message get it without searching the history again. Only a producer whose message doesn't change is kept: a snapshot output (`is_snapshot`), or a copy read back from the buffer, which nothing else holds. An output logged live is found and checked each time.
-    """
-    turn = _tool_turn.get()
-    if turn is not None and turn.transcript is not transcript():
-        turn = None
-    message_id = _assistant_message_id(call, history, turn)
-    if message_id is None:
-        return None
-    kept = turn.kept(message_id) if turn is not None else None
-    if kept is not None:
-        return kept if _holds(kept.message, call, stable=True) else None
-    event = _message_event(message_id)
-    if event is None:
-        return None
-    produced = producer_of(event)
-    assert produced is not None
-    stable = is_snapshot(produced.message) or not _resident(event)
-    if turn is not None and stable:
-        turn.keep(message_id, produced)
-    return produced if _holds(produced.message, call, stable=stable) else None
-
-
-def _resident(event: ModelEvent) -> bool:
-    """Whether `event` is the transcript's own object, rather than a copy read back from its buffer."""
-    history = transcript().history
-    if not history.resident_events_truncated:
-        return True
-    return any(resident is event for resident in reversed(history.resident_events))
-
-
-class _ToolTurn:
-    """The producers the tool steps of one `execute_tools()` call have found, by message id (`_found_producer`).
-
-    A producer is kept until the call returns. A nested `execute_tools()` (a tool that runs its own turn) has its own `_ToolTurn`, so it doesn't replace the outer turn's producers.
-
-    A kept producer is what `_message_event` would find only while no other model call that produces the same message id completes: a cached generate output, for one, keeps its message id. So each kept producer records the count of such completions (`_Completions`) when it was found, and is dropped if the count has changed. The turn watches each id it keeps until it ends (`close`).
-
-    It also indexes where each call id sits in the history's assistant messages (`holds`), so finding each step's message takes constant work, not a scan of its sibling calls.
-    """
-
-    def __init__(self, transcript: Transcript) -> None:
-        self.transcript = transcript
-        self._kept: dict[str, tuple[Producer, int]] = {}
-        self._watched: set[str] = set()
-        self._positions: dict[int, tuple[ChatMessageAssistant, dict[str, int]]] = {}
-
-    def holds(self, message: ChatMessageAssistant, call_id: str) -> bool:
-        """Whether `message` holds a call with id `call_id` now.
-
-        History messages are the agent's own and can change, so the indexed position is only a guess: it is confirmed by reading the call there. When there is no confirmed position, the message's calls are read again and the index rebuilt, which gives the answer as it is now.
-        """
-        entry = self._positions.get(id(message))
-        if entry is not None and entry[0] is message:
-            position = entry[1].get(call_id)
-            calls = message.tool_calls
-            if (
-                position is not None
-                and calls is not None
-                and position < len(calls)
-                and calls[position].id == call_id
-            ):
-                return True
-        positions: dict[str, int] = {}
-        for position, call in enumerate(message.tool_calls or []):
-            positions.setdefault(call.id, position)
-        self._positions[id(message)] = (message, positions)
-        return call_id in positions
-
-    def kept(self, message_id: str) -> Producer | None:
-        found = self._kept.get(message_id)
-        if found is None:
-            return None
-        producer, count = found
-        if _Completions.of(self.transcript).count(message_id) != count:
-            del self._kept[message_id]
-            return None
-        return producer
-
-    def keep(self, message_id: str, producer: Producer) -> None:
-        completions = _Completions.of(self.transcript)
-        if message_id in self._watched:
-            count = completions.count(message_id)
-            assert count is not None
-        else:
-            count = completions.watch(message_id)
-            self._watched.add(message_id)
-        self._kept[message_id] = (producer, count)
-
-    def close(self) -> None:
-        """Stop watching the ids this turn kept producers for."""
-        if self._watched:
-            completions = _Completions.of(self.transcript)
-            for message_id in self._watched:
-                completions.unwatch(message_id)
-            self._watched.clear()
-        self._kept.clear()
-        self._positions.clear()
-
-
-class _Completions:
-    """How many times a model call producing each watched message id has completed in a transcript, counted from when the id is first watched.
-
-    One per transcript, subscribed to its events when a tool turn first keeps a producer. An id is watched while a tool turn that kept a producer for it is running (nested and concurrent turns each count), and forgotten when the last of them ends. No lock: events are logged on the event loop thread.
-    """
-
-    def __init__(self) -> None:
-        self._counts: dict[str, int] = {}
-        self._watchers: dict[str, int] = {}
-
-    @staticmethod
-    def of(transcript: Transcript) -> "_Completions":
-        completions = _completions.get(transcript)
-        if completions is None:
-            completions = _completions[transcript] = _Completions()
-            transcript._subscribe(completions._event)
-        return completions
-
-    def watch(self, message_id: str) -> int:
-        """Watch `message_id` for one more tool turn, returning its count."""
-        self._watchers[message_id] = self._watchers.get(message_id, 0) + 1
-        return self._counts.setdefault(message_id, 0)
-
-    def unwatch(self, message_id: str) -> None:
-        watchers = self._watchers[message_id] - 1
-        if watchers > 0:
-            self._watchers[message_id] = watchers
-        else:
-            del self._watchers[message_id]
-            del self._counts[message_id]
-
-    def count(self, message_id: str) -> int | None:
-        return self._counts.get(message_id)
-
-    def _event(self, event: Event) -> None:
-        message_id = producing_message_id(event)
-        if message_id is not None and message_id in self._counts:
-            self._counts[message_id] += 1
-
-
-_completions: "WeakKeyDictionary[Transcript, _Completions]" = WeakKeyDictionary()
-
-_tool_turn: ContextVar[_ToolTurn | None] = ContextVar("_tool_turn", default=None)
+_tool_turn: ContextVar[dict[str, Producer | None] | None] = ContextVar(
+    "_tool_turn", default=None
+)
 
 
 @contextmanager
-def tool_turn() -> Iterator[None]:
-    """Share each producer found by the tool steps of one `execute_tools()` call (`_ToolTurn`)."""
-    turn = _ToolTurn(transcript())
+def tool_turn(messages: Sequence[ChatMessage]) -> Iterator[None]:
+    """Find the producer of the message whose calls one `execute_tools()` call runs (the last of `messages`), for its tool steps to share (`_found_producer`).
+
+    It is found before any call runs, so a model call a tool makes during the turn can't be taken for it, even one that produces the same message id (a reused output). The steps also share one object where a bounded transcript evicts the model call while they run, when each lookup would read back a new copy.
+    """
+    turn: dict[str, Producer | None] = {}
+    message = messages[-1] if messages else None
+    if (
+        isinstance(message, ChatMessageAssistant)
+        and message.tool_calls
+        and message.id is not None
+        and (_watches(BeforeToolCall) or _watches(AfterToolCall))
+    ):
+        try:
+            turn[message.id] = producer_of(_message_event(message.id))
+        except SentinelFailure:
+            # the turn's first step looks again, and fails its call as any step does
+            pass
     token = _tool_turn.set(turn)
     try:
         yield
     finally:
         _tool_turn.reset(token)
-        turn.close()
 
 
 class _HostNative:

@@ -240,7 +240,7 @@ async def execute_tools(
     if checks_tool_calls():
         from inspect_ai._sentinel._dispatch import tool_turn
 
-        turn_cm: AbstractContextManager[None] = tool_turn()
+        turn_cm: AbstractContextManager[None] = tool_turn(messages)
     else:
         turn_cm = nullcontext()
     watch = _handoff_watch.get()

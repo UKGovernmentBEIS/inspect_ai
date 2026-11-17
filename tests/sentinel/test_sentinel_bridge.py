@@ -2330,42 +2330,6 @@ async def test_a_call_handed_over_under_a_fresh_id_has_the_message_as_handed(
     assert [call.id for call in events[1].output.message.tool_calls or []] == ["call_0"]
 
 
-async def test_checking_a_turn_s_calls_against_its_message_takes_work_linear_in_its_calls(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The sentinel's reads of call ids over a turn's steps grow linearly with its calls: the check that the producer's message holds each step's call doesn't scan the message per step."""
-    import sys
-
-    from inspect_ai._sentinel import _dispatch
-
-    reads = 0
-
-    def get(self: ToolCall) -> str:
-        nonlocal reads
-        if sys._getframe(1).f_code.co_filename == _dispatch.__file__:
-            reads += 1
-        return cast(str, self.__dict__["id"])
-
-    def set(self: ToolCall, value: str) -> None:
-        self.__dict__["id"] = value
-
-    monkeypatch.setattr(ToolCall, "id", property(get, set), raising=False)
-
-    async def reads_for(calls: int) -> int:
-        nonlocal reads
-        init_transcript(Transcript())
-        seen: Steps = []
-        proposed = [replace(READ, id=f"call_{i}") for i in range(calls)]
-        model = Scripted(calls_output(*proposed), calls_output())
-        reads = 0
-        with active([bridge_recording(seen)]):
-            await run_turns(in_process_bridge([]), model, 1)
-        assert len(seen) == 2 * calls
-        return reads
-
-    assert await reads_for(64) == 4 * await reads_for(16)
-
-
 class _CannotCopy:
     def __deepcopy__(self, memo: dict[int, Any]) -> "_CannotCopy":
         raise TypeError("cannot copy")
