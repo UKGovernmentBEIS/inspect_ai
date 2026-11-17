@@ -98,7 +98,7 @@ jobs:
       # mypy runs.
       - name: Install Python dependencies
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
-        uses: meridianlabs-ai/actions/install-python-dependencies@330f3df6492418d6b25dc2631fc31143489f4674 # main, 2026-11-02
+        uses: meridianlabs-ai/actions/install-python-dependencies@c2d2df77e8241823e823b3c633f651b8160ef1d5 # main, 2026-11-02
         with:
           versions: locked
           python-version: ${{ matrix.python-version }}
@@ -124,7 +124,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Python dependencies
-        uses: meridianlabs-ai/actions/install-python-dependencies@330f3df6492418d6b25dc2631fc31143489f4674 # main, 2026-11-02
+        uses: meridianlabs-ai/actions/install-python-dependencies@c2d2df77e8241823e823b3c633f651b8160ef1d5 # main, 2026-11-02
         with:
           versions: locked
           python-version: "3.11"
@@ -218,7 +218,7 @@ jobs:
       # restores the Actions cache but makes no Action save.
       - name: Install Python dependencies
         if: steps.render-cache.outputs.cache-hit != 'true'
-        uses: meridianlabs-ai/actions/install-python-dependencies@330f3df6492418d6b25dc2631fc31143489f4674 # main, 2026-11-02
+        uses: meridianlabs-ai/actions/install-python-dependencies@c2d2df77e8241823e823b3c633f651b8160ef1d5 # main, 2026-11-02
         with:
           versions: locked
           python-version: "3.11"
@@ -304,7 +304,7 @@ jobs:
       # paid by whichever test calls it first).
       - name: Install Python dependencies
         if: env.RUN_TESTS == 'true'
-        uses: meridianlabs-ai/actions/install-python-dependencies@330f3df6492418d6b25dc2631fc31143489f4674 # main, 2026-11-02
+        uses: meridianlabs-ai/actions/install-python-dependencies@c2d2df77e8241823e823b3c633f651b8160ef1d5 # main, 2026-11-02
         with:
           versions: locked
           python-version: ${{ matrix.python-version }}
@@ -565,7 +565,7 @@ jobs:
         run: git branch main origin/main
 
       - name: Install Python dependencies
-        uses: meridianlabs-ai/actions/install-python-dependencies@330f3df6492418d6b25dc2631fc31143489f4674 # main, 2026-11-02
+        uses: meridianlabs-ai/actions/install-python-dependencies@c2d2df77e8241823e823b3c633f651b8160ef1d5 # main, 2026-11-02
         with:
           versions: locked
           python-version: "3.11"
@@ -625,7 +625,7 @@ jobs:
       # The project installs editable, so `_binaries_dir()` resolves to the
       # source tree the published binaries are downloaded into below.
       - name: Install Python dependencies
-        uses: meridianlabs-ai/actions/install-python-dependencies@330f3df6492418d6b25dc2631fc31143489f4674 # main, 2026-11-02
+        uses: meridianlabs-ai/actions/install-python-dependencies@c2d2df77e8241823e823b3c633f651b8160ef1d5 # main, 2026-11-02
         with:
           versions: locked
           python-version: "3.11"
@@ -796,7 +796,7 @@ jobs:
           submodules: true
 
       - name: Install Python dependencies
-        uses: meridianlabs-ai/actions/install-python-dependencies@330f3df6492418d6b25dc2631fc31143489f4674 # main, 2026-11-02
+        uses: meridianlabs-ai/actions/install-python-dependencies@c2d2df77e8241823e823b3c633f651b8160ef1d5 # main, 2026-11-02
         with:
           versions: locked
           python-version: "3.11"
@@ -847,7 +847,7 @@ jobs:
       # does not apply.
       - name: Install the build toolchain
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true'
-        uses: meridianlabs-ai/actions/install-python-dependencies@330f3df6492418d6b25dc2631fc31143489f4674 # main, 2026-11-02
+        uses: meridianlabs-ai/actions/install-python-dependencies@c2d2df77e8241823e823b3c633f651b8160ef1d5 # main, 2026-11-02
         with:
           versions: hashed-requirements
           python-version: "3.11"
@@ -883,7 +883,7 @@ jobs:
       # twine and check-wheel-contents come from uv.lock (the dist extra).
       - name: Install check tools
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.package_readme == 'true'
-        uses: meridianlabs-ai/actions/install-python-dependencies@330f3df6492418d6b25dc2631fc31143489f4674 # main, 2026-11-02
+        uses: meridianlabs-ai/actions/install-python-dependencies@c2d2df77e8241823e823b3c633f651b8160ef1d5 # main, 2026-11-02
         with:
           versions: locked
           python-version: "3.11"
