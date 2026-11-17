@@ -1191,6 +1191,62 @@ def test_a_question_that_cant_be_shown_leaks_none_of_its_contents(
     assert secret not in sample.model_dump_json()
 
 
+def _unreadable_message(request: dict[str, Any], secret: str) -> str:
+    # a message whose role Inspect can't read, holding the secret
+    request["new"][0]["message"] = {"role": "nobody", "content": secret}
+    return "ValidationError"
+
+
+def _no_function_named(request: dict[str, Any], secret: str) -> str:
+    # a forced call that names no function, in a request holding the secret
+    request["new"][0]["message"]["content"] = secret
+    request["tool_choice"] = "function"
+    request.pop("tool_function", None)
+    return "ValueError"
+
+
+@pytest.mark.parametrize(
+    "spoil",
+    [
+        pytest.param(_unreadable_message, id="a message it can't read"),
+        pytest.param(_no_function_named, id="a forced call with no function"),
+    ],
+)
+def test_a_request_question_that_cant_be_shown_ends_the_sample_and_leaks_nothing(
+    spoil: Callable[[dict[str, Any], str], str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    person = Person("approve")
+    person.install(monkeypatch)
+    stand_in = ReviewingSidecar(pauses=["model_input"], turns=[Turn(text="Sunny.")])
+    listed = stand_in._list_pending_questions
+    secret = "sk-not-to-be-told"
+    raised: list[str] = []
+
+    def unreadable(params: dict[str, Any]) -> dict[str, Any]:
+        questions = listed(params)
+        for question in questions["questions"]:
+            raised.append(spoil(question["request"], secret))
+        return questions
+
+    stand_in.methods["list_pending_questions"] = unreadable
+
+    sample = _sample(_run(stand_in, solver=generate()))
+
+    # No person is asked. A request can't be rejected, so Inspect answers
+    # `terminate` in their place, and the sample ends.
+    assert person.asked == []
+    [answer] = _called(stand_in, "answer_question")
+    assert answer["decision"] == "terminate"
+    assert sample.limit is not None and sample.limit.type == "operator"
+    # The reason and the warning name the error's type, and nothing of the
+    # request: a validation error quotes the values it couldn't read.
+    error = raised[0]
+    [warned] = [w for w in _warned(sample) if "couldn't be shown" in w]
+    assert error in answer["reason"] and error in warned
+    assert secret not in answer["reason"] and secret not in warned
+    assert secret not in sample.model_dump_json()
+
+
 def test_an_sdk_retry_of_the_judged_reply_request_keeps_the_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
