@@ -149,6 +149,9 @@ class AsyncHTTPServer:
                 size = int(hex_size, 16)
             except ValueError:
                 raise ValueError("Invalid chunk size")  # noqa: B904
+            # checked before the chunk is read, so an oversized body is never buffered
+            if len(chunks) + size > MAX_BODY_BYTES:
+                raise ValueError("Body too large")
             if size == 0:
                 # consume trailing headers until empty line
                 while True:
@@ -166,8 +169,6 @@ class AsyncHTTPServer:
             crlf = await asyncio.wait_for(reader.readline(), timeout=READ_TIMEOUT_S)
             if crlf not in (b"\r\n", b"\n"):
                 raise ValueError("Malformed chunk terminator")
-            if len(chunks) > MAX_BODY_BYTES:
-                raise ValueError("Body too large")
         return bytes(chunks)
 
     async def _parse_request(
@@ -1654,8 +1655,7 @@ async def model_proxy_server(
                 return {"status": 200, "body": completion}
 
         except Exception as ex:
-            _handle_model_proxy_error(ex)
-            os._exit(1)
+            return _request_failed(ex, _openai_error_body)
 
     @server.route("/v1/chat/completions", method="POST")
     async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
@@ -1881,8 +1881,7 @@ async def model_proxy_server(
             else:
                 return {"status": 200, "body": completion}
         except Exception as ex:
-            _handle_model_proxy_error(ex)
-            os._exit(1)
+            return _request_failed(ex, _openai_error_body)
 
     @server.route("/v1/messages", method="POST")
     async def anthropic(request: dict[str, Any]) -> dict[str, Any]:
@@ -2261,8 +2260,7 @@ async def model_proxy_server(
                     }
                 return {"status": 200, "body": completion}
         except Exception as ex:
-            _handle_model_proxy_error(ex)
-            os._exit(1)
+            return _request_failed(ex, _anthropic_error_body)
 
     # ---------- Google Gemini API routes ----------
     # Route patterns for Google's Gemini API using wildcard matching
@@ -2328,8 +2326,7 @@ async def model_proxy_server(
             }
 
         except Exception as ex:
-            _handle_model_proxy_error(ex)
-            os._exit(1)
+            return _request_failed(ex, _google_error_body)
 
     # -------- MCP HTTP Server Endpoint --------
 
@@ -2461,7 +2458,12 @@ def _mcp_tool_content_block(content: JsonValue) -> JsonValue:
 
 
 async def run_model_proxy_server() -> None:
-    """Run the model proxy server."""
+    """Run the model proxy server.
+
+    An error reaching here means the proxy cannot serve: it could not start, or
+    its server stopped. The process exits, and the bridge fails the sample with
+    its stderr. An error serving one request is answered in its handler instead.
+    """
     # determine port
     port = int(os.getenv("BRIDGE_MODEL_SERVICE_PORT", "13131"))
 
@@ -2482,24 +2484,30 @@ async def run_model_proxy_server() -> None:
         os._exit(1)
 
 
-def _handle_model_proxy_error(ex: Exception) -> None:
-    # Any error that occurs in here is essentially fatal to the entire
-    # agent. The exception results either from:
-    #
-    #  - The call to generate (which already benefits from Inspect's std
-    #    model retry behavior). In normal Inspect agents if generate fails
-    #    after requisite retries the sample fails, same here
-    #  - A logic error or unexpected data condition in our simulated
-    #    streaming -- if we are unable to stream a request back then
-    #    the agent can't proceed, so we fail the script hard
-    #
-    # Writing to stderr and exiting the script is seen as preferable to
-    # returning 500 to the proxied agent. This is because we are in a
-    # hard failure anyway so we need the user to see the error message
-    # and have the task fail (the 500 error would just result in retries)
+def _request_failed(
+    ex: Exception, error_body: Callable[[int, str], dict[str, Any]]
+) -> dict[str, Any]:
+    """Answer a generation request that failed in the proxy with an error response.
+
+    The failure is written to stderr with its traceback, which the bridge logs,
+    and the proxy keeps serving later requests. Provider errors do not come
+    here: the host returns them as results, and the handlers forward them with
+    the provider's status. What does is an error reply on the service's RPC
+    channel or a failure in the proxy's own request handling, which carries no
+    status, so it gets `_DEFAULT_ERROR_STATUS`, as a forwarded error without a
+    status does.
+
+    Args:
+        ex: The exception raised while serving the request.
+        error_body: Builds the error body in the route's API dialect.
+    """
     sys.stderr.write(f"Unexpected error during model proxy call: {ex}\n")
     sys.stderr.write(traceback.format_exc())
     sys.stderr.flush()
+    return {
+        "status": _DEFAULT_ERROR_STATUS,
+        "body": error_body(_DEFAULT_ERROR_STATUS, f"Model proxy error: {ex}"),
+    }
 
 
 async def _call_bridge_model_service_async(method: str, **params: Any) -> Any:

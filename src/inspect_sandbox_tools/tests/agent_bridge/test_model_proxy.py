@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, AsyncIterator
 
@@ -11,6 +12,7 @@ from aiohttp import ClientSession
 from anthropic import APIStatusError, AsyncAnthropic
 from anthropic.types import ToolParam
 from google import genai
+from inspect_sandbox_tools._agent_bridge import proxy as proxy_module
 from inspect_sandbox_tools._agent_bridge.proxy import (
     PROVIDER_ERROR_KEY,
     AsyncHTTPServer,
@@ -353,6 +355,37 @@ async def test_model_proxy_sends_100_continue_before_reading_the_body(
 
     assert response.startswith(b"HTTP/1.1 200")
     assert received == [{"a": 1}]
+
+
+@pytest.mark.parametrize("buffered", [0, 10])
+async def test_chunk_over_the_body_limit_is_refused_before_it_is_read(
+    monkeypatch: pytest.MonkeyPatch, buffered: int
+) -> None:
+    """A chunk whose declared size takes the body over the limit is never read.
+
+    The stream ends after the size line, so reading the chunk would fail with
+    `IncompleteReadError` rather than the limit's `ValueError`.
+    """
+    monkeypatch.setattr(proxy_module, "MAX_BODY_BYTES", 100)
+    reader = asyncio.StreamReader()
+    if buffered:
+        reader.feed_data(b"%X\r\n" % buffered + b"a" * buffered + b"\r\n")
+    reader.feed_data(b"%X\r\n" % (101 - buffered))
+    reader.feed_eof()
+
+    with pytest.raises(ValueError, match="Body too large"):
+        await AsyncHTTPServer()._read_chunked(reader)
+
+
+async def test_chunked_body_at_the_limit_is_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(proxy_module, "MAX_BODY_BYTES", 11)
+    reader = asyncio.StreamReader()
+    reader.feed_data(b"5\r\nhello\r\n6\r\n world\r\n0\r\n\r\n")
+    reader.feed_eof()
+
+    assert await AsyncHTTPServer()._read_chunked(reader) == b"hello world"
 
 
 @pytest.mark.parametrize("name", ["Content-Length", "Host", "Content-Type"])
@@ -3228,6 +3261,70 @@ async def test_proxy_survives_provider_error() -> None:
             async with session.post(f"{base_url}/v1/messages", json=body) as second:
                 assert second.status == 200
                 assert (await second.json())["content"][0]["text"] == "ok"
+
+
+@pytest.mark.parametrize(
+    ("path", "body", "message_of"),
+    [
+        (
+            "/v1/responses",
+            {"model": "gpt-4o", "input": "hi"},
+            lambda b: b["error"]["message"],
+        ),
+        (
+            "/v1/chat/completions",
+            {"model": "gpt-4o", "messages": [{"role": "user", "content": "hi"}]},
+            lambda b: b["error"]["message"],
+        ),
+        (
+            "/v1/messages",
+            {
+                "model": "claude-x",
+                "max_tokens": 8,
+                "messages": [{"role": "user", "content": "hi"}],
+            },
+            lambda b: b["type"] == "error" and b["error"]["message"],
+        ),
+        (
+            "/v1beta/models/gemini-2.5-pro:generateContent",
+            {"contents": [{"role": "user", "parts": [{"text": "hi"}]}]},
+            lambda b: (
+                b["error"]["status"] == "INVALID_ARGUMENT" and b["error"]["message"]
+            ),
+        ),
+    ],
+)
+async def test_failed_request_is_answered_and_the_proxy_keeps_serving(
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+    body: dict[str, Any],
+    message_of: Any,
+) -> None:
+    """A request that fails in the proxy gets an error response; the next is served."""
+
+    def no_exit(status: int) -> None:
+        raise AssertionError(f"model proxy exited with status {status}")
+
+    monkeypatch.setattr(os, "_exit", no_exit)
+    calls = 0
+
+    async def mock_service(method: str, **params: Any) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise Exception("service request failed")
+        return {"served": True}
+
+    async with _proxy_with_service(mock_service) as base_url:
+        async with ClientSession() as session:
+            async with session.post(f"{base_url}{path}", json=body) as first:
+                assert first.status == 400
+                assert message_of(await first.json()) == (
+                    "Model proxy error: service request failed"
+                )
+            async with session.post(f"{base_url}{path}", json=body) as second:
+                assert second.status == 200
+                assert await second.json() == {"served": True}
 
 
 @pytest.mark.asyncio

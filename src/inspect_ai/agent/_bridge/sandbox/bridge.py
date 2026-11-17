@@ -59,6 +59,9 @@ _PEER_USER_ENV = f"{MODEL_SERVICE.upper()}_PEER_USER"
 # Printed by the model proxy (inspect_sandbox_tools/_agent_bridge/proxy.py).
 _LISTENING_PREFIX = "model_proxy: listening on "
 
+_PROXY_STDERR_TAIL_CHARS = 64 * 1024
+"""Characters of the model proxy's latest stderr kept for its error messages."""
+
 
 @contextlib.asynccontextmanager
 async def sandbox_agent_bridge(
@@ -476,8 +479,13 @@ async def _monitor_proxy(
     With `listening`, set it when the proxy prints its listening line to stdout,
     which only the proxy process can write; stdout is buffered only until then.
     A proxy that exits before printing it raises, whatever its exit status.
+
+    Stderr is logged at debug level as it arrives; only the last
+    `_PROXY_STDERR_TAIL_CHARS` characters are kept for the error messages, so
+    a long-running proxy's stderr does not grow without bound.
     """
-    stderr: list[str] = []
+    stderr = ""
+    stderr_truncated = False
     stdout = ""
     async for event in proxy:
         if (
@@ -490,20 +498,24 @@ async def _monitor_proxy(
                 listening.set()
                 stdout = ""
         if isinstance(event, ExecStderr):
-            stderr.append(event.data)
+            stderr += event.data
+            if len(stderr) > _PROXY_STDERR_TAIL_CHARS:
+                stderr = stderr[-_PROXY_STDERR_TAIL_CHARS:]
+                stderr_truncated = True
             logger.debug("model_proxy stderr: %s", event.data.rstrip())
         if isinstance(event, ExecCompleted):
+            output = (
+                f"[earlier output truncated]\n{stderr}" if stderr_truncated else stderr
+            )
             if listening is not None and not listening.is_set():
                 raise RuntimeError(
-                    "Model proxy process exited before it was listening: "
-                    f"{''.join(stderr)}"
+                    f"Model proxy process exited before it was listening: {output}"
                 )
             if not event.success:
                 raise RuntimeError(
-                    f"Model proxy process exited unexpectedly with failure: {''.join(stderr)}."
+                    f"Model proxy process exited unexpectedly with failure: {output}."
                 )
             if stderr:
                 logger.warning(
-                    "model_proxy stderr output on clean exit:\n%s",
-                    "".join(stderr).rstrip(),
+                    "model_proxy stderr output on clean exit:\n%s", output.rstrip()
                 )

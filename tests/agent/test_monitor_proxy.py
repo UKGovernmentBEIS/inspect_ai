@@ -4,7 +4,7 @@ import contextlib
 import json
 import traceback
 from collections.abc import Callable, Iterator
-from typing import Any, AsyncIterator, NoReturn
+from typing import Any, AsyncIterator, NoReturn, cast
 from unittest.mock import AsyncMock
 
 import anyio
@@ -52,6 +52,24 @@ async def test_monitor_proxy_failure() -> None:
 
     with pytest.raises(RuntimeError, match="failure"):
         await _monitor_proxy(proc)  # type: ignore[arg-type]
+
+
+async def test_monitor_proxy_keeps_a_bounded_stderr_tail() -> None:
+    """A proxy's stderr is kept as a bounded tail for the error it raises."""
+    line = "x" * 1023 + "\n"
+    events: list[ExecOutput] = [ExecStderr(data="first output\n")]
+    events += [ExecStderr(data=line) for _ in range(256)]
+    events += [ExecStderr(data="last output\n"), ExecCompleted(exit_code=1)]
+    proc = cast(ExecRemoteProcess, FakeProcess(events))
+
+    with pytest.raises(RuntimeError, match="failure") as excinfo:
+        await _monitor_proxy(proc)
+
+    message = str(excinfo.value)
+    assert "last output" in message
+    assert "first output" not in message
+    assert "[earlier output truncated]" in message
+    assert len(message) < bridge_module._PROXY_STDERR_TAIL_CHARS + 200
 
 
 async def test_monitor_proxy_success() -> None:
