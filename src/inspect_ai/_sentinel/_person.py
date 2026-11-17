@@ -125,11 +125,13 @@ def held_call_view(
     shows what the turn holds besides its tool calls, between the escalations
     and the call (see `_turn_content`).
 
-    The view is markdown, whatever the call's own view is. Everything an agent
-    wrote above the call is inside a code block it cannot close. A call's text
-    view goes into a code block too, with the call's arguments filled in
-    first: the surfaces wrap plain text to the window, and a wrapped line
-    starts at the margin, where it could pass for one of the view's labels.
+    The view is markdown, and everything in it but its labels is inside a code
+    block it cannot close: what the turn holds, and what the tool's viewer
+    made of the call and of its context, with the call's arguments filled in
+    first (see `_contained`). So nothing an agent wrote passes for one of the
+    view's labels. A viewer's plain text is in a code block too, because the
+    surfaces wrap plain text to the window, and a wrapped line starts at the
+    margin as a label does.
 
     Args:
         view: The call's own view.
@@ -138,26 +140,29 @@ def held_call_view(
             if there are none.
         turn: The turn that made the call.
     """
-    safe = _Escaped()
-    shown = [f"**Escalated by**\n\n{fenced(escalated)}"] if escalated else []
-    shown.extend(
-        section.markdown()
-        for section in _turn_content(turn, lambda text: escape_placeholders(safe(text)))
-    )
-    if safe.escaped:
+    escaped = _Escaped()
+
+    def safe(text: str) -> str:
+        # The surfaces fill in the call's arguments again, after any fence
+        # here is sized. So nothing here may still read as a placeholder.
+        return escape_placeholders(escaped(text))
+
+    shown = [f"**Escalated by**\n\n{fenced(safe(escalated))}"] if escalated else []
+    shown.extend(section.markdown() for section in _turn_content(turn, safe))
+    title: str | None = None
+    made: list[str] = []
+    for label, part in (("The call's context", view.context), ("The call", view.call)):
+        if part is not None:
+            filled = substitute_tool_call_content(part, call.arguments)
+            made.append(f"**{label}**\n\n{_contained(filled, safe)}")
+            if part is view.call and filled.title:
+                title = " ".join(safe(filled.title).split())
+    if escaped.escaped:
         shown.append(f"**{_ESCAPED_NOTICE}**")
-    if view.call is not None and view.call.format == "markdown":
-        shown.append(view.call.content)
-    elif view.call is not None:
-        filled = substitute_tool_call_content(view.call, call.arguments).content
-        shown.append(f"**The call**\n\n{fenced(escape_placeholders(safe(filled)))}")
     return ToolCallView(
-        context=view.context,
         call=ToolCallContent(
-            title=view.call.title if view.call is not None else None,
-            format="markdown",
-            content="\n\n".join(shown),
-        ),
+            title=title, format="markdown", content="\n\n".join([*shown, *made])
+        )
     )
 
 
@@ -459,11 +464,7 @@ def _call_markdown(call: ToolCall, index: int, count: int, safe: _Escaped) -> st
 
     The content is what the transcript shows (`ToolCall.view`, which
     `Model.generate` sets from the tool's viewer, or the default rendering),
-    with the call's placeholders filled in. Viewers interpolate arguments into
-    markdown unescaped, so an argument could close the viewer's code fence and
-    open an HTML comment that swallows the calls after it. A viewer's single
-    code block keeps its language and is fenced again by a fence longer than
-    any backtick run in it; any other content is shown as source.
+    with the call's placeholders filled in (see `_contained`).
     """
     content = substitute_tool_call_content(
         call.view or cast(ToolCallContent, default_tool_call_viewer(call).call),
@@ -472,13 +473,29 @@ def _call_markdown(call: ToolCall, index: int, count: int, safe: _Escaped) -> st
     header = f"**Call {index} of {count}:** {_markdown_text(call.function, safe)}"
     if content.title and content.title != call.function:
         header = f"{header} ({_markdown_text(content.title, safe)})"
+    return f"{header}\n\n{_contained(content, safe)}"
+
+
+def _contained(content: ToolCallContent, safe: Callable[[str], str]) -> str:
+    """What a tool's viewer made, as one code block it cannot close.
+
+    Viewers interpolate arguments into markdown unescaped, so an argument could
+    close the viewer's code fence and write a label of the view, or open an
+    HTML comment that swallows what follows. A viewer's single code block keeps
+    its language and is fenced again by a fence longer than any backtick run in
+    it. Any other content is shown as source.
+
+    Args:
+        content: The viewer's content, with the call's placeholders filled in.
+        safe: Makes text an agent wrote safe to display.
+    """
     block = _CODE_BLOCK.fullmatch(content.content)
     if content.format == "markdown" and block is not None:
         language, code = block.group("language").strip(), block.group("code")
     else:
         language = "markdown" if content.format == "markdown" else ""
         code = content.content
-    return f"{header}\n\n{_code_block(safe(code), language)}"
+    return _code_block(safe(code), language)
 
 
 # a viewer's single fenced code block, e.g. `code_viewer`'s and the default's

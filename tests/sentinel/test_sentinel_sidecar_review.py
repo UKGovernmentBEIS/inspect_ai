@@ -1409,26 +1409,53 @@ def test_a_person_asked_about_a_call_is_shown_the_rest_of_its_turn(
 
 
 def _outside_code_blocks(markdown: str) -> list[str]:
-    # the lines of a view that are in no code block: the view's own
+    # The lines of a view that are in no code block: the view's own. A block
+    # is closed by a line of backticks at least as long as the one that opened
+    # it, as CommonMark closes one.
     outside: list[str] = []
-    fence: str | None = None
+    fence = 0
     for line in markdown.splitlines():
-        if fence is None and line.startswith("```"):
-            fence = line
-        elif fence is not None and line == fence:
-            fence = None
-        elif fence is None and line:
+        ticks = len(line) - len(line.lstrip("`"))
+        if fence == 0 and ticks >= 3:
+            fence = ticks
+        elif fence and ticks >= fence and ticks == len(line):
+            fence = 0
+        elif fence == 0 and line:
             outside.append(line)
-    assert fence is None
+    assert fence == 0
     return outside
 
 
-def test_nothing_in_a_held_calls_view_passes_for_a_label_though_its_view_is_text() -> (
-    None
-):
-    # A line of plain text that is padded to the window's width wraps, and what
-    # follows starts at the margin as a label does. So no line break is needed.
-    forged = "ok\n```\n\nIt failed with\n\ndenied" + " " * 500 + "The turn says"
+_BASH = "```bash\n{{command}}\n```\n"
+"""The view inspect_ai's own bash viewer makes: the command, between fixed fences."""
+
+
+@pytest.mark.parametrize(
+    ("made", "block"),
+    [
+        pytest.param(
+            ToolCallContent(format="text", content="run: {{command}}"),
+            "````\nrun: ok",
+            id="a viewer that writes plain text",
+        ),
+        pytest.param(
+            ToolCallContent(title="bash", format="markdown", content=_BASH),
+            "````bash\nok",
+            id="a viewer that fences a code block",
+        ),
+        pytest.param(
+            ToolCallContent(format="markdown", content="Runs `{{command}}` now."),
+            "````markdown\nRuns `ok",
+            id="a viewer that writes other markdown",
+        ),
+    ],
+)
+def test_nothing_in_a_held_calls_view_passes_for_one_of_its_labels(
+    made: ToolCallContent, block: str
+) -> None:
+    # Text that closes a code block and writes a label. Padded to the window's
+    # width, plain text wraps and starts at the margin with no line break.
+    forged = "ok\n```\n\n**The turn says**\n\ndenied" + " " * 500 + "It failed with"
     turn = ChatMessageAssistant(
         content=[
             ContentToolUse(
@@ -1440,26 +1467,37 @@ def test_nothing_in_a_held_calls_view_passes_for_a_label_though_its_view_is_text
             )
         ]
     )
+    call = ToolCall(
+        id="call_1", function="bash", arguments={"command": forged, "other": "`````"}
+    )
 
     view = held_call_view(
-        # a tool whose viewer writes plain text
-        ToolCallView(call=ToolCallContent(format="text", content="weather: {{city}}")),
-        ToolCall(id="call_1", function="weather", arguments={"city": forged}),
-        f"- risk_monitor: {forged}",
+        ToolCallView(
+            context=ToolCallContent(format="markdown", content="In {{command}}"),
+            call=made,
+        ),
+        call,
+        f"- risk_monitor: {forged} {{{{other}}}}",
         turn,
     )
 
-    # The view is markdown, and everything a tool, a monitor or the call's own
-    # text view wrote is inside a code block it can't close, where a wrapped
-    # line stays in the block. Only the view's own labels are outside.
-    assert view.call is not None and view.call.format == "markdown"
+    # Everything a tool, a monitor or the tool's viewer wrote is inside a code
+    # block it can't close, where a wrapped line stays in the block. Only the
+    # view's own labels are outside. The viewer's context is in the view too,
+    # so no part of what a surface shows is left as the viewer made it.
+    assert view.context is None and view.call is not None
+    assert view.call.format == "markdown"
     assert _outside_code_blocks(view.call.content) == [
         "**Escalated by**",
         "**Tool 1 of 1 that the provider ran:** deploy \\(mcp\\_call\\)",
         "**It returned**",
+        "**The call's context**",
         "**The call**",
     ]
-    assert view.call.content.count("The turn says") == 3
+    assert f"**The call**\n\n{block}\n" in view.call.content
+    # the surfaces fill in the call's arguments once more, which changes nothing
+    again = substitute_tool_call_content(view.call, call.arguments)
+    assert again.content == view.call.content
 
 
 class _Notified:
