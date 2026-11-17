@@ -1,11 +1,12 @@
-"""Ask a person about a tool call, or a model's whole turn, through Inspect's human approval surfaces.
+"""Ask a person about a tool call, a model's whole turn, or a model's request, through Inspect's human approval surfaces.
 
 A sentinel in the eval's own process asks through `human()`. A sentinel in a
 sidecar asks through the sidecar's questions. Both show a call or a turn the
 same way and read the person's choice the same way. One thing differs: a
 sidecar holds the model's reply while it asks about it, so Inspect has shown the
 person none of the turn, and the question's view holds what the turn says and
-reasons too (see `_turn_content`).
+reasons too (see `_turn_content`). Only a sentinel in the eval's own process
+asks about a request so far.
 """
 
 import re
@@ -36,6 +37,7 @@ from inspect_ai.tool._tool_call import (
     default_tool_call_viewer,
     substitute_tool_call_content,
 )
+from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.util._notify import apprise_scope, notify
 
 HUMAN_CHOICES = ("approve", "reject", "terminate")
@@ -202,18 +204,73 @@ async def ask_about_turn(
         escalations: Each escalating instance's name, and its reason if it
             gave one.
         offered: The choices the person may pick.
-        conversation: The conversation to show beside the prompt.
+        conversation: The conversation to give the approval surface.
         content_in_view: Whether the view holds the turn's reasoning and
             text. See `turn_prompt`.
     """
+    return await _ask_with(
+        approve, turn_prompt(turn, escalations, content_in_view), offered, conversation
+    )
+
+
+async def ask_about_request(
+    approve: Approver,
+    model: str,
+    sent: int,
+    shown: Sequence[tuple[int, ChatMessage]],
+    tools: Sequence[str],
+    tool_choice: ToolChoice,
+    escalations: Sequence[tuple[str, str | None]],
+    offered: list[ApprovalDecision],
+    conversation: list[ChatMessage],
+) -> Approval:
+    """Ask a person about the request a model is about to be sent, as one prompt.
+
+    Args:
+        approve: The human approver to ask with.
+        model: The model the request is for.
+        sent: How many messages the request sends.
+        shown: The messages the model has not been sent before, each with its
+            position in the request, counting from 1.
+        tools: The names of the tools the request offers the model.
+        tool_choice: Which tool the model is to call: `auto`, `any` or
+            `none`, or the one function it must call.
+        escalations: Each escalating instance's name, and its reason if it
+            gave one.
+        offered: The choices the person may pick.
+        conversation: The conversation to give the approval surface.
+    """
+    return await _ask_with(
+        approve,
+        request_prompt(model, sent, shown, tools, tool_choice, escalations),
+        offered,
+        conversation,
+    )
+
+
+class Prompt(NamedTuple):
+    """A whole turn or a request, as the arguments a human approver takes."""
+
+    message: str
+    call: ToolCall
+    view: ToolCallView
+    said: str | None = None
+    """What the operator's notification says when `message` is empty: the turn's text, which the view holds, or a line that says a request waits. None when `message` carries it."""
+
+
+async def _ask_with(
+    approve: Approver,
+    prompt: Prompt,
+    offered: list[ApprovalDecision],
+    conversation: list[ChatMessage],
+) -> Approval:
     # deferred: the ACP shim imports `acp.schema`, which only matters once a
     # person is asked
     from inspect_ai.approval._human.acp import finish_approval_card
 
-    prompt = turn_prompt(turn, escalations, content_in_view)
     status: Literal["completed", "failed"] = "failed"
     try:
-        if content_in_view:
+        if prompt.said is not None:
             approval = await approve_with_text_in_view(
                 approve, prompt.said, prompt.call, prompt.view, conversation
             )
@@ -225,9 +282,174 @@ async def ask_about_turn(
             status = "completed"
         return approval
     finally:
-        # no tool event completes the card the turn's prompt opened; a prompt
-        # that ended without one of the choices failed
+        # no tool event completes the card the prompt opened; a prompt that
+        # ended without one of the choices failed
         finish_approval_card(prompt.call, prompt.view, status)
+
+
+def request_prompt(
+    model: str,
+    sent: int,
+    shown: Sequence[tuple[int, ChatMessage]],
+    tools: Sequence[str],
+    tool_choice: ToolChoice,
+    escalations: Sequence[tuple[str, str | None]],
+) -> Prompt:
+    """The request a model is about to be sent, as one prompt for the human approval surfaces.
+
+    The surfaces show one tool call, so the request becomes a single view, as
+    a turn does in `turn_prompt`: the escalations, how many messages the
+    request sends, the tools it offers and which the model must call, then
+    each message the model has not been sent before, numbered by its place in
+    the request.
+
+    The view has to stand on its own. The console and the approval panel show
+    none of the conversation, so a message that is not in the view is one the
+    person can't read here. That is why the messages shown are those not sent
+    before, and not only those after the model's last turn: a message the
+    scaffold rewrote, and words it put in the model's mouth, are shown too.
+    What the view leaves out is said in it: how many messages were sent
+    before, and how many parts of a message are not shown.
+
+    A message can hold a tool's output or a document the agent read, so its
+    text is untrusted, as a turn's is, and gets the same treatment. Each
+    message's text is inside a code block it cannot close, everything outside
+    the blocks is written here, and characters that act rather than show are
+    shown as markers.
+
+    The call handed to the surfaces stands for the whole request, as a turn's
+    does.
+    """
+    safe = _Escaped()
+    blocks: list[str] = []
+    if escalations:
+        escalated = safe(escalation_lines(escalations))
+        blocks.append(f"**Escalated by**\n\n{_code_block(escalated, _SAID)}")
+    shown_blocks = [
+        _message_markdown(message, position, sent, safe) for position, message in shown
+    ]
+    before = sent - len(shown)
+    if before == 0:
+        which = "none of which the model was sent before"
+    elif not shown:
+        which = "all of which the model was sent before"
+    else:
+        which = (
+            f"{before} of which the model was sent before. "
+            f"The other {len(shown)} {'is' if len(shown) == 1 else 'are'} below"
+        )
+    count = (
+        f"**The request sends {_messages(sent)} to "
+        f"{_markdown_text(model, safe)}, {which}.**"
+    )
+    count = f"{count}\n\n**{_tools_offered(tools, tool_choice, safe)}**"
+    if safe.escaped:
+        count = f"{count}\n\n**{_ESCAPED_REQUEST_NOTICE}**"
+    blocks.append(count)
+    blocks.extend(shown_blocks)
+    stands_for_request = ToolCall(
+        id=f"request_{shortuuid()}",
+        function=(f"Model request: {_messages(sent)} ({len(shown)} not sent before)"),
+        arguments={},
+    )
+    view = ToolCallView(
+        call=ToolCallContent(format="markdown", content="\n\n---\n\n".join(blocks))
+    )
+    waiting = (
+        f"A request to {model} waits for a decision: {stands_for_request.function}."
+    )
+    return Prompt("", stands_for_request, view, waiting)
+
+
+def _messages(count: int) -> str:
+    return "1 message" if count == 1 else f"{count} messages"
+
+
+def _tools_offered(
+    tools: Sequence[str], tool_choice: ToolChoice, safe: "_Escaped"
+) -> str:
+    # The tools the request offers, and which the model is to call. Each name
+    # is counted and in a code span, so it can't pass for two tools or for the
+    # words around it. A function the model must call is told from the three
+    # words by its type, since a tool can be named `auto`, `any` or `none`.
+    forced = isinstance(tool_choice, ToolFunction)
+    if isinstance(tool_choice, ToolFunction):
+        choice = (
+            f"The model must call the function {_code_span(tool_choice.name, safe)}."
+        )
+    elif tool_choice == "auto":
+        choice = "The model may call any of them, or none."
+    elif tool_choice == "any":
+        choice = "The model must call one of them."
+    else:
+        choice = "The model may call none of them."
+    if not tools:
+        # a call the model is forced to make is said even with no tool to make it
+        return f"No tools are offered.{' ' + choice if forced else ''}"
+    offered = ", ".join(_code_span(name, safe) for name in tools)
+    return f"Tools offered ({len(tools)}): {offered}. {choice}"
+
+
+def _message_markdown(
+    message: ChatMessage, position: int, sent: int, safe: "_Escaped"
+) -> str:
+    """One message: a header written here, then what it says in code blocks.
+
+    A tool's message is named for its function, and shows its error and its
+    output when it has both. An assistant message also shows its reasoning and
+    each call it makes, as a turn does. Any other content, such as an image or
+    a tool the provider ran, is counted beneath, never rendered.
+    """
+    header = f"**Message {position} of {sent}:** {message.role}"
+    if isinstance(message, ChatMessageTool) and message.function:
+        header = f"{header} ({_markdown_text(message.function, safe)})"
+    text = message.text
+    error = message.error if isinstance(message, ChatMessageTool) else None
+    if error is not None:
+        header = f"{header}, an error"
+    parts = [header]
+    shown_types = {"text"}
+    if isinstance(message, ChatMessageAssistant):
+        shown_types.add("reasoning")
+        reasoned = _reasoning(message)
+        if reasoned.readable:
+            thought = safe("\n\n".join(reasoned.readable))
+            parts.append(f"**Its reasoning**\n\n{_code_block(thought, _SAID)}")
+        if reasoned.withheld:
+            parts.append(
+                f"**The provider withheld the text of {reasoned.withheld} "
+                f"{'block' if reasoned.withheld == 1 else 'blocks'} of its reasoning.**"
+            )
+    if error is not None:
+        # a provider sends the model the error or the output, so both are shown
+        parts.append(_code_block(safe(error.message), _SAID))
+        if text:
+            output = _code_block(safe(text), _SAID)
+            parts.append(f"**The tool's output**\n\n{output}")
+    elif text:
+        parts.append(_code_block(safe(text), _SAID))
+    calls = (
+        message.tool_calls if isinstance(message, ChatMessageAssistant) else None
+    ) or []
+    if calls:
+        parts.append(f"**It makes {_calls(len(calls))}.**")
+        parts.extend(
+            _call_markdown(call, index, len(calls), safe, _SAID)
+            for index, call in enumerate(calls, 1)
+        )
+    content = message.content
+    other = (
+        sum(1 for part in content if part.type not in shown_types)
+        if isinstance(content, list)
+        else 0
+    )
+    if other:
+        parts.append(
+            f"**{other} {'part' if other == 1 else 'parts'} of this message "
+            f"{'is' if other == 1 else 'are'} not shown: content that is not "
+            "text, or a tool the provider ran.**"
+        )
+    return "\n\n".join(parts)
 
 
 async def approve_with_text_in_view(
@@ -237,40 +459,31 @@ async def approve_with_text_in_view(
     view: ToolCallView,
     conversation: list[ChatMessage],
 ) -> Approval:
-    """Ask a person with a view that already holds the turn's text.
+    """Ask a person with a view that already holds what is asked about.
 
     The prompt's message is empty, so that no surface shows the text twice.
-    The human approver notifies the operator with the message, so the text is
+    The human approver notifies the operator with the message, so `said` is
     sent from here instead and the approver's own notification is turned off:
     the operator is told what a turn that reached Inspect would have told them.
 
     Args:
         approve: The human approver to ask with.
-        said: The turn's text, for the notification.
+        said: What the notification says: the turn's text, or a line that says
+            a request waits.
         call: The call to ask about.
         view: The view, which holds the text.
-        conversation: The conversation to show beside the prompt.
+        conversation: The conversation to give the approval surface.
     """
     await notify(said)
     with apprise_scope(None):
         return await approve("", call, view, conversation)
 
 
-class TurnPrompt(NamedTuple):
-    """A model's whole turn, as the arguments a human approver takes."""
-
-    message: str
-    call: ToolCall
-    view: ToolCallView
-    said: str
-    """The turn's text. It is `message`, unless the view holds it."""
-
-
 def turn_prompt(
     turn: ChatMessageAssistant | None,
     escalations: Sequence[tuple[str, str | None]],
     content_in_view: bool = False,
-) -> TurnPrompt:
+) -> Prompt:
     """The assistant turn as one prompt for the human approval surfaces.
 
     The surfaces show one tool call, so the turn becomes a single view: the
@@ -339,7 +552,9 @@ def turn_prompt(
     view = ToolCallView(
         call=ToolCallContent(format="markdown", content="\n\n---\n\n".join(blocks))
     )
-    return TurnPrompt("" if content_in_view else text, stands_for_turn, view, text)
+    if content_in_view:
+        return Prompt("", stands_for_turn, view, text)
+    return Prompt(text, stands_for_turn, view)
 
 
 class _Section(NamedTuple):
@@ -366,6 +581,34 @@ class _Section(NamedTuple):
         return head if self.body is None else f"{head}\n\n{fenced(self.body)}"
 
 
+class _Reasoning(NamedTuple):
+    """An assistant message's reasoning, as a person can read it."""
+
+    readable: list[str]
+    """The text of each block that has some."""
+
+    withheld: int
+    """How many blocks have no text a person can read."""
+
+
+def _reasoning(message: ChatMessageAssistant) -> _Reasoning:
+    # As the transcript shows it: a provider may return reasoning encrypted,
+    # with a summary, or with nothing readable.
+    readable: list[str] = []
+    withheld = 0
+    content = message.content if isinstance(message.content, list) else []
+    for block in content:
+        if isinstance(block, ContentReasoning):
+            thought = (
+                block.summary if block.redacted else (block.reasoning or block.summary)
+            )
+            if thought:
+                readable.append(thought)
+            else:
+                withheld += 1
+    return _Reasoning(readable, withheld)
+
+
 def _turn_content(
     turn: ChatMessageAssistant, safe: Callable[[str], str]
 ) -> list[_Section]:
@@ -383,19 +626,7 @@ def _turn_content(
     """
     content = turn.content if isinstance(turn.content, list) else []
     sections: list[_Section] = []
-    readable: list[str] = []
-    withheld = 0
-    for block in content:
-        if isinstance(block, ContentReasoning):
-            # as the transcript shows it: a provider may return reasoning
-            # encrypted, with a summary, or with nothing readable
-            thought = (
-                block.summary if block.redacted else (block.reasoning or block.summary)
-            )
-            if thought:
-                readable.append(thought)
-            else:
-                withheld += 1
+    readable, withheld = _reasoning(turn)
     if readable:
         sections.append(_Section("The turn's reasoning", safe("\n\n".join(readable))))
     if withheld:
@@ -435,6 +666,11 @@ def _turn_content(
     return sections
 
 
+_ESCAPED_REQUEST_NOTICE = (
+    "This request contains hidden or control characters, "
+    f"shown as {MARKER_OPEN}U+…{MARKER_CLOSE}."
+)
+
 _ESCAPED_NOTICE = (
     "This turn contains hidden or control characters, "
     f"shown as {MARKER_OPEN}U+…{MARKER_CLOSE}."
@@ -459,12 +695,15 @@ def _calls(count: int) -> str:
     return "1 tool call" if count == 1 else f"{count} tool calls"
 
 
-def _call_markdown(call: ToolCall, index: int, count: int, safe: _Escaped) -> str:
+def _call_markdown(
+    call: ToolCall, index: int, count: int, safe: _Escaped, text_label: str = ""
+) -> str:
     """One call: a header written here, then its content as a code block.
 
     The content is what the transcript shows (`ToolCall.view`, which
     `Model.generate` sets from the tool's viewer, or the default rendering),
-    with the call's placeholders filled in (see `_contained`).
+    with the call's placeholders filled in (see `_contained`). `text_label`
+    labels the block of content that has no language of its own.
     """
     content = substitute_tool_call_content(
         call.view or cast(ToolCallContent, default_tool_call_viewer(call).call),
@@ -473,10 +712,12 @@ def _call_markdown(call: ToolCall, index: int, count: int, safe: _Escaped) -> st
     header = f"**Call {index} of {count}:** {_markdown_text(call.function, safe)}"
     if content.title and content.title != call.function:
         header = f"{header} ({_markdown_text(content.title, safe)})"
-    return f"{header}\n\n{_contained(content, safe)}"
+    return f"{header}\n\n{_contained(content, safe, text_label)}"
 
 
-def _contained(content: ToolCallContent, safe: Callable[[str], str]) -> str:
+def _contained(
+    content: ToolCallContent, safe: Callable[[str], str], text_label: str = ""
+) -> str:
     """What a tool's viewer made, as one code block it cannot close.
 
     Viewers interpolate arguments into markdown unescaped, so an argument could
@@ -488,12 +729,13 @@ def _contained(content: ToolCallContent, safe: Callable[[str], str]) -> str:
     Args:
         content: The viewer's content, with the call's placeholders filled in.
         safe: Makes text an agent wrote safe to display.
+        text_label: The label of the block when the content is plain text.
     """
     block = _CODE_BLOCK.fullmatch(content.content)
     if content.format == "markdown" and block is not None:
         language, code = block.group("language").strip(), block.group("code")
     else:
-        language = "markdown" if content.format == "markdown" else ""
+        language = "markdown" if content.format == "markdown" else text_label
         code = content.content
     return _code_block(safe(code), language)
 
@@ -505,6 +747,12 @@ _CODE_BLOCK = re.compile(
 )
 
 
+# The label of a code block that holds what a message says. The ACP TUI draws
+# a labelled block on a background, and an unlabelled one as plain text, where
+# a tool's output could pass for the view's own lines.
+_SAID = "output"
+
+
 def _code_block(code: str, language: str) -> str:
     # deferred: the ACP shim imports `acp.schema`, which only matters once a
     # person is asked
@@ -512,6 +760,14 @@ def _code_block(code: str, language: str) -> str:
 
     fence = _safe_code_fence(code)
     return f"{fence}{language}\n{code}\n{fence}"
+
+
+def _code_span(text: str, safe: _Escaped) -> str:
+    # one line of literal text, in a code span it cannot close
+    line = _one_line(text, safe)
+    longest = max((len(run) for run in re.findall("`+", line)), default=0)
+    ticks = "`" * (longest + 1)
+    return f"{ticks} {line} {ticks}"
 
 
 def _markdown_text(text: str, safe: _Escaped) -> str:
