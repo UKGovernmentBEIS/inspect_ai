@@ -184,7 +184,7 @@ def python_allowlist(
                 isinstance(node.func, ast.Attribute)
                 or (isinstance(node.func, ast.Name) and node.func.id in functions)
             ):
-                return f"Function '{ast.unparse(node.func)}' is not in the allowed list. Allowed functions: {', '.join(sorted(functions))}"
+                return f"Function '{getattr(node.func, 'id', '(expression)')}' is not in the allowed list. Allowed functions: {', '.join(sorted(functions))}"
         return None
 
     async def approve(
@@ -205,7 +205,7 @@ def python_allowlist(
         try:
             reason = review(args[0])
         except (SyntaxError, ValueError, RecursionError, MemoryError) as e:
-            return Approval(decision="reject", explanation=f"Invalid Python: {e}")
+            return Approval(decision="reject", explanation=f"Unparsable code: {e}")
         if reason:
             return Approval(decision="escalate", explanation=reason)
         return Approval(decision="approve", explanation="Python code is approved.")
