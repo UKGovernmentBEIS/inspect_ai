@@ -3,8 +3,9 @@
 ## Overview
 
 When an operator decides that a sample of a finished log should not count the
-way the model ran it, there are two answers: **zero** it (count it as a
-failure) or **exclude** it (leave it out of the metrics). Each is a
+way the model ran it, there are two answers: **zero** it (score it as an
+empty attempt, which for most tasks is a failure) or **exclude** it (leave it
+out of the metrics). Each is a
 synchronous edit of the log that runs no task code: it rewrites the sample's
 scores as score edits recording who decided and why, keeps the earlier score
 in `Score.history` and the sample's transcript and error as they were, and
@@ -48,8 +49,11 @@ sees the result the operator signed. Exclusion is a score edit, but an
 excluded epoch would still reach the epoch reducer, and not every reducer
 skips `NaN` (`majority` counts it toward the panel; a custom reducer may turn
 it into a counted `0.0`). Zero needs the task's scorer, because what a zero
-is depends on it: `I` for `match()`, `0` for a numeric scorer, a failed test
-in a sandbox. Getting that verdict by cancelling a re-run as each sample
+is depends on it: typically `I` for `match()`, `0` for a numeric scorer, a
+failed test in a sandbox. Zero copies whatever counted verdict the scorer
+gives the empty attempt and does not check that it is a failure: a scorer
+that accepts an empty answer (`match()` against a target with no letters or
+digits scores an empty completion `C`) zeroes the sample as a success. Getting that verdict by cancelling a re-run as each sample
 starts is neither empty nor deterministic: solver steps before the first
 cancellation checkpoint run, and an agent may reach its first model call.
 
@@ -104,11 +108,13 @@ each sample's group of epoch scores before calling the reducer:
   unscored.
 
 `reduce_scores()` is the one place final scores are reduced, so this holds
-live and on recompute. Metrics that read unreduced scores
-(`@metric(scores="unreduced")`, or every metric when the epoch reducer list
-is empty, which disables reduction) see an
-excluded epoch as a root `NaN`, which the standard score filter counts as
-unscored.
+live and on recompute. Metrics that read unreduced scores see an excluded
+epoch as a root `NaN`, which the standard score filter counts as unscored:
+`@metric(scores="unreduced")` metrics, and legacy `scores="auto"` metrics
+when reducers are disabled (`Epochs(n, [])`, `--no-epochs-reducer`). With
+reducers disabled, a metric that declares `scores="reduced"` is refused when
+sample ids repeat, and excluded epochs still count toward that repetition
+(see [Reducing Epochs](../docs/metrics.qmd#reducing-epochs)).
 
 ## The empty attempt
 
@@ -116,7 +122,8 @@ unscored.
 returns the state unchanged. It registers as `inspect_ai/empty_attempt`.
 Nothing else in the runner is specific to it: `resolve_plan()` prepends
 `Task.setup` to any solver override, the sample is provisioned as for any
-run, and the task's scorers score an empty `output`. Its log, the
+run, and the task's scorers score the state left by `Task.setup` (an empty
+`output` unless setup wrote one); the override makes no further changes. Its log, the
 **empty-attempt log**, is an ordinary log whose header records the override
 in `eval.solver`: `inspect_ai/empty_attempt` when it is passed as a Python
 object or by registry name, `empty_attempt` when passed as
