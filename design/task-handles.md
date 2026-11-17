@@ -876,8 +876,9 @@ inspect_flow's Delta store and inspect_steward's log observation and
 directory store key logs on `task_identifier()` from the log header, so a
 fed log can be observed, published and copied like any log, but its
 identifier never matches another task's, in this project or another, and
-it is never reused for one. Neither needs a change. Two limitations remain,
-both documented rather than changed:
+it is never reused for one. Neither needs a change to read fed logs. Two
+limitations remain, both documented rather than changed, and Steward
+selection workers have one prerequisite (below):
 
 - neither knows a fed log's role: they treat it as the log of a task the
   set does not request, as they treat an ordinary added task's log today
@@ -886,6 +887,19 @@ both documented rather than changed:
 - Flow's `_print_result` prints "Some logs failed even though the eval set
   succeeded" when the creator succeeds and a fed task fails, because the
   eval set's result ignores fed failures ("Logs and eval sets").
+
+**Prerequisite for Steward selection workers.** Steward marks a log whose
+identifier is not in its manifest as orphaned and archives it (moves the
+file) unless that identifier is in its running set
+(`_schedule/reconcile.py`, `_archiving`). A worker's running set holds the
+creator's identifiers, not those of the fed tasks the creator adds, so
+Steward can move a fed task's log while the run is still writing it, and
+the recorder's next flush writes the original path again. Before handles
+are used in Steward selection workers, Steward must not archive a log
+while the worker that wrote it is running (for example, by treating logs
+in the worker's log directory as in flight until it exits). This is a
+Steward change; the Inspect design is unchanged. Selection workers already
+need the runtime-pruning fix ("Implementation plan").
 
 No eval log schema, viewer type, control-channel or config file changes. A
 fed task's log records the reserved dataset name `samples_from_handle`,
@@ -1111,7 +1125,8 @@ support also needs runtime pruning to leave tasks constructed by attempt
 code unpruned
 ([task-dispatch.md](task-dispatch.md#interactions-with-related-changes));
 the selection-mode tests below run with pruning enabled and fail without
-that guarantee.
+that guarantee. Running it under Steward also needs Steward's protection of
+a running worker's fed logs from archival ("Compatibility and migration").
 
 - `_eval/task/enqueue.py` (`TaskHandle`, the errors, `TaskAttempt` and
   `_attempt`, `result()` refusing a handle whose task is
@@ -1185,7 +1200,9 @@ it, with no change to inspect_flow or inspect_steward (replacing the
 2026-11-16 refusal of a fed log under a requested identifier and, with it,
 the 2026-11-16 refusal of a fed task named like a requested or seed task),
 and fed-task creation is refused in every `TaskSource` callback, by
-clearing `_attempt` for the call.
+clearing `_attempt` for the call; and (2026-11-17) protecting a running
+worker's fed logs from Steward's archival is a Steward prerequisite for
+selection workers, not an Inspect change.
 
 ## Not this design
 

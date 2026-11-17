@@ -380,7 +380,8 @@ The design keeps these, and each section below says how:
    `eval_run` once; it owns one `RunQueue` and runs `dispatch_tasks`.
 2. **Every task × model is one record, and every record ends exactly once**
    (`RunQueue.end`), with the log its last attempt returned, or `None` when
-   dispatch ended first.
+   dispatch ended first or, for a fed task, when its channel closed before
+   any sample was sent (task-handles.md, "Closing").
 3. **A record is visible to the control channel from the moment it is
    added, and after it ends**: in the queued registry until one of its
    attempts first calls `register_eval`, then through its `EvalState`, as
