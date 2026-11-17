@@ -355,6 +355,31 @@ replacement of existing restic repository files, and tie resume to a
 recorded snapshot when one exists. They do not establish that a snapshot
 faithfully captures the sandbox or that its contents are recent or truthful.
 
+The restic strategy accepts two residual risks. Both affect only the
+availability of the sandbox's own checkpoints, whose contents that
+sandbox already controlled when it captured them:
+
+- Egress never replaces a repository file the host has accepted, but
+  the sandbox can still add new files that are correctly
+  content-addressed and that restic cannot read, such as an index file
+  that does not decrypt. Egress verification lists only snapshots,
+  which does not load the index, so such a file is accepted. From then
+  on every host-side restic command that loads the index fails for that
+  repository: the listing of the committed snapshot that resume checks
+  before restoring, so none of the sandbox's earlier checkpoints can be
+  restored, and the changed-files listing of each later capture, so its
+  later checkpoints fail too. Recovery is deleting the file from
+  `restic/sandboxes/<name>/index/` in the sample dir the retry copies
+  from. `restic check` against that repository, with the password in
+  `restic/restic-config.json`, names the file; `restic repair index`
+  removes it and rebuilds the index from the pack files.
+- The sandbox initializes its own repository, and the host accepts its
+  `config` and `keys/*` on the first egress, so the repository format
+  and key files are sandbox-authored. The sandbox already receives the
+  repository password, so authoring the key gives it no access it
+  lacks; a format or key the host's restic cannot use is one more way
+  to make restores fail.
+
 File-list agreement, newly received snapshot ids, and expected tags enforce
 transfer protocol consistency. A compromised sandbox can satisfy these
 checks with fabricated state. Content-addressed filenames bind names to
