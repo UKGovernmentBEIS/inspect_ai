@@ -407,7 +407,7 @@ Running the agent inside the sandbox has these limits:
 
 -   **By default, any process in the sandbox can call the bridge.** Inspect can't tell the agent apart from other processes in the sandbox. A framework that runs each agent as its own sandbox user (such as [Inspect Swarm](https://github.com/meridianlabs-ai/inspect_swarm)) can limit the bridge to that user. The bridge still can't tell apart processes running as that user, and root can act as any user.
 
--   **The transcript is the agent's own account.** Inspect records model calls but doesn't run the agent's tools. The message history and tool results in each request come from the agent, which can misreport them. If you need a reliable record of tool calls, use a native agent such as [`react()`](react-agent.qmd).
+-   **The transcript is the agent's own account of its tool use.** Inspect records model calls, and runs and records any [bridged tools](#bridged-tools) you provide. It doesn't run or check the tools the agent runs inside the sandbox. The message history and tool results in each request come from the agent, which can misreport them. If you need a reliable record of tool calls, use a native agent such as [`react()`](react-agent.qmd).
 
 -   **Don't count on a non-root user.** A capable model may get root in its container. Root can interfere with the bridge inside the sandbox, including the responses the agent receives.
 
