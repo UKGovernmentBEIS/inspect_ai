@@ -644,8 +644,10 @@ limits, which suspension never covered, are still checked as today
 bridge's guard is the only guard. The cost: once the bridge has kept a
 limit, an approval, review or monitor call made for a request already in
 flight still runs, and its spend counts against no limit. Every later
-request is refused at entry, before its generation and so before any
-approval or monitor call, and the agent still ends on the kept limit.
+request is refused at entry, before any tool or policy code runs: a
+generation request before its generation, and a host-tool request before
+the tool executes ("The sandbox bridge"), so before any approval or
+monitor call. The agent still ends on the kept limit.
 
 ### Ownership
 
@@ -928,6 +930,21 @@ async def generate_forwarding_errors(json_data, headers=None):
   with a kept limit, the pre-dispatch check raises any outer reached limit
   first (which then replaces the kept one), and the guard otherwise raises
   the kept copy, which does not replace itself.
+- Host-tool requests get the same entry refusal. Today `call_tool()`
+  (`service.py:452-463`) only wraps `execute_host_tool()` in the guard, so
+  a host tool admitted after the bridge kept a limit still runs; an
+  `as_tool()` child or a tool calling `run()` enters an agent span, and its
+  sentinel runs before the child's own pre-dispatch check
+  (`_model.py:1088-1098`), with token limits suspended, so the monitor's
+  priced call is made and counted by no limit. A scaffold can repeat this
+  until it exits. `call_tool()`'s `execute` therefore checks
+  `bridge.generation_limit` first: when a limit is kept, it raises
+  `ToolError` with the message `_raised()` maps that limit to (the `limit`
+  tool error text), without calling `execute_host_tool()`, so no tool,
+  approval or monitor code runs and the scaffold gets the ordinary
+  tool-error reply. The kept limit is unchanged. Host-tool requests admitted
+  before the limit was kept keep the decided bypass for their suspended
+  calls (rule 5).
 - `_encloses()`, `_sample_roots()` and `_in_tree()` are deleted. The
   `solving()` dependency goes with them. Comparing positions in one chain
   works the same during the solve and in scorers.
@@ -1336,9 +1353,15 @@ cost `_check_self()`, the message `check()`) are called as today, through
 returns no usage, under a swarm cost node now fails that call with
 `UnmeteredCallError` (rule 9), so the swarm needs pricing and usage for
 every member model wherever it uses cost nodes. The error is not a limit,
-so it does not reach a cap: a member's foreground error ends the member
-like any error, and one from background work is contained by
-`MemberBackground._run()`, where each catch costs one uncounted call. Approver, reviewer and monitor
+so it does not reach a cap. Uncaught, it fails the swarm: the member's
+foreground classification treats it as a foreign error and calls the
+member's fatal callback (`_member.py:662-688`), and
+`MemberBackground._run()` contains only selected limit errors, so a
+background one takes its fatal branch and is re-raised into the owning task
+group (`_background.py:138-147`); the controller's fatal callback marks the
+swarm failed (`_controller/_control.py:649`, `:1214-1215`). The one
+uncounted call per catch applies only where agent or user code catches the
+error and calls again. Approver, reviewer and monitor
 spend no longer counts toward its cost caps or shares (rule 5), so a swarm
 ledger that compares spend to caps must take that spend from model or role
 usage. Its per-member `background_target` is what the guarantees'
@@ -1831,8 +1854,13 @@ under trio with `--runtrio`.
   - a bridged sentinel monitor call and an approval call made for a
     request in flight after the bridge kept a limit still run (pinned, as
     today), and the agent ends on the kept limit when it unwinds; a host
-    tool whose `as_tool()` child runs a monitor after a limit is kept gets
-    no `SentinelFailure`, and the sample ends on the kept limit;
+    tool whose `as_tool()` child runs a monitor while a limit is kept
+    during its execution gets no `SentinelFailure`, and the sample ends on
+    the kept limit;
+  - after a limit is kept, two fresh sequential host-tool requests, one to
+    an `as_tool()` agent and one to a tool calling `run()` with a monitor
+    configured, each get the `limit` tool-error reply and make no tool,
+    monitor or provider call, and the kept limit is unchanged;
   - an unpriced bridged model under a cost limit fails the sample with
     `UnmeteredCallError`, and a bridged response without usage does too;
   - a kept sample token limit reached exactly by a refused request, then a
@@ -1924,7 +1952,8 @@ Each step is one PR, in this order. Each keeps the suite green.
    `keep_limit` for foreign limits. Tests: `tests/agent/test_agent_execute.py`,
    `tests/agent/test_agent_handoff.py`, `tests/tools/test_tools_bridge.py`.
 6. **The bridge.** `src/inspect_ai/agent/_bridge/sandbox/service.py`: entry
-   simplification, `_first_control` outermost, `keep_limit`, deletion of
+   simplification, the host-tool entry refusal in `call_tool()`,
+   `_first_control` outermost, `keep_limit`, deletion of
    `_encloses`/`_sample_roots`/`_in_tree`. `src/inspect_ai/agent/_bridge/util.py`:
    `_apply_response_filter()`'s reduction.
    `src/inspect_ai/agent/_bridge/sandbox/types.py`: `keep_limit()`, the
