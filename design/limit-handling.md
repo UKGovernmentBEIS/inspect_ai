@@ -907,7 +907,9 @@ nodes) are re-entered fresh by the resumed agents, as their usage is today.
 async def generate_forwarding_errors(json_data, headers=None):
     try:
         with _refuse_after_a_recorded_limit(bridge):
-            _check_limits_before_dispatch()  # outermost reached limit, then the kept copy
+            _check_limits_before_dispatch()  # outermost reached limit, then the guard
+            if bridge.generation_limit is not None:  # whatever is suspended
+                return {PROVIDER_ERROR_KEY: provider_error_payload(bridge.generation_limit)}
             return await generate(json_data, headers)
     except Exception as ex:
         ...  # terminations and sample failures: unchanged
@@ -925,12 +927,21 @@ async def generate_forwarding_errors(json_data, headers=None):
   it for a foreign limit. The field keeps its name, and its docstring now says
   it holds the outermost limit reached by the bridge's generations or host
   tools.
-- The entry check now covers turns with `>=` (rule 3). The separate
-  `check_turn_limit()` call and the "a limit is already kept" branch go away:
-  with a kept limit, the pre-dispatch check raises any outer reached limit
-  first (which then replaces the kept one), and the guard otherwise raises
-  the kept copy, which does not replace itself.
-- Host-tool requests get the same entry refusal. Today `call_tool()`
+- The entry check now covers turns with `>=` (rule 3), so the separate
+  `check_turn_limit()` call goes away. The "a limit is already kept" branch
+  stays, after the pre-dispatch check: that check runs first, so an outer
+  reached limit raises and replaces the kept one, and then any request
+  that arrives while a limit is kept gets the kept limit's error reply
+  without a generation. The branch does not rely on the guard, which is
+  skipped while token limits are suspended (rule 5): a service task
+  inherits the context `sandbox_agent_bridge()` starts it in
+  (`src/inspect_ai/agent/_bridge/sandbox/bridge.py:295-303`), so if that
+  context suspends tokens, the guard is skipped for every request, and a
+  kept message limit (which `check_limits()` does not cover) would
+  otherwise let a fresh request with a shorter prompt reach the provider.
+  Inside a request already admitted, the guard is still skipped for
+  suspended calls, as decided.
+- Host-tool requests get the same unconditional entry refusal. Today `call_tool()`
   (`service.py:452-463`) only wraps `execute_host_tool()` in the guard, so
   a host tool admitted after the bridge kept a limit still runs; an
   `as_tool()` child or a tool calling `run()` enters an agent span, and its
@@ -1897,6 +1908,13 @@ under trio with `--runtrio`.
     cancellation of the bridged agent before delivery and a normal return
     from the solver, ends the sample on the token limit;
   - a request after a reached turn limit makes no generation;
+  - the kept-limit entry refusal holds under suspension: with the bridge's
+    service task started inside `suspend_token_limit()`, and again inside
+    `suspend_limits()`, a request whose three-message prompt reaches
+    `message_limit(2)` keeps the message limit, and a fresh request with a
+    one-message prompt gets the kept limit's error reply with no provider
+    call; the same with no suspension; a newly reached outer token limit at
+    the next request's entry replaces the kept limit;
   - a host tool whose model call reaches the sample limit after a member
     limit was kept makes the sample limit the kept one;
   - through `_run_bridged_agent()` (a one-sample eval with a served scaffold,
@@ -1985,7 +2003,9 @@ Each step is one PR, in this order. Each keeps the suite green.
    `keep_limit` for foreign limits. Tests: `tests/agent/test_agent_execute.py`,
    `tests/agent/test_agent_handoff.py`, `tests/tools/test_tools_bridge.py`.
 6. **The bridge.** `src/inspect_ai/agent/_bridge/sandbox/service.py`: entry
-   simplification, the host-tool entry refusal in `call_tool()`,
+   simplification (the separate turn check goes; the kept-limit branch
+   stays, after the pre-dispatch check), the host-tool entry refusal in
+   `call_tool()`,
    `_first_control` outermost, `keep_limit`, deletion of
    `_encloses`/`_sample_roots`/`_in_tree`. `src/inspect_ai/agent/_bridge/util.py`:
    `_apply_response_filter()`'s reduction.
