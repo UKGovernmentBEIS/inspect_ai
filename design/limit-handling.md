@@ -999,9 +999,9 @@ retry, and inspect_swarm's member limits restored with
 
 ### Checkpoints
 
-Checkpoints are unchanged, and do not store the `_raised_at` mark (decision:
-Ransom, 2026-11-16). A checkpoint stores the sample roots' usage, and a
-normal resume restores it into fresh roots and checks them:
+The checkpoint payload is unchanged, and does not store the `_raised_at`
+mark (decision: Ransom, 2026-11-16). A checkpoint stores the sample roots'
+usage, and a normal resume restores it into the roots and checks them:
 `dump_sample_runtime()` writes the token usage, cost and turns
 (`src/inspect_ai/util/_checkpoint/sample_runtime.py:47-96`), the
 checkpointer stores that payload
@@ -1014,8 +1014,34 @@ call. A resume for scoring (`check=False`) runs no check, as today, and
 the runner skips the sample's exit check on that attempt ("The owner's exit
 check").
 
-The fresh roots carry no `_raised_at` mark, so the exit check's handling of a
-limit reached exactly holds within one attempt. A limit that refused a call
+**Restore adds to what the attempt has already charged.** The roots are
+entered when the attempt starts, but the checkpoint is restored only when
+the agent first enters `checkpointer()`
+(`src/inspect_ai/util/_checkpoint/checkpointer_impl.py:134-152`, once per
+attempt: the entered checkpointer is cached). Work before that point is
+charged to the roots: the sample-start and attempt-start hooks
+(`src/inspect_ai/_eval/task/run.py:3372-3392`) and any solver that runs
+before the agent. Today `restore_sample_runtime()` assigns the stored
+token usage, cost and turns to the roots and clears and refills the
+sample's model and role usage (`sample_runtime.py:153-163`, `:259-266`),
+so those charges are dropped: a hook that took a $1 cost limit to $1.10
+and caught the error is followed by a restore at $0.50, after which the
+limit refuses nothing. Restore instead adds the stored values to the live
+ones: `token_root._usage += stored`, `cost_root._cost += stored`,
+`turn_root._turns += stored`, and each model and role entry is the sum of
+its live and stored usage. The restore runs once per attempt, and the
+stored values come from the previous attempt, so nothing is counted twice;
+on a fresh root the sum equals today's assignment. Usage never decreases
+across the restore, so a limit reached before it stays reached: a normal
+resume's check raises it if exceeded, the next call is refused (`>=`)
+otherwise, and its `_raised_at` mark still counts at the sample's exit.
+The same rule holds for a resume for scoring, where nothing is checked but
+a later call is still refused. Sample model and role usage stay consistent
+with the roots.
+
+The roots of a resumed attempt carry no `_raised_at` mark from the
+previous attempt, so the exit check's handling of a limit reached exactly
+holds within one attempt. A limit that refused a call
 at exactly its budget is restored at that usage, so any further call is
 refused by the pre-dispatch check (`>=`), which raises it and sets `_raised_at`
 again, with nothing spent. If the resumed sample makes no further call and
@@ -1716,6 +1742,12 @@ documented. Behaviour changes:
   are removed. `_TurnLimit._check_self()` gains a parameter. Chain nodes gain
   `_outer`, `_in_chain` and `_raised_at`. `record_turn()` no longer checks. inspect_swarm is the only known user of
   these classes (above).
+- **Checkpoint restore keeps the attempt's earlier charges.** A resumed
+  attempt's token, cost and turn roots and its model and role usage are
+  the stored values plus what the attempt charged before the restore
+  (startup hooks, solvers before the agent), where today the restore
+  replaces them. A limit reached before the restore therefore stays
+  reached, and the sample's reported usage includes that work.
 - **Persisted data and the viewer.** The checkpoint sample-runtime payload
   is unchanged and does not store the `_raised_at` mark, so a resumed sample
   that returns without another call after a refusal at exactly its budget
@@ -1910,7 +1942,22 @@ under trio with `--runtrio`.
   dispatch; after a scoring-only restore of spent token, cost and turn
   roots, `as_solver(react(...))` returns normally with no model call and
   the sample is scored and not recorded as limited (the no-call control),
-  on asyncio and Trio.
+  on asyncio and Trio;
+  - restore keeps earlier charges, for token, cost and turn roots each,
+    on asyncio and Trio: a sample-start hook whose model call takes the
+    root over its limit and which catches the error, followed by a normal
+    restore of a smaller stored value, ends the resumed attempt at the
+    restore's check with that limit; a hook whose calls reach exactly the
+    limit and whose next call is refused and caught, then a restore of zero
+    stored usage (still at the limit), has the agent's next call refused and, if the
+    agent returns instead, the sample recorded as limited; a hook whose
+    call succeeds below the limit ($0.40), then a restore of $0.70 under a
+    $1 limit, leaves the root at $1.10, refuses the agent's first call and
+    reports the hook's model usage alongside the restored usage; a scoring
+    restore after the same over-limit hook refuses a later call (the
+    sample's exit check is still skipped); a restore into fresh roots gives
+    the stored values, as `test_restore_reseeds_token_cost_turn_usage`
+    pins today.
 - `tests/util/test_limit.py`, sentinel: a stub in-process monitor whose
   priced model call would exceed a reached sample cost limit is made and
   not charged to it.
@@ -2053,8 +2100,11 @@ Each step is one PR, in this order. Each keeps the suite green.
    `tests/test_eval.py`, `tests/agent/test_agent_overflow_compaction.py`,
    the live-override sample outcomes in `tests/_control/test_limits.py`,
    and the restore and scoring-resume outcomes in
-   `tests/checkpoint/test_sample_runtime.py` (the checkpoint code is
-   unchanged).
+   `tests/checkpoint/test_sample_runtime.py`.
+   `src/inspect_ai/util/_checkpoint/sample_runtime.py`:
+   `restore_sample_runtime()` adds the stored token usage, cost and turns
+   to the roots and `_restore_usage_dict()` adds the stored model and role
+   usage to the live entries (no payload change).
 5. **Ownership in tools.** `_call_tools.py`: the call leaf and ownership test
    in `call_tool_task`, and the same test in `agent_handoff()`'s `except`.
    `src/inspect_ai/agent/_bridge/sandbox/host_tool.py`: `_raised` ownership,
