@@ -100,7 +100,7 @@ def steps_from_events(
 
     Inspect logs record origins on every model call or on none. If a transcript mixes calls with and without origins, recorded calls retain their recorded classification and calls without origins are inferred; continuity across that mixed sequence is not guaranteed.
 
-    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later; older or unknown versions omit them and warn once when a selected human approver appears. A `tool_call` step whose call an approver changed has no `view.context`: the `ApprovalEvent` view describes the call the approver was shown, and live renders the changed call's context again, which the log does not record. A log is refused where the call an approval approved (its modified call, else the call it records) is not the call its `ToolEvent` records, unless a recorded sentinel modify changed the call again to the one the `ToolEvent` records. Inspect before 0.3.277 wrote such logs, including for a call an approver changed in place and approved without a modified call, and they are refused whatever version the header records, since a retried eval keeps its completed samples under a newer header. This includes an approved call whose tool records other arguments than it was given, such as `memory()` resolving a path: the log does not show which implementation ran. Replay such a transcript from its messages instead. Where such a call has no recorded step and its `ToolEvent` has a parsing or approval error, it may have been refused before it ran or raised the error after running, so replay skips its tool steps with a warning naming the call instead of refusing the log.
+    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later; older or unknown versions omit them and warn once when a selected human approver appears. A `tool_call` step whose call an approver changed has no `view.context`: the `ApprovalEvent` view describes the call the approver was shown, and live renders the changed call's context again, which the log does not record. A log is refused where the call an approval approved (its modified call, else the call it records) is not the call its `ToolEvent` records, unless a recorded sentinel modify changed the call again to the one the `ToolEvent` records. Inspect before 0.3.277 wrote such logs, including for a call an approver changed in place and approved without a modified call, and they are refused whatever version the header records, since a retried eval keeps its completed samples under a newer header. This includes an approved call whose tool records other arguments than it was given, such as `memory()` resolving a path: the log does not show which implementation ran. Replay such a transcript from its messages instead. Where such a call has no recorded step and its `ToolEvent` has a parsing or approval error, it may have been refused before it ran or raised the error after running, so replay skips its tool steps with a warning naming the call instead of refusing the log. Where one model response proposes several calls under one id (Mistral names calls whose ids the model omitted `"null"`), each execution is paired with the call of its function and, where several share it, the arguments its approval, else its `ToolEvent`, records; calls of one function that differ only in their arguments are interchangeable, since the steps take their arguments from the log. Where that names no single call (a sentinel modify the execution has no approval for, or has one in a log before 0.3.277 or of unknown version, or calls that differ in more than their arguments), replay skips the execution's tool steps with a warning naming the call.
 
     A tool call is joined to the model call that proposed it by the id of the message its `ToolEvent` records (`call_message_id`, written since inspect_ai #6143), and a call no model call proposed (a pre-filled message) to the message holding it, by the same id. Where the id names several model calls' output (a cached output reused), a native call's producer is the latest of those model calls before the call, in the call's own conversation where they are in several. Where the event records no proposing message (an older log), or the id names no model call's output, it is the latest model call that proposed the call's id before the call (in the call's own conversation, where model calls in several conversations proposed it), a bridge's generation included.
 
@@ -684,6 +684,9 @@ class _Driver:
         self._views: dict[int, PoolView] = {}
         self._producers: dict[int, Producer] = {}
         self._assistants: dict[str, tuple[ChatMessageAssistant, ToolCall]] | None = None
+        self._assistants_by_message: (
+            dict[tuple[str, str], tuple[ChatMessageAssistant, ToolCall]] | None
+        ) = None
         # each assistant message and its text, by id() (`_text`)
         self._texts: dict[int, tuple[ChatMessageAssistant, str]] = {}
         # each assistant message and its calls by call id, None for an id it
@@ -699,6 +702,9 @@ class _Driver:
         # event indexes of ToolEvents whose tool steps are skipped
         # (_check_modified_approval); a call id can recur across turns
         self.unverified_calls: set[int] = set()
+        # event indexes of ToolEvents whose call replay cannot tell among the
+        # calls their response proposed under the id (_attribute)
+        self.unattributed_calls: set[int] = set()
         # span id -> the region holding it
         self._regions: dict[str | None, _Region] = {}
         self._span_begins: dict[str, SpanBeginEvent] | None = None
@@ -846,7 +852,9 @@ class _Driver:
                 elif _bridged(event):
                     assistant, proposal = None, None
                 else:
-                    assistant, proposal = self._assistant(event.id)
+                    assistant, proposal = self._assistant(
+                        event.id, event.call_message_id
+                    )
                 conversation = owner.conversation if owner is not None else own
                 # The bridge approves a host call when the model proposes it,
                 # and the scaffold may run it after later requests, so its
@@ -920,7 +928,21 @@ class _Driver:
         }
         for entry in calls:
             self._take_checks(entry)
+            self._attribute(entry)
             self._check_modified_approval(entry)
+        if self.unattributed_calls:
+            logging.getLogger(__name__).warning(
+                "Skipped the tool steps of call(s) %s: the model response proposed "
+                "several calls under each id, and the log cannot show which of "
+                "them each execution ran.",
+                ", ".join(
+                    dict.fromkeys(
+                        repr(entry.event.id)
+                        for entry in calls
+                        if entry.index in self.unattributed_calls
+                    )
+                ),
+            )
         if self.unverified_calls:
             logging.getLogger(__name__).warning(
                 "Skipped the tool steps of call(s) %s: each ended in a parsing or "
@@ -1228,6 +1250,59 @@ class _Driver:
             if position > after and (before is None or position < before):
                 return spans.pop(at)
         return None
+
+    def _attribute(self, call: _Call) -> None:
+        """Take a native execution's call from among the calls its response proposed under its id.
+
+        A provider can name several calls of one response by one id (Mistral's
+        `"null"` for omitted ids), and the proposal found by id is any of them.
+        The call taken has the execution's function and, where several do, the
+        arguments its approval records (the call it was shown, before an
+        approver's or an in-process sentinel's modify), else its `ToolEvent`'s,
+        unless a sentinel's modify replaced those. Equal calls are
+        interchangeable, and so are calls equal but for their arguments where
+        `_tool_call` takes the arguments from the log, as it does but for a
+        sentinel modify without an approval it relies on
+        (`approval_log_reliable`). Where none or several distinct calls remain
+        (such a modify, or calls that differ in more than their arguments),
+        the execution's steps are skipped (`unattributed_calls`) rather than
+        built from another call. A log written before `execution_id` is read
+        as before.
+        """
+        event = call.event
+        if (
+            event.execution_id is None
+            or _bridged(event)
+            or call.assistant is None
+            or call.proposal is None
+        ):
+            return
+        candidates = [c for c in call.assistant.tool_calls or [] if c.id == event.id]
+        if len(candidates) <= 1:
+            return
+        approval = call.approval
+        modified = self._sentinel_modify(call.before_span, event) is not None
+        arguments = (
+            approval.call.arguments
+            if approval is not None
+            else event.arguments
+            if not modified
+            else None
+        )
+        found = _proposed_call(
+            candidates,
+            event.function,
+            arguments,
+            arguments_unused=not modified
+            or (approval is not None and self.approval_log_reliable),
+        )
+        if found is not None:
+            call.proposal = found
+            return
+        call.proposal = None
+        self.unattributed_calls.add(call.index)
+        self._settle_at_end(call.before_span)
+        self._settle_at_end(call.after_span)
 
     def _tool_call(self, call: _Call) -> None:
         event = call.event
@@ -2188,16 +2263,34 @@ class _Driver:
         return cached[1]
 
     def _assistant(
-        self, call_id: str
+        self, call_id: str, message_id: str | None = None
     ) -> tuple[ChatMessageAssistant | None, ToolCall | None]:
-        """A call no model call produced: the assistant message holding it, and the call."""
-        if self._assistants is None:
+        """A call no model call produced: the assistant message holding it, and the call.
+
+        The message is the one its `ToolEvent` names (`call_message_id`) where
+        that holds the id, else the last that does: a later message can reuse
+        the id.
+        """
+        if self._assistants is None or self._assistants_by_message is None:
             found: dict[str, tuple[ChatMessageAssistant, ToolCall]] = {}
+            by_message: dict[
+                tuple[str, str], tuple[ChatMessageAssistant, ToolCall]
+            ] = {}
             for message in [*self.pool, *self.messages]:
                 if isinstance(message, ChatMessageAssistant):
                     for tool_call in message.tool_calls or []:
                         found[tool_call.id] = (message, tool_call)
+                        if message.id is not None:
+                            by_message[(message.id, tool_call.id)] = (
+                                message,
+                                tool_call,
+                            )
             self._assistants = found
+            self._assistants_by_message = by_message
+        if message_id is not None:
+            named = self._assistants_by_message.get((message_id, call_id))
+            if named is not None:
+                return named
         return self._assistants.get(call_id, (None, None))
 
     def _sentinel_modify(self, span: str | None, event: ToolEvent) -> ToolCall | None:
@@ -2450,6 +2543,36 @@ def _reviewed_arguments(call: ToolCall) -> dict[str, Any]:
     if call.function == "call_mcp_tool" and isinstance(target, dict):
         return cast(dict[str, Any], target)
     return call.arguments
+
+
+def _proposed_call(
+    candidates: Sequence[ToolCall],
+    function: str,
+    arguments: dict[str, Any] | None,
+    arguments_unused: bool = False,
+) -> ToolCall | None:
+    """The one call among `candidates` of `function` with `arguments`, if they name one.
+
+    Equal calls are one call, and without `arguments` only equal calls name
+    one. With `arguments_unused` (the steps take their arguments from the
+    log, not the call), calls equal but for their arguments are one call too,
+    where `arguments` match none or several of them.
+    """
+    named = [c for c in candidates if c.function == function]
+    if named and any(c != named[0] for c in named) and arguments is not None:
+        matched = [c for c in named if json_equal(c.arguments, arguments)]
+        if matched or not arguments_unused:
+            named = matched
+    if named and all(
+        c == named[0]
+        or (
+            arguments_unused
+            and replace(c, arguments={}) == replace(named[0], arguments={})
+        )
+        for c in named
+    ):
+        return named[0]
+    return None
 
 
 def _bridged(event: ToolEvent) -> bool:
