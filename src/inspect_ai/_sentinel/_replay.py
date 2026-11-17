@@ -109,7 +109,7 @@ def steps_from_events(
 
     - The model response proposed several calls under its id, and these rules do not pick one.
     - A sentinel modified it, and its `ToolEvent` records other arguments than the modify's, so the log does not show the call the sentinel was shown. A tool can rewrite its arguments, as `memory()` does when it resolves a path. This applies whatever its id, and also where another sentinel decision outranked the modify.
-    - A sentinel modified it, another execution records the same call id (a shared `"null"`, a repeated id), and no approval records the call the sentinel was shown. This applies where it has no approval replay relies on, and where an approver modified it, since the approval records the approver's call before the tool validated it (`memory()` resolves a path).
+    - A sentinel modified it, another execution records the same call id (a shared `"null"`, a repeated id), and no approval records the call the sentinel was shown. That is a call with no approval replay relies on, or one an approver modified. An approver's modify is recorded before the tool validates it (`memory()` resolves a path).
     - It ended in a parsing or approval error, has no recorded sentinel check, and the call its approval approved is not the one its `ToolEvent` records. It may have been refused before it ran, or its tool may have raised the error after running, so it is skipped instead of refused.
 
     Otherwise a call a sentinel modified that has no approval replay relies on keeps its tool steps, and its `tool_call` step is built from the proposed call, or an approver's change to it. The same holds for a call an approver modified before the sentinel did, whose step is built from the approver's call as the approval records it. The log does not record the call the sentinel was shown, which the tool's validation can have changed (`memory()` resolves a path, validation fills a Pydantic default).
@@ -922,8 +922,8 @@ class _Driver:
         if self.unrecorded_checks:
             logging.getLogger(__name__).warning(
                 "Skipped the tool steps of call(s) %s: a sentinel modified each "
-                "under a call id other calls share, and no approval replay can "
-                "rely on records the call as its tool validated it, so the log "
+                "under a call id other calls share, and no approval that replay "
+                "can rely on records the call as its tool validated it, so the log "
                 "cannot show the call the sentinel was shown.",
                 ", ".join(
                     dict.fromkeys(

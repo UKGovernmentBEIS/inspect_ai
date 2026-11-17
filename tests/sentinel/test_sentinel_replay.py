@@ -2676,8 +2676,9 @@ UNMATCHED_MODIFY = (
 
 UNRECORDED_CHECK = (
     "Skipped the tool steps of call(s) {}: a sentinel modified each under a call "
-    "id other calls share, and no approval replay can rely on records the call as "
-    "its tool validated it, so the log cannot show the call the sentinel was shown."
+    "id other calls share, and no approval that replay can rely on records the call "
+    "as its tool validated it, so the log cannot show the call the sentinel was "
+    "shown."
 )
 
 
