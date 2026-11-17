@@ -1055,3 +1055,48 @@ def test_hf_model_config_hashes_selected_named_template(
         "name": "tool_use",
         "sha256": hashlib.sha256(tool_use_template.encode()).hexdigest(),
     }
+
+
+@skip_if_no_transformers
+@pytest.mark.parametrize("source", ["default", "path"])
+def test_hf_generation_config_override_survives_generate(source, tmp_path) -> None:
+    """An adopted config must not be rebuilt from the model's legacy config.json.
+
+    transformers 4.x rebuilds a generation config marked `_from_model_config`
+    from the model config on `generate()` when its token ids are unchanged,
+    which would restore the repository's legacy generation parameters.
+    """
+    import json
+
+    import torch
+    from transformers import GenerationConfig, GPT2Config, GPT2LMHeadModel
+
+    from inspect_ai.model._providers.hf import resolve_generation_config
+
+    # repetition_penalty here is a legacy generation parameter in config.json
+    config = GPT2Config.from_dict(
+        {
+            "n_layer": 1,
+            "n_head": 2,
+            "n_embd": 16,
+            "vocab_size": 100,
+            "bos_token_id": 0,
+            "eos_token_id": 1,
+            "repetition_penalty": 1.5,
+        }
+    )
+    model: Any = GPT2LMHeadModel(config)
+    model.generation_config = GenerationConfig.from_model_config(config)
+    trusted = {"_from_model_config": True, "bos_token_id": 0, "eos_token_id": 1}
+    (tmp_path / "generation_config.json").write_text(json.dumps(trusted))
+
+    model.generation_config = resolve_generation_config(
+        "default" if source == "default" else str(tmp_path),
+        model.generation_config,
+        token=None,
+    )
+    model.generate(
+        torch.tensor([[2, 3]]), max_new_tokens=2, do_sample=False, pad_token_id=1
+    )
+
+    assert model.generation_config.repetition_penalty != 1.5

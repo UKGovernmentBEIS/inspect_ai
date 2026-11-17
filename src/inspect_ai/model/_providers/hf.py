@@ -572,6 +572,10 @@ def resolve_generation_config(
     )
     for name in GENERATION_SPECIAL_TOKENS:
         setattr(config, name, getattr(repo_config, name, None))
+    # transformers 4.x regenerates a config marked as derived from the model
+    # config from the model's config.json on generate(), which would restore
+    # the repository's legacy generation parameters
+    config._from_model_config = False
     return config
 
 
