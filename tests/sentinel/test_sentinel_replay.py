@@ -12493,6 +12493,169 @@ def test_a_modified_call_whose_tool_resolved_its_path_is_skipped(
     assert [function for _, function, _ in replayed_calls(replay)] == [other] * 2
 
 
+@tool
+def r7_store_data() -> Tool:
+    async def execute(data: dict[str, Any]) -> str:
+        """Store data.
+
+        Args:
+            data: The data.
+        """
+        return f"stored {json.dumps(data)}"
+
+    return execute
+
+
+@protocol
+def r7_modifies_data(target: dict[str, Any]) -> Protocol:
+    """Modify the call whose arguments are exactly `target` (by `repr`, so `True` is not `1`) to store 2."""
+
+    async def before_call(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if repr(step.call.arguments) == repr(target):
+            return Decision(
+                action="modify",
+                modified=replace(step.call, arguments={"data": {"value": 2}}),
+                explanation="store 2 instead",
+            )
+        return None
+
+    return before_call
+
+
+@pytest.mark.parametrize(
+    "number,other,pairs",
+    [
+        ({"data": {"value": 1}}, {"data": {"value": True}}, False),
+        (
+            {"data": {"inner": {"flag": 0}}},
+            {"data": {"inner": {"flag": False}}},
+            False,
+        ),
+        ({"data": {"value": [1, 0]}}, {"data": {"value": [1, False]}}, False),
+        ({"data": {"value": 1}}, {"data": {"value": 1.0}}, True),
+    ],
+    ids=["true_1", "nested_false_0", "list_false_0", "float_1"],
+)
+@pytest.mark.parametrize("approved", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_modified_call_under_a_shared_id_tells_booleans_from_numbers(
+    number: dict[str, Any],
+    other: dict[str, Any],
+    pairs: bool,
+    approved: bool,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # after Ransom's review 5932143555: Python equality took the calls for
+    # one call, so replay presented the call with the number where live
+    # checked the one with the boolean; JSON equality keeps them apart, as
+    # it keeps 1 and 1.0 together
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="Store them")],
+            solver=[use_tools(r7_store_data()), generate()],
+            sentinel=[r7_probe(seen, copies=True), r7_modifies_data(other)],
+            approval=[ApprovalPolicy(auto_approver(), "*")] if approved else None,
+        ),
+        model=outputs(
+            ModelOutput(
+                model="mockllm/model",
+                choices=[
+                    ChatCompletionChoice(
+                        message=ChatMessageAssistant(
+                            content="",
+                            tool_calls=[
+                                ToolCall(
+                                    id="null",
+                                    function="r7_store_data",
+                                    arguments=arguments,
+                                )
+                                for arguments in (number, other)
+                            ],
+                        ),
+                        stop_reason="tool_calls",
+                    )
+                ],
+            ),
+            done(),
+        ),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert all(e.error is None for e in runs)
+    [modify] = [
+        e for e in events if isinstance(e, SentinelEvent) and e.action == "modify"
+    ]
+    moved = modify.execution_id
+    [moved_run] = [e for e in runs if e.execution_id == moved]
+    assert moved_run.arguments == {"data": {"value": 2}}
+    # the JSON round trip keeps the checked call's booleans and floats
+    checked = seen_at(events, seen, "tool_call", moved).call.arguments
+    assert repr(checked) == repr(other)
+
+    with caplog.at_level(logging.WARNING):
+        replay = (replayed_under_an_unknown_version if approved else replayed)(log)
+    [kept] = [e.execution_id for e in runs if e.execution_id != moved]
+    first = runs[0].execution_id
+    rebuilt: dict[tuple[str, str | None], "ReplayStep"] = {
+        (s.stage, first if s.id == "null" else s.id): s
+        for s in replay
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    }
+    called = {
+        key: s.step.call.arguments
+        for key, s in rebuilt.items()
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    }
+    expected: dict[tuple[str, str | None], dict[str, Any]] = {
+        ("tool_call", kept): number,
+        ("tool_result", kept): number,
+    }
+    if approved or pairs:
+        # the approval names the moved call by its arguments, while 1 and 1.0
+        # are one call, which replay shows as the first (1, where live
+        # checked 1.0)
+        assert replay_warnings(caplog) == []
+        expected[("tool_call", moved)] = number if pairs else other
+        expected[("tool_result", moved)] = {"data": {"value": 2}}
+    else:
+        # the moved call's steps are skipped, never rebuilt from the other call
+        [warning] = replay_warnings(caplog)
+        assert "several calls" in warning
+        assert "'null'" in warning
+    assert set(rebuilt) == set(expected)
+    for key, arguments in expected.items():
+        assert repr(called[key]) == repr(arguments), key
+    if approved:
+        # an unknown version changes fields other than the call (`truncated`)
+        return
+    for (stage, execution), step in rebuilt.items():
+        live = seen_at(events, seen, stage, execution)
+        moved_view = stage == "tool_call" and execution == moved
+        assert_step_equals_live(
+            (stage, step.id),
+            step,
+            live,
+            differences=["tool_call.view"] if moved_view else [],
+        )
+        if moved_view:
+            assert isinstance(step.step, BeforeToolCall)
+            assert isinstance(live, BeforeToolCall)
+            assert step.step.view is not None and step.step.view.call is not None
+            assert live.view is not None and live.view.call is not None
+            assert "{'value': 1}" in step.step.view.call.content
+            assert "{'value': 1.0}" in live.view.call.content
+
+
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 def test_a_check_with_a_superseded_modify_or_another_decision_pairs_by_arguments(
     backend: str,
