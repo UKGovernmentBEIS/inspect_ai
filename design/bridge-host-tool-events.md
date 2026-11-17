@@ -591,13 +591,27 @@ proposal, and fixing the pairing would mean keeping evicted grants.
   that request's compaction, and skipped with a warning where no turn does.
   The steps are named as a native execution's are (see
   Execution ids), so a run under a call id an earlier rebuilt execution
-  took is named by its `execution_id`. A later handout under a call id an
-  earlier host run has gets no `tool_result` step unless a result check
-  names its execution, since the bridge checks that result under no
-  execution; replay warns where the run's event links a result it skips. A
-  run under a native execution's id was handed the id once, and keeps its
-  `tool_result` step. Other host calls, including a shared handout's run
-  under a fresh event id, are skipped with a warning.
+  took is named by its `execution_id`. Replay skips steps with a warning
+  where the log does not show what the bridge checked or where:
+  - A call with no `tool_call` check, whose model call has no
+    `model_output` check, is handed over at the request's start in replay,
+    since a `ModelEvent` is logged where its call began. Its steps are
+    skipped where something of the conversation (another request's turn, a
+    compaction, a check with decisions, an approval) is logged after that
+    start and before the run, timestamped at or before the request's
+    completion or its calls' approvals.
+  - A run's `tool_result` step is skipped where the call's id may have been
+    handed out again before the result was reported: an earlier host run
+    under the id, or another proposal of it before the reporting request
+    that no native agent ran and no bridge handed over under a fresh id. The
+    bridge then checks the result under no execution and without the
+    proposal. A result check naming the run's execution shows it did not.
+  - A run's `tool_result` step is skipped where the log holds several
+    contents under the linked message's id, or, for a run without an error,
+    a message without the start of the run's result: a request filter
+    rewrote the message after the bridge checked it, keeping its id.
+  Other host calls, including a shared handout's run under a fresh event
+  id, are skipped with a warning.
 - **Hooks, control server, TUI, dataframes.** Pending host events drive the
   TUI's running state and the control server's activity and cancellation like
   native ones. Hooks receive each non-pending update. `events_df()` has `tool`

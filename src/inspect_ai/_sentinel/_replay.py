@@ -6,6 +6,7 @@ from bisect import bisect_left, bisect_right
 from collections import Counter
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, replace
+from datetime import datetime
 from functools import partial
 from itertools import accumulate
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
@@ -33,6 +34,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
 )
+from inspect_ai.model._message_ids import content_hash
 from inspect_ai.tool._tool_call import (
     ToolCall,
     ToolCallView,
@@ -105,7 +107,7 @@ def steps_from_events(
 
     A tool call is joined to the model call that proposed it by the id of the message its `ToolEvent` records (`call_message_id`, written since inspect_ai #6143), and a call no model call proposed (a pre-filled message) to the message holding it, by the same id. Where the id names several model calls' output (a cached output reused), a native call's producer is the latest of those model calls before the call, in the call's own conversation where they are in several. Where the event records no proposing message (an older log), or the id names no model call's output, it is the latest model call that proposed the call's id before the call (in the call's own conversation, where model calls in several conversations proposed it), a bridge's generation included.
 
-    A host call a sandbox bridge ran (`ToolEvent.metadata["bridge"]`) is replayed where its event ties it to its proposal and its run exactly: its proposing message is one model call's output holding the call under the model's id (`proposal_id`), and either the bridge linked the run to the tool message the scaffold reported its result in (`message_id`) or a bridge check of the call, its `tool_call` or its `tool_result` check, names the run's execution (`SentinelEvent.execution_id`, the handout's run of that host tool; in a log from before the execution ids, a check under the call's id). Its `tool_call` step is the call as the bridge checked it, under the id the scaffold was handed it under, with the host tool's name and the arguments it reviewed: the proposal's (a dispatcher call's target's), or an approver's modify of them, which a scaffold may run without bookkeeping fields it proposed (Antigravity's `toolSummary`). Its `tool_result` step checks that call, or a sentinel's modify of it, and holds the tool message `message_id` names, which the bridge checked when the scaffold's next request carried it; a run with no such link has no `tool_result` step, even where its result check linked the run. Where no result check was recorded, the step is built before the first later turn whose input carries that message, and before that request's compaction, else skipped with a warning. A run whose event has a fresh id (a shared handout's second tool) is not tied to its checks, which have the id the call was handed over under, so it is skipped. Other host calls, and the calls a bridged scaffold ran itself, which leave no `ToolEvent`, are skipped, and a warning names them. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A host call no check recorded, whose model call was made where live checks no tool calls (a scorer's), has no steps, as a native call has none. A bridge's tool checks are recorded in spans named `sentinel_bridge`, so a native call under an id a bridge also checked keeps its own checks.
+    A host call a sandbox bridge ran (`ToolEvent.metadata["bridge"]`) is replayed where its event ties it to its proposal and its run exactly: its proposing message is one model call's output holding the call under the model's id (`proposal_id`), and either the bridge linked the run to the tool message the scaffold reported its result in (`message_id`) or a bridge check of the call, its `tool_call` or its `tool_result` check, names the run's execution (`SentinelEvent.execution_id`, the handout's run of that host tool; in a log from before the execution ids, a check under the call's id). Its `tool_call` step is the call as the bridge checked it, under the id the scaffold was handed it under, with the host tool's name and the arguments it reviewed: the proposal's (a dispatcher call's target's), or an approver's modify of them, which a scaffold may run without bookkeeping fields it proposed (Antigravity's `toolSummary`). Its `tool_result` step checks that call, or a sentinel's modify of it, and holds the tool message `message_id` names, which the bridge checked when the scaffold's next request carried it; a run with no such link has no `tool_result` step, even where its result check linked the run. Where no result check was recorded, the step is built before the first later turn whose input carries that message, and before that request's compaction, else skipped with a warning. Where the log does not show what the bridge checked or where, the steps are skipped with a warning: a call with no `tool_call` check whose model call has no `model_output` check, where something of the conversation (another request's turn, a compaction, a check with decisions, an approval) is logged after the model call began and before the run, timestamped at or before the call completed or its calls' approvals were decided, since a model call is logged where it began; a `tool_result` step where the call's id may have been handed out again before the result was reported (an earlier host run under it, or another proposal of it no native agent ran and no bridge handed over under a fresh id), as the bridge then checks the result without the call's proposal, unless a result check names the run's execution; and a `tool_result` step where the log holds several contents under the message's id, or, for a run without an error, a message without the start of the run's result, which a request filter rewrote after the bridge checked it. A run whose event has a fresh id (a shared handout's second tool) is not tied to its checks, which have the id the call was handed over under, so it is skipped. Other host calls, and the calls a bridged scaffold ran itself, which leave no `ToolEvent`, are skipped, and a warning names them. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A host call no check recorded, whose model call was made where live checks no tool calls (a scorer's), has no steps, as a native call has none. A bridge's tool checks are recorded in spans named `sentinel_bridge`, so a native call under an id a bridge also checked keeps its own checks.
 
     A transcript Scout imported from another source (`eval_info` is None) replays from its events where Scout records which model calls its messages come from (`messages_from`): its turns are inferred as for a log without origins, and its tool steps come from its messages, each assistant message joined by its id to the turn whose output it is, which gives the steps that turn's input, tools and conversation; a message no one turn made is placed after the last message before it that one did, with no input. A call under an id an earlier call in the messages has is skipped, with a warning, as step ids are unique in a sample. Its tool events are not read: importers record them without the model's call ids.
 
@@ -122,7 +124,7 @@ def steps_from_events(
         messages_from: For an imported transcript, the `uuid`s of the model events its messages are from (Scout's `TranscriptInfo.messages_from`). Ignored for an Inspect log.
 
     Returns:
-        The steps, in the order they ran live. A tool step's id is its call id, as live records it (`step_id`; for a host call, the id it was handed over under), but for a later execution of a call id an earlier rebuilt execution, native or bridged, already took (a retry after a tool error, a provider that repeats ids, a call handed out again): that execution's steps are named by its `ToolEvent.execution_id`, which each of its live `SentinelEvent`s records; a person's decision there still reaches later steps' `human_decisions` under the call id, as live. A host run so named under an id an earlier host run has (a second handout) has a `tool_result` step only where a result check names its execution: the bridge checks a result reported under an id it handed out more than once under no execution and without the call's proposal, so replay skips such a result, and warns. A host run named so because a native execution took its id keeps its `tool_result` step. A `ToolEvent` that records no `execution_id` keeps its call id; in such a log, a host call under an id a native call or an earlier replayed host call has is skipped.
+        The steps, in the order they ran live. A tool step's id is its call id, as live records it (`step_id`; for a host call, the id it was handed over under), but for a later execution of a call id an earlier rebuilt execution, native or bridged, already took (a retry after a tool error, a provider that repeats ids, a call handed out again): that execution's steps are named by its `ToolEvent.execution_id`, which each of its live `SentinelEvent`s records; a person's decision there still reaches later steps' `human_decisions` under the call id, as live. A host run whose result was reported once its id may have been handed out again has a `tool_result` step only where a result check names its execution: the bridge checks a result reported under an id it handed out more than once under no execution and without the call's proposal, so replay skips such a result, and warns. A host run named by its execution because a native execution took its id keeps its `tool_result` step. A `ToolEvent` that records no `execution_id` keeps its call id; in such a log, a host call under an id a native call or an earlier replayed host call has is skipped.
 
     Raises:
         ValueError: `eval_info` and `messages_from` are both `None`, the log predates Inspect 0.3.100 or its samples have an earlier layout (or it has an unknown version and completed spanless native tool events), or the call an approval approved is not the call its `ToolEvent` records. Replay such transcripts from their messages instead.
@@ -678,6 +680,15 @@ class _Driver:
         self.skipped: list[str] = []
         # the ids of host calls whose reported result no replayed turn carries
         self.unplaced_results: list[str] = []
+        # the ids of host calls whose handout another request of the
+        # conversation may have preceded (`_handout_overlapped`)
+        self.overlapped_handouts: list[str] = []
+        # the ids of host calls whose result the bridge may have checked
+        # without the call's proposal (`_handed_out_again`)
+        self.context_free_results: list[str] = []
+        # the ids of host calls whose linked result the log holds other content
+        # for than the agent reported (`_result_as_reported`)
+        self.rewritten_results: list[str] = []
         # call id -> the indexes of the model events that proposed it
         self.proposed: dict[str, list[int]] = {}
         # the ids of model calls' output messages
@@ -691,6 +702,10 @@ class _Driver:
         self.host_executions: set[str] = set()
         # the call ids of the host runs `_tool_call` has read, in log order
         self.bridged_ids: set[str] = set()
+        # call id -> the indexes of the model events proposing it that no
+        # bridge handed out under it: a native agent's, which ran it, or one a
+        # bridge handed over under a fresh id
+        self.not_handed_out: dict[str, set[int]] = {}
         # each model event's input view and producer, shared by its steps
         self._views: dict[int, PoolView] = {}
         self._producers: dict[int, Producer] = {}
@@ -948,6 +963,14 @@ class _Driver:
         executions = Counter(
             entry.event.id for entry in calls if not _bridged(entry.event)
         )
+        for entry in calls:
+            model_id = _proposal_id(entry.event)
+            if (
+                entry.produced_at >= 0
+                and model_id is not None
+                and (not _bridged(entry.event) or model_id != entry.event.id)
+            ):
+                self.not_handed_out.setdefault(model_id, set()).add(entry.produced_at)
         for entry in calls:
             self._take_checks(entry)
             self._attribute(entry)
@@ -1676,17 +1699,18 @@ class _Driver:
         scaffold's next request carries it, as the tool message the scaffold
         sent, which the run's event names where the bridge linked it
         (`message_id`), with that call or a sentinel's modify of it. Both
-        steps have `step_id` (`_host_step_id`). A run named by its execution
-        under an id an earlier host run has (`handed_again`) has a
-        `tool_result` step only where a result check names its execution: a
-        result reported under an id the bridge handed out more than once is
-        checked under none, without the call's proposal, so a result its
-        event links that no check names is skipped, with a warning. A run
-        named by its execution because a native execution took its id was
-        handed the id once, so its result step is built as any other run's.
-        A `tool_result` step with no result check of its own is built where
+        steps have `step_id` (`_host_step_id`). A call with no `tool_call`
+        check is skipped where the log does not show where it was handed over
+        (`_handout_overlapped`). A run has a `tool_result` step only where a
+        result check names its execution once its id may have been handed out
+        again before the result was reported (an earlier host run under it,
+        `handed_again`, or `_handed_out_again`): the bridge checks such a
+        result under no execution, without the call's proposal. A
+        `tool_result` step with no result check of its own is built where
         the scaffold reported the result (`_reporting_point`), or, where no
-        replayed turn carries it, skipped with a warning of its own.
+        replayed turn carries it, skipped. A result the log may hold rewritten
+        is skipped (`_result_as_reported`). Each skip has a warning of its
+        own.
         """
         event = call.event
         proposal = call.proposal
@@ -1736,34 +1760,41 @@ class _Driver:
             )
             self._built(step_id, "tool_call", step, before_span)
 
+        if before_span is None and self._handout_overlapped(call):
+            # its checks still publish their decisions
+            self._settle_at_end(after_span)
+            self.overlapped_handouts.append(event.id)
+            return
         self._at_point(
             self._cut(before_span, self._handout_point(call)), call.seq, build_before
         )
         self._settle_at_end(before_span)
-        # a result reported under an id handed out more than once is checked
-        # under no execution and without its proposal, which replay can't give
         result = self._reported_result(event)
-        dropped = (
-            result is not None
-            and handed_again
-            and step_id != event.id
-            and after_span is None
-        )
         after_cut: tuple[int, int] | None = None
-        if result is not None and not dropped:
+        skip: list[str] | None = None
+        if result is not None:
+            # before its result check, as `_cut`; a check naming the run's
+            # execution shows the bridge told which handout the result answers
             after_cut = (
                 self._reporting_point(call)
                 if after_span is None
-                # before its result check, as `_cut`
                 else (self.begins[after_span][0], 1)
             )
-        if result is None or after_cut is None:
+            if after_cut is None:
+                skip = self.unplaced_results
+            elif (after_span is None or event.execution_id is None) and (
+                handed_again or self._handed_out_again(call, after_cut[0])
+            ):
+                skip = self.context_free_results
+            elif not self._result_as_reported(event, result):
+                skip = self.rewritten_results
+        if result is None or after_cut is None or skip is not None:
             # its result check, if any, still publishes its decisions
             self._settle_at_end(after_span)
-            if dropped or after_span is not None:
+            if skip is not None:
+                skip.append(event.id)
+            elif after_span is not None:
                 self.skipped.append(event.id)
-            elif result is not None:
-                self.unplaced_results.append(event.id)
             return
         # a sentinel's modify changes only the arguments of the call it checked
         after_call = (
@@ -1845,6 +1876,103 @@ class _Driver:
         if span is None:
             return (call.produced_at, 3)
         return (self.ends.get(span, self.begins[span][0]), 3)
+
+    def _handout_overlapped(self, call: _Call) -> bool:
+        """Whether something of the conversation may lie between where replay hands over a host call with no `tool_call` check of its own (`_handout_point`) and where the bridge did.
+
+        The bridge hands a response's calls over once the request has
+        completed, its `model_output` check (if any) has ended and its calls'
+        approvals are decided. The log records a model call where it began,
+        so without an output check, replay hands the calls over there. Anything
+        of the conversation logged after that point and before the run, at or
+        before the request's completion or its calls' approvals by timestamp,
+        happened before the handout live and after it in replay: another
+        request's turn, a compaction, a check's decisions or another call's
+        approval. The log does not show the handout among those, so the call
+        is skipped.
+        """
+        producer = call.producer
+        assert producer is not None
+        point = self._handout_point(call)[0]
+        ids = {c.id for c in producer.output.message.tool_calls or []}
+        ids.add(call.event.id)
+        until = producer.completed
+        effects: list[datetime] = []
+        for index in range(call.produced_at + 1, call.index):
+            event = self.events[index]
+            if isinstance(event, ApprovalEvent) and event.call.id in ids:
+                if until is not None:
+                    until = max(until, event.timestamp)
+            elif index > point and self._changes(event, call.conversation, ids):
+                effects.append(event.timestamp)
+        return any(until is None or at <= until for at in effects)
+
+    def _changes(self, event: Event, conversation: str, ids: set[str]) -> bool:
+        """Whether `event` changes `conversation`'s steps from where it is logged: an agent turn, a compaction, a check with decisions, or an approval, other than of a call in `ids`."""
+        if isinstance(event, ModelEvent):
+            return (
+                not self._in_sentinel_span(event.span_id)
+                and is_agent_turn(self._origin(event))
+                and self._conversation(event) == conversation
+            )
+        if isinstance(event, CompactionEvent | ApprovalEvent):
+            return self._conversation(event) == conversation
+        if isinstance(event, SpanEndEvent):
+            events = self.span_events.get(event.id)
+            return (
+                events is not None
+                and events[0].step_id not in ids
+                and any(e.kind == "decision" for e in events)
+                and self._conversation(self.begins[event.id][1]) == conversation
+            )
+        return False
+
+    def _handed_out_again(self, call: _Call, before: int) -> bool:
+        """Whether the bridge may have handed out a host call's id more than once before the event at `before`, where it checked the call's result.
+
+        The bridge hands out a call under the model's id again where a model
+        call proposes the same call under it (a retry, a cache hit, another
+        request sharing the bridge); from then on it checks a result under the
+        id under no execution and without the call's proposal, which replay
+        can't give, whichever handout ran. A proposal of the id counts unless
+        a native agent ran it or a bridge handed it over under a fresh id; one
+        in another conversation counts too, as the log does not show which
+        bridge made it.
+        """
+        known = self.not_handed_out.get(call.event.id, set())
+        handouts = 0
+        for index in self.proposed.get(call.event.id, []):
+            if index >= before:
+                break
+            if index not in known:
+                handouts += 1
+        return handouts > 1
+
+    def _result_as_reported(self, event: ToolEvent, result: ChatMessageTool) -> bool:
+        """Whether the tool message a host call's event links (`message_id`) holds, as far as the log shows, the result the agent reported.
+
+        The bridge links a run to a message that holds the start of what the
+        agent received (`_holds_result`) and checks the result as the request
+        carried it, before any request filter, which can rewrite the message
+        and keep its id. Where the log holds several contents under the id, or,
+        for a run without an error, one without the start of its result, the
+        message is not what the bridge checked. A rewrite that keeps that start
+        is not visible here.
+        """
+        from inspect_ai.agent._bridge.sandbox.host_tool import _received, _reply
+        from inspect_ai.agent._bridge.types import _holds_result
+
+        copies = [
+            message
+            for message in self._messages_by_id_all().get(event.message_id or "", [])
+            if isinstance(message, ChatMessageTool)
+        ]
+        if len({content_hash(message) for message in copies}) > 1:
+            return False
+        if event.error is not None:
+            return True
+        received = _received(event.result, _reply(event.result, event.result), None)
+        return not received.text or _holds_result(result, received)
 
     def _host_sentinel_modify(
         self, span: str | None, event: ToolEvent
@@ -2140,6 +2268,32 @@ class _Driver:
                 "result the agent reported, so the log does not show where the "
                 "bridge checked it.",
                 ", ".join(dict.fromkeys(self.unplaced_results)),
+            )
+        if self.overlapped_handouts:
+            logging.getLogger(__name__).warning(
+                "Replay skipped the tool steps of host call(s) %s: no check was "
+                "recorded once the model request proposing each had completed, "
+                "and another request of the conversation overlapped it, so the "
+                "log does not show where the bridge handed the call to the agent.",
+                ", ".join(dict.fromkeys(self.overlapped_handouts)),
+            )
+        if self.context_free_results:
+            logging.getLogger(__name__).warning(
+                "Replay skipped the tool_result steps of host call(s) %s: the "
+                "bridge may have handed out each call's id more than once "
+                "before the agent reported the result, and then checks the "
+                "result without the call's proposal, which the log does not "
+                "show.",
+                ", ".join(dict.fromkeys(self.context_free_results)),
+            )
+        if self.rewritten_results:
+            logging.getLogger(__name__).warning(
+                "Replay skipped the tool_result steps of host call(s) %s: the "
+                "log holds other content under the id of the result message the "
+                "bridge linked than the result the agent reported (a request "
+                "filter can rewrite a message and keep its id), so it does not "
+                "show the result the bridge checked.",
+                ", ".join(dict.fromkeys(self.rewritten_results)),
             )
         if unmatched:
             logging.getLogger(__name__).warning(
