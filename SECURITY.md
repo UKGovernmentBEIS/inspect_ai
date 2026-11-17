@@ -29,13 +29,13 @@ We only fix security issues in the most recent release of `inspect_ai` on PyPI. 
 
 Inspect runs evaluations that execute model-generated code, and tasks, solvers, and scorers are Python programs. Running an untrusted task or an untrusted model is equivalent to running untrusted code. Much of what Inspect does by design looks unsafe in isolation, so the sections below describe what we treat as a vulnerability and what we do not.
 
-When you evaluate an adversarial model, the sandbox is the security boundary. With `sandbox_agent_bridge()` the agent runs inside the sandbox and its model calls are passed to the host. By default it keeps API keys on the host and withholds web search, code execution and remote MCP servers. Inspect does not run the agent's own tools, so it records the agent's model calls but not what its tools did. The in-process `agent_bridge()` and `sandbox_service()` methods run code on the host. See [Adversarial Models](https://inspect.aisi.org.uk/agent-bridge.html#adversarial-models) for guidance.
+When you evaluate an adversarial model, the sandbox is the security boundary. With `sandbox_agent_bridge()` the agent runs inside the sandbox and its model calls are passed to the host. By default it keeps the model API keys Inspect uses on the host and withholds web search, code execution and remote MCP servers. Inspect does not run the agent's own tools, so it records the agent's model calls but not what its tools did. The in-process `agent_bridge()` and `sandbox_service()` methods run code on the host. See [Adversarial Models](https://inspect.aisi.org.uk/agent-bridge.html#adversarial-models) for guidance.
 
 ### In scope
 
 - Code execution or file access triggered by opening or reading an eval log, transcript, or dataset
 - Escape from a Docker sandbox to the host, or from one sandbox to another
-- An agent in a sandbox using the agent bridge to get a capability the evaluation did not grant, read API keys, run code in the Inspect process, or reach another sample's model calls
+- An agent in a sandbox using the agent bridge to get a capability the evaluation did not grant, read API keys kept on the host, run code in the Inspect process, or reach another sample's model calls
 - API keys, tokens, or other secrets written to logs, transcripts, or error messages
 - Path traversal, unauthenticated access, or other flaws in the log viewer or its server
 - Flaws in our release process, packaging, or CI that would let someone publish or modify a release
@@ -45,6 +45,7 @@ When you evaluate an adversarial model, the sandbox is the security boundary. Wi
 - The `local` sandbox runs commands directly on your machine with no isolation. This is documented behavior and is not a vulnerability.
 - Model-generated code running inside a sandbox is the purpose of the sandbox and is not a vulnerability.
 - Capabilities you grant to an agent, such as agent bridge grants, writable host mounts, sandbox networking, or an ACP server on a non-local address.
+- Credentials you put in a sandbox yourself, for example through an agent's environment. Code in the sandbox can read them.
 - Tools you give to an in-process `agent_bridge()` agent, and methods you expose with `sandbox_service()`. These run on the host.
 - Other processes in a sandbox calling that sandbox's agent bridge, when the bridge is set up to serve them. By default it serves every process in its sandbox. Inside a `sandbox_identity()` scope it serves only that scope's user, and getting around that is in scope.
 - A bridged agent misreporting its conversation history or tool results. Inspect does not run the agent's tools, so the transcript is the agent's own account.
