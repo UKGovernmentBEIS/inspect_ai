@@ -20,7 +20,7 @@ the reducer sees them, so an excluded epoch counts as one that never ran.
 samples: an ordinary eval of the task with the built-in solver
 `empty_attempt()`, which does nothing. `Task.setup` still runs, so the
 sample's environment is prepared, and the task's own scorers then score the
-untouched state. Then `zero_samples()` copies those verdicts from the
+state setup leaves. Then `zero_samples()` copies those verdicts from the
 empty-attempt log into the target log, with the reason `"zeroed"`. A verdict
 that would not count (no score, an unscored value, a dict or list) is
 refused, and the operator can exclude the sample instead.
