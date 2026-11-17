@@ -858,22 +858,32 @@ def _synthesize_trailing_checkpoint_event(
 
 
 def _checkpoint_parent_span_id(events: list[Event]) -> str | None:
-    """Return the span the restored session's checkpoints fire within.
+    """Return the span the latest live fire stamped on its ``CheckpointEvent``.
 
-    This is the parent of the last ``checkpoint`` span: the span a live fire
-    stamps on its ``CheckpointEvent`` after ending the checkpoint span. The
-    innermost span still open at context-write time is not a substitute: a
-    subagent span opened inside the checkpoint span can still be open when
+    The fire ends the last ``checkpoint`` span in the firing task, so that
+    span's ``SpanEndEvent`` carries the firing task's current span as its
+    ``span_id``. If that is another span (the fire ran inside the caller's own
+    ``span()``), return it. Otherwise (``span_id`` is the checkpoint span
+    itself, or there is no end event) return the checkpoint span's parent.
+    The innermost span still open at context-write time is not a substitute:
+    a subagent span opened inside the checkpoint span can still be open when
     the checkpoint fires. ``None`` if there is no checkpoint span.
     """
-    return next(
+    begin = next(
         (
-            e.parent_id
+            e
             for e in reversed(events)
             if isinstance(e, SpanBeginEvent) and e.type == "checkpoint"
         ),
         None,
     )
+    if begin is None:
+        return None
+    end_span_id = next(
+        (e.span_id for e in events if isinstance(e, SpanEndEvent) and e.id == begin.id),
+        None,
+    )
+    return end_span_id if end_span_id not in (None, begin.id) else begin.parent_id
 
 
 def _validate_resume_state(

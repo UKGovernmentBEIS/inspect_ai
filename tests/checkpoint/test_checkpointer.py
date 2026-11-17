@@ -972,19 +972,16 @@ async def test_resume_with_span_open_at_latest_checkpoint_keeps_checkpoint_event
     ]
 
 
-async def test_resume_fire_inside_span_moves_latest_marker_beside_checkpoints(
+async def test_resume_fire_inside_span_keeps_latest_marker_in_firing_span(
     tmp_path: Path,
 ) -> None:
-    """Pins restore placement when checkpoints fire inside a ``span()``.
+    """Restore keeps markers in the span they fired from.
 
     A live fire from inside an agent's own span (``cp.checkpoint()`` or
     ``cp.tick()`` under ``span()``) stamps its ``CheckpointEvent`` with that
-    span. Restore keeps that placement for every marker except the latest
-    one, which hydrate rebuilds from the checkpoint file and places next to
-    the checkpoint spans. The restored events can't tell this case from a
-    subagent span left open in another task. Placing the latest marker
-    exactly needs the firing span recorded in the host context; a change
-    that does that should update this test.
+    span. Hydrate rebuilds the latest marker from the checkpoint file and
+    must place it in the same span, read from the ``span_id`` of the last
+    checkpoint span's ``SpanEndEvent``.
     """
     from types import SimpleNamespace
 
@@ -1043,9 +1040,8 @@ async def test_resume_fire_inside_span_moves_latest_marker_beside_checkpoints(
     ):
         _push_host_state(host, str(sample_root), 2)
 
-    # restored: marker 1 keeps its live placement; the rebuilt marker 2 sits
-    # next to the checkpoint spans, and fire 2's `turn` span was still open
-    # when its host context was written
+    # restored: both markers keep their live placement; fire 2's `turn` span
+    # was still open when its host context was written
     assert _resumed_tree_shape(host.condensed_events) == [
         (
             "current",
@@ -1054,8 +1050,13 @@ async def test_resume_fire_inside_span_moves_latest_marker_beside_checkpoints(
                     "checkpoint restore 1",
                     [
                         ("checkpoint 1", [turn_1]),
-                        ("checkpoint 2", ["between-turns", ("turn", ["work-2"])]),
-                        "checkpoint event 2",
+                        (
+                            "checkpoint 2",
+                            [
+                                "between-turns",
+                                ("turn", ["work-2", "checkpoint event 2"]),
+                            ],
+                        ),
                     ],
                 )
             ],
