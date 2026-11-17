@@ -794,11 +794,10 @@ moves into one helper, `notify_source_guarded(task_name, log, ...)`, which
 private group and normal-return check around `task_run`, which turns a
 stray cancellation escaping task cleanup or `on_task_end` into the
 "Task '<task>' raised a cancellation…" error, as today
-(`test_stray_cancellation_after_log_finalized_ends_run`). A stray cancellation from a queued-cancel
-cancellation from a queued-cancel
-report then ends the run with the task's name instead of being absorbed by the
-attempt group while a source waits in `next_tasks()`; a real cancellation
-of the run still propagates.
+(`test_stray_cancellation_after_log_finalized_ends_run`). Run in the
+attempt group, a queued-cancel report's unattributed cancellation would be
+absorbed by that group; the guard turns it into the same contextual run
+error instead, and a real cancellation of the run still propagates.
 
 `RunQueue.end` sets `ended`; for a record whose `reached` is not
 `registered`, registers it as a finished eval (below); removes the record
