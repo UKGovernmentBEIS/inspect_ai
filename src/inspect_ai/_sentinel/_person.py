@@ -309,7 +309,7 @@ def request_prompt(
     before, and not only those after the model's last turn: a message the
     scaffold rewrote, and words it put in the model's mouth, are shown too.
     What the view leaves out is said in it: how many messages were sent
-    before, and how many parts of a message are not text.
+    before, and how many parts of a message are not shown.
 
     A message can hold a tool's output or a document the agent read, so its
     text is untrusted, as a turn's is, and gets the same treatment. Each
@@ -393,8 +393,9 @@ def _message_markdown(
     """One message: a header written here, then what it says in code blocks.
 
     A tool's message is named for its function. An assistant message also shows
-    its reasoning and each call it makes, as a turn does. Content that is
-    neither, such as an image, is counted beneath, never rendered.
+    its reasoning and each call it makes, as a turn does. Any other content,
+    such as an image or a tool the provider ran, is counted beneath, never
+    rendered.
     """
     header = f"**Message {position} of {sent}:** {message.role}"
     if isinstance(message, ChatMessageTool) and message.function:
@@ -416,7 +417,8 @@ def _message_markdown(
                 f"**The provider withheld the text of {reasoned.withheld} "
                 f"{'block' if reasoned.withheld == 1 else 'blocks'} of its reasoning.**"
             )
-    parts.append(_code_block(safe(text), ""))
+    if text:
+        parts.append(_code_block(safe(text), ""))
     calls = (
         message.tool_calls if isinstance(message, ChatMessageAssistant) else None
     ) or []
@@ -435,7 +437,8 @@ def _message_markdown(
     if other:
         parts.append(
             f"**{other} {'part' if other == 1 else 'parts'} of this message "
-            f"{'is' if other == 1 else 'are'} not text, and not shown.**"
+            f"{'is' if other == 1 else 'are'} not shown: content that is not "
+            "text, or a tool the provider ran.**"
         )
     return "\n\n".join(parts)
 
@@ -459,7 +462,7 @@ async def approve_with_text_in_view(
         said: The turn's text, for the notification.
         call: The call to ask about.
         view: The view, which holds the text.
-        conversation: The conversation to show beside the prompt.
+        conversation: The conversation to give the approval surface.
     """
     await notify(said)
     with apprise_scope(None):

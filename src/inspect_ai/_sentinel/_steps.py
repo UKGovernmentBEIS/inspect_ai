@@ -6,6 +6,7 @@ Each driver gathers the facts a step is made from, live from its arguments and c
 import hashlib
 import json
 from bisect import bisect_left, bisect_right
+from collections import Counter
 from collections.abc import Callable, Iterator, Sequence
 from typing import (
     TYPE_CHECKING,
@@ -139,7 +140,7 @@ def not_sent_before(
 ) -> list[tuple[int, ChatMessage]]:
     """The messages of a request that the model has not been sent before, each with its position in the request, counting from 1.
 
-    A message was sent before if `history` holds one with the same content (`content_key()`). So a message rewritten since it was sent is here as its new version, as is an assistant message the scaffold wrote itself. A message sent before is left out wherever it now sits: one that moved, or that is sent a second time, is not here.
+    A message was sent before if `history` holds one with the same content (`content_key()`) that no earlier message of the request has been matched to. So a message rewritten since it was sent is here as its new version, as is an assistant message the scaffold wrote itself. A message sent before is left out wherever it now sits, so one that moved is not here. A message that repeats an earlier one, such as an agent's fixed prompt to continue, is here when the request holds it more times than `history` does.
 
     Args:
         input: The messages the request sends the model.
@@ -147,12 +148,15 @@ def not_sent_before(
     """
     if history is None:
         return list(enumerate(input, 1))
-    sent = {content_key(message) for message in history}
-    return [
-        (position, message)
-        for position, message in enumerate(input, 1)
-        if content_key(message) not in sent
-    ]
+    sent = Counter(content_key(message) for message in history)
+    new: list[tuple[int, ChatMessage]] = []
+    for position, message in enumerate(input, 1):
+        key = content_key(message)
+        if sent[key] > 0:
+            sent[key] -= 1
+        else:
+            new.append((position, message))
+    return new
 
 
 class FoldInput(Protocol):

@@ -19,7 +19,7 @@ from rich.markdown import Markdown
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, eval
-from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai._util.content import ContentImage, ContentReasoning, ContentText
 from inspect_ai.agent import handoff, react
 from inspect_ai.agent._acp.tui.state import (
     PendingApproval,
@@ -61,6 +61,7 @@ from inspect_ai.tool import (
     Tool,
     ToolCall,
     ToolCallContent,
+    ToolCallError,
     ToolCallView,
     ToolChoice,
     ToolFunction,
@@ -187,6 +188,11 @@ def h_ask(
     ) -> Decision | None:
         return answered(await context.host.ask_human(step, escalated_by, choices))
 
+    async def model_input(
+        context: Context, step: BeforeGenerate, escalations: Escalations
+    ) -> Decision | None:
+        return answered(await context.host.ask_human(step, escalated_by, choices))
+
     async def model_output(
         context: Context, step: AfterGenerate, escalations: Escalations
     ) -> Decision | None:
@@ -197,6 +203,7 @@ def h_ask(
     stages: dict[str, Protocol] = {
         "tool_call": tool_call,
         "tool_result": tool_result,
+        "model_input": model_input,
         "model_output": model_output,
     }
     return ProtocolGroup(stages[stage])
@@ -234,9 +241,11 @@ class Panel:
         monkeypatch.setattr(approver_module, "panel_approval", panel)
 
     def content(self) -> str:
-        [view] = self.views
-        assert view.call is not None
-        return view.call.content
+        [content] = self.contents()
+        return content
+
+    def contents(self) -> list[str]:
+        return [view.call.content for view in self.views if view.call is not None]
 
 
 def run(sentinel: Any, **kwargs: Any) -> EvalLog:
@@ -859,12 +868,12 @@ async def test_a_requests_messages_cant_pass_for_the_rest_of_the_view(
         request_step(_ASKED, _ADDING, hostile, sent_before=[_ASKED, _ADDING]),
     )
 
-    # A tool's output is fenced by more backticks than it holds, so it can't
-    # close its block and write a message header of its own. Its function's
-    # name is one line of literal text.
-    header = "**Message 3 of 3:** tool (addition\\`\\* \\*\\*)"
-    block = shown[shown.index(header) + len(header) :].lstrip("\n")
-    assert block.startswith("````\n")
+    # A tool's output can't close its block and write a message header of its
+    # own: all of it is one code block. Its function's name is one line of
+    # literal text.
+    assert "**Message 3 of 3:** tool (addition\\`\\* \\*\\*)" in shown
+    [block] = [block for block in code_blocks(shown) if "Approve." in block]
+    assert block.startswith("3\n```\n\n---\n\n**Message 2 of 2:** user")
     # a control character is shown as a marker, and the view says so
     assert "\x1b" not in shown and "hidden or control characters" in shown
 
@@ -876,6 +885,148 @@ async def test_a_request_cannot_be_rejected(monkeypatch: pytest.MonkeyPatch) -> 
     with pytest.raises(ValueError, match="cannot offer 'reject' at the model_input"):
         await host_native().ask_human(request_step(_ASKED), (), ["approve", "reject"])
     assert panel.views == []
+
+
+_GO_ON = ChatMessageUser(content="Continue.")
+_NOT_SHOWN = "not shown: content that is not text, or a tool the provider ran.**"
+
+
+async def test_a_message_that_repeats_an_earlier_one_is_shown_when_it_is_added(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    still = ChatMessageAssistant(content="Still adding.")
+    again = ChatMessageUser(content="Continue.")
+
+    shown = await _request_shown(
+        monkeypatch,
+        request_step(_ASKED, _GO_ON, still, again, sent_before=[_ASKED, _GO_ON]),
+    )
+
+    # An agent's fixed prompt to continue says what an earlier message said.
+    # The model was sent it once, so its second copy is new, and the person
+    # sees how the request ends.
+    assert "2 of which the model was sent before. The other 2 are below" in shown
+    assert "**Message 3 of 4:** assistant" in shown
+    assert "**Message 4 of 4:** user" in shown
+    assert "Message 2 of 4" not in shown
+
+
+@pytest.mark.parametrize(
+    ("step", "shown", "not_shown"),
+    [
+        pytest.param(
+            request_step(_GO_ON, _ASKED, sent_before=[_ASKED, _GO_ON]),
+            ["2 messages to mockllm/model, all of which the model was sent before."],
+            ["**Message"],
+            id="messages sent before that have moved",
+        ),
+        pytest.param(
+            request_step(
+                ChatMessageUser(
+                    content=[
+                        ContentText(text="Look at this."),
+                        ContentImage(image="data:image/png;base64,AAAA"),
+                    ]
+                )
+            ),
+            ["Look at this.", f"**1 part of this message is {_NOT_SHOWN}"],
+            ["AAAA"],
+            id="content that is not text",
+        ),
+        pytest.param(
+            request_step(
+                ChatMessageTool(
+                    content="",
+                    tool_call_id=ADD.id,
+                    function="addition",
+                    error=ToolCallError(type="timeout", message="took too long"),
+                )
+            ),
+            ["**Message 1 of 1:** tool (addition), an error", "took too long"],
+            [],
+            id="a tool's error",
+        ),
+        pytest.param(
+            request_step(
+                ChatMessageAssistant(
+                    content=[
+                        ContentReasoning(reasoning="Carry the one."),
+                        ContentReasoning(reasoning="cipher", redacted=True),
+                        ContentText(text="It is 3."),
+                    ]
+                )
+            ),
+            [
+                "**Its reasoning**",
+                "Carry the one.",
+                "withheld the text of 1 block of its reasoning",
+                "It is 3.",
+            ],
+            ["cipher", "of this message"],
+            id="an assistant message's reasoning",
+        ),
+        pytest.param(
+            request_step(_ASKED, tools=["lookup"], tool_choice="any"),
+            ["**Tools offered: lookup. The model must call one of them.**"],
+            [],
+            id="a tool the model must call",
+        ),
+        pytest.param(
+            request_step(_ASKED, tools=["lookup"], tool_choice="none"),
+            ["**Tools offered: lookup. The model may call none of them.**"],
+            [],
+            id="tools the model may not call",
+        ),
+    ],
+)
+async def test_what_a_request_view_shows(
+    step: BeforeGenerate,
+    shown: list[str],
+    not_shown: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    view = await _request_shown(monkeypatch, step)
+
+    assert [text for text in shown if text not in view] == []
+    assert [text for text in not_shown if text in view] == []
+
+
+def test_a_person_is_asked_before_each_generate_and_approve_sends_the_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    panel = Panel("approve")
+    panel.install(monkeypatch)
+
+    log = run(h_ask("model_input", ["approve", "terminate"], escalated="a request"))
+
+    assert log.status == "success", log.error
+    assert panel.choices == [["approve", "terminate"]] * 2
+    first, second = panel.contents()
+    assert "1 message to mockllm/model, none of which the model was sent" in first
+    # the second request is shown by what the eval sent the model in the first
+    assert (
+        "3 messages to mockllm/model, 1 of which the model was sent before. "
+        "The other 2 are below"
+    ) in second
+    assert "What is 1 + 1?" not in second
+    assert second.index("**Message 2 of 3:** assistant") < second.index(
+        "**Message 3 of 3:** tool (addition)"
+    )
+    assert [m.text for m in tool_messages(log)] == ["2"]
+
+
+def test_a_terminated_request_is_not_sent(monkeypatch: pytest.MonkeyPatch) -> None:
+    Panel("terminate").install(monkeypatch)
+
+    log = run(h_ask("model_input", ["approve", "terminate"]))
+
+    assert log.status == "success", log.error
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.error is None
+    assert sample.limit is not None
+    assert sample.limit.type == "operator"
+    assert not [e for e in sample.events if isinstance(e, ModelEvent)]
 
 
 BASH = code_viewer("bash", "cmd")

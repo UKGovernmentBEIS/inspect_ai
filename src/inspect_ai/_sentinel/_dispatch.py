@@ -528,9 +528,9 @@ class _HostNative:
                 "where a generate can only proceed or be terminated."
             )
         offered = offered_choices(choices)
-        # the approval surfaces show the conversation; a step with no agent's
-        # list shows what the model saw instead, and nothing when that is
-        # unknown too
+        # the approval surfaces are given the conversation; a step with no
+        # agent's list gives what the model saw instead, and nothing when that
+        # is unknown too
         if step.agent_messages is not None:
             conversation = step.agent_messages
         elif step.input is not None:
