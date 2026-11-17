@@ -269,8 +269,12 @@ added.
 Neither function checks whether a target already carries its disposition:
 excluding or zeroing a sample again applies the edits again and appends to
 the history. An operator layer that re-applies its rulings on every pass and
-wants no repeat entries checks the current score's `reason` first:
-`"excluded"` for an exclusion, `"zeroed"` for a zero.
+wants no repeat entries checks each target first, across its whole score
+map: it skips the target only when the target holds at least one score and
+every score it holds has the disposition's `reason` (`"excluded"` for an
+exclusion, `"zeroed"` for a zero). Any other target still needs the
+disposition: a sample with no score, or one where `inspect score --action
+append` has added a counted score beside an excluded one.
 
 ### Edits and recomputation
 
@@ -323,10 +327,14 @@ inspect log zero    LOG_FILE --from EMPTY_LOG --sample ID [--sample ID ...] [--e
   `WriteConflictError`. A `ValueError`, `LookupError` or
   `WriteConflictError` is reported as a command error.
 - Output, after the write: one summary line (`excluded 3 samples`,
-  `zeroed 1 sample`, counting targets as `(id, epoch)` pairs), then the
-  log's headline metric after recomputation (`<score>/<metric>: <value>`).
-  There is no `--json` option. The unconditional write and this output are
-  not yet built; see [Not yet built](#not-yet-built).
+  `zeroed 1 sample`), then the log's headline metric after recomputation (`<score>/<metric>: <value>`).
+  The count is the number of targets, `(id, epoch)` pairs: after the
+  function succeeds, `_run_disposition()` counts
+  `_select_samples(log, selectors)`, the same helper the functions use, so
+  a bare id counts each of its epochs, a string matches an `int` id, and a
+  repeated selector counts once. There is no `--json` option. The
+  unconditional write and this output are not yet built; see
+  [Not yet built](#not-yet-built).
 
 ## Not yet built
 
@@ -356,7 +364,8 @@ The implementation removes:
 - in [`_cli/log.py`](../src/inspect_ai/_cli/log.py): the `--json` option
   blocks of the `exclude` and `zero` commands, and in `_run_disposition()`
   the `if result.applied:` write guard, the JSON branch and the per-target
-  print loop, replaced by the one summary line;
+  print loop, replaced by the one summary line counted with
+  `_select_samples()`;
 - tests: `test_exclude_samples_unchanged`, the `result.unchanged == []` and
   `result.applied` asserts in `tests/scorer/test_score_editing.py` and
   `tests/log/test_zero_samples.py` (the selector-expansion test checks the
@@ -513,6 +522,10 @@ Left out (decision: Ransom, 2026-11-04) and possible later:
 - An `excluded_samples` count beside `unscored_samples`, and a viewer badge
   for dispositions.
 - An `inspect log invalidate`-style CLI for the existing re-run path.
+- The CLI reads the log (and the empty-attempt log) outside the handler
+  that turns `ValueError`, `LookupError` and `WriteConflictError` into a
+  command error, so a read-time `ValueError` from a malformed log surfaces
+  as a raw exception.
 - Two recomputation defects that affect any score edit: two dict-valued
   scorers of the same name can both report the first one's data after a
   recompute (`compute_log_metrics()` keys each sample's scores by name, and
