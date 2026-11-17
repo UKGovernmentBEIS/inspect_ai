@@ -105,6 +105,7 @@ from ._conversation import current_conversation
 from ._scope import BRIDGE_CHECK_SPAN, sentinel_scope
 from ._steps import (
     ConversationRecord,
+    Producer,
     after_generate,
     after_tool_call,
     before_generate,
@@ -129,8 +130,13 @@ async def sentinel_before_tool_call(
     history: list[ChatMessage] | None,
     producer: ModelEvent | None = None,
     *,
+    assistant_message: ChatMessageAssistant | None = None,
     bridge: bool = False,
 ) -> Decision | None:
+    """Run the sentinel before a tool call runs.
+
+    `producer` is the model call that produced `call`, if the caller knows it (an agent bridge); otherwise it is found in `history`. `assistant_message` is the message that made the call, if it is not `producer`'s output message (a bridge that handed the call over under a fresh id).
+    """
     if not _watches(BeforeToolCall):
         return None
     _require_message_id()
@@ -138,8 +144,7 @@ async def sentinel_before_tool_call(
         view = resolve_tool_call_view(call, viewer, reject_on_error=True)
     except ToolCallViewError as ex:
         raise ToolApprovalError(str(ex)) from ex
-    if producer is None and history is not None:
-        producer = _producing_event(call, history)
+    produced = _producer(call, history, producer, assistant_message)
     conversation = current_conversation()
     step = before_tool_call(
         conversation=conversation,
@@ -147,7 +152,7 @@ async def sentinel_before_tool_call(
         message_id=_message_id(message_id),
         call=call,
         view=view,
-        producer=producer_of(producer),
+        producer=produced,
         agent_messages=agent_messages(conversation),
         record=_record(conversation),
     )
@@ -183,11 +188,14 @@ async def sentinel_after_tool_call(
     history: list[ChatMessage] | None,
     producer: ModelEvent | None = None,
     *,
+    assistant_message: ChatMessageAssistant | None = None,
     reject_on_viewer_error: bool = False,
     bridge: bool = False,
     view: ToolCallView | None = None,
 ) -> None:
     """Run the sentinel after a tool call ran, before the model sees its result.
+
+    `producer` and `assistant_message` are as for `sentinel_before_tool_call`.
 
     `view` is the call's view, if already rendered with `viewer` (a bridge
     renders it to tell the step apart from those already checked); otherwise
@@ -196,8 +204,7 @@ async def sentinel_after_tool_call(
     if not _watches(AfterToolCall):
         return
     _require_message_id()
-    if producer is None and history is not None:
-        producer = _producing_event(call, history)
+    produced = _producer(call, history, producer, assistant_message)
     conversation = current_conversation()
     step = after_tool_call(
         conversation=conversation,
@@ -213,7 +220,7 @@ async def sentinel_after_tool_call(
         output=output,
         # None when the host cannot tell (a scaffold-run tool under a bridge)
         truncated=Truncation(*truncated) if truncated else truncated,
-        producer=producer_of(producer),
+        producer=produced,
         agent_messages=agent_messages(conversation),
         record=_record(conversation),
     )
@@ -419,6 +426,30 @@ def _assistant_index(call: ToolCall, history: list[ChatMessage]) -> int | None:
     return None
 
 
+def _producer(
+    call: ToolCall,
+    history: list[ChatMessage] | None,
+    producer: ModelEvent | None,
+    assistant_message: ChatMessageAssistant | None,
+) -> Producer | None:
+    """What a tool step reads of the model call that produced `call`: `producer`, else the one found in `history`.
+
+    A `producer` the caller gives counts only if its message (`assistant_message`, else its output message) holds `call`, as for one found in `history` (`_producing_event`).
+    """
+    if producer is None:
+        return producer_of(
+            _producing_event(call, history) if history is not None else None
+        )
+    produced = producer_of(producer, assistant_message)
+    if produced is None or not _holds(produced.message, call):
+        return None
+    return produced
+
+
+def _holds(message: ChatMessageAssistant, call: ToolCall) -> bool:
+    return any(proposed.id == call.id for proposed in message.tool_calls or [])
+
+
 def _producing_event(call: ToolCall, history: list[ChatMessage]) -> ModelEvent | None:
     """The model call that produced `call`, found by the id of the message holding it.
 
@@ -434,9 +465,7 @@ def _producing_event(call: ToolCall, history: list[ChatMessage]) -> ModelEvent |
         return None
     except Exception as ex:
         raise SentinelFailure(ex) from ex
-    if event is None or not any(
-        proposed.id == call.id for proposed in event.output.message.tool_calls or []
-    ):
+    if event is None or not _holds(event.output.message, call):
         return None
     return event
 

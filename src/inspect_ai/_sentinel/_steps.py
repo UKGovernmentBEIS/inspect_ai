@@ -236,16 +236,19 @@ class Producer(NamedTuple):
     tools: Sequence[ToolInfo]
     tool_choice: ToolChoice
     message: ChatMessageAssistant
-    """The model call's output message as the event records it, which replay reads back: normally a snapshot (`_snapshot_output`), not the agent's copy, which the agent can change before it runs the calls. A message that cannot be serialized or copied is logged live, so later edits show in it, as for `input`."""
+    """The model call's output message as the event records it, which replay reads back: normally a snapshot (`_snapshot_output`), not the agent's copy, which the agent can change before it runs the calls. A message that cannot be serialized or copied is logged live, so later edits show in it, as for `input`. For an agent bridge that handed calls over under fresh ids, the message with those ids (`Produced.message`)."""
 
 
-def producer_of(event: ModelEvent | None) -> Producer | None:
+def producer_of(
+    event: ModelEvent | None, message: ChatMessageAssistant | None = None
+) -> Producer | None:
+    """What a tool step reads of `event`, with `message` in place of its output message if given (an agent bridge's message with the call ids it handed over)."""
     return (
         Producer(
             view(event.input),
             view(event.tools),
             event.tool_choice,
-            event.output.message,
+            message if message is not None else event.output.message,
         )
         if event is not None
         else None
