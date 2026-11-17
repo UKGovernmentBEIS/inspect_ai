@@ -401,3 +401,39 @@ def parse_sandbox(sandbox: str | None) -> SandboxEnvironmentSpec | None:
             return SandboxEnvironmentSpec(parts[0], parts[1])
     else:
         return None
+
+
+def default_provenance_author() -> str:
+    """Default provenance author: the git identity, else the OS username.
+
+    Follows the convention inspect_flow's tag/metadata steps use for
+    `log_updates` provenance — `git config user.name` + `user.email`
+    rendered `Name <email>` (the bare name when there is no email).
+    Resolved in the CLI process: for `inspect ctl`, the server process has
+    no view of who invoked the CLI.
+    """
+    import getpass
+    import subprocess
+
+    def git_config(key: str) -> str:
+        try:
+            result = subprocess.run(
+                ["git", "config", key],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            return result.stdout.strip() if result.returncode == 0 else ""
+        except Exception:
+            return ""
+
+    name = git_config("user.name")
+    email = git_config("user.email")
+    if name and email:
+        return f"{name} <{email}>"
+    if name:
+        return name
+    try:
+        return getpass.getuser()
+    except Exception:
+        return "unknown"

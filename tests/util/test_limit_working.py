@@ -16,6 +16,9 @@ from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
+from inspect_ai._sentinel._sidecar._judging import count_judging_as_waiting
+from inspect_ai._sentinel._sidecar._lookup import Looked
+from inspect_ai._sentinel._sidecar._received import ReceivedCall
 from inspect_ai._util.registry import _registry
 from inspect_ai._util.working import (
     ModelAttempts,
@@ -808,6 +811,59 @@ async def test_attempt_charged_unless_retried(sample_clock: _MockTime) -> None:
     sample_clock.advance(1)
     wait.close()
     assert sample_waiting_time() == 7
+
+
+def _judged(judging_time: float | None) -> ReceivedCall:
+    # a call through a sentinel sidecar, which said how long it judged it
+    received = ReceivedCall()
+    received.looked = Looked("decided", judging_time=judging_time)
+    return received
+
+
+async def test_sidecar_judging_is_a_wait_where_no_other_work_ran(
+    sample_clock: _MockTime,
+) -> None:
+    """A sidecar's judging, inside the call's attempt, is waiting, as an in-process sentinel's is; other work over it stays charged."""
+    attempts = ModelAttempts()
+    caller, other = _Task(), _Task()
+    attempt = caller.enter(attempts.attempt())
+    sample_clock.advance(4)
+    work = other.enter(known_work())
+    sample_clock.advance(2)
+    other.exit(work)
+    sample_clock.advance(4)
+    caller.exit(attempt)
+    # the sidecar judged the last 6 s of the call, 4 s of it beside other work
+    caller.ctx.run(count_judging_as_waiting, _judged(6.0), attempts, None)
+    attempts.commit()
+    assert sample_waiting_time() == 4
+    assert sample_working_time() == 6
+
+
+@pytest.mark.parametrize(
+    ("judging_time", "waiting"),
+    [(None, 0.0), (0.0, 0.0), (3.0, 3.0), (20.0, 5.0)],
+    ids=["no answer", "none", "some", "longer than the attempt"],
+)
+async def test_sidecar_judging_is_taken_from_the_last_attempt(
+    sample_clock: _MockTime, judging_time: float | None, waiting: float
+) -> None:
+    """The proxy held the last attempt while the sidecar judged it, so the judging comes from that attempt, and never more than it lasted."""
+    attempts = ModelAttempts()
+    caller = _Task()
+    first = caller.enter(attempts.attempt())
+    sample_clock.advance(4)
+    caller.exit(first)
+    # the retry loop records the first attempt as a wait
+    add_sample_wait(0, 4)
+    attempts.retried()
+    last = caller.enter(attempts.attempt())
+    sample_clock.advance(5)
+    caller.exit(last)
+    received = _judged(judging_time) if judging_time is not None else None
+    caller.ctx.run(count_judging_as_waiting, received, attempts, None)
+    attempts.commit()
+    assert sample_waiting_time() == 4 + waiting
 
 
 async def test_nested_attempt_holds_enclosing_tool(sample_clock: _MockTime) -> None:

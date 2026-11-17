@@ -43825,17 +43825,17 @@ function _temp2$61(tab, index) {
 	}, tab.props.id);
 }
 var ExpandablePanel_module_default = {
-	outer: "_outer_i2ek3_1",
-	expandablePanel: "_expandablePanel_i2ek3_17",
-	expandableBordered: "_expandableBordered_i2ek3_21",
-	expandableTruncated: "_expandableTruncated_i2ek3_38",
-	moreToggle: "_moreToggle_i2ek3_47",
-	bordered: "_bordered_i2ek3_57",
-	moreToggleButton: "_moreToggleButton_i2ek3_64",
-	inlineToggleHolder: "_inlineToggleHolder_i2ek3_75",
-	inlineToggleSticky: "_inlineToggleSticky_i2ek3_92",
-	blockLeft: "_blockLeft_i2ek3_98",
-	collapsedContent: "_collapsedContent_i2ek3_113"
+	outer: "_outer_6cugq_1",
+	expandablePanel: "_expandablePanel_6cugq_17",
+	expandableBordered: "_expandableBordered_6cugq_21",
+	expandableTruncated: "_expandableTruncated_6cugq_38",
+	moreToggle: "_moreToggle_6cugq_42",
+	bordered: "_bordered_6cugq_52",
+	moreToggleButton: "_moreToggleButton_6cugq_59",
+	inlineToggleHolder: "_inlineToggleHolder_6cugq_70",
+	inlineToggleSticky: "_inlineToggleSticky_6cugq_87",
+	blockLeft: "_blockLeft_6cugq_93",
+	collapsedContent: "_collapsedContent_6cugq_108"
 };
 // ../../packages/react/src/components/FindTargetContext.tsx
 var FindTargetContext = /*#__PURE__*/ (0, import_react.createContext)(null);

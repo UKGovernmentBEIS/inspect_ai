@@ -10,15 +10,26 @@ import pytest
 
 from inspect_ai import Epochs, Task, eval
 from inspect_ai._eval.score import score
+from inspect_ai._eval.task.results import (
+    ScorerInfo,
+    compute_eval_scores_for_views,
+    reduce_scores,
+)
 from inspect_ai._util.registry import registry_info
 from inspect_ai.dataset import Sample
+from inspect_ai.log import ProvenanceData, edit_score
 from inspect_ai.scorer import (
+    SampleScore,
     Score,
+    ScoreEdit,
     ScoreReducer,
     Value,
     ValueToFloat,
+    accuracy,
     at_least,
     collect_score,
+    grouped,
+    includes,
     majority_score,
     match,
     max_score,
@@ -1021,6 +1032,200 @@ def test_collect_preserve_metadata() -> None:
     assert reduced.answer == "1"
     assert reduced.explanation == "An explanation"
     assert reduced.metadata == {"foo": "bar"}
+
+
+def _excluded(original: Score) -> Score:
+    """An operator exclusion of `original`, as a score edit records it."""
+    return Score(
+        value=float("nan"),
+        answer=original.answer,
+        explanation="excluded by operator",
+        reason="excluded",
+        metadata=original.metadata,
+        history=[
+            ScoreEdit(
+                value=original.value,
+                answer=original.answer,
+                explanation=original.explanation,
+                reason=original.reason,
+                metadata=original.metadata or {},
+            ),
+            ScoreEdit(
+                value=float("nan"),
+                explanation="excluded by operator",
+                reason="excluded",
+                provenance=ProvenanceData(
+                    timestamp=datetime.now(timezone.utc),
+                    author="op",
+                    reason="bad sample",
+                ),
+            ),
+        ],
+    )
+
+
+def _reduce_one(scores: list[Score], reducer: ScoreReducer) -> Score:
+    reduced = reduce_scores(
+        [SampleScore(sample_id="a", score=score) for score in scores], reducer
+    )
+    assert len(reduced) == 1
+    return reduced[0].score
+
+
+def test_reduce_scores_drops_excluded_epochs_under_majority() -> None:
+    correct = Score(value="C")
+    # one of two correct epochs is not a majority unless the excluded one is dropped
+    assert _reduce_one([correct, _excluded(correct)], majority_reducer).value == "C"
+    # a grader failure still withholds its vote
+    grader_failed = Score.unscored(reason="grader_failed")
+    assert _is_nan(_reduce_one([correct, grader_failed], majority_reducer).value)
+    # "excluded" with a counted value is not an exclusion and still votes
+    relabelled = Score(value="I", reason="excluded")
+    assert _is_nan(_reduce_one([correct, relabelled], majority_reducer).value)
+
+
+def test_reduce_scores_all_excluded_skips_reducer() -> None:
+    calls: list[list[Score]] = []
+
+    @score_reducer(name="nan_as_zero")
+    def nan_as_zero() -> ScoreReducer:
+        def reduce(scores: list[Score]) -> Score:
+            calls.append(scores)
+            return Score(value=0.0)
+
+        return reduce
+
+    reducer = nan_as_zero()
+    first = _excluded(Score(value="C", answer="a1", metadata={"epoch": 1}))
+    second = _excluded(Score(value="I", answer="a2", metadata={"epoch": 2}))
+    sample_scores = [
+        SampleScore(sample_id="a", score=first),
+        SampleScore(sample_id="a", score=second),
+        SampleScore(sample_id="b", score=Score(value="C")),
+        SampleScore(sample_id="b", score=Score(value="C")),
+    ]
+
+    reduced = reduce_scores(sample_scores, reducer)
+    assert len(calls) == 1  # sample b only
+    by_id = {r.sample_id: r.score for r in reduced}
+    assert _is_nan(by_id["a"].value)
+    assert by_id["a"].reason == "excluded"
+    assert by_id["a"].answer == "a1"
+    assert by_id["a"].metadata == {"epoch": 1}
+    assert by_id["a"].history == []
+    assert first.history != []  # the sample's own score is not modified
+
+    eval_scores, _ = compute_eval_scores_for_views(
+        sample_scores,
+        [accuracy()],
+        "match",
+        ScorerInfo(name="match", metrics=[accuracy()]),
+        [reducer],
+    )
+    assert eval_scores[0].scored_samples == 1
+    assert eval_scores[0].unscored_samples == 1
+
+
+def test_reduce_scores_excluded_epoch_sample_metadata_matches_removal() -> None:
+    # solver-written sample metadata can differ per epoch; excluding an epoch
+    # must reduce like removing it, so the metadata comes from a kept epoch
+    first = SampleScore(
+        sample_id="a",
+        sample_metadata={"category": "refusal"},
+        score=_excluded(Score(value="I")),
+    )
+    kept = SampleScore(
+        sample_id="a", sample_metadata={"category": "success"}, score=Score(value="C")
+    )
+    other = SampleScore(
+        sample_id="b", sample_metadata={"category": "success"}, score=Score(value="I")
+    )
+
+    excluded = reduce_scores([first, kept, other], majority_reducer)
+    removed = reduce_scores([kept, other], majority_reducer)
+    assert excluded == removed
+    assert excluded[0].sample_metadata == {"category": "success"}
+
+    def grouped_metrics(sample_scores: list[SampleScore]) -> dict[str, Any]:
+        metric = grouped(accuracy(), "category")
+        eval_scores, _ = compute_eval_scores_for_views(
+            sample_scores,
+            [metric],
+            "match",
+            ScorerInfo(name="match", metrics=[metric]),
+            [majority_reducer],
+        )
+        return {k: v.value for k, v in eval_scores[0].metrics.items()}
+
+    assert grouped_metrics([first, kept, other]) == grouped_metrics([kept, other])
+
+    # every epoch excluded: the metadata of the first epoch is kept
+    all_excluded = reduce_scores(
+        [first, first.model_copy(update={"sample_metadata": {"category": "x"}})],
+        majority_reducer,
+    )
+    assert all_excluded[0].sample_metadata == {"category": "refusal"}
+
+
+@pytest.mark.parametrize(
+    "reducer",
+    [avg_reducer, median_reducer, max_reducer, mode_reducer],
+    ids=["mean", "median", "max", "mode"],
+)
+def test_reduce_scores_excluded_epoch_matches_kept_only(
+    reducer: ScoreReducer,
+) -> None:
+    excluded = _excluded(
+        Score(
+            value=0,
+            answer="wrong",
+            explanation="first epoch",
+            reason="refusal",
+            metadata={"epoch": 1},
+        )
+    )
+    kept = Score(
+        value=1,
+        answer="right",
+        explanation="second epoch",
+        reason="no_response",
+        metadata={"epoch": 2},
+    )
+    with_excluded = _reduce_one([excluded, kept], reducer)
+    kept_only = _reduce_one([kept], reducer)
+    assert with_excluded == kept_only
+    assert with_excluded.metadata == {"epoch": 2}
+    assert with_excluded.answer == "right"
+    assert with_excluded.explanation == "second epoch"
+    assert with_excluded.reason == "no_response"
+
+
+def test_recompute_drops_excluded_epoch() -> None:
+    task = Task(
+        dataset=[Sample(id="a", input="hi", target="mockllm")], scorer=includes()
+    )
+    log = eval(task, model="mockllm/model", epochs=Epochs(2, "majority"))[0]
+    assert log.results is not None
+    assert log.results.scores[0].metrics["accuracy"].value == 1.0
+
+    edit_score(
+        log,
+        "a",
+        "includes",
+        ScoreEdit(
+            value=float("nan"),
+            reason="excluded",
+            provenance=ProvenanceData(
+                timestamp=datetime.now(timezone.utc), author="op", reason="bad sample"
+            ),
+        ),
+        epoch=2,
+    )
+
+    assert log.results.scores[0].metrics["accuracy"].value == 1.0
+    assert log.results.scores[0].unscored_samples == 0
+    assert log.reductions is not None
+    assert log.reductions[0].samples[0].value == "C"
 
 
 def _is_nan(x: Any) -> bool:

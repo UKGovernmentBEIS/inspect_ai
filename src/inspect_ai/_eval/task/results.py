@@ -33,6 +33,7 @@ from inspect_ai.scorer._metric import (
     SampleScore,
     Value,
     metric_scores,
+    score_is_excluded,
 )
 from inspect_ai.scorer._metrics.accuracy import accuracy
 from inspect_ai.scorer._metrics.std import stderr
@@ -711,6 +712,13 @@ def resolve_glob_metric_keys(
 def reduce_scores(
     scores: list[SampleScore], reducer: ScoreReducer
 ) -> list[SampleScore]:
+    """Reduce each sample's epoch scores to one score.
+
+    Excluded epochs (`score_is_excluded()`) are left out, so the sample
+    reduces, sample metadata included, as if they had not run. When every
+    epoch is excluded the reducer is not called and the sample reduces to its
+    first excluded score, which counts as unscored.
+    """
     # Group the scores by sample_id
     grouped_scores: dict[str, list[SampleScore]] = defaultdict(list)
     for sample_score in scores:
@@ -720,11 +728,17 @@ def reduce_scores(
     # reduce the scores
     reduced_scores: list[SampleScore] = []
     for scores in grouped_scores.values():
-        reduced = reducer([score.score for score in scores])
+        kept = [score for score in scores if not score_is_excluded(score.score)]
+        if kept:
+            reduced = reducer([score.score for score in kept])
+            first = kept[0]
+        else:
+            first = scores[0]
+            reduced = first.score.model_copy(update={"history": []})
         reduced_scores.append(
             SampleScore(
-                sample_id=scores[0].sample_id,
-                sample_metadata=scores[0].sample_metadata,
+                sample_id=first.sample_id,
+                sample_metadata=first.sample_metadata,
                 score=reduced,
             )
         )

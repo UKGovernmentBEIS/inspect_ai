@@ -203,7 +203,7 @@ def check_max_tokens(max_tokens: int | None, reasoning_tokens: int, check_tokens
     log = eval(
         task,
         log_format="json",
-        model="anthropic/claude-sonnet-4-5",
+        model="anthropic/claude-sonnet-4-6",
         max_tokens=max_tokens,
         reasoning_tokens=reasoning_tokens,
     )[0]
