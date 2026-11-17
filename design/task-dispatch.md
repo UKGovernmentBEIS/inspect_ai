@@ -709,6 +709,13 @@ queued row and by a handle's `cancel()`, is synchronous:
   closed"), so no retry is published and the record ends with that
   attempt's log. No case reports `retry_abandoned`, which stays the answer
   for a pending retry of a registered task only.
+- (task-handles.md) A record fed through a handle: after the route above
+  (so a queued record's `abort_requested` is already set), `RunQueue.cancel`
+  closes the record's sample channel itself, in the same synchronous call,
+  in every phase but `ended`, whether or not the route's directive applied:
+  once the attempt's `EvalState` is terminal while the record is still in
+  `attempt` (its `task_complete` running), `cancel_task` answers "task
+  already finished" without calling `apply`.
 
 **Aborting an attempt that has not registered.** `start_attempt` creates
 the attempt's cancel scope and its `TaskCancel`, whose `apply` cancels that

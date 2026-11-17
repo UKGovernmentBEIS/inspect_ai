@@ -600,14 +600,17 @@ class PortRequest:
   first. `RunQueue.cancel` closes the channel when it sets the flag, and so
   can an explicit `close()` or the creator's attempt ending before the
   dispatcher's next pass, so the exception covers every close. A creator that forgets to
-  close cannot keep a rollout task open past its own attempt. So
-  `cancel()` of a fed task in its attempt closes the channel in the same
-  synchronous call, whichever route `RunQueue.cancel` takes (`cancel_task`
-  for a registered record, the stored `TaskCancel` for one that has not
-  registered; both reach `request("abort")` and `apply`): a send between
-  that `cancel()` and the task's end raises `RuntimeError` at once rather
-  than waiting through the abort's log write and `task_complete` for
-  `TaskEndedError`. Samples already buffered or running when a drain,
+  close cannot keep a rollout task open past its own attempt. A handle's
+  `cancel()` does not depend on the directive being accepted:
+  `RunQueue.cancel` closes a fed record's channel itself, after routing the
+  cancel (so a queued record's `abort_requested` is set first), in every
+  phase but `ended`. That covers a fed attempt that has already ended on
+  its own (its `EvalState` terminal, its enqueuer detached) while its
+  `task_complete` still runs: `cancel_task` then answers "task already
+  finished" without calling `apply`, and the record is still in `attempt`.
+  So a send between a fed task's `cancel()` and the record's end raises
+  `RuntimeError` at once rather than waiting through the abort's log
+  write, or the natural end's `task_complete`, for `TaskEndedError`. Samples already buffered or running when a drain,
   `score` or `error` cancel closes it follow the directive's existing rules
   and settle through `sample_complete` or `sample_abandoned`; an abort
   cancels them with the attempt, as today.
@@ -956,7 +959,11 @@ test touched), with mockllm models; every test that waits is bounded with
     being `ended`), both for a registered attempt whose sent sample is
     running (the solver sets an `anyio.Event` the test awaits first) and
     for one picked but not yet registered, and once the task has ended,
-    `TaskEndedError`; after `cancel()` once the task has ended,
+    `TaskEndedError`; for a fed task that failed on its own, with its
+    `task_complete` held on an `anyio.Event` (its `EvalState` terminal, the
+    record still in `attempt`), `handle.cancel()` followed by a send raises
+    plain `RuntimeError` and buffers nothing, and after the test releases
+    the callback and the record ends, a send raises `TaskEndedError`; after `cancel()` once the task has ended,
     `TaskEndedError`;
   - a fed task built as
     `task_with(registered_task(), dataset=samples_from_handle())` from a
@@ -1109,7 +1116,8 @@ that guarantee.
 - `_eval/task/enqueue.py` (`TaskHandle`, the errors, `TaskAttempt` and
   `_attempt`, `result()` refusing a handle whose task is
   not fed through it, the `max_sandboxes` warning naming its `inspect ctl
-  config` command, `enqueue_task()` returning handles, passing its creator
+  config` command, `RunQueue.cancel` closing a fed record's channel itself
+  in every phase but `ended`, `enqueue_task()` returning handles, passing its creator
   and refusing a fed task outside an attempt or with `epochs` above 1),
   `_eval/task/sample_source.py` (`HandleChannel`, `samples_from_handle()`,
   the free `enqueue_sample()` refusal), `_eval/task/run.py` (attach and
@@ -1165,7 +1173,8 @@ eval set's result read (the 2026-11-04 decision's refusal and counting
 from the log, without the schema field dropped then), and every cancel
 through the attempt's `TaskCancel` (`abort`, `drain`, `score` or `error`)
 closes the channel in its `apply` (`abort` added 2026-11-17, so `cancel()`
-of a running fed task closes it at once), with no separate stopped
+of a running fed task closes it at once, and `RunQueue.cancel` closes it
+too, whether or not the directive applies), with no separate stopped
 state (narrowing the 2026-11-12 send error order to ended, then closed);
 and
 (2026-11-17) a fed task's
