@@ -2,7 +2,7 @@ import ast
 import builtins
 import re
 from textwrap import dedent
-from typing import Set
+from typing import Any
 
 from inspect_ai import Task, task
 from inspect_ai.agent import react
@@ -32,6 +32,13 @@ def approval_demo() -> Task:
     )
 
 
+def name_set(names: Any) -> set[str]:
+    """Check configured names (a bare string would match character by character)."""
+    if not isinstance(names, list | set) or not all(isinstance(n, str) for n in names):
+        raise TypeError(f"Expected a list of strings, but got: {names!r}")
+    return set(names)
+
+
 @approver
 def bash_allowlist(
     allowed_commands: list[str],
@@ -53,10 +60,11 @@ def bash_allowlist(
     Returns:
         Approver: A function that approves or rejects bash commands based on the allowed list and rules.
     """
-    command_specific_rules = command_specific_rules or {}
+    allowed = name_set(allowed_commands)
+    rules = {k: name_set(v) for k, v in (command_specific_rules or {}).items()}
     # characters with no special meaning to bash, and space to separate words
     # (`=` can only assign in the first word, which must be an allowed command)
-    plain_command = re.compile(r"[A-Za-z0-9_./:=@%+, -]+")
+    plain_command = re.compile(r"[A-Za-z0-9_./:=@%+, -]*")
 
     async def approve(
         message: str,
@@ -77,34 +85,30 @@ def bash_allowlist(
         if not plain_command.fullmatch(command):
             return Approval(
                 decision="reject",
-                explanation="Only a single plain command is allowed: letters, digits, spaces and _./:=@%+,- (no quotes, variables, globs, pipes, redirects or newlines).",
+                explanation="Only a single plain command is allowed: ASCII letters, digits, spaces and _./:=@%+,- (no quotes, variables, globs, pipes, redirects or newlines).",
             )
 
         # with only plain characters, bash splits the command into the same words
         tokens = command.split()
 
-        # Handle sudo
         if tokens[:1] == ["sudo"]:
             if not allow_sudo:
                 return Approval(decision="reject", explanation="sudo is not allowed")
             tokens = tokens[1:]
 
         base_command = tokens[0] if tokens else ""
-        if base_command not in allowed_commands:
+        if base_command not in allowed:
             return Approval(
                 decision="escalate",
-                explanation=f"Command '{base_command}' is not in the allowed list. Allowed commands: {', '.join(allowed_commands)}",
+                explanation=f"Command '{base_command}' is not in the allowed list. Allowed commands: {', '.join(sorted(allowed))}",
             )
 
-        # Check command-specific rules
-        if base_command in command_specific_rules:
-            allowed_subcommands = command_specific_rules[base_command]
-            subcommand = " ".join(tokens[1:2])
-            if subcommand not in allowed_subcommands:
-                return Approval(
-                    decision="escalate",
-                    explanation=f"{base_command} subcommand '{subcommand}' is not allowed. Allowed subcommands: {', '.join(allowed_subcommands)}",
-                )
+        subcommand = tokens[1] if len(tokens) > 1 else ""
+        if base_command in rules and subcommand not in rules[base_command]:
+            return Approval(
+                decision="escalate",
+                explanation=f"{base_command} subcommand '{subcommand}' is not allowed. Allowed subcommands: {', '.join(sorted(rules[base_command]))}",
+            )
 
         return Approval(
             decision="approve", explanation=f"Command '{command}' is approved."
@@ -117,8 +121,8 @@ def bash_allowlist(
 def python_allowlist(
     allowed_modules: list[str],
     allowed_functions: list[str],
-    disallowed_builtins: Set[str] | None = None,
-    sensitive_modules: Set[str] | None = None,
+    disallowed_builtins: list[str] | None = None,
+    sensitive_modules: list[str] | None = None,
 ) -> Approver:
     """
     Create an approver that checks if Python code uses only allowed modules and functions.
@@ -131,18 +135,20 @@ def python_allowlist(
     Args:
         allowed_modules (list[str]): List of allowed Python modules.
         allowed_functions (list[str]): List of allowed built-in functions.
-        disallowed_builtins (Set[str] | None): Built-in functions to never allow (replaces the default set).
-        sensitive_modules (Set[str] | None): Modules to never allow (replaces the default set).
+        disallowed_builtins (list[str] | None): Built-in functions to never allow (a non-empty list replaces the defaults).
+        sensitive_modules (list[str] | None): Modules to never allow (a non-empty list replaces the defaults).
 
     Returns:
         Approver: A function that approves or rejects Python code based on the allowed list and rules.
     """
-    never_functions = {"eval", "exec", "compile", "__import__", "open", "input"}
-    functions = set(allowed_functions) - set(disallowed_builtins or never_functions)
-    never_modules = {"os", "sys", "subprocess", "socket", "requests"}
-    modules = set(allowed_modules) - set(sensitive_modules or never_modules)
+    never_functions = ["eval", "exec", "compile", "__import__", "open", "input"]
+    functions = name_set(allowed_functions) - name_set(
+        disallowed_builtins or never_functions
+    )
+    never_modules = ["os", "sys", "subprocess", "socket", "requests", "builtins"]
+    modules = name_set(allowed_modules) - name_set(sensitive_modules or never_modules)
     # the only syntax that is ever approved
-    simple_syntax = "Module Expr Assign AugAssign For If Import alias Call keyword Name Attribute Load Store Constant JoinedStr FormattedValue List Tuple Dict BinOp UnaryOp BoolOp Compare IfExp operator unaryop boolop cmpop"
+    simple_syntax = "Module Expr Assign AugAssign For If Pass Break Continue Import alias Call keyword Name Attribute Load Store Constant JoinedStr FormattedValue List Tuple Dict BinOp UnaryOp BoolOp Compare IfExp operator unaryop boolop cmpop"
     simple_nodes = tuple(getattr(ast, name) for name in simple_syntax.split())
     builtin_names = set(dir(builtins))
 
@@ -159,13 +165,13 @@ def python_allowlist(
             if isinstance(node, ast.alias) and (
                 node.asname or "." in node.name or node.name not in modules
             ):
-                return f"Only a plain import of an allowed module is approved (not '{node.name}'). Allowed modules: {', '.join(sorted(modules))}"
+                return f"Only a plain import of an allowed module is approved (not 'import {ast.unparse(node)}'). Allowed modules: {', '.join(sorted(modules))}"
             # allowed names can't be reassigned, and other names can't be built-ins
-            if isinstance(node, ast.Name) and node.id in modules | functions:
-                if isinstance(node.ctx, ast.Store):
-                    return f"'{node.id}' can't be reassigned."
-            elif isinstance(node, ast.Name):
-                if node.id in builtin_names or node.id.startswith("_"):
+            if isinstance(node, ast.Name):
+                if node.id in modules | functions:
+                    if isinstance(node.ctx, ast.Store):
+                        return f"'{node.id}' can't be reassigned."
+                elif node.id in builtin_names or node.id.startswith("_"):
                     return f"Name '{node.id}' is not allowed (it is private or a built-in that is not in the allowed list)."
             if isinstance(node, ast.Attribute) and not (
                 isinstance(node.value, ast.Name)
@@ -195,6 +201,7 @@ def python_allowlist(
                 explanation="Expected the code as a single string argument.",
             )
 
+        # as well as bad syntax: null bytes (ValueError) and nesting too deep to parse
         try:
             reason = review(args[0])
         except (SyntaxError, ValueError, RecursionError, MemoryError) as e:
