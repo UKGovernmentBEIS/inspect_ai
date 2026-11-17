@@ -212,11 +212,9 @@ record. Sentinel replay pairs a native call with its checks by it. Live
 records every execution's tool steps under the call id, but a replayed step
 id must be unique for its stage, so when two executions of one call id are
 rebuilt (a retry after a tool error, a provider that repeats ids), the first
-keeps the call id and each later one is named by its `execution_id`. Replay
-names a host run's steps by the same rule, under the id the call was handed
-over under, so native and bridged executions of one call id share it. The
+keeps the call id and each later one is named by its `execution_id`. The
 `human_decisions` of later steps keep the call id, as live records it. A log
-without the ids replays native calls as before, and skips host calls.
+without the ids replays as before.
 
 A `_Proposal` is referenced only by its grants, so pairing state lives in the
 bounded grant store (1024 entries) and is dropped with the last of its grants,
@@ -577,58 +575,9 @@ proposal, and fixing the pairing would mean keeping evicted grants.
   `sentinel_bridge` span under the request, not under the tool span: the
   request carries the call's id, which the MCP call does not. The steps
   record the handout's execution of the tool they judged (see Execution
-  ids). Sentinel replay rebuilds a host call's steps only where a recorded
-  check anchors them, each where its check began, for a `ToolEvent` with
-  `metadata["bridge"]` whose `call_message_id` names one model call's
-  output holding the call under `proposal_id`. The `tool_call` step is built
-  where a `tool_call` check names the run's execution, and the `tool_result`
-  step where a `tool_result` check does, from the tool message `message_id`
-  names. The bridge hands a call over after the request completes, its
-  response filter runs and its approvals are decided, and checks a reported
-  result when the request carrying it arrives, before its compaction,
-  request filter and model call; the log records none of these points
-  except through a check. A result check made once the call's id was handed
-  out again names no execution, as the bridge can't tell which handout the
-  result answers, so it anchors no run. The steps are named as a native
-  execution's are (see Execution ids), so a run under a call id an earlier
-  rebuilt execution took is named by its `execution_id`; a run takes its
-  call id only where replay builds one of its steps, so a later execution
-  under the id keeps it, as live. A host call made
-  in a scorer has none, as a native call has none. Replay skips steps with
-  one warning per case:
-  - Every host call in a log without execution ids.
-  - A step no check was recorded for, including a check at which every
-    instance abstained, which records no event. A `tool_result` step counts
-    only where the bridge linked a reported result. Placing such steps
-    exactly needs the bridge to record its handouts and reports (follow-up).
-  - A checked `tool_result` step whose link the bridge did not mark
-    unfiltered (`metadata["bridge"]["result_unfiltered"]`). The bridge
-    checks a result before the request's filter, which can rewrite the
-    message and keep its id (inspect_swe's Kimi Code cleanup strips
-    reminders the agent appended). The bridge marks a link made with no
-    filter, and one whose message the filter left unchanged in the first
-    request whose filter ran on it, unless the filter returned the request's
-    output itself. A log from before the mark has none. Kimi Code's adapter
-    also renames tool call ids in its filter, which changes every result it
-    carries, so its host results are skipped. The step is also skipped where
-    the log holds several contents under the message's id, or, for a run
-    without an error, a message without the start of the run's result.
-  - A checked step the bridge did not mark as checked with the call's
-    proposal (`metadata["bridge"]["call_checked_with_proposal"]`,
-    `["result_checked_with_proposal"]`): the model call that proposed the
-    call, whose input, tools and message the step has. The bridge checks a
-    handout without it where a response filter returned other output than
-    the model call's (a copy or an edit), and a result without it once it
-    no longer holds the proposal (`_MAX_PROPOSALS`, 1,000 calls). It marks
-    the call check from the grant the run consumed, and the result check on
-    the run's event, found by its execution among the runs it linked
-    (`_linked_runs`); a run it no longer holds there isn't marked, so is
-    skipped.
-  - A host call the log does not join to its proposal, a run whose
-    execution an earlier run's steps took, and a shared handout's run under
-    a fresh event id, whose checks have the id the call was handed over
-    under, and a result check made once the call's id was handed out
-    again.
+  ids). Sentinel replay
+  rebuilds no tool stage for a `ToolEvent` with `metadata["bridge"]`, and
+  warns.
 - **Hooks, control server, TUI, dataframes.** Pending host events drive the
   TUI's running state and the control server's activity and cancellation like
   native ones. Hooks receive each non-pending update. `events_df()` has `tool`

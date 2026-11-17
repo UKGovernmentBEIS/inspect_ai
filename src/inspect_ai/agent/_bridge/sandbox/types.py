@@ -222,7 +222,6 @@ class SandboxAgentBridge(AgentBridge):
                 execution_id=self._proposing_execution_ids[index]
                 if self._proposing_execution_ids is not None
                 else None,
-                checked_with_proposal=self._proposing_checked_with_proposal,
             )
             for target in targets:
                 if (
@@ -624,7 +623,6 @@ class _Proposal:
         "reply",
         "executions",
         "ambiguous",
-        "checked_with_proposal",
     )
 
     def __init__(
@@ -636,7 +634,6 @@ class _Proposal:
         *,
         proposal_id: str | None = None,
         execution_id: str | None = None,
-        checked_with_proposal: bool = False,
     ) -> None:
         self.call = call
         """The proposing call as handed to the scaffold, with the function name as the model saw it."""
@@ -661,9 +658,6 @@ class _Proposal:
 
         self.ambiguous = False
         """Whether an execution matched this proposal's grants and another proposal's alike, so which call it ran is unknown."""
-
-        self.checked_with_proposal = checked_with_proposal
-        """Whether a sentinel checked the call at its handout with the model call that proposed it (`AgentBridge._proposing_checked_with_proposal`), recorded on its executions' `ToolEvent`s."""
 
     def take_id(self) -> str:
         """The `ToolEvent` id for the next execution of this proposal.

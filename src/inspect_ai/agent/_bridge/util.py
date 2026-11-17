@@ -1551,9 +1551,6 @@ async def _bridge_generate_impl(
                 elif isinstance(result, GenerateInput):
                     # Update the inputs that will be used for generation
                     input_messages, tools, tool_choice, config = result
-                bridge._mark_unfiltered_results(
-                    input_messages, generated=output is None
-                )
 
             # Run the generation if the filter didn't. If the bridge has a
             # model_event_sink installed, route ModelEvent emissions through it
@@ -1718,9 +1715,6 @@ async def _bridge_generate_impl(
             bridge._proposing_call_verified = verified_calls
             bridge._proposing_model_ids = model_ids
             bridge._proposing_execution_ids = execution_ids
-            bridge._proposing_checked_with_proposal = (
-                reviewed.sentinel is not None and producer is not None
-            )
             try:
                 bridge.register_tool_execution_grants(
                     handed,
@@ -1733,7 +1727,6 @@ async def _bridge_generate_impl(
                 bridge._proposing_call_verified = None
                 bridge._proposing_model_ids = None
                 bridge._proposing_execution_ids = None
-                bridge._proposing_checked_with_proposal = False
             return reviewed.output, c_message
 
         rejections += 1

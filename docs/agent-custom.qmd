@@ -453,19 +453,7 @@ If two calls continue the same turn and no later call resolves the fork, replay 
 
 Without recorded origins, a failed call's input may leave an earlier fork unresolved, and a custom solver's own calls may be inferred as agent turns when its only agent is unwrapped.
 
-Replay joins each tool call to the model call that proposed it by the message id its `ToolEvent` records (`call_message_id`). Where a cached output gives several model calls that message id, it takes the latest of those model calls before the tool call, in the tool call's own conversation. In logs written before the id, it takes the latest model call that proposed the call's id instead. A tool step's id is its call id, but where an earlier execution's steps have that id (e.g. a retry), a later execution's steps are named by its `execution_id`.
-
-A host tool call that a sandbox agent bridge ran is replayed at the bridge's sentinel checks. Replay builds its `tool_call` step where the bridge's check of the call was recorded, and its `tool_result` step where the bridge's check of the result was recorded. The result is the tool message the agent reported it in (`message_id`).
-
-Replay skips a host call's tool steps, with a warning naming the call, in five cases:
-
-- The log was written before Inspect recorded execution ids (`ToolEvent.execution_id`), which tie a host call's checks to its run.
-- No sentinel check was recorded for the step. Without one, the log does not show when the agent was handed the call or reported its result. This includes every host call in a log from an eval without a sentinel, and a check at which every monitor and protocol returned nothing, which records no event.
-- The bridge did not record that the result reached the model as the agent sent it (`metadata["bridge"]["result_unfiltered"]`). A request filter can rewrite a tool message and keep its id (e.g. Kimi Code's adapter in inspect_swe), so the log may not hold the result the bridge checked. This skips the `tool_result` step only.
-- The bridge did not record that it checked the step with the model call that proposed the call (`metadata["bridge"]["call_checked_with_proposal"]` and `["result_checked_with_proposal"]`). A check without it has no model input or tools. The bridge checks both steps without it where a response filter returns a copy or an edit of the model's output, and checks a result without it when the bridge has handed over 1,000 more calls before the result is reported (e.g. in a long Claude Code run, whose subagents share one bridge).
-- The log does not tie the call to the model call that proposed it, or a check to the run it judged (e.g. a result checked after the call's id was handed out again).
-
-A tool call that a bridged agent runs itself, rather than through the bridge, leaves no `ToolEvent` and has no tool steps.
+Replay joins each tool call to the model call that proposed it by the message id its `ToolEvent` records (`call_message_id`). Where a cached output gives several model calls that message id, it takes the latest of those model calls before the tool call, in the tool call's own conversation. In logs written before the id, it takes the latest model call that proposed the call's id instead. A tool step's id is its call id, but where an earlier execution's steps have that id (e.g. a retry), a later execution's steps are named by its `execution_id`. Replay skips the tool steps of calls an agent bridge ran or checked, and logs a warning naming them.
 
 Sentinel event replay requires a log written by Inspect 0.3.100 or later. Earlier logs lack the `solvers` and `scorers` spans that separate the agent's work from scoring (and, before 0.3.94, native tool spans), so `steps_from_events()` raises an error rather than replaying them incorrectly. This includes samples that a retried eval carried over from such a log, whatever version its header records. Replay those logs from their messages instead. In supported logs, a spanless tool event can mark a call halted before execution and does not create tool steps.
 

@@ -21,25 +21,7 @@ class ToolEvent(BaseEvent):
     `grant` (`"consumed"` when a proposal matched, `"denied"` when the call
     was refused for lack of one, `"exempt"` when a server registered with
     `require_proposal=False` ran it without one, or `None` when the request
-    was rejected before that check). Where the bridge links the execution
-    to the tool message holding its result (`message_id`), it records
-    `result_unfiltered` (`True`) when it can tell that message holds what the
-    scaffold sent: no request filter is set, or the filter left the message
-    unchanged and the bridge's own generation used it, in the request that
-    first carried it. Otherwise the key is absent (for example, the filter
-    changed the message, returned the request's output itself, or never ran
-    on the message).
-
-    Where a sentinel was active when the bridge handed the call over, the
-    bridge records `call_checked_with_proposal` (`True`) when it had the
-    model call that proposed the call (its input, tools and message), which
-    the call's `tool_call` check, if any, used. A response filter that
-    returns other output than the model call's (a copy or an edit) leaves it
-    without it. Where a sentinel checked the
-    linked result, `result_checked_with_proposal` (`True`) records the same
-    of that check, which also lacks it once the bridge no longer holds the
-    call's proposal (it holds those of the last 1,000 calls it handed over).
-    Otherwise each key is absent.
+    was rejected before that check).
     """
 
     event: Literal["tool"] = Field(default="tool")
