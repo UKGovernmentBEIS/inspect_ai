@@ -30,11 +30,12 @@ class ToolEvent(BaseEvent):
     changed the message, returned the request's output itself, or never ran
     on the message).
 
-    Where a sentinel checked the call when the bridge handed it over, the
-    bridge records `call_checked_with_proposal` (`True`) when that check had
-    the model call that proposed it: its input, tools and message. A
-    response filter that returns other output than the model call's (a copy
-    or an edit) leaves the check without it. Where a sentinel checked the
+    Where a sentinel was active when the bridge handed the call over, the
+    bridge records `call_checked_with_proposal` (`True`) when it had the
+    model call that proposed the call (its input, tools and message), which
+    the call's `tool_call` check, if any, used. A response filter that
+    returns other output than the model call's (a copy or an edit) leaves it
+    without it. Where a sentinel checked the
     linked result, `result_checked_with_proposal` (`True`) records the same
     of that check, which also lacks it once the bridge no longer holds the
     call's proposal (it holds those of the last 1,000 calls it handed over).

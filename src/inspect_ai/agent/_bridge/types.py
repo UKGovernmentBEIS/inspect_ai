@@ -592,7 +592,7 @@ class AgentBridge:
     """The handout id of each call being registered, aligned with them (`_Handed.execution_id`); a grant's host run records its tool's execution id derived from it (`target_execution_id`)."""
 
     _proposing_checked_with_proposal: bool = False
-    """Whether a sentinel checked the calls being registered with the model call that produced them (`Produced`): not where a response filter returned other output than the model call's, as the checks then have no model input and the message handed over. A grant's host run records it (`call_checked_with_proposal`)."""
+    """Whether the bridge had the model call that produced the calls being registered (`Produced`), with a sentinel active, so their checks had its input, tools and message: not where a response filter returned other output than the model call's, as the checks then have no model input and the message handed over. A grant's host run records it (`call_checked_with_proposal`)."""
 
     def _handed_calls(
         self, reply_id: str, calls: Sequence[ToolCall]
