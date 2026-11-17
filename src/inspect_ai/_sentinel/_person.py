@@ -1,12 +1,11 @@
 """Ask a person about a tool call, a model's whole turn, or a model's request, through Inspect's human approval surfaces.
 
 A sentinel in the eval's own process asks through `human()`. A sentinel in a
-sidecar asks through the sidecar's questions. Both show a call or a turn the
-same way and read the person's choice the same way. One thing differs: a
-sidecar holds the model's reply while it asks about it, so Inspect has shown the
-person none of the turn, and the question's view holds what the turn says and
-reasons too (see `_turn_content`). Only a sentinel in the eval's own process
-asks about a request so far.
+sidecar asks through the sidecar's questions. Both show a call, a turn or a
+request the same way and read the person's choice the same way. One thing
+differs: a sidecar holds the model's reply while it asks about it, so Inspect
+has shown the person none of the turn, and the question's view holds what the
+turn says and reasons too (see `_turn_content`).
 """
 
 import re
