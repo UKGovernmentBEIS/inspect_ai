@@ -856,6 +856,7 @@ async def test_hf_output_records_model_config(
     assert output.metadata["hf_model_config"] == {
         "chat_template": {
             "source": "model_arg",
+            "name": None,
             "sha256": hashlib.sha256(template.encode()).hexdigest(),
         },
         "generation_config": {"source": "auto", "values": {}},
@@ -982,6 +983,7 @@ def test_hf_model_config_records_disabled_chat_template(monkeypatch) -> None:
 
     assert api.repo_config.model_dump()["chat_template"] == {
         "source": None,
+        "name": None,
         "sha256": None,
     }
 
@@ -1005,6 +1007,7 @@ def test_hf_model_config_hashes_named_chat_templates(monkeypatch) -> None:
     ).hexdigest()
     assert api.repo_config.model_dump()["chat_template"] == {
         "source": "tokenizer",
+        "name": None,
         "sha256": expected,
     }
 
@@ -1029,3 +1032,26 @@ def test_hf_model_config_round_trips_through_log(monkeypatch) -> None:
     assert restored.metadata == output.metadata
     values = restored.metadata["hf_model_config"]["generation_config"]["values"]
     assert values["sequence_bias"] == {"(42,)": 10.0}
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+@pytest.mark.parametrize("tool_use_template", ["tools-v1", "tools-v2"])
+def test_hf_model_config_hashes_selected_named_template(
+    monkeypatch, tool_use_template: str
+) -> None:
+    """A template name passed as chat_template is recorded by its contents."""
+    import hashlib
+
+    from inspect_ai.model._providers.hf import HuggingFaceAPI
+
+    templates = {"default": "a", "tool_use": tool_use_template}
+    _patch_hf_loaders(monkeypatch, _repo_generation_config(), chat_template=templates)
+
+    api = HuggingFaceAPI(model_name="org/model", chat_template="tool_use")
+
+    assert api.repo_config.model_dump()["chat_template"] == {
+        "source": "tokenizer",
+        "name": "tool_use",
+        "sha256": hashlib.sha256(tool_use_template.encode()).hexdigest(),
+    }

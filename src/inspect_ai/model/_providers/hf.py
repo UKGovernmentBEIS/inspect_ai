@@ -83,8 +83,11 @@ class HFChatTemplateInfo(BaseModel):
     source: Literal["tokenizer", "model_arg"] | None
     """`tokenizer` (the tokenizer's template), `model_arg` (the `chat_template` model arg), or `None` when no template is applied."""
 
+    name: str | None = None
+    """Name of the tokenizer template selected by the `chat_template` model arg."""
+
     sha256: str | None
-    """SHA-256 of the template (named templates are hashed as sorted JSON)."""
+    """SHA-256 of the template text. When the tokenizer has named templates and none is selected, the full set is hashed as sorted JSON."""
 
 
 class HFGenerationConfigInfo(BaseModel):
@@ -389,9 +392,20 @@ class HuggingFaceAPI(ModelAPI):
         what the repository contributed to a result.
         """
         chat_template = self._effective_chat_template()
+        tokenizer_templates = self.tokenizer.chat_template
+        template_name: str | None = None
         template_source: Literal["tokenizer", "model_arg"] | None
         if chat_template is None:
             template_source = None
+        elif (
+            isinstance(self.chat_template, str)
+            and isinstance(tokenizer_templates, dict)
+            and self.chat_template in tokenizer_templates
+        ):
+            # transformers treats the model arg as a template name here
+            template_name = self.chat_template
+            chat_template = tokenizer_templates[template_name]
+            template_source = "tokenizer"
         elif isinstance(self.chat_template, str):
             template_source = "model_arg"
         else:
@@ -405,7 +419,9 @@ class HuggingFaceAPI(ModelAPI):
         }
         return HFModelConfig(
             chat_template=HFChatTemplateInfo(
-                source=template_source, sha256=chat_template_sha256(chat_template)
+                source=template_source,
+                name=template_name,
+                sha256=chat_template_sha256(chat_template),
             ),
             generation_config=HFGenerationConfigInfo(
                 source=self.generation_config_source, values=values

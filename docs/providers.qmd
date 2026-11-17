@@ -1107,7 +1107,7 @@ With `default` or a path, the BOS, EOS, PAD and decoder start token ids are stil
 inspect eval gsm8k.py --model hf/some-org/fine-tuned-model -M generation_config=default
 ```
 
-Each `ModelOutput` records the model's configuration in `metadata["hf_model_config"]`: the chat template's source (`tokenizer` or `model_arg`) and SHA-256, the model's generation config fields that differ from the `transformers` defaults, and whether `trust_remote_code` was set. The recorded generation config is the model's own; values your `GenerateConfig` sets (such as `temperature`) override it at generation time.
+Each `ModelOutput` records the model's configuration in `metadata["hf_model_config"]`: the chat template's source (`tokenizer` or `model_arg`), the name of the tokenizer template selected by `chat_template` (if any), and the SHA-256 of the template text, the model's generation config fields that differ from the `transformers` defaults, and whether `trust_remote_code` was set. The recorded generation config is the model's own; values your `GenerateConfig` sets (such as `temperature`) override it at generation time.
 
 ### Untrusted Model Repositories {#hf-untrusted-repos}
 
