@@ -134,6 +134,27 @@ def content_key(message: ChatMessage) -> str:
         return f"object:{id(message)}"
 
 
+def not_sent_before(
+    input: Sequence[ChatMessage], history: Sequence[ChatMessage] | None
+) -> list[tuple[int, ChatMessage]]:
+    """The messages of a request that the model has not been sent before, each with its position in the request, counting from 1.
+
+    A message was sent before if `history` holds one with the same content (`content_key()`). So a message rewritten since it was sent is here as its new version, as is an assistant message the scaffold wrote itself. A message sent before is left out wherever it now sits: one that moved, or that is sent a second time, is not here.
+
+    Args:
+        input: The messages the request sends the model.
+        history: What the conversation has sent the model before this request, as `step.history` holds it. With None, where that isn't known, every message is returned.
+    """
+    if history is None:
+        return list(enumerate(input, 1))
+    sent = {content_key(message) for message in history}
+    return [
+        (position, message)
+        for position, message in enumerate(input, 1)
+        if content_key(message) not in sent
+    ]
+
+
 class FoldInput(Protocol):
     """One agent turn's input, as the fold reads it."""
 
