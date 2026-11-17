@@ -21,9 +21,9 @@ samples: an ordinary eval of the task with the built-in solver
 `empty_attempt()`, which does nothing. `Task.setup` still runs, so the
 sample's environment is prepared, and the task's own scorers then score the
 state setup leaves. Then `zero_samples()` copies those verdicts from the
-empty-attempt log into the target log, with the reason `"zeroed"`. A verdict
-that would not count (no score, an unscored value, a dict or list) is
-refused, and the operator can exclude the sample instead.
+empty-attempt log into the target log, with the reason `"zeroed"`. A missing,
+unscored or structured (dict or list) verdict is refused, and the operator
+can exclude the sample instead.
 
 Both are Python functions in `inspect_ai.log` (`exclude_samples()`,
 `zero_samples()`) and two `inspect log` subcommands (`exclude`, `zero`).
@@ -50,11 +50,12 @@ excluded epoch would still reach the epoch reducer, and not every reducer
 skips `NaN` (`majority` counts it toward the panel; a custom reducer may turn
 it into a counted `0.0`). Zero needs the task's scorer, because what a zero
 is depends on it: typically `I` for `match()`, `0` for a numeric scorer, a
-failed test in a sandbox. Zero copies whatever counted verdict the scorer
-gives the empty attempt and does not check that it is a failure: a scorer
-that accepts an empty answer (`match()` against a target with no letters or
-digits scores an empty completion `C`) zeroes the sample as a success. Getting that verdict by cancelling a re-run as each sample
-starts is neither empty nor deterministic: solver steps before the first
+failed test in a sandbox. Zero copies whatever verdict the scorer gives the
+empty attempt, once it passes the verdict rule below, and does not check that
+it is a failure: a scorer that accepts an empty answer (`match()` against a
+target with no letters or digits scores an empty completion `C`) zeroes the
+sample as a success. Getting that verdict by cancelling a re-run as each
+sample starts is neither empty nor deterministic: solver steps before the first
 cancellation checkpoint run, and an agent may reach its first model call.
 
 A solver override that does nothing makes the empty attempt an ordinary,
@@ -65,8 +66,8 @@ deterministic eval, and both dispositions become log-to-log edits.
 - Logs that have landed: neither function works on a running eval.
 - Exclusion works on any landed log with samples.
 - Zero works on samples with **string ids**, from an empty-attempt log of
-  the same task whose verdicts are **counted single values without
-  transcript references**. The producers that exist (Steward's rulings over
+  the same task whose verdicts are **single values that are not
+  `NaN`, without transcript references**. The producers that exist (Steward's rulings over
   static datasets with string ids and scalar scorers) need nothing more;
   every other shape is refused with an error naming the sample and cause.
 - A disposition never changes a sample's `error`, the log's `status`, or
@@ -229,7 +230,7 @@ excluded instead:
 - The empty-attempt log holds a sample with that id and the target's epoch,
   and that sample has no `error` and no `limit`.
 - **The verdict rule.** The empty-attempt sample holds at least one score,
-  and every score it holds counts:
+  and every score it holds meets all of these:
   - its value is a `str`, `int`, `float` or `bool` (not a dict or list);
   - its value is not a float `NaN` (an unscored verdict, such as a grader
     failure; the error quotes its reason and explanation);
@@ -242,8 +243,10 @@ excluded instead:
   conditional scorer, a solver-written score or an appended rescoring can
   leave one behind).
 
-The counted-value rule is the standard score filter's. Individual metrics
-may apply further requirements (`krippendorff_alpha()` skips a scalar with a
+The root-`NaN` check follows the standard unscored filter. Refusing dict
+and list verdicts is zero's own restriction: ordinary metrics count
+dict-valued scores (keyed metrics read them), but zero supports single-value
+verdicts only. Individual metrics may apply further requirements (`krippendorff_alpha()` skips a scalar with a
 warning), so a successful recomputation does not prove that every metric uses
 the score.
 
@@ -397,8 +400,9 @@ inspect log zero    LOG_FILE --from EMPTY_LOG --sample ID [--sample ID ...] [--e
   function imports a task file or runs task code. Metrics and reducers are
   rebuilt from header names by the untrusted resolver described in
   [Code execution from a malicious eval log](malicious-log-code-execution.md),
-  with the same registry lookups as `recompute_metrics()`, which refuses
-  metric options that name a model or a non-metric registry object.
+  with the same registry lookups as `recompute_metrics()`, whose metric
+  options may construct only registered metrics and score reducers (see its
+  [allow-list](malicious-log-code-execution.md#untrusted-metric-options-construct-only-metrics-and-reducers)).
 - **Copied verdicts** (value, answer, explanation, metadata) are data from
   the empty-attempt log, stored as a score edit. Verdicts with transcript
   references are refused, so no copied link points into another transcript.
