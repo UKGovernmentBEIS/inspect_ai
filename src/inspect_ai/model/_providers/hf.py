@@ -567,15 +567,28 @@ def resolve_generation_config(
     """Build the generation config used in place of the model repository's.
 
     `"default"` uses the `transformers` defaults. Any other value is a local
-    path or Hub id to load the config from. In both cases the special token ids
-    come from the repository, since they refer to its tokenizer's vocabulary and
-    generation needs the EOS token to stop.
+    path or Hub id to load the config from, using the model's generation config
+    class. In both cases the special token ids come from the repository, since
+    they refer to its tokenizer's vocabulary and generation needs the EOS token
+    to stop.
+
+    Raises:
+        ValueError: `"default"` was requested for a model whose generation
+            config is a `GenerationConfig` subclass. Such models (e.g. diffusion
+            models) need model-specific settings that have no defaults.
     """
-    config = (
-        GenerationConfig.from_dict({})
-        if source == "default"
-        else GenerationConfig.from_pretrained(source, token=token)
-    )
+    config_class = type(repo_config)
+    if source == "default":
+        if config_class is not GenerationConfig:
+            raise ValueError(
+                "generation_config='default' is not supported for models that "
+                f"use {config_class.__name__}, whose settings are model-specific. "
+                "Pass a path or Hugging Face Hub id to a generation config you "
+                "trust instead."
+            )
+        config = GenerationConfig.from_dict({})
+    else:
+        config = config_class.from_pretrained(source, token=token)
     for name in GENERATION_SPECIAL_TOKENS:
         setattr(config, name, getattr(repo_config, name, None))
     # transformers 4.x regenerates a config marked as derived from the model

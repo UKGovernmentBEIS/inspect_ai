@@ -1129,3 +1129,42 @@ def test_hf_generation_config_object_passes_to_from_pretrained(monkeypatch) -> N
     recorded = api.repo_config.model_dump()["generation_config"]
     assert recorded["source"] == "object"
     assert recorded["values"]["repetition_penalty"] == 1.3
+
+
+def _custom_generation_config_class() -> Any:
+    from transformers import GenerationConfig
+
+    class CustomGenerationConfig(GenerationConfig):
+        def __init__(self, **kwargs: Any) -> None:
+            self.max_denoising_steps = kwargs.pop("max_denoising_steps", None)
+            super().__init__(**kwargs)
+
+    return CustomGenerationConfig
+
+
+@skip_if_no_transformers
+def test_hf_generation_config_path_keeps_model_config_class(tmp_path) -> None:
+    """A config loaded from a path uses the model's GenerationConfig subclass."""
+    from inspect_ai.model._providers.hf import resolve_generation_config
+
+    config_class = _custom_generation_config_class()
+    config_class(max_denoising_steps=12, eos_token_id=7).save_pretrained(tmp_path)
+    repo_config = config_class(max_denoising_steps=99, eos_token_id=2)
+
+    config: Any = resolve_generation_config(str(tmp_path), repo_config, token=None)
+
+    assert type(config) is config_class
+    assert config.max_denoising_steps == 12
+    assert config.eos_token_id == 2
+
+
+@skip_if_no_transformers
+def test_hf_generation_config_default_rejects_config_subclass() -> None:
+    """A subclass with model-specific settings has no meaningful default."""
+    from inspect_ai.model._providers.hf import resolve_generation_config
+
+    config_class = _custom_generation_config_class()
+    repo_config = config_class(max_denoising_steps=99, eos_token_id=2)
+
+    with pytest.raises(ValueError, match="CustomGenerationConfig"):
+        resolve_generation_config("default", repo_config, token=None)

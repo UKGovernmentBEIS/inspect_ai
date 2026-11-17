@@ -1099,10 +1099,10 @@ The flag is applied to both the model and tokenizer `from_pretrained()` calls.
 |---|---|
 | `auto` (default) | Use the repository's `generation_config.json`. |
 | `default` | Use the `transformers` defaults. Unless your `GenerateConfig` sets them, this means sampling at `temperature=1.0` with `top_k=50`, which may differ from the settings the model was tuned for. |
-| path or Hub id | Load the generation config from that location instead (for example, the model the repository was fine-tuned from). |
+| path or Hub id | Load the generation config from that location instead (for example, the model the repository was fine-tuned from), using the model's generation config class. |
 | `transformers.GenerationConfig` (Python only) | Passed to `from_pretrained()`, which uses it in place of the repository's config. Recorded with source `object`. |
 
-With `default` or a path, the BOS, EOS, PAD and decoder start token ids are still taken from the repository, because they refer to its tokenizer's vocabulary and generation needs the EOS token to stop.
+`default` is not available for models that use a `GenerationConfig` subclass (for example, diffusion models), since their settings have no defaults; use a path instead. With `default` or a path, the BOS, EOS, PAD and decoder start token ids are still taken from the repository, because they refer to its tokenizer's vocabulary and generation needs the EOS token to stop.
 
 ``` bash
 inspect eval gsm8k.py --model hf/some-org/fine-tuned-model -M generation_config=default
