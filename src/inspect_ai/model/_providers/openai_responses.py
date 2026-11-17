@@ -89,6 +89,31 @@ from .util.hooks import HttpxHooks, polling
 logger = getLogger(__name__)
 
 
+_REASONING_REMOVED_WARNING = (
+    "The Responses API removed replayed reasoning item(s) for model '{model}' "
+    "(reason: {reason}), so the model no longer sees that reasoning and may "
+    "redo it. A prefix_mismatch reason means earlier conversation content "
+    "changed after the reasoning was produced (for example, CompactionEdit "
+    "clearing old tool results). Run with --log-model-api to record each "
+    "response's input_transformations."
+)
+
+
+def _warn_reasoning_removed(model: str, response: Response) -> None:
+    """Warn when the API removed replayed reasoning items from the input.
+
+    Skips `turn_boundary`: models that use only current-turn reasoning drop
+    earlier turns' reasoning on every request, so it isn't a sign of a problem.
+    """
+    reasons = {
+        t.reason
+        for t in response.input_transformations or []
+        if t.action == "removed" and t.reason != "turn_boundary"
+    }
+    for reason in sorted(reasons):
+        warn_once(logger, _REASONING_REMOVED_WARNING.format(model=model, reason=reason))
+
+
 def _fix_function_tool_parameters(response: Response) -> None:
     """Fix string parameters in FunctionTool objects.
 
@@ -296,6 +321,7 @@ async def generate_responses(
 
             # parse out choices
             choices = openai_responses_chat_choices(model_name, model_response, tools)
+            _warn_reasoning_removed(model_response.model or model_name, model_response)
 
             # surface response-level `metadata` (echoed request metadata, which
             # some models augment with additional fields) so callers can read it
