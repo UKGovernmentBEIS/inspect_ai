@@ -593,28 +593,35 @@ proposal, and fixing the pairing would mean keeping evicted grants.
   Execution ids), so a run under a call id an earlier rebuilt execution
   took is named by its `execution_id`. Replay skips steps with a warning
   where the log does not show what the bridge checked or where:
-  - A call with no `tool_call` check, whose model call has no
-    `model_output` check, is handed over at the request's start in replay,
-    since a `ModelEvent` is logged where its call began. Its steps are
+  - A call with no `tool_call` check is handed over at its model call's
+    `model_output` check's end, else at the model call's start in replay,
+    since a `ModelEvent` is logged where its call began, and the request's
+    end, a response filter and the handout are not logged. Its steps are
     skipped where something of the conversation (another request's turn, a
-    compaction, a check with decisions, an approval) is logged after that
-    start and before the run, timestamped at or before the request's
-    completion or its calls' approvals.
+    compaction, a check with decisions, another call's approval) is logged
+    between that point and the run, unless it is logged from a turn whose
+    input carries the reply the call was handed in.
+  - A run's `tool_result` step with no result check is skipped where
+    something of the conversation is logged between the run's end and the
+    reporting turn: the bridge checks the result when the request arrives,
+    before its compaction, request filter and model call, which the log does
+    not order against it.
   - A run's `tool_result` step is skipped where the call's id may have been
     handed out again before the result was reported: an earlier host run
     under the id, or another proposal of it before the reporting request
     that no native agent ran and no bridge handed over under a fresh id. The
     bridge then checks the result under no execution and without the
     proposal. A result check naming the run's execution shows it did not.
-  - A run's `tool_result` step is skipped where the log holds several
-    contents under the linked message's id, or, for a run without an error,
-    a message without the start of the run's result: a request filter
-    rewrote the message after the bridge checked it, keeping its id. A
-    rewrite that keeps that start (inspect_swe's Kimi Code cleanup strips
-    reminders the agent appended) leaves no trace in the log, so the bridge
-    resets `message_id` to `None` where its request filter changes a linked
-    result in the first request whose filter runs on it, and such a run has
-    no `tool_result` step.
+  - A run's `tool_result` step is taken only where the bridge marked the
+    link unfiltered (`metadata["bridge"]["result_unfiltered"]`): it checks a
+    result before the request's filter, which can rewrite the message and
+    keep its id (inspect_swe's Kimi Code cleanup strips reminders the agent
+    appended). Where its filter changed the message in the first request
+    whose filter ran on it, the bridge resets `message_id` to `None`. A log
+    from before the mark has none, and its results are skipped. The step is
+    also skipped where the log holds several contents under the message's
+    id, or, for a run without an error, a message without the start of the
+    run's result.
   Other host calls, including a shared handout's run under a fresh event
   id, are skipped with a warning.
 - **Hooks, control server, TUI, dataframes.** Pending host events drive the

@@ -725,14 +725,16 @@ class AgentBridge:
                     and _holds_result(answer, reply.received[position])
                 ):
                     event.message_id = answer.id
-                    transcript()._event_updated(event)
-                    if self.filter is not None and answer.id is not None:
+                    if self.filter is None:
+                        _mark_unfiltered(event)
+                    elif answer.id is not None:
                         self._filtered_links[answer.id] = (
                             event,
                             content_hash(answer),
                         )
                         while len(self._filtered_links) > _MAX_AWAITED_RESULTS:
                             del self._filtered_links[next(iter(self._filtered_links))]
+                    transcript()._event_updated(event)
 
     def _unlink_rewritten_results(self, messages: Sequence[ChatMessage]) -> None:
         """Unlink the host executions whose result message a request filter rewrote and kept the id of.
@@ -742,7 +744,8 @@ class AgentBridge:
         (inspect_swe's Kimi Code adapter strips the reminders the scaffold
         appends to results). The log then holds only the rewritten message
         under the id `ToolEvent.message_id` names, which is not the result the
-        bridge checked, so the execution is left unlinked. `messages` are the
+        bridge checked, so the execution is left unlinked; one the filter left
+        as it was is marked unfiltered (`_mark_unfiltered`). `messages` are the
         request's input after its filter ran; each linked result is compared
         once, in the first request whose filter ran on it.
         """
@@ -755,9 +758,13 @@ class AgentBridge:
             if linked is None:
                 continue
             event, content = linked
-            if event.message_id == message.id and content_hash(message) != content:
+            if event.message_id != message.id:
+                continue
+            if content_hash(message) != content:
                 event.message_id = None
-                transcript()._event_updated(event)
+            else:
+                _mark_unfiltered(event)
+            transcript()._event_updated(event)
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call that `call` makes through a dispatcher, if any.
@@ -1532,6 +1539,13 @@ def _named_result_key(message: ChatMessageTool, call: ToolCall | None) -> str:
     """
     answered = json.dumps(_call_key(call)) if call else f"function:{message.function}"
     return content_hash(message.model_copy(update={"tool_call_id": answered}))
+
+
+def _mark_unfiltered(event: "ToolEvent") -> None:
+    """Record on a host execution's event that the result message it links holds the content the scaffold sent (`metadata["bridge"]["result_unfiltered"]`): no request filter changed it in the request that first carried it."""
+    bridge = (event.metadata or {}).get("bridge")
+    if isinstance(bridge, dict):
+        bridge["result_unfiltered"] = True
 
 
 def _holds_result(answer: ChatMessageTool, received: _Received) -> bool:

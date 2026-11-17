@@ -21,7 +21,10 @@ class ToolEvent(BaseEvent):
     `grant` (`"consumed"` when a proposal matched, `"denied"` when the call
     was refused for lack of one, `"exempt"` when a server registered with
     `require_proposal=False` ran it without one, or `None` when the request
-    was rejected before that check).
+    was rejected before that check). Where the bridge links the execution
+    to the tool message holding its result (`message_id`), it also records
+    `result_unfiltered` (`True`): no request filter changed that message in
+    the request that first carried it, so it holds what the scaffold sent.
     """
 
     event: Literal["tool"] = Field(default="tool")

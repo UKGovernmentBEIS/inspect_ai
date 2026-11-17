@@ -2259,43 +2259,59 @@ def r13_inputs_only() -> MonitorGroup:
     return MonitorGroup(before_generate)
 
 
-def r13_reported_after_another_turn(sentinel: Any) -> EvalLog:
-    """`r7_bridged_scaffold("intervening")`: a host call, a turn of the conversation completing after its run, the request reporting its result, and a later turn."""
+def r13_reported_after_another_turn(
+    sentinel: Any, case: str = "intervening"
+) -> EvalLog:
+    """`r7_bridged_scaffold("intervening")`: a host call, a turn of the conversation completing after its run, the request reporting its result, and a later turn; with `report`, the request reporting the result follows the run."""
+    host = ToolCall(
+        id="host", function="mcp__host__addition", arguments={"x": 1, "y": 1}
+    )
+    if case == "report":
+        return run_logged(
+            as_solver(r7_bridged_scaffold("report")),
+            outputs(r7_tool_calls(host), done()),
+            sentinel=[sentinel],
+        )
     return run_logged(
         as_solver(r7_bridged_scaffold("intervening")),
-        outputs(
-            r7_tool_calls(
-                ToolCall(
-                    id="host",
-                    function="mcp__host__addition",
-                    arguments={"x": 1, "y": 1},
-                )
-            ),
-            done("4"),
-            done(),
-            done(),
-        ),
+        outputs(r7_tool_calls(host), done("4"), done(), done()),
         sentinel=[sentinel],
         inferred="two threads in one conversation",
     )
 
 
+OVERLAPPED_RESULT_WARNING = (
+    "Replay skipped the tool_result steps of host call(s) host: no result check "
+    "was recorded, and something of the conversation is logged between the run "
+    "and the request reporting its result, so the log does not show whether the "
+    "bridge checked the result before or after it."
+)
+
+
+@pytest.mark.parametrize("case", ["report", "intervening"])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 def test_a_host_result_no_check_names_replays_where_the_scaffold_reported_it(
-    backend: str, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    case: str,
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     # after Ransom's review 5932423017: with no result check recorded, replay
-    # built the result step at the end of the host run, before a turn that
-    # completed before the scaffold reported the result
+    # built the result step at the end of the host run; it is built before the
+    # turn reporting the result. After Ransom's review 5933733456: the bridge
+    # checks the result when the reporting request arrives, before its model
+    # call, which the log records the start of, so where a turn of the
+    # conversation completed in between (`intervening`), the log does not
+    # show whether the check came before it, and the step is skipped
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     seen: dict[str, Step] = {}
-    probed = r13_reported_after_another_turn(r7_probe(seen, copies=True))
+    probed = r13_reported_after_another_turn(r7_probe(seen, copies=True), case)
     live = [
-        (e.stage, seen[e.explanation or ""])
+        (e.stage, e.step_id, seen[e.explanation or ""])
         for e in logged_sample(probed).events
         if isinstance(e, SentinelEvent) and e.path == "r7_probe"
     ]
-    log = r13_reported_after_another_turn(r13_inputs_only())
+    log = r13_reported_after_another_turn(r13_inputs_only(), case)
     assert not any(
         isinstance(e, SentinelEvent) and e.stage == "tool_result"
         for e in logged_sample(log).events
@@ -2303,43 +2319,44 @@ def test_a_host_result_no_check_names_replays_where_the_scaffold_reported_it(
     caplog.clear()
     with caplog.at_level(logging.WARNING):
         replay = replayed(log)
-    assert replay_warnings(caplog) == []
-    assert (
-        [s.stage for s in replay]
-        == [stage for stage, _ in live]
-        == [
+    if case == "report":
+        assert replay_warnings(caplog) == []
+        assert [s for s, _, _ in live] == [
             "model_input",
             "model_output",
             "tool_call",
-            "model_input",
-            "model_output",
             "tool_result",
             "model_input",
             "model_output",
-            "model_input",
-            "model_output",
         ]
-    )
-
-    # each step equals the step live built in the run with a result check,
-    # but for the two runs' ids and a response's timing
-    def field(step: Step, name: str) -> Any:
-        value = getattr(step, name)
-        return comparable(
-            value.message if isinstance(value, ModelOutput) else value, ids=False
-        )
-
-    for (_, step), again in zip(live, replay, strict=True):
-        assert not [
-            f.name
-            for f in dataclasses.fields(step)
-            if f.name
-            not in ABSENT.get(type(step).__name__, set())
-            | {"conversation", "message_id"}
-            and field(again.step, f.name) != field(step, f.name)
-        ], again.stage
-    [(_, result)] = [(stage, step) for stage, step in live if stage == "tool_result"]
+        assert_steps_equal_live(replay, live)
+        # a bridge with no request filter marks its link unfiltered; a log
+        # from before the mark does not show that, and the step is skipped
+        events = logged_sample(log).events
+        [host] = [e for e in events if isinstance(e, ToolEvent)]
+        assert host.metadata is not None
+        assert host.metadata["bridge"]["result_unfiltered"] is True
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            old = replay_events(
+                log,
+                [
+                    e.model_copy(update={"metadata": unmarked(e)})
+                    if isinstance(e, ToolEvent)
+                    else e
+                    for e in events
+                ],
+            )
+        assert "tool_result" not in [s.stage for s in old]
+        assert list(dict.fromkeys(replay_warnings(caplog))) == [REWRITTEN_WARNING]
+        return
+    assert list(dict.fromkeys(replay_warnings(caplog))) == [OVERLAPPED_RESULT_WARNING]
+    # live, the result's history held the turn that completed in between
+    [result] = [step for stage, _, step in live if stage == "tool_result"]
     assert len(result.history or []) == 2
+    assert_steps_equal_live(
+        replay, [(s, i, step) for s, i, step in live if s != "tool_result"]
+    )
 
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
@@ -2393,18 +2410,25 @@ def test_a_host_result_no_turn_carries_is_skipped_with_a_warning(
 @pytest.mark.parametrize("compacted", ["reporting", "intervening", "retried"])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 def test_a_host_result_no_check_names_replays_before_its_request_s_compaction(
-    compacted: str, backend: str, monkeypatch: pytest.MonkeyPatch
+    compacted: str,
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     # the bridge checks a reported result before compacting the request that
-    # carries it, so the step is in the segment before that compaction, and
-    # after one an earlier turn of the conversation made, before its retry
-    # with `retried`
+    # carries it, so the step is in the segment before that compaction. A
+    # compaction of a turn between the run and the report (`intervening`, and
+    # between that turn's failed attempt and its retry with `retried`) is of
+    # something the log does not order against the check, so the step is
+    # skipped
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
-    log = r13_reported_after_another_turn(r13_inputs_only())
+    log = r13_reported_after_another_turn(
+        r13_inputs_only(), "report" if compacted == "reporting" else "intervening"
+    )
     events = list(logged_sample(log).events)
     turns = [i for i, e in enumerate(events) if isinstance(e, ModelEvent)]
-    assert len(turns) == 4
-    turn = turns[2 if compacted == "reporting" else 1]
+    assert len(turns) == (2 if compacted == "reporting" else 4)
+    turn = turns[1]
     compaction = CompactionEvent(source="inspect", span_id=events[turn].span_id)
     if compacted == "retried":
         failed = events[turn].model_copy(update={"error": "boom"})
@@ -2418,23 +2442,22 @@ def test_a_host_result_no_check_names_replays_before_its_request_s_compaction(
             if isinstance(e, SpanBeginEvent) and e.type == "sentinel"
         )
         edited = [*events[:begin], compaction, *events[begin:]]
-    replay = replay_events(log, edited)
-    intervening = {
-        "reporting": [("model_input", 0), ("model_output", 0)],
-        "intervening": [("model_input", 1), ("model_output", 1)],
-        "retried": [("model_input", 0), ("model_output", 1)],
-    }[compacted]
-    assert [(s.stage, s.segment[1]) for s in replay] == [
-        ("model_input", 0),
-        ("model_output", 0),
-        ("tool_call", 0),
-        *intervening,
-        ("tool_result", 0 if compacted == "reporting" else 1),
-        ("model_input", 1),
-        ("model_output", 1),
-        ("model_input", 1),
-        ("model_output", 1),
-    ]
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        replay = replay_events(log, edited)
+    if compacted == "reporting":
+        assert replay_warnings(caplog) == []
+        assert [(s.stage, s.segment[1]) for s in replay] == [
+            ("model_input", 0),
+            ("model_output", 0),
+            ("tool_call", 0),
+            ("tool_result", 0),
+            ("model_input", 1),
+            ("model_output", 1),
+        ]
+        return
+    assert "tool_result" not in [s.stage for s in replay]
+    assert list(dict.fromkeys(replay_warnings(caplog))) == [OVERLAPPED_RESULT_WARNING]
 
 
 class _Overlapping:
@@ -2547,14 +2570,15 @@ def r14_bridged_scaffold(case: str) -> Agent:
     while the request proposing the host call awaits its model call (the model
     `r14_holds_the_first_request` holds it); `approving`: the sub-agent's request
     runs while the call awaits its approval; `after`: once the proposing request
-    returned, before the call runs. Then the scaffold runs the call and reports
-    its result.
+    returned, before the call runs; `carried`: the scaffold sends a request
+    carrying the reply before it runs the call. Then the scaffold runs the call
+    and reports its result.
 
-    `handed_again`: once the call ran, a sub-agent's request is handed the same
-    call under the same id, which it never runs; `handed_again_ran`: the
-    sub-agent runs it; `handed_again_ran_later`: it runs it once the scaffold
-    reported the first run's result. The scaffold reports that result after
-    the second handout.
+    `handed_again`: once the call ran, a sub-agent's request, in an agent span
+    of its own, is handed the same call under the same id, which it never runs;
+    `handed_again_ran`: the sub-agent runs it; `handed_again_ran_later`: it runs
+    it once the scaffold reported the first run's result. The scaffold reports
+    the first run's result after the second handout.
 
     `stripped`, `replaced`, `copied`: the scaffold reports the result with a
     reminder of its own, which a request filter rewrites
@@ -2647,10 +2671,15 @@ def r14_bridged_scaffold(case: str) -> Agent:
         else:
             proposed_calls.extend(await request())
         [proposed] = proposed_calls
+        if case == "carried":
+            # the scaffold sends another request carrying the reply first
+            messages.append({"role": "user", "content": "Go ahead."})
+            await request()
         result = await run_host(proposed)
         handed_again: list[Any] = []
         if case.startswith("handed_again"):
-            handed_again = await sub_agent_request()
+            async with span("sub-agent", type="agent"):
+                handed_again = await sub_agent_request()
             assert [again.id for again in handed_again] == [proposed.id]
             if case == "handed_again_ran":
                 await run_host(handed_again[0])
@@ -2675,7 +2704,7 @@ def r14_run(case: str, sentinel: Any) -> EvalLog:
     host = ToolCall(
         id="host", function="mcp__host__addition", arguments={"x": 1, "y": 1}
     )
-    if case in ("during", "approving", "after"):
+    if case in ("during", "approving", "after", "carried"):
         _Overlapping.hold = case == "during"
         _Overlapping.requests = 0
         model: Any = "r14_holds_the_first_request/model"
@@ -2692,9 +2721,9 @@ def r14_run(case: str, sentinel: Any) -> EvalLog:
         as_solver(r14_bridged_scaffold(case)),
         model,
         sentinel=[sentinel],
-        inferred=None
-        if case in ("stripped", "replaced", "copied", "kept")
-        else "two threads in one conversation",
+        inferred="two threads in one conversation"
+        if case in ("during", "approving", "after")
+        else None,
     )
 
 
@@ -2710,7 +2739,7 @@ def r14_live(case: str) -> tuple[EvalLog, list[tuple[str, str, Step]]]:
 
 
 def assert_steps_equal_live(
-    replay: list["ReplayStep"], live: list[tuple[str, str, Step]]
+    replay: list["ReplayStep"], live: Sequence[tuple[str, str, Step]]
 ) -> None:
     """Each replayed step is the live one, but for the two runs' ids and a response's timing."""
 
@@ -2734,13 +2763,13 @@ def assert_steps_equal_live(
 
 OVERLAP_WARNING = (
     "Replay skipped the tool steps of host call(s) host: no check was recorded "
-    "once the model request proposing each had completed, and another request "
-    "of the conversation overlapped it, so the log does not show where the "
-    "bridge handed the call to the agent."
+    "once the model request proposing each had completed, and something of the "
+    "conversation is logged between that request and the run, so the log does "
+    "not show where the bridge handed the call to the agent."
 )
 
 
-@pytest.mark.parametrize("case", ["during", "approving", "after"])
+@pytest.mark.parametrize("case", ["during", "approving", "after", "carried"])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 def test_a_host_call_whose_request_another_overlapped_is_skipped_with_a_warning(
     case: str,
@@ -2753,14 +2782,18 @@ def test_a_host_call_whose_request_another_overlapped_is_skipped_with_a_warning(
     # of the conversation can complete before the bridge handed the call over:
     # while its model call ran (`during`) or its approval awaited
     # (`approving`). Live, the tool_call step's history holds that request's
-    # input; the log does not show where the handout falls, so the call is
-    # skipped. A request that began after the proposing one returned (`after`)
-    # is after the handout, and the steps replay as live
+    # input. The log records neither the handout nor the request's end, so a
+    # request logged between the proposing one and the run is not ordered
+    # against the handout, even one that came after it (`after`), and the
+    # call is skipped. A request carrying the reply the call was handed in
+    # (`carried`) came after the handout, and the steps replay as live
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     _, live = r14_live(case)
     [(_, _, handed)] = [(s, i, step) for s, i, step in live if s == "tool_call"]
     assert [m.text for m in handed.history] == (
-        ["What is 1 + 1?"] if case == "after" else ["What is 1 + 1?", "And 2 + 2?"]
+        ["What is 1 + 1?"]
+        if case in ("after", "carried")
+        else ["What is 1 + 1?", "And 2 + 2?"]
     )
     log = r14_run(case, r13_inputs_only())
     events = logged_sample(log).events
@@ -2768,15 +2801,18 @@ def test_a_host_call_whose_request_another_overlapped_is_skipped_with_a_warning(
         isinstance(e, SentinelEvent) and e.stage.startswith("tool") for e in events
     )
     turns = [e for e in events if isinstance(e, ModelEvent)]
-    # the sub-agent's request is logged after the proposing one began, and
-    # began before it completed with `during`
-    assert len(turns) == 3 and turns[1].input[0].text == "And 2 + 2?"
+    # the other request is logged after the proposing one began, and began
+    # before it completed with `during`
+    assert len(turns) == 3
+    assert turns[1].input[-1].text == (
+        "Go ahead." if case == "carried" else "And 2 + 2?"
+    )
     assert turns[0].completed is not None
     assert (turns[1].timestamp < turns[0].completed) == (case == "during")
     caplog.clear()
     with caplog.at_level(logging.WARNING):
         replay = replayed(log)
-    if case == "after":
+    if case == "carried":
         assert replay_warnings(caplog) == []
         assert_steps_equal_live(replay, live)
         return
@@ -2818,7 +2854,11 @@ def test_a_first_host_result_reported_after_a_second_handout_is_skipped_with_a_w
     # call's proposal, the first run's too, whether the second handout never
     # runs (`unrun`) or runs after the report (`ran_later`). Replay built the
     # first run's result step with the proposal. Where the second handout
-    # runs before the report (`ran`), the bridge links neither run's result
+    # runs before the report (`ran`), the bridge links neither run's result.
+    # The second handout is in another conversation sharing the bridge (a
+    # sub-agent the scaffold runs in an agent span of its own): a turn of the
+    # call's own conversation between the run and the report leaves the
+    # check's place unknown
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     case = {"unrun": "handed_again"}.get(second, f"handed_again_{second}")
     probed, live = r14_live(case)
@@ -2894,15 +2934,15 @@ def test_a_first_host_result_reported_after_a_second_handout_is_skipped_with_a_w
 
 
 REWRITTEN_WARNING = (
-    "Replay skipped the tool_result steps of host call(s) host: the log holds "
-    "other content under the id of the result message the bridge linked than "
-    "the result the agent reported (a request filter can rewrite a message and "
-    "keep its id), so it does not show the result the bridge checked."
+    "Replay skipped the tool_result steps of host call(s) host: the log does not "
+    "show that the result message the bridge linked holds the result the agent "
+    "reported (a request filter can rewrite a message and keep its id), so it "
+    "does not show the result the bridge checked."
 )
 
 
 def linked_as_before(events: Sequence[Event]) -> list[Event]:
-    """`events` with the host call's result linked to the first tool message answering it, as a bridge that left a filter's rewrite linked logged it."""
+    """`events` with the host call's result linked to the first tool message answering it, as a bridge that left a filter's rewrite linked logged it, before the bridge marked its links (`result_unfiltered`)."""
     carried = next(
         message
         for e in events
@@ -2911,14 +2951,23 @@ def linked_as_before(events: Sequence[Event]) -> list[Event]:
         if isinstance(message, ChatMessageTool) and message.tool_call_id == "host"
     )
     return [
-        e.model_copy(update={"message_id": carried.id})
+        e.model_copy(update={"message_id": carried.id, "metadata": unmarked(e)})
         if isinstance(e, ToolEvent)
         else e
         for e in events
     ]
 
 
-@pytest.mark.parametrize("rewrite", ["replaced", "copied"])
+def unmarked(event: ToolEvent) -> dict[str, Any]:
+    """A host event's metadata without the bridge's mark of an unfiltered result link."""
+    assert event.metadata is not None
+    bridge = {
+        k: v for k, v in event.metadata["bridge"].items() if k != "result_unfiltered"
+    }
+    return {**event.metadata, "bridge": bridge}
+
+
+@pytest.mark.parametrize("rewrite", ["replaced", "copied", "stripped"])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 def test_a_host_result_a_request_filter_rewrote_is_skipped_with_a_warning(
     rewrite: str,
@@ -2933,7 +2982,9 @@ def test_a_host_result_a_request_filter_rewrote_is_skipped_with_a_warning(
     # Where the log holds the result, as linked, without the start of the
     # run's result (`replaced`), or holds two contents under its id
     # (`copied`, where the agent's state keeps the scaffold's), the step is
-    # skipped
+    # skipped. A rewrite that keeps that start (`stripped`) shows only in a
+    # link the bridge marked unfiltered, which a log from before the mark
+    # does not have, so such a log's linked results are skipped too
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     probed, live = r14_live(rewrite)
     [(_, _, result)] = [(s, i, step) for s, i, step in live if s == "tool_result"]
@@ -2981,6 +3032,8 @@ def test_the_bridge_leaves_a_result_its_request_filter_rewrote_unlinked(
             replay = replayed(log)
         if rewrite == "kept":
             assert host.message_id is not None
+            assert host.metadata is not None
+            assert host.metadata["bridge"]["result_unfiltered"] is True
             assert replay_warnings(caplog) == []
             if sentinel == "inputs_only":
                 assert_steps_equal_live(replay, live)
@@ -2991,6 +3044,56 @@ def test_the_bridge_leaves_a_result_its_request_filter_rewrote_unlinked(
             [("tool_call", "host")] if sentinel == "probe" else []
         )
         assert list(dict.fromkeys(replay_warnings(caplog))) == [BRIDGE_HOST_WARNING]
+
+
+@pytest.mark.parametrize("held", ["versions", "rewritten"])
+def test_a_marked_host_result_the_log_holds_otherwise_is_skipped_with_a_warning(
+    held: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    # a link the bridge marked unfiltered can still meet a rewrite the bridge
+    # did not compare: a later request's filter, or one that generates from
+    # rewritten copies itself. Where the log then holds two contents under
+    # the message's id (`versions`: the agent's state keeps the scaffold's,
+    # and the rewrite keeps the start of the result), or only one without that
+    # start (`rewritten`), the step is skipped
+    log = r14_run("kept", r13_inputs_only())
+    sample = logged_sample(log)
+    [host] = [e for e in sample.events if isinstance(e, ToolEvent)]
+    assert host.metadata is not None
+    assert host.metadata["bridge"]["result_unfiltered"] is True
+
+    def rewritten(event: Event) -> Event:
+        if not isinstance(event, ModelEvent):
+            return event
+        return event.model_copy(
+            update={
+                "input": [
+                    m.model_copy(
+                        update={
+                            "content": m.text + " (edited)"
+                            if held == "versions"
+                            else "[result removed]"
+                        }
+                    )
+                    if m.id == host.message_id
+                    else m
+                    for m in event.input
+                ],
+                "input_refs": None,
+            }
+        )
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        replay = steps_from_events(
+            sample.messages if held == "versions" else [],
+            [rewritten(e) for e in sample.events],
+            [],
+            sample_uuid=sample.uuid or "",
+            eval_info=EvalInfo.from_eval(log.eval),
+        )
+    assert "tool_result" not in [s.stage for s in replay]
+    assert list(dict.fromkeys(replay_warnings(caplog))) == [REWRITTEN_WARNING]
 
 
 def r7_tool_calls(*calls: ToolCall) -> ModelOutput:
@@ -9363,9 +9466,9 @@ async def r7_host_bridge(state: AgentState) -> tuple[Any, list[Any]]:
 
 @agent
 def r7_defers_a_bridged_host_call(
-    native_first: bool, native: str = "addition"
+    native_first: bool, native: str = "addition", generated_first: bool = False
 ) -> Agent:
-    """A bridged call proposed, then a native call (`addition`, or `explodes`, which raises) generated under its id, before either runs."""
+    """A bridged call proposed, then a native call (`addition`, or `explodes`, which raises) generated under its id, before either runs; with `generated_first`, the native call is generated before the bridged call is proposed."""
 
     async def execute(state: AgentState) -> AgentState:
         from inspect_ai.agent._bridge.completions import (
@@ -9375,19 +9478,26 @@ def r7_defers_a_bridged_host_call(
 
         bridge, tools = await r7_host_bridge(state)
         messages = [{"role": "user", "content": "What is 1 + 1?"}]
-        completion = await inspect_completions_api_request(
-            {"model": "inspect", "messages": messages, "tools": tools}, None, bridge
-        )
-        [proposed] = completion.choices[0].message.tool_calls or []
-        assert proposed.type == "function"
         native_tools = (
             [addition(), explodes()]
             if native == "both"
             else [explodes() if native == "explodes" else addition()]
         )
         history: list[ChatMessage] = [ChatMessageUser(content="What is 5 + 5?")]
-        output = await get_model().generate(history, tools=native_tools)
-        history.append(output.message)
+
+        async def generate_native() -> None:
+            output = await get_model().generate(history, tools=native_tools)
+            history.append(output.message)
+
+        if generated_first:
+            await generate_native()
+        completion = await inspect_completions_api_request(
+            {"model": "inspect", "messages": messages, "tools": tools}, None, bridge
+        )
+        [proposed] = completion.choices[0].message.tool_calls or []
+        assert proposed.type == "function"
+        if not generated_first:
+            await generate_native()
 
         async def host() -> None:
             # the bridge checks the result when the next request carries it
@@ -9486,21 +9596,26 @@ def test_a_host_call_under_an_id_a_native_call_took_first_keeps_its_result_step(
 ) -> None:
     # the bridge handed the id out once, so its result check names the run's
     # execution; with a sentinel that checks calls only, no result check
-    # links the run, and replay still builds its result step, as live built it
+    # links the run, and replay still builds its result step, as live built it.
+    # The native call is generated before the bridge proposes the host call:
+    # a turn of the conversation between a host call's handout and its run
+    # leaves the handout's place unknown
     def run(sentinel: Any) -> EvalLog:
         return run_logged(
-            as_solver(r7_defers_a_bridged_host_call(native_first=True)),
+            as_solver(
+                r7_defers_a_bridged_host_call(native_first=True, generated_first=True)
+            ),
             outputs(
+                r7_tool_calls(
+                    ToolCall(
+                        id="shared", function="addition", arguments={"x": 5, "y": 5}
+                    )
+                ),
                 r7_tool_calls(
                     ToolCall(
                         id="shared",
                         function="mcp__host__addition",
                         arguments={"x": 1, "y": 1},
-                    )
-                ),
-                r7_tool_calls(
-                    ToolCall(
-                        id="shared", function="addition", arguments={"x": 5, "y": 5}
                     )
                 ),
                 done(),
