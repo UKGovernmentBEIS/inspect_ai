@@ -1019,12 +1019,16 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    refused with it (guarantee 2).
 2. **A reached limit stays reached.** Every later dispatch under that
    sample, including the runtime's own model calls, native compaction and
-   bridged requests, is refused with the same node's error. Approval,
+   bridged requests, is refused with that node's error, or with the error
+   of an outer node that has since been reached too (rule 3: the next
+   check raises the outermost). Approval,
    review and sentinel calls are the exception: they run with token, turn
    and cost limits suspended and skip the bridge guard, so a reached limit
    of those kinds, or a bridge's kept limit, does not refuse them.
-   Calls already dispatched complete, are recorded, and raise the same error
-   after recording.
+   Calls already dispatched complete, are recorded, and raise after
+   recording the error of the outermost reached node, which is that node
+   or an outer one their usage has since pushed over (rules 3 and 8; the
+   bridge's kept limit is promoted the same way).
 3. **The runtime may hold the error.** It can catch it, stop its agents
    (close levers, wait for in-flight calls within its grace, cancel the
    rest), write its ledger and re-raise the error, bare or in a group. The
@@ -1108,7 +1112,17 @@ it is and what to do:
 
 It is never retried: `Model.should_retry()` (`_model.py:2066`) returns
 `False` for it before any other test, so a provider's `should_retry()` never
-sees it. It is not a `LimitExceededError`, so no limit owner catches it.
+sees it. Nor is it recovered as a sentinel sidecar's refusal: the attempt's
+`except` handler (`_model.py:1865-1880`) first offers an error to
+`refused_output()`, which asks `_would_retry()` (`:2591-2598`, which calls
+the provider's classifier directly) and can replace the error with the
+sidecar's withheld turn or an empty output, and the outer handler
+(`:1158-1165`) offers it to `refusal_after_error()` the same way. Both
+handlers re-raise an `UnmeteredCallError` before either lookup (the attempt
+handler completes the `ModelEvent` with the error first, as for an
+uncaught provider exception), and `_would_retry()` returns `False` for it
+without consulting the provider. A genuine provider error keeps today's
+refusal recovery and billed-usage accounting. It is not a `LimitExceededError`, so no limit owner catches it.
 When it reaches the sample runner the sample fails with it, as a sample
 error. Native tools do not map it (`tool_call_error()` returns `None` for
 it), and a bridged host tool treats it as an unexpected error, which fails
@@ -1296,14 +1310,35 @@ the output:
   and the viewer's types are unchanged; `model_copy()` keeps it.
   `rejection_output(output) -> ModelOutput` (in `_model_output.py`) sets it
   and returns the output.
-- A converter calls `rejection_output()` only on an output it builds from an
-  error *response* to the request: an HTTP status error, or a gRPC or
-  Bedrock error code, received before any output. A converter reached from
-  a mid-stream failure, after the provider started responding, does not.
-  The shared OpenAI converter `openai_handle_bad_request()` applies it when
-  its exception is an `APIStatusError` (a status response), and not for the
-  status-less `APIError` that `openai_handle_stream_error()` passes it for a
-  mid-stream failure.
+- `rejection_output()` is applied only to an output built from an error
+  *response* to the request: an HTTP status error, or a gRPC or Bedrock
+  error code, received before any output. An output built from a
+  mid-stream failure, after the provider started responding, is not
+  tagged. The decision is made at each entry path, where the error's
+  origin is known, not once per converter, because several converters
+  serve both:
+  - The shared OpenAI converter `openai_handle_bad_request()` applies it
+    when its exception is an `APIStatusError` (a status response), and not
+    for the status-less `APIError` that `openai_handle_stream_error()`
+    passes it for a mid-stream failure.
+  - Anthropic: the `BadRequestError` branch (`anthropic.py:1112-1116`, a
+    real HTTP 400 such as a context overflow) and the HTTP 413 branch
+    (`:1118-1126`) tag their outputs, so ReAct's overflow recovery keeps
+    working under a cost limit. The plain-`APIStatusError` branch that
+    routes a mid-stream content-filter error to `handle_bad_request()`
+    (`:1128-1135`) does not. The origin cannot be read from the exception
+    afterwards: `_normalize_stream_error()` (`:5463-5498`, called at
+    `:1090` and `:2098`) rewrites a stream's 200 to the status the error
+    type implies, which can be 400 or 413. So when it rewrites a 200, it
+    records the exception as stream-origin (a private
+    `_inspect_stream_error = True` attribute on the exception it returns),
+    and the three branches tag only an exception without that mark.
+  - Groq: `GroqAPI.generate()` tags the output of `handle_bad_request()`
+    when it converts an `APIStatusError` (`groq.py:379-380`), and not when
+    it converts the plain `APIError` of an error delivered in the stream
+    body (`:381-390`).
+  - The other converters listed below are classified the same way at each
+    of their call sites.
 - The check skips an output whose `_rejection` is set. Every other output
   with missing or zero usage fails, including a rejection-shaped output from
   a converter that has not been classified, which fails closed. Requests
@@ -1320,9 +1355,12 @@ too-large response) and `:2206` (`handle_bad_request`), `azureai.py:544`,
 `vllm.py:699`, and the LiteLLM proxy's `litellm_error_model_output()`
 (`_litellm_proxy_errors.py:65`, `:73`, called from `litellm_proxy.py:1193`),
 all under `src/inspect_ai/model/_providers/`. Each builds its output from an
-error raised for the request; the implementation confirms for each whether
-that error can also arrive after streamed output, and leaves any that can
-untagged by `rejection_output()`.
+error raised for the request; the implementation tags, at each call site,
+only the conversions of an error received before any output, and leaves
+every stream-origin conversion untagged. Each provider with a shared
+converter gets a paired test under an active cost limit: its HTTP
+rejection returns the output, and the same condition delivered mid-stream
+fails with `UnmeteredCallError`.
 
 After a call, the check runs for every call (rule 2), so a call with no cost
 made outside any cost limit still checks token and turn limits.
@@ -1780,7 +1818,22 @@ under trio with `--runtrio`.
     batch result; a
     provider stub returning a `model_length` output with no usage and no
     rejection flag fails; one rejection case per classified converter
-    (implementation plan);
+    (implementation plan); paired cases where a converter serves both
+    origins: an Anthropic HTTP 400 context overflow and an HTTP 413 return
+    their `model_length` outputs under the cost limit, while a mid-stream
+    error that `_normalize_stream_error()` rewrites to 400 (and one to 413)
+    fails with `UnmeteredCallError`; a Groq HTTP 400
+    `context_length_exceeded` returns its output, while the same error in
+    the stream body fails;
+  - sidecar recovery does not catch it: with a sentinel sidecar whose
+    judgment is a refusal with a withheld turn, a sent request whose
+    successful response has no usage, and a provider whose
+    `should_retry()` raises if consulted, the call makes one provider
+    request, raises the original `UnmeteredCallError`, and completes its
+    `ModelEvent` with that error; the same through the outer
+    `refusal_after_error()` path; a genuine provider error under the same
+    sidecar is still recovered as a refusal, with its billed usage
+    recorded;
   - a swallowed error costs one call (pinned): a no-usage error caught by a
     hook that logs and continues is followed by another provider call that
     fails the same way, and nothing refuses it before dispatch;
@@ -1996,13 +2049,17 @@ Each step is one PR, in this order. Each keeps the suite green.
    `generate()`'s and compaction's per-attempt calls;
    `require_reported_usage()` inside the generate attempt after
    `self.api.generate()` returns (skipping rejection outputs) and inside
-   `_compact()`; `Model.should_retry()` returns `False` for
-   `UnmeteredCallError`. `src/inspect_ai/model/_model_output.py`: the
+   `_compact()`; `Model.should_retry()` and `_would_retry()` return `False`
+   for `UnmeteredCallError`, and the attempt's `except` handler and the
+   outer sidecar-recovery handler re-raise it before `refused_output()` or
+   `refusal_after_error()`. `src/inspect_ai/model/_model_output.py`: the
    private `_rejection` attribute and `rejection_output()`. The rejection
    converters listed under "Unmetered calls": `openai_handle_bad_request()`
-   in `_openai.py` for `APIStatusError` only, and each provider's converter
-   in `src/inspect_ai/model/_providers/` that builds its output from an
-   error response received before any output. Summed usage:
+   in `_openai.py` for `APIStatusError` only, and each provider's call site
+   in `src/inspect_ai/model/_providers/` that converts an error response
+   received before any output; in `anthropic.py`, the stream-origin mark
+   set by `_normalize_stream_error()` and checked by the three conversion
+   branches; in `groq.py`, tagging only the `APIStatusError` branch. Summed usage:
    `require_reported_usage()` per completed request in
    `src/inspect_ai/model/_providers/google.py`, before `chain.add()` in
    `_generate_with_continuations()` and, for hops that ended without an
