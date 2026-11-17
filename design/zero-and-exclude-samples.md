@@ -402,6 +402,11 @@ The implementation removes:
   selector-expansion test checks the log directly instead), and so does
   `test_zero_samples_twice`'s `assert result == ([("a", 1)], [])`, leaving
   its history and provenance checks;
+- in `tests/test_eval_set_selection.py`,
+  `test_eval_set_selection_empty_attempt_log_can_zero_samples` calls
+  `zero_samples()` without assigning it and drops its `result.applied`
+  assert, keeping its solver-header checks and the direct
+  `scores == {"a": "I", "b": "C"}` check;
 - tests in `tests/_cli/test_log_disposition.py` are adjusted, not deleted:
   `test_log_exclude_command` asserts the summary line where it asserts
   per-target lines, its `--json` re-exclusion of `a` asserts
