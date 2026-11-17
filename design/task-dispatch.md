@@ -632,10 +632,12 @@ list, counts it against `in_flight` and its model's count when `counted`
 into `attempt`, creates the attempt's fresh `TaskCancel` and cancel scope
 and stores them on the record, requesting `abort` on the new `TaskCancel`
 when `abort_requested` is set, and schedules `run_one` with them. So a
-cancel sees one of two states only. A record still `queued` has never been
-picked: it gets `abort_requested` and the uncounted start. A record already
-picked, including one whose `run_one` has not yet run its first statement,
-is an attempt that has not registered: the cancel goes to the pair
+cancel of a record that has never registered sees one of two states only (a
+record with `reached == "registered"` takes the `cancel_task` route below
+first, whatever its phase). A record still `queued` has not been picked for
+its next attempt: it gets `abort_requested` and the uncounted start. A record
+already picked for its current attempt, including one whose `run_one` has
+not yet run its first statement, is an attempt that has not registered: the cancel goes to the pair
 `start_attempt` stored on the record, the attempt aborts at `task_run`'s
 explicit first checkpoint, and it keeps its counted slot until it ends,
 exactly as an aborted running task does today; no slot is converted. In that
@@ -2095,7 +2097,13 @@ keeps its slot until it ends.
 - A stale `retry_pending` flag after an unregistered final retry: `run_one`
   clears the flag using the unregistered attempt's eval id, which
   `clear_eval_retry_pending` ignores, so the registered attempt stays
-  flagged. Today's behaviour, unchanged.
+  flagged and, while the run is open, a task cancel or drain reports
+  abandoning a retry that will not run. Today's behaviour, with one more
+  route: a final retry whose `logger.init()` fails now ends as an
+  unregistered attempt (today that failure escapes `reinit()` before the
+  retry is published). One separate fix covers both routes: when an
+  unregistered final retry ends with no further retry, clear the flag on the
+  task's latest registered attempt (`latest_eval_for_task`).
 - A retry of a registered task stopped by the retry-abandon stamp after its
   display row opened leaves that row without a result, so Rich and Textual
   end one completed task short of the total. Today's behaviour, unchanged.
