@@ -27,9 +27,10 @@ before dispatch. Failed attempts, calls cancelled in flight and responses
 that report no usage are not charged, as today, so they can take spend past
 a cost limit; failing calls that report no usage is left to a separate
 design. A limit error that reaches its owner stands. When
-none does, a scope that owns limits checks them when it ends normally, and
-so does the sample, once all of its work, background cleanup included, has
-finished. So, within a running attempt, a limit error that some handler
+none does, each owner checks its own limits when it ends normally: an
+`apply_limits()` scope the limits it entered, and the sample its own limits
+once all of its work, background cleanup included, has finished (except on
+a resume for scoring). So, within a running attempt, a limit error that some handler
 catches and drops is not lost: it comes back at the next refused call, or at
 its owner's exit. Checkpoints store usage but not the mark of a limit that
 refused a call, so a sample resumed from a checkpoint can lose it.
@@ -348,12 +349,14 @@ tokens per call, run against this branch's base):
    turn limit never turns that limit's error into a message, a tool error, a
    reply or a return value. It lets the error propagate. Message limits keep
    today's handling (see "Ownership").
-7. **The owner checks at exit.** A limit error that reaches its owner
-   stands. When an `apply_limits()` scope ends normally, Inspect runs the
-   check once more over the chain. A limit raises there if it is exceeded,
-   or if it is reached and has already raised (a call it refused). The
-   sample does the same once its task group has finished, when its solvers
-   returned normally.
+7. **Each owner checks its own limits at exit.** A limit error that
+   reaches its owner stands. When an `apply_limits()` scope ends normally,
+   Inspect checks the token, cost and turn limits that scope entered, and
+   no others. A limit raises there if it is exceeded, or if it is reached
+   and has already raised at that budget (a call it refused). The sample
+   does the same for its own limits once its task group has finished, when
+   its solvers returned normally and the attempt is not a resume for
+   scoring. An enclosing limit is left to its own owner.
 8. **The bridge keeps the outermost limit.** The sandbox bridge keeps the
    outermost limit any of its requests reached (generations and host tools
    alike), refuses every later model call with it, and raises it when the
@@ -369,7 +372,7 @@ does not try to carry every limit error intact through every handler that
 can catch one (a fallback, a hook, a first-error reduction, a cancelled
 delivery). A swallowed limit error costs time, not budget: the next call
 under the limit is refused before dispatch, and if no limit error reaches
-the owner, its exit check finds the limit. A plain `with token_limit()`
+the limit's owner, that owner's exit check finds it. A plain `with token_limit()`
 block has no owner but its author and no exit check, so its limit is found
 only by a call made while the block is open ("The owner's exit check").
 That holds within one attempt: a
@@ -398,7 +401,6 @@ class _Node:
     _outer: _Node | None  # nearest ancestor of any kind in the chain
     _in_chain: bool  # set when pushed; never cleared
     _raised_at: float | None  # the greatest effective limit at which its check raised
-    _scoring_restore: bool  # set by a scoring-only restore; cleared by record() or a raise
 
 
 ```
@@ -450,27 +452,36 @@ def record_model_call(usage: ModelUsage, cost: float | None) -> None:
         record_model_cost(cost)  # cost nodes; a no-op while cost is suspended
 
 
-def check_limits(raise_for_equal: bool = False, at_exit: bool = False) -> None:
+def check_limits(raise_for_equal: bool = False) -> None:
     """Raise the outermost reached token, cost or turn limit on the chain."""
-    nodes = _chain_root_first()  # from _limit_chain via _outer
-    for node in nodes:
-        if isinstance(node, _TokenLimit) and token_limit_tree.is_suspended():
-            continue
-        if isinstance(node, _TurnLimit) and turn_limit_tree.is_suspended():
-            continue
-        if isinstance(node, _CostLimit) and cost_limit_tree.is_suspended():
-            continue
-        if at_exit and node._scoring_restore:
-            continue  # restored by a scoring resume, untouched since
-        if isinstance(node, (_TokenLimit, _CostLimit, _TurnLimit)):
+    for node in _chain_root_first():  # from _limit_chain via _outer
+        if _counted(node):
             # raises (with its SampleLimitEvent) and sets node._raised_at
-            node._check_marked(raise_for_equal or (at_exit and node._refused_at_budget()))
+            node._check_marked(raise_for_equal)
+
+
+def check_own_limits(limits: Sequence[Limit]) -> None:
+    """At an owner's normal exit: raise the outermost of its own limits that counts."""
+    own = [n for n in limits if n._in_chain and _counted(n)]
+    for node in sorted(own, key=_chain_depth):  # root first
+        node._check_marked(node._refused_at_budget())
+
+
+def _counted(node: Limit) -> bool:
+    """A token, cost or turn node whose kind is not suspended."""
+    if isinstance(node, _TokenLimit):
+        return not token_limit_tree.is_suspended()
+    if isinstance(node, _CostLimit):
+        return not cost_limit_tree.is_suspended()
+    if isinstance(node, _TurnLimit):
+        return not turn_limit_tree.is_suspended()
+    return False
 ```
 
 - `_Node._check_marked(raise_for_equal)` calls
   `_check_self(raise_for_equal)`; if that raises a `LimitExceededError`, it
   sets `self._raised_at` to the greater of its current value and
-  `self.limit` (the effective limit, a live override included) and clears `self._scoring_restore` before re-raising. Every check path goes through it:
+  `self.limit` (the effective limit, a live override included) before re-raising. Every check path goes through it:
   `check_limits()` and the per-kind `check()` methods. inspect_swarm's
   `_check_self()` overrides therefore set the mark too.
 - `_Node._refused_at_budget() -> bool` is `self._raised_at is not None and
@@ -511,7 +522,7 @@ def check_limits(raise_for_equal: bool = False, at_exit: bool = False) -> None:
   store raising), no turn is recorded, as today, and that error leaves the
   call; it is not compared with a limit the recorded usage reached (a limit
   error that reaches its owner stands, and so does any other error). The
-  reached limit refuses the next pre-dispatch check, or is found by the
+  reached limit refuses the next pre-dispatch check, or is found by its
   owner's exit check.
 - Native compaction (`_model.py:1547`) records and checks as one step, since
   it records no turn.
@@ -585,8 +596,8 @@ Each site keeps its existing ranking of limits against non-limit errors. Only
 "which limit" changes. Ranking limits *above* other errors (or below them)
 everywhere is a separate question and is left out (see "Not this design").
 A limit that a non-limit error displaces at one of these sites is not lost
-for good: it stays reached, so the next dispatch is refused (rule 3), and the
-owner's exit check raises it if the scope ends normally (rule 7).
+for good: it stays reached, so the next dispatch is refused (rule 3), and its
+owner's exit check raises it if that owner ends normally (rule 7).
 
 Generic reductions are left alone. `tg_collect()` and
 `unwrap_exception_group("first")` (`src/inspect_ai/_util/_async.py:44-124`)
@@ -768,10 +779,14 @@ no limit error reaches the owner because a handler swallowed it. It has two
 call sites:
 
 - `apply_limits()`, on a normal return: after the body returns, before it
-  exits its limits, it calls `check_limits(at_exit=True)`. A limit that
-  raises there is handled by the same `except` as one raised in the body:
-  caught if owned and `catch_errors=True`, propagated otherwise. A sample
-  limit raised at that point leaves `run()` and ends the sample.
+  exits its limits, it calls `check_own_limits(limits)` over the limits it
+  was given. Only its own limits can raise there, so one that does is
+  caught when `catch_errors=True` (`run()`) and propagates otherwise
+  (`as_solver()`, `as_tool()`, handoffs), as one raised in the body.
+  Enclosing limits are not checked there. A sample limit that a handler
+  inside a `run()` agent swallowed does not leave `run()` at its exit: it
+  is refused at the caller's next call, or found by the sample's exit
+  check, one step later, as for any swallowed error.
 - The sample runner, when its solvers return normally (below).
 
 **The sample's exit check.** Today the solvers run in `run()`, a task of the
@@ -784,10 +799,10 @@ return, after `plan()` has returned. So the check runs after the join:
 `run()` sets a local `solved = True` right after `plan()` returns, and after
 the `async with anyio.create_task_group()` block and the existing
 `solver_cancel` check, when `solved` is set, the runner calls
-`check_limits(at_exit=True)`. The sample's roots are the chain's only nodes
-at that point, so it raises the outermost root that counts at exit, with
-its `SampleLimitEvent`, and the existing `except LimitExceededError`
-(`run.py:3422`) records it.
+`check_own_limits()` over the sample's token, cost and turn roots
+(`sample_limits()`). It raises
+the outermost root that counts at exit, with its `SampleLimitEvent`, and
+the existing `except LimitExceededError` (`run.py:3422`) records it.
 
 Everything else is unchanged. A limit error that escapes the solvers is
 recorded as it is today. A non-limit error (after
@@ -799,38 +814,19 @@ or a limit a sandbox service routes to the sample) keep their handling
 inside `run()`, which sets the outcome before the join and leaves `solved`
 unset.
 
-**A resume for scoring is not checked at exit.** It restores a spent
+**A resume for scoring skips the sample's exit check.** It restores a spent
 budget on purpose and runs no agent work: `restore_sample_runtime(...,
 check=False)` reseeds the roots without checking them, and ReAct returns at
-once (`src/inspect_ai/agent/_react.py:233-234`). But the agent is still
-wrapped, on the ordinary `as_solver(react(...))` path in an
-`apply_limits()` scope whose exit check walks the whole chain, the sample's
-roots included. So a scoring-only restore sets a private `_scoring_restore
-= True` on each root it reseeds, and `check_limits(at_exit=True)` skips a
-node with that mark, at every exit check: `apply_limits()` and the sample
-runner alike. The mark is not stored in checkpoints. Pre-dispatch checks
-are unchanged, as today: a call made under a spent restored root is still
-refused.
-
-The mark exempts only the restored state. The resumed attempt can still do
-work: `_CheckpointerSetup.__aenter__()` awaits the task's `on_resume`
-callback after the restore on a scoring resume too
-(`src/inspect_ai/util/_checkpoint/checkpointer_impl.py:147-160`), and that
-callback may make model calls. So the node clears `_scoring_restore` on the
-first fresh evidence from this attempt:
-
-- **A record.** The node's `record()` (token usage, cost or a turn, any
-  amount) clears it. A call whose usage was recorded but whose combined
-  check never ran (a cache store or usage hook that raised in between) is
-  then judged at exit by its usage with `>`, like any other node.
-- **A refusal.** `_check_marked()` clears it when the node's check raises,
-  as it sets `_raised_at`. A call refused at a spent restored root, whose
-  error the callback caught, is then judged at exit with
-  `raise_for_equal=True` and raises.
-
-A scoring resume that makes no call keeps the mark on every root and returns
-unlimited, as today; one whose callback hits a restored limit ends the
-sample with that limit, as a normal attempt would.
+once (`src/inspect_ai/agent/_react.py:233-234`). The runner knows the
+attempt kind: `_task_run_sample_attempt()` receives the `ResumeCheckpoint`,
+whose `attempt` is `"resume_for_scoring"` for a checkpoint taken when the
+agent completed (`src/inspect_ai/util/_checkpoint/resume.py:33-39`). On
+that attempt the runner skips its exit check, as ReAct skips the agent.
+The `apply_limits()` scope around the agent (`as_solver(react(...))`)
+checks only its own limits, so the restored roots are not checked there
+either. Pre-dispatch checks are unchanged, as today: a call made under a
+spent restored root is still refused. What this leaves unrecorded is under
+"Plain `with` blocks" below.
 
 **What the owner can miss.** Because an error that reaches its owner
 stands, the recorded limit can differ from the outermost limit that counts
@@ -883,9 +879,10 @@ Background deepagent subagents already read the scope after their block
 `apply_limits()` without `catch_errors`, so a limit raised at their exit
 propagates.
 
-**What raises at exit.** A node raises if it is exceeded (`> limit`), or if
+**What raises at exit.** Each of the owner's own nodes raises if it is
+exceeded (`> limit`), or if
 it is reached (`== limit`) and was refused at that same budget
-(`_refused_at_budget()`): the exit check passes
+(`_refused_at_budget()`): `check_own_limits()` passes
 `raise_for_equal=node._refused_at_budget()` for each node. So:
 
 - A sample that used exactly its token budget, or took exactly its N turns,
@@ -917,15 +914,15 @@ count, without clearing it. A checkpoint does not store it ("Checkpoints").
 **Plain `with` blocks.** A `with token_limit(...)`, `cost_limit(...)` or
 `turn_limit(...)` block entered directly, not through `apply_limits()` or
 `run()`, gets no exit check, as today (decision: Ransom, 2026-11-17).
-Automatic recovery of a swallowed limit error covers `apply_limits()`,
-`run()` and the sample. Its author owns it and may catch its
+Automatic recovery of a swallowed limit error covers the limits of each
+`apply_limits()` scope (`run()` included) and the sample's limits. Its author owns it and may catch its
 error inside the block on purpose, which an exit check would raise again;
 inspect_swarm also enters its member nodes this way (`_run_member()`,
 through an `ExitStack`) and handles their errors itself. The rule for a plain block is therefore: while the block is
 open, its reached limit refuses every call under it (rule 3), so an error
 that a handler inside the block swallowed comes back at the next call. When
-the block ends normally, no Inspect code checks its node, and an enclosing
-owner's exit check does not see it, because the node has left the chain. A
+the block ends normally, no Inspect code checks its node: an enclosing
+owner's exit check covers only that owner's limits. A
 limit error that a handler swallowed and that no later call in the block
 met is then lost, as today: for example ReAct's forced-compaction fallback
 (`_handle_overflow()`, `src/inspect_ai/agent/_react.py:714-736`) can consume
@@ -934,6 +931,19 @@ block ends normally. Spend stays bounded: no call under the block runs past
 the limit. An author who needs the outcome either way reads the node after
 the block (`limit.usage` against `limit.limit`) or uses `apply_limits()`,
 whose exit check covers its own limits.
+
+**Limits swallowed during a resume for scoring.** The same principle holds
+for a scoring resume, which has no sample exit check. A limit reached and
+swallowed during that attempt is not recorded: by a sample-start or
+attempt-start hook, which the runner calls before the agent runs and so
+before the checkpoint is restored (`run.py:3372-3392`; the hook may catch
+it itself, and `_call_hook_safely()` re-raises a bare limit error but logs
+and drops one inside an exception group, `src/inspect_ai/hooks/_hooks.py:1218-1236`), or by the task's `on_resume`
+callback, which runs after the restore
+(`src/inspect_ai/util/_checkpoint/checkpointer_impl.py:147-160`). A limit
+error that is not caught still ends the sample, as today. Spend stays
+bounded: every later call under the reached limit is refused (decision:
+Ransom, 2026-11-17).
 
 ### Token metering must not decrease
 
@@ -1001,8 +1011,8 @@ cost and turn checks, in that order, with `>` (`sample_runtime.py:153-163`,
 `:221-225`; called for a normal resume at `checkpointer_impl.py:147-152`).
 An exceeded root therefore still ends the resumed attempt before it makes a
 call. A resume for scoring (`check=False`) runs no check, as today, and
-marks the roots it reseeds so that exit checks skip them until the attempt
-records into or is refused by them ("The owner's exit check").
+the runner skips the sample's exit check on that attempt ("The owner's exit
+check").
 
 The fresh roots carry no `_raised_at` mark, so the exit check's handling of a
 limit reached exactly holds within one attempt. A limit that refused a call
@@ -1081,8 +1091,8 @@ async def generate_forwarding_errors(json_data, headers=None):
   limit is not raised there. Its node raised when it was reached, so it
   carries the `_raised_at` mark. It refuses every later call under it (rule
   3), and when no other limit error reaches its owner, rule 7 raises it
-  when that owner ends normally: an `apply_limits()` scope, or the sample's
-  exit check when the solvers return, whether the limit is exceeded or was
+  when that owner ends normally: the `apply_limits()` scope that entered
+  it, or the sample's exit check when the solvers return, whether the limit is exceeded or was
   reached exactly by a refused request: for example a swarm that
   hard-stopped the member and then returned.
 - A refused unpriced model (`UnmeteredCallError`, see "Unpriced models")
@@ -1150,9 +1160,9 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    runner records it as the sample's limit (`EvalSampleLimit` of that type).
    During the stop, no model call can succeed under the reached limit, so
    the runtime's final step must make none.
-4. **Losing it is not silent.** When the solvers return normally, the
-   sample's exit check records the outermost sample limit that counts at
-   exit (rule 7): one that is exceeded, or reached exactly after refusing a
+4. **Losing it is not silent.** When the solvers return normally (on
+   any attempt but a resume for scoring), the sample's exit check records
+   the outermost sample limit that counts at exit (rule 7): one that is exceeded, or reached exactly after refusing a
    call. That covers a runtime, or a bridged agent
    cancelled before its CLI exited, that drops the error. It runs after
    background cleanup, so usage recorded there counts. A limit error that
@@ -1431,6 +1441,19 @@ node with a sequence number at entry orders nodes that are on one path, but
 does not tell ancestry from "entered earlier in a sibling task". A chain
 pointer gives both depth and ancestry, at the same cost.
 
+**`apply_limits()` checks the whole chain at exit.** A scope's exit check
+would also raise an enclosing limit that a handler inside the scope
+swallowed, one scope earlier than its own owner. But every scope would then
+raise limits it does not own: a default deepagent background child, which
+enters `apply_limits()` with no limits of its own
+(`src/inspect_ai/agent/_deepagent/agent_tool.py:768-780`), would end the
+sample with its parent's `run()` limit after the parent had caught it; an
+inner scope would raise an inspect_swarm lever closed on an enclosing
+member node; and the sample's restored roots would need a per-node
+exemption on a resume for scoring that kept missing limits reached earlier
+in the same attempt. Each owner checking its own limits gives the same
+"one step later" as any swallowed error (decision: Ransom, 2026-11-17).
+
 **Make every limit node check itself at exit.** One rule instead of two call
 sites (rule 7), and a plain `with token_limit()` block would find a limit
 that a handler inside it swallowed. But it would raise again an error the
@@ -1643,14 +1666,17 @@ documented. Behaviour changes:
 - **`apply_limits()`** catches its own limit raised in an exception group
   (when every limit in it is its own or a descendant's; any other leaf,
   including a sourceless `custom` limit, propagates the group as today),
-  and at normal exit raises a limit that is exceeded, or reached after it
-  refused a call. `run()` therefore returns `(state, error)` in these cases
+  and at normal exit raises one of its own limits that is exceeded, or
+  reached after it refused a call; it does not check enclosing limits. `run()` therefore returns `(state, error)` in these cases
   where today it raises or returns `(state, None)`. A limit error that
   escapes its body is handled as it is (by ownership of its outermost
   limit), not compared with node state.
 - **The sample runner**, when the solvers return normally, checks the
   sample's limits after the solvers and the sample's background work have
-  finished, and records an exceeded or refusing sample limit found then. A limit error that escapes the solvers is recorded as today.
+  finished, and records an exceeded or refusing sample limit found then.
+  It does not on a resume for scoring, so, as today, a limit swallowed
+  during that attempt (by a sample-start or attempt-start hook or the
+  `on_resume` callback) is not recorded. A limit error that escapes the solvers is recorded as today.
   Errors, terminations, operator interrupts and limits delivered by
   cancellation are handled as today.
 - **Background work.** Its lifetime and the destination of its errors are
@@ -1658,14 +1684,7 @@ documented. Behaviour changes:
   including deepagent's default background children, still sends its errors
   to the sample, so a child's limit of its parent's `run()` still ends the
   sample rather than returning from that `run()`, as today. The runtime
-  guarantees state this as a prerequisite rather than changing it. One new
-  way to end the sample comes with the exit check: a default deepagent
-  background child enters `apply_limits()` even with no limits of its own
-  (`src/inspect_ai/agent/_deepagent/agent_tool.py:768-780`), and inherits
-  its parent's chain. If the parent's `run()` limit was reached, and the
-  parent caught it and returned, the child's normal exit now raises that
-  limit into the sample's group, ending the sample, without another model
-  call; today it would do so only at the child's next call.
+  guarantees state this as a prerequisite rather than changing it.
 - **Usage hooks and the cache see limit-crossing outputs.** A generation
   whose usage crosses a limit is now reported to usage hooks and legacy
   telemetry and stored in the cache before the limit raises, where today
@@ -1846,9 +1865,11 @@ under trio with `--runtrio`.
   agent is returned as `(state, error)` by the exit check (the return path
   of `run()`); an owned limit reached exactly and swallowed after a refused
   call is returned; an owned limit reached exactly with no refused call
-  returns `(state, None)`; a sample limit swallowed inside the agent
-  propagates from `run()`; a synchronous deepagent subagent's swallowed
-  limit is reported as its result;
+  returns `(state, None)`; a sample limit swallowed inside the agent does
+  not leave `run()` at its exit (`run()` returns `(state, None)`), the
+  caller's next model call is refused with it, and if the solver instead
+  returns, the sample is recorded as limited by it; a synchronous deepagent
+  subagent's swallowed limit is reported as its result;
   - an escaped error stands (pinned, synchronized by an `anyio.Event`):
     `run(limits=[cost_limit(1), token_limit(1)])` over `tg_collect()`, where
     one task raises the token limit first and a sibling's call, finishing in
@@ -1868,10 +1889,6 @@ under trio with `--runtrio`.
     returns ends the block normally; a further call made inside the block
     is refused with that limit; a catch inside the block is not raised
     again at its close;
-  - background children: a default deepagent background child started by a
-    `run()` whose token limit is reached, caught and returned, ends the
-    sample with that limit when the child returns normally, synchronized
-    by an `anyio.Event`;
   - own limits outside the chain: `apply_limits([time_limit(...)],
     catch_errors=True)` and `run(limits=[time_limit(...)])` still catch and
     return their own time limit error, including one raised as the limits
@@ -1892,14 +1909,8 @@ under trio with `--runtrio`.
   refused a call at exactly its budget, the next call is refused before
   dispatch; after a scoring-only restore of spent token, cost and turn
   roots, `as_solver(react(...))` returns normally with no model call and
-  the sample is scored and not recorded as limited (the no-call control);
-  after the same restore, an `on_resume` callback whose model call is
-  refused at a restored token, and separately cost, root and which
-  catches the refusal ends the sample with that limit; after a scoring
-  restore below budget, a callback call whose recorded usage takes the
-  token root over its budget, followed by a stubbed `cache_store()` that
-  raises before the combined check and is caught, ends the sample with
-  the token limit; each on asyncio and Trio.
+  the sample is scored and not recorded as limited (the no-call control),
+  on asyncio and Trio.
 - `tests/util/test_limit.py`, sentinel: a stub in-process monitor whose
   priced model call would exceed a reached sample cost limit is made and
   not charged to it.
@@ -1999,7 +2010,7 @@ Each step is one PR, in this order. Each keeps the suite green.
 1. **The chain and one check.** `src/inspect_ai/util/_limit.py`:
    `_limit_chain`, `_outer`/`_in_chain`/`_raised_at`, push/pop, `_chain_depth`,
    `_rank`, `outermost_limit`, `first_or_outermost_limit`, `_outer_than`,
-   `_check_marked`, `check_limits`, `record_model_call`,
+   `_check_marked`, `check_limits`, `_counted`, `record_model_call`,
    `_TurnLimit._check_self(raise_for_equal)`, `_refused_at_budget()` (no
    setter or override-store change), `record_turn` recording only,
    the affine grammar and non-negative weights in `_compile_token_formula()`,
@@ -2009,8 +2020,9 @@ Each step is one PR, in this order. Each keeps the suite green.
    `record_turn()` then `check_limits()`, the same order in
    `_generate_prepared()` for an output `refusal_after_error()` recovers,
    `_check_limits_before_dispatch`.
-   Tests: `tests/util/test_limit*.py`, `tests/_control/test_limits.py`, `tests/checkpoint/test_sample_runtime.py`
-   (the checkpoint code is unchanged).
+   Tests: the node-level cases in `tests/util/test_limit*.py` (chain,
+   precedence, recording, pre-dispatch refusal, `_raised_at` and
+   `_refused_at_budget()` across setters and overrides).
 2. **Unpriced models.** `_limit.py`: `UnmeteredCallError`. `_model.py`:
    the unpriced check in `_check_limits_before_dispatch(model)` and the
    model passed by `generate()`'s and compaction's per-attempt calls;
@@ -2029,19 +2041,20 @@ Each step is one PR, in this order. Each keeps the suite green.
    `tests/util/test_limit_cost.py` and
    `tests/agent/test_bridge_provider_errors.py`.
 4. **Owners and reductions.** `_limit.py`: `apply_limits()` covered exits
-   and its exit check on a normal return; `check_limits(at_exit=True)`
-   skipping `_scoring_restore` nodes, set by
-   `restore_sample_runtime(check=False)` in
-   `src/inspect_ai/util/_checkpoint/sample_runtime.py` and cleared by the
-   node's `record()` and by a raise in `_check_marked()`.
-   `src/inspect_ai/agent/_run.py`: the return after the block. `src/inspect_ai/_eval/task/run.py`: `first_or_outermost_limit`
-   for the escaping group, and `check_limits(at_exit=True)` after the
-   sample task group has joined when the solvers returned (a scoring
-   resume's untouched roots are skipped through their mark).
+   and `check_own_limits()` over its own limits on a normal return.
+   `src/inspect_ai/agent/_run.py`: the return after the block.
+   `src/inspect_ai/_eval/task/run.py`: `first_or_outermost_limit` for the
+   escaping group, and `check_own_limits()` over the sample's roots after
+   the sample task group has joined when the solvers returned, skipped
+   when the attempt is `resume_for_scoring`.
    `src/inspect_ai/model/_call_tools.py`: `decisive_tool_exception`,
-   `decisive_sentinel_exception`. Tests: `run()` and sentinel tests in
-   `tests/util/test_limit.py`, `tests/test_eval.py`,
-   `tests/agent/test_agent_overflow_compaction.py`.
+   `decisive_sentinel_exception`. Tests: the owner-exit cases, which need
+   these checks: `run()` and sentinel tests in `tests/util/test_limit.py`,
+   `tests/test_eval.py`, `tests/agent/test_agent_overflow_compaction.py`,
+   the live-override sample outcomes in `tests/_control/test_limits.py`,
+   and the restore and scoring-resume outcomes in
+   `tests/checkpoint/test_sample_runtime.py` (the checkpoint code is
+   unchanged).
 5. **Ownership in tools.** `_call_tools.py`: the call leaf and ownership test
    in `call_tool_task`, and the same test in `agent_handoff()`'s `except`.
    `src/inspect_ai/agent/_bridge/sandbox/host_tool.py`: `_raised` ownership,
