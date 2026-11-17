@@ -129,15 +129,18 @@ def _has_httpx_timeout(err: BaseException) -> bool:
 def _hf_offline() -> bool:
     """Whether `datasets` is in offline mode, resolved as the library does.
 
-    `HF_DATASETS_OFFLINE` overrides the Hub-wide flag whenever it is set.
+    `HF_DATASETS_OFFLINE` overrides the Hub-wide flag whenever it is set. For
+    the Hub-wide flag, a non-empty `HF_HUB_OFFLINE` (even `0`) takes precedence
+    over `TRANSFORMERS_OFFLINE`.
     """
 
-    def is_true(name: str) -> bool:
-        return os.getenv(name, "").upper() in _HF_ENV_TRUE_VALUES
+    def is_true(value: str | None) -> bool:
+        return (value or "").upper() in _HF_ENV_TRUE_VALUES
 
-    if os.getenv("HF_DATASETS_OFFLINE") is not None:
-        return is_true("HF_DATASETS_OFFLINE")
-    return is_true("HF_HUB_OFFLINE") or is_true("TRANSFORMERS_OFFLINE")
+    datasets_flag = os.getenv("HF_DATASETS_OFFLINE")
+    if datasets_flag is not None:
+        return is_true(datasets_flag)
+    return is_true(os.getenv("HF_HUB_OFFLINE") or os.getenv("TRANSFORMERS_OFFLINE"))
 
 
 def _hf_max_tries() -> int:

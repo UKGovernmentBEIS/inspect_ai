@@ -153,6 +153,12 @@ def test_retry_hub_unreachable_wrapper_without_cause():
         ({"HF_DATASETS_OFFLINE": "false"}, True),
         # HF_DATASETS_OFFLINE overrides the Hub-wide flag when it is set
         ({"HF_HUB_OFFLINE": "1", "HF_DATASETS_OFFLINE": "0"}, True),
+        # a non-empty HF_HUB_OFFLINE takes precedence over TRANSFORMERS_OFFLINE
+        ({"HF_HUB_OFFLINE": "0", "TRANSFORMERS_OFFLINE": "1"}, True),
+        ({"HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "0"}, False),
+        # an empty HF_HUB_OFFLINE falls through to TRANSFORMERS_OFFLINE
+        ({"HF_HUB_OFFLINE": "", "TRANSFORMERS_OFFLINE": "1"}, False),
+        ({"HF_HUB_OFFLINE": "", "TRANSFORMERS_OFFLINE": "0"}, True),
     ],
 )
 def test_hub_unreachable_wrapper_respects_offline_mode(
