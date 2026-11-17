@@ -94,15 +94,21 @@ from inspect_ai.log._bundle import bundle_log_dir, embed_log_dir
 from inspect_ai.log._file import (
     EvalLogInfo,
     ReadEvalLogsProgress,
+    _write_log_dir_manifest,
     list_eval_logs,
     read_eval_log_headers,
-    write_log_dir_manifest,
     write_log_listing,
 )
 from inspect_ai.log._log import EvalConfig
 from inspect_ai.log._recorders.buffer.buffer import cleanup_sample_buffers_for_log
 from inspect_ai.log._recorders.buffer.database import sample_buffer_shutdown_pending
-from inspect_ai.log._shards._walk import is_shard_path, list_shard_set, shard_companion
+from inspect_ai.log._shards._plan import is_unchanged
+from inspect_ai.log._shards._walk import (
+    list_shard_set,
+    listing_root,
+    shard_companion,
+    without_shard_logs,
+)
 from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
@@ -1071,12 +1077,18 @@ def eval_set(
             status.stop()
             status = None
 
+    # must read BEFORE scan_context enters — scan_init invalidates the
+    # finalize flag on attach, so reading from inside try_eval is too late
+    prior_scan_clean = scan_already_clean(scanner, eval_set_id, log_dir)
+
     # function which will be called repeatedly to attempt to complete
     # the evaluations. for this purpose we will divide tasks into:
     #   - tasks with no log at all (they'll be attempted for the first time)
     #   - tasks with a successful log (they'll just be returned)
     #   - tasks with failed logs (they'll be retried)
     def try_eval() -> list[EvalLog]:
+        # a startup merge clears it: the prior scan never saw merged samples
+        nonlocal prior_scan_clean
         config = GenerateConfig(**kwargs)
         # resolve tasks
         resolved_tasks, _, _ = eval_resolve_tasks(
@@ -1114,21 +1126,24 @@ def eval_set(
             (task_identifier(task, eval_set_args), task) for task in resolved_tasks
         ]
 
-        # merge shard sets, then list all logs currently in the log directory
-        # (update manifest if there are some)
+        # list all logs currently in the log directory, merge shard sets (and
+        # list again if a merge wrote), then update manifest if there are logs
         log_files = list_eval_logs(log_dir)
+        all_logs = read_logs(without_shard_logs(log_dir, log_files))
         if merge_shard_sets(
             log_dir,
             log_files,
+            all_logs,
             all_tasks,
             epochs=epochs,
             limit=limit,
             sample_id=sample_id,
         ):
+            prior_scan_clean = False
             log_files = list_eval_logs(log_dir)
-        all_logs = read_logs(without_shards(log_dir, log_files))
+            all_logs = read_logs(without_shard_logs(log_dir, log_files))
         if len(all_logs) > 0:
-            write_log_dir_manifest(log_dir)
+            _write_log_dir_manifest(log_dir, skip_shards=True)
 
         # validate that:
         #  (1) All tasks have a unique identifier
@@ -1238,10 +1253,6 @@ def eval_set(
         before=before,
     )
 
-    # must read BEFORE scan_context enters — scan_init invalidates the
-    # finalize flag on attach, so reading from inside try_eval is too late
-    prior_scan_clean = scan_already_clean(scanner, eval_set_id, log_dir)
-
     # EvalStates accumulate as tasks run (task_run registers but never
     # unregisters); clear the registry at this run boundary — in `finally`,
     # after any keep-alive park — so they stay visible in `inspect ctl task list`
@@ -1292,7 +1303,7 @@ def eval_set(
             print_scan_status(log_dir, scanner)
 
         # update manifest
-        write_log_dir_manifest(log_dir)
+        _write_log_dir_manifest(log_dir, skip_shards=True)
 
         # emit end event
         run_coroutine(emit_eval_set_end(eval_set_id, log_dir))
@@ -1866,24 +1877,8 @@ def list_all_eval_logs(
     """
     log_files = list_eval_logs(log_dir, recursive=recursive)
     if skip_shards:
-        log_files = without_shards(log_dir, log_files)
+        log_files = without_shard_logs(log_dir, log_files)
     return read_logs(log_files, progress)
-
-
-def without_shards(log_dir: str, log_files: list[EvalLogInfo]) -> list[EvalLogInfo]:
-    """The log files that are not in a shard set below `log_dir` (see `is_shard_path`)."""
-    root = _listing_root(log_dir)
-    return [info for info in log_files if not is_shard_path(root, info.name)]
-
-
-def _listing_root(log_dir: str) -> str:
-    """`log_dir` in the form of the names its listing returns.
-
-    Some backends list names under another form of the directory (adlfs lists
-    `az://` and account-qualified `abfss://` paths as `abfs://`), so listed
-    names are compared with this form rather than `log_dir` as given.
-    """
-    return filesystem(log_dir).dir_as_uri(log_dir)
 
 
 def read_logs(
@@ -1915,6 +1910,7 @@ class _ShardSet(NamedTuple):
 def merge_shard_sets(
     log_dir: str,
     log_files: list[EvalLogInfo],
+    logs: list[Log],
     all_tasks: list[tuple[str, ResolvedTask]],
     *,
     epochs: int | Epochs | None,
@@ -1931,9 +1927,15 @@ def merge_shard_sets(
     warning. The eval set then pairs, completes and retries the merged log
     like any other log.
 
+    A merge that would add shards to a merged log after an unsharded retry
+    of it was written is refused: rewriting the merged log the retry was
+    seeded from would let retry cleanup choose it over the retry and drop
+    the samples only the retry holds.
+
     Args:
         log_dir: The eval set's log directory.
         log_files: Its listing.
+        logs: The listed logs outside shard sets, with their headers.
         all_tasks: The eval set's tasks and their identifiers.
         epochs: The eval set's epochs, applied to the task passed to the merge.
         limit: The eval set's `limit`.
@@ -1943,12 +1945,14 @@ def merge_shard_sets(
         Whether any merge wrote its merged log.
 
     Raises:
-        PrerequisiteError: A shard set holds only stray files, the eval set
-            selects none of its task's samples, or its merge failed (the
+        PrerequisiteError: A shard set holds only stray files, holds new
+            shards while an unsharded retry newer than its merged log exists,
+            the eval set selects none of its task's samples, or its merge
+            failed (the
             merge's exception is the cause). The other merges still running
             are cancelled.
     """
-    root = _listing_root(log_dir)
+    root = listing_root(log_dir)
     shard_sets = sorted(
         {
             companion
@@ -1958,7 +1962,7 @@ def merge_shard_sets(
     )
     if not shard_sets:
         return False
-    listed = {info.name for info in log_files}
+    by_name = {log.info.name: log for log in logs}
     task_names = resolved_task_names([task for _, task in all_tasks])
     eval_epochs = resolve_epochs(epochs)
 
@@ -1968,7 +1972,9 @@ def merge_shard_sets(
         async def identify(shards_dir: str) -> _ShardSet | None:
             async with limiter:
                 with _shard_set_refusal(shards_dir):
-                    return await _identify_shard_set(fs, shards_dir, listed, all_tasks)
+                    return await _identify_shard_set(
+                        fs, shards_dir, by_name, logs, all_tasks
+                    )
 
         async with AsyncFilesystem() as fs:
             found = await tg_collect(
@@ -2019,22 +2025,26 @@ def merge_shard_sets(
 async def _identify_shard_set(
     fs: AsyncFilesystem,
     shards_dir: str,
-    listed: set[str],
+    by_name: dict[str, Log],
+    logs: list[Log],
     all_tasks: list[tuple[str, ResolvedTask]],
 ) -> _ShardSet | None:
     """Find the task of a shard set from one of its headers.
 
-    Reads the merged log's header when the merged log is listed, else that
-    of the first shard's current attempt. Any attempt would do: the merge
-    refuses shards whose identifiers differ.
+    Uses the merged log's header when the merged log is listed, else reads
+    that of the first shard's current attempt. Any attempt would do: the
+    merge refuses shards whose identifiers differ.
 
     Raises:
         PrerequisiteError: The shard set has neither a merged log nor an
-            attempt, only stray files.
+            attempt, only stray files; or it holds shards the merged log
+            does not, while an unsharded retry newer than the merged log
+            exists.
     """
     merged = eval_log_for_shards_dir(shards_dir)
-    if merged in listed:
-        location = merged
+    merged_log = by_name.get(merged)
+    if merged_log is not None:
+        header = merged_log.header
     else:
         listing = await list_shard_set(fs, shards_dir)
         attempt = next(
@@ -2050,8 +2060,7 @@ async def _identify_shard_set(
                 f"log files that are not shard attempts: {stray}. "
                 "Move or remove them, then re-run."
             )
-        location = attempt.name
-    header = await read_eval_log_async(location, header_only=True)
+        header = await read_eval_log_async(attempt.name, header_only=True)
     identifier = task_identifier(header, None)
     task = next((task for id, task in all_tasks if id == identifier), None)
     if task is None:
@@ -2060,7 +2069,54 @@ async def _identify_shard_set(
             "with a task passed to eval_set."
         )
         return None
+    if merged_log is not None:
+        await _check_no_newer_retry(fs, shards_dir, merged_log, logs)
     return _ShardSet(shards_dir=shards_dir, merged=merged, task=task)
+
+
+async def _check_no_newer_retry(
+    fs: AsyncFilesystem, shards_dir: str, merged_log: Log, logs: list[Log]
+) -> None:
+    """Refuse new shards for a merged log that an unsharded retry is newer than.
+
+    The retry was seeded from the merged log. A merge would rewrite the
+    merged log with a newer mtime, and while no unsharded log of the task
+    has succeeded, retry cleanup would then choose the merged log as the
+    latest and remove the retry with the samples only it holds.
+
+    Raises:
+        PrerequisiteError: A shard's current attempt is not the one the
+            merged log's ledger records, and an unsharded log of the merged
+            log's task is newer than the merged log.
+    """
+    shards = merged_log.header.eval.shards
+    if shards is None:
+        return
+    mtime = merged_log.info.mtime or 0
+    newer = [
+        log
+        for log in logs
+        if log.header.eval.shards is None
+        and log.header.eval.task_id == merged_log.header.eval.task_id
+        and (log.info.mtime or 0) > mtime
+    ]
+    if not newer:
+        return
+    ledger = {entry.shard: entry for entry in shards.ledger}
+    listing = await list_shard_set(fs, shards_dir)
+    if all(
+        shard.current is None or is_unchanged(ledger.get(shard.name), shard.current)
+        for shard in listing.shards
+    ):
+        return
+    retries = ", ".join(_display(log.info.name) for log in newer)
+    raise PrerequisiteError(
+        f"[bold]ERROR[/bold]: {_display(shards_dir)} holds shards that "
+        f"{_display(merged_log.info.name)} does not, and an unsharded retry of "
+        f"the task is newer than it ({retries}). Merging them would replace the "
+        "log the retry was seeded from and could discard the samples only the "
+        "retry holds. Remove the new shards or the unsharded retry, then re-run."
+    )
 
 
 @contextlib.contextmanager

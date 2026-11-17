@@ -5097,6 +5097,45 @@ def test_eval_set_reports_duplicate_ids_in_a_merged_task(
     assert shard_runs == []
 
 
+def test_eval_set_manifest_leaves_out_shard_attempts(
+    tmp_path: Path, shard_runs: list[int | str]
+) -> None:
+    _shard(tmp_path, "0", [1, 2, 3, 4, 5, 6])
+    # an older, unreadable attempt the merge does not read
+    (
+        _shards_dir(tmp_path) / "0" / "2020-01-01T00-00-00-00-00_x_Old1Id.eval"
+    ).write_bytes(b"x")
+
+    success, [log] = _sharded_eval_set(tmp_path)
+
+    assert success and log.eval.shards is not None
+    manifest = json.loads((tmp_path / "logs.json").read_text())
+    assert list(manifest) == [f"{SHARD_NAME}.eval"]
+
+
+def test_eval_set_refuses_new_shards_after_a_newer_unsharded_retry(
+    tmp_path: Path, shard_runs: list[int | str]
+) -> None:
+    _shard(tmp_path, "0", [1])
+    _SHARD_FAILING.add(4)
+    success, [retry] = _sharded_eval_set(tmp_path, retry_attempts=0)
+    assert not success and retry.status == "error" and retry.eval.shards is None
+    _SHARD_FAILING.clear()
+    _shard(tmp_path, "1", [2])
+    merged = _merged_log(tmp_path).read_bytes()
+    names = _log_names(tmp_path)
+    shard_runs.clear()
+
+    with pytest.raises(PrerequisiteError, match="unsharded retry") as raised:
+        _sharded_eval_set(tmp_path)
+
+    assert str(_shards_dir(tmp_path)) in str(raised.value)
+    assert local_path(retry.location) in str(raised.value)
+    assert shard_runs == []
+    assert _merged_log(tmp_path).read_bytes() == merged
+    assert _log_names(tmp_path) == names
+
+
 def test_eval_set_retries_a_failed_shard_set_from_its_merged_log(
     tmp_path: Path, shard_runs: list[int | str]
 ) -> None:

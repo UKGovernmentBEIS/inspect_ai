@@ -504,6 +504,29 @@ def write_log_dir_manifest(
       fs_options (dict[str,Any]): Optional. Additional arguments to pass through
         to the filesystem provider (e.g. `S3FileSystem`).
     """
+    _write_log_dir_manifest(
+        log_dir, filename=filename, output_dir=output_dir, fs_options=fs_options
+    )
+
+
+def _write_log_dir_manifest(
+    log_dir: str,
+    *,
+    filename: str = "logs.json",
+    output_dir: str | None = None,
+    fs_options: dict[str, Any] = {},
+    skip_shards: bool = False,
+) -> None:
+    """Write a manifest for a log directory (see `write_log_dir_manifest`).
+
+    Args:
+      log_dir: Log directory to write manifest for.
+      filename: Manifest filename.
+      output_dir: Output directory for manifest (defaults to log_dir).
+      fs_options: Additional arguments to pass through to the filesystem provider.
+      skip_shards: Leave out the shard logs and stray files of every
+        `<name>.shards/` directory, as an eval set does, without reading them.
+    """
     # resolve log dir to full path
     fs = filesystem(log_dir)
     log_dir_uri = fs.dir_as_uri(log_dir)
@@ -511,6 +534,10 @@ def write_log_dir_manifest(
 
     # list eval logs
     logs = list_eval_logs(log_dir)
+    if skip_shards:
+        from inspect_ai.log._shards._walk import without_shard_logs
+
+        logs = without_shard_logs(log_dir, logs)
 
     # resolve to manifest (make filenames relative to the log dir)
     names = [manifest_eval_log_name(log, log_dir_uri, fs.sep) for log in logs]

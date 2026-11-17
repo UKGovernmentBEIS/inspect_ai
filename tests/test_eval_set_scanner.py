@@ -4643,3 +4643,83 @@ def suffix_scanner():
     assert "--scanner scanner.py" in suffix
     assert "--scan-model mockllm/scan-model" in suffix
     assert "--scan-tags x,y" in suffix
+
+
+# --- sharded runs -------------------------------------------------------------
+
+_SHARDS_NAME = "2026-10-16T10-00-00-00-00_task-b_Zx7Run1Id"
+
+
+def _named_task(name: str, n_samples: int = 2) -> Task:
+    return Task(
+        dataset=[
+            Sample(id=i, input=f"question {i}", target=str(i))
+            for i in range(1, n_samples + 1)
+        ],
+        solver=generate(),
+        name=name,
+    )
+
+
+def _write_shard(log_dir: str, task: Task, older_truncated: bool = False) -> None:
+    """Write one complete shard of `task` under `<log_dir>/<_SHARDS_NAME>.shards/0`.
+
+    With `older_truncated`, the shard also holds an older, unreadable attempt.
+    """
+    from inspect_ai import eval
+
+    shard_dir = Path(log_dir) / f"{_SHARDS_NAME}.shards" / "0"
+    eval(task, model="mockllm/model", log_dir=str(shard_dir), display="none")
+    if older_truncated:
+        (shard_dir / "2020-01-01T00-00-00-00-00_task-b_Old1Id.eval").write_bytes(b"x")
+
+
+def test_eval_set_scans_a_merged_log_after_a_clean_scan() -> None:
+    """Samples merged at startup are scanned although the prior scan finalized cleanly."""
+    with tempfile.TemporaryDirectory() as log_dir:
+        task_a = _named_task("task_a")
+        success, _ = eval_set(
+            tasks=task_a,
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        assert success
+        assert _read_summary(_scan_dir(log_dir))["complete"] is True
+
+        _write_shard(log_dir, _named_task("task_b", 3))
+        success, logs = eval_set(
+            tasks=[task_a, _named_task("task_b", 3)],
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+
+        assert success and {log.eval.task for log in logs} == {"task_a", "task_b"}
+        assert (Path(log_dir) / f"{_SHARDS_NAME}.eval").exists()
+        pf = _read_parquet(_scan_dir(log_dir) / "echo_scanner.parquet")
+        assert pf.metadata.num_rows == 5
+
+
+def test_eval_set_scanner_ignores_a_shards_older_attempts() -> None:
+    """Scan finalization does not read shard attempts the merge left out."""
+    with tempfile.TemporaryDirectory() as log_dir:
+        _write_shard(log_dir, _named_task("task_b", 3), older_truncated=True)
+
+        success, _ = eval_set(
+            tasks=_named_task("task_b", 3),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+
+        assert success
+        assert (Path(log_dir) / f"{_SHARDS_NAME}.eval").exists()
+        pf = _read_parquet(_scan_dir(log_dir) / "echo_scanner.parquet")
+        assert pf.metadata.num_rows == 3

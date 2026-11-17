@@ -1567,7 +1567,23 @@ never scans the directory.
    | Local merge lock held (`<name>.merge.lock`), including one left by a crashed merge | `WriteConflictError` | wait for the other merge to finish and re-run; if no merge is running (the lock's `pid`/`host` shown in the message), delete the lock file and re-run |
    | Lost S3 publish race (another merge published first, or the merged log changed during the pass) | `WriteConflictError` | re-run once the other merge has finished; the merge is idempotent |
    | Anything else (a storage or transport error) | the original exception | the cause is in the message and the chained exception; fix it and re-run |
-6. If any merge wrote, list again; otherwise reuse the listing.
+6. If any merge wrote, list again; otherwise reuse the listing. A merge
+   that wrote also clears the eval set's clean-scan shortcut for the rest
+   of the call (`scan_already_clean`, read before the first pass): the
+   prior scan never saw the merged samples, so the eval set's scanners
+   resume over its successful logs as after an unclean scan.
+7. **New shards after a newer unsharded retry are refused** (decision:
+   Ransom, 2026-11-17). Before any merge writes, a companion whose merged
+   log is listed is checked: when some shard's current attempt is not the
+   one the merged log's ledger records (a new or changed shard) and an
+   unsharded log of the merged log's `task_id` has a newer mtime than the
+   merged log, `eval_set()` stops with `PrerequisiteError` naming the
+   companion, the merged log and the newer logs, and saying to remove the
+   new shards or the unsharded retry. Merging would rewrite the merged log
+   the retry was seeded from with a newer mtime, and while no unsharded log
+   has succeeded, "Retry cleanup" below would then choose the merged log as
+   the latest and remove the retry, with the samples only it holds. The
+   check applies whatever the retry's status.
 
 **Shard skip before header reads.** `list_all_eval_logs` gains
 `skip_shards: bool = False`, which drops `is_shard_path(log_dir, name)`
@@ -1577,7 +1593,10 @@ the listing as an ordinary log, so the skip never hides a log that the
 shard walk does not report. Both eval-set call sites (startup and
 `cleanup_older_eval_logs`) pass `True`; `inspect_flow`'s callers keep the
 default. The startup path in step 2 applies the same filter to the listing
-it already holds.
+it already holds. The same filter applies to the eval set's two log
+directory manifest writes and to the scanner's orphan-row sweep at scan
+finalization, which list the directory on their own: a shard's older
+attempts are never read by the merge, so they may be unreadable.
 
 **Completeness.** `log_samples_complete` gains a branch for a log with
 `eval.shards`: complete when `status == "success"` (already required by the

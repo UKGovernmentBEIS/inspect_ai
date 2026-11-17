@@ -593,8 +593,8 @@ async def _cleanup_orphan_scan_rows(
     survive in the scan parquet (and possibly the buffer) but no
     longer match any `EvalSample`. This sweeps those orphans.
 
-    Reads sample uuids from all surviving eval logs (cheap — only
-    summaries), filters each scanner's compacted parquet to just
+    Reads sample uuids from all surviving eval logs other than shard logs
+    (cheap — only summaries), filters each scanner's compacted parquet to just
     those uuids, and unlinks any orphan buffer files.
     """
     import pyarrow as pa
@@ -607,9 +607,11 @@ async def _cleanup_orphan_scan_rows(
         list_eval_logs,
         read_eval_log_sample_summaries_async,
     )
+    from inspect_ai.log._shards._walk import without_shard_logs
 
+    # the eval set never reads shard logs (its merged logs hold their samples)
     live_tids: set[str] = set()
-    for log_info in list_eval_logs(log_dir):
+    for log_info in without_shard_logs(log_dir, list_eval_logs(log_dir)):
         for summary in await read_eval_log_sample_summaries_async(log_info.name):
             if summary.uuid is not None:
                 live_tids.add(summary.uuid)

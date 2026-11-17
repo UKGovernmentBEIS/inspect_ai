@@ -21,9 +21,9 @@ from inspect_ai._util.asyncfiles import (
     s3_bucket_and_key,
 )
 from inspect_ai._util.constants import EVAL_LOG_FORMAT
-from inspect_ai._util.file import FileInfo, basename, local_path
+from inspect_ai._util.file import FileInfo, basename, filesystem, local_path
 from inspect_ai._util.log_layout import _RECOVERED_SUFFIX, _SHARDS_SUFFIX
-from inspect_ai.log._file import _timestamp_prefix_re, is_log_file
+from inspect_ai.log._file import EvalLogInfo, _timestamp_prefix_re, is_log_file
 
 from ._errors import ShardSetError
 
@@ -328,6 +328,25 @@ def is_shard_path(root: str, path: str) -> bool:
         ValueError: If ``path`` is not below ``root``.
     """
     return _levels_below_companion(root, path) is not None
+
+
+def listing_root(log_dir: str) -> str:
+    """``log_dir`` in the form of the names its listing returns.
+
+    Some backends list names under another form of the directory (adlfs lists
+    ``az://`` and account-qualified ``abfss://`` paths as ``abfs://``), so
+    listed names are compared with this form rather than ``log_dir`` as given.
+    """
+    return filesystem(log_dir).dir_as_uri(log_dir)
+
+
+def without_shard_logs(log_dir: str, logs: list[EvalLogInfo]) -> list[EvalLogInfo]:
+    """The listed logs of ``log_dir`` that are not in a shard set (see :func:`is_shard_path`).
+
+    Logs nested deeper in a ``<name>.shards/`` directory are kept.
+    """
+    root = listing_root(log_dir)
+    return [info for info in logs if not is_shard_path(root, info.name)]
 
 
 def shard_companion(root: str, path: str) -> str | None:
