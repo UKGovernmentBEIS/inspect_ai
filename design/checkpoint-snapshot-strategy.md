@@ -356,9 +356,9 @@ recorded snapshot when one exists. They do not establish that a snapshot
 faithfully captures the sandbox or that its contents are recent or truthful.
 
 The restic strategy accepts two residual risks. Each is a way for a
-sandbox to make restores of its own checkpoints fail; the contents of
-those checkpoints were already under that sandbox's control when it
-captured them:
+sandbox to make its own checkpoints fail to capture or restore; the
+contents of those checkpoints were already under that sandbox's control
+when it captured them:
 
 - Egress never replaces a repository file the host has accepted, but
   the sandbox can still add new files that are correctly
