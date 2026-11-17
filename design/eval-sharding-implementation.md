@@ -1583,7 +1583,13 @@ never scans the directory.
    succeeded, "Retry cleanup" below would then choose the merged log as the
    latest and remove the retry, with the samples only it holds. The check
    applies whatever the retry's status. A companion with no current shard
-   is not checked: the merge then keeps the merged log as it is.
+   is not checked: the merge then keeps the merged log as it is. When the
+   merged log is not listed (removed, for example by a viewer delete), the
+   merge would rebuild it with the `task_id` `merged_log_task_id()` gives
+   `<name>`, the id of the removed log and so of the retries seeded from
+   it; if an unsharded log with that `task_id` remains, `eval_set()` stops
+   the same way, naming the retries and saying to remove them or move the
+   companion out of the log directory.
 8. **Scanners are refused over sharded tasks** (decision: Ransom,
    2026-11-17). When `eval_set()` is given `scanner` and the log directory
    holds a companion, it stops with `PrerequisiteError` before any merge,

@@ -324,8 +324,9 @@ def copy_log_files(
 ) -> None:
     log_fs = filesystem(log_dir, fs_options)
     if log_fs.exists(log_dir):
+        # oldest first, so the copies' new mtimes keep the attempts' order
         eval_logs = (
-            logs
+            sorted(logs, key=lambda log: log.mtime or 0)
             if logs is not None
             else log_files_from_ls(
                 log_fs.ls(log_dir, recursive=True), ["json", "eval"], False

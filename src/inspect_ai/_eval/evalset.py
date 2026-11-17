@@ -77,7 +77,11 @@ from inspect_ai._util.file import (
     local_path,
 )
 from inspect_ai._util.json import to_json_safe
-from inspect_ai._util.log_layout import eval_log_for_shards_dir
+from inspect_ai._util.log_layout import (
+    eval_log_for_shards_dir,
+    log_basename,
+    merged_log_task_id,
+)
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
@@ -1952,6 +1956,8 @@ class _ShardSet(NamedTuple):
     shards_dir: str
     merged: str
     merged_log: Log | None
+    header: EvalLog
+    """The merged log's header, or the first shard's current attempt's."""
     task: ResolvedTask
 
 
@@ -2040,11 +2046,13 @@ def merge_shard_sets(
                         f"{_display(shard_set.merged)} and "
                         f"{_display(shard_set.shards_dir)} out of the log directory."
                     )
-                if shard_set.merged_log is not None:
-                    with _shard_set_refusal(shard_set.shards_dir):
+                with _shard_set_refusal(shard_set.shards_dir):
+                    if shard_set.merged_log is not None:
                         await _check_no_newer_retry(
                             fs, shard_set, shard_set.merged_log, ids, logs
                         )
+                    else:
+                        _check_no_surviving_retry(shard_set, logs)
                 merges.append((shard_set, ids))
 
         async def merge(shard_set: _ShardSet, ids: list[str | int]) -> bool:
@@ -2115,7 +2123,11 @@ async def _identify_shard_set(
         )
         return None
     return _ShardSet(
-        shards_dir=shards_dir, merged=merged, merged_log=merged_log, task=task
+        shards_dir=shards_dir,
+        merged=merged,
+        merged_log=merged_log,
+        header=header,
+        task=task,
     )
 
 
@@ -2183,6 +2195,44 @@ async def _check_no_newer_retry(
         "from and could discard the samples only the retry holds. Remove the "
         f"unsharded retry, or move {merged} and {_display(shard_set.shards_dir)} "
         "out of the log directory, then re-run."
+    )
+
+
+def _check_no_surviving_retry(shard_set: _ShardSet, logs: list[Log]) -> None:
+    """Refuse to rebuild a removed merged log while its unsharded retries remain.
+
+    A merge without a merged log builds one with the task id
+    `merged_log_task_id()` gives `<name>`, the id of any earlier merged log
+    of the same shards, and so of the retries seeded from it. The rebuilt
+    log is newer than those retries, and retry cleanup could then remove
+    them with the samples only they hold, as for a rewrite (see
+    `_check_no_newer_retry`).
+
+    Raises:
+        PrerequisiteError: An unsharded log has the task id the rebuilt
+            merged log would get.
+    """
+    task_id = merged_log_task_id(
+        log_basename(shard_set.merged),
+        task=shard_set.header.eval.task,
+        model=shard_set.header.eval.model,
+    )
+    surviving = [
+        log
+        for log in logs
+        if log.header.eval.shards is None and log.header.eval.task_id == task_id
+    ]
+    if not surviving:
+        return
+    merged = _display(shard_set.merged)
+    retries = ", ".join(_display(log.info.name) for log in surviving)
+    raise PrerequisiteError(
+        f"[bold]ERROR[/bold]: The startup merge would rebuild {merged} from "
+        f"{_display(shard_set.shards_dir)}, and unsharded retries of an earlier "
+        f"{merged} remain ({retries}). The rebuilt log would be newer than them "
+        "and could discard the samples only they hold. Remove the unsharded "
+        f"retries, or move {_display(shard_set.shards_dir)} out of the log "
+        "directory, then re-run."
     )
 
 

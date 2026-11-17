@@ -3422,6 +3422,35 @@ def test_eval_set_bundle_leaves_out_shard_attempts(
     assert sorted(listing) == bundled
 
 
+def test_eval_set_bundle_keeps_attempt_order(
+    tmp_path: Path, shard_runs: list[int | str]
+) -> None:
+    log_dir = tmp_path / "logs"
+    _shard(log_dir, "0", [1, 2, 3])
+    _SHARD_FAILING.add(5)
+    bundle_dir = tmp_path / "bundle"
+    success, [retry] = _sharded_eval_set(
+        log_dir, retry_attempts=0, bundle_dir=str(bundle_dir)
+    )
+    assert not success and retry.status == "error"
+    _SHARD_FAILING.clear()
+    exported = bundle_dir / "logs"
+    merged = exported / f"{SHARD_NAME}.eval"
+    retry_copy = exported / Path(local_path(retry.location)).name
+    assert retry_copy.stat().st_mtime > merged.stat().st_mtime
+    done = {
+        sample.id
+        for sample in read_eval_log(str(retry_copy)).samples or []
+        if sample.error is None
+    }
+    assert 4 in done or 6 in done
+    shard_runs.clear()
+
+    success, _ = _sharded_eval_set(exported)
+
+    assert success and 5 in shard_runs and not done & set(shard_runs)
+
+
 def test_invalidation(tmp_path: Path):
     @task
     def task_for_invalidation():
@@ -5191,6 +5220,26 @@ def test_eval_set_refuses_a_new_selection_after_a_newer_unsharded_retry(
     assert local_path(retry.location) in str(raised.value)
     assert shard_runs == []
     assert _merged_log(tmp_path).read_bytes() == merged
+    assert _log_names(tmp_path) == names
+
+
+def test_eval_set_refuses_to_rebuild_a_removed_merged_log_with_retries_left(
+    tmp_path: Path, shard_runs: list[int | str]
+) -> None:
+    _shard(tmp_path, "0", [1, 2, 3])
+    _SHARD_FAILING.add(4)
+    success, [retry] = _sharded_eval_set(tmp_path, retry_attempts=0)
+    assert not success and retry.status == "error" and retry.eval.shards is None
+    _SHARD_FAILING.clear()
+    _merged_log(tmp_path).unlink()
+    names = _log_names(tmp_path)
+    shard_runs.clear()
+
+    with pytest.raises(PrerequisiteError, match="would rebuild") as raised:
+        _sharded_eval_set(tmp_path)
+
+    assert local_path(retry.location) in str(raised.value)
+    assert shard_runs == []
     assert _log_names(tmp_path) == names
 
 
