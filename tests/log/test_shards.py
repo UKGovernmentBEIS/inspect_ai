@@ -10,6 +10,7 @@ import zlib
 from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
 from typing import Any, BinaryIO, cast
+from unittest import mock
 
 import anyio
 import boto3
@@ -4542,18 +4543,22 @@ def _merge_cli(
     from click.testing import CliRunner
 
     from inspect_ai._cli.main import inspect as inspect_cli
+    from inspect_ai.model._model import _models
 
     environment: dict[str, str | None] = {name: None for name in _CLI_ENV_CLEARED}
     environment.update(env or {})
-    # a copied context keeps the active model and roles out of later tests
-    return contextvars.copy_context().run(
-        CliRunner().invoke,
-        inspect_cli,
-        ["log", "merge-shards", *args],
-        env=environment,
-        auto_envvar_prefix="INSPECT",
-        catch_exceptions=False,
-    )
+    # a copied context keeps the active model and roles out of later tests;
+    # an empty model cache, as a new process has, keeps models other tests
+    # memoized under another environment out of this one
+    with mock.patch.dict(_models, clear=True):
+        return contextvars.copy_context().run(
+            CliRunner().invoke,
+            inspect_cli,
+            ["log", "merge-shards", *args],
+            env=environment,
+            auto_envvar_prefix="INSPECT",
+            catch_exceptions=False,
+        )
 
 
 def _merged(result: click.testing.Result) -> dict[str, Any]:
@@ -4958,6 +4963,11 @@ def test_merge_shards_command_task_errors(
     merged, _ = _cli_workers(task_file, "plain", [[1, 2, 3, 4]])
     before = _files(str(task_file.parent / "logs"))
     monkeypatch.chdir(task_file.parent)
+    # a live test on the same worker can leave the model memoized with a key
+    monkeypatch.setattr("inspect_ai.model._model._models", {})
+    with monkeypatch.context() as keyed:
+        keyed.setenv("OPENAI_API_KEY", "dummy")
+        get_model("openai/gpt-4o")
     error = _failed(
         _merge_cli(merged, *args, "--json", env={"OPENAI_API_KEY": None}), "task"
     )
