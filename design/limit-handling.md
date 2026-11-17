@@ -398,6 +398,7 @@ class _Node:
     _outer: _Node | None  # nearest ancestor of any kind in the chain
     _in_chain: bool  # set when pushed; never cleared
     _raised_at: float | None  # the node's effective limit when its check last raised
+    _scoring_restore: bool  # set by a scoring-only restore; cleared by record() or a raise
 
 
 ```
@@ -459,6 +460,8 @@ def check_limits(raise_for_equal: bool = False, at_exit: bool = False) -> None:
             continue
         if isinstance(node, _CostLimit) and cost_limit_tree.is_suspended():
             continue
+        if at_exit and node._scoring_restore:
+            continue  # restored by a scoring resume, untouched since
         if isinstance(node, (_TokenLimit, _CostLimit, _TurnLimit)):
             # raises (with its SampleLimitEvent) and sets node._raised_at
             node._check_marked(raise_for_equal or (at_exit and node._refused_at_budget()))
@@ -467,7 +470,7 @@ def check_limits(raise_for_equal: bool = False, at_exit: bool = False) -> None:
 - `_Node._check_marked(raise_for_equal)` calls
   `_check_self(raise_for_equal)`; if that raises a `LimitExceededError`, it
   sets `self._raised_at = self.limit` (the effective limit, a live override
-  included) before re-raising. Every check path goes through it:
+  included) and clears `self._scoring_restore` before re-raising. Every check path goes through it:
   `check_limits()` and the per-kind `check()` methods. inspect_swarm's
   `_check_self()` overrides therefore set the mark too.
 - `_Node._refused_at_budget() -> bool` is `self._raised_at is not None and
@@ -800,6 +803,26 @@ runner alike. The mark is not stored in checkpoints. Pre-dispatch checks
 are unchanged, as today: a call made under a spent restored root is still
 refused.
 
+The mark exempts only the restored state. The resumed attempt can still do
+work: `_CheckpointerSetup.__aenter__()` awaits the task's `on_resume`
+callback after the restore on a scoring resume too
+(`src/inspect_ai/util/_checkpoint/checkpointer_impl.py:147-160`), and that
+callback may make model calls. So the node clears `_scoring_restore` on the
+first fresh evidence from this attempt:
+
+- **A record.** The node's `record()` (token usage, cost or a turn, any
+  amount) clears it. A call whose usage was recorded but whose combined
+  check never ran (a cache store or usage hook that raised in between) is
+  then judged at exit by its usage with `>`, like any other node.
+- **A refusal.** `_check_marked()` clears it when the node's check raises,
+  as it sets `_raised_at`. A call refused at a spent restored root, whose
+  error the callback caught, is then judged at exit with
+  `raise_for_equal=True` and raises.
+
+A scoring resume that makes no call keeps the mark on every root and returns
+unlimited, as today; one whose callback hits a restored limit ends the
+sample with that limit, as a normal attempt would.
+
 **What the owner can miss.** Because an error that reaches its owner
 stands, the recorded limit can differ from the outermost limit that counts
 when something replaces the error on its way out. Two cases do this:
@@ -968,8 +991,8 @@ cost and turn checks, in that order, with `>` (`sample_runtime.py:153-163`,
 `:221-225`; called for a normal resume at `checkpointer_impl.py:147-152`).
 An exceeded root therefore still ends the resumed attempt before it makes a
 call. A resume for scoring (`check=False`) runs no check, as today, and
-marks the roots it reseeds so that exit checks skip them ("The owner's exit
-check").
+marks the roots it reseeds so that exit checks skip them until the attempt
+records into or is refused by them ("The owner's exit check").
 
 The fresh roots carry no `_raised_at` mark, so the exit check's handling of a
 limit reached exactly holds within one attempt. A limit that refused a call
@@ -1853,7 +1876,14 @@ under trio with `--runtrio`.
   refused a call at exactly its budget, the next call is refused before
   dispatch; after a scoring-only restore of spent token, cost and turn
   roots, `as_solver(react(...))` returns normally with no model call and
-  the sample is scored and not recorded as limited.
+  the sample is scored and not recorded as limited (the no-call control);
+  after the same restore, an `on_resume` callback whose model call is
+  refused at a restored token, and separately cost, root and which
+  catches the refusal ends the sample with that limit; after a scoring
+  restore below budget, a callback call whose recorded usage takes the
+  token root over its budget, followed by a stubbed `cache_store()` that
+  raises before the combined check and is caught, ends the sample with
+  the token limit; each on asyncio and Trio.
 - `tests/util/test_limit.py`, sentinel: a stub in-process monitor whose
   priced model call would exceed a reached sample cost limit is made and
   not charged to it.
@@ -1986,11 +2016,12 @@ Each step is one PR, in this order. Each keeps the suite green.
    and its exit check on a normal return; `check_limits(at_exit=True)`
    skipping `_scoring_restore` nodes, set by
    `restore_sample_runtime(check=False)` in
-   `src/inspect_ai/util/_checkpoint/sample_runtime.py`.
+   `src/inspect_ai/util/_checkpoint/sample_runtime.py` and cleared by the
+   node's `record()` and by a raise in `_check_marked()`.
    `src/inspect_ai/agent/_run.py`: the return after the block. `src/inspect_ai/_eval/task/run.py`: `first_or_outermost_limit`
    for the escaping group, and `check_limits(at_exit=True)` after the
-   sample task group has joined when the solvers returned (skipped on a
-   resume for scoring).
+   sample task group has joined when the solvers returned (a scoring
+   resume's untouched roots are skipped through their mark).
    `src/inspect_ai/model/_call_tools.py`: `decisive_tool_exception`,
    `decisive_sentinel_exception`. Tests: `run()` and sentinel tests in
    `tests/util/test_limit.py`, `tests/test_eval.py`,
