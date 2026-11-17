@@ -32,7 +32,6 @@ from inspect_ai.tool._tool_call import ToolCall, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import (
-    SandboxCommandTimeoutError,
     SandboxTimeoutError,
     SandboxUnavailableError,
 )
@@ -602,14 +601,13 @@ def fnf_error_tool():
 
 
 @tool
-def sandbox_timeout_tool(command_timeout: bool = False) -> Tool:
+def sandbox_timeout_tool(reason: str | None = None) -> Tool:
     async def execute() -> str:
         """Raise a sandbox timeout with partial output."""
-        error_type = (
-            SandboxCommandTimeoutError if command_timeout else SandboxTimeoutError
-        )
-        raise error_type(
-            "exec timed out", truncated_output="partial output before timeout"
+        raise SandboxTimeoutError(
+            "exec timed out",
+            truncated_output="partial output before timeout",
+            reason=reason,  # type: ignore[arg-type]
         )
 
     return execute
@@ -647,12 +645,12 @@ async def test_oserror_custom_message_preserved():
     assert "Workspace file 'config.yaml' missing" in messages[-1].error.message
 
 
-@pytest.mark.parametrize("command_timeout", [False, True])
+@pytest.mark.parametrize("reason", [None, "command", "no_response", "unknown"])
 async def test_sandbox_timeout_partial_output_returned_as_tool_result(
-    command_timeout: bool,
+    reason: str | None,
 ) -> None:
-    """Both sandbox timeout types retain output and timeout tool errors."""
-    tool_def = ToolDef(sandbox_timeout_tool(command_timeout=command_timeout))
+    """Every timeout classification retains output and gives a timeout tool error."""
+    tool_def = ToolDef(sandbox_timeout_tool(reason=reason))
     call = make_call("sandbox_timeout_tool", {})
 
     messages, _ = await execute_tools(

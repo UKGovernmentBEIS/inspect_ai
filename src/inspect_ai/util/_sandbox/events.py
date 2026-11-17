@@ -21,18 +21,52 @@ from .environment import (
 )
 from .limits import OutputLimitExceededError, SandboxEnvironmentLimits
 
+SandboxTimeoutReason = Literal["command", "no_response", "unknown"]
+"""A provider's classification of a sandbox timeout.
+
+`"command"`: The provider classifies the timeout as expiration of the
+command's execution deadline. This is the provider's assessment and may
+rely on implementation-specific heuristics.
+
+`"no_response"`: The command's execution deadline is enforced separately,
+and the provider's own, later wait for a response to the request expired.
+This does not establish whether the command started, completed, or remains
+running, and partial output may still have been received.
+
+`"unknown"`: The provider supports this field and declares that it cannot
+classify the timeout as either of the above. Providers should report this
+rather than guess, for example when a single timer covers both the
+command's running time and communication with the sandbox.
+"""
+
 
 class SandboxTimeoutError(TimeoutError):
-    """Raised when a sandbox operation times out."""
+    """Raised when a sandbox operation times out.
 
-    def __init__(self, message: str, truncated_output: str | None = None) -> None:
+    Providers may raise this directly, supplying `reason` where they can
+    classify the timeout. A plain `TimeoutError` raised by a provider is
+    wrapped in this class, with `reason` left as `None`, when the sandbox is
+    used through `sandbox()`.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        truncated_output: str | None = None,
+        *,
+        reason: SandboxTimeoutReason | None = None,
+    ) -> None:
         super().__init__(message)
         self.truncated_output = truncated_output
         """Partial command output captured before the timeout, if available."""
+        self.reason = reason
+        """The provider's classification of the timeout.
 
-
-class SandboxCommandTimeoutError(SandboxTimeoutError):
-    """Raised when a sandbox command exceeds its execution timeout."""
+        `None` means unset: no classification was supplied, because the
+        provider does not know about this field or raised a plain
+        `TimeoutError`. This is distinct from `"unknown"`, where the provider
+        supports the field and declares that it cannot classify the timeout.
+        """
 
 
 class SandboxEnvironmentProxy(SandboxEnvironment):

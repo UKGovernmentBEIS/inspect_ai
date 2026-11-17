@@ -69,7 +69,7 @@ description: Miscellaneous utility functions.
 ### SandboxEnvironment
 ### SandboxConnection
 ### SandboxTimeoutError
-### SandboxCommandTimeoutError
+### SandboxTimeoutReason
 ### SandboxUnavailableError
 ### SandboxUserUnsupportedError
 ### sandboxenv

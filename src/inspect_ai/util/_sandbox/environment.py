@@ -268,14 +268,14 @@ class SandboxEnvironment(abc.ABC):
             request because the sandbox is not running or provider-injected
             execution machinery is unavailable. A missing caller-specified
             executable is returned as an ordinary failed `ExecResult`.
-          SandboxCommandTimeoutError: If the command exceeds its execution
-            timeout and the provider can distinguish this from a sandbox
-            operation timing out. This is a subclass of SandboxTimeoutError
-            and TimeoutError.
-          SandboxTimeoutError: If a sandbox operation times out, or the provider
-            cannot distinguish a command timeout from a sandbox timeout.
-            Providers may also raise TimeoutError, which sandbox() wraps as
-            SandboxTimeoutError.
+          SandboxTimeoutError: If the command or the sandbox operation times
+            out. `reason` carries the provider's classification where it
+            has one: `"command"` for the command's own deadline,
+            `"no_response"` when the provider's later wait for a response
+            expired, `"unknown"` when it cannot tell, and `None` when the
+            provider does not classify timeouts. A plain `TimeoutError`
+            raised by a provider is wrapped as `SandboxTimeoutError` with
+            `reason=None` when called through `sandbox()`.
           UnicodeDecodeError: May be raised if the sandbox provider
             cannot decode the command output to UTF-8 and does not
             support using the UTF-8 replacement character for

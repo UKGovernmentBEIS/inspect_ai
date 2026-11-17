@@ -1,4 +1,3 @@
-
 ### exec()
 
 ``` python
@@ -15,12 +14,11 @@ async def exec(
 ) -> ExecResult[str]:
     """
     Raises:
-      SandboxCommandTimeoutError: If a command exceeds its execution timeout
-        and the provider can distinguish this from a sandbox timeout.
-      SandboxTimeoutError: If a sandbox operation times out, or the provider
-        cannot distinguish the two cases.
+      SandboxTimeoutError: If the command or the sandbox operation times
+        out. `reason` carries the provider's classification where it has
+        one (see below).
       TimeoutError: Legacy provider timeout, wrapped as SandboxTimeoutError
-        when called through sandbox().
+        with `reason=None` when called through sandbox().
       UnicodeDecodeError: May be raised if the sandbox provider
         cannot decode the command output to UTF-8 and does not
         support using the UTF-8 replacement character for
@@ -33,23 +31,33 @@ async def exec(
 
 The `exec()` method should enforce an output limit of `SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE` (default 10MB, configurable via the `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environment variable) and front-truncate its output to the limit when it is exceeded.
 
-`SandboxCommandTimeoutError` is a subclass of `SandboxTimeoutError` and `TimeoutError`. Providers should raise it when they can identify that the command exceeded its execution timeout. Docker distinguishes this from a host-side Docker timeout. Providers that cannot distinguish the cases may continue raising `SandboxTimeoutError` or `TimeoutError`; an unclassified base timeout is not proof of infrastructure failure for those providers.
+#### Timeouts
 
-The `timeout_retry` parameter defaults to `True` and allows provider-specific retries for unreliable sandbox operations. Docker retries host-side timeouts up to twice, with retry timeouts of at most 60 and 30 seconds, but does not retry a known command timeout. Set `timeout_retry=False` when retrying a non-idempotent command could repeat side effects.
+A timeout can mean two different things: the command ran past its deadline, or the provider's request to the sandbox got no answer. `SandboxTimeoutError.reason` carries the provider's classification, with these values (`SandboxTimeoutReason`):
 
-Callers that need the distinction should catch the command subtype first:
+| `reason`        | What the provider is saying                                                                                                                                    |
+|-----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `"command"`     | The command's execution deadline expired. This is the provider's assessment and may rely on heuristics such as exit codes and elapsed time.                   |
+| `"no_response"` | The command's deadline is enforced separately, and the provider's own, later wait for a response expired. The command may or may not still be running.         |
+| `"unknown"`     | The provider supports the field and cannot classify this timeout, for example because one timer covers both the command and communication with the sandbox.   |
+| `None`          | Unset. The provider does not classify timeouts, or raised a plain `TimeoutError` that `sandbox()` wrapped.                                                    |
+
+Providers may raise `SandboxTimeoutError` directly and supply `reason`. A provider with a single timer should report `"command"` only if that timer directly stops the command and nothing else could explain the expiry, and `"unknown"` otherwise. Docker reports `"command"` when its in-container `timeout` ended the command, and `"no_response"` when its host-side wait on the Docker daemon expired. The local sandbox reports `"command"`. Partial output, when available, is in `truncated_output`; it does not indicate which kind of timeout occurred.
+
+The `timeout_retry` parameter defaults to `True` and allows provider-specific retries for unreliable sandbox operations. Docker retries host-side timeouts up to twice, with retry timeouts of at most 60 and 30 seconds, but does not retry a command timeout it has classified. Set `timeout_retry=False` when retrying a non-idempotent command could repeat side effects.
+
+A scorer that counts a program overrun as a wrong answer, as code benchmarks do, can use `reason` to keep sandbox failures out of its scores. The `None` branch is where existing behaviour lives: before this field existed, such scorers scored every timeout, and a provider that has not adopted the field still produces that case.
 
 ```python
-from inspect_ai.util import SandboxCommandTimeoutError, SandboxTimeoutError, sandbox
+from inspect_ai.util import ExecResult, SandboxTimeoutError, sandbox
 
 try:
     result = await sandbox().exec(["python", "solution.py"], timeout=30)
-except SandboxCommandTimeoutError:
-    # The scorer can assign its command-timeout outcome here.
-    raise
-except SandboxTimeoutError:
-    # Leave sandbox failures to the evaluation's error/retry policy.
-    raise
+except SandboxTimeoutError as ex:
+    if ex.reason in ("no_response", "unknown"):
+        raise  # not known to be the command's fault; let the sample error
+    # "command", or None from a provider that does not classify timeouts
+    result = ExecResult(False, 1, "", "Timed out.")
 ```
 
-The example re-raises both failures so callers can choose their scoring policy. Existing handlers for `SandboxTimeoutError` or `TimeoutError` continue to catch command timeouts. Partial output, when available, is in `truncated_output`; it is not a reliable way to identify which timeout occurred.
+A stricter scorer can raise unless `ex.reason == "command"`, at the cost of erroring on providers that report `"unknown"` or nothing. Existing handlers for `SandboxTimeoutError` or `TimeoutError` continue to catch every timeout; they only see a difference if they read `reason`.

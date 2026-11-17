@@ -7,17 +7,16 @@ import anyio
 import pytest
 from test_helpers.utils import skip_if_no_docker
 
-from inspect_ai.util import ExecResult, SandboxCommandTimeoutError, SandboxTimeoutError
-from inspect_ai.util._sandbox import (
-    SandboxCommandTimeoutError as InternalCommandTimeoutError,
-)
+from inspect_ai.util import ExecResult, SandboxTimeoutError, SandboxTimeoutReason
 from inspect_ai.util._sandbox import SandboxTimeoutError as InternalTimeoutError
+from inspect_ai.util._sandbox import SandboxTimeoutReason as InternalTimeoutReason
 from inspect_ai.util._sandbox.docker import compose as compose_module
 from inspect_ai.util._sandbox.docker import docker as docker_module
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.docker.util import ComposeProject
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
+from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 from inspect_ai.util._subprocess import SubprocessRun
 
 
@@ -62,31 +61,39 @@ def test_sandbox_timeout_is_timeout_subclass() -> None:
     assert issubclass(SandboxTimeoutError, TimeoutError)
 
 
-def test_command_timeout_public_contract() -> None:
-    assert SandboxCommandTimeoutError is InternalCommandTimeoutError
+def test_timeout_reason_public_contract() -> None:
     assert SandboxTimeoutError is InternalTimeoutError
-    assert issubclass(SandboxCommandTimeoutError, SandboxTimeoutError)
-    assert issubclass(SandboxCommandTimeoutError, TimeoutError)
-    error = SandboxCommandTimeoutError("command deadline")
-    assert str(error) == "command deadline"
+    assert SandboxTimeoutReason is InternalTimeoutReason
+    error = SandboxTimeoutError("deadline")
+    assert str(error) == "deadline"
     assert error.truncated_output is None
+    assert error.reason is None
+    classified = SandboxTimeoutError("deadline", "partial", reason="command")
+    assert classified.truncated_output == "partial"
+    assert classified.reason == "command"
 
 
-@pytest.mark.parametrize(
-    "error_type", [SandboxTimeoutError, SandboxCommandTimeoutError]
-)
+def test_timeout_reason_is_keyword_only() -> None:
+    with pytest.raises(TypeError):
+        SandboxTimeoutError("deadline", None, "command")  # type: ignore[call-arg]
+
+
+@pytest.mark.parametrize("reason", [None, "command", "no_response", "unknown"])
 @pytest.mark.parametrize("output", [None, "partial output before timeout"])
 async def test_exec_preserves_classified_timeout(
     monkeypatch: pytest.MonkeyPatch,
-    error_type: type[SandboxTimeoutError],
+    reason: SandboxTimeoutReason | None,
     output: str | None,
 ) -> None:
-    error = error_type("exec timed out", truncated_output=output)
+    error = SandboxTimeoutError(
+        "exec timed out", truncated_output=output, reason=reason
+    )
     provider = TimeoutSandbox()
     monkeypatch.setattr(provider, "exec", AsyncMock(side_effect=error))
-    with pytest.raises(error_type) as raised:
+    with pytest.raises(SandboxTimeoutError) as raised:
         await SandboxEnvironmentProxy(provider).exec(["cmd"])
     assert raised.value is error
+    assert raised.value.reason == reason
     assert raised.value.truncated_output == output
     assert str(raised.value) == "exec timed out"
 
@@ -140,6 +147,7 @@ async def test_exec_timeout_carries_truncated_output() -> None:
     with pytest.raises(SandboxTimeoutError) as exc_info:
         await proxy.exec(["cmd"])
     assert type(exc_info.value) is SandboxTimeoutError
+    assert exc_info.value.reason is None
     assert exc_info.value.truncated_output == "partial output before timeout"
 
 
@@ -149,20 +157,36 @@ async def test_exec_timeout_truncated_output_defaults_none() -> None:
         await proxy.exec(["cmd"])
     assert type(exc_info.value) is SandboxTimeoutError
     assert isinstance(exc_info.value.__cause__, TimeoutError)
+    assert exc_info.value.reason is None
     assert exc_info.value.truncated_output is None
 
 
 @pytest.mark.parametrize("catch_type", [SandboxTimeoutError, TimeoutError])
-async def test_command_timeout_caught_by_existing_handlers(
+async def test_classified_timeout_caught_by_existing_handlers(
     monkeypatch: pytest.MonkeyPatch,
     catch_type: type[TimeoutError],
 ) -> None:
     provider = TimeoutSandbox()
     monkeypatch.setattr(
-        provider, "exec", AsyncMock(side_effect=SandboxCommandTimeoutError("deadline"))
+        provider,
+        "exec",
+        AsyncMock(side_effect=SandboxTimeoutError("deadline", reason="command")),
     )
     with pytest.raises(catch_type):
         await SandboxEnvironmentProxy(provider).exec(["cmd"])
+
+
+async def test_local_command_deadline_is_classified() -> None:
+    provider = LocalSandboxEnvironment()
+    try:
+        with pytest.raises(SandboxTimeoutError) as raised:
+            await SandboxEnvironmentProxy(provider).exec(["sleep", "30"], timeout=1)
+    finally:
+        await LocalSandboxEnvironment.sample_cleanup(
+            "test", None, {"default": provider}, False
+        )
+    assert raised.value.reason == "command"
+    assert isinstance(raised.value.__cause__, TimeoutError)
 
 
 async def test_exec_cancellation_runs_provider_cleanup(
@@ -235,8 +259,9 @@ async def test_docker_command_deadline_is_distinct(
         )
     )
     monkeypatch.setattr(compose_module, "run_subprocess", run)
-    with pytest.raises(SandboxCommandTimeoutError) as raised:
+    with pytest.raises(SandboxTimeoutError) as raised:
         await _docker_proxy().exec(["sleep", "300"], timeout=30)
+    assert raised.value.reason == "command"
     assert str(raised.value) == "Command timed out after 30 seconds"
     assert raised.value.truncated_output == (
         "partial outpartial err" if streams[0] else None
@@ -245,7 +270,7 @@ async def test_docker_command_deadline_is_distinct(
 
 
 @pytest.mark.parametrize("retry", [False, True])
-async def test_docker_host_timeout_remains_unclassified(
+async def test_docker_host_timeout_is_no_response(
     monkeypatch: pytest.MonkeyPatch,
     retry: bool,
 ) -> None:
@@ -256,6 +281,7 @@ async def test_docker_host_timeout_remains_unclassified(
             ["sleep", "300"], timeout=30, timeout_retry=retry, concurrency=False
         )
     assert type(raised.value) is SandboxTimeoutError
+    assert raised.value.reason == "no_response"
     assert raised.value.truncated_output is None
     assert "Docker compose command" in str(raised.value)
     assert isinstance(raised.value.__cause__, TimeoutError)
@@ -330,7 +356,7 @@ async def test_docker_real_command_deadline_cleans_up_process(
     timeout_docker_environment: DockerSandboxEnvironment,
 ) -> None:
     proxy = SandboxEnvironmentProxy(timeout_docker_environment)
-    with pytest.raises(SandboxCommandTimeoutError) as raised:
+    with pytest.raises(SandboxTimeoutError) as raised:
         await proxy.exec(
             [
                 "sh",
@@ -339,6 +365,7 @@ async def test_docker_real_command_deadline_cleans_up_process(
             ],
             timeout=2,
         )
+    assert raised.value.reason == "command"
     assert raised.value.truncated_output == "partial"
     result = await timeout_docker_environment.exec(
         [

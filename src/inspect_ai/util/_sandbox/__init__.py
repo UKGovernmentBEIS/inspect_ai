@@ -22,7 +22,7 @@ from .environment import (
     SandboxUnavailableError,
     SandboxUserUnsupportedError,
 )
-from .events import SandboxCommandTimeoutError, SandboxTimeoutError
+from .events import SandboxTimeoutError, SandboxTimeoutReason
 from .exec_remote import (
     ExecCompleted,
     ExecOutput,
@@ -66,8 +66,8 @@ __all__ = [
     "SandboxEnvironmentSpec",
     "SandboxEnvironmentType",
     "SandboxConnection",
-    "SandboxCommandTimeoutError",
     "SandboxTimeoutError",
+    "SandboxTimeoutReason",
     "SandboxUnavailableError",
     "SandboxUserUnsupportedError",
     "sandboxenv",
