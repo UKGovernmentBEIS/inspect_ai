@@ -34,7 +34,7 @@ from checkpoint.transcript_store_cache import redirect_transcript_store_cache_di
 from inspect_ai import Task, eval, eval_retry, task
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
-from inspect_ai.log import read_eval_log
+from inspect_ai.log import read_eval_log, transcript
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageTool,
@@ -51,6 +51,8 @@ from inspect_ai.util import (
     CheckpointConfig,
     SandboxSnapshotConfig,
     TurnInterval,
+    background,
+    span,
     store,
 )
 
@@ -127,6 +129,15 @@ B_WRITE_CMD = (
 # B submits at this tool-turn count: enough turns that B is still mid-run
 # when A crashes attempt #0, few enough that the final resume stays quick.
 B_SUBMIT_TURN = 4
+
+# Subagent mode (the span-open-across-checkpoints e2e): run
+# `resume_subagent_task` instead. Its sample opens a subagent span (in a
+# background task, so it stays open while the agent loop fires checkpoints)
+# that closes after the next fire, then opens a second one that is still open
+# when the latest checkpoint fires and the process dies.
+SUBAGENT_ENV = "INSPECT_TEST_RESUME_SUBAGENT"
+SUBAGENT_INPUT = "run subagents"
+SUBAGENT_SPAN = "sub"
 
 # Sample turn budget, when the test sets one. The budget-carry e2e needs a live
 # turn counter for the resume to carry; without a limit nothing counts turns.
@@ -224,6 +235,53 @@ def crash() -> Tool:
     return execute
 
 
+class _Subagent:
+    """The subagent span this process has open, if any, and how many opened."""
+
+    count: int = 0
+    close: anyio.Event | None = None
+    closed: anyio.Event | None = None
+
+
+_subagent = _Subagent()
+
+
+@tool
+def subagent() -> Tool:
+    async def execute(action: str) -> str:
+        """Open or close a subagent span that runs in the background.
+
+        Args:
+            action: "open" or "close".
+
+        Returns:
+            Confirmation string.
+        """
+        if action == "open":
+            close, closed, opened = anyio.Event(), anyio.Event(), anyio.Event()
+            _subagent.count += 1
+            count = _subagent.count
+
+            async def run() -> None:
+                async with span(SUBAGENT_SPAN, type="agent"):
+                    transcript().info(f"sub-{count}-open")
+                    opened.set()
+                    await close.wait()
+                    transcript().info(f"sub-{count}-close")
+                closed.set()
+
+            background(run)
+            await opened.wait()
+            _subagent.close, _subagent.closed = close, closed
+        else:
+            assert _subagent.close and _subagent.closed
+            _subagent.close.set()
+            await _subagent.closed.wait()
+        return action
+
+    return execute
+
+
 # eval_retry reconstructs the task by registry name and rebuilds the model by
 # name from the log — so the task must be a registered @task and the scripted
 # behavior must live in a registered model provider. The provider drives a
@@ -278,6 +336,8 @@ def _scripted_tool_call(input: list[ChatMessage]) -> ModelOutput:
         return ModelOutput.for_tool_call(
             SCRIPTED_MODEL, "submit", {"answer": B_CONTENT}
         )
+    if any(m.role == "user" and SUBAGENT_INPUT in m.text for m in input):
+        return _subagent_tool_call(n)
     done = cancels_done()
     target = target_cancels()
     if n == 0:
@@ -295,6 +355,25 @@ def _scripted_tool_call(input: list[ChatMessage]) -> ModelOutput:
         return ModelOutput.for_tool_call(
             SCRIPTED_MODEL, "bash", {"command": RESUME_WRITE_CMD}
         )
+    return ModelOutput.for_tool_call(
+        SCRIPTED_MODEL, "submit", {"answer": LAYER1_CONTENT}
+    )
+
+
+def _subagent_tool_call(n: int) -> ModelOutput:
+    """Subagent mode's script; ckpt-N fires at the start of turn N.
+
+    turn 1 opens sub-1, so it is open when ckpt-2 fires; turn 2 closes it.
+    turn 3 opens sub-2, still open when ckpt-4 fires; turn 4 kills the
+    process (sub-2 never closes); the resume submits at turn 4.
+    """
+    if n == 0:
+        return ModelOutput.for_tool_call(SCRIPTED_MODEL, "bash", {"command": WRITE_CMD})
+    if n < 4:
+        action = "close" if n == 2 else "open"
+        return ModelOutput.for_tool_call(SCRIPTED_MODEL, "subagent", {"action": action})
+    if cancels_done() < target_cancels():
+        return ModelOutput.for_tool_call(SCRIPTED_MODEL, "crash", {})
     return ModelOutput.for_tool_call(
         SCRIPTED_MODEL, "submit", {"answer": LAYER1_CONTENT}
     )
@@ -360,6 +439,21 @@ def resume_two_sample_task() -> Task:
     )
 
 
+@task
+def resume_subagent_task() -> Task:
+    """One sample whose subagent spans stay open across checkpoint fires."""
+    return Task(
+        dataset=[Sample(id="resume", input=SUBAGENT_INPUT, target=LAYER1_CONTENT)],
+        solver=react(tools=[bash(timeout=60), subagent(), crash()]),
+        scorer=includes(),
+        sandbox="docker",
+        checkpoint=CheckpointConfig(
+            trigger=TurnInterval(every=1),
+            retention="retain",
+        ),
+    )
+
+
 def run_eval(log_dir: str, retry_from: str | None = None) -> None:
     """Run a fresh eval, or resume one from a prior log.
 
@@ -370,7 +464,9 @@ def run_eval(log_dir: str, retry_from: str | None = None) -> None:
     """
     two_sample = os.environ.get(TWO_SAMPLE_ENV) == "1"
     if retry_from is None:
-        if two_sample:
+        if os.environ.get(SUBAGENT_ENV) == "1":
+            eval(resume_subagent_task(), model=SCRIPTED_MODEL, log_dir=log_dir)
+        elif two_sample:
             eval(
                 resume_two_sample_task(),
                 model=SCRIPTED_MODEL,
