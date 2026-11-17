@@ -1530,7 +1530,7 @@ class _ExitedProxy:
     """A model proxy process that has already exited cleanly.
 
     Killing it lets a request held for the bridge's shutdown go on, and waits
-    for its reply to be written or, for a held reply, begun.
+    for its reply to be written or, for a judged reply, begun.
     """
 
     def __init__(self, scaffold: _Scaffold) -> None:

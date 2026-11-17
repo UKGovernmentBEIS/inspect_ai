@@ -45,6 +45,7 @@ from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._generate_config import has_image_output
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.tool._mcp._remote import redact_responses_mcp_tools
 from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
 from inspect_ai.util._json import json_schema_dump
 
@@ -246,7 +247,7 @@ async def generate_responses(
             request["extra_body"] = raw_extra_body
 
         model_call = set_active_model_event_call(
-            request=request,
+            request=redact_responses_mcp_tools(request),
             filter=openai_media_filter,
         )
         stream_state = _StreamState()

@@ -377,12 +377,16 @@ inside the `--json` boundary ("Output"):
    the task's reducer, `--epochs-reducer` replaces it and
    `--no-epochs-reducer` disables reduction. This is the recipe the
    Sharding docs give API callers.
-6. **Merge**: `merge_eval_log_shards(LOG, task, sample_ids=...,
-   sample_count=..., allow_incomplete=...)`. The model and roles made
-   active in step 3 are the caller's model context the merge runs metrics
-   and reducers in; `run_coroutine` copies the context into its event
-   loop, so a coroutine run through it sees the model `init_active_model`
-   set, on asyncio and on Trio.
+6. **Merge**: `merge_eval_log_shards_async(LOG, task, sample_ids=...,
+   sample_count=..., allow_incomplete=...)`, run with `run_main`
+   (`_util/_async.py`), the runner `eval` uses. On Trio it turns the first
+   Ctrl-C into a cancellation of the merge and then a plain
+   `KeyboardInterrupt`; the synchronous API's `run_coroutine` would let a
+   Ctrl-C that lands in the merge's concurrent reads escape as a
+   `BaseExceptionGroup`. The model and roles made active in step 3 are the
+   caller's model context the merge runs metrics and reducers in; the
+   event loop copies the context, so the merge sees the model
+   `init_active_model` set, on asyncio and on Trio.
 
 The task's own `model`, `config` and `model_roles` are not made active for
 the merge, as they are for a native run's scoring: no surveyed metric or
@@ -461,7 +465,7 @@ so an error from the task's own code never reads as a merge refusal:
 | `invalid_arguments` | `check_merge_arguments` (`ValueError`), an empty `--sample-id` entry, `--log-dir` on the command line, `INSPECT_EVAL_RUN_CONFIG` or `INSPECT_EVAL_MODEL_SPEC` in the environment | |
 | `task` | steps 2 to 5: an unreadable `--task-config` or `--model-config`, a task spec not found, a factory that raises, a model or role that cannot be constructed (a missing API key's `PrerequisiteError`), no task, several tasks, several models, a `TaskSource` | |
 | `not_found` | the merge's `FileNotFoundError`: a file the merge needed was missing. Either neither the merged log nor any shard attempt exists, or an attempt the merge listed was removed before it was read (a worker's retry cleanup removing a superseded attempt); the message says which. In the second case running the merge again, once the workers have exited, reads the attempt that replaced it | |
-| `incomplete` | `ShardSetIncomplete` | `incomplete`: `status`, `missing` (`null` for a count or no selection), `running`, `failed` |
+| `incomplete` | `ShardSetIncomplete` | `incomplete`: `status`, `missing` (an array for an effective ID selection, including one retained from an earlier merge; `null` otherwise), `running`, `failed` |
 | `outside_selection` | `ShardSelectionError` | `outside` (`null` for a count) |
 | `refused` | any other `ShardSetError`, including a task that does not match the shards | |
 | `conflict` | `WriteConflictError`: another merge holds the lock or published first. A live merge's lock, or a lost S3 conditional upload, clears: re-run once the other merge has finished. A lock left by a local merge that crashed does not, and every re-run is refused until it is removed: the message names the host and process that held it; check that process has stopped, delete the lock file and re-run (`docs/sharding.qmd`, "Merging") | |
@@ -670,7 +674,10 @@ network, Docker or provider keys. Each test writes a task file to
 - **Epochs.** Workers run with `--epochs 2`, `--epochs 2 --epochs-reducer
   max` and `--epochs 2 --no-epochs-reducer` over a task with its own
   reducer merge with the same flags to the native results, and each is
-  refused with the flags of another (`refused`, epoch reducers).
+  refused with the flags of another (`refused`, epoch reducers). Workers
+  run with a run config's `eval_config: {epochs: 2, epochs_reducer: []}`
+  merge with `--epochs 2 --no-epochs-reducer`, and `--epochs-reducer ''`
+  and `'[]'` are `task` (`RegistryNameNotFound`).
 - **Selection and incomplete sets.** `--sample-id` and `--sample-count`
   merge as the API's `sample_ids` and `sample_count`; both together, a
   count of 0 and an empty id are `invalid_arguments`, with a marker the
@@ -694,13 +701,12 @@ network, Docker or provider keys. Each test writes a task file to
   before the task file is imported; `--log-dir` on the command line is
   `invalid_arguments`; a metric that raises is `internal` with its
   traceback on stderr.
-- **Interruption.** A command whose merge is cancelled before
-  publication (a patched shard read that cancels) prints no report and no
-  envelope, leaves the merged log byte-identical and removes its lock;
-  one cancelled after the local publication worker started (the
-  `_replace_local` pause of
-  `test_a_cancelled_publish_finishes_before_a_later_merge`) prints no
-  report and no envelope, and a re-run reports "No changes" with
+- **Interruption.** On asyncio and on Trio, a SIGINT
+  (`_thread.interrupt_main`) that lands while the merge reads two shard
+  attempts concurrently exits 1 with no report, no envelope and click's
+  `Aborted!` on stderr, leaves the merged log byte-identical and removes
+  its lock; one that lands while the local publication worker runs (in
+  `_replace_local`) does the same, and a re-run reports "No changes" with
   `written: false`. The publication boundary itself stays covered by that
   API test on asyncio; the S3 path's unknown outcome is the existing
   `write_file_conditional` contract and is not re-tested here.
