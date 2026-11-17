@@ -405,8 +405,11 @@ with none, whether or not an approval policy is active
   `5.0` do not matter, any other difference does. When the tool's schema
   forbids additional properties, granted keys the schema does not declare may
   be left out of the call, since they could never be valid arguments.
-- Each grant runs one execution. A retried `tools/call` after a transport
-  failure is denied, and the model must propose the call again.
+- Each grant permits one execution. A grant is chosen by server, tool and
+  arguments alone (the oldest matching one), not by proposal, so a retried
+  `tools/call` after a transport failure is denied only when no matching
+  grant remains; if the model proposed the same call more than once, the
+  retry consumes another proposal's grant.
 - A grant lasts until it is consumed or, once 1,024 are pending, evicted with
   a warning.
 - A server registered with `BridgedToolsSpec(require_proposal=False)` runs
@@ -461,10 +464,13 @@ tools. The user contract is
 - **`ToolEvent` for `call_tool`.** Every `call_tool` request is one
   `ToolEvent` in the native layout, executed, denied or rejected. An
   execution that consumed a grant is placed in the span of the proposing
-  `ModelEvent`; the first execution of a proposal takes the id of the call as
-  handed to the agent, and any further one (a call granted for several
-  bridged tools sharing a description) gets a fresh id. Denied and rejected
-  requests get fresh ids too. `metadata["bridge"]` records the server and
+  `ModelEvent`; the first request to consume a proposal's grant takes the id
+  of the call as handed to the agent, and any further one (a call granted for
+  several bridged tools sharing a description) gets a fresh id. That holds
+  whether the tool then runs or the request is rejected after consuming the
+  grant (arguments that fail the tool's schema). A request refused before any
+  grant is consumed (unknown server or tool, arguments nested too deep, no
+  matching grant) gets a fresh id. `metadata["bridge"]` records the server and
   tool, the name the model used, the model's id for the proposing call
   (`proposal_id`) and whether a grant was `consumed`, `denied` or
   `exempt`. See [bridge-host-tool-events.md](bridge-host-tool-events.md) and
