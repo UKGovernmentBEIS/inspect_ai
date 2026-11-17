@@ -665,6 +665,8 @@ class _Driver:
         # for a call whose ToolEvent names no execution)
         self.call_steps: dict[str, str | None] = {}
         self.span_steps: dict[str, "Step"] = {}
+        # model event index -> the span of its turn's model_output check
+        self.output_checks: dict[int, str] = {}
         # the ids of the calls whose tool steps replay skips
         self.skipped: list[str] = []
         # call id -> the indexes of the model events that proposed it
@@ -1102,6 +1104,9 @@ class _Driver:
             else None
         )
         after_id = before_id
+        if after_span is not None:
+            for index, _ in group.attempts:
+                self.output_checks[index] = after_span
 
         def build_after() -> None:
             step = after_generate(
@@ -1620,9 +1625,8 @@ class _Driver:
             )
             self._built(step_id, "tool_call", step, before_span)
 
-        # checked once its model call returned, before the scaffold got it
         self._at_point(
-            self._cut(before_span, (call.produced_at, 3)), call.seq, build_before
+            self._cut(before_span, self._handout_point(call)), call.seq, build_before
         )
         self._settle_at_end(before_span)
         # a result reported under an id handed out more than once is checked
@@ -1667,6 +1671,18 @@ class _Driver:
         after_cut = self._cut(after_span, (end if end is not None else call.index, 3))
         self._at_point(after_cut, call.seq + 2, build_after)
         self._settle_at_end(after_span)
+
+    def _handout_point(self, call: _Call) -> tuple[int, int]:
+        """Where a host call with no `tool_call` check of its own is handed to the scaffold, as `_host_call` builds its step there.
+
+        The bridge hands a response's calls over once the response's
+        `model_output` check has ended and its decisions settled (`_settle_at_end`),
+        else once its model call returned.
+        """
+        span = self.output_checks.get(call.produced_at)
+        if span is None:
+            return (call.produced_at, 3)
+        return (self.ends.get(span, self.begins[span][0]), 3)
 
     def _host_sentinel_modify(
         self, span: str | None, event: ToolEvent

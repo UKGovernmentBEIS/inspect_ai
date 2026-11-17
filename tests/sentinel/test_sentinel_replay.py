@@ -2144,6 +2144,106 @@ def test_a_person_s_decision_at_a_bridge_step_reaches_later_turns(
         )
 
 
+@monitor
+def r12_probe_without_tool_calls(seen: dict[str, Step], outputs: bool) -> MonitorGroup:
+    """`r7_probe` at every stage but `tool_call`, and with `outputs` at `model_output`, so a host call has no check of its own, and its response with `outputs` alone."""
+
+    def probe(step: Step) -> Observation:
+        token = str(len(seen))
+        seen[token] = as_seen(step)
+        return Observation.score(0.0, token)
+
+    async def before_generate(
+        context: Context, step: BeforeGenerate
+    ) -> Observation | None:
+        return probe(step)
+
+    async def after_generate(
+        context: Context, step: AfterGenerate
+    ) -> Observation | None:
+        return probe(step)
+
+    async def after_call(context: Context, step: AfterToolCall) -> Observation | None:
+        return probe(step)
+
+    if outputs:
+        return MonitorGroup(before_generate, after_generate, after_call)
+    return MonitorGroup(before_generate, after_call)
+
+
+@pytest.mark.parametrize(
+    "asked,retried",
+    [("model_output", False), ("model_output", True), ("tool_result", False)],
+)
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_host_call_with_no_check_of_its_own_replays_after_its_response_s_check(
+    asked: str, retried: bool, backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # after Ransom's review 5931419247: replay built the call at its model
+    # call, before the response's check and the person's decision there; with
+    # `retried`, a provider error's retry proposes the call; with
+    # `tool_result`, the response has no check at all
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    Panel("approve", "allowed").install(monkeypatch)
+    monkeypatch.setattr(_RetryingMockLLM, "failures", 1 if retried else 0)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(r7_bridged_scaffold("report")),
+        get_model(
+            "d3_retrying/model" if retried else "mockllm/model",
+            custom_outputs=[
+                r7_tool_calls(
+                    ToolCall(
+                        id="host",
+                        function="mcp__host__addition",
+                        arguments={"x": 1, "y": 1},
+                    )
+                ),
+                done(),
+            ],
+            memoize=False,
+        ),
+        sentinel=[
+            r12_probe_without_tool_calls(seen, outputs=asked == "model_output"),
+            h_ask(asked, ["approve"]),
+        ],
+    )
+    events = logged_sample(log).events
+    assert not any(
+        isinstance(e, SentinelEvent) and e.stage == "tool_call" for e in events
+    )
+    failed = [e for e in events if isinstance(e, ModelEvent) and e.error is not None]
+    assert len(failed) == (1 if retried else 0)
+    probed = [
+        e
+        for e in events
+        if isinstance(e, SentinelEvent) and e.path == "r12_probe_without_tool_calls"
+    ]
+    live = [(e.stage, seen[e.explanation or ""]) for e in probed]
+    replay = replayed(log)
+    assert [s.stage for s in replay] == [
+        "model_input",
+        "model_output",
+        "tool_call",
+        "tool_result",
+        "model_input",
+        "model_output",
+    ]
+    rebuilt = [s for s in replay if s.stage in {stage for stage, _ in live}]
+    assert [s.stage for s in rebuilt] == [stage for stage, _ in live]
+    for (_, step), again in zip(live, rebuilt, strict=True):
+        assert comparable(again.step.human_decisions) == comparable(
+            step.human_decisions
+        )
+    # the host call is handed over once the response's decisions settle, and
+    # nothing settles before its result's check
+    [(_, result)] = [(stage, step) for stage, step in live if stage == "tool_result"]
+    [call] = [s for s in replay if s.stage == "tool_call"]
+    expected = 1 if asked == "model_output" else 0
+    assert len(result.human_decisions or []) == expected
+    assert comparable(call.step.human_decisions) == comparable(result.human_decisions)
+
+
 def r7_tool_calls(*calls: ToolCall) -> ModelOutput:
     return ModelOutput(
         model="mockllm/model",
