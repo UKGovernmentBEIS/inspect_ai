@@ -869,16 +869,16 @@ class Transcript:
 
         condensed = self._condensed_call(event)
         if isinstance(event, ModelEvent) and condensed is not None:
-            if retain_attachments and condensed.call.response is not condensed.response:
-                condensed = self._condense_replaced_response(event, condensed)
             # subscribers keep their own attachment store, which holds no
-            # attachment for a literal
+            # attachment for a literal, and take a response set in place raw
             subscriber_call = condensed.subscriber_call()
             event.call = subscriber_call
             try:
                 self._notify_subscribers(event)
             finally:
                 event.call = condensed.call
+            if retain_attachments and condensed.call.response is not condensed.response:
+                self._condense_replaced_response(event, condensed)
         else:
             self._notify_subscribers(event)
 
@@ -923,11 +923,12 @@ class Transcript:
 
     def _condense_replaced_response(
         self, event: ModelEvent, condensed: "_CondensedModelCall"
-    ) -> "_CondensedModelCall":
+    ) -> None:
         """Condense a raw response set on a condensed call in place.
 
         Completing a call with an error sets its error response in place
-        (see `Model._record_model_interaction`).
+        (see `Model._record_model_interaction`). Subscribers are notified
+        before this, so they take the response raw.
         """
         call = condensed.call
         response = (
@@ -936,12 +937,10 @@ class Transcript:
             else None
         )
         call.response = response.condensed if response is not None else None
-        updated = condensed._replace(
+        self._condensed_calls[self._event_key(event)] = condensed._replace(
             response=call.response,
             unescaped_response=response.unescaped if response is not None else None,
         )
-        self._condensed_calls[self._event_key(event)] = updated
-        return updated
 
     def _notify_subscribers(self, event: Event) -> None:
         for event_logger in list(self._event_loggers):

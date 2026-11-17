@@ -1,4 +1,5 @@
 import dataclasses
+import json
 import os
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -29,6 +30,7 @@ from inspect_ai.dataset._dataset import Sample
 from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._pool import materialize_pooled_events
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._store import StoreEvent
 from inspect_ai.event._subtask import SubtaskEvent
@@ -45,6 +47,7 @@ from inspect_ai.log._condense import (
     condensed_sample_summary,
     mark_attachments_resolved,
     resolve_event_calls,
+    resolve_events_attachments,
     resolve_sample_attachments,
 )
 from inspect_ai.log._convert import convert_eval_logs
@@ -53,7 +56,15 @@ from inspect_ai.log._file import (
     read_eval_log_sample_summaries,
     write_eval_log,
 )
-from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSpec
+from inspect_ai.log._log import (
+    EvalConfig,
+    EvalDataset,
+    EvalLog,
+    EvalSampleSummary,
+    EvalSpec,
+)
+from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.log._resolve import resolve_sample_events_data
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.log._transcript import Transcript, _transcript, init_transcript
@@ -2169,9 +2180,11 @@ def test_error_retry_calls_keep_literals_and_genuine_references(
 
 @pytest.mark.parametrize("ending", ["error", "cancel"])
 async def test_subscribers_see_the_error_completion_of_a_call_with_literals(
-    ending: Literal["error", "cancel"],
+    tmp_path: Path, ending: Literal["error", "cancel"]
 ) -> None:
     long_text = "genuine long text " * 10
+    # long enough to be pooled as an attachment
+    long_error = "The provider failed to answer this request. " * 3
     literal = f"{ATTACHMENT_PROTOCOL}{mm3_hash(long_text)}"
     request: dict[str, JsonValue] = {
         "messages": [
@@ -2185,7 +2198,7 @@ async def test_subscribers_see_the_error_completion_of_a_call_with_literals(
         # a provider publishes its request before sending it
         set_active_model_event_call(request)
         if ending == "error":
-            raise RuntimeError("provider failed")
+            raise RuntimeError(long_error)
         published.set()
         await anyio.sleep_forever()
         raise AssertionError("not reached")
@@ -2199,11 +2212,16 @@ async def test_subscribers_see_the_error_completion_of_a_call_with_literals(
             notified.append(event.call.model_copy(deep=True))
 
     transcript._subscribe(record)
+    buffer = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    buffer.start_sample(EvalSampleSummary(id="s1", epoch=1, input="in", target="t"))
+    transcript._subscribe(
+        lambda e: buffer.log_events([SampleEvent(id="s1", epoch=1, event=e)])
+    )
     token = _transcript.set(None)
     try:
         init_transcript(transcript)
         if ending == "error":
-            with pytest.raises(RuntimeError, match="provider failed"):
+            with pytest.raises(RuntimeError, match="The provider failed"):
                 await model.generate("hello")
         else:
             async with anyio.create_task_group() as tg:
@@ -2221,13 +2239,33 @@ async def test_subscribers_see_the_error_completion_of_a_call_with_literals(
     assert isinstance(resolved, ModelEvent) and resolved.call is not None
     assert resolved.call.request == request
 
-    # the last notification carries the error completion, literals inline
+    error_response = resolved.call.response
+    assert error_response is not None
+    if ending == "error":
+        assert long_error in json.dumps(error_response)
+
+    # the last notification carries the error completion raw, literals inline
     last = notified[-1]
     assert last.error is True
-    assert last.response == event.call.response
+    assert last.response == error_response
     assert last.request == {
         "messages": [
             {"role": "user", "content": literal},
             {"role": "user", "content": literal},
         ]
     }
+
+    # the sample buffer holds the whole error response
+    with buffer.open_sample_history("s1", 1) as history:
+        buffered = resolve_events_attachments(
+            materialize_pooled_events(
+                list(history.iter_events()),
+                history.events_data["messages"],
+                history.events_data["calls"],
+            ),
+            history.attachments,
+            "full",
+        )
+    [buffered_event] = [e for e in buffered if isinstance(e, ModelEvent)]
+    assert buffered_event.call is not None
+    assert buffered_event.call.response == error_response
