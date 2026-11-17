@@ -4390,12 +4390,21 @@ def _eval_retry_error(
 ) -> EvalRetryError:
     """Create retry error with events from the most recent ModelEvent onward.
 
-    The events come back with their attachments resolved, model calls
-    included, wherever they are read from.
+    The events come from the transcript when it still holds them all, and
+    otherwise from the sample buffer, with their attachments resolved, model
+    calls included. The buffer keeps literal reference text in model calls
+    as a reference, so those events can show attachment content in its place.
     """
     from inspect_ai.event._model import ModelEvent
 
-    if logger is not None and logger.buffer_db is not None and sample_id is not None:
+    sample_transcript = transcript()
+    transcript_history = sample_transcript.history
+    if (
+        transcript_history.resident_events_truncated
+        and logger is not None
+        and logger.buffer_db is not None
+        and sample_id is not None
+    ):
         if epoch is None:
             raise ValueError(
                 "epoch is required when reading retry events from buffer DB"
@@ -4403,8 +4412,6 @@ def _eval_retry_error(
         with logger.buffer_db.open_sample_history(sample_id, epoch) as sample_history:
             return eval_retry_error_from_history(error, sample_history)
 
-    sample_transcript = transcript()
-    transcript_history = sample_transcript.history
     recent_events = (
         resolve_event_calls(
             transcript_history.events_since_last(ModelEvent),

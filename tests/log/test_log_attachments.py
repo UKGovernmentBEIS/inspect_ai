@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
+import anyio
 import pytest
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_serializer
 
@@ -54,7 +55,8 @@ from inspect_ai.log._file import (
 )
 from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSpec
 from inspect_ai.log._resolve import resolve_sample_events_data
-from inspect_ai.log._transcript import Transcript
+from inspect_ai.log._samples import set_active_model_event_call
+from inspect_ai.log._transcript import Transcript, _transcript, init_transcript
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -2126,13 +2128,13 @@ def literal_call_retry_task(marker: str, reply: str) -> Task:
     )
 
 
-@pytest.mark.parametrize("seeded", [False, True])
+@pytest.mark.parametrize("source", ["transcript", "realtime", "seeded"])
 def test_error_retry_calls_keep_literals_and_genuine_references(
-    tmp_path: Path, seeded: bool
+    tmp_path: Path, source: Literal["transcript", "realtime", "seeded"]
 ) -> None:
     literal = f"attachment://{_LITERAL_KEY}"
     task = literal_call_retry_task(marker=str(tmp_path / "failed"), reply=literal)
-    if seeded:
+    if source == "seeded":
         # the retry history is seeded from the errored sample of the prior log
         [log] = inspect_eval(
             task, model="mockllm/model", log_dir=str(tmp_path), display="none"
@@ -2140,13 +2142,13 @@ def test_error_retry_calls_keep_literals_and_genuine_references(
         assert log.status == "error"
         [log] = eval_retry(log, log_dir=str(tmp_path), display="none")
     else:
-        # read from the transcript (the sample buffer is off)
+        # read from the transcript, with the sample buffer off and on
         [log] = inspect_eval(
             task,
             model="mockllm/model",
             log_dir=str(tmp_path),
             retry_on_error=1,
-            log_realtime=False,
+            log_realtime=source == "realtime",
             display="none",
         )
     assert log.status == "success"
@@ -2163,3 +2165,69 @@ def test_error_retry_calls_keep_literals_and_genuine_references(
     assert isinstance(request_messages[0], dict)
     assert request_messages[0]["content"] == _LITERAL_SYSTEM_PROMPT
     assert model_event.call.response == {"content": literal}
+
+
+@pytest.mark.parametrize("ending", ["error", "cancel"])
+async def test_subscribers_see_the_error_completion_of_a_call_with_literals(
+    ending: Literal["error", "cancel"],
+) -> None:
+    long_text = "genuine long text " * 10
+    literal = f"{ATTACHMENT_PROTOCOL}{mm3_hash(long_text)}"
+    request: dict[str, JsonValue] = {
+        "messages": [
+            {"role": "user", "content": long_text},
+            {"role": "user", "content": literal},
+        ]
+    }
+    published = anyio.Event()
+
+    async def outputs(*args: object) -> ModelOutput:
+        # a provider publishes its request before sending it
+        set_active_model_event_call(request)
+        if ending == "error":
+            raise RuntimeError("provider failed")
+        published.set()
+        await anyio.sleep_forever()
+        raise AssertionError("not reached")
+
+    model = get_model("mockllm/model", custom_outputs=outputs, memoize=False)
+    transcript = Transcript(log_model_api=True)
+    notified: list[ModelCall] = []
+
+    def record(event: Event) -> None:
+        if isinstance(event, ModelEvent) and event.call is not None:
+            notified.append(event.call.model_copy(deep=True))
+
+    transcript._subscribe(record)
+    token = _transcript.set(None)
+    try:
+        init_transcript(transcript)
+        if ending == "error":
+            with pytest.raises(RuntimeError, match="provider failed"):
+                await model.generate("hello")
+        else:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(model.generate, "hello")
+                await published.wait()
+                tg.cancel_scope.cancel()
+    finally:
+        _transcript.reset(token)
+
+    [event] = [e for e in transcript.events if isinstance(e, ModelEvent)]
+    assert event.call is not None
+    assert event.call.error is True
+    assert event.call.response is not None
+    [resolved] = resolve_event_calls([event], transcript.attachments)
+    assert isinstance(resolved, ModelEvent) and resolved.call is not None
+    assert resolved.call.request == request
+
+    # the last notification carries the error completion, literals inline
+    last = notified[-1]
+    assert last.error is True
+    assert last.response == event.call.response
+    assert last.request == {
+        "messages": [
+            {"role": "user", "content": literal},
+            {"role": "user", "content": literal},
+        ]
+    }

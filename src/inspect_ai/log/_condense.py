@@ -832,6 +832,43 @@ def _unescape_context() -> WalkContext:
     return WalkContext(message_cache={}, only_core=False)
 
 
+class CondensedJson(NamedTuple):
+    """A JSON object from a model call, condensed as `CallWalkCache` condenses calls."""
+
+    condensed: dict[str, JsonValue]
+    unescaped: dict[str, JsonValue]
+    """``condensed`` with its literal reference text put back (``condensed`` itself when it has none)."""
+
+
+def _condense_json_dict(
+    value: dict[str, JsonValue],
+    event_fn: Callable[[str], str],
+    context: WalkContext,
+) -> CondensedJson:
+    created: list[_CreatedAttachment] = []
+    condensed = walk_json_dict(
+        value, _recording_attachment_fn(event_fn, created), context
+    )
+    unescape = _unescape_fn(created)
+    return CondensedJson(
+        condensed,
+        condensed
+        if unescape is None
+        else walk_json_dict(condensed, unescape, _unescape_context()),
+    )
+
+
+def condense_call_response(
+    response: dict[str, JsonValue], attachments: MutableMapping[str, str]
+) -> CondensedJson:
+    """Condense a raw model-call response as `CallWalkCache` condenses calls."""
+    return _condense_json_dict(
+        response,
+        events_attachment_fn(attachments, escape_refs=True),
+        _unescape_context(),
+    )
+
+
 class _WalkedCallMessage(NamedTuple):
     """One cached wire message: its walked form plus what walking created.
 
@@ -952,13 +989,13 @@ class CallWalkCache:
 
         self._lineages.record(match, list(msgs), entries)
 
-        created_rest: list[_CreatedAttachment] = []
-        rest_fn = _recording_attachment_fn(event_fn, created_rest)
-        rest = walk_json_dict(
-            {k: v for k, v in call.request.items() if k != msg_key}, rest_fn, context
+        rest = _condense_json_dict(
+            {k: v for k, v in call.request.items() if k != msg_key}, event_fn, context
         )
         response = (
-            walk_json_dict(call.response, rest_fn, context) if call.response else None
+            _condense_json_dict(call.response, event_fn, context)
+            if call.response
+            else None
         )
 
         def condensed_call(
@@ -970,19 +1007,24 @@ class CallWalkCache:
             request[msg_key] = messages
             return call.model_copy(update={"request": request, "response": response})
 
-        condensed = condensed_call([entry.walked for entry in entries], rest, response)
-        unescape = _unescape_fn(created_rest)
-        if unescape is None and all(
-            entry.unescaped is entry.walked for entry in entries
+        condensed = condensed_call(
+            [entry.walked for entry in entries],
+            rest.condensed,
+            response.condensed if response is not None else None,
+        )
+        if (
+            rest.unescaped is rest.condensed
+            and (response is None or response.unescaped is response.condensed)
+            and all(entry.unescaped is entry.walked for entry in entries)
         ):
             return CondensedCall(condensed, condensed)
-        if unescape is not None:
-            rest = walk_json_dict(rest, unescape, _unescape_context())
-            if response is not None:
-                response = walk_json_dict(response, unescape, _unescape_context())
         return CondensedCall(
             condensed,
-            condensed_call([entry.unescaped for entry in entries], rest, response),
+            condensed_call(
+                [entry.unescaped for entry in entries],
+                rest.unescaped,
+                response.unescaped if response is not None else None,
+            ),
         )
 
 
