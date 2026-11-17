@@ -28,7 +28,14 @@ from inspect_ai.model._providers.anthropic import (
     _compaction_from_content_data,
     _compaction_from_message,
 )
+from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.util import Limit, cost_limit, token_limit
+from inspect_ai.util._limit import (
+    LimitExceededError,
+    record_model_cost,
+    record_model_usage,
+)
 
 
 def _sample_messages() -> list[ChatMessage]:
@@ -165,6 +172,44 @@ async def test_native_compaction_dynamically_supported() -> None:
 
     # Native compaction returns None for the supplemental message
     assert summary is None
+
+
+@pytest.mark.parametrize("budget", ["token", "cost"])
+async def test_compact_refused_once_a_limit_is_reached(
+    monkeypatch: pytest.MonkeyPatch, budget: str
+) -> None:
+    """`Model.compact()` raises a reached token or cost limit without calling the provider."""
+    calls = 0
+
+    async def compact(
+        self: MockLLM,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        config: GenerateConfig,
+        instructions: str | None = None,
+    ) -> tuple[list[ChatMessage], ModelUsage | None]:
+        nonlocal calls
+        calls += 1
+        return input, None
+
+    monkeypatch.setattr(MockLLM, "compact", compact)
+    model = get_model("mockllm/model")
+    limit: Limit
+    if budget == "token":
+        limit = token_limit(10)
+    else:
+        limit = cost_limit(0.01)
+
+    with limit:
+        if budget == "token":
+            record_model_usage(ModelUsage(total_tokens=10))
+        else:
+            record_model_cost(0.01)
+        with pytest.raises(LimitExceededError) as exc_info:
+            await model.compact(_sample_messages(), [])
+
+    assert calls == 0
+    assert exc_info.value.source is limit
 
 
 # --- Anthropic-specific tests ---

@@ -28,6 +28,7 @@ from inspect_ai.log._condense import (
     WalkContext,
     resolve_attachment_fn,
     resolve_events_attachments,
+    walk_json_value,
     walk_model_output,
 )
 from inspect_ai.log._log import (
@@ -45,6 +46,7 @@ from inspect_ai.log._recorders.buffer.types import (
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._metric import Score
+from inspect_ai.util._store import store_from_events
 
 logger = getLogger(__name__)
 
@@ -223,11 +225,60 @@ def recovered_sample_scores(
     }
 
 
+def recovered_sample_store(
+    summary: EvalSampleSummary,
+    events: list[Event],
+    attachments: Mapping[str, str],
+    buffered_store: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """A recovered sample's store.
+
+    Shared by both recovery paths. A completed sample's final store, as its
+    log has it, is buffered when it completes (`buffered_store`). Not every
+    write to it has a `StoreEvent`: a solver may return a forked or copied
+    state, and task cleanup and the sidecar monitor-state copy run outside
+    the spans.
+
+    Otherwise (an in-progress sample, or a buffer from a version that didn't
+    keep the store) it is replayed from the `StoreEvent`s, so it reflects only
+    the top-level spans that ended, and changes made while `StoreEvent`s were
+    suspended (`suspend_store_events()`) are missing. The buffer stores events
+    condensed, so the
+    `attachment://` refs in the replayed values are resolved; a normal run's
+    log keeps the store inline. If the changes don't replay (older versions
+    could record `move` operations that don't), the store is left empty with
+    a warning rather than failing the recovery of every sample.
+    """
+    if buffered_store is not None:
+        return buffered_store
+    try:
+        data = dict(store_from_events(events).items())
+    # jsonpatch also raises jsonpointer's exceptions, which have no type stubs
+    except Exception as ex:
+        logger.warning(
+            "Could not replay the store changes of sample %s (epoch %s) during "
+            "recovery; recovering it with an empty store: %r",
+            summary.id,
+            summary.epoch,
+            ex,
+        )
+        return {}
+    return cast(
+        dict[str, Any],
+        walk_json_value(
+            data,
+            resolve_attachment_fn(attachments),
+            WalkContext(message_cache={}, only_core=False),
+        ),
+    )
+
+
 def reconstruct_eval_sample(
     summary: EvalSampleSummary,
     sample_data: SampleData,
     *,
     sample_metadata: dict[str, Any] | None = None,
+    sample_store: dict[str, Any] | None = None,
     cancelled: bool = False,
     incomplete_action: IncompleteAction = "retry",
     include_events: bool = True,
@@ -238,6 +289,7 @@ def reconstruct_eval_sample(
         summary: Sample summary from the buffer DB samples table.
         sample_data: Events and attachments from buffer.get_sample_data().
         sample_metadata: Full metadata stored separately from the thinned summary.
+        sample_store: The final store buffered when the sample completed.
         cancelled: If True, synthesize an EvalError per `incomplete_action`
             (for in-progress samples interrupted by a crash).
         incomplete_action: Disposition for in-progress samples (see
@@ -294,6 +346,7 @@ def reconstruct_eval_sample(
         messages=messages,
         output=output,
         scores=recovered_sample_scores(summary, events),
+        store=recovered_sample_store(summary, events, attachments, sample_store),
         events=events if include_events else [],
         timelines=None,
         attachments=attachments,

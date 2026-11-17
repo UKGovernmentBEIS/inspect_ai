@@ -4,6 +4,7 @@ import functools
 import json
 import os
 import zipfile
+import zlib
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any, BinaryIO, cast
@@ -11,6 +12,7 @@ from typing import Any, BinaryIO, cast
 import anyio
 import boto3
 import pytest
+import zstandard
 
 from inspect_ai import Epochs, Task, eval, eval_retry, task, task_with
 from inspect_ai._eval.task import run as run_module
@@ -18,6 +20,7 @@ from inspect_ai._util.async_zip import AsyncZipReader, ZipCrcError
 from inspect_ai._util.asyncfiles import AsyncFilesystem, DirListing
 from inspect_ai._util.error import WriteConflictError
 from inspect_ai._util.file import FileInfo, local_path
+from inspect_ai._util.zipfile import RawMemberWriter, zipfile_compress_kwargs
 from inspect_ai.dataset import Sample
 from inspect_ai.log import (
     EvalLog,
@@ -1600,7 +1603,7 @@ def _drain(eval_id: str) -> None:
 
     state = get_eval_state(eval_id)
     assert state is not None and state.task_cancel is not None
-    state.task_cancel.cancel_task("drain")
+    state.task_cancel.request("drain")
 
 
 @solver
@@ -2330,13 +2333,21 @@ def test_incremental_merge_reads_only_changed_shards(
         opened.append(filename)
         init(self, fs, filename, *a, **k)
 
+    open_member = AsyncZipReader.open_member_raw
+
     async def spy_read(self: AsyncZipReader, member: Any) -> bytes:
         name = member if isinstance(member, str) else member.filename
         member_reads.append((self._filename, name))
         return await read_member(self, member)
 
+    async def spy_open(self: AsyncZipReader, member: Any) -> Any:
+        name = member if isinstance(member, str) else member.filename
+        member_reads.append((self._filename, name))
+        return await open_member(self, member)
+
     monkeypatch.setattr(AsyncZipReader, "__init__", spy_init)
     monkeypatch.setattr(AsyncZipReader, "read_member_fully", spy_read)
+    monkeypatch.setattr(AsyncZipReader, "open_member_raw", spy_open)
 
     # nothing changed: nothing written, no shard opened
     result = merge_eval_log_shards(merged, _task(), allow_incomplete=True)
@@ -2359,9 +2370,12 @@ def test_incremental_merge_reads_only_changed_shards(
     assert result.written
     assert growing.location in opened and steady.location not in opened
     sample_reads = [name for file, name in member_reads if file == growing.location]
+    # sample 2 is unchanged in the shard (the same CRC-32 and size), so it is
+    # copied from the merged log instead
     assert {n for n in sample_reads if n.startswith("samples/")} == {
-        f"samples/{i}_epoch_1.json" for i in (1, 2, 3)
+        f"samples/{i}_epoch_1.json" for i in (1, 3)
     }
+    assert (merged, "samples/2_epoch_1.json") in member_reads
     assert _keys(merged) == {(str(i), 1) for i in range(1, 7)}
     samples = read_eval_log(merged).samples
     assert samples is not None and samples[0].scores is not None
@@ -3116,19 +3130,27 @@ def _crc_failures(
     error: Exception,
     member: str = "samples/",
 ) -> list[str]:
-    """Fail the first `failures` reads of `member` from a shard with `error`."""
+    """Fail the first `failures` reads of `member` from a shard with `error`.
+
+    Whole reads (headers) and streamed reads (samples) are both counted.
+    """
     calls: list[str] = []
-    read_member = AsyncZipReader.read_member_fully
 
-    async def failing(self: AsyncZipReader, member_: Any) -> bytes:
-        name = member_ if isinstance(member_, str) else member_.filename
-        if self._filename.startswith(shards) and name.startswith(member):
-            calls.append(name)
-            if len(calls) <= failures:
-                raise error
-        return await read_member(self, member_)
+    def failing(read: Callable[..., Any]) -> Callable[..., Any]:
+        async def call(self: AsyncZipReader, member_: Any) -> Any:
+            name = member_ if isinstance(member_, str) else member_.filename
+            if self._filename.startswith(shards) and name.startswith(member):
+                calls.append(name)
+                if len(calls) <= failures:
+                    raise error
+            return await read(self, member_)
 
-    monkeypatch.setattr(AsyncZipReader, "read_member_fully", failing)
+        return call
+
+    for method in ["read_member_fully", "open_member_raw"]:
+        monkeypatch.setattr(
+            AsyncZipReader, method, failing(getattr(AsyncZipReader, method))
+        )
     return calls
 
 
@@ -3358,6 +3380,48 @@ def test_merge_on_s3(s3_shards: tuple[str, str], s3_root: str) -> None:
 
     # nothing changed since: nothing is written
     assert not merge_eval_log_shards(merged, _task()).written
+
+
+def test_merge_on_s3_copies_unchanged_members_of_changed_shards_from_the_merged_log(
+    s3_shards: tuple[str, str], s3_root: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    merged, shards = s3_shards
+    assert merge_eval_log_shards(merged, _task()).written
+
+    # rewrite both shards, each with one sample edited: no record is carried,
+    # but the other samples' members match the merged log's
+    for k, edited in (("0", 1), ("1", 4)):
+        [key] = [
+            key
+            for key in _s3_keys(f"{s3_root}/{NAME}.shards/{k}/")
+            if key.endswith(".eval")
+        ]
+        log = read_eval_log(f"s3://test-bucket/{key}")
+        assert log.samples is not None
+        for sample in log.samples:
+            if sample.id == edited:
+                sample.metadata["changed"] = True
+        write_eval_log(log, f"s3://test-bucket/{key}")
+
+    sample_reads: list[tuple[str, str]] = []
+    open_member = AsyncZipReader.open_member_raw
+
+    async def spy_open(self: AsyncZipReader, member: Any) -> Any:
+        if member.filename.startswith("samples/"):
+            sample_reads.append((self._filename, member.filename))
+        return await open_member(self, member)
+
+    monkeypatch.setattr(AsyncZipReader, "open_member_raw", spy_open)
+    assert merge_eval_log_shards(merged, _task()).written
+
+    from_shards = {name for file, name in sample_reads if file.startswith(shards)}
+    assert from_shards == {"samples/1_epoch_1.json", "samples/4_epoch_1.json"}
+    # the rest come from the merged log's local copy
+    from_copy = {name for file, name in sample_reads if not file.startswith("s3://")}
+    assert from_copy == {f"samples/{i}_epoch_1.json" for i in (2, 3, 5, 6)}
+    log = read_eval_log(merged)
+    assert log.samples is not None
+    assert {s.id for s in log.samples if s.metadata.get("changed")} == {1, 4}
 
 
 async def test_concurrent_first_merges_on_s3_publish_once(
@@ -4327,3 +4391,649 @@ def test_a_declared_score_without_a_sample_init_event_is_refused(
     with pytest.raises(ShardSetError, match="Sample '5' has no sample_init event"):
         merge_eval_log_shards(merged, _task())
     assert not os.path.exists(merged) and _files(shards) == before
+
+
+# Streaming recomputation: the merge parses each sample member as it streams
+# past, keeping only its metric inputs, so peak memory does not follow the
+# size of a sample's transcript.
+
+_MiB = 1024 * 1024
+
+
+@solver
+def _chatty(events: int, repeated: bool) -> Solver:
+    """Logs `events` info events of 32 KiB of text each.
+
+    The text is random, or with `repeated` one random block repeated with a
+    different prefix, which compresses far beyond the reads' chunk size.
+    """
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        import base64
+
+        from inspect_ai.log import transcript
+
+        block = base64.b64encode(os.urandom(24 * 1024)).decode()
+        for i in range(events):
+            if not repeated:
+                block = base64.b64encode(os.urandom(24 * 1024)).decode()
+            transcript().info(f"{i}:{block}")
+        return await generate(state)
+
+    return solve
+
+
+def _merge_peak(merged: str, task: Task) -> tuple[ShardMergeResult, int]:
+    """Merge, returning the result and the merge's peak traced memory."""
+    import tracemalloc
+
+    tracemalloc.start()
+    try:
+        result = merge_eval_log_shards(merged, task)
+        return result, tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+
+@pytest.mark.parametrize("data", ["random", "repeated"])
+@pytest.mark.parametrize("write", ["fresh", "incremental"])
+def test_merge_peak_memory_does_not_grow_with_transcript_size(
+    tmp_path: Path, write: str, data: str
+) -> None:
+    peaks = {}
+    for events in [100, 400]:
+        task = _task(samples=2, solver=_chatty(events, data == "repeated"))
+        merged, shards = _paths(tmp_path / str(events))
+        _run(shards, "0", task, sample_id=[1])
+        _run(shards, "1", task, sample_id=[2])
+        if write == "incremental":
+            # sample 1 is carried from the merged log, sample 2 read again
+            merge_eval_log_shards(merged, task)
+            _run(shards, "1", task, sample_id=[2])
+        result, peaks[events] = _merge_peak(merged, task)
+        assert result.written
+        assert result.log.results is not None
+        assert result.log.results.scores[0].metrics["accuracy"].value == 0.5
+        with zipfile.ZipFile(local_path(merged)) as zf:
+            member = zf.getinfo("samples/2_epoch_1.json")
+        assert member.file_size > events * 32 * 1024
+    # sample members of about 3 and 13 MiB; parsing them whole took 4.5 times
+    # their size, and recompressing them held a member's compressed bytes
+    assert peaks[400] - peaks[100] < _MiB, peaks
+
+
+_SEEN_SCORE_METADATA: list[dict[str, Any] | None] = []
+
+
+@metric(name="shard_score_metadata")
+def shard_score_metadata() -> Metric:
+    """Records the score metadata it is given."""
+
+    def compute(scores: list[SampleScore]) -> float:
+        _SEEN_SCORE_METADATA.extend(s.score.metadata for s in scores)
+        return float(len(scores))
+
+    return compute
+
+
+@scorer(metrics=[shard_score_metadata()])
+def blob_scored(size: int) -> Scorer:
+    """Scores with `size` bytes of incompressible text in the score metadata."""
+
+    async def score(state: TaskState, target: Target) -> Score:
+        import base64
+
+        blob = base64.b64encode(os.urandom(size * 3 // 4)).decode()
+        return Score(value=1, metadata={"blob": blob})
+
+    return score
+
+
+def test_merge_peak_memory_grows_with_the_retained_score_metadata(
+    tmp_path: Path,
+) -> None:
+    peaks = {}
+    for size in [1024, 256 * 1024]:
+        task = _task(samples=6)
+        task.scorer = [blob_scored(size)]
+        merged, shards = _paths(tmp_path / str(size))
+        _run(shards, "0", task, sample_id=[1, 2, 3])
+        _run(shards, "1", task, sample_id=[4, 5, 6])
+        _SEEN_SCORE_METADATA.clear()
+        _, peaks[size] = _merge_peak(merged, task)
+        # the metric is given the score metadata as the log stores it
+        samples = read_eval_log(merged).samples
+        assert samples is not None
+        stored = [s.scores["blob_scored"].metadata for s in samples if s.scores]
+        assert _SEEN_SCORE_METADATA == stored
+    # six scores of 256 KiB more each are retained as metric inputs (the
+    # summaries keep thinned score metadata)
+    retained = 6 * (256 - 1) * 1024
+    assert retained <= peaks[256 * 1024] - peaks[1024] < 3 * retained + _MiB, peaks
+
+
+_SEEN_SAMPLE_METADATA: list[dict[str, Any] | None] = []
+
+
+@metric(name="shard_sample_metadata")
+def shard_sample_metadata() -> Metric:
+    """Records the sample metadata it is given."""
+
+    def compute(scores: list[SampleScore]) -> float:
+        _SEEN_SAMPLE_METADATA.extend(s.sample_metadata for s in scores)
+        return float(len(scores))
+
+    return compute
+
+
+@scorer(metrics=[shard_sample_metadata()])
+def big_metadata_scored() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value=1)
+
+    return score
+
+
+def test_a_sample_the_streaming_parser_refuses_is_parsed_whole(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai.log._shards import _write
+
+    # an integer too large for the streaming parser, in the dataset metadata
+    big = 2**70
+    task = _task(samples=4)
+    task.scorer = [big_metadata_scored()]
+    assert task.dataset[2].metadata is not None
+    task.dataset[2].metadata["big"] = big
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", task, sample_id=[1, 2])
+    _run(shards, "1", task, sample_id=[3, 4])
+    whole: list[int | str] = []
+    parse_whole = _write._parse_whole
+
+    def spy(data: bytes) -> Any:
+        parsed = parse_whole(data)
+        whole.append(parsed.fields["id"])
+        return parsed
+
+    monkeypatch.setattr(_write, "_parse_whole", spy)
+    _SEEN_SAMPLE_METADATA.clear()
+    result = merge_eval_log_shards(merged, task)
+    assert result.written
+    assert whole == [3]
+    assert _SEEN_SAMPLE_METADATA == [{"index": i} for i in (1, 2)] + [
+        {"index": 3, "big": big},
+        {"index": 4},
+    ]
+    samples = read_eval_log(merged).samples
+    assert samples is not None and [s.id for s in samples] == [1, 2, 3, 4]
+
+
+@pytest.mark.parametrize("field", ["score", "transcript"])
+def test_a_sample_member_with_a_deprecated_field_is_refused(
+    tmp_path: Path, field: str
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    log = _run(shards, "1", sample_id=[4, 5, 6])
+    name = "samples/5_epoch_1.json"
+    with zipfile.ZipFile(local_path(log.location)) as zf:
+        sample = json.loads(zf.read(name))
+    # the fields of log files from before `scores` and `events`
+    if field == "score":
+        sample["score"] = sample.pop("scores")["match"]
+    else:
+        sample["transcript"] = {"events": sample.pop("events"), "content": {}}
+    _replace_member(log.location, name, json.dumps(sample).encode())
+    before = _files(shards)
+    with pytest.raises(
+        ShardSetError,
+        match=rf"samples/5_epoch_1.json has the deprecated fields \['{field}'\]",
+    ):
+        merge_eval_log_shards(merged, _task())
+    assert not os.path.exists(merged) and _files(shards) == before
+
+
+@pytest.mark.parametrize("where", ["sample", "event", "sample, parsed whole"])
+def test_a_sample_member_with_a_dotted_key_where_events_are_read_is_refused(
+    tmp_path: Path, where: str
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    log = _run(shards, "1", sample_id=[4, 5, 6])
+    name = "samples/5_epoch_1.json"
+    with zipfile.ZipFile(local_path(log.location)) as zf:
+        sample = json.loads(zf.read(name))
+    # each key's events would read as false initial metadata
+    poison = {"metadata": {"poison": 1}}
+    if where == "event":
+        init = next(e for e in sample["events"] if e["event"] == "sample_init")
+        key = "sample.metadata"
+        init[key] = poison["metadata"]
+    else:
+        key = "events.item"
+        sample[key] = {"event": "sample_init", "sample": poison}
+        if where == "sample, parsed whole":
+            # an integer only a whole parse reads
+            sample["future_optional"] = 2**70
+    _replace_member(log.location, name, json.dumps(sample).encode())
+    before = _files(shards)
+    with pytest.raises(
+        ShardSetError, match=rf"samples/5_epoch_1.json has the keys \['{key}'\]"
+    ):
+        merge_eval_log_shards(merged, _task())
+    assert not os.path.exists(merged) and _files(shards) == before
+
+
+def test_sample_fields_a_later_inspect_adds_are_skipped_and_kept(
+    tmp_path: Path,
+) -> None:
+    merged, shards = _paths(tmp_path)
+    first = _run(shards, "0", sample_id=[1, 2, 3])
+    second = _run(shards, "1", sample_id=[4, 5, 6])
+    # sample 5's field also holds an integer only a whole parse reads
+    added = {2: {"future": [1, 2]}, 5: {"future": 2**70}}
+    for log, sample_id in [(first, 2), (second, 5)]:
+        name = f"samples/{sample_id}_epoch_1.json"
+        with zipfile.ZipFile(local_path(log.location)) as zf:
+            sample = json.loads(zf.read(name))
+        sample["future_optional"] = added[sample_id]
+        _replace_member(log.location, name, json.dumps(sample).encode())
+
+    def merged_fields() -> dict[int, Any]:
+        with zipfile.ZipFile(local_path(merged)) as zf:
+            return {
+                i: json.loads(zf.read(f"samples/{i}_epoch_1.json")).get(
+                    "future_optional"
+                )
+                for i in range(1, 7)
+            }
+
+    expected = {i: added.get(i) for i in range(1, 7)}
+    result = merge_eval_log_shards(merged, _task())
+    assert result.written and merged_fields() == expected
+    assert result.log.results is not None
+    accuracy = result.log.results.scores[0].metrics["accuracy"].value
+    # shard 1 is run again: sample 2 is carried from the merged log
+    _run(shards, "1", sample_id=[4, 5, 6])
+    result = merge_eval_log_shards(merged, _task())
+    assert result.written
+    assert merged_fields() == {**expected, 5: None}
+    assert result.log.results is not None
+    assert result.log.results.scores[0].metrics["accuracy"].value == accuracy
+
+
+@pytest.mark.parametrize("crc", ["matches", "differs"])
+def test_sample_copies_are_released_after_the_merge(
+    two_shards: tuple[str, str], monkeypatch: pytest.MonkeyPatch, crc: str
+) -> None:
+    import gc
+    import weakref
+
+    from inspect_ai.log._shards import _write
+
+    merged, shards = two_shards
+    copies: list[weakref.ref[Any]] = []
+    init = _write._SampleCopy.__init__
+
+    def spy(self: Any, *args: Any) -> None:
+        init(self, *args)
+        copies.append(weakref.ref(self))
+
+    monkeypatch.setattr(_write._SampleCopy, "__init__", spy)
+    if crc == "differs":
+
+        def torn(*args: Any) -> None:
+            raise ZipCrcError("torn")
+
+        monkeypatch.setattr(_write, "_check_crc", torn)
+        with pytest.raises(ZipCrcError):
+            merge_eval_log_shards(merged, _task())
+        gc.collect()
+        assert copies
+        # the error's traceback holds the frame holding a copy for as long as
+        # anything holds the error; the copy has closed its member
+        for ref in copies:
+            copy = ref()
+            assert copy is None or copy._output.closed
+    else:
+        # with no reference cycle, reference counting alone frees each copy,
+        # with or without an explicit close
+        monkeypatch.setattr(_write._SampleCopy, "close", lambda self: None)
+        gc.disable()
+        try:
+            merge_eval_log_shards(merged, _task())
+            freed = [copy() is None for copy in copies]
+        finally:
+            gc.enable()
+        assert freed and all(freed)
+
+
+def test_a_sample_member_with_an_incomplete_deflate_stream_fails_the_merge(
+    tmp_path: Path,
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    log = _run(shards, "1", sample_id=[4, 5, 6])
+    name = "samples/5_epoch_1.json"
+    path = local_path(log.location)
+    # rewrite the shard deflated, then clear the member's final-block bit: its
+    # output and CRC-32 are unchanged, but the stream never ends
+    with zipfile.ZipFile(path) as zf:
+        sample = zf.read(name)
+    _replace_member(log.location, name, sample)
+    with zipfile.ZipFile(path) as zf:
+        info = zf.getinfo(name)
+    content = bytearray(Path(path).read_bytes())
+    header = info.header_offset
+    name_length = int.from_bytes(content[header + 26 : header + 28], "little")
+    extra_length = int.from_bytes(content[header + 28 : header + 30], "little")
+    data = header + 30 + name_length + extra_length
+    assert content[data] & 1
+    content[data] &= 0xFE
+    Path(path).write_bytes(bytes(content))
+    with pytest.raises(zlib.error, match="incomplete or truncated stream"):
+        merge_eval_log_shards(merged, _task())
+    assert not os.path.exists(merged)
+
+
+@pytest.mark.parametrize("incomplete", ["no last block", "no checksum"])
+def test_a_sample_member_with_an_incomplete_zstd_frame_fails_the_merge(
+    tmp_path: Path, incomplete: str
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    log = _run(shards, "1", sample_id=[4, 5, 6])
+    name = "samples/5_epoch_1.json"
+    path = local_path(log.location)
+    with zipfile.ZipFile(path) as zf:
+        sample = zf.read(name)
+    # a frame whose output and CRC-32 are complete, but which never ends
+    if incomplete == "no last block":
+        # descriptor: no checksum or content size; window descriptor: 128 KiB;
+        # one raw block without the last-block flag
+        assert len(sample) < 128 * 1024
+        frame = (
+            b"\x28\xb5\x2f\xfd\x00\x38"
+            + (len(sample) << 3).to_bytes(3, "little")
+            + sample
+        )
+    else:
+        frame = zstandard.ZstdCompressor(write_checksum=True).compress(sample)[:-4]
+    with zipfile.ZipFile(path) as src:
+        members = [(i.filename, src.read(i)) for i in src.infolist()]
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as dst:
+        for member, data in members:
+            if member == name:
+                writer = RawMemberWriter(
+                    dst, name, zipfile_compress_kwargs["compression"]
+                )
+                writer.write(frame)
+                writer.finish(zlib.crc32(sample), len(sample))
+            else:
+                dst.writestr(member, data)
+    with zipfile.ZipFile(path) as zf:
+        assert zf.read(name) == sample
+    with pytest.raises(zstandard.ZstdError, match="incomplete or truncated"):
+        merge_eval_log_shards(merged, _task())
+    assert not os.path.exists(merged)
+
+
+async def test_a_cancelled_read_still_closes_the_sample_input(
+    two_shards: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._util import asyncfiles
+    from inspect_ai.log import merge_eval_log_shards_async
+
+    merged, shards = two_shards
+    stream_class = asyncfiles._AnyIOFileByteReceiveStream
+    streams: list[Any] = []
+    receive = stream_class.receive
+    cancelled: list[bool] = []
+
+    async def merge() -> None:
+        with anyio.CancelScope() as scope:
+
+            async def cancelled_receive(self: Any, max_bytes: int = 65536) -> bytes:
+                chunk = await receive(self, max_bytes)
+                if self._filename.startswith(local_path(shards)):
+                    # the file is open: cancel the read that opened it
+                    streams.append(self)
+                    scope.cancel()
+                    await anyio.lowlevel.checkpoint()
+                return chunk
+
+            monkeypatch.setattr(stream_class, "receive", cancelled_receive)
+            await merge_eval_log_shards_async(merged, _task())
+        cancelled.append(scope.cancelled_caught)
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(merge)
+    assert cancelled == [True]
+    # the close completed: the stream let go of its file
+    assert streams and all(stream._file is None for stream in streams)
+    assert not os.path.exists(merged)
+
+
+@pytest.mark.parametrize("stop", ["error", "cancelled"])
+async def test_a_sample_copy_whose_input_fails_to_open_is_freed(
+    two_shards: tuple[str, str], monkeypatch: pytest.MonkeyPatch, stop: str
+) -> None:
+    import gc
+    import weakref
+
+    from inspect_ai.log import merge_eval_log_shards_async
+    from inspect_ai.log._shards import _write
+
+    merged, shards = two_shards
+    copies: list[weakref.ref[Any]] = []
+    init = _write._SampleCopy.__init__
+
+    def spy(self: Any, *args: Any) -> None:
+        init(self, *args)
+        copies.append(weakref.ref(self))
+
+    monkeypatch.setattr(_write._SampleCopy, "__init__", spy)
+    # collection must not depend on an explicit close
+    monkeypatch.setattr(_write._SampleCopy, "close", lambda self: None)
+
+    cancelled: list[bool] = []
+
+    async def merge() -> None:
+        # run as a task of its own, which drops the error that stopped the merge
+        with anyio.CancelScope() as scope:
+
+            async def open_member_raw(self: AsyncZipReader, member: Any) -> Any:
+                if stop == "error":
+                    raise OSError("open failed")
+                scope.cancel()
+                await anyio.lowlevel.checkpoint()
+
+            monkeypatch.setattr(AsyncZipReader, "open_member_raw", open_member_raw)
+            if stop == "error":
+                with pytest.raises(OSError, match="open failed"):
+                    await merge_eval_log_shards_async(merged, _task())
+            else:
+                await merge_eval_log_shards_async(merged, _task())
+        cancelled.append(scope.cancelled_caught)
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(merge)
+    assert cancelled == [stop == "cancelled"]
+    gc.collect()
+    assert copies and all(copy() is None for copy in copies)
+    assert not os.path.exists(merged)
+
+
+@pytest.mark.parametrize("stop", ["error", "cancelled"])
+async def test_a_sample_copy_that_stops_closes_its_input_first(
+    two_shards: tuple[str, str], monkeypatch: pytest.MonkeyPatch, stop: str
+) -> None:
+    from inspect_ai.log import merge_eval_log_shards_async
+    from inspect_ai.log._shards import _write
+
+    merged, shards = two_shards
+    inputs: list[dict[str, bool]] = []
+    read_file_bytes = AsyncFilesystem.read_file_bytes
+
+    async def spy(self: AsyncFilesystem, *args: Any, **kwargs: Any) -> Any:
+        stream = await read_file_bytes(self, *args, **kwargs)
+        state = {"closed": False}
+        aclose = stream.aclose
+
+        async def close() -> None:
+            state["closed"] = True
+            await aclose()
+
+        monkeypatch.setattr(stream, "aclose", close)
+        inputs.append(state)
+        return stream
+
+    monkeypatch.setattr(AsyncFilesystem, "read_file_bytes", spy)
+    with anyio.CancelScope() as scope:
+
+        def write(self: Any, data: bytes) -> None:
+            if stop == "error":
+                raise RuntimeError("write failed")
+            anyio.from_thread.run_sync(scope.cancel)
+
+        monkeypatch.setattr(_write._SampleCopy, "write", write)
+        if stop == "error":
+            with pytest.raises(RuntimeError, match="write failed"):
+                await merge_eval_log_shards_async(merged, _task())
+        else:
+            await merge_eval_log_shards_async(merged, _task())
+    assert scope.cancelled_caught == (stop == "cancelled")
+    assert inputs and all(state["closed"] for state in inputs)
+    assert not os.path.exists(merged)
+
+
+@pytest.mark.parametrize("stop", ["error", "cancelled"])
+async def test_a_sample_copy_that_stops_closes_its_output_in_a_worker(
+    two_shards: tuple[str, str], monkeypatch: pytest.MonkeyPatch, stop: str
+) -> None:
+    import threading
+
+    from inspect_ai.log import merge_eval_log_shards_async
+    from inspect_ai.log._shards import _write
+
+    merged, shards = two_shards
+    loop_thread = threading.get_ident()
+    copies: list[Any] = []
+    closes: list[int] = []
+    init = _write._SampleCopy.__init__
+    close = _write._SampleCopy.close
+
+    def init_spy(self: Any, *args: Any) -> None:
+        init(self, *args)
+        copies.append(self)
+
+    def output_open(copy: Any) -> bool:
+        return copy._output is not None and not copy._output.closed
+
+    def close_spy(self: Any) -> None:
+        if output_open(self):
+            closes.append(threading.get_ident())
+        close(self)
+
+    monkeypatch.setattr(_write._SampleCopy, "__init__", init_spy)
+    monkeypatch.setattr(_write._SampleCopy, "close", close_spy)
+    with anyio.CancelScope() as scope:
+        if stop == "error":
+
+            def torn(*args: Any) -> None:
+                raise ZipCrcError("torn")
+
+            monkeypatch.setattr(_write, "_check_crc", torn)
+            with pytest.raises(ZipCrcError):
+                await merge_eval_log_shards_async(merged, _task())
+        else:
+            write = _write._SampleCopy.write
+
+            def cancelling_write(self: Any, data: bytes) -> None:
+                write(self, data)
+                anyio.from_thread.run_sync(scope.cancel)
+
+            monkeypatch.setattr(_write._SampleCopy, "write", cancelling_write)
+            await merge_eval_log_shards_async(merged, _task())
+    assert scope.cancelled_caught == (stop == "cancelled")
+    # the copy that stopped had opened its output member and closed it
+    assert len(copies) == 1 and not output_open(copies[0])
+    assert closes and loop_thread not in closes
+    assert not os.path.exists(merged)
+
+
+def _compressed_samples(log: str) -> dict[str, tuple[int, bytes]]:
+    """Each sample member's compression method and compressed bytes."""
+    path = local_path(log)
+    content = Path(path).read_bytes()
+    members = {}
+    with zipfile.ZipFile(path) as zf:
+        for info in zf.infolist():
+            if info.filename.startswith("samples/"):
+                header = info.header_offset
+                name_length = int.from_bytes(
+                    content[header + 26 : header + 28], "little"
+                )
+                extra_length = int.from_bytes(
+                    content[header + 28 : header + 30], "little"
+                )
+                data = header + 30 + name_length + extra_length
+                members[info.filename] = (
+                    info.compress_type,
+                    content[data : data + info.compress_size],
+                )
+    return members
+
+
+def test_merged_sample_members_are_the_shards_compressed_bytes(
+    tmp_path: Path,
+) -> None:
+    merged, shards = _paths(tmp_path)
+    zstd = _run(shards, "0", sample_id=[1, 2, 3])
+    deflated = _run(shards, "1", sample_id=[4, 5, 6])
+    # rewrite one shard with deflate, as older versions of Inspect wrote logs
+    name = "samples/5_epoch_1.json"
+    with zipfile.ZipFile(local_path(deflated.location)) as zf:
+        sample = zf.read(name)
+    _replace_member(deflated.location, name, sample)
+    result = merge_eval_log_shards(merged, _task())
+
+    expected = _compressed_samples(zstd.location) | _compressed_samples(
+        deflated.location
+    )
+    assert {method for method, _ in expected.values()} == {
+        zipfile_compress_kwargs["compression"],
+        zipfile.ZIP_DEFLATED,
+    }
+    assert _compressed_samples(merged) == expected
+    log = read_eval_log(merged)
+    assert log.samples is not None and len(log.samples) == 6
+    assert result.log.results is not None
+    assert result.log.results.scores[0].metrics["accuracy"].value == 0.5
+
+
+def test_a_sample_member_that_does_not_match_its_crc_fails_the_merge(
+    tmp_path: Path,
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    log = _run(shards, "1", sample_id=[4, 5, 6])
+    name = "samples/5_epoch_1.json"
+    path = local_path(log.location)
+    with zipfile.ZipFile(path) as zf:
+        sample = json.loads(zf.read(name))
+    sample["future_optional"] = "a" * 64
+    _replace_member(log.location, name, json.dumps(sample).encode())
+    # rewrite it stored, then change its bytes after the CRC was recorded
+    with zipfile.ZipFile(path) as src:
+        members = [(i.filename, src.read(i)) for i in src.infolist()]
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_STORED) as dst:
+        for member, data in members:
+            dst.writestr(member, data)
+    content = Path(path).read_bytes()
+    assert content.count(b"a" * 64) == 1
+    Path(path).write_bytes(content.replace(b"a" * 64, b"b" * 64))
+    with pytest.raises(ZipCrcError, match="samples/5_epoch_1.json"):
+        merge_eval_log_shards(merged, _task())
+    assert not os.path.exists(merged)

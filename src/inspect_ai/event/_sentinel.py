@@ -57,6 +57,9 @@ class SentinelEvent(BaseEvent):
     step_id: str
     """The step examined: at the generate stages (`model_input`, `model_output`) the generate's id, the `uuid` of its first `ModelEvent`, shared by both stages and by the generate's retried attempts; at the tool stages the tool call id."""
 
+    execution_id: str | None = Field(default=None)
+    """When set, the execution this step belongs to: which run of a bridged call it examined, for a call that ran more than once."""
+
     conversation: str
     """The agent conversation this step belongs to."""
 

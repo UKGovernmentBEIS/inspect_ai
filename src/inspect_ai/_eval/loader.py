@@ -52,7 +52,7 @@ from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 from inspect_ai.viewer import ViewerConfig
 
 from .list import task_files
-from .registry import task_create, task_source_create
+from .registry import task_create, task_factory_name, task_source_create
 from .task import PreviousTask, Task, TaskInfo
 from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
 from .task.hf import task_create_from_hf
@@ -172,11 +172,34 @@ def resolve_tasks(
             f"{task.file}@{task.name}" for task in tasks if isinstance(task, TaskInfo)
         ]
 
-    # handle functions that return tasks (we get their registry name)
+    # handle functions that return tasks (we get their registry name; Task
+    # instances after them in the list are used as is)
     if isinstance(tasks, list) and callable(tasks[0]):
-        tasks = [registry_info(task).name for task in tasks]
+        specs = [
+            task if isinstance(task, Task) else task_factory_name(task)
+            for task in tasks
+        ]
+        if any(isinstance(spec, Task) for spec in specs):
+            if warn_unconsumed_task_args and task_args:
+                logger.warning(
+                    f"task_args {sorted(task_args.keys())} will not be applied "
+                    "to the Task instances in the list: they apply only to the "
+                    "@task functions."
+                )
+            return as_resolved_tasks(
+                [
+                    task
+                    for spec in specs
+                    for task in (
+                        [spec]
+                        if isinstance(spec, Task)
+                        else load_task_spec(spec, task_args)
+                    )
+                ]
+            )
+        tasks = specs
     elif callable(tasks):
-        tasks = [registry_info(tasks).name]
+        tasks = [task_factory_name(tasks)]
 
     # str to list[str]
     if isinstance(tasks, str):

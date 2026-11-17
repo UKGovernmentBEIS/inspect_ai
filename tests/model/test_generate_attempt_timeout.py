@@ -21,7 +21,7 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 
 @skip_if_no_anthropic
 async def test_generate_attempt_timeout() -> None:
-    m = get_model("anthropic/claude-sonnet-4-5")
+    m = get_model("anthropic/claude-sonnet-5-5")
 
     with pytest.raises(tenacity.RetryError):
         await m.generate(
