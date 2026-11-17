@@ -1551,7 +1551,7 @@ async def _bridge_generate_impl(
                 elif isinstance(result, GenerateInput):
                     # Update the inputs that will be used for generation
                     input_messages, tools, tool_choice, config = result
-                bridge._unlink_rewritten_results(
+                bridge._mark_unfiltered_results(
                     input_messages, generated=output is None
                 )
 

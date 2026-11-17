@@ -27,7 +27,8 @@ class ToolEvent(BaseEvent):
     scaffold sent: no request filter is set, or the filter left the message
     unchanged and the bridge's own generation used it, in the request that
     first carried it. Otherwise the key is absent (for example, the filter
-    returned the request's output itself, or never ran on the message).
+    changed the message, returned the request's output itself, or never ran
+    on the message).
     """
 
     event: Literal["tool"] = Field(default="tool")
@@ -129,10 +130,7 @@ class ToolEvent(BaseEvent):
     (e.g. the scaffold's client gave up on the call and answered with its
     own timeout); Google names only the result's function and several calls
     of the reply share it; the sample resumed from a checkpoint first; or
-    256 later host calls are tracked before its result arrives. It is reset
-    to `None` where the bridge's request filter changes the answer and keeps
-    its id in the first request whose filter runs on it: the bridge checked
-    the answer as the scaffold sent it, which the log then does not hold.
+    256 later host calls are tracked before its result arrives.
     """
 
     call_message_id: str | None = Field(default=None)

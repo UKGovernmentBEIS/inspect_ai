@@ -433,7 +433,7 @@ class AgentBridge:
         self._unlinked_replies: set[str] = set()
         """Ids of handed replies none of whose executions links (`_unlink`)."""
         self._filtered_links: dict[str, tuple["ToolEvent", str]] = {}
-        """Per tool message a host execution was linked to while a request filter is set, the execution's event and the message's `content_hash` as linked, until a request's filter has run on it (`_unlink_rewritten_results`)."""
+        """Per tool message a host execution was linked to while a request filter is set, the execution's event and the message's `content_hash` as linked, until a request's filter has run on it (`_mark_unfiltered_results`)."""
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
 
@@ -736,21 +736,19 @@ class AgentBridge:
                             del self._filtered_links[next(iter(self._filtered_links))]
                     transcript()._event_updated(event)
 
-    def _unlink_rewritten_results(
+    def _mark_unfiltered_results(
         self, messages: Sequence[ChatMessage], generated: bool = True
     ) -> None:
-        """Unlink the host executions whose result message a request filter rewrote and kept the id of.
+        """Mark the host executions whose result message a request filter left as it was (`_mark_unfiltered`).
 
         The bridge links a result and checks it as the scaffold sent it, before
         the request's filter, which can rewrite a message under its id
         (inspect_swe's Kimi Code adapter strips the reminders the scaffold
-        appends to results). The log then holds only the rewritten message
-        under the id `ToolEvent.message_id` names, which is not the result the
-        bridge checked, so the execution is left unlinked; one the filter left
-        as it was is marked unfiltered (`_mark_unfiltered`), unless the filter
-        returned the request's output itself (not `generated`): it may have
-        generated from rewritten copies, which `messages` don't show, so the
-        link is left unmarked. `messages` are the request's input after its
+        appends to results). A link whose message the filter changed is left
+        unmarked, as the log then holds only the rewritten message under the
+        id. So is one where the filter returned the request's output itself
+        (not `generated`): it may have generated from rewritten copies, which
+        `messages` don't show. `messages` are the request's input after its
         filter ran; each linked result is compared once, in the first request
         whose filter ran on it.
         """
@@ -763,12 +761,11 @@ class AgentBridge:
             if linked is None:
                 continue
             event, content = linked
-            if event.message_id != message.id:
-                continue
-            if content_hash(message) != content:
-                event.message_id = None
-                transcript()._event_updated(event)
-            elif generated:
+            if (
+                generated
+                and event.message_id == message.id
+                and content_hash(message) == content
+            ):
                 _mark_unfiltered(event)
                 transcript()._event_updated(event)
 

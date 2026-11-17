@@ -2779,16 +2779,27 @@ def test_a_host_call_handed_out_again_under_its_id_replays_under_its_execution(
     # tool_call step has it, and the second's, whose id is taken, is named by
     # its execution, each joined to its proposal and to the check naming its
     # execution. A cache hit's second handout names a message two model calls
-    # output, so it isn't tied to one proposal and is skipped, as are results
-    # the bridge didn't link to a run (`message_id`), with a warning
+    # output, so it isn't tied to one proposal and is skipped with its checks;
+    # a result check of a run the bridge linked to no reported result
+    # (`message_id`) is skipped too, each with a warning naming the call
     assert [(s.stage, s.id) for s in replay if s.stage.startswith("tool")] == [
         ("tool_call", "host_1"),
         *([] if cached else [("tool_call", runs[1].execution_id)]),
     ]
-    [skipped] = [
-        r.getMessage() for r in caplog.records if "Replay skipped" in r.message
+    skipped = list(
+        dict.fromkeys(
+            r.getMessage() for r in caplog.records if "Replay skipped" in r.message
+        )
+    )
+    assert [w.split(":")[0] for w in skipped] == [
+        "Replay skipped the tool steps of calls an agent bridge checked or ran "
+        "(host_1)",
+        *(
+            []
+            if cached
+            else ["Replay skipped the tool_result steps of host call(s) host_1"]
+        ),
     ]
-    assert "(host_1)" in skipped
 
 
 @monitor
@@ -2799,7 +2810,7 @@ def checking_results_only() -> MonitorGroup:
     return MonitorGroup(after)
 
 
-def test_a_host_call_whose_result_check_names_its_handout_replays(
+def test_a_host_call_checked_only_at_its_result_has_no_unchecked_tool_call_step(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     from inspect_ai._sentinel._integration import EvalInfo, steps_from_events
@@ -2832,15 +2843,21 @@ def test_a_host_call_whose_result_check_names_its_handout_replays(
             sample_uuid=sample.uuid or "",
             eval_info=EvalInfo.from_eval(log.eval),
         )
-    # that check links the run, so its tool_call step replays; with no reported
-    # result linked, its result check is skipped
-    assert [(s.stage, s.id) for s in replay if s.stage.startswith("tool")] == [
-        ("tool_call", "host_1")
+    # no check anchors a tool_call step, so each is skipped; with no reported
+    # result linked, the first run's result check's step is skipped too, and
+    # the second's, made once the id was handed out again, names no run
+    assert [(s.stage, s.id) for s in replay if s.stage.startswith("tool")] == []
+    skipped = list(
+        dict.fromkeys(
+            r.getMessage() for r in caplog.records if "Replay skipped" in r.message
+        )
+    )
+    assert [w.split(":")[0] for w in skipped] == [
+        "Replay skipped the tool steps of calls an agent bridge checked or ran "
+        "(host_1)",
+        "Replay skipped tool steps of host call(s) host_1 that an agent bridge ran",
+        "Replay skipped the tool_result steps of host call(s) host_1",
     ]
-    [skipped] = [
-        r.getMessage() for r in caplog.records if "Replay skipped" in r.message
-    ]
-    assert "(host_1)" in skipped
 
 
 async def google_round_trips(

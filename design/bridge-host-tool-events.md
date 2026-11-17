@@ -216,7 +216,7 @@ keeps the call id and each later one is named by its `execution_id`. Replay
 names a host run's steps by the same rule, under the id the call was handed
 over under, so native and bridged executions of one call id share it. The
 `human_decisions` of later steps keep the call id, as live records it. A log
-without the ids replays as before.
+without the ids replays native calls as before, and skips host calls.
 
 A `_Proposal` is referenced only by its grants, so pairing state lives in the
 bounded grant store (1024 entries) and is dropped with the last of its grants,
@@ -577,57 +577,44 @@ proposal, and fixing the pairing would mean keeping evicted grants.
   `sentinel_bridge` span under the request, not under the tool span: the
   request carries the call's id, which the MCP call does not. The steps
   record the handout's execution of the tool they judged (see Execution
-  ids). Sentinel replay
-  rebuilds those steps for a `ToolEvent` with `metadata["bridge"]` where the
-  event links the run to its proposal: its `call_message_id` names one model
-  call's output holding the call under `proposal_id`, and either its
-  `message_id` names the result the agent reported or a check of the call
-  names its execution: its `tool_call` check or, where none was recorded (a
-  sentinel that checks results only), its `tool_result` check. A host
-  call made in a scorer has none, as a native call has none. The
-  `tool_result` step is the tool message `message_id` names, so a run
-  without it has none. Where no result check was recorded, it is built
-  before the first later turn whose input carries that message and before
-  that request's compaction, and skipped with a warning where no turn does.
-  The steps are named as a native execution's are (see
-  Execution ids), so a run under a call id an earlier rebuilt execution
-  took is named by its `execution_id`. Replay skips steps with a warning
-  where the log does not show what the bridge checked or where:
-  - A call with no `tool_call` check is handed over at its model call's
-    `model_output` check's end, else at the model call's start in replay,
-    since a `ModelEvent` is logged where its call began, and the request's
-    end, a response filter and the handout are not logged. Its steps are
-    skipped where something of the conversation (another request's turn, a
-    compaction, a check with decisions, an approval of a call outside its
-    response) is logged between that point and the run, but for anything
-    logged once a turn whose input carries the reply the call was handed in
-    began.
-  - A run's `tool_result` step with no result check is skipped where
-    something of the conversation is logged between the run's end and the
-    reporting turn: the bridge checks the result when the request arrives,
-    before its compaction, request filter and model call, which the log does
-    not order against it.
-  - A run's `tool_result` step is skipped where the call's id may have been
-    handed out again before the result was reported: an earlier host run
-    under the id, or another proposal of it before the reporting request
-    that no native agent ran and no bridge handed over under a fresh id. The
-    bridge then checks the result under no execution and without the
-    proposal. A result check naming the run's execution shows it did not.
-  - A run's `tool_result` step is taken only where the bridge marked the
-    link unfiltered (`metadata["bridge"]["result_unfiltered"]`): it checks a
-    result before the request's filter, which can rewrite the message and
-    keep its id (inspect_swe's Kimi Code cleanup strips reminders the agent
-    appended). Where its filter changed the message in the first request
-    whose filter ran on it, the bridge resets `message_id` to `None`; where
-    the filter returned the request's output itself, it leaves the link
-    unmarked. A log from before the mark has none, and its results are
-    skipped. Kimi Code's adapter also renames tool call ids in its filter,
-    which changes every result it carries, so its host results are skipped. The step is
-    also skipped where the log holds several contents under the message's
-    id, or, for a run without an error, a message without the start of the
-    run's result.
-  Other host calls, including a shared handout's run under a fresh event
-  id, are skipped with a warning.
+  ids). Sentinel replay rebuilds a host call's steps only where a recorded
+  check anchors them, each where its check began, for a `ToolEvent` with
+  `metadata["bridge"]` whose `call_message_id` names one model call's
+  output holding the call under `proposal_id`. The `tool_call` step is built
+  where a `tool_call` check names the run's execution, and the `tool_result`
+  step where a `tool_result` check does, from the tool message `message_id`
+  names. The bridge hands a call over after the request completes, its
+  response filter runs and its approvals are decided, and checks a reported
+  result when the request carrying it arrives, before its compaction,
+  request filter and model call; the log records none of these points
+  except through a check. A result check made once the call's id was handed
+  out again names no execution, as the bridge can't tell which handout the
+  result answers, so it anchors no run. The steps are named as a native
+  execution's are (see Execution ids), so a run under a call id an earlier
+  rebuilt execution took is named by its `execution_id`. A host call made
+  in a scorer has none, as a native call has none. Replay skips steps with
+  one warning per case:
+  - Every host call in a log without execution ids.
+  - A step no check was recorded for, including a check at which every
+    instance abstained, which records no event. A `tool_result` step counts
+    only where the bridge linked a reported result. Placing such steps
+    exactly needs the bridge to record its handouts and reports (follow-up).
+  - A checked `tool_result` step whose link the bridge did not mark
+    unfiltered (`metadata["bridge"]["result_unfiltered"]`). The bridge
+    checks a result before the request's filter, which can rewrite the
+    message and keep its id (inspect_swe's Kimi Code cleanup strips
+    reminders the agent appended). The bridge marks a link made with no
+    filter, and one whose message the filter left unchanged in the first
+    request whose filter ran on it, unless the filter returned the request's
+    output itself. A log from before the mark has none. Kimi Code's adapter
+    also renames tool call ids in its filter, which changes every result it
+    carries, so its host results are skipped. The step is also skipped where
+    the log holds several contents under the message's id, or, for a run
+    without an error, a message without the start of the run's result.
+  - A host call the log does not join to its proposal, a run whose
+    execution an earlier run's steps took, and a shared handout's run under
+    a fresh event id, whose checks have the id the call was handed over
+    under.
 - **Hooks, control server, TUI, dataframes.** Pending host events drive the
   TUI's running state and the control server's activity and cancellation like
   native ones. Hooks receive each non-pending update. `events_df()` has `tool`
