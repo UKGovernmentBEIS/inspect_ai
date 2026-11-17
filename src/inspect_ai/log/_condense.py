@@ -795,14 +795,41 @@ def _recording_attachment_fn(
 _CALL_WALK_SLOTS: Final = 8
 """Retained request lineages per `CallWalkCache` (see `PrefixLineages`).
 
-Each generate stream produces two lineages per turn (the raw request, and
-the transcript-condensed form the timestamp update re-notifies), so 8 cover
-~4 interleaved streams with distinct request prefixes.
+Each generate stream produces one lineage per turn (the raw request; the
+transcript does not condense a call twice), so 8 cover ~8 interleaved
+streams with distinct request prefixes.
 """
 
 
 _CALL_WALK_MAX_IDLE: Final = 4 * _CALL_WALK_SLOTS
 """Prefix scans a lineage may go unmatched before it is dropped."""
+
+
+def _unescape_fn(created: Sequence[_CreatedAttachment]) -> Callable[[str], str] | None:
+    """Content function putting back the literal reference text among ``created``.
+
+    None when ``created`` holds no such literal. A long string that begins
+    with a reference prefix is put back too; consumers pool it again under
+    the same hash.
+    """
+    escapes = {
+        attachment.hash: attachment.content
+        for attachment in created
+        if _has_ref_prefix(attachment.content)
+    }
+    if not escapes:
+        return None
+
+    def fn(text: str) -> str:
+        if text.startswith(ATTACHMENT_PROTOCOL):
+            return escapes.get(text.removeprefix(ATTACHMENT_PROTOCOL), text)
+        return text
+
+    return fn
+
+
+def _unescape_context() -> WalkContext:
+    return WalkContext(message_cache={}, only_core=False)
 
 
 class _WalkedCallMessage(NamedTuple):
@@ -815,18 +842,40 @@ class _WalkedCallMessage(NamedTuple):
 
     walked: JsonValue
     attachments: list[_CreatedAttachment]
+    unescaped: JsonValue
+    """``walked`` with its literal reference text put back (``walked`` itself when it has none)."""
+
+
+class CondensedCall(NamedTuple):
+    """A model call condensed by `CallWalkCache`."""
+
+    call: ModelCall
+    """The call, with long text pooled and literal reference text stored as attachments."""
+
+    unescaped: ModelCall
+    """``call`` with its literal reference text put back inline.
+
+    The form consumers that keep their own attachment store (the sample
+    buffer, the checkpoint transcript store) are given, since they hold no
+    attachment for a literal. ``call`` itself when it holds no literal.
+    """
 
 
 class CallWalkCache:
     """Prefix cache for condensing model-call payloads into attachment refs.
 
-    Prefix-cached equivalent of :func:`walk_model_call`: consecutive calls
-    from one generate stream share their conversation prefix, so only the
-    divergent tail (plus non-message request fields and the response, which
-    change per notification) is walked. Requests are matched against recent
-    ones (see `PrefixLineages`); logged requests share message objects
-    across calls (see `CallMessageInterner`), so matching is mostly identity
-    checks.
+    Prefix-cached equivalent of :func:`walk_model_call` with the events
+    policy, which also stores literal text that begins with `attachment://`
+    or `tc://` as an attachment of its own, so it reads back as written.
+    Consecutive calls from one generate stream share their conversation
+    prefix, so only the divergent tail (plus non-message request fields and
+    the response, which change per notification) is walked. Requests are
+    matched against recent ones (see `PrefixLineages`); logged requests
+    share message objects across calls (see `CallMessageInterner`), so
+    matching is mostly identity checks.
+
+    Calls must hold raw values: a condensed call's references would be
+    stored as literal text.
 
     Walked messages are shared by every condensed call that reuses them,
     and lineages retain the requests' own message objects, so neither
@@ -843,7 +892,7 @@ class CallWalkCache:
         call: ModelCall,
         attachments: MutableMapping[str, str],
         context: WalkContext,
-    ) -> ModelCall:
+    ) -> CondensedCall:
         """Condense a model call's payload into attachment references.
 
         Prefix messages reused from a cached lineage have their attachment
@@ -852,7 +901,7 @@ class CallWalkCache:
         conversation.
 
         Args:
-            call: Model call to condense.
+            call: Model call to condense, holding raw values.
             attachments: Attachment map extracted content is written to.
             context: Walk context (shared message cache); ``only_core``
                 leaves the call untouched, as in :func:`walk_model_call`.
@@ -861,42 +910,79 @@ class CallWalkCache:
             The condensed call.
         """
         if context.get("only_core") is True:
-            return call
+            return CondensedCall(call, call)
 
+        event_fn = events_attachment_fn(attachments, escape_refs=True)
         msg_key = next((k for k in _CALL_MESSAGE_KEYS if k in call.request), None)
         msgs = call.request.get(msg_key) if msg_key is not None else None
         if msg_key is None or not isinstance(msgs, list) or not msgs:
-            return walk_model_call(call, events_attachment_fn(attachments), context)
+            created: list[_CreatedAttachment] = []
+            condensed = walk_model_call(
+                call, _recording_attachment_fn(event_fn, created), context
+            )
+            unescape = _unescape_fn(created)
+            return CondensedCall(
+                condensed,
+                condensed
+                if unescape is None
+                else walk_model_call(condensed, unescape, _unescape_context()),
+            )
 
         match = self._lineages.match(msg_key, msgs)
         entries = match.entries
         for entry in entries:
-            for created in entry.attachments:
-                attachments[created.hash] = created.content
+            for created_attachment in entry.attachments:
+                attachments[created_attachment.hash] = created_attachment.content
 
-        event_fn = events_attachment_fn(attachments)
         for msg in msgs[match.length :]:
             created_attachments: list[_CreatedAttachment] = []
             walked = walk_json_value(
                 msg, _recording_attachment_fn(event_fn, created_attachments), context
             )
-            entries.append(_WalkedCallMessage(walked, created_attachments))
+            unescape = _unescape_fn(created_attachments)
+            entries.append(
+                _WalkedCallMessage(
+                    walked,
+                    created_attachments,
+                    walked
+                    if unescape is None
+                    else walk_json_value(walked, unescape, _unescape_context()),
+                )
+            )
 
         self._lineages.record(match, list(msgs), entries)
 
-        rest = {k: v for k, v in call.request.items() if k != msg_key}
-        new_request: dict[str, JsonValue] = dict(
-            walk_json_dict(rest, event_fn, context)
+        created_rest: list[_CreatedAttachment] = []
+        rest_fn = _recording_attachment_fn(event_fn, created_rest)
+        rest = walk_json_dict(
+            {k: v for k, v in call.request.items() if k != msg_key}, rest_fn, context
         )
-        new_request[msg_key] = [entry.walked for entry in entries]
+        response = (
+            walk_json_dict(call.response, rest_fn, context) if call.response else None
+        )
 
-        return call.model_copy(
-            update={
-                "request": new_request,
-                "response": walk_json_dict(call.response, event_fn, context)
-                if call.response
-                else None,
-            }
+        def condensed_call(
+            messages: list[JsonValue],
+            rest: dict[str, JsonValue],
+            response: dict[str, JsonValue] | None,
+        ) -> ModelCall:
+            request: dict[str, JsonValue] = dict(rest)
+            request[msg_key] = messages
+            return call.model_copy(update={"request": request, "response": response})
+
+        condensed = condensed_call([entry.walked for entry in entries], rest, response)
+        unescape = _unescape_fn(created_rest)
+        if unescape is None and all(
+            entry.unescaped is entry.walked for entry in entries
+        ):
+            return CondensedCall(condensed, condensed)
+        if unescape is not None:
+            rest = walk_json_dict(rest, unescape, _unescape_context())
+            if response is not None:
+                response = walk_json_dict(response, unescape, _unescape_context())
+        return CondensedCall(
+            condensed,
+            condensed_call([entry.unescaped for entry in entries], rest, response),
         )
 
 
@@ -1020,20 +1106,14 @@ def _resolve_core_sample_calls(sample: EvalSample) -> EvalSample:
     Its other fields hold raw values already, and resolving them again would
     take literal reference text in them as references.
     """
-    call_fn = resolve_attachment_fn(sample.attachments)
-
-    def context() -> WalkContext:
-        return WalkContext(message_cache={}, only_core=False, call_fn=call_fn)
-
-    def unchanged(text: str) -> str:
-        return text
-
     resolved = sample.model_copy(
         update={
-            "events": walk_events(sample.events, unchanged, context()),
+            "events": resolve_event_calls(sample.events, sample.attachments),
             "error_retries": [
                 retry.model_copy(
-                    update={"events": walk_events(retry.events, unchanged, context())}
+                    update={
+                        "events": resolve_event_calls(retry.events, sample.attachments)
+                    }
                 )
                 if retry.events is not None
                 else retry
@@ -1045,6 +1125,44 @@ def _resolve_core_sample_calls(sample: EvalSample) -> EvalSample:
         }
     )
     return _with_attachment_state(resolved, "full")
+
+
+def resolve_event_calls(
+    events: list[Event], attachments: Mapping[str, str]
+) -> list[Event]:
+    """Resolve the `ModelEvent.call` payloads of events, leaving other fields as they are.
+
+    For events whose other fields hold raw values already (a run's
+    transcript condenses only the calls).
+    """
+    return _walk_event_calls(events, resolve_attachment_fn(attachments))
+
+
+def condense_event_calls(
+    events: list[Event], attachments: MutableMapping[str, str]
+) -> list[Event]:
+    """Condense raw `ModelEvent.call` payloads of events into attachments.
+
+    Applies the policy the transcript applies while a sample runs (see
+    `CallWalkCache`): long text is pooled and literal reference text stored
+    as an attachment of its own. Other fields are left as they are.
+    """
+    return _walk_event_calls(
+        events, events_attachment_fn(attachments, escape_refs=True)
+    )
+
+
+def _walk_event_calls(
+    events: list[Event], call_fn: Callable[[str], str]
+) -> list[Event]:
+    def unchanged(text: str) -> str:
+        return text
+
+    return walk_events(
+        events,
+        unchanged,
+        WalkContext(message_cache={}, only_core=False, call_fn=call_fn),
+    )
 
 
 def _sample_attachment_refs(sample: EvalSample) -> set[str]:

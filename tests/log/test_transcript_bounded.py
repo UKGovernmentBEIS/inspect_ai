@@ -1359,10 +1359,10 @@ def test_condense_model_call_matches_fresh_walk() -> None:
         ("c", 4, False),
     ]
     for stream, n, resp in seq:
-        cached = cached_tr._condense_model_call(make_call(stream, n, resp))
+        cached = cached_tr._condense_model_call(make_call(stream, n, resp)).call
         fresh = walk_model_call(
             make_call(stream, n, resp),
-            events_attachment_fn(fresh_attachments),
+            events_attachment_fn(fresh_attachments, escape_refs=True),
             WalkContext(message_cache={}, only_core=False),
         )
         assert cached.model_dump() == fresh.model_dump()
@@ -1382,7 +1382,7 @@ def test_condense_model_call_prefix_breaks_on_json_distinct_values() -> None:
         ModelCall.create(
             {"model": "m", "messages": [{"content": payload, "n": False}]}, None
         )
-    )
+    ).call
     messages = walked.request["messages"]
     assert isinstance(messages, list) and isinstance(messages[0], dict)
     assert messages[0]["n"] is False
@@ -1412,7 +1412,7 @@ def test_condense_model_call_reasserts_pruned_attachments() -> None:
 def test_condense_model_call_no_message_key_falls_back() -> None:
     tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
     call = ModelCall.create({"model": "m", "prompt": ATTACHABLE}, None)
-    walked = tr._condense_model_call(call)
+    walked = tr._condense_model_call(call).call
     prompt = walked.request["prompt"]
     assert isinstance(prompt, str) and prompt.startswith("attachment://")
     assert len(tr._call_walk_cache._lineages) == 0  # fallback never populates the cache
@@ -1444,7 +1444,7 @@ def test_condense_model_call_snapshots_immune_to_mutation() -> None:
     call = ModelCall.create(
         {"model": "m", "messages": [{"role": "user", "content": payload}]}, None
     )
-    walked = tr._condense_model_call(call)
+    walked = tr._condense_model_call(call).call
 
     # mutate BOTH the caller's request and the emitted walked structure
     # (playback shaping mutates already-logged requests in place)
@@ -1460,7 +1460,7 @@ def test_condense_model_call_snapshots_immune_to_mutation() -> None:
     resend = ModelCall.create(
         {"model": "m", "messages": [{"role": "user", "content": payload}]}, None
     )
-    walked2 = tr._condense_model_call(resend)
+    walked2 = tr._condense_model_call(resend).call
     messages2 = walked2.request["messages"]
     assert isinstance(messages2, list) and isinstance(messages2[0], dict)
     content2 = messages2[0]["content"]
@@ -1481,7 +1481,8 @@ def test_call_walk_cache_only_core_passthrough() -> None:
     walked = tr._call_walk_cache.condense(
         call, tr.attachments, WalkContext(message_cache={}, only_core=True)
     )
-    assert walked is call  # untouched, by identity
+    assert walked.call is call  # untouched, by identity
+    assert walked.unescaped is call
     assert tr.attachments == {}  # no attachments created
     assert len(tr._call_walk_cache._lineages) == 0
 

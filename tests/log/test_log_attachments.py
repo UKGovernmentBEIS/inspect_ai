@@ -43,6 +43,7 @@ from inspect_ai.log._condense import (
     condense_sample,
     condensed_sample_summary,
     mark_attachments_resolved,
+    resolve_event_calls,
     resolve_sample_attachments,
 )
 from inspect_ai.log._convert import convert_eval_logs
@@ -53,6 +54,7 @@ from inspect_ai.log._file import (
 )
 from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSpec
 from inspect_ai.log._resolve import resolve_sample_events_data
+from inspect_ai.log._transcript import Transcript
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -1424,8 +1426,14 @@ def _run_literal_eval(
     return log.location
 
 
-def _assert_literals_read_back(sample: EvalSample, literal: str) -> None:
-    """The literal reads back as written everywhere; genuine refs still resolve."""
+def _assert_literals_read_back(
+    sample: EvalSample, literal: str, calls: bool = True
+) -> None:
+    """The literal reads back as written everywhere; genuine refs still resolve.
+
+    With `calls`, the model call payloads are checked too (the sample must be
+    fully resolved).
+    """
     assert sample.messages[0].text == _LITERAL_SYSTEM_PROMPT
     tool_message = sample.messages[-2]
     assert isinstance(tool_message, ChatMessageTool)
@@ -1445,6 +1453,20 @@ def _assert_literals_read_back(sample: EvalSample, literal: str) -> None:
     [tool_event] = [e for e in sample.events if isinstance(e, ToolEvent)]
     assert tool_event.result == literal
 
+    if calls:
+        assert last.call is not None
+        request_messages = last.call.request["messages"]
+        assert isinstance(request_messages, list)
+        contents = [
+            message["content"]
+            for message in request_messages
+            if isinstance(message, dict)
+        ]
+        # the pooled system prompt, and the tool result the model was sent
+        assert contents[0] == _LITERAL_SYSTEM_PROMPT
+        assert contents[-1] == literal
+        assert last.call.response == {"content": literal}
+
 
 @pytest.mark.parametrize("log_format", ["eval", "json"])
 @pytest.mark.parametrize("protocol", ["attachment://", "tc://"])
@@ -1459,10 +1481,15 @@ def test_literal_reference_text_reads_back_as_written(
     assert stored.samples
     assert stored.samples[0].attachments[_LITERAL_KEY] == _LITERAL_SYSTEM_PROMPT
 
-    for resolve in (True, "core"):
+    for resolve in (True, "core", "full"):
         log = read_eval_log(log_file, resolve_attachments=resolve)
         assert log.samples
-        _assert_literals_read_back(log.samples[0], literal)
+        sample = log.samples[0]
+        _assert_literals_read_back(sample, literal, calls=resolve != "core")
+        if resolve == "core":
+            _assert_literals_read_back(
+                resolve_sample_attachments(sample, "full"), literal
+            )
 
 
 @pytest.mark.parametrize("protocol", ["attachment://", "tc://"])
@@ -1976,3 +2003,163 @@ def test_seeded_error_retries_are_resolved() -> None:
     assert retry_events is not None
     assert isinstance(retry_events[0], ModelEvent)
     assert retry_events[0].input[0].text == long_text
+
+
+def _literal_call_event(literal: str) -> ModelEvent:
+    return ModelEvent(
+        model="test-model",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("test-model", literal),
+        pending=True,
+    )
+
+
+def test_transcript_condenses_each_model_call_once() -> None:
+    long_text = "genuine long text " * 10
+    text_ref = f"{ATTACHMENT_PROTOCOL}{mm3_hash(long_text)}"
+    # names the attachment the long text is pooled in
+    literal = text_ref
+    raw = ModelCall(
+        request={
+            "messages": [
+                {"role": "user", "content": long_text},
+                {"role": "assistant", "content": literal},
+            ]
+        },
+        response={"content": literal},
+    )
+
+    transcript = Transcript(log_model_api=True)
+    notified: list[ModelCall] = []
+
+    def record(event: Event) -> None:
+        if isinstance(event, ModelEvent) and event.call is not None:
+            notified.append(event.call.model_copy(deep=True))
+
+    transcript._subscribe(record)
+    event = _literal_call_event(literal)
+    transcript._event(event)
+    event.call = raw
+    event.pending = None
+    transcript._event_updated(event)  # completion
+    condensed = event.call
+    transcript._event_updated(event)  # timestamps
+    assert event.call is condensed
+
+    [resolved] = resolve_event_calls([event], transcript.attachments)
+    assert isinstance(resolved, ModelEvent)
+    assert resolved.call is not None
+    assert resolved.call.request == raw.request
+    assert resolved.call.response == raw.response
+
+    # subscribers keep their own attachment store, so they are given the
+    # literal inline: first the raw call, then the call with long text pooled
+    assert [call.model_dump() for call in notified] == [
+        raw.model_dump(),
+        raw.model_copy(
+            update={
+                "request": {
+                    "messages": [
+                        {"role": "user", "content": text_ref},
+                        {"role": "assistant", "content": literal},
+                    ]
+                }
+            }
+        ).model_dump(),
+    ]
+
+    # a call restored from a checkpoint is condensed already
+    restored = Transcript(log_model_api=True)
+    restored._extend_restored_events(
+        [event.model_copy(update={"uuid": "restored"})], transcript.attachments
+    )
+    [restored_event] = restored.events
+    assert isinstance(restored_event, ModelEvent)
+    restored_call = restored_event.call
+    restored._event_updated(restored_event)
+    assert restored_event.call is restored_call
+
+
+@solver
+def _fail_first_attempt(marker: str) -> Solver:
+    # a marker file, since eval_retry loads the task module again
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if not os.path.exists(marker):
+            Path(marker).touch()
+            raise ValueError("First attempt fails.")
+        return state
+
+    return solve
+
+
+@solver
+def _reply_with(text: str) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        # a model of its own, so that eval_retry can rebuild the task's model
+        model = get_model(
+            "mockllm/model",
+            custom_outputs=[ModelOutput.from_content("mockllm/model", text)],
+            memoize=False,
+        )
+        output = await model.generate(state.messages)
+        state.messages.append(output.message)
+        return state
+
+    return solve
+
+
+@task
+def literal_call_retry_task(marker: str, reply: str) -> Task:
+    return Task(
+        dataset=[
+            Sample(
+                input=[
+                    ChatMessageSystem(content=_LITERAL_SYSTEM_PROMPT),
+                    ChatMessageUser(content="hello"),
+                ]
+            )
+        ],
+        solver=[_reply_with(reply), _fail_first_attempt(marker)],
+    )
+
+
+@pytest.mark.parametrize("seeded", [False, True])
+def test_error_retry_calls_keep_literals_and_genuine_references(
+    tmp_path: Path, seeded: bool
+) -> None:
+    literal = f"attachment://{_LITERAL_KEY}"
+    task = literal_call_retry_task(marker=str(tmp_path / "failed"), reply=literal)
+    if seeded:
+        # the retry history is seeded from the errored sample of the prior log
+        [log] = inspect_eval(
+            task, model="mockllm/model", log_dir=str(tmp_path), display="none"
+        )
+        assert log.status == "error"
+        [log] = eval_retry(log, log_dir=str(tmp_path), display="none")
+    else:
+        # read from the transcript (the sample buffer is off)
+        [log] = inspect_eval(
+            task,
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            retry_on_error=1,
+            log_realtime=False,
+            display="none",
+        )
+    assert log.status == "success"
+    assert log.location
+
+    [sample] = _resolved_samples(log.location)
+    assert sample.error_retries is not None
+    [retry] = sample.error_retries
+    assert retry.events is not None
+    [model_event] = [e for e in retry.events if isinstance(e, ModelEvent)]
+    assert model_event.call is not None
+    request_messages = model_event.call.request["messages"]
+    assert isinstance(request_messages, list)
+    assert isinstance(request_messages[0], dict)
+    assert request_messages[0]["content"] == _LITERAL_SYSTEM_PROMPT
+    assert model_event.call.response == {"content": literal}

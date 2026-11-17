@@ -844,6 +844,8 @@ def test_convert_chunked_keeps_literal_reference_text(tmp_path: pathlib.Path):
     """A reply that reads like a reference survives chunking; real refs still resolve."""
     system_prompt = "You are a careful assistant who answers in full. " * 4
     literal = f"attachment://{mm3_hash(system_prompt)}"
+    # holds a reference as part of a longer string
+    quoted = f"Please explain {literal} to me."
     model = get_model(
         "mockllm/model",
         custom_outputs=[ModelOutput.from_content("mockllm/model", literal)],
@@ -853,7 +855,7 @@ def test_convert_chunked_keeps_literal_reference_text(tmp_path: pathlib.Path):
             Sample(
                 input=[
                     ChatMessageSystem(content=system_prompt),
-                    ChatMessageUser(content="hello"),
+                    ChatMessageUser(content=quoted),
                 ]
             )
         ]
@@ -874,6 +876,15 @@ def test_convert_chunked_keeps_literal_reference_text(tmp_path: pathlib.Path):
     [model_event] = [e for e in resolved.events if isinstance(e, ModelEvent)]
     assert model_event.input[0].text == system_prompt
     assert model_event.output.message.text == literal
+
+    # the model call payload, whose request messages are in the calls sequence
+    assert model_event.call is not None
+    request_messages = model_event.call.request["messages"]
+    assert isinstance(request_messages, list)
+    assert [
+        message["content"] for message in request_messages if isinstance(message, dict)
+    ] == [system_prompt, quoted]
+    assert model_event.call.response == {"content": literal}
 
 
 def test_convert_chunked_keeps_raw_fields_that_read_like_references(

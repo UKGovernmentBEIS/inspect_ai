@@ -35,6 +35,7 @@ from inspect_ai.event._store import StoreEvent
 from inspect_ai.event._timeline import Timeline
 from inspect_ai.log._condense import (
     CallWalkCache,
+    CondensedCall,
     WalkContext,
     attachment_refs_from_object,
     resolve_events_attachments,
@@ -559,6 +560,8 @@ class Transcript:
         self._log_model_api = log_model_api
         self._context = WalkContext(message_cache={}, only_core=False)
         self._call_walk_cache = CallWalkCache()
+        # the calls this transcript condensed, by event key
+        self._condensed_calls: dict[str, CondensedCall] = {}
         self._events: list[Event] = self._normalize_seeded_events(events or [])
         self._history_provider = history_provider
         self._events_view = _TranscriptEventsView(self)
@@ -757,6 +760,8 @@ class Transcript:
             self._events.append(event)
             self._add_span(event)
             self._resident_event_ids.add(event_key)
+            if isinstance(event, ModelEvent) and event.call is not None:
+                self._condensed_calls[event_key] = CondensedCall(event.call, event.call)
             self._set_attachment_refs(condensed)
             self._event_count += 1
             self._update_pin_state(event)
@@ -828,7 +833,21 @@ class Transcript:
                         else:
                             event.call = None
 
-        self._notify_subscribers(event)
+        condensed = self._condensed_call(event)
+        if (
+            isinstance(event, ModelEvent)
+            and condensed is not None
+            and condensed.unescaped is not condensed.call
+        ):
+            # subscribers keep their own attachment store, which holds no
+            # attachment for a literal
+            event.call = condensed.unescaped
+            try:
+                self._notify_subscribers(event)
+            finally:
+                event.call = condensed.call
+        else:
+            self._notify_subscribers(event)
 
         # Condense model event calls after notifying subscribers so raw
         # transcript consumers can observe the original inline payload.
@@ -836,11 +855,33 @@ class Transcript:
             isinstance(event, ModelEvent)
             and retain_attachments
             and event.call is not None
+            and condensed is None
         ):
-            event.call = self._condense_model_call(event.call)
+            condensed = self._condense_model_call(event.call)
+            event.call = condensed.call
+            self._condensed_calls[self._event_key(event)] = condensed
 
-    def _condense_model_call(self, call: ModelCall) -> ModelCall:
+    def _condense_model_call(self, call: ModelCall) -> CondensedCall:
         return self._call_walk_cache.condense(call, self.attachments, self._context)
+
+    def _condensed_call(self, event: Event) -> CondensedCall | None:
+        """The condensation of the event's call, if this transcript produced the call.
+
+        A call is condensed once: condensing it again would store its
+        references as literal text.
+        """
+        if (
+            not isinstance(event, ModelEvent)
+            or event.call is None
+            or event.uuid is None
+        ):
+            return None
+        condensed = self._condensed_calls.get(event.uuid)
+        return (
+            condensed
+            if condensed is not None and condensed.call is event.call
+            else None
+        )
 
     def _notify_subscribers(self, event: Event) -> None:
         for event_logger in list(self._event_loggers):
@@ -990,6 +1031,11 @@ class Transcript:
         )
         if self._bounded:
             self._kept_event_ids.intersection_update(resident_event_keys)
+            self._condensed_calls = {
+                event_key: condensed
+                for event_key, condensed in self._condensed_calls.items()
+                if event_key in resident_event_keys
+            }
             self._prune_model_call_counts()
             self._prune_attachment_refs(resident_event_keys)
 
