@@ -1666,6 +1666,13 @@ makes `E` latest; `S` is kept as the newest `success`, and `M` stays with
 its companion, so the next pass again makes `E` latest and removes nothing
 it should not.
 
+Editing a merged log (tags or metadata) rewrites its header, so once an
+unsharded retry exists and none has succeeded, the edit makes the merged log
+the newest of the group: the next `eval_set()` continues from the merged log,
+and with retry cleanup on the retry is removed. This is the same as editing
+any older attempt when there is no cleanup: the edit marks the log to use
+going forward (decision: Ransom, 2026-11-17).
+
 `latest_completed_task_eval_logs` keeps its `owned_run_ids` parameter and
 both callers keep passing the run ids they pass today (`list_latest_eval_logs`
 from `try_eval`, `:1130`, and the final sweep, `:1216`); the new branch

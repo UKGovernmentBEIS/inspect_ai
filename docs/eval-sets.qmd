@@ -76,7 +76,7 @@ The eval set stops with an error, before running any task, when it cannot merge 
 
 A `.shards` directory whose task is not in the eval set is left alone, with a warning.
 
-Retry cleanup never removes a merged log or its `.shards` directory. When an unsharded retry supersedes a merged log, the merged log and its shards stay until you remove them. `eval_retry()` refuses a merged log that an eval set wrote; run the eval set again instead.
+Retry cleanup never removes a merged log or its `.shards` directory. When an unsharded retry supersedes a merged log, the merged log and its shards stay until you remove them. Once an unsharded retry exists and none has succeeded, editing the merged log (its tags or metadata) makes it the newest log of the task, so the next eval set continues from the merged log; with retry cleanup on, the retry is removed. `eval_retry()` refuses a merged log that an eval set wrote; run the eval set again instead.
 
 ### Concurrency
 

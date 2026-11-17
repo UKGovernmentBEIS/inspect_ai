@@ -3422,11 +3422,13 @@ def test_eval_set_bundle_leaves_out_shard_attempts(
     assert sorted(listing) == bundled
 
 
+@pytest.mark.parametrize("companion_dir", ["", "model"])
 def test_eval_set_bundle_keeps_attempt_order(
-    tmp_path: Path, shard_runs: list[int | str]
+    tmp_path: Path, shard_runs: list[int | str], companion_dir: str
 ) -> None:
+    # with companion_dir, the merged log is nested while the retry is at the root
     log_dir = tmp_path / "logs"
-    _shard(log_dir, "0", [1, 2, 3])
+    _shard(log_dir / companion_dir, "0", [1, 2, 3])
     _SHARD_FAILING.add(5)
     bundle_dir = tmp_path / "bundle"
     success, [retry] = _sharded_eval_set(
@@ -3435,8 +3437,9 @@ def test_eval_set_bundle_keeps_attempt_order(
     assert not success and retry.status == "error"
     _SHARD_FAILING.clear()
     exported = bundle_dir / "logs"
-    merged = exported / f"{SHARD_NAME}.eval"
+    merged = exported / companion_dir / f"{SHARD_NAME}.eval"
     retry_copy = exported / Path(local_path(retry.location)).name
+    assert merged.exists() and retry_copy.exists()
     assert retry_copy.stat().st_mtime > merged.stat().st_mtime
     done = {
         sample.id
