@@ -44,7 +44,7 @@ When you evaluate an adversarial model, the sandbox is the security boundary. Wi
 
 - The `local` sandbox runs commands directly on your machine with no isolation. This is documented behavior and is not a vulnerability.
 - Model-generated code running inside a sandbox is the purpose of the sandbox and is not a vulnerability.
-- Capabilities you grant to an agent, such as agent bridge grants, writable host mounts, sandbox networking, or an ACP server on a non-local address.
+- Capabilities you grant to an agent, such as agent bridge grants, writable host mounts, sandbox networking, or an ACP server on a TCP address the sandbox or other machines can reach.
 - Credentials you put in a sandbox yourself, for example through an agent's environment. Code in the sandbox can read them.
 - Tools you give to an in-process `agent_bridge()` agent, and methods you expose with `sandbox_service()`. These run on the host.
 - Other processes in a sandbox calling that sandbox's agent bridge, when the bridge is set up to serve them. By default it serves every process in its sandbox. Where a bridge is limited to one sandbox user, another user calling it is in scope.
