@@ -1886,10 +1886,11 @@ def r7_runs_a_bridged_host_tool(
     host_tool: Tool | None = None,
     routed: bool = False,
     drops: Sequence[str] = (),
+    response_filter: Any = None,
 ) -> Agent:
     """A scaffold that declares the host tool (`host_tool`, else `addition`) as `name` (or calls it through Antigravity's `call_mcp_tool` dispatcher) and runs the call the bridge hands it, after one more model request if `request_before_running`.
 
-    With `report`, it then sends the result, with a note of its own, in its next request, which is when the bridge checks it. With `routed`, a model event sink routes its generations into the sub-agent span `sub-agent`, as inspect_swe's consumers do. It runs the call without the arguments `drops` names, as Antigravity runs a call without its proposal's `toolSummary`.
+    With `report`, it then sends the result, with a note of its own, in its next request, which is when the bridge checks it. With `routed`, a model event sink routes its generations into the sub-agent span `sub-agent`, as inspect_swe's consumers do. It runs the call without the arguments `drops` names, as Antigravity runs a call without its proposal's `toolSummary`. The bridge has `response_filter`.
     """
 
     async def execute(state: AgentState) -> AgentState:
@@ -1908,6 +1909,7 @@ def r7_runs_a_bridged_host_tool(
             model=None,
             bridged_tools={"host": {"addition": host_tool or addition()}},
             approval=approval,
+            response_filter=response_filter,
         )
         if routed:
             transcript()._event(
@@ -2032,6 +2034,110 @@ def test_a_bridged_host_call_replays_as_the_bridge_checked_it(
     assert list(dict.fromkeys(replay_warnings(caplog))) == [
         UNIDENTIFIED_RUN_WARNING.format(ran.id)
     ]
+
+
+async def r15_copies_the_response(
+    model: Any, output: ModelOutput, input: GenerateInput
+) -> ModelOutput:
+    """A response filter returning a copy of the model call's output."""
+    return output.model_copy(deep=True)
+
+
+async def r15_edits_the_response(
+    model: Any, output: ModelOutput, input: GenerateInput
+) -> ModelOutput:
+    """A response filter returning the model call's output with other text."""
+    edited = output.model_copy(deep=True)
+    edited.choices[0].message.content = "Adding them."
+    return edited
+
+
+@pytest.mark.parametrize("case", ["held", "evicted", "copied", "edited"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_host_step_the_bridge_checked_without_the_call_s_proposal_is_skipped_with_a_warning(
+    case: str,
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # after Ransom's review 5944195263 (B1): the bridge keeps the proposals of
+    # the last 1,000 calls it handed over, and checks a result reported after
+    # its call's proposal was dropped (`evicted`: the limit is 0 here) without
+    # the model call that proposed it: no model input, tools or message. A
+    # response filter returning other output than the model call's (`copied`,
+    # `edited`) leaves both checks without it. The check still names the run's
+    # execution, and the log showed nothing of the loss, so replay rebuilt the
+    # step from the model call. The bridge now records each check that had
+    # the proposal on the run's event, and replay skips a checked step it
+    # does not record, with a warning; `held` replays as live
+    from inspect_ai.agent._bridge import _sentinel as bridge_sentinel
+
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    if case == "evicted":
+        monkeypatch.setattr(bridge_sentinel, "_MAX_PROPOSALS", 0)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(
+            r7_runs_a_bridged_host_tool(
+                report=True,
+                response_filter={
+                    "copied": r15_copies_the_response,
+                    "edited": r15_edits_the_response,
+                }.get(case),
+            )
+        ),
+        outputs(call("mcp__host__addition", x=1, y=1), done()),
+        sentinel=[r7_probe(seen, copies=True)],
+    )
+    events = logged_sample(log).events
+    [host] = [e for e in events if isinstance(e, ToolEvent)]
+    assert host.metadata is not None and host.message_id is not None
+    marks = host.metadata["bridge"]
+    assert marks["result_unfiltered"] is True
+    checks = {
+        e.stage: (e, seen[e.explanation or ""])
+        for e in events
+        if isinstance(e, SentinelEvent)
+        and e.path == "r7_probe"
+        and e.stage.startswith("tool")
+    }
+    # live checked each step of the run's execution, with or without the
+    # model call's input
+    assert {e.execution_id for e, _ in checks.values()} == {host.execution_id}
+    lost = {
+        "held": set(),
+        "evicted": {"tool_result"},
+        "copied": {"tool_call", "tool_result"},
+        "edited": {"tool_call", "tool_result"},
+    }[case]
+    assert {stage for stage, (_, step) in checks.items() if step.input is None} == (
+        lost
+    )
+    if case == "evicted":
+        _, result = checks["tool_result"]
+        assert (result.message, result.message_id, result.tools) == ("", "", None)
+    if case == "edited":
+        _, handout = checks["tool_call"]
+        assert handout.message == "Adding them."
+    assert {
+        stage
+        for stage, key in [
+            ("tool_call", "call_checked_with_proposal"),
+            ("tool_result", "result_checked_with_proposal"),
+        ]
+        if marks.get(key) is not True
+    } == lost
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        replay = assert_replay_equals_live_by_execution(
+            log, seen, lambda stage, step: stage in lost
+        )
+    assert [s.stage for s in replay if s.stage.startswith("tool")] == [
+        stage for stage in ["tool_call", "tool_result"] if stage not in lost
+    ]
+    assert list(dict.fromkeys(replay_warnings(caplog))) == (
+        [CHECKED_WITHOUT_PROPOSAL_WARNING.format(host.id)] if lost else []
+    )
 
 
 def test_a_bridged_host_call_from_a_log_without_message_ids_is_skipped(
@@ -4670,6 +4776,16 @@ UNSHOWN_RESULT_WARNING = (
     "the message reached the model unchanged (a request filter can rewrite a "
     "message and keep its id), so the log does not show the result the bridge "
     "checked."
+)
+
+
+CHECKED_WITHOUT_PROPOSAL_WARNING = (
+    "Replay skipped tool steps of host call(s) {} that an agent bridge ran: the "
+    "log does not record that the bridge checked them with the model call that "
+    "proposed the call, so it does not show the model input and message the "
+    "check had. The bridge checks without that model call where a response "
+    "filter returns a copy or an edit of its output, and checks a result without "
+    "it once it no longer holds the call (it holds the last 1,000)."
 )
 
 
@@ -9458,13 +9574,15 @@ def test_a_person_s_approval_of_a_bridged_host_call_reaches_later_turns(
     assert (decision.step_id, decision.decided.report.action) == ("host", "proceed")
 
 
-async def r7_host_bridge(state: AgentState) -> tuple[Any, list[Any]]:
-    """A sandbox bridge serving `addition` on the host, and the scaffold's declaration of it."""
+async def r7_host_bridge(
+    state: AgentState, filter: Any = None
+) -> tuple[Any, list[Any]]:
+    """A sandbox bridge serving `addition` on the host, with the request filter `filter`, and the scaffold's declaration of it."""
     from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 
     bridge = SandboxAgentBridge(
         state=state,
-        filter=None,
+        filter=filter,
         retry_refusals=None,
         compaction=None,
         port=8080,
@@ -9487,9 +9605,12 @@ async def r7_host_bridge(state: AgentState) -> tuple[Any, list[Any]]:
 
 @agent
 def r7_defers_a_bridged_host_call(
-    native_first: bool, native: str = "addition", generated_first: bool = False
+    native_first: bool,
+    native: str = "addition",
+    generated_first: bool = False,
+    filtered: bool = False,
 ) -> Agent:
-    """A bridged call proposed, then a native call (`addition`, or `explodes`, which raises) generated under its id, before either runs; with `generated_first`, the native call is generated before the bridged call is proposed."""
+    """A bridged call proposed, then a native call (`addition`, or `explodes`, which raises) generated under its id, before either runs; with `generated_first`, the native call is generated before the bridged call is proposed. With `filtered`, the scaffold reports the host result with a reminder that the bridge's request filter strips (`r14_rewrites_results`)."""
 
     async def execute(state: AgentState) -> AgentState:
         from inspect_ai.agent._bridge.completions import (
@@ -9497,7 +9618,9 @@ def r7_defers_a_bridged_host_call(
         )
         from inspect_ai.agent._bridge.sandbox.service import call_tool
 
-        bridge, tools = await r7_host_bridge(state)
+        bridge, tools = await r7_host_bridge(
+            state, r14_rewrites_results("stripped") if filtered else None
+        )
         messages = [{"role": "user", "content": "What is 1 + 1?"}]
         native_tools = (
             [addition(), explodes()]
@@ -9534,7 +9657,7 @@ def r7_defers_a_bridged_host_call(
                         {
                             "role": "tool",
                             "tool_call_id": proposed.id,
-                            "content": str(result),
+                            "content": str(result) + (REMINDER if filtered else ""),
                         },
                     ],
                     "tools": tools,
@@ -9610,6 +9733,84 @@ def test_a_native_call_run_while_a_bridged_call_waits_keeps_its_tool_steps(
     assert ("shared" in ids[:1]) is (not native_first)
     assert len(tool_step_calls(replay)) == 4
     assert replay_warnings(caplog) == []
+
+
+@pytest.mark.parametrize("skip", ["evicted", "unmarked", "filtered"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_native_call_under_the_id_of_a_host_call_replay_skipped_keeps_the_id(
+    skip: str,
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # after Ransom's review 5944195263 (B2): a results-only sentinel checks a
+    # host call's result, which replay then skips (`evicted`: checked without
+    # the call's proposal; `unmarked`: from a log that does not record the
+    # result reached the model unchanged; `filtered`: a filter edited the
+    # result message), so no host step is built. The host run reserved the
+    # call id anyway, and a native execution run after it under that id was
+    # named by its execution, where live names it by the id
+    from inspect_ai.agent._bridge import _sentinel as bridge_sentinel
+
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    if skip == "evicted":
+        monkeypatch.setattr(bridge_sentinel, "_MAX_PROPOSALS", 0)
+    seen: dict[str, Step] = {}
+    log = run_logged(
+        as_solver(
+            r7_defers_a_bridged_host_call(
+                native_first=False, filtered=skip == "filtered"
+            )
+        ),
+        outputs(
+            r7_tool_calls(
+                ToolCall(
+                    id="shared",
+                    function="mcp__host__addition",
+                    arguments={"x": 1, "y": 1},
+                )
+            ),
+            r7_tool_calls(
+                ToolCall(id="shared", function="addition", arguments={"x": 5, "y": 5})
+            ),
+            done(),
+        ),
+        sentinel=[r12_probe_without_tool_calls(seen, outputs=False)],
+        inferred="two threads in one conversation",
+    )
+    events = logged_sample(log).events
+    [host] = [e for e in events if isinstance(e, ToolEvent) and _is_bridged(e)]
+    [native] = [e for e in events if isinstance(e, ToolEvent) and not _is_bridged(e)]
+    assert host.id == native.id == "shared"
+    checked = [
+        (e.execution_id, seen[e.explanation or ""])
+        for e in events
+        if isinstance(e, SentinelEvent)
+        and e.path == "r12_probe_without_tool_calls"
+        and e.stage == "tool_result"
+    ]
+    assert [execution for execution, _ in checked] == [
+        host.execution_id,
+        native.execution_id,
+    ]
+    if skip == "unmarked":
+        events = [
+            e.model_copy(update={"metadata": unmarked(e)}) if e is host else e
+            for e in events
+        ]
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        replay = replay_events(log, events)
+    [result] = [s for s in replay if s.stage == "tool_result"]
+    assert result.id == "shared"
+    assert_step_equals_live(("tool_result", "shared"), result, checked[1][1])
+    # the host call's tool_call step was not checked
+    assert list(dict.fromkeys(replay_warnings(caplog))) == [
+        UNCHECKED_HOST_WARNING.format("shared"),
+        CHECKED_WITHOUT_PROPOSAL_WARNING.format("shared")
+        if skip == "evicted"
+        else UNSHOWN_RESULT_WARNING.format("shared"),
+    ]
 
 
 def test_a_host_call_under_an_id_a_native_call_took_first_keeps_its_result_step(

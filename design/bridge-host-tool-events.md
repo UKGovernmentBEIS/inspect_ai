@@ -591,7 +591,9 @@ proposal, and fixing the pairing would mean keeping evicted grants.
   out again names no execution, as the bridge can't tell which handout the
   result answers, so it anchors no run. The steps are named as a native
   execution's are (see Execution ids), so a run under a call id an earlier
-  rebuilt execution took is named by its `execution_id`. A host call made
+  rebuilt execution took is named by its `execution_id`; a run takes its
+  call id only where replay builds one of its steps, so a later execution
+  under the id keeps it, as live. A host call made
   in a scorer has none, as a native call has none. Replay skips steps with
   one warning per case:
   - Every host call in a log without execution ids.
@@ -611,6 +613,17 @@ proposal, and fixing the pairing would mean keeping evicted grants.
     carries, so its host results are skipped. The step is also skipped where
     the log holds several contents under the message's id, or, for a run
     without an error, a message without the start of the run's result.
+  - A checked step the bridge did not mark as checked with the call's
+    proposal (`metadata["bridge"]["call_checked_with_proposal"]`,
+    `["result_checked_with_proposal"]`): the model call that proposed the
+    call, whose input, tools and message the step has. The bridge checks a
+    handout without it where a response filter returned other output than
+    the model call's (a copy or an edit), and a result without it once it
+    no longer holds the proposal (`_MAX_PROPOSALS`, 1,000 calls). It marks
+    the call check from the grant the run consumed, and the result check on
+    the run's event, found by its execution among the runs it linked
+    (`_linked_runs`); a run it no longer holds there isn't marked, so is
+    skipped.
   - A host call the log does not join to its proposal, a run whose
     execution an earlier run's steps took, and a shared handout's run under
     a fresh event id, whose checks have the id the call was handed over

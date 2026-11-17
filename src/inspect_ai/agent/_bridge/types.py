@@ -432,6 +432,8 @@ class AgentBridge:
         """
         self._unlinked_replies: set[str] = set()
         """Ids of handed replies none of whose executions links (`_unlink`)."""
+        self._linked_runs: dict[str, "ToolEvent"] = {}
+        """Per execution id, the event of a host execution linked to its result message (`_link_result_messages`), so its result check can record it had the call's proposal (`_mark_checked_with_proposal`). The most recent `_MAX_AWAITED_RESULTS`."""
         self._filtered_links: dict[str, tuple["ToolEvent", str]] = {}
         """Per tool message a host execution was linked to while a request filter is set, the execution's event and the message's `content_hash` as linked, until a request's filter has run on it (`_mark_unfiltered_results`)."""
         self._operator_keys: set[str] = set()
@@ -589,6 +591,9 @@ class AgentBridge:
     _proposing_execution_ids: list[str] | None = None
     """The handout id of each call being registered, aligned with them (`_Handed.execution_id`); a grant's host run records its tool's execution id derived from it (`target_execution_id`)."""
 
+    _proposing_checked_with_proposal: bool = False
+    """Whether a sentinel checked the calls being registered with the model call that produced them (`Produced`): not where a response filter returned other output than the model call's, as the checks then have no model input and the message handed over. A grant's host run records it (`call_checked_with_proposal`)."""
+
     def _handed_calls(
         self, reply_id: str, calls: Sequence[ToolCall]
     ) -> list[_HandedCall]:
@@ -725,6 +730,10 @@ class AgentBridge:
                     and _holds_result(answer, reply.received[position])
                 ):
                     event.message_id = answer.id
+                    if event.execution_id is not None:
+                        self._linked_runs[event.execution_id] = event
+                        while len(self._linked_runs) > _MAX_AWAITED_RESULTS:
+                            del self._linked_runs[next(iter(self._linked_runs))]
                     if self.filter is None:
                         _mark_unfiltered(event)
                     elif answer.id is not None:
@@ -735,6 +744,20 @@ class AgentBridge:
                         while len(self._filtered_links) > _MAX_AWAITED_RESULTS:
                             del self._filtered_links[next(iter(self._filtered_links))]
                     transcript()._event_updated(event)
+
+    def _mark_checked_with_proposal(self, execution_id: str) -> None:
+        """Record on a linked host execution's event that a sentinel checked its result with the call's proposal (`metadata["bridge"]["result_checked_with_proposal"]`).
+
+        The bridge keeps the proposals of the last 1,000 handed calls
+        (`_Handouts.proposals`); a result reported later is checked without
+        the model call that proposed it, and isn't marked. So is one whose
+        event the bridge no longer holds (`_linked_runs`).
+        """
+        from inspect_ai.log._transcript import transcript
+
+        event = self._linked_runs.get(execution_id)
+        if event is not None and _mark(event, "result_checked_with_proposal"):
+            transcript()._event_updated(event)
 
     def _mark_unfiltered_results(
         self, messages: Sequence[ChatMessage], generated: bool = True
@@ -1546,9 +1569,16 @@ def _named_result_key(message: ChatMessageTool, call: ToolCall | None) -> str:
 
 def _mark_unfiltered(event: "ToolEvent") -> None:
     """Record on a host execution's event that the result message it links holds the content the scaffold sent (`metadata["bridge"]["result_unfiltered"]`): no request filter changed it in the request that first carried it."""
+    _mark(event, "result_unfiltered")
+
+
+def _mark(event: "ToolEvent", key: str) -> bool:
+    """Set `key` in a host execution's `metadata["bridge"]`; whether the event has one."""
     bridge = (event.metadata or {}).get("bridge")
     if isinstance(bridge, dict):
-        bridge["result_unfiltered"] = True
+        bridge[key] = True
+        return True
+    return False
 
 
 def _holds_result(answer: ChatMessageTool, received: _Received) -> bool:

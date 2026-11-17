@@ -7048,6 +7048,69 @@ async def test_a_host_call_beyond_the_proposal_cap_is_still_checked_when_reporte
             )
 
 
+async def test_a_result_reported_beyond_the_proposal_cap_is_not_marked_checked_with_its_proposal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # after Ransom's review 5944195263 (B1): at the real limit, the result of
+    # the first of 1,001 calls handed over is checked without the model call
+    # that proposed it, and still names the run's execution; the bridge marks
+    # only the result checks that had it, which replay requires
+    from inspect_ai.agent._bridge._sentinel import _MAX_PROPOSALS
+
+    calls = [
+        replace(
+            READ,
+            id=f"call_{i}",
+            function="mcp__host__read_file",
+            arguments={"path": str(i)},
+        )
+        for i in range(_MAX_PROPOSALS + 1)
+    ]
+    seen: Steps = []
+    bridge = sandbox_bridge(AsyncMock(return_value="contents"))
+    marked: list[str] = []
+    monkeypatch.setattr(bridge, "_mark_checked_with_proposal", marked.append)
+    model = Scripted(calls_output(*calls), calls_output())
+
+    with active([bridge_recording(seen)]):
+        output = await generate(
+            bridge, model, [ChatMessageUser(content=TASK)], declare_read_file()
+        )
+        await generate(
+            bridge,
+            model,
+            [
+                ChatMessageUser(content=TASK),
+                output.message,
+                *[
+                    ChatMessageTool(
+                        content="contents", tool_call_id=call.id, function=call.function
+                    )
+                    for call in (calls[0], calls[-1])
+                ],
+            ],
+            declare_read_file(),
+        )
+
+    # the two results are checked concurrently
+    results = {
+        s.call.id: (s.input is None, s.message_id)
+        for s in seen
+        if isinstance(s, AfterToolCall)
+    }
+    assert results == {
+        calls[0].id: (True, ""),
+        calls[-1].id: (False, output.message.id),
+    }
+    checks = {
+        e.step_id: e.execution_id
+        for e in transcript().events
+        if isinstance(e, SentinelEvent) and e.stage == "tool_result"
+    }
+    assert None not in checks.values()
+    assert marked == [checks[calls[-1].id]]
+
+
 @pytest.mark.parametrize("generates", [False, True])
 async def test_both_stages_see_the_input_a_filter_sent(generates: bool) -> None:
     seen: Steps = []

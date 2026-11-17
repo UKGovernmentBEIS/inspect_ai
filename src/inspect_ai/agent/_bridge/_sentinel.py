@@ -828,16 +828,18 @@ class _Handouts:
         result = claim.result
         for index in claim.owned:
             digest = result.digests[index]
+            check = result.checks[index]
+            execution_id = target_execution_id(result.execution_id, check.target)
+            if execution_id is not None and check.producer is not None:
+                bridge._mark_checked_with_proposal(execution_id)
             try:
                 await _tool_result(
                     bridge,
-                    result.checks[index],
+                    check,
                     result.message,
                     reject_on_viewer_error=len(result.checks) > 1,
                     view=result.views[index],
-                    execution_id=target_execution_id(
-                        result.execution_id, result.checks[index].target
-                    ),
+                    execution_id=execution_id,
                 )
             except Exception as ex:
                 self.failed.setdefault(digest, ex)

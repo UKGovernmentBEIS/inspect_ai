@@ -29,6 +29,16 @@ class ToolEvent(BaseEvent):
     first carried it. Otherwise the key is absent (for example, the filter
     changed the message, returned the request's output itself, or never ran
     on the message).
+
+    Where a sentinel checked the call when the bridge handed it over, the
+    bridge records `call_checked_with_proposal` (`True`) when that check had
+    the model call that proposed it: its input, tools and message. A
+    response filter that returns other output than the model call's (a copy
+    or an edit) leaves the check without it. Where a sentinel checked the
+    linked result, `result_checked_with_proposal` (`True`) records the same
+    of that check, which also lacks it once the bridge no longer holds the
+    call's proposal (it holds those of the last 1,000 calls it handed over).
+    Otherwise each key is absent.
     """
 
     event: Literal["tool"] = Field(default="tool")

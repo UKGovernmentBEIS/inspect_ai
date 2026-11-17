@@ -194,17 +194,19 @@ class _BridgeMetadata:
         self.function: str | None = None
         self.proposal_id: str | None = None
         self.grant: Literal["consumed", "denied", "exempt"] | None = None
+        self.call_checked_with_proposal = False
 
     def as_metadata(self) -> dict[str, Any]:
-        return {
-            "bridge": {
-                "server": self.server,
-                "tool": self.tool,
-                "function": self.function,
-                "proposal_id": self.proposal_id,
-                "grant": self.grant,
-            }
+        bridge: dict[str, Any] = {
+            "server": self.server,
+            "tool": self.tool,
+            "function": self.function,
+            "proposal_id": self.proposal_id,
+            "grant": self.grant,
         }
+        if self.call_checked_with_proposal:
+            bridge["call_checked_with_proposal"] = True
+        return {"bridge": bridge}
 
 
 def _handout(grant: _ToolExecutionGrant | None) -> str | None:
@@ -312,6 +314,7 @@ async def _execute_granted(
         metadata.function = grant.proposal.call.function
         metadata.proposal_id = grant.proposal.proposal_id
         metadata.grant = "consumed"
+        metadata.call_checked_with_proposal = grant.proposal.checked_with_proposal
     else:
         metadata.grant = "exempt"
     event_id = grant.proposal.take_id() if grant is not None else uuid()

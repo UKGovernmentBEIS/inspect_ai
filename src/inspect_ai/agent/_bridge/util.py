@@ -1718,6 +1718,9 @@ async def _bridge_generate_impl(
             bridge._proposing_call_verified = verified_calls
             bridge._proposing_model_ids = model_ids
             bridge._proposing_execution_ids = execution_ids
+            bridge._proposing_checked_with_proposal = (
+                reviewed.sentinel is not None and producer is not None
+            )
             try:
                 bridge.register_tool_execution_grants(
                     handed,
@@ -1730,6 +1733,7 @@ async def _bridge_generate_impl(
                 bridge._proposing_call_verified = None
                 bridge._proposing_model_ids = None
                 bridge._proposing_execution_ids = None
+                bridge._proposing_checked_with_proposal = False
             return reviewed.output, c_message
 
         rejections += 1

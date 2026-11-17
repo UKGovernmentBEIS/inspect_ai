@@ -8,7 +8,7 @@ from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, replace
 from functools import partial
 from itertools import accumulate
-from typing import TYPE_CHECKING, Any, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
 from inspect_ai._util.content import Content
 from inspect_ai._util.json import json_equal, jsonable_python
@@ -124,6 +124,7 @@ def steps_from_events(
     - Every host call in a log without execution ids (`ToolEvent.execution_id`), which tie a host call's checks to its run.
     - A step no check was recorded for. A check at which every instance abstained records no event, so it counts as none, and a `tool_result` step counts only where the bridge linked a reported result (`message_id`). Without a check, the log does not show when the bridge handed the call to the scaffold or checked its result.
     - A checked `tool_result` step whose message the bridge did not link, or did not mark as reaching the model as the scaffold sent it (`metadata["bridge"]["result_unfiltered"]`, absent where a request filter changed it or returned the request's output itself), or where the log holds several contents under the message's id, or, for a run without an error, a message without the start of the run's result. A request filter can rewrite a message after the bridge checked it and keep its id.
+    - A checked step the bridge did not record it checked with the model call that proposed the call (`metadata["bridge"]["call_checked_with_proposal"]`, `["result_checked_with_proposal"]`), whose input, tools and message the step has. The bridge checks without them where a response filter returned a copy or an edit of the model call's output, and checks a result without them once it no longer holds the call's proposal (it holds those of the last 1,000 calls it handed over).
     - A host call the log does not join to its proposal, or whose steps can't have an id of their own, and checks no host run takes: a run whose event has a fresh id (a shared handout's second tool) is not tied to its checks, which have the id the call was handed over under. The calls a bridged scaffold ran itself leave no `ToolEvent`.
 
     A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A host call no check recorded, whose model call was made where live checks no tool calls (a scorer's), has no steps and no warning, as a native call has none. A bridge's tool checks are recorded in spans named `sentinel_bridge`, so a native call under an id a bridge also checked keeps its own checks.
@@ -696,6 +697,9 @@ class _Driver:
         # the ids of host calls whose checked result the log does not show
         # (`_result_as_reported`)
         self.unshown_results: list[str] = []
+        # the ids of host calls with a checked step the log does not record
+        # the bridge checked with the call's proposal (`_checked_with_proposal`)
+        self.checks_without_proposal: list[str] = []
         # call id -> the indexes of the model events that proposed it
         self.proposed: dict[str, list[int]] = {}
         # the ids of model calls' output messages
@@ -1471,9 +1475,7 @@ class _Driver:
                     return
                 skip = self.skipped
             else:
-                step_id = self._host_step_id(event)
-                if step_id is not None:
-                    self._host_call(call, step_id)
+                if self._host_call(call):
                     return
                 skip = self.skipped
             # its checks still publish their decisions
@@ -1671,8 +1673,8 @@ class _Driver:
         self.host_executions.add(event.execution_id)
         return self._tool_step_id(event)
 
-    def _host_call(self, call: _Call, step_id: str) -> None:
-        """The steps of a sandbox bridge's host call that a recorded check anchors, as the bridge built them live.
+    def _host_call(self, call: _Call) -> bool:
+        """Build the steps of a sandbox bridge's host call that a recorded check anchors, as the bridge built them live; False where the run's steps can't have an id of their own (`_host_step_id`).
 
         The bridge checks each call of a response before the scaffold gets it,
         once per handout and host tool it denotes (`reviewed_calls`): under
@@ -1682,25 +1684,70 @@ class _Driver:
         scaffold's next request carries it, as the tool message the scaffold
         sent, which the run's event names where the bridge linked it
         (`message_id`), with that call or a sentinel's modify of it. Both
-        steps have `step_id` (`_host_step_id`), and each is built where its
-        check began. A step with no check naming the run's execution is
-        skipped, as the log does not show where the bridge handed the call
-        over or checked its result; so is a checked result the log does not
-        show (`_result_as_reported`). Each skip has a warning of its own.
+        steps have the run's step id, and each is built where its check
+        began. A step with no check naming the run's execution is skipped, as
+        the log does not show where the bridge handed the call over or
+        checked its result; so is a checked result the log does not show
+        (`_result_as_reported`), and a checked step the bridge did not record
+        it checked with the call's proposal (`_checked_with_proposal`). Each
+        skip has a warning of its own. The run takes its step id only where a
+        step is built, so a later execution under the id keeps it, as live.
         """
+        event = call.event
+        before_span = call.before_span
+        after_span = call.after_span
+        builds_call = before_span is not None and _checked_with_proposal(event, "call")
+        result = self._reported_result(event) if after_span is not None else None
+        shown = result is not None and self._result_as_reported(event, result)
+        builds_result = shown and _checked_with_proposal(event, "result")
+        step_id = self._host_step_id(event) if builds_call or builds_result else None
+        if (builds_call or builds_result) and step_id is None:
+            return False
+        if before_span is None:
+            self.unchecked_steps.append(event.id)
+        elif not builds_call:
+            self.checks_without_proposal.append(event.id)
+        if after_span is None:
+            # a result the scaffold reported, which no check anchors
+            if before_span is not None and event.message_id is not None:
+                self.unchecked_steps.append(event.id)
+        elif not shown:
+            self.unshown_results.append(event.id)
+        elif not builds_result:
+            self.checks_without_proposal.append(event.id)
+        if step_id is not None:
+            self._build_host_steps(
+                call,
+                step_id,
+                before_span if builds_call else None,
+                after_span if builds_result else None,
+                result,
+            )
+        # its checks still publish their decisions
+        self._settle_at_end(before_span)
+        self._settle_at_end(after_span)
+        return True
+
+    def _build_host_steps(
+        self,
+        call: _Call,
+        step_id: str,
+        before_span: str | None,
+        after_span: str | None,
+        result: ChatMessageTool | None,
+    ) -> None:
+        """Build a host call's `tool_call` step at `before_span` and its `tool_result` step, with `result`, at `after_span`, each where given (`_host_call`)."""
         event = call.event
         proposal = call.proposal
         assistant = call.assistant
         assert proposal is not None and assistant is not None
-        before_span = call.before_span
-        after_span = call.after_span
         approval = self._run_approval(call)
         approver_modified = (
             approval.modified
             if approval is not None and approval.decision == "modify"
             else None
         )
-        modify = self._host_sentinel_modify(before_span, event)
+        modify = self._host_sentinel_modify(call.before_span, event)
         arguments = (
             approver_modified.arguments
             if approver_modified is not None
@@ -1736,22 +1783,11 @@ class _Driver:
             )
             self._built(step_id, "tool_call", step, before_span)
 
-        if before_span is None:
-            self.unchecked_steps.append(event.id)
-        else:
+        if before_span is not None:
             self._at_point((self.begins[before_span][0], 1), call.seq, build_before)
-            self._settle_at_end(before_span)
-        if after_span is None:
-            # a result the scaffold reported, which no check anchors
-            if before_span is not None and event.message_id is not None:
-                self.unchecked_steps.append(event.id)
+        if after_span is None or result is None:
             return
-        result = self._reported_result(event)
-        if result is None or not self._result_as_reported(event, result):
-            # its result check still publishes its decisions
-            self._settle_at_end(after_span)
-            self.unshown_results.append(event.id)
-            return
+        reported = result
         # a sentinel's modify changes only the arguments of the call it checked
         after_call = (
             replace(before_call, arguments=modify.arguments)
@@ -1766,7 +1802,7 @@ class _Driver:
                 message_id=assistant_id,
                 call=after_call,
                 view=ToolCallView(call=event.view or _default_view(after_call)),
-                result=result,
+                result=reported,
                 output=None,
                 # as live, which checks the scaffold's message, not the cut
                 truncated=None,
@@ -1777,7 +1813,6 @@ class _Driver:
             self._built(step_id, "tool_result", step, after_span)
 
         self._at_point((self.begins[after_span][0], 1), call.seq + 2, build_after)
-        self._settle_at_end(after_span)
 
     def _result_as_reported(self, event: ToolEvent, result: ChatMessageTool) -> bool:
         """Whether the tool message a host call's event links (`message_id`) holds, as far as the log shows, the result the agent reported.
@@ -2122,6 +2157,17 @@ class _Driver:
                 "unchanged (a request filter can rewrite a message and keep its "
                 "id), so the log does not show the result the bridge checked.",
                 ", ".join(dict.fromkeys(self.unshown_results)),
+            )
+        if self.checks_without_proposal:
+            logging.getLogger(__name__).warning(
+                "Replay skipped tool steps of host call(s) %s that an agent "
+                "bridge ran: the log does not record that the bridge checked "
+                "them with the model call that proposed the call, so it does not "
+                "show the model input and message the check had. The bridge "
+                "checks without that model call where a response filter returns "
+                "a copy or an edit of its output, and checks a result without it "
+                "once it no longer holds the call (it holds the last 1,000).",
+                ", ".join(dict.fromkeys(self.checks_without_proposal)),
             )
         if unmatched:
             logging.getLogger(__name__).warning(
@@ -2774,6 +2820,19 @@ def _same_call(a: ToolCall, b: ToolCall) -> bool:
 def _bridged(event: ToolEvent) -> bool:
     """Whether a sandbox bridge ran the call on the host."""
     return event.metadata is not None and "bridge" in event.metadata
+
+
+def _checked_with_proposal(event: ToolEvent, step: Literal["call", "result"]) -> bool:
+    """Whether a host run's event records that the bridge checked its call or its result with the call's proposal (`ToolEvent.metadata["bridge"]`): the model call that proposed it, whose input and message the step has.
+
+    The bridge checks without it where a response filter returned other output
+    than the model call's (both steps), or once it no longer holds the
+    proposal (the result). A log written before the record has none.
+    """
+    bridge = (event.metadata or {}).get("bridge")
+    return (
+        isinstance(bridge, dict) and bridge.get(f"{step}_checked_with_proposal") is True
+    )
 
 
 def _approver_modified(approval: ApprovalEvent | None) -> ToolCall | None:
