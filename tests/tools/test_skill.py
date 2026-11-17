@@ -13,17 +13,24 @@ from test_helpers.utils import flaky_retry, skip_if_no_docker, skip_if_no_openai
 from inspect_ai import Task, eval
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
+from inspect_ai.event import SandboxEvent
+from inspect_ai.model import get_model
 from inspect_ai.scorer import includes
 from inspect_ai.solver import Generate, Solver, TaskState, fork, solver
 from inspect_ai.tool import Tool, ToolError, bash, skill
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.tool._tools._skill.install import install_lock, install_skills
+from inspect_ai.tool._tools._skill.install import (
+    INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT,
+    install_lock,
+    install_skills,
+)
 from inspect_ai.tool._tools._skill.read import SkillParsingError, _read_skill
 from inspect_ai.tool._tools._skill.tool import _cache_lock
 from inspect_ai.tool._tools._skill.types import Skill
 from inspect_ai.util import (
     SandboxUserUnsupportedError,
     Store,
+    sandbox,
     store,
     subtask,
     tool_state_scope,
@@ -92,7 +99,8 @@ class _StepSandbox(CannedSandbox):
 
     `pwd` gives /work. Writes as a user other than root under `protected` are
     refused, as for a directory only the default user (root) can write.
-    `owners` maps each file to its owner, "default" for the default user.
+    `owners` maps each file to its owner, "default" for the default user, and
+    `cwds` records the `cwd` of each command.
     """
 
     def __init__(self, protected: str = "/root") -> None:
@@ -101,6 +109,23 @@ class _StepSandbox(CannedSandbox):
         self.steps: list[tuple[str, str | None]] = []
         self.owners: dict[str, str] = {}
         self.executable: set[str] = set()
+        self.cwds: list[str | None] = []
+
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        self.cwds.append(cwd)
+        return await super().exec(
+            cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
+        )
 
     def _answer(self, cmd: list[str], user: str | None) -> ExecResult[str]:
         argv = cmd[4:]
@@ -178,13 +203,21 @@ class TestSkillInstallation:
             ("chown root", "root"),
             ("chmod", "root"),
         ]
+        assert sandbox.cwds == [None, None, None]
 
-    async def test_install_skills_omitted_user_in_a_scope(self) -> None:
+    @pytest.mark.parametrize("scope_cwd", [None, "/home/w-1"])
+    async def test_install_skills_omitted_user_in_a_scope(
+        self, scope_cwd: str | None
+    ) -> None:
         sandbox = _StepSandbox()
         _use_sandbox(SandboxEnvironmentProxy(sandbox))
-        with sandbox_identity("w-1"):
+        with sandbox_identity("w-1", cwd=scope_cwd):
             await install_skills([self.SCRIPTED], dir="/home/w-1/skills")
         assert sandbox.steps == [("write", "w-1"), ("write", "w-1"), ("chmod", "w-1")]
+        # the member's chmod does not start in the provider's working
+        # directory, which the member may not be able to enter
+        assert sandbox.cwds == ["/"]
+        assert INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT is True
 
     async def test_install_skills_omitted_user_in_a_scope_relative_dir(
         self, monkeypatch: pytest.MonkeyPatch
@@ -200,6 +233,8 @@ class TestSkillInstallation:
             ("write", "w-1"),
             ("chmod", "w-1"),
         ]
+        # a relative dir resolves against the provider's working directory
+        assert sandbox.cwds == [None, "/"]
         script = "/work/skills/example/scripts/run.sh"
         assert sandbox.owners[script] == "w-1"
         assert script in sandbox.executable
@@ -240,12 +275,14 @@ class TestSkillInstallation:
         await install_skills([self.SCRIPTED], dir="/srv/skills")
         assert scored.steps == unscoped.steps
         assert scored.steps == [("write", None), ("write", None), ("chmod", None)]
+        assert scored.cwds == unscoped.cwds == [None]
 
     async def test_install_skills_omitted_user_outside_a_scope(self) -> None:
         sandbox = _StepSandbox()
         _use_sandbox(SandboxEnvironmentProxy(sandbox))
         await install_skills([self.SCRIPTED], dir="/root/skills")
         assert sandbox.steps == [("write", None), ("write", None), ("chmod", None)]
+        assert sandbox.cwds == [None]
 
     async def test_install_as_local_current_user(self) -> None:
         if os.name != "posix":
@@ -830,6 +867,76 @@ def test_skill_end_to_end() -> None:
         "Model did not run the script. "
         f"Expected 'DELTA-ECHO-FOXTROT' in output but got: {combined_output[:500]}..."
     )
+
+
+_MEMBER_SCRIPT = "/home/w1/skills/banner/scripts/run.sh"
+
+
+@solver
+def _member_installs_a_scripted_skill() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sb = sandbox()
+        created = await sb.exec(
+            ["sh", "-c", "useradd -m w1 && chmod 700 /home/w1"], user="root"
+        )
+        assert created.success, created.stderr
+        assert (await sb.exec(["pwd"])).stdout.strip() == "/root"
+        # checked from "/" because some runtimes refuse to start a command in
+        # a working directory the user cannot enter
+        entered = await sb.exec(["test", "-x", "/root"], cwd="/", user="w1")
+        assert not entered.success, entered
+
+        banner = Skill(
+            name="banner",
+            description="Prints a banner.",
+            instructions="Run scripts/run.sh.",
+            scripts={"run.sh": "#!/bin/sh\necho banner\n"},
+        )
+        with sandbox_identity("w1", cwd="/home/w1"):
+            await install_skills([banner], dir="/home/w1/skills")
+            ran = await sandbox().exec([_MEMBER_SCRIPT])
+            assert ran.stdout == "banner\n", ran
+
+        owner = await sb.exec(["stat", "-c", "%U", _MEMBER_SCRIPT])
+        assert owner.stdout.strip() == "w1", owner
+        return state
+
+    return solve
+
+
+# A scope member installs a skill with a script on an image whose working
+# directory (/root) is closed to it.
+@skip_if_no_docker
+@pytest.mark.slow
+def test_member_installs_a_scripted_skill_with_a_closed_workdir(
+    tmp_path: Path,
+) -> None:
+    compose = tmp_path / "compose.yaml"
+    compose.write_text(
+        "services:\n  default:\n    image: ubuntu:24.04\n"
+        "    command: tail -f /dev/null\n    working_dir: /root\n"
+        "    init: true\n    network_mode: none\n    stop_grace_period: 1s\n"
+    )
+    task = Task(
+        dataset=[Sample(input="x")],
+        solver=_member_installs_a_scripted_skill(),
+        sandbox=("docker", str(compose)),
+    )
+    log = eval(task, model=get_model("mockllm/model"))[0]
+    assert log.status == "success", log.error
+    assert log.samples
+    # Docker runtimes that start a command in a directory the user cannot
+    # enter do not show the failure, so check the chmod's recorded cwd
+    [chmod] = [
+        event
+        for event in log.samples[0].events
+        if isinstance(event, SandboxEvent)
+        and event.cmd is not None
+        and "chmod +x " + _MEMBER_SCRIPT in event.cmd
+    ]
+    assert chmod.options is not None
+    assert chmod.options["user"] == "w1"
+    assert chmod.options["cwd"] == "/"
 
 
 class _FileSandbox(CannedSandbox):
