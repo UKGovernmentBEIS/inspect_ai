@@ -279,44 +279,55 @@ def scanner_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     return wrapper
 
 
-def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
-    @click.option(
-        "--model",
-        type=str,
-        help="Model used to evaluate tasks.",
-        envvar="INSPECT_EVAL_MODEL",
-    )
-    @click.option(
-        "--model-base-url",
-        type=str,
-        help="Base URL for for model API",
-    )
-    @click.option(
-        "-M",
-        multiple=True,
-        type=str,
-        envvar="INSPECT_EVAL_MODEL_ARGS",
-        help="One or more native model arguments (e.g. -M arg=value)",
-    )
-    @click.option(
-        "--model-config",
-        type=str,
-        envvar="INSPECT_EVAL_MODEL_CONFIG",
-        help="YAML or JSON config file with model arguments.",
-    )
-    @click.option(
-        "--model-spec",
-        multiple=True,
-        type=str,
-        envvar="INSPECT_EVAL_MODEL_SPEC",
-        help='Model to evaluate along with its own generate config, model args, and base url, as inline YAML or JSON, e.g. --model-spec "{model: openai/gpt-6-luna, reasoning_effort: low}" (same fields as --model-role, plus base_url). Repeat the option to evaluate several models, each with its own options. Cannot be combined with --model, --model-base-url, --model-config, or -M.',
-    )
-    @click.option(
-        "--run-config",
-        type=str,
-        envvar="INSPECT_EVAL_RUN_CONFIG",
-        help="YAML or JSON file with full run configuration (task, model, model roles, generate config, solver, eval config). CLI flags override values from this file. Cannot be combined with --generate-config, --task-config, or --solver-config.",
-    )
+def model_options(
+    model_base_url_envvar: str | None = None,
+) -> Callable[[Callable[..., Any]], Callable[..., click.Context]]:
+    """`--model`, `--model-base-url`, `-M` and `--model-config`.
+
+    Args:
+        model_base_url_envvar: Environment variable that `--model-base-url`
+            names. `inspect eval` and `inspect eval-set` name none and read it
+            through click's automatic prefix.
+    """
+
+    def decorator(func: Callable[..., Any]) -> Callable[..., click.Context]:
+        @click.option(
+            "--model",
+            type=str,
+            help="Model used to evaluate tasks.",
+            envvar="INSPECT_EVAL_MODEL",
+        )
+        @click.option(
+            "--model-base-url",
+            type=str,
+            help="Base URL for for model API",
+            envvar=model_base_url_envvar,
+        )
+        @click.option(
+            "-M",
+            multiple=True,
+            type=str,
+            envvar="INSPECT_EVAL_MODEL_ARGS",
+            help="One or more native model arguments (e.g. -M arg=value)",
+        )
+        @click.option(
+            "--model-config",
+            type=str,
+            envvar="INSPECT_EVAL_MODEL_CONFIG",
+            help="YAML or JSON config file with model arguments.",
+        )
+        @functools.wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> click.Context:
+            return cast(click.Context, func(*args, **kwargs))
+
+        return wrapper
+
+    return decorator
+
+
+def model_role_option(func: Callable[..., Any]) -> Callable[..., click.Context]:
+    """`--model-role`."""
+
     @click.option(
         "--model-role",
         multiple=True,
@@ -324,6 +335,16 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_MODEL_ROLE",
         help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-6-luna or --model-role grader="{model: mockllm/model, temperature: 0.5}". Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs, e.g. --model-role grader=openai/gpt-6-luna,google/gemini-2.0-flash',
     )
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> click.Context:
+        return cast(click.Context, func(*args, **kwargs))
+
+    return wrapper
+
+
+def task_args_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
+    """`-T` and `--task-config`."""
+
     @click.option(
         "-T",
         multiple=True,
@@ -337,6 +358,61 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_TASK_CONFIG",
         help="YAML or JSON config file with task arguments.",
     )
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> click.Context:
+        return cast(click.Context, func(*args, **kwargs))
+
+    return wrapper
+
+
+def epochs_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
+    """`--epochs`, `--epochs-reducer` and `--no-epochs-reducer`."""
+
+    @click.option(
+        "--epochs",
+        type=int,
+        help=f"Number of times to repeat dataset (defaults to {DEFAULT_EPOCHS}) ",
+        envvar="INSPECT_EVAL_EPOCHS",
+    )
+    @click.option(
+        "--epochs-reducer",
+        type=str,
+        is_flag=False,
+        help="Method for reducing per-epoch sample scores into a single score. Built in reducers include 'mean', 'median', 'mode', 'max', and 'at_least_{n}'.",
+        envvar="INSPECT_EVAL_EPOCHS_REDUCER",
+    )
+    @click.option(
+        "--no-epochs-reducer",
+        type=bool,
+        is_flag=True,
+        default=False,
+        help="Do not reduce per-epoch sample scores.",
+        envvar="INSPECT_EVAL_NO_EPOCHS_REDUCER",
+    )
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> click.Context:
+        return cast(click.Context, func(*args, **kwargs))
+
+    return wrapper
+
+
+def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
+    @model_options()
+    @click.option(
+        "--model-spec",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_MODEL_SPEC",
+        help='Model to evaluate along with its own generate config, model args, and base url, as inline YAML or JSON, e.g. --model-spec "{model: openai/gpt-6-luna, reasoning_effort: low}" (same fields as --model-role, plus base_url). Repeat the option to evaluate several models, each with its own options. Cannot be combined with --model, --model-base-url, --model-config, or -M.',
+    )
+    @click.option(
+        "--run-config",
+        type=str,
+        envvar="INSPECT_EVAL_RUN_CONFIG",
+        help="YAML or JSON file with full run configuration (task, model, model roles, generate config, solver, eval config). CLI flags override values from this file. Cannot be combined with --generate-config, --task-config, or --solver-config.",
+    )
+    @model_role_option
+    @task_args_options
     @click.option(
         "--solver",
         type=str,
@@ -532,27 +608,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="Shuffle order of samples (pass a seed to make the order deterministic)",
         envvar=["INSPECT_EVAL_SAMPLE_SHUFFLE"],
     )
-    @click.option(
-        "--epochs",
-        type=int,
-        help=f"Number of times to repeat dataset (defaults to {DEFAULT_EPOCHS}) ",
-        envvar="INSPECT_EVAL_EPOCHS",
-    )
-    @click.option(
-        "--epochs-reducer",
-        type=str,
-        is_flag=False,
-        help="Method for reducing per-epoch sample scores into a single score. Built in reducers include 'mean', 'median', 'mode', 'max', and 'at_least_{n}'.",
-        envvar="INSPECT_EVAL_EPOCHS_REDUCER",
-    )
-    @click.option(
-        "--no-epochs-reducer",
-        type=bool,
-        is_flag=True,
-        default=False,
-        help="Do not reduce per-epoch sample scores.",
-        envvar="INSPECT_EVAL_NO_EPOCHS_REDUCER",
-    )
+    @epochs_options
     @click.option(
         "--max-connections",
         type=int,
@@ -1960,6 +2016,25 @@ def resolve_model_spec(
     return parse_model_spec_cli_args(model_spec)
 
 
+def parse_epochs_options(
+    epochs: int | None, epochs_reducer: str | None, no_epochs_reducer: bool | None
+) -> Epochs | None:
+    """The `Epochs` that `--epochs`, `--epochs-reducer` and `--no-epochs-reducer` give.
+
+    `None` without `--epochs`, so `--epochs-reducer` alone is ignored.
+    """
+    return (
+        Epochs(
+            epochs,
+            []
+            if no_epochs_reducer
+            else create_reducers(parse_comma_separated(epochs_reducer)),
+        )
+        if epochs
+        else None
+    )
+
+
 def eval_exec(
     tasks: tuple[str, ...] | None,
     solver: str | None,
@@ -2124,16 +2199,7 @@ def eval_exec(
     eval_metadata = parse_cli_args(metadata)
 
     # resolve epochs
-    eval_epochs = (
-        Epochs(
-            epochs,
-            []
-            if no_epochs_reducer
-            else create_reducers(parse_comma_separated(epochs_reducer)),
-        )
-        if epochs
-        else None
-    )
+    eval_epochs = parse_epochs_options(epochs, epochs_reducer, no_epochs_reducer)
 
     # resolve range and sample id
     eval_limit = parse_samples_limit(limit)

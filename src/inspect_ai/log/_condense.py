@@ -3,6 +3,7 @@ import json
 from collections.abc import Mapping, MutableMapping
 from logging import getLogger
 from typing import (
+    Any,
     Callable,
     Final,
     Literal,
@@ -127,6 +128,18 @@ class WalkContext(TypedDict):
     """
 
     only_core: bool
+
+    resolve_completion: NotRequired[bool]
+    """Resolve a ``ModelOutput.completion`` derived from the first choice's text.
+
+    Logs written before 0.3.123 did not store ``completion``, so the
+    ``ModelOutput`` validator copies it from the first choice's text, which
+    in a condensed log is an ``attachment://`` reference. When set,
+    ``walk_model_output`` replaces a completion equal to that pre-walk text
+    with the walked text. Any other completion is stored raw text and is
+    left as written. Only the resolvers set it: condensing must not turn a
+    stored completion into a reference.
+    """
 
     call_message_cache: NotRequired[dict[int, tuple[JsonValue, JsonValue]]]
     """Walked model-call wire messages keyed by ``id`` of the pre-walk value.
@@ -701,6 +714,7 @@ def resolve_sample_attachments(
     context = WalkContext(
         message_cache={},
         only_core=resolve_attachments == "core",
+        resolve_completion=True,
     )
 
     # Resolve pools before events — pool messages may contain attachment:// refs
@@ -723,6 +737,7 @@ def resolve_sample_attachments(
     retry_events_context = WalkContext(
         message_cache={},
         only_core=resolve_attachments == "core",
+        resolve_completion=True,
     )
     resolved_error_retries = (
         [
@@ -868,7 +883,11 @@ def resolve_events_attachments(
         return events
 
     content_fn = resolve_attachment_fn(attachments)
-    context = WalkContext(message_cache={}, only_core=resolve_attachments == "core")
+    context = WalkContext(
+        message_cache={},
+        only_core=resolve_attachments == "core",
+        resolve_completion=True,
+    )
     return walk_events(events, content_fn, context)
 
 
@@ -1087,18 +1106,20 @@ def walk_model_event(
 def walk_model_output(
     output: ModelOutput, content_fn: Callable[[str], str], context: WalkContext
 ) -> ModelOutput:
-    return output.model_copy(
-        update=dict(
-            choices=[
-                choice.model_copy(
-                    update=dict(
-                        message=walk_chat_message(choice.message, content_fn, context)
-                    )
-                )
-                for choice in output.choices
-            ]
+    choices = [
+        choice.model_copy(
+            update=dict(message=walk_chat_message(choice.message, content_fn, context))
         )
-    )
+        for choice in output.choices
+    ]
+    update: dict[str, Any] = dict(choices=choices)
+    if (
+        context.get("resolve_completion") is True
+        and choices
+        and output.completion == output.choices[0].message.text
+    ):
+        update["completion"] = choices[0].message.text
+    return output.model_copy(update=update)
 
 
 @overload

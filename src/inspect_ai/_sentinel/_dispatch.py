@@ -70,9 +70,7 @@ from inspect_ai.model._model import (
 from inspect_ai.model._model_info import get_model_input_budget
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.review._human import (
-    escape_placeholders,
     fenced,
-    view_with_result,
 )
 from inspect_ai.scorer._metric import Reference
 from inspect_ai.solver._task_state import sample_state
@@ -89,11 +87,7 @@ from inspect_ai.tool._tool_call import (
 )
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
-from inspect_ai.util._limit import (
-    suspend_token_limit,
-    suspend_turn_limit,
-    suspend_working_limit,
-)
+from inspect_ai.util._limit import suspend_limits
 from inspect_ai.util._span import span
 from inspect_ai.util._store import store
 
@@ -106,7 +100,8 @@ from ._context import (
     active_task_metadata,
 )
 from ._conversation import current_conversation
-from ._scope import sentinel_scope
+from ._person import chosen_decision, escalation_lines, human_view, offered_choices
+from ._scope import BRIDGE_CHECK_SPAN, sentinel_scope
 from ._steps import (
     ConversationRecord,
     after_generate,
@@ -130,7 +125,10 @@ async def sentinel_before_tool_call(
     message_id: str | None,
     call: ToolCall,
     viewer: ToolCallViewer | None,
-    history: list[ChatMessage],
+    history: list[ChatMessage] | None,
+    producer: ModelEvent | None = None,
+    *,
+    bridge: bool = False,
 ) -> Decision | None:
     if not _watches(BeforeToolCall):
         return None
@@ -139,6 +137,8 @@ async def sentinel_before_tool_call(
         view = resolve_tool_call_view(call, viewer, reject_on_error=True)
     except ToolCallViewError as ex:
         raise ToolApprovalError(str(ex)) from ex
+    if producer is None and history is not None:
+        producer = _producing_event(call, history)
     conversation = current_conversation()
     step = before_tool_call(
         conversation=conversation,
@@ -146,11 +146,11 @@ async def sentinel_before_tool_call(
         message_id=_message_id(message_id),
         call=call,
         view=view,
-        producer=producer_of(_producing_event(call, history)),
+        producer=producer_of(producer),
         agent_messages=agent_messages(conversation),
         record=_record(conversation),
     )
-    return await _run(step, call.id)
+    return await _run(step, call.id, bridge=bridge)
 
 
 def apply_sentinel_decision(decision: Decision | None, call: ToolCall) -> ToolCall:
@@ -177,28 +177,46 @@ async def sentinel_after_tool_call(
     call: ToolCall,
     result: ChatMessageTool,
     output: ToolResult,
-    truncated: tuple[int, int] | None,
+    truncated: tuple[int, int] | Literal[False] | None,
     viewer: ToolCallViewer | None,
-    history: list[ChatMessage],
+    history: list[ChatMessage] | None,
+    producer: ModelEvent | None = None,
+    *,
+    reject_on_viewer_error: bool = False,
+    bridge: bool = False,
+    view: ToolCallView | None = None,
 ) -> None:
+    """Run the sentinel after a tool call ran, before the model sees its result.
+
+    `view` is the call's view, if already rendered with `viewer` (a bridge
+    renders it to tell the step apart from those already checked); otherwise
+    it is rendered here.
+    """
     if not _watches(AfterToolCall):
         return
     _require_message_id()
+    if producer is None and history is not None:
+        producer = _producing_event(call, history)
     conversation = current_conversation()
     step = after_tool_call(
         conversation=conversation,
         message=message,
         message_id=_message_id(message_id),
         call=call,
-        view=resolve_tool_call_view(call, viewer),
+        view=view
+        if view is not None
+        else resolve_tool_call_view(
+            call, viewer, reject_on_error=reject_on_viewer_error
+        ),
         result=result,
         output=output,
-        truncated=Truncation(*truncated) if truncated is not None else False,
-        producer=producer_of(_producing_event(call, history)),
+        # None when the host cannot tell (a scaffold-run tool under a bridge)
+        truncated=Truncation(*truncated) if truncated else truncated,
+        producer=producer_of(producer),
         agent_messages=agent_messages(conversation),
         record=_record(conversation),
     )
-    decision = await _run(step, call.id)
+    decision = await _run(step, call.id, bridge=bridge)
     if decision is not None and decision.action == "terminate":
         raise TerminateSampleError(
             decision.explanation or "Sentinel requested termination."
@@ -285,19 +303,23 @@ def _watches(stage: type[Step]) -> bool:
     return root is not None and stage in watched_stages(root)
 
 
-async def _run(step: Step, step_id: str) -> Decision | None:
+def watches_tool_results() -> bool:
+    return _watches(AfterToolCall)
+
+
+async def _run(step: Step, step_id: str, *, bridge: bool = False) -> Decision | None:
     root = active_sentinel()
     if root is None or type(step) not in watched_stages(root):
         return None
     recorder = _Recorder(step_id)
     try:
         try:
-            async with span(name="sentinel", type="sentinel"):
+            async with span(
+                name=BRIDGE_CHECK_SPAN if bridge else "sentinel", type="sentinel"
+            ):
                 try:
                     with (
-                        suspend_token_limit(),
-                        suspend_turn_limit(),
-                        suspend_working_limit(),
+                        suspend_limits(),
                         sentinel_scope("sentinel", final=True),
                         suspend_model_event_sink(),
                     ):
@@ -506,14 +528,7 @@ class _HostNative:
                 f"human() cannot offer 'reject' at the {step_stage(step)} stage, "
                 "where a turn can only proceed or be terminated."
             )
-        offered: list[ApprovalDecision] = []
-        for choice in choices:
-            if choice not in _HUMAN_CHOICES:
-                raise ValueError(
-                    f"human() cannot offer {choice!r}; the choices are "
-                    f"{', '.join(repr(c) for c in _HUMAN_CHOICES)}."
-                )
-            offered.append(cast(ApprovalDecision, choice))
+        offered = offered_choices(choices)
         # the approval surfaces show the conversation; a step with no agent's
         # list shows what the model saw instead, and nothing when that is
         # unknown too
@@ -535,58 +550,22 @@ class _HostNative:
                 _human_view(step, escalations),
                 list(conversation),
             )
-        if approval.decision in offered:
-            return HumanAnswer(decision=approval.decision, reason=approval.explanation)
-        # the reason says the person did not choose, since later steps read
-        # this decision in human_decisions
-        return HumanAnswer(
-            decision="reject" if "reject" in offered else "terminate",
-            reason=(
-                "The person closed the prompt without choosing; failing closed "
-                f"(the surface answered {approval.decision}: {approval.explanation})."
-            ),
-        )
-
-
-_HUMAN_CHOICES = ("approve", "reject", "terminate")
+        decision, reason = chosen_decision(approval, offered)
+        return HumanAnswer(decision=decision, reason=reason)
 
 
 def _human_view(
     step: BeforeToolCall | AfterToolCall, escalations: Escalations
 ) -> ToolCallView:
-    view = step.view
-    if escalations:
-        lines = _escalation_lines(escalations)
-        escalated = f"**Escalated by**\n\n{fenced(lines)}"
-        if view.call is None:
-            call = ToolCallContent(format="markdown", content=escalated)
-        elif view.call.format == "markdown":
-            call = ToolCallContent(
-                title=view.call.title,
-                format="markdown",
-                content=f"{escalated}\n\n{view.call.content}",
-            )
-        else:
-            call = ToolCallContent(
-                title=view.call.title,
-                format="text",
-                content=f"Escalated by\n\n{lines}\n\n{view.call.content}",
-            )
-        view = ToolCallView(context=view.context, call=call)
-    if isinstance(step, AfterToolCall):
-        view = view_with_result(view, step.result)
-    return view
+    return human_view(
+        step.view,
+        _escalation_lines(escalations) if escalations else None,
+        step.result if isinstance(step, AfterToolCall) else None,
+    )
 
 
 def _escalation_lines(escalations: Escalations) -> str:
-    return escape_placeholders(
-        "\n".join(
-            f"- {e.name}: {e.report.explanation}"
-            if e.report.explanation
-            else f"- {e.name}"
-            for e in escalations
-        )
-    )
+    return escalation_lines((e.name, e.report.explanation) for e in escalations)
 
 
 async def _ask_about_turn(
