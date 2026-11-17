@@ -70,13 +70,14 @@ The eval set stops with an error, before running any task, when it cannot merge 
 
 -   An eval set whose `sample_id` or `limit` selects fewer samples than the shards hold, or none of the task's samples.
 -   A `.shards` directory that holds only files that are not shard logs.
--   A merged log that the merge would rewrite (because of new or changed shards, or a selection other than the one it records) when an unsharded retry of the task is newer than it. Rewriting would replace the log the retry started from, and the samples only the retry holds could be lost. Remove the retry's log, or move the merged log and its `.shards` directory out of the log directory. The same applies when the merged log was deleted and unsharded retries of it remain: the eval set does not rebuild it until you remove the retries or move the `.shards` directory.
+-   A shard written after an unsharded retry of the task (see below). Remove the new shard logs, or remove the task's unsharded retries so that the eval set merges the shards again.
+-   `.shards` directories of different tasks with the same name in different directories (for example one per model). Their merged logs would get the same task id. Move one of them to a log directory of its own.
 -   Scanners (`scanner`) over a log directory that holds a `.shards` directory. Scanning sharded tasks is not supported yet.
 -   Any reason the merge itself refuses, such as shards that do not match each other or a merge that is already running.
 
 A `.shards` directory whose task is not in the eval set is left alone, with a warning.
 
-Retry cleanup never removes a merged log or its `.shards` directory. When an unsharded retry supersedes a merged log, the merged log and its shards stay until you remove them. Once an unsharded retry exists and none has succeeded, editing the merged log (its tags or metadata) makes it the newest log of the task, so the next eval set continues from the merged log; with retry cleanup on, the retry is removed. `eval_retry()` refuses a merged log that an eval set wrote; run the eval set again instead.
+Once an unsharded retry of a merged log exists, the eval set does not merge that `.shards` directory again. It continues from the retry, as from any other log, even if you change `limit` or `sample_id` or remove the merged log. Retry cleanup treats the merged log like any other attempt: once the retry is newer, the merged log is removed, unless its status is `started`. Retry cleanup never removes a `.shards` directory; remove it yourself when you no longer need the shards. `eval_retry()` refuses a merged log that an eval set wrote; run the eval set again instead.
 
 ### Concurrency
 

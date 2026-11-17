@@ -3422,38 +3422,6 @@ def test_eval_set_bundle_leaves_out_shard_attempts(
     assert sorted(listing) == bundled
 
 
-@pytest.mark.parametrize("companion_dir", ["", "model"])
-def test_eval_set_bundle_keeps_attempt_order(
-    tmp_path: Path, shard_runs: list[int | str], companion_dir: str
-) -> None:
-    # with companion_dir, the merged log is nested while the retry is at the root
-    log_dir = tmp_path / "logs"
-    _shard(log_dir / companion_dir, "0", [1, 2, 3])
-    _SHARD_FAILING.add(5)
-    bundle_dir = tmp_path / "bundle"
-    success, [retry] = _sharded_eval_set(
-        log_dir, retry_attempts=0, bundle_dir=str(bundle_dir)
-    )
-    assert not success and retry.status == "error"
-    _SHARD_FAILING.clear()
-    exported = bundle_dir / "logs"
-    merged = exported / companion_dir / f"{SHARD_NAME}.eval"
-    retry_copy = exported / Path(local_path(retry.location)).name
-    assert merged.exists() and retry_copy.exists()
-    assert retry_copy.stat().st_mtime > merged.stat().st_mtime
-    done = {
-        sample.id
-        for sample in read_eval_log(str(retry_copy)).samples or []
-        if sample.error is None
-    }
-    assert 4 in done or 6 in done
-    shard_runs.clear()
-
-    success, _ = _sharded_eval_set(exported)
-
-    assert success and 5 in shard_runs and not done & set(shard_runs)
-
-
 def test_invalidation(tmp_path: Path):
     @task
     def task_for_invalidation():
@@ -5098,8 +5066,6 @@ def test_eval_set_resumes_an_incomplete_shard_set_unsharded(
     merged_header = read_eval_log(str(merged), header_only=True)
     assert merged_header.status == "started"
     assert merged_header.eval.shards is not None
-    # the merged log has the newer mtime, and is still not the latest
-    os.utime(merged, (time.time() + 60, time.time() + 60))
     before = merged.read_bytes()
 
     shard_runs.clear()
@@ -5182,7 +5148,37 @@ def test_eval_set_manifest_leaves_out_shard_attempts(
     assert list(manifest) == [f"{SHARD_NAME}.eval"]
 
 
-def test_eval_set_refuses_new_shards_after_a_newer_unsharded_retry(
+@pytest.mark.parametrize("remove_merged", [False, True])
+def test_eval_set_continues_from_a_retry_without_merging_again(
+    tmp_path: Path, shard_runs: list[int | str], remove_merged: bool
+) -> None:
+    _shard(tmp_path, "0", [1])
+    _SHARD_FAILING.add(4)
+    success, [retry] = _sharded_eval_set(tmp_path, retry_attempts=0)
+    assert not success and retry.status == "error" and retry.eval.shards is None
+    _SHARD_FAILING.clear()
+    done = {
+        sample.id
+        for sample in read_eval_log(retry.location).samples or []
+        if sample.error is None
+    }
+    merged = _merged_log(tmp_path)
+    before = merged.read_bytes()
+    if remove_merged:
+        merged.unlink()
+    shard_runs.clear()
+
+    # a new selection does not merge again either
+    success, [log] = _sharded_eval_set(tmp_path, limit=5)
+
+    assert success and 4 in shard_runs and not done & set(shard_runs)
+    assert log.eval.shards is None
+    assert merged.exists() != remove_merged
+    if not remove_merged:
+        assert merged.read_bytes() == before
+
+
+def test_eval_set_refuses_a_shard_written_after_the_retry(
     tmp_path: Path, shard_runs: list[int | str]
 ) -> None:
     _shard(tmp_path, "0", [1])
@@ -5195,55 +5191,42 @@ def test_eval_set_refuses_new_shards_after_a_newer_unsharded_retry(
     names = _log_names(tmp_path)
     shard_runs.clear()
 
-    with pytest.raises(PrerequisiteError, match="holds shards it does not") as raised:
+    with pytest.raises(PrerequisiteError, match="written after") as raised:
         _sharded_eval_set(tmp_path)
 
-    assert str(_shards_dir(tmp_path)) in str(raised.value)
+    assert str(_shards_dir(tmp_path) / "1") in str(raised.value)
     assert local_path(retry.location) in str(raised.value)
     assert shard_runs == []
     assert _merged_log(tmp_path).read_bytes() == merged
     assert _log_names(tmp_path) == names
 
 
-def test_eval_set_refuses_a_new_selection_after_a_newer_unsharded_retry(
+def test_eval_set_refuses_shard_sets_of_two_tasks_with_one_task_id(
     tmp_path: Path, shard_runs: list[int | str]
 ) -> None:
-    _shard(tmp_path, "0", [1])
-    _SHARD_FAILING.add(3)
-    success, [retry] = _sharded_eval_set(tmp_path, limit=3, retry_attempts=0)
-    assert not success and retry.status == "error" and retry.eval.shards is None
-    _SHARD_FAILING.clear()
-    merged = _merged_log(tmp_path).read_bytes()
-    names = _log_names(tmp_path)
+    # the default name pattern takes the task id from the name, not the model
+    for model in ("model-a", "model-b"):
+        eval(
+            sharded_task(),
+            model=f"mockllm/{model}",
+            sample_id=[1, 2, 3, 4, 5, 6],
+            log_dir=str(_shards_dir(tmp_path / model) / "0"),
+            display="none",
+        )
     shard_runs.clear()
 
-    with pytest.raises(PrerequisiteError, match="selects 4 sample ids") as raised:
-        _sharded_eval_set(tmp_path, limit=4)
+    with pytest.raises(PrerequisiteError, match="same task id") as raised:
+        eval_set(
+            sharded_task(),
+            model=["mockllm/model-a", "mockllm/model-b"],
+            log_dir=str(tmp_path),
+            display="none",
+        )
 
-    assert local_path(retry.location) in str(raised.value)
-    assert shard_runs == []
-    assert _merged_log(tmp_path).read_bytes() == merged
-    assert _log_names(tmp_path) == names
-
-
-def test_eval_set_refuses_to_rebuild_a_removed_merged_log_with_retries_left(
-    tmp_path: Path, shard_runs: list[int | str]
-) -> None:
-    _shard(tmp_path, "0", [1, 2, 3])
-    _SHARD_FAILING.add(4)
-    success, [retry] = _sharded_eval_set(tmp_path, retry_attempts=0)
-    assert not success and retry.status == "error" and retry.eval.shards is None
-    _SHARD_FAILING.clear()
-    _merged_log(tmp_path).unlink()
-    names = _log_names(tmp_path)
-    shard_runs.clear()
-
-    with pytest.raises(PrerequisiteError, match="would rebuild") as raised:
-        _sharded_eval_set(tmp_path)
-
-    assert local_path(retry.location) in str(raised.value)
-    assert shard_runs == []
-    assert _log_names(tmp_path) == names
+    assert str(_shards_dir(tmp_path / "model-a")) in str(raised.value)
+    assert str(_shards_dir(tmp_path / "model-b")) in str(raised.value)
+    assert not _merged_log(tmp_path / "model-a").exists()
+    assert not _merged_log(tmp_path / "model-b").exists()
 
 
 def test_eval_set_retries_a_failed_shard_set_from_its_merged_log(
@@ -5259,8 +5242,8 @@ def test_eval_set_retries_a_failed_shard_set_from_its_merged_log(
     assert success
     assert 2 in shard_runs and set(shard_runs) <= {1, 2, 3}
     assert log.eval.shards is None
-    merged = read_eval_log(str(_merged_log(tmp_path)), header_only=True)
-    assert merged.status == "error" and merged.eval.shards is not None
+    # retry cleanup removes the error merged log and keeps its shards
+    assert not _merged_log(tmp_path).exists()
     assert _shards_dir(tmp_path).is_dir()
 
 
@@ -5368,7 +5351,7 @@ def test_eval_set_stops_on_a_shards_dir_holding_only_stray_files(
 def test_eval_set_stops_when_it_selects_no_samples_of_a_sharded_task(
     tmp_path: Path, shard_runs: list[int | str], held: bool
 ) -> None:
-    from inspect_ai._eval import evalset as evalset_module
+    from inspect_ai._eval import evalset_shards
 
     shard = _shard(tmp_path, "0", [1, 2, 3])
     if not held:
@@ -5378,7 +5361,7 @@ def test_eval_set_stops_when_it_selects_no_samples_of_a_sharded_task(
         full.samples = []
         write_eval_log(full, shard.location)
 
-    with patch.object(evalset_module, "merge_eval_log_shards_async") as merge:
+    with patch.object(evalset_shards, "merge_eval_log_shards_async") as merge:
         with pytest.raises(PrerequisiteError, match="selects no samples"):
             _sharded_eval_set(
                 tmp_path,
@@ -5434,60 +5417,17 @@ def test_eval_set_reuses_its_log_where_listed_names_use_another_url_form(
     assert success and again.eval.eval_id == first.eval.eval_id
 
 
-def test_retry_cleanup_prefers_a_successful_unsharded_log_over_a_merged_log(
-    tmp_path: Path,
+@pytest.mark.parametrize("status,kept", [("error", False), ("started", True)])
+def test_retry_cleanup_treats_a_merged_log_as_an_ordinary_attempt(
+    tmp_path: Path, status: str, kept: bool
 ) -> None:
-    for name in ("m.eval", "u1.eval", "u2.eval"):
-        (tmp_path / name).touch()
-
-    latest = latest_completed_task_eval_logs(
-        logs=[
-            _sweep_log(tmp_path / "m.eval", "m", 3.0, "started", "x", merged=True),
-            _sweep_log(tmp_path / "u2.eval", "u2", 2.0, "success", "mine"),
-            _sweep_log(tmp_path / "u1.eval", "u1", 1.0, "error", "mine"),
-        ],
-        cleanup_older=True,
-        owned_run_ids={"mine"},
-    )
-
-    assert [log.header.eval.eval_id for log in latest] == ["u2"]
-    assert sorted(p.name for p in tmp_path.glob("*.eval")) == ["m.eval", "u2.eval"]
-
-
-def test_retry_cleanup_keeps_an_older_success_while_a_merged_log_remains(
-    tmp_path: Path,
-) -> None:
-    for name in ("m.eval", "s.eval", "e.eval", "old.eval"):
-        (tmp_path / name).touch()
-    logs = [
-        _sweep_log(tmp_path / "m.eval", "m", 1.0, "success", "x", merged=True),
-        _sweep_log(tmp_path / "old.eval", "old", 2.0, "error", "mine"),
-        _sweep_log(tmp_path / "s.eval", "s", 3.0, "success", "mine"),
-        _sweep_log(tmp_path / "e.eval", "e", 4.0, "error", "mine"),
-    ]
-
-    for _ in range(2):
-        latest = latest_completed_task_eval_logs(
-            logs=[log for log in logs if Path(log.info.name).exists()],
-            cleanup_older=True,
-            owned_run_ids={"mine"},
-        )
-        assert [log.header.eval.eval_id for log in latest] == ["e"]
-        assert sorted(p.name for p in tmp_path.glob("*.eval")) == [
-            "e.eval",
-            "m.eval",
-            "s.eval",
-        ]
-
-
-@pytest.mark.parametrize("status", ["started", "error", "success", "cancelled"])
-def test_retry_cleanup_never_removes_a_merged_log(tmp_path: Path, status: str) -> None:
     for name in ("m.eval", "u.eval"):
         (tmp_path / name).touch()
 
+    # the merge mints the merged log's run id, so a started one is not owned
     latest = latest_completed_task_eval_logs(
         logs=[
-            _sweep_log(tmp_path / "m.eval", "m", 1.0, status, "mine", merged=True),
+            _sweep_log(tmp_path / "m.eval", "m", 1.0, status, "merge", merged=True),
             _sweep_log(tmp_path / "u.eval", "u", 2.0, "error", "mine"),
         ],
         cleanup_older=True,
@@ -5495,4 +5435,4 @@ def test_retry_cleanup_never_removes_a_merged_log(tmp_path: Path, status: str) -
     )
 
     assert [log.header.eval.eval_id for log in latest] == ["u"]
-    assert (tmp_path / "m.eval").exists()
+    assert (tmp_path / "m.eval").exists() == kept

@@ -1069,9 +1069,10 @@ well-defined shard, so fresh and incremental merges agree.
 **The merged log's `task_id`.** Retry cleanup groups logs by
 `eval.task_id`, `cleanup_older_eval_logs` filters on it, and an eval set's
 unsharded retry inherits it (`as_previous_tasks`), so it must be distinct
-per sharded run, stable across passes, and the same when a merged log
-deleted by retry cleanup is rebuilt from a leftover companion, within the
-limit stated below. The launcher puts a freshly minted id in `<name>`'s `{id}` slot
+per sharded run, stable across passes, and the same when it is computed
+again for a leftover companion whose merged log retry cleanup or the user
+removed (the eval-set startup finds the merged log's retries by it),
+within the limit stated below. The launcher puts a freshly minted id in `<name>`'s `{id}` slot
 (parent, "The launcher mints `<name>`"), but `_try_parse_filename`
 (`src/inspect_ai/log/_file.py:1168`) does not always return it: it returns
 `""` for a two-part name (`INSPECT_EVAL_LOG_FILE_PATTERN={task}`) and
@@ -1316,7 +1317,8 @@ directory listed itself, which would hide the key from the merge.
 **The viewer is not a deleter.** `/log-delete` is unchanged (decision:
 Ransom, 2026-09-24): deleting a merged log in the viewer deletes only that
 file. Its `<name>.shards/` companion remains, and the next `eval_set()`
-startup merge over the directory rebuilds the merged log from it. Until
+startup merge over the directory rebuilds the merged log from it, unless
+an unsharded retry of it exists (step 7 of "Eval-set integration"). Until
 then the viewer lists the shards again, since no merged log covers them
 (#5591). To remove a sharded run for good, delete the companion directory
 as well. This is a documented limitation of Step 1, stated in the sharding
@@ -1324,9 +1326,9 @@ docs.
 
 Compatibility boundary for ancillary output: Step 1 does not merge
 per-shard scan results or checkpoints. Scan rows written by workers stay in
-their `<k>/scans/` until the companion is removed; an `eval_set()` with
-scanners over the parent directory looks under `<dir>/scans/` and scans
-the merged log's samples there again.
+their `<k>/scans/` until the companion is removed. An eval set with
+scanners refuses a directory that holds a `.shards` companion; scanning
+sharded tasks is later work.
 
 #### Cancellation and concurrency
 
@@ -1568,28 +1570,28 @@ never scans the directory.
    | Lost S3 publish race (another merge published first, or the merged log changed during the pass) | `WriteConflictError` | re-run once the other merge has finished; the merge is idempotent |
    | Anything else (a storage or transport error) | the original exception | the cause is in the message and the chained exception; fix it and re-run |
 6. If any merge wrote, list again; otherwise reuse the listing.
-7. **A rewrite of a merged log that an unsharded retry is newer than is
-   refused** (decisions: Ransom, 2026-11-17). Before any merge writes, each
-   companion whose merged log is listed is checked. When the merge would
-   rewrite the merged log, for any reason (a shard's current attempt is not
-   the one the ledger records, or the eval set's selection differs from the
-   recorded one in its ids or its form, such as the whole dataset against an
-   id list), and an unsharded log of the merged log's `task_id` has a newer
-   mtime than the merged log, `eval_set()` stops with `PrerequisiteError`
-   naming the merged log, the companion and the newer logs, and saying to
-   remove the unsharded retry or move the merged log and its companion out
-   of the log directory. Rewriting would replace the merged log the retry
-   was seeded from with a newer one, and while no unsharded log has
-   succeeded, "Retry cleanup" below would then choose the merged log as the
-   latest and remove the retry, with the samples only it holds. The check
-   applies whatever the retry's status. A companion with no current shard
-   is not checked: the merge then keeps the merged log as it is. When the
-   merged log is not listed (removed, for example by a viewer delete), the
-   merge would rebuild it with the `task_id` `merged_log_task_id()` gives
-   `<name>`, the id of the removed log and so of the retries seeded from
-   it; if an unsharded log with that `task_id` remains, `eval_set()` stops
-   the same way, naming the retries and saying to remove them or move the
-   companion out of the log directory.
+7. **A companion is not merged once an unsharded retry of its merged log
+   exists** (decisions: Ransom, 2026-11-17). Before any merge writes, each
+   companion's `task_id` is taken from its merged log when it is listed,
+   else computed with `merged_log_task_id()` as the merge would. When a
+   listed unsharded log other than `<name>.eval` has that `task_id`, it is
+   a retry seeded from the merged log: the companion is not merged and
+   the eval set continues from the retry, as from any ordinary log (a
+   changed `limit` or `sample_id` is handled from the retry; a removed
+   merged log is not rebuilt). If a log file in the companion has a newer
+   mtime than the newest such retry, a shard was added after the retry and
+   would be ignored, so `eval_set()` stops with `PrerequisiteError` naming
+   the companion, the retry and the newer files, and saying to remove the
+   new shard logs or the task's unsharded retries. Otherwise the companion
+   is skipped with an info log line: the normal case of an eval set run
+   again after it retried a sharded task. Before this, the `task_id`s are
+   checked: a companion whose `task_id` another companion or a listed log
+   has under a different task identifier stops `eval_set()` with
+   `PrerequisiteError` naming both. The `task_id` comes from `<name>`, so
+   companions of different tasks with the same name in different
+   directories (one per model, for example) get the same id, and the eval
+   set, which finds retries and cleans up by `task_id`, would take them
+   for attempts of one task.
 8. **Scanners are refused over sharded tasks** (decision: Ransom,
    2026-11-17). When `eval_set()` is given `scanner` and the log directory
    holds a companion, it stops with `PrerequisiteError` before any merge,
@@ -1633,50 +1635,13 @@ a `started` merged log (which has no buffer; the startup merge has already
 brought it up to date). The retry then seeds from the merged log and re-runs
 the missing samples as an ordinary unsharded log (parent).
 
-**Retry cleanup.** Until the shard-deletion PR (PR 9, "Implementation
-plan"), retry cleanup never removes a merged log or its companion; ordinary
-logs are cleaned as today (decision: Ransom, 2026-11-03). The user removes
-a superseded merged log and its shards by hand, and the docs say so. In
-`latest_completed_task_eval_logs`, for each `task_id` group, with `M` the
-logs carrying `eval.shards` and `U` the rest:
-
-- **`M` non-empty and some log in `U` is `success`** (an unsharded retry
-  of a merged log succeeded): the latest log is chosen from `U` alone, by
-  mtime, exactly as today's rule orders any group, so a `success`
-  unsharded log is preferred over a merged log whatever their mtimes.
-  Every log in `M` is never the latest and is kept, with its companion.
-  Logs in `U` other than the latest are removed by today's rule
-  (UKGovernmentBEIS/inspect_ai#5396): every non-`started` log, and a
-  `started` one only when its `eval.run_id` is in `owned_run_ids` and its
-  buffer has shut down, with its buffers. One exception: the newest
-  `success` log in `U` is kept even when it is not the latest. While `M`
-  remains, it is the evidence that `M` is superseded; without it, the next
-  classification would fall into the branch below, pick a log of `M` by
-  mtime, and remove the newer unsharded attempt.
-- **Otherwise** the group is ordered and cleaned as today, except that a
-  log of `M` is never removed: a merged log's `run_id` is minted by the
-  merge, so today's rule already keeps a non-latest `started` merged log,
-  and a non-latest merged log of any other status is kept too.
-
-So the ordering among unsharded attempts never changes. The case that rules
-out a sort key promoting unsharded successes: a merged log `M`, an older
-unsharded `success` `S`, and a newer unsharded `error` `E` holding more
-samples (for example after the epochs were raised). Today's order over `U`
-makes `E` latest; `S` is kept as the newest `success`, and `M` stays with
-its companion, so the next pass again makes `E` latest and removes nothing
-it should not.
-
-Editing a merged log (tags or metadata) rewrites its header, so once an
-unsharded retry exists and none has succeeded, the edit makes the merged log
-the newest of the group: the next `eval_set()` continues from the merged log,
-and with retry cleanup on the retry is removed. This is the same as editing
-any older attempt when there is no cleanup: the edit marks the log to use
-going forward (decision: Ransom, 2026-11-17).
-
-`latest_completed_task_eval_logs` keeps its `owned_run_ids` parameter and
-both callers keep passing the run ids they pass today (`list_latest_eval_logs`
-from `try_eval`, `:1130`, and the final sweep, `:1216`); the new branch
-reads only the logs' `eval.shards` and statuses.
+**Retry cleanup.** `latest_completed_task_eval_logs` is unchanged: a
+merged log is an ordinary attempt of its `task_id` group (decision:
+Ransom, 2026-11-17). Once an unsharded retry is newer, a non-`started`
+merged log is removed like any older attempt. A `started` merged log is
+kept by the `owned_run_ids` rule, since the merge mints its `run_id`.
+Retry cleanup never removes a companion; the user removes it ("Removing
+shards"), and until then the startup merge skips it (step 7).
 
 ### Scale items
 
@@ -2010,12 +1975,13 @@ today.
   merged log: startup merges, shards skipped before header reads (attempts
   and stray files only; a log nested deeper in a companion is listed and
   read as today), merged
-  logs classified by their status and recorded selection, not recovered, and, once an
-  unsharded retry succeeds, never chosen as latest. Retry cleanup leaves a
-  merged log and its companion in place until PR 9 (decision: Ransom,
-  2026-11-03); the user removes them. Ordering among
-  unsharded attempts and the
-  `owned_run_ids` rule for unsharded `started` logs are unchanged. A
+  logs classified by their status and recorded selection and not
+  recovered. Once an unsharded retry of a merged log exists, its companion
+  is not merged again and the eval set continues from the retry; a shard
+  written after the retry stops `eval_set()`. Retry cleanup is unchanged
+  and treats a merged log as an ordinary attempt; it never removes a
+  companion, which the user removes. Companions of different tasks that
+  would share a `task_id` stop `eval_set()`. A
   directory whose companion the startup merge refuses (for any reason,
   including a held lock, a lost S3 race, or an eval-set selection narrower
   than the shards hold), or whose task the eval set selects no samples of,
@@ -2024,8 +1990,8 @@ today.
   `sample_id` names only other tasks treats such a task as complete.
 - **Scan results and checkpoints written by workers** stay in their
   `<k>/` until the companion is removed; Step 1 neither merges nor
-  relocates them, and an eval set with scanners over the parent
-  directory scans the merged log's samples again under `<dir>/scans/`.
+  relocates them. An eval set with scanners refuses a directory that
+  holds a `.shards` companion; scanning sharded tasks is later work.
 - **The merged log's `task_id`** is the id in `<name>`'s `{id}` slot when
   the file name pattern lets it be read back, else derived from `<name>`;
   with a custom `INSPECT_EVAL_LOG_FILE_PATTERN` that has no `{id}` or puts
@@ -2043,7 +2009,8 @@ today.
   was. Limitation: deleting a
   merged log in the viewer deletes only that file; its `<name>.shards/`
   companion remains, its shards show again, and the next `eval_set()`
-  startup merge rebuilds the merged log. To remove a sharded run for
+  startup merge rebuilds the merged log unless an unsharded retry of it
+  exists. To remove a sharded run for
   good, delete the companion directory as well. The sharding docs (PR 5)
   say so.
 - **`AsyncFilesystem`.** New `get_file_if_match` and
@@ -2268,20 +2235,13 @@ Per PR (numbers from "Implementation plan"):
    incomplete set writes a `started` merged log that the set resumes
    (missing samples run once, unsharded); an `error` shard set is retried
    seeded from the merged log; a `started` merged log is not recovered
-   (spy on `recover_eval_log`); after a successful retry with
-   `retry_cleanup`, the merged log (`started` and `error` cases) and its
-   companion stay, the unsharded `success` is the latest even when the
-   merged log has the newer mtime, and a second startup re-merges nothing
-   new; the three-attempt case (merged log, older unsharded `success`,
-   newer unsharded `error`) keeps the newer `error` as latest, keeps the
-   older `success` and the merged log with its companion, and removes
-   nothing else; a group without a merged log orders and cleans exactly as
-   before; a non-latest merged log of each status is kept with its
-   companion; an owned unsharded `started` log in `U` is removed with its
-   buffers and an unowned one is kept (the #5396 rule); a viewer deletion
-   of a merged log (the unchanged `/log-delete`) leaves the companion, and
-   the next startup rebuilds the merged log (the documented limitation);
-   with `retry_cleanup=False` everything stays; no shard
+   (spy on `recover_eval_log`); retry cleanup removes an older `error`
+   merged log, keeps an unowned `started` one, and keeps the companion;
+   once an unsharded retry exists, a second startup does not merge (with
+   the merged log listed, after a new selection, and with it removed) and
+   runs only what the retry lacks; a shard written after the retry stops
+   `eval_set()` naming the companion and the retry; companions of two
+   models with the same name stop `eval_set()` naming both; no shard
    header is read outside the merge (spy on `read_eval_log_headers`
    inputs), while an ordinary log nested in a shard's `scans/` directory is
    kept in the listing and has its header read like any other log, and
@@ -2423,10 +2383,9 @@ the command takes `inspect eval`'s task options and resolves the task
 through eval's own task resolution.
 
 6. **Eval-set integration.** Startup merge, `selected_sample_ids`,
-   `skip_shards`, completeness branch, no recovery of merged logs, cleanup
-   ordering that keeps merged logs and their companions in place until
-   PR 9, `docs/eval-sets.qmd` note (including that a superseded merged log
-   and its shards stay until the user removes them,
+   `skip_shards`, completeness branch, no recovery of merged logs, no
+   merge once an unsharded retry exists, `docs/eval-sets.qmd` note
+   (including that a `.shards` directory stays until the user removes it,
    that `eval_retry` refuses an eval set's merged log, and that an eval
    set whose selection is narrower than its shards, or empty, stops),
    CHANGELOG entry. Depends on 5 and 5b. Builds on the `owned_run_ids` cleanup

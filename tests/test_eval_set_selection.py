@@ -165,7 +165,7 @@ def test_eval_set_selection_does_not_merge_shards(
         display="none",
     )
 
-    with patch("inspect_ai._eval.evalset.merge_shard_sets") as merge:
+    with patch("inspect_ai._eval.evalset_shards.merge_shard_sets") as merge:
         success, _ = run_selection(
             monkeypatch, tmp_path, selection_for(selected.identifier), log_dir
         )

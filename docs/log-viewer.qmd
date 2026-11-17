@@ -337,6 +337,8 @@ Note that publishing to HuggingFace Spaces requires the `huggingface_hub` packag
 
 -   You can use the `inspect_ai.log.bundle_log_dir` function in Python directly to bundle the viewer and logs into an output directory.
 
+-   A bundle is a viewer export. Resuming an eval set from the logs in a bundle is not supported.
+
 -   The bundled viewer will show the first log file by default. You may link to the viewer to show a specific log file by including the `log_file` URL parameter, for example:
 
     ```         

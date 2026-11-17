@@ -324,9 +324,8 @@ def copy_log_files(
 ) -> None:
     log_fs = filesystem(log_dir, fs_options)
     if log_fs.exists(log_dir):
-        # oldest first, so the copies' new mtimes keep the attempts' order
         eval_logs = (
-            sorted(logs, key=lambda log: log.mtime or 0)
+            logs
             if logs is not None
             else log_files_from_ls(
                 log_fs.ls(log_dir, recursive=True), ["json", "eval"], False
@@ -382,26 +381,30 @@ def move_output(
         total_count += len(dirs) + len(files)
 
     with progress_adapter(p, 200, total_count) as tick:
-        for root, _dirs, _files in dir_contents:
+        for root, _dirs, files in dir_contents:
+            # The relative path of the file to move
+            relative_dir = os.path.relpath(root, from_dir)
+
             # make sure the directory exists
-            dir_path = os.path.join(to_dir, os.path.relpath(root, from_dir))
+            dir_path = os.path.join(to_dir, relative_dir)
             if not output_fs.exists(dir_path):
                 output_fs.mkdir(dir_path)
             tick()
 
-        # Copy the files oldest first across all directories, preserving
-        # relative mtime ordering (e.g. a nested merged log and a root retry)
-        for _, src in sorted(
-            (os.stat(path).st_mtime, path)
-            for path in (
-                os.path.join(root, f)
-                for root, _dirs, files in dir_contents
-                for f in files
-            )
-        ):
-            dest = os.path.join(to_dir, os.path.relpath(src, from_dir))
-            output_fs.put_file(src, dest)
-            tick()
+            # Copy the files, preserving relative mtime ordering
+            for _, working_file in sorted(
+                (os.stat(os.path.join(root, f)).st_mtime, f) for f in files
+            ):
+                target_path = (
+                    os.path.join(relative_dir, working_file)
+                    if relative_dir != "."
+                    else working_file
+                )
+
+                src = os.path.join(root, working_file)
+                dest = os.path.join(to_dir, target_path)
+                output_fs.put_file(src, dest)
+                tick()
 
 
 @contextmanager
