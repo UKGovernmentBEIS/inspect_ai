@@ -699,7 +699,7 @@ class ResticRestoreArgs(NamedTuple):
 
 
 def restic_restore_args(snapshot_id: str, root: str) -> ResticRestoreArgs:
-    """Arguments for ``restic restore <id>:<parent> --target <parent> --include /<name>``.
+    """Arguments for ``restic restore --target <parent> --include /<name> -- <id>:<parent>``.
 
     The root's parent is the restored tree root, so its own metadata —
     and that of every directory above it — is never written: restic

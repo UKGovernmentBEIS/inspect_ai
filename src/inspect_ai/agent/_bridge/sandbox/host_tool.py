@@ -36,7 +36,12 @@ from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.service import find_control_flow
 from inspect_ai.util._span import parent_span, span
 
-from ..types import _RESULT_EVIDENCE, _Received
+from ..types import (
+    _RESULT_EVIDENCE,
+    BridgedToolId,
+    _Received,
+    target_execution_id,
+)
 from .types import SandboxAgentBridge, _ToolExecutionGrant
 
 logger = getLogger(__name__)
@@ -95,8 +100,11 @@ async def execute_host_tool(
 
     Every request is recorded as one `ToolEvent` in a `tool` span, as a native
     call is, with `metadata["bridge"]` describing it (see `ToolEvent`). An
-    execution that consumed a grant takes the proposing call's id and is
-    recorded in the span of the proposing `ModelEvent`; a denied or rejected
+    execution that consumed a grant takes the id its call was handed to the
+    scaffold under, records the model's id for the call as `proposal_id` and
+    its handout's run of the tool as `execution_id` (`target_execution_id`),
+    and is recorded in the span of the
+    proposing `ModelEvent`; a denied or rejected
     request gets a fresh id and the error the scaffold receives. A running
     call can be cancelled by the operator like a native one.
     """
@@ -199,6 +207,20 @@ class _BridgeMetadata:
         }
 
 
+def _handout(grant: _ToolExecutionGrant | None) -> str | None:
+    """The execution a run that consumed `grant` is (`ToolEvent.execution_id`): its handout's run of the grant's tool (`target_execution_id`).
+
+    `None` without a grant, or when the run's request matched grants of more
+    than one handout (`_Proposal.ambiguous`): which of them it ran for is
+    unknown, as one handout's response may never have reached the scaffold.
+    """
+    if grant is None or grant.proposal.ambiguous:
+        return None
+    return target_execution_id(
+        grant.proposal.execution_id, BridgedToolId(grant.server, grant.tool)
+    )
+
+
 async def _record_rejection(
     bridge: SandboxAgentBridge,
     tool: str,
@@ -219,6 +241,7 @@ async def _record_rejection(
     """
     event = ToolEvent(
         id=event_id or uuid(),
+        execution_id=_handout(grant),
         function=tool,
         arguments=arguments,
         view=view,
@@ -287,7 +310,7 @@ async def _execute_granted(
 ) -> JsonValue:
     if grant is not None:
         metadata.function = grant.proposal.call.function
-        metadata.proposal_id = grant.proposal.call.id
+        metadata.proposal_id = grant.proposal.proposal_id
         metadata.grant = "consumed"
     else:
         metadata.grant = "exempt"
@@ -340,6 +363,7 @@ async def _execute_granted(
 
     event = ToolEvent(
         id=event_id,
+        execution_id=_handout(grant),
         function=tool,
         arguments=call_arguments,
         view=view,

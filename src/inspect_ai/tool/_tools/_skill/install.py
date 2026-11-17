@@ -1,7 +1,7 @@
 import hashlib
 from logging import getLogger
 from pathlib import Path, PurePosixPath
-from typing import NamedTuple, Sequence
+from typing import Final, NamedTuple, Sequence
 from weakref import WeakKeyDictionary
 
 import anyio
@@ -22,6 +22,17 @@ from .read import read_skills
 from .types import Skill, SkillInfo
 
 logger = getLogger(__name__)
+
+INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT: Final = True
+"""`install_skills()` runs a scope member's `chmod +x` from `/`.
+
+Inside a `sandbox_identity()` scope, an `install_skills()` call that names no
+user runs `chmod +x` for scripts as the member from `/`, not from the
+provider's default working directory, which the member may not be able to
+enter.
+Companion packages check for this name to detect the behaviour on an
+installed inspect_ai, so keep it.
+"""
 
 
 async def install_skills(
@@ -270,7 +281,8 @@ async def _write_skill_file(
         params = sandbox_file_user_params(sbox, "write_file", user)
         await sbox.write_file(file.path, _write_contents(file), **params)
         if file.executable:
-            await _checked_exec(sbox, user, ["chmod", "+x", file.path])
+            # the provider's working directory may be closed to the member
+            await _checked_exec(sbox, user, ["chmod", "+x", file.path], cwd="/")
         return
     with framework_sandbox_operation():
         await sbox.write_file(file.path, _write_contents(file))
