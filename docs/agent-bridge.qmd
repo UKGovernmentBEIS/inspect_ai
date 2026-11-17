@@ -425,7 +425,7 @@ Don't use `agent_bridge()` with an adversarial model. The agent and its tools ru
 
 -   Don't enable writable [host mounts](sandboxing.qmd#mounting-host-directories).
 
--   Consider a stronger sandbox than Docker, such as gVisor or a virtual machine.
+-   Consider a stronger setup than default Docker. For example, run containers with gVisor's `runsc` runtime, which makes container escape harder. A VM-based sandbox gives more protection still (see [Environment Binding](sandboxing.qmd#environment-binding) for the available sandbox providers).
 
 -   Turn off rendering of model content in the log viewer (see [Untrusted Content](task-views.qmd#untrusted-content)).
 
