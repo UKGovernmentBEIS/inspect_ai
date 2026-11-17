@@ -5,6 +5,7 @@ import concurrent.futures
 import copy
 import functools
 import gc
+import hashlib
 import json
 import os
 import time
@@ -20,10 +21,12 @@ import anyio
 import numpy as np
 import torch  # type: ignore
 import transformers  # type: ignore
+from pydantic import BaseModel
 from torch import Tensor  # type: ignore
 from transformers import (  # type: ignore
     AutoModelForCausalLM,
     AutoTokenizer,
+    GenerationConfig,
     PreTrainedTokenizerBase,
     set_seed,
 )
@@ -74,6 +77,37 @@ def hub_token(api_key: str | None) -> str | None:
     return None if api_key == MODEL_INFO_LOOKUP_API_KEY else api_key
 
 
+class HFChatTemplateInfo(BaseModel):
+    """Chat template used to render prompts."""
+
+    source: Literal["tokenizer", "model_arg"] | None
+    """`tokenizer` (the tokenizer's template), `model_arg` (the `chat_template` model arg), or `None` when no template is applied."""
+
+    sha256: str | None
+    """SHA-256 of the template (named templates are hashed as sorted JSON)."""
+
+
+class HFGenerationConfigInfo(BaseModel):
+    """Generation config the model applies before Inspect's `GenerateConfig`."""
+
+    source: str
+    """Value of the `generation_config` model arg: `auto`, `default`, or a path or Hub id."""
+
+    values: dict[str, Any]
+    """Fields that differ from the `transformers` defaults."""
+
+
+class HFModelConfig(BaseModel):
+    """Model repository inputs that shape prompts and sampling.
+
+    Recorded in `ModelOutput.metadata["hf_model_config"]`.
+    """
+
+    chat_template: HFChatTemplateInfo
+    generation_config: HFGenerationConfigInfo
+    trust_remote_code: bool
+
+
 class HuggingFaceAPI(ModelAPI):
     def __init__(
         self,
@@ -122,6 +156,15 @@ class HuggingFaceAPI(ModelAPI):
             trust_remote_code = False
         if not isinstance(trust_remote_code, bool):
             raise ValueError("trust_remote_code must be a bool")
+        self.trust_remote_code = trust_remote_code
+        generation_config = collect_model_arg("generation_config")
+        if generation_config is None:
+            generation_config = "auto"
+        if not isinstance(generation_config, str):
+            raise ValueError(
+                "generation_config must be 'auto', 'default', or a path or "
+                "Hugging Face Hub id to load a generation config from"
+            )
 
         # select the transformers auto-class used to load the model. Some
         # architectures (e.g. the Mistral 3 series and other image-text-to-text
@@ -197,6 +240,14 @@ class HuggingFaceAPI(ModelAPI):
         # LLMs generally don't have a pad token and we need one for batching
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = "left"
+
+        if generation_config != "auto":
+            self.model.generation_config = resolve_generation_config(
+                generation_config,
+                self.model.generation_config,
+                token=hub_token(self.api_key),
+            )
+        self.generation_config_source = generation_config
 
     @override
     def close(self) -> None:
@@ -319,11 +370,47 @@ class HuggingFaceAPI(ModelAPI):
                 total_tokens=response.total_tokens,
             ),
             time=response.time,
-            metadata=(
-                {"hidden_states": response.hidden_states}
-                if response.hidden_states is not None
-                else None
+            metadata=self._output_metadata(response),
+        )
+
+    def _output_metadata(self, response: GenerateOutput) -> dict[str, Any]:
+        metadata: dict[str, Any] = {"hf_model_config": self.repo_config.model_dump()}
+        if response.hidden_states is not None:
+            metadata["hidden_states"] = response.hidden_states
+        return metadata
+
+    @functools.cached_property
+    def repo_config(self) -> HFModelConfig:
+        """Record the model-repository inputs that shape prompts and sampling.
+
+        A model repository's chat template and `generation_config.json` change
+        what the model is prompted with and how it samples, independent of its
+        weights. Recording their effective values lets a reader of the log see
+        what the repository contributed to a result.
+        """
+        chat_template = self._effective_chat_template()
+        template_source: Literal["tokenizer", "model_arg"] | None
+        if chat_template is None:
+            template_source = None
+        elif isinstance(self.chat_template, str):
+            template_source = "model_arg"
+        else:
+            template_source = "tokenizer"
+        values = {
+            name: value
+            for name, value in json.loads(
+                self.model.generation_config.to_json_string(use_diff=True)
+            ).items()
+            if name != "transformers_version" and not name.startswith("_")
+        }
+        return HFModelConfig(
+            chat_template=HFChatTemplateInfo(
+                source=template_source, sha256=chat_template_sha256(chat_template)
             ),
+            generation_config=HFGenerationConfigInfo(
+                source=self.generation_config_source, values=values
+            ),
+            trust_remote_code=self.trust_remote_code,
         )
 
     @override
@@ -433,6 +520,43 @@ class HuggingFaceAPI(ModelAPI):
                 **template_args,
             ),
         )
+
+
+def chat_template_sha256(chat_template: str | dict[str, str] | None) -> str | None:
+    """Hash a chat template; a set of named templates is hashed as sorted JSON."""
+    if chat_template is None:
+        return None
+    if not isinstance(chat_template, str):
+        chat_template = json.dumps(chat_template, sort_keys=True)
+    return hashlib.sha256(chat_template.encode()).hexdigest()
+
+
+GENERATION_SPECIAL_TOKENS = (
+    "bos_token_id",
+    "eos_token_id",
+    "pad_token_id",
+    "decoder_start_token_id",
+)
+
+
+def resolve_generation_config(
+    source: str, repo_config: GenerationConfig, token: str | None
+) -> GenerationConfig:
+    """Build the generation config used in place of the model repository's.
+
+    `"default"` uses the `transformers` defaults. Any other value is a local
+    path or Hub id to load the config from. In both cases the special token ids
+    come from the repository, since they refer to its tokenizer's vocabulary and
+    generation needs the EOS token to stop.
+    """
+    config = (
+        GenerationConfig.from_dict({})
+        if source == "default"
+        else GenerationConfig.from_pretrained(source, token=token)
+    )
+    for name in GENERATION_SPECIAL_TOKENS:
+        setattr(config, name, getattr(repo_config, name, None))
+    return config
 
 
 def message_content_to_string(messages: list[ChatMessage]) -> list[ChatMessage]:
