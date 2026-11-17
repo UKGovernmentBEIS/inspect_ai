@@ -54,7 +54,8 @@ def bash_allowlist(
         Approver: A function that approves or rejects bash commands based on the allowed list and rules.
     """
     command_specific_rules = command_specific_rules or {}
-    # characters that bash always treats literally, and space to separate words
+    # characters with no special meaning to bash, and space to separate words
+    # (`=` can only assign in the first word, which must be an allowed command)
     plain_command = re.compile(r"[A-Za-z0-9_./:=@%+, -]+")
 
     async def approve(
@@ -98,10 +99,11 @@ def bash_allowlist(
         # Check command-specific rules
         if base_command in command_specific_rules:
             allowed_subcommands = command_specific_rules[base_command]
-            if len(tokens) > 1 and tokens[1] not in allowed_subcommands:
+            subcommand = " ".join(tokens[1:2])
+            if subcommand not in allowed_subcommands:
                 return Approval(
                     decision="escalate",
-                    explanation=f"{base_command} subcommand '{tokens[1]}' is not allowed. Allowed subcommands: {', '.join(allowed_subcommands)}",
+                    explanation=f"{base_command} subcommand '{subcommand}' is not allowed. Allowed subcommands: {', '.join(allowed_subcommands)}",
                 )
 
         return Approval(
@@ -121,7 +123,7 @@ def python_allowlist(
     """
     Create an approver that checks if Python code uses only allowed modules and functions.
 
-    Only simple code is ever approved: imports of allowed modules, calls to
+    Only simple code is ever approved: `import` of allowed modules, calls to
     allowed functions and to functions of allowed modules, variables, literals,
     operators, `if` and `for`. Everything else is escalated. Arguments are not
     checked, so allow only functions and modules that are safe however used.
@@ -129,18 +131,18 @@ def python_allowlist(
     Args:
         allowed_modules (list[str]): List of allowed Python modules.
         allowed_functions (list[str]): List of allowed built-in functions.
-        disallowed_builtins (Set[str] | None): Set of built-in functions that are never allowed.
-        sensitive_modules (Set[str] | None): Set of modules that are never allowed.
+        disallowed_builtins (Set[str] | None): Built-in functions to never allow (replaces the default set).
+        sensitive_modules (Set[str] | None): Modules to never allow (replaces the default set).
 
     Returns:
         Approver: A function that approves or rejects Python code based on the allowed list and rules.
     """
     never_functions = {"eval", "exec", "compile", "__import__", "open", "input"}
-    functions = set(allowed_functions) - (disallowed_builtins or never_functions)
+    functions = set(allowed_functions) - set(disallowed_builtins or never_functions)
     never_modules = {"os", "sys", "subprocess", "socket", "requests"}
-    modules = set(allowed_modules) - (sensitive_modules or never_modules)
+    modules = set(allowed_modules) - set(sensitive_modules or never_modules)
     # the only syntax that is ever approved
-    simple_syntax = "Module Expr Assign AugAssign For If Import ImportFrom alias Call keyword Name Attribute Load Store Constant JoinedStr FormattedValue List Tuple Dict BinOp UnaryOp BoolOp Compare IfExp operator unaryop boolop cmpop"
+    simple_syntax = "Module Expr Assign AugAssign For If Import alias Call keyword Name Attribute Load Store Constant JoinedStr FormattedValue List Tuple Dict BinOp UnaryOp BoolOp Compare IfExp operator unaryop boolop cmpop"
     simple_nodes = tuple(getattr(ast, name) for name in simple_syntax.split())
     builtin_names = set(dir(builtins))
 
@@ -148,50 +150,33 @@ def python_allowlist(
         """Explain why code can't be approved (returns None if it can)."""
         # python may decode the code differently than it is parsed here
         if re.search(r"coding[:=]", code):
-            return "Source encoding declarations are not allowed."
-        nodes = list(ast.walk(ast.parse(code)))
+            return "Code containing 'coding:' or 'coding=' is not approved (it may declare a source encoding)."
 
-        # names with a fixed meaning: imported modules and callable functions
-        module_names: set[str] = set()
-        function_names = set(functions)
-        for node in nodes:
-            if isinstance(node, ast.Import | ast.ImportFrom):
-                for alias in node.names:
-                    name = alias.asname or alias.name
-                    module, names = alias.name, module_names
-                    if isinstance(node, ast.ImportFrom):
-                        module = "." * node.level + (node.module or "")
-                        names = function_names
-                    if module not in modules:
-                        return f"Module '{module}' is not in the allowed list. Allowed modules: {', '.join(sorted(modules))}"
-                    if (
-                        name in builtin_names | module_names | function_names
-                        or not name.isidentifier()
-                        or "_" in (name[0], alias.name[0])
-                    ):
-                        return f"'{alias.name}' can't be imported as '{name}' (the name must be a plain public name that is not already in use)."
-                    names.add(name)
-
-        for node in nodes:
+        for node in ast.walk(ast.parse(code)):
             if not isinstance(node, simple_nodes):
                 return f"{type(node).__name__} syntax is not allowed."
-            # fixed names can't be reassigned, and other names can't be built-ins
-            if isinstance(node, ast.Name) and (
-                isinstance(node.ctx, ast.Store)
-                if node.id in module_names | function_names
-                else node.id in builtin_names or node.id.startswith("_")
+            # only `import module`, so an allowed module's name always means that module
+            if isinstance(node, ast.alias) and (
+                node.asname or "." in node.name or node.name not in modules
             ):
-                return f"Name '{node.id}' is not allowed here (it is private, a built-in that is not in the allowed list, or an import or allowed function being reassigned)."
+                return f"Only a plain import of an allowed module is approved (not '{node.name}'). Allowed modules: {', '.join(sorted(modules))}"
+            # allowed names can't be reassigned, and other names can't be built-ins
+            if isinstance(node, ast.Name) and node.id in modules | functions:
+                if isinstance(node.ctx, ast.Store):
+                    return f"'{node.id}' can't be reassigned."
+            elif isinstance(node, ast.Name):
+                if node.id in builtin_names or node.id.startswith("_"):
+                    return f"Name '{node.id}' is not allowed (it is private or a built-in that is not in the allowed list)."
             if isinstance(node, ast.Attribute) and not (
                 isinstance(node.value, ast.Name)
-                and node.value.id in module_names
+                and node.value.id in modules
                 and isinstance(node.ctx, ast.Load)
                 and not node.attr.startswith("_")
             ):
-                return f"Attribute '{node.attr}' is not allowed (only public attributes of imported modules are)."
+                return f"Attribute '{node.attr}' is not allowed (only public attributes of allowed modules are)."
             if isinstance(node, ast.Call) and not (
                 isinstance(node.func, ast.Attribute)
-                or (isinstance(node.func, ast.Name) and node.func.id in function_names)
+                or (isinstance(node.func, ast.Name) and node.func.id in functions)
             ):
                 return f"Function '{ast.unparse(node.func)}' is not in the allowed list. Allowed functions: {', '.join(sorted(functions))}"
         return None
