@@ -2469,7 +2469,7 @@ class Model:
         if is_agent_generate():
             from inspect_ai._sentinel._dispatch import record_agent_turn
 
-            record_agent_turn(snapshot)
+            record_agent_turn(snapshot, model)
         sink = _model_event_sink.get()
         collectors = _model_event_collectors.get()
         if sink is None:

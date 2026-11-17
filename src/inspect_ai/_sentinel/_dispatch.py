@@ -376,8 +376,17 @@ def _eval_context() -> EvalContext | None:
     )
 
 
-def record_agent_turn(input: list[ChatMessage]) -> None:
-    _record(current_conversation()).sent.record(input)
+def record_agent_turn(input: list[ChatMessage], model: str) -> None:
+    _record(current_conversation()).record(input, model)
+
+
+def _sent_before(step: BeforeGenerate) -> Sequence[ChatMessage] | None:
+    # What the step's conversation has sent the step's model. `step.history`
+    # is what it has sent any model, so by it a message first sent to another
+    # model would count as sent to this one. A step whose conversation has no
+    # record was built outside an eval, and has only its own history.
+    record = _records.get(transcript(), {}).get(step.conversation)
+    return step.history if record is None else record.sent_to(step.model)
 
 
 def _record(conversation: str) -> ConversationRecord:
@@ -543,7 +552,7 @@ class _HostNative:
                 approve,
                 step.model,
                 len(step.input),
-                not_sent_before(step.input, step.history),
+                not_sent_before(step.input, _sent_before(step)),
                 [tool.name for tool in step.tools],
                 step.tool_choice,
                 [(e.name, e.report.explanation) for e in escalations],

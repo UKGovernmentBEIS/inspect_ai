@@ -144,7 +144,7 @@ def not_sent_before(
 
     Args:
         input: The messages the request sends the model.
-        history: What the conversation has sent the model before this request, as `step.history` holds it. With None, where that isn't known, every message is returned.
+        history: What the model has been sent before this request. With None, where that isn't known, every message is returned.
     """
     if history is None:
         return list(enumerate(input, 1))
@@ -239,7 +239,15 @@ class ConversationRecord:
 
     def __init__(self) -> None:
         self.sent = _Sent()
+        # what each model has been sent, by the model's name
+        self._sent_to: dict[str, _Sent] = {}
         self._decisions: list["HumanDecision"] = []
+
+    def record(self, input: Sequence[ChatMessage], model: str) -> None:
+        """Record an agent turn's input as sent, by the conversation and to `model`."""
+        keyed = KeyedInput(input)
+        self.sent.record_input(keyed)
+        self._sent_to.setdefault(model, _Sent()).record_input(keyed)
 
     def publish(self, kept: Sequence["HumanDecision"]) -> None:
         """Add a settled step's `human()` decisions, once its sentinel span has ended."""
@@ -247,6 +255,11 @@ class ConversationRecord:
 
     def history(self) -> ListView[ChatMessage]:
         return view(self.sent.messages)
+
+    def sent_to(self, model: str) -> ListView[ChatMessage]:
+        """What the conversation has sent `model`. `history()` is what it has sent any model, so it holds a message that another model was sent and this one was not."""
+        sent = self._sent_to.get(model)
+        return view(sent.messages if sent is not None else [])
 
     def human_decisions(self) -> ListView["HumanDecision"]:
         """The `human()` decisions published so far: a step's own, or a parallel step's still running, are not among them."""

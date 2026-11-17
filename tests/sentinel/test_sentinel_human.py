@@ -1053,6 +1053,40 @@ def test_a_person_is_asked_before_each_generate_and_approve_sends_the_request(
     assert [m.text for m in tool_messages(log)] == ["2"]
 
 
+@solver
+def h_asks_one_model_then_another() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        for name in ("mockllm/first", "mockllm/second", "mockllm/second"):
+            await get_model(name).generate(state.messages)
+        return state
+
+    return solve
+
+
+def test_a_message_another_model_was_sent_is_shown_to_a_model_that_was_not(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    panel = Panel("approve")
+    panel.install(monkeypatch)
+    task = Task(
+        dataset=[Sample(input="The key is 1234.")],
+        solver=h_asks_one_model_then_another(),
+        sentinel=h_ask("model_input", ["approve", "terminate"]),
+    )
+
+    log = eval(task, model="mockllm/model")[0]
+
+    assert log.status == "success", log.error
+    first, second, again = panel.contents()
+    # The second model has not been sent what the first was, so the person
+    # sees the message before it goes to the second model too.
+    assert "1 message to mockllm/first, none of which the model was sent" in first
+    assert "1 message to mockllm/second, none of which the model was sent" in second
+    assert "The key is 1234." in second
+    assert "1 message to mockllm/second, all of which the model was sent" in again
+    assert "The key is 1234." not in again
+
+
 def test_a_terminated_request_is_not_sent(monkeypatch: pytest.MonkeyPatch) -> None:
     Panel("terminate").install(monkeypatch)
 
