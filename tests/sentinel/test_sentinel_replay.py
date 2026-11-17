@@ -54,6 +54,7 @@ from inspect_ai.approval._human import approver as approver_module
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
     ApprovalEvent,
+    CompactionEvent,
     Event,
     ModelEvent,
     SentinelEvent,
@@ -2244,6 +2245,196 @@ def test_a_host_call_with_no_check_of_its_own_replays_after_its_response_s_check
     assert comparable(call.step.human_decisions) == comparable(result.human_decisions)
 
 
+@monitor
+def r13_inputs_only() -> MonitorGroup:
+    """Watches `model_input` only, so no tool check is recorded."""
+
+    async def before_generate(
+        context: Context, step: BeforeGenerate
+    ) -> Observation | None:
+        return None
+
+    return MonitorGroup(before_generate)
+
+
+def r13_reported_after_another_turn(sentinel: Any) -> EvalLog:
+    """`r7_bridged_scaffold("intervening")`: a host call, a turn of the conversation completing after its run, the request reporting its result, and a later turn."""
+    return run_logged(
+        as_solver(r7_bridged_scaffold("intervening")),
+        outputs(
+            r7_tool_calls(
+                ToolCall(
+                    id="host",
+                    function="mcp__host__addition",
+                    arguments={"x": 1, "y": 1},
+                )
+            ),
+            done("4"),
+            done(),
+            done(),
+        ),
+        sentinel=[sentinel],
+        inferred="two threads in one conversation",
+    )
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_host_result_no_check_names_replays_where_the_scaffold_reported_it(
+    backend: str, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    # after Ransom's review 5932423017: with no result check recorded, replay
+    # built the result step at the end of the host run, before a turn that
+    # completed before the scaffold reported the result
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    seen: dict[str, Step] = {}
+    probed = r13_reported_after_another_turn(r7_probe(seen, copies=True))
+    live = [
+        (e.stage, seen[e.explanation or ""])
+        for e in logged_sample(probed).events
+        if isinstance(e, SentinelEvent) and e.path == "r7_probe"
+    ]
+    log = r13_reported_after_another_turn(r13_inputs_only())
+    assert not any(
+        isinstance(e, SentinelEvent) and e.stage == "tool_result"
+        for e in logged_sample(log).events
+    )
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        replay = replayed(log)
+    assert replay_warnings(caplog) == []
+    assert (
+        [s.stage for s in replay]
+        == [stage for stage, _ in live]
+        == [
+            "model_input",
+            "model_output",
+            "tool_call",
+            "model_input",
+            "model_output",
+            "tool_result",
+            "model_input",
+            "model_output",
+            "model_input",
+            "model_output",
+        ]
+    )
+
+    # each step equals the step live built in the run with a result check,
+    # but for the two runs' ids and a response's timing
+    def field(step: Step, name: str) -> Any:
+        value = getattr(step, name)
+        return comparable(
+            value.message if isinstance(value, ModelOutput) else value, ids=False
+        )
+
+    for (_, step), again in zip(live, replay, strict=True):
+        assert not [
+            f.name
+            for f in dataclasses.fields(step)
+            if f.name
+            not in ABSENT.get(type(step).__name__, set())
+            | {"conversation", "message_id"}
+            and field(again.step, f.name) != field(step, f.name)
+        ], again.stage
+    [(_, result)] = [(stage, step) for stage, step in live if stage == "tool_result"]
+    assert len(result.history or []) == 2
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_host_result_no_turn_carries_is_skipped_with_a_warning(
+    backend: str, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    # with no result check recorded, the result step is built before the first
+    # turn whose input carries the result; where none does, as here, where the
+    # turns are logged without it, live's point is unknown
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    log = r13_reported_after_another_turn(r13_inputs_only())
+    events = logged_sample(log).events
+    [host] = [e for e in events if isinstance(e, ToolEvent) and _is_bridged(e)]
+    assert host.message_id is not None
+    edited = [
+        e.model_copy(update={"input": [m for m in e.input if m.id != host.message_id]})
+        if isinstance(e, ModelEvent)
+        else e
+        for e in events
+    ]
+
+    def carrying(events: Sequence[Event]) -> int:
+        return sum(
+            any(m.id == host.message_id for m in e.input)
+            for e in events
+            if isinstance(e, ModelEvent)
+        )
+
+    assert (carrying(events), carrying(edited)) == (2, 0)
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        replay = replay_events(log, edited)
+    assert [s.stage for s in replay] == [
+        "model_input",
+        "model_output",
+        "tool_call",
+        "model_input",
+        "model_output",
+        "model_input",
+        "model_output",
+        "model_input",
+        "model_output",
+    ]
+    [warning] = dict.fromkeys(replay_warnings(caplog))
+    assert warning.startswith(
+        "Replay skipped the tool_result steps of host call(s) host: no result "
+        "check was recorded, and no replayed turn carries"
+    ), warning
+
+
+@pytest.mark.parametrize("compacted", ["reporting", "intervening", "retried"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_host_result_no_check_names_replays_before_its_request_s_compaction(
+    compacted: str, backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # the bridge checks a reported result before compacting the request that
+    # carries it, so the step is in the segment before that compaction, and
+    # after one an earlier turn of the conversation made, before its retry
+    # with `retried`
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    log = r13_reported_after_another_turn(r13_inputs_only())
+    events = list(logged_sample(log).events)
+    turns = [i for i, e in enumerate(events) if isinstance(e, ModelEvent)]
+    assert len(turns) == 4
+    turn = turns[2 if compacted == "reporting" else 1]
+    compaction = CompactionEvent(source="inspect", span_id=events[turn].span_id)
+    if compacted == "retried":
+        failed = events[turn].model_copy(update={"error": "boom"})
+        retry = events[turn].model_copy(update={"uuid": uuid()})
+        edited = [*events[:turn], failed, compaction, retry, *events[turn + 1 :]]
+    else:
+        # before the turn's model_input check span, which opens before its call
+        begin = max(
+            i
+            for i, e in enumerate(events[:turn])
+            if isinstance(e, SpanBeginEvent) and e.type == "sentinel"
+        )
+        edited = [*events[:begin], compaction, *events[begin:]]
+    replay = replay_events(log, edited)
+    intervening = {
+        "reporting": [("model_input", 0), ("model_output", 0)],
+        "intervening": [("model_input", 1), ("model_output", 1)],
+        "retried": [("model_input", 0), ("model_output", 1)],
+    }[compacted]
+    assert [(s.stage, s.segment[1]) for s in replay] == [
+        ("model_input", 0),
+        ("model_output", 0),
+        ("tool_call", 0),
+        *intervening,
+        ("tool_result", 0 if compacted == "reporting" else 1),
+        ("model_input", 1),
+        ("model_output", 1),
+        ("model_input", 1),
+        ("model_output", 1),
+    ]
+
+
 def r7_tool_calls(*calls: ToolCall) -> ModelOutput:
     return ModelOutput(
         model="mockllm/model",
@@ -2277,6 +2468,9 @@ def r7_bridged_scaffold(case: str, started: Any = None) -> Agent:
     then sent again as MCP content. `reused_id`: two calls the scaffold runs under one model call id.
     `reused_by_host`: a call the scaffold runs, then a host call under its id.
     `retried`: a request whose result check is cancelled, then sent again.
+    `intervening`: as `report`, with another turn of the conversation completing
+    between the host call's run and the request reporting its result, and one
+    more turn after it.
     """
 
     async def execute(state: AgentState) -> AgentState:
@@ -2328,14 +2522,28 @@ def r7_bridged_scaffold(case: str, started: Any = None) -> Agent:
             return message.tool_calls or []
 
         [proposed] = await request()
-        if case in ("report", "reported_twice"):
+        if case in ("report", "reported_twice", "intervening"):
             result = await call_tool(bridge)(
                 "host", "addition", json.loads(proposed.function.arguments)
             )
+            if case == "intervening":
+                # a sub-agent of the scaffold, in the same conversation
+                await inspect_completions_api_request(
+                    {
+                        "model": "inspect",
+                        "messages": [{"role": "user", "content": "And 2 + 2?"}],
+                        "tools": tools,
+                    },
+                    None,
+                    bridge,
+                )
             messages.append(
                 {"role": "tool", "tool_call_id": proposed.id, "content": str(result)}
             )
             await request()
+            if case == "intervening":
+                # a later turn carries the result too
+                await request()
             if case == "reported_twice":
                 messages[2]["content"] = json.dumps(
                     [{"type": "text", "text": str(result)}]

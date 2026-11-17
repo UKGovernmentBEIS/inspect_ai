@@ -586,7 +586,10 @@ proposal, and fixing the pairing would mean keeping evicted grants.
   sentinel that checks results only), its `tool_result` check. A host
   call made in a scorer has none, as a native call has none. The
   `tool_result` step is the tool message `message_id` names, so a run
-  without it has none. The steps are named as a native execution's are (see
+  without it has none. Where no result check was recorded, it is built
+  before the first later turn whose input carries that message and before
+  that request's compaction, and skipped with a warning where no turn does.
+  The steps are named as a native execution's are (see
   Execution ids), so a run under a call id an earlier rebuilt execution
   took is named by its `execution_id`. A later handout under a call id an
   earlier host run has gets no `tool_result` step unless a result check
