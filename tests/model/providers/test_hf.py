@@ -12,6 +12,7 @@ import pytest
 from test_helpers.utils import (
     skip_if_github_action,
     skip_if_no_accelerate,
+    skip_if_no_torch,
     skip_if_no_transformers,
 )
 
@@ -176,6 +177,7 @@ def _hf_provider_with_fake_deps(
         **{
             "AutoModelForCausalLM": object,
             "AutoTokenizer": object,
+            "GenerationConfig": object,
             "PreTrainedTokenizerBase": object,
             "set_seed": lambda seed: None,
             "generation": fake_generation,
@@ -484,8 +486,14 @@ class _FakeTokenizer:
         return [f"{self.name}:{row}" for row in sequences.rows]
 
 
+class _FakeGenerationConfig:
+    def to_json_string(self, use_diff: bool = True) -> str:
+        return '{"transformers_version": "0.0.0"}'
+
+
 class _FakeModel:
     device = "cpu"
+    generation_config = _FakeGenerationConfig()
 
     def __init__(
         self,
@@ -825,3 +833,341 @@ async def test_hf_batch_error_after_a_result_fails_the_rest(
     outputs = [result for result in results if not isinstance(result, Exception)]
     assert len(errors) == 1
     assert [output.completion for output in outputs] == ["a:[101]"]
+
+
+async def test_hf_output_records_model_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Each output records the chat template and generation config in effect."""
+    import hashlib
+
+    template = "{% for message in messages %}{{ message['content'] }}{% endfor %}"
+    with _hf_provider_with_fake_deps(monkeypatch) as provider:
+        api = _fake_hf_api_with_tokenizer(
+            provider,
+            "fake-gemma",
+            _FakeModel(101),
+            _FakeBosTokenizer("gemma"),
+            chat_template=template,
+        )
+        [output] = await _generate_drained_together(
+            provider, [(api, GenerateConfig(max_tokens=1), "hi")]
+        )
+
+    assert output.metadata["hf_model_config"] == {
+        "chat_template": {
+            "source": "model_arg",
+            "name": None,
+            "sha256": hashlib.sha256(template.encode()).hexdigest(),
+        },
+        "generation_config": {"source": "auto", "values": {}},
+        "trust_remote_code": False,
+    }
+
+
+def _patch_hf_loaders(
+    monkeypatch: pytest.MonkeyPatch,
+    generation_config: Any,
+    chat_template: str | dict[str, str] | None = "repo-template",
+) -> Any:
+    model = SimpleNamespace(generation_config=generation_config)
+    tokenizer = SimpleNamespace(chat_template=chat_template, eos_token="</s>")
+    monkeypatch.setattr(
+        "transformers.AutoModelForCausalLM.from_pretrained",
+        lambda *args, **kwargs: model,
+    )
+    monkeypatch.setattr(
+        "transformers.AutoTokenizer.from_pretrained",
+        lambda *args, **kwargs: tokenizer,
+    )
+    return model
+
+
+def _repo_generation_config() -> Any:
+    from transformers import GenerationConfig
+
+    return GenerationConfig(
+        eos_token_id=2,
+        bos_token_id=1,
+        temperature=0.1,
+        repetition_penalty=1.5,
+        sequence_bias={(42,): 10.0},
+    )
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_generation_config_auto_keeps_repo_config(monkeypatch) -> None:
+    """By default the repository's generation config is used and recorded."""
+    from inspect_ai.model._providers.hf import HuggingFaceAPI
+
+    repo_config = _repo_generation_config()
+    model = _patch_hf_loaders(monkeypatch, repo_config)
+
+    api = HuggingFaceAPI(model_name="org/model")
+
+    assert model.generation_config is repo_config
+    recorded = api.repo_config.model_dump()
+    assert recorded["chat_template"]["source"] == "tokenizer"
+    assert recorded["generation_config"]["source"] == "auto"
+    assert recorded["generation_config"]["values"]["repetition_penalty"] == 1.5
+    assert recorded["generation_config"]["values"]["temperature"] == 0.1
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_generation_config_default_drops_repo_settings(monkeypatch) -> None:
+    """generation_config=default discards repo sampling settings, keeps token ids."""
+    from transformers import GenerationConfig
+
+    from inspect_ai.model._providers.hf import HuggingFaceAPI
+
+    model = _patch_hf_loaders(monkeypatch, _repo_generation_config())
+
+    api = HuggingFaceAPI(model_name="org/model", generation_config="default")
+
+    config = model.generation_config
+    defaults = GenerationConfig()
+    assert config.eos_token_id == 2
+    assert config.bos_token_id == 1
+    assert config.repetition_penalty == defaults.repetition_penalty
+    assert config.temperature == defaults.temperature
+    assert config.sequence_bias is None
+    assert api.repo_config.model_dump()["generation_config"] == {
+        "source": "default",
+        "values": {"bos_token_id": 1, "eos_token_id": 2},
+    }
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_generation_config_loads_from_path(monkeypatch, tmp_path) -> None:
+    """generation_config=<path> loads sampling settings from that path instead."""
+    from transformers import GenerationConfig
+
+    from inspect_ai.model._providers.hf import HuggingFaceAPI
+
+    GenerationConfig(eos_token_id=7, do_sample=True, top_p=0.9).save_pretrained(
+        tmp_path
+    )
+    model = _patch_hf_loaders(monkeypatch, _repo_generation_config())
+
+    api = HuggingFaceAPI(model_name="org/model", generation_config=str(tmp_path))
+
+    # special token ids still come from the model repository
+    assert model.generation_config.eos_token_id == 2
+    assert model.generation_config.top_p == 0.9
+    assert model.generation_config.repetition_penalty != 1.5
+    assert model.generation_config.sequence_bias is None
+    assert api.repo_config.model_dump()["generation_config"]["source"] == str(tmp_path)
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_generation_config_rejects_non_str(monkeypatch) -> None:
+    from inspect_ai.model._providers.hf import HuggingFaceAPI
+
+    _patch_hf_loaders(monkeypatch, _repo_generation_config())
+
+    with pytest.raises(ValueError, match="generation_config must be"):
+        HuggingFaceAPI(model_name="org/model", generation_config={"top_p": 0.9})
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_model_config_records_disabled_chat_template(monkeypatch) -> None:
+    from inspect_ai.model._providers.hf import HuggingFaceAPI
+
+    _patch_hf_loaders(monkeypatch, _repo_generation_config())
+
+    api = HuggingFaceAPI(model_name="org/model", use_chat_template=False)
+
+    assert api.repo_config.model_dump()["chat_template"] == {
+        "source": None,
+        "name": None,
+        "sha256": None,
+    }
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_model_config_hashes_named_chat_templates(monkeypatch) -> None:
+    """Tokenizers may carry a dict of named templates rather than one string."""
+    import hashlib
+    import json
+
+    from inspect_ai.model._providers.hf import HuggingFaceAPI
+
+    templates = {"tool_use": "b", "default": "a"}
+    _patch_hf_loaders(monkeypatch, _repo_generation_config(), chat_template=templates)
+
+    api = HuggingFaceAPI(model_name="org/model")
+
+    expected = hashlib.sha256(
+        json.dumps(templates, sort_keys=True).encode()
+    ).hexdigest()
+    assert api.repo_config.model_dump()["chat_template"] == {
+        "source": "tokenizer",
+        "name": None,
+        "sha256": expected,
+    }
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_model_config_round_trips_through_log(monkeypatch) -> None:
+    """Recorded generation config values survive ModelOutput serialization."""
+    from inspect_ai.model import ModelOutput
+    from inspect_ai.model._providers.hf import HuggingFaceAPI
+
+    _patch_hf_loaders(monkeypatch, _repo_generation_config())
+    api = HuggingFaceAPI(model_name="org/model")
+    output = ModelOutput.from_content(
+        model="org/model",
+        content="ok",
+    )
+    output.metadata = {"hf_model_config": api.repo_config.model_dump()}
+
+    restored = ModelOutput.model_validate_json(output.model_dump_json())
+
+    assert restored.metadata == output.metadata
+    values = restored.metadata["hf_model_config"]["generation_config"]["values"]
+    assert values["sequence_bias"] == {"(42,)": 10.0}
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+@pytest.mark.parametrize("tool_use_template", ["tools-v1", "tools-v2"])
+def test_hf_model_config_hashes_selected_named_template(
+    monkeypatch, tool_use_template: str
+) -> None:
+    """A template name passed as chat_template is recorded by its contents."""
+    import hashlib
+
+    from inspect_ai.model._providers.hf import HuggingFaceAPI
+
+    templates = {"default": "a", "tool_use": tool_use_template}
+    _patch_hf_loaders(monkeypatch, _repo_generation_config(), chat_template=templates)
+
+    api = HuggingFaceAPI(model_name="org/model", chat_template="tool_use")
+
+    assert api.repo_config.model_dump()["chat_template"] == {
+        "source": "tokenizer",
+        "name": "tool_use",
+        "sha256": hashlib.sha256(tool_use_template.encode()).hexdigest(),
+    }
+
+
+@skip_if_no_transformers
+@skip_if_no_torch
+@pytest.mark.parametrize("source", ["default", "path"])
+def test_hf_generation_config_override_survives_generate(source, tmp_path) -> None:
+    """An adopted config must not be rebuilt from the model's legacy config.json.
+
+    transformers 4.x rebuilds a generation config marked `_from_model_config`
+    from the model config on `generate()` when its token ids are unchanged,
+    which would restore the repository's legacy generation parameters.
+    """
+    import json
+
+    torch = pytest.importorskip("torch")
+    from transformers import GenerationConfig, GPT2Config, GPT2LMHeadModel
+
+    from inspect_ai.model._providers.hf import resolve_generation_config
+
+    # repetition_penalty here is a legacy generation parameter in config.json
+    config = GPT2Config.from_dict(
+        {
+            "n_layer": 1,
+            "n_head": 2,
+            "n_embd": 16,
+            "vocab_size": 100,
+            "bos_token_id": 0,
+            "eos_token_id": 1,
+            "repetition_penalty": 1.5,
+        }
+    )
+    model: Any = GPT2LMHeadModel(config)
+    model.generation_config = GenerationConfig.from_model_config(config)
+    trusted = {"_from_model_config": True, "bos_token_id": 0, "eos_token_id": 1}
+    (tmp_path / "generation_config.json").write_text(json.dumps(trusted))
+
+    model.generation_config = resolve_generation_config(
+        "default" if source == "default" else str(tmp_path),
+        model.generation_config,
+        token=None,
+    )
+    model.generate(
+        torch.tensor([[2, 3]]), max_new_tokens=2, do_sample=False, pad_token_id=1
+    )
+
+    assert model.generation_config.repetition_penalty != 1.5
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_generation_config_object_passes_to_from_pretrained(monkeypatch) -> None:
+    """A GenerationConfig object is still forwarded to from_pretrained()."""
+    from transformers import GenerationConfig
+
+    from inspect_ai.model._providers.hf import HuggingFaceAPI
+
+    supplied = GenerationConfig(repetition_penalty=1.3)
+    model_kwargs: dict[str, Any] = {}
+
+    def fake_model_from_pretrained(*args: Any, **kwargs: Any) -> Any:
+        model_kwargs.update(kwargs)
+        return SimpleNamespace(generation_config=kwargs["generation_config"])
+
+    _patch_hf_loaders(monkeypatch, _repo_generation_config())
+    monkeypatch.setattr(
+        "transformers.AutoModelForCausalLM.from_pretrained", fake_model_from_pretrained
+    )
+
+    api = HuggingFaceAPI(model_name="org/model", generation_config=supplied)
+
+    assert model_kwargs["generation_config"] is supplied
+    recorded = api.repo_config.model_dump()["generation_config"]
+    assert recorded["source"] == "object"
+    assert recorded["values"]["repetition_penalty"] == 1.3
+
+
+def _custom_generation_config_class() -> Any:
+    from transformers import GenerationConfig
+
+    class CustomGenerationConfig(GenerationConfig):
+        def __init__(self, **kwargs: Any) -> None:
+            self.max_denoising_steps = kwargs.pop("max_denoising_steps", None)
+            super().__init__(**kwargs)
+
+    return CustomGenerationConfig
+
+
+@skip_if_no_transformers
+@skip_if_no_torch
+def test_hf_generation_config_path_keeps_model_config_class(tmp_path) -> None:
+    """A config loaded from a path uses the model's GenerationConfig subclass."""
+    from inspect_ai.model._providers.hf import resolve_generation_config
+
+    config_class = _custom_generation_config_class()
+    config_class(max_denoising_steps=12, eos_token_id=7).save_pretrained(tmp_path)
+    repo_config = config_class(max_denoising_steps=99, eos_token_id=2)
+
+    config: Any = resolve_generation_config(str(tmp_path), repo_config, token=None)
+
+    assert type(config) is config_class
+    assert config.max_denoising_steps == 12
+    assert config.eos_token_id == 2
+
+
+@skip_if_no_transformers
+@skip_if_no_torch
+def test_hf_generation_config_default_rejects_config_subclass() -> None:
+    """A subclass with model-specific settings has no meaningful default."""
+    from inspect_ai.model._providers.hf import resolve_generation_config
+
+    config_class = _custom_generation_config_class()
+    repo_config = config_class(max_denoising_steps=99, eos_token_id=2)
+
+    with pytest.raises(ValueError, match="CustomGenerationConfig"):
+        resolve_generation_config("default", repo_config, token=None)

@@ -207,6 +207,8 @@ Docker Compose is checked separately: Inspect requires version 2.21.0 or greater
 
 Inspect's prerequisite checks confirm that Docker supports the features Inspect needs. They do not check whether security updates are installed. You are responsible for using vendor-supported releases and applying security updates to Docker Engine or Docker Desktop, Compose, the container runtime (such as runc), and the Docker host's operating system. This also applies when the Docker host is remote.
 
+Don't count on a non-root container user to contain an adversarial model, as a capable model may get root in its container (see [Adversarial Models](agent-bridge.qmd#adversarial-models)).
+
 If you plan on running evaluations with large numbers of concurrent containers (\> 30) you should also configure Docker's [default address pools](https://straz.to/2021-09-08-docker-address-pools/) to accommodate this.
 
 ### File Access

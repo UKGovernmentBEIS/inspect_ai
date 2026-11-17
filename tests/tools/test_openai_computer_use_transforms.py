@@ -400,6 +400,8 @@ def test_maybe_computer_use_tool_gpt54():
         "gpt-6-astra",
         "gpt-6.1-sol",
         "gpt-6.1-terra",
+        "gpt-6.2-astra",
+        "gpt-6.2-sol",
         "gpt-7.2",
         "GPT-5.4",
         "my-gpt-6-deployment",

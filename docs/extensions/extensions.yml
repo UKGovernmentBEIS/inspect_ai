@@ -245,6 +245,12 @@
   author: "[boxd](https://boxd.sh/?ref=inspect_ai)"
   categories: ["Sandboxes"]
 
+- name: "[kosa8 Sandbox](https://github.com/kosa8ai/inspect-kosa8)"
+  description: |
+    Runs each sample in its own kosa8 Cloud microVM, deleted when the sample ends. Sandboxes can sleep and wake with their memory and files kept.
+  author: "[kosa8](https://kosa8.com/?ref=inspect_ai)"
+  categories: ["Sandboxes"]
+
 
 - name: "[Inspect Costs Plugin](https://github.com/jasongwartz/inspect_costs_plugin/)"
   description: |
@@ -302,4 +308,10 @@
     Regression tests for your LLM evals, and checks on the judge that grades them. Re-grades the model_graded_qa
     answers in an Inspect log with an old and a new judge and shows which labels moved.
   author: "[Ogous Chan Ali](https://github.com/ogous)"
+  categories: ["Analysis"]
+
+- name: "[ARCI verdict](https://github.com/ajaysurya1221/agent-reliability-ci/blob/main/docs/recipes/verdict.md)"
+  description: |
+    Regression verdict from two eval logs — reads a baseline and a candidate Inspect JSON log (epochs as rounds) and returns PASS, BLOCK or INCONCLUSIVE from a rule file fixed before the runs, with an exact sequential test. The error bound is stated only under its conditions; a rule written after the logs exist is labelled descriptive.
+  author: "[Ajay Surya Senthilrajan](https://github.com/ajaysurya1221)"
   categories: ["Analysis"]
