@@ -917,8 +917,14 @@ completes that row ("Aborting an attempt that has not registered").
 `_run_task_screen`, after Textual's app has loaded and `task_screen(tasks)`
 has set the seed's total, and clears it when it leaves the screen. No
 record that should count ends outside that window: a cancel only requests
-an abort and the dispatcher, inside the screen, runs it; fed tasks are
-closed only by attempt code or by `RunQueue.end`; `end_unstarted()` runs in
+an abort and the dispatcher, inside the screen, runs it; a fed task's
+channel is closed by attempt code, by `RunQueue.end` or (task-handles.md)
+by `RunQueue.cancel`, which a handle or a control-channel directive can
+call at any time, but `RunQueue.cancel` sets a queued record's
+`abort_requested` before it closes the channel, so that empty-channel close
+keeps the record queued for its abort attempt inside the screen (or for
+`end_unstarted()`), and closing a record already in `attempt` leaves its
+end to `run_one`; `end_unstarted()` runs in
 the dispatcher's `finally`, inside the screen. What ends outside it changes
 no display: `end_all()` after the screen has closed, and every record when
 a failure came before the screen opened. The displays' counting is
