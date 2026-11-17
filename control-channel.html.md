@@ -25,6 +25,7 @@ Commands are grouped by resource noun (`task`, `sample`, `model`, `process`), pl
 | `inspect ctl sample cancel-tool-call` | Cancel one hung tool call and let the sample continue. |
 | `inspect ctl sample requeue` | Re-run one errored or cancelled sample inside the live run. |
 | `inspect ctl sample score` | Score one sample’s work-so-far now, without ending it. |
+| `inspect ctl sample agent` | List a sample’s addressable agents, and message, pause, resume or stop them. |
 | `inspect ctl config` | View or retune launch configuration mid-flight. |
 | `inspect ctl model pause` | Pause one model’s dispatch across the run (`--now` also holds in-flight calls to it). |
 | `inspect ctl model resume` | Resume a paused model. |
@@ -124,10 +125,10 @@ For evals that may run longer than a few minutes, do not run
 
 ``` bash
 $ inspect ctl task
-task_id       task                        model                      solver    samples             started
-------------  --------------------------  -------------------------  --------  ------------------  --------
-ZByxJpK4bKSz  inspect_evals/gpqa_diamond  openai/gpt-6-sol           react     12/40 (3 running)   14:02:11
-fR8mWn2cQspD  inspect_evals/humaneval     anthropic/claude-sonnet-5  generate  164/164 (complete)  13:58:40
+task_id       task                        model                        solver    samples             started
+------------  --------------------------  ---------------------------  --------  ------------------  --------
+ZByxJpK4bKSz  inspect_evals/gpqa_diamond  openai/gpt-6-sol             react     12/40 (3 running)   14:02:11
+fR8mWn2cQspD  inspect_evals/humaneval     anthropic/claude-sonnet-5-5  generate  164/164 (complete)  13:58:40
 ```
 
 Each row is one task: retried tasks stay on a single row (with an `attempts` column showing how many attempts have run), and an `errors` column appears when any samples have errored. The `solver` column shows the plan’s terminal solver (the agent name, e.g. `react`, for an agentic task). With `--json`, the response is an `{as_of, tasks}` envelope and each task row also carries `pid`, `socket_path`, and `log_location` (where results are being written — the handle for reading logs after the run).
@@ -144,7 +145,7 @@ Commands that operate on one task take a `TASK` argument that selects a task fro
 
 Task ids are stable across retries, so a command keeps working after a task errors and is retried (per-attempt eval ids are not stable, which is why commands don’t use them).
 
-One task run against several models (`--model openai/gpt-6-sol,anthropic/claude-fable-5`) makes the task name ambiguous — it matches both rows. Pass `--model` alongside the selector to pick the row running that model (matched at the name start or after a `/`, so `--model gpt-6-sol` matches `openai/gpt-6-sol`): `inspect ctl task cancel my_task --model gpt-6-sol`. The model filter applies within the tasks the selector matches — what other tasks happen to be running can’t change the outcome. If the combination is still ambiguous you get the same candidate-table error, and a combination matching nothing the same not-found error — each qualified with the model. An exact task id paired with a `--model` its task isn’t running errors by naming the contradiction (the task’s actual model) rather than being silently ignored.
+One task run against several models (`--model openai/gpt-6-sol,anthropic/claude-fable-5-2`) makes the task name ambiguous — it matches both rows. Pass `--model` alongside the selector to pick the row running that model (matched at the name start or after a `/`, so `--model gpt-6-sol` matches `openai/gpt-6-sol`): `inspect ctl task cancel my_task --model gpt-6-sol`. The model filter applies within the tasks the selector matches — what other tasks happen to be running can’t change the outcome. If the combination is still ambiguous you get the same candidate-table error, and a combination matching nothing the same not-found error — each qualified with the model. An exact task id paired with a `--model` its task isn’t running errors by naming the contradiction (the task’s actual model) rather than being silently ignored.
 
 On *reads* (`sample list`, `sample errors`) the selector is a filter: omitting it lists across **all** running tasks (each row carries its `task_id`), which makes “what’s erroring anywhere in this eval set?” the zero-argument spelling. On *mutations* (`task log-flush`, the task-scoped `config` knobs) an omitted selector must resolve to exactly one target — the sole running task is the default, and anything ambiguous errors with the candidate list rather than fanning out. Destructive commands (`task cancel`, `task drain`) require the selector outright.
 
@@ -377,6 +378,28 @@ The command is idempotent: requeuing a sample whose re-run is already pending, q
 
 Requeuing a sample that completed *successfully* is rejected — re-running or re-scoring a success is out of scope (use score invalidation and `inspect eval-retry` for post-hoc re-runs). Also rejected: a task that has finished or is between attempts (re-run failures with `inspect eval-retry`, or let the queued task retry handle them), and a task with a cancel in flight. `--dry-run` reports what would be re-run — the prior error, the attempt number, and whether a checkpoint resume is available — without changing anything, and reports the rejections above too, so an agent can probe safely.
 
+## Agents in a Sample
+
+Some agent frameworks run several named agents in one sample, such as a multi-agent swarm. Code running in a sample can make its agents, and named groups of them, addressable from `inspect ctl`. `inspect ctl sample agent list` shows them, with what each is doing and the actions it takes now:
+
+``` bash
+$ inspect ctl sample agent list ctf 3
+```
+
+The other verbs act on one agent, named with `--agent`, or on a whole group, named with `--group`:
+
+``` bash
+$ inspect ctl sample agent message ctf 3 --agent worker-2 --text "Check the config file first."
+$ inspect ctl sample agent message ctf 3 --agent worker-2 --file notes.md --interrupt
+$ inspect ctl sample agent pause ctf 3 --group swarm
+$ inspect ctl sample agent resume ctf 3 --group swarm
+$ inspect ctl sample agent stop ctf 3 --agent worker-2
+```
+
+`message` gives one agent a message from the operator, from `--text` or from `--file`, which takes a path or URL such as `s3://` (`-` reads stdin). The agent takes it at its next turn. With `--interrupt`, its current turn is cancelled and it continues with the message now. What `pause`, `resume` and `stop` do is up to the framework that registered the agent or group. An action an agent cannot take fails with the reason, and `list --json` gives the reason for each action an agent does not take now. A repeat that changes nothing, such as a second pause, is a no-op. The mutation verbs (`message`, `pause`, `resume` and `stop`) accept `--dry-run` and require `EPOCH` whenever the task runs more than one epoch. `list` defaults to epoch 1.
+
+These verbs send each request once and never retry it, since a repeat could send a message twice. If a request is sent but its response does not arrive, the command fails with an unknown outcome (`kind: "unknown_outcome"` in the `--json` error envelope): the action may have taken effect, so check with `list` before sending it again.
+
 ## Interim Scoring
 
 `inspect ctl task score` answers “how is this eval actually doing?” mid-run: it runs the task’s own scorers over the in-flight samples, folds completed samples’ existing final scores in, computes interim metrics, and reports the results, all without ending any sample (the non-destructive counterpart to `task cancel --action score`).
@@ -403,7 +426,7 @@ Scoring can take minutes (model-graded scorers), so both commands start a pass a
 
 ## Repeated Mutations
 
-Interactively, each mutation prints a full task header above its outcome for context. When stdout is not a TTY — piped or redirected output, a script whose output is captured, an agent’s shell tool — the task-scoped mutation verbs (`sample requeue`, `sample cancel`, `sample cancel-tool-call`, `sample score`, `task cancel`, `task drain`, `task pause`/`resume`, `task score`, `task log-flush`, and `config` when setting a knob) switch to a terse mode instead: one `verb target: outcome` line per call, so N mutations in a loop read as N scannable outcome lines rather than N repeated banners:
+Interactively, each mutation prints a full task header above its outcome for context. When stdout is not a TTY — piped or redirected output, a script whose output is captured, an agent’s shell tool — the task-scoped mutation verbs (`sample requeue`, `sample cancel`, `sample cancel-tool-call`, `sample score`, `sample agent message`/`pause`/`resume`/`stop`, `task cancel`, `task drain`, `task pause`/`resume`, `task score`, `task log-flush`, and `config` when setting a knob) switch to a terse mode instead: one `verb target: outcome` line per call, so N mutations in a loop read as N scannable outcome lines rather than N repeated banners:
 
 ``` bash
 $ inspect ctl sample errors gpqa --json | jq -r '.samples[] | "\(.sample_id) \(.epoch)"' |

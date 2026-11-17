@@ -43,7 +43,7 @@ inspect eval simpleqa.py --model openai/gpt-6-luna
 ``` bash
 pip install anthropic
 export ANTHROPIC_API_KEY=your-anthropic-api-key
-inspect eval simpleqa.py --model anthropic/claude-sonnet-4-6
+inspect eval simpleqa.py --model anthropic/claude-sonnet-5-5
 ```
 
 ``` bash
@@ -767,7 +767,7 @@ from inspect_ai import eval_set
 
 success, logs = eval_set(
     tasks=[security_guide(), hellaswag(), math()],
-    model=["openai/gpt-6-sol", "anthropic/claude-sonnet-4-6"],
+    model=["openai/gpt-6-sol", "anthropic/claude-sonnet-5-5"],
     log_dir="logs/run-1",     # required, enables retry & resume
 )
 ```
@@ -828,7 +828,7 @@ For the former, we recommend you specify these options in a `.env` file within y
 
 ## .env Files
 
-While we can include all required options on the `inspect eval` command line, it’s generally easier to use environment variables for commonly repeated options. To facilitate this, the `inspect` CLI will automatically read and process `.env` files located in the current working directory (also searching in parent directories if a `.env` file is not found in the working directory). This is done using the [python-dotenv](https://pypi.org/project/python-dotenv/) package).
+While we can include all required options on the `inspect eval` command line, it’s generally easier to use environment variables for commonly repeated options. To facilitate this, the `inspect` CLI will automatically read and process `.env` files located in the current working directory (also searching in parent directories if a `.env` file is not found in the working directory). This is done using the [python-dotenv](https://pypi.org/project/python-dotenv/) package.
 
 For example, here’s a `.env` file that makes available API keys for several providers and sets a bunch of defaults for a working session:
 
@@ -844,7 +844,7 @@ INSPECT_LOG_LEVEL=warning
 
 INSPECT_EVAL_MAX_RETRIES=5
 INSPECT_EVAL_MAX_CONNECTIONS=20
-INSPECT_EVAL_MODEL=anthropic/claude-3-5-sonnet-20240620
+INSPECT_EVAL_MODEL=anthropic/claude-sonnet-5-5
 ```
 
 All command line options can also be set via environment variable, most commonly by using the `INSPECT_EVAL_` prefix. Exceptions are noted below.
@@ -1077,7 +1077,7 @@ $ inspect view --log-dir ./experiment-logs --port 6565
 
 You only need to run `inspect view` once at the beginning of a session (as it will automatically update to show new evaluations when they are run).
 
-If the logs contain output you don’t trust (for example, from a model without safeguards), `inspect view --no-trust-content` shows all log content as plain text. See [Untrusted Content](./task-views.html.md#untrusted-content).
+If the logs contain output you don’t trust (for example, from a model without safeguards), `inspect view --no-trust-content` shows log content as literal text and replaces media with placeholders. See [Untrusted Content](./task-views.html.md#untrusted-content).
 
 ### Remote Access
 
@@ -1813,8 +1813,8 @@ Every CLI flag can be set as an environment variable using the `INSPECT_EVAL_` p
     .env
 
 ``` makefile
-INSPECT_EVAL_MODEL=anthropic/claude-sonnet-4-5
-INSPECT_EVAL_TEMPERATURE=0.0
+INSPECT_EVAL_MODEL=anthropic/claude-sonnet-5-5
+INSPECT_EVAL_REASONING_EFFORT=medium
 INSPECT_EVAL_MAX_CONNECTIONS=20
 INSPECT_EVAL_MAX_RETRIES=5
 ```
@@ -1830,8 +1830,8 @@ from inspect_ai import eval
 
 eval(
     simpleqa(),
-    model="anthropic/claude-sonnet-4-5",
-    temperature=0.0,
+    model="anthropic/claude-sonnet-5-5",
+    reasoning_effort="medium",
     max_tokens=4096,
     epochs=5,
     limit=100,
@@ -1844,8 +1844,8 @@ The same overrides on the command line:
 
 ``` bash
 inspect eval inspect_evals/simpleqa \
-    --model anthropic/claude-sonnet-4-5 \
-    --temperature 0.0 \
+    --model anthropic/claude-sonnet-5-5 \
+    --reasoning-effort medium \
     --max-tokens 4096 \
     --epochs 5 \
     --limit 100 \
@@ -1994,7 +1994,7 @@ task:
     split: test
 
 model:
-  model: anthropic/claude-sonnet-4-5
+  model: anthropic/claude-sonnet-5-5
   args:
     max_retries: 3
 
@@ -2006,9 +2006,8 @@ model_roles:
       temperature: 0.0
 
 generate_config:
-  temperature: 0.5
+  reasoning_effort: medium
   max_tokens: 4096
-  seed: 42
 
 solver:
   solver: my_solvers.py@chain_of_thought
@@ -2026,14 +2025,14 @@ All top-level keys are optional. This lets you create “paper config” files t
 ``` bash
 # paper_config.yaml specifies only generate_config, eval_config, and model_roles
 inspect eval inspect_evals/simpleqa \
-    --model anthropic/claude-sonnet-4-5 \
+    --model anthropic/claude-sonnet-5-5 \
     --run-config paper_config.yaml
 ```
 
 To run with a different value than the file specifies, pass the corresponding flag:
 
 ``` bash
-inspect eval --run-config run.yaml --temperature 0.9
+inspect eval --run-config run.yaml --reasoning-effort high
 ```
 
 `--run-config` cannot be combined with `--generate-config`, `--task-config`, or `--solver-config`. Use `--run-config` for a single file; use the individual options to compose configuration from multiple files.
@@ -2440,8 +2439,8 @@ eval("ctf.py", sample_shuffle=42)
 You can also shuffle datasets directly within a task definition. To do this, either use the `shuffle()` method or the `shuffle` parameter of the dataset loading functions:
 
 ``` python
-# shuffle method
-dataset = dataset.shuffle()
+# shuffle method (in place)
+dataset.shuffle()
 
 # shuffle on load
 dataset = json_dataset("data.jsonl", shuffle=True)
@@ -2461,8 +2460,8 @@ For datasets that contain `choices`, you can shuffle the choices when the data i
 There are two ways to shuffle choices:
 
 ``` python
-# Method 1: Using the dataset method
-dataset = dataset.shuffle_choices()
+# Method 1: Using the dataset method (in place)
+dataset.shuffle_choices()
 
 # Method 2: During dataset loading
 dataset = json_dataset("data.jsonl", shuffle_choices=True)
@@ -2471,8 +2470,8 @@ dataset = json_dataset("data.jsonl", shuffle_choices=True)
 For reproducible shuffling, you can specify a random seed:
 
 ``` python
-# Using a seed with the dataset method
-dataset = dataset.shuffle_choices(seed=42)
+# Using a seed with the dataset method (in place)
+dataset.shuffle_choices(seed=42)
 
 # Using a seed during loading
 dataset = json_dataset("data.jsonl", shuffle_choices=42)
@@ -2807,8 +2806,8 @@ For datasets that contain `choices`, you can shuffle the choices when the data i
 There are two ways to shuffle choices:
 
 ``` python
-# Method 1: Using the dataset method
-dataset = dataset.shuffle_choices()
+# Method 1: Using the dataset method (in place)
+dataset.shuffle_choices()
 
 # Method 2: During dataset loading
 dataset = json_dataset("data.jsonl", shuffle_choices=True)
@@ -2817,8 +2816,8 @@ dataset = json_dataset("data.jsonl", shuffle_choices=True)
 For reproducible shuffling, you can specify a random seed:
 
 ``` python
-# Using a seed with the dataset method
-dataset = dataset.shuffle_choices(seed=42)
+# Using a seed with the dataset method (in place)
+dataset.shuffle_choices(seed=42)
 
 # Using a seed during loading
 dataset = json_dataset("data.jsonl", shuffle_choices=42)
@@ -3228,14 +3227,14 @@ To select a model for an evaluation, pass it’s name on the command line or use
 
 ``` bash
 inspect eval arc.py --model openai/gpt-6-luna
-inspect eval arc.py --model anthropic/claude-sonnet-4-0
+inspect eval arc.py --model anthropic/claude-sonnet-5-5
 ```
 
 Or:
 
 ``` python
 eval("arc.py", model="openai/gpt-6-luna")
-eval("arc.py", model="anthropic/claude-sonnet-4-0")
+eval("arc.py", model="anthropic/claude-sonnet-5-5")
 ```
 
 Alternatively, you can set the `INSPECT_EVAL_MODEL` environment variable (either in the shell or a `.env` file) to select a model externally:
@@ -3265,7 +3264,7 @@ eval("arc.py", model=None)
 To evaluate several models with the same options, pass a comma-separated list:
 
 ``` bash
-inspect eval arc.py --model openai/gpt-6-luna,anthropic/claude-sonnet-4-0
+inspect eval arc.py --model openai/gpt-6-luna,anthropic/claude-haiku-5-5
 ```
 
 To give each model its own options, use `--model-spec`. Each option holds one inline YAML or JSON mapping. A mapping takes the same fields as a [model role](#model-roles) — a required `model`, any generation config field, and `model_args` — plus a `base_url`:
@@ -3305,7 +3304,7 @@ export INSPECT_EVAL_MODEL_SPEC='{"model":"openai/gpt-6-luna","reasoning_effort":
 inspect eval arc.py \
     --model-spec '{model: openai/gpt-6-luna, reasoning_effort: low}' \
     --model-spec '{model: openai/gpt-6-luna, reasoning_effort: high}' \
-    --model-role grader=anthropic/claude-sonnet-4-0
+    --model-role grader=anthropic/claude-sonnet-5-5
 ```
 
 `inspect eval-set` accepts `--model-spec` as well. Task identity includes the model’s generation config, so two specs for one model stay two units of work. Task identity does not include `base_url` or credential model args such as `api_key`, so an eval set rejects two specs that differ only in those as not distinct; give each spec a distinct generation config, or run them with `inspect eval` instead. See [Eval Sets](./eval-sets.html.md).
@@ -3480,19 +3479,19 @@ Task(
 **With [task_with()](./reference/inspect_ai.html.md#task_with):**
 
 ``` python
-task_with(my_task(), model_roles={"grader": "google/gemini-2.0-flash"})
+task_with(my_task(), model_roles={"grader": "google/gemini-3.6-flash"})
 ```
 
 **With [eval()](./reference/inspect_ai.html.md#eval):**
 
 ``` python
-eval("math.py", model_roles={"grader": "google/gemini-2.0-flash"})
+eval("math.py", model_roles={"grader": "google/gemini-3.6-flash"})
 ```
 
 **On the CLI** with simple model names:
 
 ``` bash
-inspect eval math.py --model-role grader=google/gemini-2.0-flash
+inspect eval math.py --model-role grader=google/gemini-3.6-flash
 ```
 
 **On the CLI** with inline JSON/YAML for generation config:
@@ -3518,8 +3517,8 @@ eval(
     model_roles={
         "grader": [
             "openai/gpt-6-luna",
-            "google/gemini-2.0-flash",
-            "anthropic/claude-sonnet-4-0"
+            "google/gemini-3.6-flash",
+            "anthropic/claude-sonnet-5-5"
         ]
     }
 )
@@ -3529,7 +3528,7 @@ Or equivalently on the CLI with comma-separated model names:
 
 ``` bash
 inspect eval math.py \
-    --model-role grader=openai/gpt-6-luna,google/gemini-2.0-flash,anthropic/claude-sonnet-4-0
+    --model-role grader=openai/gpt-6-luna,google/gemini-3.6-flash,anthropic/claude-sonnet-5-5
 ```
 
 When a list is bound to the role used by a [model-graded scorer](./model-graded.html.md), each model grades independently and the final grade is chosen by majority vote (the same behaviour as passing a list of models to the scorer’s `model` parameter). Prefer an odd number of graders: with an even-sized ensemble, a tied vote is resolved in favour of the earliest-listed model. Elsewhere, `get_model(role="...")` resolves to the first model in the list—use [model_roles()](./reference/inspect_ai.model.html.md#model_roles) (from `inspect_ai.model`) to access all of the models bound to a role. Note that a single-element list is equivalent to binding the single model directly.
@@ -3593,10 +3592,10 @@ from ctf_tasks import blues_clues
 tasks = [
     task_with(blues_clues(), model_roles = {
         "red_team": "openai/gpt-6-luna",
-        "blue_team": "google/gemini-2.0-flash"
+        "blue_team": "google/gemini-3.6-flash"
     }),
     task_with(blues_clues(), model_roles = {
-        "red_team": "google/gemini-2.0-flash",
+        "red_team": "google/gemini-3.6-flash",
         "blue_team": "openai/gpt-6-luna"
     })
 ]
@@ -3610,7 +3609,7 @@ As illustrated above, you can define as many named roles as you need. When using
 
 ``` bash
 inspect eval math.py \
-   --model-role red_team=google/gemini-2.0-flash \
+   --model-role red_team=google/gemini-3.6-flash \
    --model-role blue_team=openai/gpt-6-luna
 ```
 
@@ -3855,7 +3854,7 @@ To use the [Anthropic](https://www.anthropic.com/api) provider, install the `ant
 ``` bash
 pip install anthropic
 export ANTHROPIC_API_KEY=your-anthropic-api-key
-inspect eval arc.py --model anthropic/claude-sonnet-4-0
+inspect eval arc.py --model anthropic/claude-sonnet-5-5
 ```
 
 For the `anthropic` provider, custom model args (`-M`) are forwarded to the constructor of the `AsyncAnthropic` class.
@@ -3873,11 +3872,17 @@ The following environment variables are supported by the Anthropic provider
 
 Some Anthropic features require that you include a beta identifier in the `betas` field of model requests. Inspect automatically includes the requisite identifier for beta features it utilizes (e.g. “mcp-client-2025-04-04”, “computer-use-2025-01-24”, etc.).
 
-If there are other beta features you want to enable, use the `betas` model arg (`-M`). For example, to enable [1M token context windows](https://platform.claude.com/docs/en/build-with-claude/context-windows) for Sonnet 4.5 and Opus 4.6 models:
+If there are other beta features you want to enable, use the `betas` model arg (`-M`), as in the cache diagnostics example below.
+
+#### Cache Diagnostics
+
+Include the `cache-diagnosis-2026-04-07` beta header to produce diagnostics for prompt caching. Diagnostics are automatically included in `ChatMessageAssistant.metadata["diagnostics"]` (which you can see in the viewer) and a warning message is printed for cache misses. For example:
 
 ``` bash
-inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025-08-07
+inspect eval arc.py --model anthropic/claude-sonnet-5-5 -M betas=cache-diagnosis-2026-04-07
 ```
+
+Learn more about cache diagnostics at <https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics>.
 
 ### Refusal Fallback
 
@@ -3897,16 +3902,6 @@ This is a feature of the first-party Anthropic API only — it is not supported 
 
 See the [Fallbacks](./fallbacks.html.md) article for complete documentation, including what gets recorded in logs, dataframes, and the viewer when fallbacks occur.
 
-#### Cache Diagnostics
-
-Include the `cache-diagnosis-2026-04-07` beta header to produce diagnostics for prompt caching. Diagnostics are automatically included in `ChatMessageAssistant.metadata["diagnostics"]` (which you can see in the viewer) and a warning message is printed for cache misses. For example:
-
-``` bash
-inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M betas=cache-diagnosis-2026-04-07
-```
-
-Learn more about cache diagnostics at <https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics>.
-
 ### Cache TTL
 
 Inspect enables Anthropic [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) by default. Use the `cache_ttl` model arg (`-M`) to control the cache TTL. Valid values are:
@@ -3916,7 +3911,7 @@ Inspect enables Anthropic [prompt caching](https://platform.claude.com/docs/en/b
 - “5m” or “1h”: pin the TTL for all requests (disables automatic escalation).
 
 ``` bash
-inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M cache_ttl=1h
+inspect eval arc.py --model anthropic/claude-sonnet-5-5 -M cache_ttl=1h
 ```
 
 Note that 1-hour cache writes are billed at 2x the base input token price (vs. 1.25x for 5-minute writes), so the longer TTL pays off only when requests sharing a prefix arrive more than 5 minutes apart. Automatic escalation applies only on the first-party Claude API (not Bedrock, Vertex, or Azure) and does not apply in [batch mode](./models-batch.html.md).
@@ -3926,16 +3921,16 @@ Note that 1-hour cache writes are billed at 2x the base input token price (vs. 
 The Anthropic provider supports a `streaming` model arg (`-M`) that controls whether streaming responses are used. The default (“auto”) will automatically use streaming when the caller passes an `on_stream` callback to [generate()](./reference/inspect_ai.solver.html.md#generate), when thinking is enabled, or for potentially [long requests](https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests) (requests with \>= 8192 `max_tokens`). Pass `true` or `false` to override the default behavior:
 
 ``` bash
-inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M streaming=true
+inspect eval arc.py --model anthropic/claude-sonnet-5-5 -M streaming=true
 ```
 
 ### Computer Use
 
-When the [computer()](./tools-standard.html.md#sec-computer) tool is used with a Claude model, Inspect binds it to Anthropic’s native computer use support. On the Claude API and Vertex, Claude Opus 5.5, Sonnet 5.5, and Haiku 5.5 (which reject the earlier tool there), Fable 5/5.1, and Mythos 5/5.1 use Anthropic’s [computer toolset](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) (`computer_toolset_20260801`). Other models, including Opus 5, Sonnet 5, and Opus 4.8, keep the legacy `computer_20251124` tool. Anthropic offers the toolset only on the Claude API and Vertex, so on Bedrock and Foundry every model (Opus 5.5, Sonnet 5.5, Haiku 5.5, and Fable/Mythos included) uses the legacy tool.
+When the [computer()](./tools-standard.html.md#sec-computer) tool is used with a Claude model, Inspect binds it to Anthropic’s native computer use support. On the Claude API and Vertex, Claude Opus 5.5, Sonnet 5.5, and Haiku 5.5 (which reject the earlier tool there), and Fable/Mythos 5.x use Anthropic’s [computer toolset](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) (`computer_toolset_20260801`). Other models, including Opus 5, Sonnet 5, and Opus 4.8, keep the legacy `computer_20251124` tool. Anthropic offers the toolset only on the Claude API and Vertex, with one exception: Fable 5.2 rejects the earlier tool everywhere except Bedrock, so it uses the toolset on Foundry too. Otherwise, on Bedrock and Foundry every model (Opus 5.5, Sonnet 5.5, Haiku 5.5, and Fable/Mythos included) uses the legacy tool.
 
 With the toolset, each computer action arrives as its own tool call. Inspect executes the actions in one assistant turn in order and stops at the first failure, reporting the remaining actions to the model as not executed. Logs record each action as a `computer` tool call with an `action` argument, exactly as with the legacy tool.
 
-Use the `computer_toolset` model arg (`-M`) to force either mode where the platform supports it (`false` is rejected only for Opus 5.5, Sonnet 5.5, and Haiku 5.5 on the Claude API or Vertex, where the legacy tool returns an error). The toolset requires Claude Opus 4.8, Sonnet 5, Opus 5 or later on the Claude API or Vertex; for example, to use it with Opus 5:
+Use the `computer_toolset` model arg (`-M`) to force either mode where the platform supports it (`false` is rejected for Opus 5.5, Sonnet 5.5, and Haiku 5.5 on the Claude API or Vertex, and for Fable 5.2 everywhere except Bedrock, where the legacy tool returns an error). The toolset requires Claude Opus 4.8, Sonnet 5, Opus 5 or later on the Claude API or Vertex; for example, to use it with Opus 5:
 
 ``` bash
 inspect eval computer.py --model anthropic/claude-opus-5 -M computer_toolset=true
@@ -3949,19 +3944,19 @@ To use Anthropic models on Bedrock, use the normal `anthropic` provider with the
 export AWS_ACCESS_KEY_ID=your-aws-access-key-id
 export AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
 export AWS_DEFAULT_REGION=us-east-1
-inspect eval arc.py --model anthropic/bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0
+inspect eval arc.py --model anthropic/bedrock/global.anthropic.claude-sonnet-4-6
 ```
 
 You can also optionally set the `ANTHROPIC_BEDROCK_BASE_URL` environment variable to set a custom base URL for Bedrock API requests.
 
 ### Anthropic on Vertex AI
 
-To use Anthropic models on Vertex, you can use the standard `anthropic` model provider with the `vertex` qualifier (e.g. `anthropic/vertex/claude-3-5-sonnet-v2@20241022`). You should also set two environment variables indicating your project ID and region. Here is a complete example:
+To use Anthropic models on Vertex, you can use the standard `anthropic` model provider with the `vertex` qualifier (e.g. `anthropic/vertex/claude-sonnet-5-5`). You should also set two environment variables indicating your project ID and region. Regional endpoints (e.g. `us-east5`) serve Claude Sonnet 4.6 and earlier models only, so for newer models set the region to `global` or a multi-region (`us` or `eu`). Here is a complete example:
 
 ``` bash
 export ANTHROPIC_VERTEX_PROJECT_ID=project-12345
-export ANTHROPIC_VERTEX_REGION=us-east5
-inspect eval ctf.py --model anthropic/vertex/claude-3-5-sonnet-v2@20241022
+export ANTHROPIC_VERTEX_REGION=global
+inspect eval ctf.py --model anthropic/vertex/claude-sonnet-5-5
 ```
 
 Authentication is doing using the standard Google Cloud CLI (i.e. if you have authorised the CLI then no additional auth is needed for the model API).
@@ -4004,6 +3999,7 @@ The following environment variables are supported by the Google provider
 | `GOOGLE_BASE_URL` | Base URL for requests (optional) |
 | `GOOGLE_USE_ADC` | Set to `true` to authenticate Gemini Developer API models with OAuth/ADC by default (optional). |
 | `GOOGLE_CLOUD_QUOTA_PROJECT` | Quota/billing project sent as `x-goog-user-project` when using OAuth/ADC (optional). |
+| `GOOGLE_GENAI_API_VERSION` | API version (optional; `-M api_version` takes precedence). Defaults to `v1beta` for the Gemini Developer API and to the SDK default (`v1beta1`) on Vertex. |
 
 ### Gemini Developer API with OAuth / ADC
 
@@ -4183,7 +4179,7 @@ export MOONSHOT_API_KEY=your-moonshot-api-key
 inspect eval arc.py --model moonshot/kimi-k3
 ```
 
-Note that Kimi K3 uses fixed sampling (Moonshot recommends omitting sampling parameters), so the `moonshot` provider does not pass `temperature`, `top_p`, or penalty options to K3 models. Similarly, K3’s thinking effort currently only accepts `max`, so other `--reasoning-effort` values are submitted as `max`.
+Note that Kimi K3 uses fixed sampling (Moonshot recommends omitting sampling parameters), so the `moonshot` provider does not pass `temperature`, `top_p`, or penalty options to K3 models. K3’s thinking effort accepts `low`, `high`, and `max` (the default): `none` and `minimal` are submitted as `low`, `medium` as `high`, and `xhigh` as `max`. K3 always reasons, so `none` uses the lowest effort rather than the default.
 
 The following environment variables are supported by the Moonshot AI provider
 
@@ -4194,7 +4190,7 @@ The following environment variables are supported by the Moonshot AI provider
 
 ## Meta
 
-To use the [Meta](https://dev.meta.ai/docs) provider (Muse Spark models on the Meta Model API), install the `openai` package (which the Meta Model API provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
+To use the [Meta](https://dev.meta.ai/docs) provider (Muse models on the Meta Model API), install the `openai` package (which the Meta Model API provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install openai
@@ -4204,7 +4200,7 @@ inspect eval arc.py --model meta/muse-spark-1.3
 
 The provider uses the [Responses API](https://dev.meta.ai/docs/protocols/responses), which is the only Meta endpoint that preserves the model’s reasoning across turns (as encrypted reasoning items that are replayed automatically). Pass `-M responses_api=false` to use Chat Completions instead.
 
-Muse Spark always reasons. Use `--reasoning-effort` (`minimal` through `max`) to control how much. `none` is not supported and is ignored with a warning. `max` is available on standard-tier `muse-spark-1.3` only; for the `-contributor` tier and older versions it is submitted as `xhigh`. The API only accepts `tool_choice="auto"`, so forced tool choices are submitted as `"auto"`. Log probabilities, stop sequences, and logit bias are not supported and are dropped with a warning.
+Muse models always reason. Use `--reasoning-effort` (`minimal` through `max`) to control how much. `none` is not supported and is ignored with a warning. `max` is available on `muse-wonder-1.0`, `muse-ember-1.0`, and standard-tier `muse-spark-1.3`; for the `-contributor` tier and older Muse Spark versions it is submitted as `xhigh`. Muse Wonder and Muse Ember default to `max` and Muse Spark to `high`. The API only accepts `tool_choice="auto"`, so forced tool choices are submitted as `"auto"`. Log probabilities, stop sequences, and logit bias are not supported and are dropped with a warning.
 
 Prompts blocked by Meta’s content policy are reported as `stop_reason="content_filter"` with `stop_details`. The API signals such a block three different ways depending on protocol and streaming (an HTTP 400 with a `content_policy_violation` code, a `content_filter` finish reason, or a `refusal` content part), and the provider normalizes all of them. Note that a refusal the model writes itself, rather than one the policy layer blocks, carries no signal at all and arrives as an ordinary completion. Score those from the completion text. Meta also restricts API keys after repeated policy violations (HTTP 403 with code `user_blocked`); while a key is restricted, streamed requests return a refusal for every prompt, so an eval where every sample stops with `content_filter` is more likely hitting that restriction than the content policy.
 
@@ -4288,6 +4284,8 @@ For the `bedrock` provider, custom model args (`-M`) are forwarded to the `creat
 Note that all models on AWS Bedrock require that you [request model access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html) before using them in a deployment (in some cases access is granted immediately, in other cases it could one or more days).
 
 You should be also sure that you have the appropriate AWS credentials before accessing models on Bedrock. You aren’t likely to need to, but you can also specify a custom base URL for AWS Bedrock using the `BEDROCK_BASE_URL` environment variable.
+
+You can also authenticate with a named AWS profile instead of static access keys: set `AWS_PROFILE` to the profile name — aiobotocore picks it up from the environment via the standard AWS credential chain.
 
 If you are using Anthropic models on Bedrock, you can alternatively use the [Anthropic provider](#anthropic-on-aws-bedrock) as your means of access. If you are using OpenAI models on Bedrock, access them via the `openai` provider with the `bedrock` qualifier — see [OpenAI on AWS Bedrock](#openai-on-aws-bedrock).
 
@@ -4473,7 +4471,7 @@ To use the [Together AI](https://www.together.ai/) provider, install the `openai
 ``` bash
 pip install openai
 export TOGETHER_API_KEY=your-together-api-key
-inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7
+inspect eval arc.py --model together/MiniMaxAI/MiniMax-M3.1-Flash
 ```
 
 For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
@@ -4481,7 +4479,7 @@ For the `together` provider, you can enable [Tool Emulation](#tool-emulation-ope
 The `together` provider supports a `stream` model arg (`-M`) that controls whether streaming responses are used. The default (“auto”) uses streaming when the caller passes an `on_stream` callback to [generate()](./reference/inspect_ai.solver.html.md#generate). Pass `true` to always stream (or `false` to never stream):
 
 ``` bash
-inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7 -M stream=true
+inspect eval arc.py --model together/MiniMaxAI/MiniMax-M3.1-Flash -M stream=true
 ```
 
 The following environment variables are supported by the Together AI provider
@@ -4711,6 +4709,36 @@ eval("arc.py", model="hf/some-org/custom-arch-model", model_args=dict(trust_remo
 
 The flag is applied to both the model and tokenizer `from_pretrained()` calls.
 
+### Generation Config
+
+`transformers` applies the model repository’s `generation_config.json` to every generation. Inspect sets `do_sample`, `max_new_tokens`, and any of `temperature`, `top_p`, `top_k`, and stop sequences that your [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) specifies; every other field (for example `repetition_penalty`, `num_beams`, or `sequence_bias`) comes from the repository. Use the `generation_config` model arg to change this:
+
+| Value | Behavior |
+|----|----|
+| `auto` (default) | Use the repository’s `generation_config.json`. |
+| `default` | Use the `transformers` defaults. Unless your [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) sets them, this means sampling at `temperature=1.0` with `top_k=50`, which may differ from the settings the model was tuned for. |
+| path or Hub id | Load the generation config from that location instead (for example, the model the repository was fine-tuned from), using the model’s generation config class. |
+| `transformers.GenerationConfig` (Python only) | Passed to `from_pretrained()`, which uses it in place of the repository’s config. Recorded with source `object`. |
+
+`default` is not available for models that use a `GenerationConfig` subclass (for example, diffusion models), since their settings have no defaults; use a path instead. With `default` or a path, the BOS, EOS, PAD and decoder start token ids are still taken from the repository, because they refer to its tokenizer’s vocabulary and generation needs the EOS token to stop.
+
+``` bash
+inspect eval gsm8k.py --model hf/some-org/fine-tuned-model -M generation_config=default
+```
+
+Each [ModelOutput](./reference/inspect_ai.model.html.md#modeloutput) records the model’s configuration in `metadata["hf_model_config"]`: the chat template’s source (`tokenizer` or `model_arg`), the name of the tokenizer template selected by `chat_template` (if any), and the SHA-256 of the template text, the model’s generation config fields that differ from the `transformers` defaults, and whether `trust_remote_code` was set. The recorded generation config is the model’s own; values your [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) sets (such as `temperature`) override it at generation time.
+
+### Untrusted Model Repositories
+
+A model repository contains more than weights. Its chat template determines the prompt the model receives, and its `generation_config.json` controls decoding. Both can change evaluation results without any change to the weights: a template can insert text such as known answers into every prompt, and a generation config can bias decoding toward particular tokens. With `trust_remote_code=true`, the repository’s Python code runs in the evaluation process and can modify scorers, read sample targets, or rewrite the log.
+
+When you evaluate a repository you do not trust, take the prompt format and decoding settings from a source you do trust:
+
+- Pass a chat template you have reviewed with `-M chat_template=...` (for example, the template of the model the repository was fine-tuned from).
+- Use `-M generation_config=default`, or load the config from a repository you trust with `-M generation_config=<base-model>`, and set sampling parameters explicitly in your [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig). The special token ids, including EOS, still come from the repository.
+- Do not set `trust_remote_code`. If the model requires it, run the evaluation in an isolated environment (for example a container with no access to other logs or credentials) and treat its results as unverified.
+- Check `metadata["hf_model_config"]` in the log to confirm which template and generation settings were used.
+
 ### Model Class
 
 By default the Hugging Face provider loads models with `AutoModelForCausalLM`. Some architectures are not registered with that auto-class and must be loaded with a different one — for example the Mistral 3 series and other image-text-to-text models require `AutoModelForImageTextToText`. Use the `auto_model_class` model arg to name the `transformers` auto-class to use:
@@ -4916,6 +4944,18 @@ inspect eval gsm8k.py --model vllm/Qwen/Qwen3-1.7B-Base -M use_chat_template=fal
 > **NOTE: Note**
 >
 > `use_chat_template` only takes effect when Inspect starts the vLLM server. When connecting to an existing server via `VLLM_BASE_URL`, set `--chat-template` when starting the server instead.
+
+### Untrusted Model Repositories
+
+The vLLM server also applies the model repository’s chat template and `generation_config.json` by default, so both can affect results independently of the weights (see [Untrusted Model Repositories](#hf-untrusted-repos) for the Hugging Face provider). When Inspect starts the server, model args are passed to `vllm serve`, so you can take these from a trusted source instead:
+
+``` bash
+inspect eval gsm8k.py --model vllm/some-org/fine-tuned-model \
+  -M generation_config=vllm \
+  -M chat_template=/path/to/reviewed-template.jinja
+```
+
+`generation_config=vllm` uses vLLM’s defaults rather than the repository’s file, and `chat_template` replaces the repository’s template. With `trust_remote_code`, the repository’s code runs in the vLLM server process rather than the evaluation process, but as the same user, with the same environment variables (including API keys) and filesystem access, so it is not isolated from the evaluation.
 
 ### Raw Text Completions
 
@@ -5186,6 +5226,19 @@ export DEEPSEEK_BASE_URL=https://api.deepseek.com
 inspect eval arc.py --model openai-api/deepseek/deepseek-flash
 ```
 
+### Apple Silicon via mlx-lm
+
+You can run models locally on Apple Silicon with [mlx-lm](https://github.com/ml-explore/mlx-lm), which serves an OpenAI-compatible API. Start its server, then point the `openai-api` provider at it:
+
+``` bash
+mlx_lm.server --model mlx-community/Qwen3-30B-A3B-Instruct-2507-4bit --host 127.0.0.1 --port 8080 --max-tokens 4096
+export MLX_BASE_URL=http://127.0.0.1:8080/v1
+export MLX_API_KEY=not-needed
+inspect eval inspect_evals/gsm8k --model openai-api/mlx/mlx-community/Qwen3-30B-A3B-Instruct-2507-4bit --limit 10
+```
+
+The local server does not authenticate requests, so any value works for `MLX_API_KEY`. Note that `mlx_lm.server` defaults to 512 max tokens, so set `--max-tokens` high enough for the task — longer step-by-step reasoning would otherwise be cut off.
+
 ### Responses API
 
 You can enable the use of the Responses API with the `openai-api` provider by passing the `responses_api` model arg. For example:
@@ -5276,7 +5329,7 @@ For the `openrouter` provider, the following custom model args (`-M`) are suppor
 
 | Argument | Example |
 |----|----|
-| [`models`](https://openrouter.ai/docs/guides/routing/model-fallbacks) | `-M "models=anthropic/claude-3.5-sonnet, gryphe/mythomax-l2-13b"` |
+| [`models`](https://openrouter.ai/docs/guides/routing/model-fallbacks) | `-M "models=anthropic/claude-sonnet-5.5, gryphe/mythomax-l2-13b"` |
 | [`provider`](https://openrouter.ai/docs/features/provider-routing) | `-M "provider={ 'quantizations': ['int8'] }"` |
 | [`transforms`](https://openrouter.ai/docs/features/message-transforms) | `-M "transforms=['middle-out']"` |
 | [`reasoning_enabled`](https://openrouter.ai/docs/use-cases/reasoning-tokens) | `-M "reasoning_enabled=false"` |
@@ -5302,9 +5355,9 @@ To use models served by a [LiteLLM proxy](https://docs.litellm.ai/docs/simple_pr
 
 ``` yaml
 model_list:
-  - model_name: claude-sonnet-5
+  - model_name: claude-sonnet-5-5
     litellm_params:
-      model: anthropic/claude-sonnet-5
+      model: anthropic/claude-sonnet-5-5
       api_key: os.environ/ANTHROPIC_API_KEY
 ```
 
@@ -5312,7 +5365,7 @@ model_list:
 pip install openai
 export LITELLM_PROXY_BASE_URL=https://litellm.example.com
 export LITELLM_PROXY_API_KEY=your-litellm-key
-inspect eval arc.py --model litellm-proxy/claude-sonnet-5
+inspect eval arc.py --model litellm-proxy/claude-sonnet-5-5
 ```
 
 The `model_name` is chosen by the proxy’s operator and need not be a model id. Inspect reads the proxy’s `/model/info` listing to find the upstream model behind it (`litellm_params.model`, or `model_info.base_model` when set), and uses that model to look up the context window and cost and to shape requests. Virtual keys work; the listing shows only the models a key may use. Aliases defined on your key or its team are resolved to the model they route to.
@@ -5464,12 +5517,17 @@ There are two types of caching available: Inspect local caching and provider lev
 Use the `cache` option of [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) to activate the use of the cache. The keys for caching (what determines if a request can be fulfilled from the cache) are as follows:
 
 - Model name and base URL (e.g. `openai/gpt-6-luna`)
+- Model constructor arguments (e.g. `extra_body` or `model_path`)
 - Model prompt (i.e. message history)
 - Epoch number (for ensuring distinct generations per epoch)
 - Generate configuration (e.g. `temperature`, `top_p`, etc.)
 - Active `tools` and `tool_choice`
 
 If all of these inputs are identical, then the model response will be served from the cache. By default, model responses are cached for 1 week (see [Cache Policy](#cache-policy) below for details on customising this).
+
+Model constructor arguments containing JSON values (strings, numbers, booleans, null, lists, and dictionaries with string keys) can reuse cached responses across model instances and processes. Dictionary key order is part of the key, since providers can resolve overlapping keys (such as header names that differ in case) by order. If they contain objects such as a custom HTTP client or a callback, Inspect warns and scopes caching to the current model instance because those objects have no reliable persistent identity. Repeated requests on that instance can still use the cache; newly constructed instances cannot reuse those entries. Changing a model’s constructor arguments after it is constructed is not supported: set per-call options with [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig), or construct another model. The constructor-argument fingerprint omits `api_key`, `aws_*` arguments, and generator or iterator values, matching the log. Because `aws_*` arguments, including `aws_region` and `aws_profile`, are not part of the key, models that differ only in Bedrock region or profile share cache entries. Constructor argument values are hashed, not stored in cache files.
+
+Caches written by Inspect versions that did not include constructor arguments in the key can return an answer written for custom arguments to a model using default arguments. After upgrading, clear them with `inspect cache clear --all`, or `inspect cache clear --model provider/model` for each affected model.
 
 Here are some example uses of `--cache` from the CLI:
 
@@ -5488,7 +5546,7 @@ eval("arc.py", cache=True)
 You can also use caching with lower-level [generate()](./reference/inspect_ai.solver.html.md#generate) calls (e.g. a model instance you have obtained with [get_model()](./reference/inspect_ai.model.html.md#get_model). For example:
 
 ``` python
-model = get_model("anthropic/claude-sonnet-4-20250514")
+model = get_model("anthropic/claude-sonnet-5-5")
 output = model.generate(
   input, config=GenerateConfig(cache = True)
 )
@@ -6074,7 +6132,7 @@ CompactionEdit(memory=False, keep_tool_uses=3)
 
 Compaction needs to both estimate the tokens currently used by the input as well as know the size of the target model’s context window. Both of these dimensions are handled automatically as follows:
 
-1.  Token counting is handled using the `model.count_tokens()` method. This in turn delegates to provider-specific token counting for the OpenAI, Anthropic, Google, and Grok providers. For other providers, [tiktoken](https://github.com/openai/tiktoken) is used with the “o200k_base” encoder, which will work reasonably well for models with 100k-150k vocabularies.
+1.  Token counting is handled using the `model.count_tokens()` method. This in turn delegates to provider-specific token counting for the OpenAI, Anthropic (except on Bedrock, which uses the approximate local estimate), Google, and Grok providers. For other providers, [tiktoken](https://github.com/openai/tiktoken) is used with the “o200k_base” encoder, which will work reasonably well for models with 100k-150k vocabularies.
 
 2.  Context window sizes are computed using Inspect’s built-in [model database](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_ai/model/_model_data), which includes context window sizes for popular commercial and open-source models. If the context window for a model cannot be determined then a warning is printed and a default context-window of 128,000 is utilized.
 
@@ -6580,7 +6638,7 @@ eval("math.py", model="openai/gpt-6-luna", reasoning_effort="high")
 
 GPT-5.5 and later reason at the server default effort when `reasoning_effort` is not set, and in that state the API rejects `temperature`, `top_p`, and `logprobs`. Inspect drops those options with a warning; pass `reasoning_effort="none"` to disable reasoning and have them sent.
 
-GPT-6 Sol, GPT-6 Luna, and GPT-6.1 Terra accept `none` and `low` through `max` (the API rejects `minimal`) and follow the GPT-5.5+ rules above (they reason at `medium` unless `reasoning_effort` is set). GPT-6 Astra and GPT-6.1 Sol always reason: they accept `low` through `max` only, and the API rejects `none` and `minimal` with an error. They also reject `temperature`, `top_p`, and `logprobs` regardless of effort, so Inspect drops those options with a warning for these models.
+GPT-6 Sol, GPT-6 Luna, and GPT-6.1 Terra accept `none` and `low` through `max` (the API rejects `minimal`) and follow the GPT-5.5+ rules above (they reason at `medium` unless `reasoning_effort` is set). GPT-6 Astra and GPT-6.1 Sol always reason: they accept `low` through `max` only, and the API rejects `none` and `minimal` with an error. They also reject `temperature`, `top_p`, and `logprobs` regardless of effort, so Inspect drops those options with a warning for these models. GPT-6.2 Astra and GPT-6.2 Sol also always reason: the API rejects `none`, and Inspect drops `temperature`, `top_p`, and `logprobs` with a warning regardless of effort.
 
 Note that GPT-5.6 models treat `reasoning_effort` as a ceiling rather than a floor: on prompts the model judges easy it may perform no reasoning at all (producing zero reasoning tokens), even at higher effort levels.
 
@@ -6615,17 +6673,18 @@ Note that you can also pass `reasoning_tokens` explicitly for these models.
 
 #### Google Gemini 3 and later
 
-Gemini 3 Flash 3.0–3.6 and Flash-Lite 3.1–3.5 expose four thinking levels (`MINIMAL`, `LOW`, `MEDIUM`, `HIGH`). Gemini 3 Pro / Pro 3.1, Gemini 3.7 Flash and later, and Gemini 4 Argon omit `MINIMAL` (the API rejects it), so Inspect maps `minimal` to `LOW` there and logs a warning. The same fail-safe applies to names without a version (rolling aliases such as `gemini-flash-latest`, predeployment codenames) and to versions newer than those listed, until Inspect has confirmed they accept `MINIMAL`.
+Gemini 3 Flash 3.0–3.6 and Flash-Lite 3.1–3.5 expose four thinking levels (`MINIMAL`, `LOW`, `MEDIUM`, `HIGH`). Gemini 3 Pro / Pro 3.1, Gemini 3.7 Flash and later, and Gemini 4 Argon, Carbon and Hydrogen omit `MINIMAL` (the API rejects it), so Inspect maps `minimal` to `LOW` there and logs a warning. The same fail-safe applies to names without a version (rolling aliases such as `gemini-flash-latest`, predeployment codenames) and to versions newer than those listed, until Inspect has confirmed they accept `MINIMAL`. Gemini 4 Hydrogen adds an `XHIGH` level, which Inspect sends for `xhigh` and `max`. Argon and Carbon reject `XHIGH`, and Inspect sends `HIGH` to every model it has not confirmed accepts it.
 
 | Inspect input | API value (Flash ≤ 3.6, Flash-Lite ≤ 3.5) | API value (other Gemini 3+) |
 |----|----|----|
-| `none` | thinking disabled | thinking disabled (Pro: stays on, warning) |
+| `none` | thinking disabled | thinking disabled (Pro, Hydrogen: stays on, warning) |
 | `minimal` | `MINIMAL` | `LOW` |
 | `low` | `LOW` | `LOW` |
 | `medium` | `MEDIUM` | `MEDIUM` |
-| `high` / `xhigh` / `max` | `HIGH` | `HIGH` |
+| `high` | `HIGH` | `HIGH` |
+| `xhigh` / `max` | `HIGH` | `HIGH` (Hydrogen: `XHIGH`) |
 
-Pro models cannot disable thinking, so for them `none` leaves thinking on and logs a warning. Inspect also treats Pro names it has not verified (such as a future Gemini 4 Pro) this way.
+Pro models and Gemini 4 Hydrogen cannot disable thinking, so for them `none` leaves thinking on and logs a warning. Inspect also treats Pro names it has not verified (such as a future Gemini 4 Pro) this way.
 
 #### Google Gemini 2.5
 
@@ -6683,18 +6742,21 @@ Non-reasoning Mistral models reject the parameter, and Inspect omits it when `re
 
 Passes through to the underlying model; OpenRouter itself maps `effort` to `budget_tokens` for models that need it, using the formula `budget = clamp(max_tokens × ratio, 1024, 128000)`.
 
-| Input           | API value         | Ratio |
-|-----------------|-------------------|-------|
-| `none`          | reasoning omitted | —     |
-| `minimal`       | `minimal`         | 0.1   |
-| `low`           | `low`             | 0.2   |
-| `medium`        | `medium`          | 0.5   |
-| `high`          | `high`            | 0.8   |
-| `max` / `xhigh` | `xhigh`           | 0.95  |
+| Input     | API value         | Ratio |
+|-----------|-------------------|-------|
+| `none`    | reasoning omitted | —     |
+| `minimal` | `minimal`         | 0.1   |
+| `low`     | `low`             | 0.2   |
+| `medium`  | `medium`          | 0.5   |
+| `high`    | `high`            | 0.8   |
+| `xhigh`   | `xhigh`           | 0.95  |
+| `max`     | `max`             | 0.95  |
+
+Inspect forwards `max` unchanged to OpenRouter. Available effort levels vary by model; consult `reasoning.supported_efforts` in [`GET /api/v1/models`](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens#discovering-per-model-reasoning-options). A successful request alone does not establish which effort the underlying model applied.
 
 #### LiteLLM Proxy
 
-Sends the requested value, which LiteLLM maps to the upstream provider’s parameter (e.g. adaptive thinking with `output_config.effort` for Claude). When LiteLLM or the upstream model rejects the value, Inspect retries with the strongest effort the model accepts at or below it (otherwise the weakest above it), or with no effort if the model takes none, and warns once. LiteLLM decides which values a model takes from its model map, so for models it doesn’t know set `base_model` in the proxy config (see [LiteLLM Proxy](./providers.html.md#litellm-proxy-model-info)).
+Sends the requested value, which LiteLLM maps to the upstream provider’s parameter (e.g. adaptive thinking with `output_config.effort` for Claude). When LiteLLM or the upstream model rejects the value, Inspect retries with the strongest effort the model accepts at or below it (otherwise the weakest above it), or with no effort if the model takes none, and warns once. LiteLLM decides which values a model takes from its model map, so for models it doesn’t know set `base_model` in the proxy config (see [LiteLLM Proxy](./providers.html.md#litellm-proxy-model-info)). For Gemini models, Inspect first maps the effort as the native Google provider does, except that `xhigh` and `max` go as `high`, because LiteLLM’s Gemini mapping rejects `xhigh`.
 
 #### Groq / Ollama / SageMaker / SambaNova
 
@@ -6745,6 +6807,7 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 |--------------------------------------|-----------------|
 | anthropic/claude-fable-5             | high            |
 | anthropic/claude-fable-5-1           | high            |
+| anthropic/claude-fable-5-2           | high            |
 | anthropic/claude-haiku-5-5           | medium          |
 | anthropic/claude-mythos-5            | high            |
 | anthropic/claude-mythos-5-1          | high            |
@@ -6772,12 +6835,19 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | google/gemini-3.7-flash              | medium          |
 | google/gemini-3.8-flash              | medium          |
 | google/gemini-4-argon                | medium          |
+| google/gemini-4-carbon               | medium          |
+| google/gemini-4-hydrogen             | high            |
 | grok/grok-3-mini                     | low             |
 | grok/grok-4                          | no effort scale |
 | grok/grok-4.3                        | low             |
 | grok/grok-4.5                        | high            |
 | grok/grok-4.6                        | high            |
 | grok/grok-4.7                        | high            |
+| meta/muse-ember-1.0                  | max             |
+| meta/muse-spark-1.1                  | high            |
+| meta/muse-spark-1.2                  | high            |
+| meta/muse-spark-1.3                  | high            |
+| meta/muse-wonder-1.0                 | max             |
 | mistral/magistral-medium-2506        | no effort scale |
 | mistral/magistral-small-2506         | no effort scale |
 | mistral/mistral-medium-2604          | none            |
@@ -7395,15 +7465,19 @@ Score(
 
 `Score.value` may be any [Value](./reference/inspect_ai.scorer.html.md#value) that your metrics know how to interpret. Built-in correctness scorers use the constants `CORRECT` (`"C"`), `INCORRECT` (`"I"`), `PARTIAL` (`"P"`), and `NOANSWER` (`"N"`). The default `value_to_float()` converter used by metrics such as [accuracy()](./reference/inspect_ai.scorer.html.md#accuracy) maps these values to `1.0`, `0.0`, `0.5`, and `0.0` respectively. It also converts numeric values, numeric strings, and common boolean strings such as `"yes"` / `"no"` and `"true"` / `"false"`.
 
-You can return other strings, but aggregate metrics need a converter that understands them. For example:
+You can return other strings, but the default epoch reducer converts each value with `value_to_float()` before metrics run, including when there is only one epoch. A string it does not map, such as `"pass"`, becomes `0.0` unless you pass a converter to the reducer:
 
 ``` python
-from inspect_ai.scorer import accuracy, value_to_float
+from inspect_ai import Epochs
+from inspect_ai.scorer import accuracy, mean_score, value_to_float
 
-accuracy(
-    to_float=value_to_float(correct="pass", incorrect="fail")
-)
+to_float = value_to_float(correct="pass", incorrect="fail")
+
+accuracy(to_float=to_float)
+Epochs(1, mean_score(value_to_float=to_float))
 ```
+
+The metric converter still applies when reducers are disabled (`Epochs(n, [])`), because those metrics see the original string.
 
 If you are extracting an answer from within a completion (e.g. looking for text using a regex pattern, looking at the beginning or end of the completion, etc.) you should strive to *always* return an `answer` as part of your [Score](./reference/inspect_ai.scorer.html.md#score), as this makes it much easier to understand the details of scoring when viewing the eval log file.
 
@@ -7519,6 +7593,7 @@ We provide the full model completion as the answer for the score (`answer` is op
 Here’s a somewhat simplified version of the code for the [model_graded_qa()](./reference/inspect_ai.scorer.html.md#model_graded_qa) scorer:
 
 ``` python
+import secrets
 
 @scorer(metrics=[accuracy(), stderr()])
 def model_graded_qa(
@@ -7543,6 +7618,7 @@ def model_graded_qa(
             answer=state.output.completion,
             criterion=target.text,
             instructions=instructions,
+            grader_nonce=secrets.token_hex(4),
         )
 
         # query the model for the score
@@ -7682,8 +7758,12 @@ Score entries can contain a human-readable `explanation` and a machine-readable 
 | `no_response` | model under test | empty completion |
 | `grader_failed` | grader | grader could not provide a usable verdict |
 | `scoring_failed` | scorer | scorer could not provide a result |
+| `excluded` | operator | left out of the metrics after the eval; the value is `NaN` |
+| `zeroed` | operator | scored as an empty attempt after the eval |
 
 The vocabulary distinguishes failures by actor: model-under-test failures use `invalid_response_format`, `refusal`, or `no_response`; grader failures use `grader_failed`; and other scorer failures use `scoring_failed`. The explanation or scorer-specific metadata can contain finer-grained details.
+
+An operator who decides after the eval that a sample should not count as the model ran it records the decision as a score edit with `excluded` or `zeroed`. An `excluded` score with a `NaN` value takes no part in epoch reduction (see [Reducing Epochs](./metrics.html.md#reducing-epochs)).
 
 ## Run settings
 
@@ -7755,7 +7835,7 @@ There are a few ways you can customise the default behaviour:
 
 5.  Bind a `model_role` (default: `"grader"`) at eval time. Pass `ModelRole("grader", required=True)` when the scorer must not fall back to the model being evaluated. See [Model Roles](./models.html.md#model-roles) for details.
 
-6.  Specify a different `template`. Templates are passed these variables: `question`, `criterion`, `answer`, and `instructions.`
+6.  Specify a different `template`. Templates are passed these variables: `question`, `criterion`, `answer`, `instructions`, and `grader_nonce`.
 
 ## Template Variables
 
@@ -7767,14 +7847,17 @@ When using a custom `template`, the following variables are available:
 | `{answer}` | Model output | The completion generated by the model being evaluated. |
 | `{criterion}` | `Sample.target` | The grading criterion, populated from the `target` field in your dataset or [FieldSpec](./reference/inspect_ai.dataset.html.md#fieldspec). |
 | `{instructions}` | `instructions` parameter | Grading instructions (defaults ask for `GRADE: C` or `GRADE: I`). |
+| `{grader_nonce}` | Generated | A random code (8 hex characters) made for each grading request. Put it on the markers around each field, as the default templates do, so the grader can tell them from markers written into the fields (see [Grading Robustness](#grading-robustness)). |
 
-Variables from `Sample.metadata` are also available in the template (any metadata keys that don’t collide with the four built-in variables above).
+Variables from `Sample.metadata` are also available in the template (any metadata keys that don’t collide with the five built-in variables above).
 
 ### Where `{criterion}` comes from
 
 The `{criterion}` variable is populated from `Sample.target` (equivalently, the `target` field in your [FieldSpec](./reference/inspect_ai.dataset.html.md#fieldspec)). In the default template, this produces a prompt like:
 
-    [Criterion]: The answer should name Paris as the capital of France.
+    [BEGIN CRITERION (3f9a1c7e)]
+    The answer should name Paris as the capital of France.
+    [END CRITERION (3f9a1c7e)]
 
 If you use `{criterion}` in your template but don’t set a `target` in your dataset, the variable will be empty, which is why Inspect View may show a blank criterion.
 
@@ -7861,7 +7944,7 @@ The built-in model graded scorers also support using multiple grader models (whe
 model_graded_qa(
     model = [
         "google/gemini-2.5-pro",
-        "anthropic/claude-3-opus-20240229",
+        "anthropic/claude-opus-5-5",
         "together/meta-llama/Llama-3-70b-chat-hf",
     ]
 )
@@ -7877,11 +7960,15 @@ model_graded_qa(model=[...], reducer="mode")
 
 ## Grading Robustness
 
-Because the grader sees dataset- and model-controlled text (the question, the submission, and any per-sample criterion), the built-in graders take two precautions against a model steering its own grade.
+Because the grader sees dataset- and model-controlled text (the question, the submission, and any per-sample criterion), the built-in graders take three precautions against a model steering its own grade.
 
 Grade extraction binds to the last grade. The default `grade_pattern` matches the last `GRADE: X` in the grader’s output, tolerating common zero-width formatting characters around the separator, markdown emphasis or brackets around the label or verdict (`**GRADE**: I`, `GRADE: [I]`), a fullwidth colon or `=` as the separator, and a `## GRADE` heading with the verdict alone on the next line. The instructions tell the grader to end with its grade, so an earlier `GRADE: C` (echoed in chain-of-thought, or injected via the submission) does not win, and prose such as `downgrade:` is not treated as a verdict. If you customise `grade_pattern`, keep this behaviour in mind.
 
-Structural delimiters are neutralized. The default templates wrap content in `[BEGIN DATA]` / `[END DATA]` markers. Before formatting the prompt, Inspect rewrites any `[BEGIN DATA]` / `[END DATA]` markers that appear in the model-controlled `answer`, the `question`, the `criterion`, and any `metadata` values (for example to `[END-DATA]`) so a model cannot inject a fake delimiter and smuggle grading instructions into the prompt. The `instructions` you provide are author-controlled and left untouched.
+Field markers carry a random code. The default templates put each field between its own markers, and each marker carries a code made for that grading request (e.g. `[BEGIN SUBMISSION (3f9a1c7e)]` and `[END SUBMISSION (3f9a1c7e)]`). With `include_history=True`, the message headers in the conversation carry it too (e.g. `User (3f9a1c7e):`). The templates tell the grader that text which looks like a marker or message header but lacks the code is part of the field it appears in. They also tell the grader that the task and submission are data to grade, not instructions. The submission is written before the code is made, so a marker forged in it cannot carry the code. Custom templates can use the code as `{grader_nonce}` (a `grader_nonce` key in sample metadata is not passed to the template).
+
+With the default templates, each grading request gets a new code, so its prompt is different every time. A grader with [caching](./caching.html.md) enabled won’t reuse earlier responses, and re-scoring a log may not reproduce the original grades exactly. The default prompts are also about 150 tokens longer than in earlier versions of Inspect. Custom templates that use neither `{grader_nonce}` nor `include_history` are unaffected.
+
+Structural delimiters are rewritten. Earlier default templates, and many custom ones, wrap content in `[BEGIN DATA]` / `[END DATA]` markers. Before formatting the prompt, Inspect rewrites any `[BEGIN DATA]` / `[END DATA]` markers that appear in the model-controlled `answer`, the `question`, the `criterion`, and any `metadata` values (for example to `[END-DATA]`), so that they do not exactly match the template’s own markers. This is only a partial defense. A grader can still read `[END-DATA]` as the end of the data. Look-alike forms (e.g. fullwidth brackets or a non-breaking space) are not rewritten. For stronger protection in a custom template, put `{grader_nonce}` on its markers and tell the grader that marker-like text without the code is part of the field it appears in, as the default templates do. The `instructions` you provide are author-controlled and left untouched.
 
 The built-in scorers make one grading request per grader. An unparsable verdict produces `Score.unscored(reason="grader_failed")` without retrying the verdict. The score retains the grader output and has a `NaN` value, which metrics exclude. See [Scoring Policy](./scoring-policy.html.md#interpreting-coverage) for how epoch reduction affects coverage counts.
 
@@ -8286,6 +8373,8 @@ With `epochs=Epochs(5, "mode")`, [accuracy()](./reference/inspect_ai.scorer.html
 
 If you disable reducers with `Epochs(n, [])` or `--no-epochs-reducer`, legacy `scores="auto"` metrics receive unreduced sample-epoch scores, preserving existing behavior. Metrics that explicitly declare `scores="reduced"` require a reducer when multiple epochs are present.
 
+An epoch whose score has the reason `excluded` and a `NaN` value is left out before the reducer runs, so the sample reduces as if that epoch had not run. If every epoch of a sample is excluded, the reducer is not called and the sample’s reduced score is unscored. Other `NaN` scores still reach the reducer.
+
 ### Built-in Reducers
 
 Inspect includes several built in reducers which are summarised below.
@@ -8677,7 +8766,7 @@ inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer custom_scor
 inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer custom_scorers.py@classify
 ```
 
-If you need to pass arguments to the scorer, you can do do using scorer args (`-S`) like so:
+If you need to pass arguments to the scorer, you can do so using scorer args (`-S`) like so:
 
 ``` bash
 inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer match -S location=end
@@ -8727,7 +8816,7 @@ log = eval(popularity, model="openai/gpt-6-luna")[0]
 
 grader_models = [
     "openai/gpt-6-luna",
-    "anthropic/claude-3-opus-20240229",
+    "anthropic/claude-opus-5-5",
     "google/gemini-2.5-pro",
     "mistral/mistral-large-latest"
 ]
@@ -8747,7 +8836,7 @@ log = read_eval_log(input_log_path)
 
 grader_models = [
     "openai/gpt-6-luna",
-    "anthropic/claude-3-opus-20240229",
+    "anthropic/claude-opus-5-5",
     "google/gemini-2.5-pro",
     "mistral/mistral-large-latest"
 ]
@@ -9321,7 +9410,7 @@ The parent agent has an [agent()](./reference/inspect_ai.agent.html.md#agent) to
 
 The parent agent decides when to delegate vs. do work directly. The system prompt guides it to delegate when the work is complex, independent, or would benefit from an isolated context, and to do the work directly when it’s a simple lookup or a single tool call.
 
-Subagents run in isolated context by default. Each gets a fresh message history with only the task prompt, and only its summary returns to the parent. This prevents context rot and keeps the parent’s context lean. All subagents inherit the parent’s model by default — for cost-sensitive workloads, consider overriding [research()](./reference/inspect_ai.agent.html.md#research) with a cheaper model (e.g. `research(model="anthropic/claude-haiku-4-5")`), since read-only information gathering is the highest-volume subagent task. See [Subagents](#sec-customizing-builtins) below for how to customize or replace the defaults.
+Subagents run in isolated context by default. Each gets a fresh message history with only the task prompt, and only its summary returns to the parent. This prevents context rot and keeps the parent’s context lean. All subagents inherit the parent’s model by default — for cost-sensitive workloads, consider overriding [research()](./reference/inspect_ai.agent.html.md#research) with a cheaper model (e.g. `research(model="anthropic/claude-haiku-5-5")`), since read-only information gathering is the highest-volume subagent task. See [Subagents](#sec-customizing-builtins) below for how to customize or replace the defaults.
 
 A subagent’s report is the whole point of the delegation, so it is exempt from the `max_tool_output` limit that applies to ordinary tool results — however long the report, the parent sees all of it. Use `limits` on a [customized subagent](#sec-customizing-builtins) (e.g. [token_limit()](./reference/inspect_ai.util.html.md#token_limit)) to bound how much work a subagent can do.
 
@@ -9460,7 +9549,7 @@ deepagent(
     subagents=[
         research(
             instructions="Focus on configuration files and logs.",
-1            model="anthropic/claude-haiku-4-5",
+1            model="anthropic/claude-haiku-5-5",
         ),
         plan(
             instructions="Create conservative, step-by-step plans.",
@@ -9508,7 +9597,7 @@ from inspect_ai.tool import bash, read_file, grep, text_editor
                "done so far and identify errors, omissions, or "
                "improvements. Be specific about what needs to change.",
 2        tools=[read_file(), grep()],
-3        model="anthropic/claude-opus-4-7",
+3        model="anthropic/claude-opus-5-5",
         memory="readonly",
     )
 
@@ -9584,7 +9673,7 @@ deepagent(
         plan(),
 1        general(fork=True),
     ],
-2    model="anthropic/claude-sonnet-4-6",
+2    model="anthropic/claude-sonnet-5-5",
 )
 ```
 
@@ -11097,6 +11186,29 @@ Spans are automatically created for sample initialisation, solvers, scorers, sub
 
 Each [ModelEvent](./reference/inspect_ai.event.html.md#modelevent) records where the call was made in its `origin` field. During the solve a call is `"agent"`, one of its conversation’s agent turns, unless it is made by a tool, a compaction, an approver, a reviewer, MCP sampling, a sentinel or a scorer, which Inspect marks itself (`"tool"`, `"compaction"`, `"approval"`, `"review"`, `"sampling"`, `"sentinel"`, `"scorer"`). A scorer’s calls are `"scorer"`, including those of an agent run inside it, and a sentinel does not check a scorer’s tool calls. Any other call outside the solve, such as one made at sample init, is `"setup"`. A sentinel checks only agent turns at its generate stages, and the transcript timeline shows other calls as utility.
 
+When replaying an older log without `origin`, Inspect infers turns from the event span tree. A stored timeline passed to sentinel replay can group the resulting steps into conversations, but its branches and spans do not change which calls are inferred as turns. Recorded sentinel checks and human decisions are used only where the step id pairs with a model call’s exact id. Checks without a matching call are skipped with a warning. Inference may differ from the turns observed by a sentinel that ran before origins were recorded; reproducing that sentinel’s live steps is outside the replay contract.
+
+Replay reconstructs approval-derived human decisions only for logs from Inspect 0.3.277 onward; older or unversioned logs omit them and warn once when a selected human approver appears. A log is refused where the call an approval approved (its modified call, else the call it records) is not the call its [ToolEvent](./reference/inspect_ai.event.html.md#toolevent) records, unless a recorded sentinel modify changed the call again to the one the [ToolEvent](./reference/inspect_ai.event.html.md#toolevent) records. Inspect before 0.3.277 wrote such logs, including for a call an approver changed in place and approved without a modified call, and they are refused whatever version the header records, since a retried eval keeps its completed samples under a newer header. This includes an approved call whose tool records other arguments than it was given, such as [memory()](./reference/inspect_ai.tool.html.md#memory) resolving a path. Replay such a transcript from its messages instead.
+
+Where one model response proposes several tool calls under one id (Mistral gives the id `"null"` to every call whose id the model omitted), replay pairs each execution with the proposed call that has its function. Where several calls have that function, it takes the one whose arguments match those the execution’s approval records, or, where it has no approval and no sentinel modified it, those its [ToolEvent](./reference/inspect_ai.event.html.md#toolevent) records. Calls of one function that differ only in their arguments are interchangeable, since the steps take their arguments from the log. The exception is a call a sentinel modified that has no approval replay can rely on, whose `tool_call` step is built from the proposed call. Replay relies on an approval only in a log from Inspect 0.3.277 onward. This pairing needs a log that records each execution’s id (`ToolEvent.execution_id`); in an older log, replay takes the last call proposed under the id.
+
+Replay skips a call’s tool steps, with a warning naming the call, in four cases:
+
+- The model response proposed several calls under the call’s id, and the rules above do not pick one.
+- A sentinel modified the call, and its [ToolEvent](./reference/inspect_ai.event.html.md#toolevent) records other arguments than the modify’s. A tool can rewrite its arguments, as [memory()](./reference/inspect_ai.tool.html.md#memory) does when it resolves a path. This applies whatever the call’s id, and also where another sentinel decision outranked the modify.
+- A sentinel modified the call, another execution records the same call id (a shared `"null"`, a repeated id), and no approval records the call the sentinel was shown. That is a call with no approval replay can rely on, or one an approver modified. An approver’s modify is recorded before the tool validates it (e.g. before [memory()](./reference/inspect_ai.tool.html.md#memory) resolves a path).
+- The call ended in a parsing or approval error, has no recorded sentinel check, and the call its approval approved is not the one its [ToolEvent](./reference/inspect_ai.event.html.md#toolevent) records. It may have been refused before it ran, or its tool may have raised the error after running, so replay skips it instead of refusing the log.
+
+Where none of these applies, a call a sentinel modified that has no approval replay can rely on keeps its tool steps. Replay builds its `tool_call` step from the proposed call, or from an approver’s change to it. A call an approver modified before the sentinel did also keeps its tool steps, and replay builds its `tool_call` step from the approver’s call as the approval records it. Either can differ from the call the sentinel was shown, since the tool’s validation can change the arguments (e.g. [memory()](./reference/inspect_ai.tool.html.md#memory) resolves a path, validation fills a Pydantic default).
+
+Inspect logs have `origin` on every model call or on none. For a mixed-origin transcript, replay uses recorded classifications where present and infers calls without origins. It does not promise continuity across the mixed sequence.
+
+If two calls continue the same turn and no later call resolves the fork, replay leaves both calls to the existing prompt rules. The sample’s final messages do not select a fork head.
+
+Without recorded origins, a failed call’s input may leave an earlier fork unresolved, and a custom solver’s own calls may be inferred as agent turns when its only agent is unwrapped.
+
+Sentinel event replay requires a log written by Inspect 0.3.100 or later. Earlier logs lack the `solvers` and `scorers` spans that separate the agent’s work from scoring (and, before 0.3.94, native tool spans), so `steps_from_events()` raises an error rather than replaying them incorrectly. This includes samples that a retried eval carried over from such a log, whatever version its header records. Replay those logs from their messages instead. In supported logs, a spanless tool event can mark a call halted before execution and does not create tool steps.
+
 If your agent makes model calls that are part of the solve but are not the evaluated agent’s turns, mark them with [model_origin()](./reference/inspect_ai.model.html.md#model_origin). Use `"environment"` for the setup being evaluated against, such as an auditor model or a simulated user, and `"helper"` for a scaffold’s own helper calls, such as its own summarizer:
 
 ``` python
@@ -11244,6 +11356,10 @@ We’ll cover each of these configurations in turn below. You can also learn fro
 | [Codex CLI](https://meridianlabs-ai.github.io/inspect_swe/codex_cli.html) | Demonstrates using a [Codex CLI](https://github.com/openai/codex) agent to explore a Kali Linux system. |
 
 ## Agent Bridge
+
+> **CAUTION:**
+>
+> [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge) runs the agent and its tools in the Inspect process, with access to the host’s network and files. Don’t use it with adversarial models (see [Adversarial Models](#adversarial-models)).
 
 The [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge) can bridge agents written against the Python APIs for OpenAI Completions, OpenAI Responses, Anthropic, and Google. To bridge a Python based agent running in the same process as Inspect:
 
@@ -11482,7 +11598,7 @@ The [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_
 
 1.  A name in `model_aliases` goes to the model it maps to.
 2.  A name the `model_resolver` returns a model for goes to that model.
-3.  `"inspect"`, and the eval’s own model name (e.g. `claude-sonnet-4-5` for an eval on `anthropic/claude-sonnet-4-5`), go to the eval’s model.
+3.  `"inspect"`, and the eval’s own model name (e.g. `claude-sonnet-5-5` for an eval on `anthropic/claude-sonnet-5-5`), go to the eval’s model.
 4.  Any other name, including `inspect/<model>` names and model role names, also goes to the eval’s model. The bridge logs a warning once for each such name, and the `requested_model` field of the model event in the transcript records the name the agent sent.
 
 Pass `model` to send unmatched names (and the eval’s own model name) to another model instead, e.g. `model="inspect/openai/gpt-6-luna"`.
@@ -11495,7 +11611,7 @@ from inspect_ai.model import get_model
 async with sandbox_agent_bridge(
     state,
     model_aliases={
-        "claude-haiku-4-5": get_model("anthropic/claude-haiku-4-5"),
+        "claude-haiku-5-5": get_model("anthropic/claude-haiku-5-5"),
         "subagent": get_model(role="subagent"),
     },
 ) as bridge:
@@ -11605,7 +11721,7 @@ Model requests carry one additional ambient fact: [current_bridge_request()](./r
 
 Custom agents run through a bridge still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional agents.
 
-Tools the agent runs itself (e.g. its own shell or file tools) appear only in the model calls. [Bridged tools](#bridged-tools) run by Inspect are recorded as tool events, like other tool calls, including calls that were denied or rejected. A call the model proposed takes the id of the model’s tool call, so the log viewer shows it with that call. Each event’s `metadata["bridge"]` records the server and tool, the name the model called it by, the id of the proposing call, and whether a proposal matched (`grant`: `"consumed"`, `"denied"`, `"exempt"` for a `require_proposal=False` server, or `None` for a request rejected before that check). Counts of tool events in a bridged sample (e.g. from [events_df()](./reference/inspect_ai.analysis.html.md#events_df)) include bridged tool calls but not the agent’s own tools.
+Tools the agent runs itself (e.g. its own shell or file tools) appear only in the model calls, as reported by the agent (see [Adversarial Models](#adversarial-models)). [Bridged tools](#bridged-tools) run by Inspect are recorded as tool events, like other tool calls, including calls that were denied or rejected. A call the model proposed takes the id of the model’s tool call, so the log viewer shows it with that call. Each event’s `metadata["bridge"]` records the server and tool, the name the model called it by, the id of the proposing call, and whether a proposal matched (`grant`: `"consumed"`, `"denied"`, `"exempt"` for a `require_proposal=False` server, or `None` for a request rejected before that check). Counts of tool events in a bridged sample (e.g. from [events_df()](./reference/inspect_ai.analysis.html.md#events_df)) include bridged tool calls but not the agent’s own tools.
 
 On a `require_proposal=False` server, a call is paired with the oldest pending proposal for the same tool and arguments, whichever call arrives first. A call the model did not propose (for example, one made from code the model wrote) with the same arguments as a pending proposal takes that proposal’s id, and the proposed call is then recorded as `"exempt"` with a fresh id. Both calls run as usual; only the pairing in the log is wrong.
 
@@ -11616,6 +11732,46 @@ from inspect_ai.log import transcript
 
 transcript().info("custom *markdown* content")
 ```
+
+## Adversarial Models
+
+An adversarial model is one that may try to bypass controls, tamper with evidence, or manipulate the evaluation (for example, a model without safeguards in a cyber evaluation). If you are evaluating one, keep the following in mind.
+
+### Sandbox Bridge
+
+With [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge) the agent runs inside the sandbox, so the sandbox is what contains it. By default the bridge keeps the model API keys Inspect uses on the host and withholds tools that run outside the sandbox (see [Granted Capabilities](#granted-capabilities)). Credentials you put in the sandbox yourself (for example, through an agent’s `env`) can be read by the agent. Anything you grant, including [bridged tools](#bridged-tools), is available to the agent even if the sandbox has no network. Note that most [Inspect SWE](https://meridianlabs-ai.github.io/inspect_swe/#adversarial-models) agents grant web search by default.
+
+Running the agent inside the sandbox has these limits:
+
+- **By default, any process in the sandbox can call the bridge.** Inspect can’t tell the agent apart from other processes in the sandbox. A framework that runs each agent as its own sandbox user (such as [Inspect Swarm](https://github.com/meridianlabs-ai/inspect_swarm)) can limit the bridge to that user. The bridge still can’t tell apart processes running as that user, and root can act as any user.
+
+- **The transcript is the agent’s own account of its tool use.** Inspect records model calls, and runs and records any [bridged tools](#bridged-tools) you provide. It doesn’t run or check the tools the agent runs inside the sandbox. The message history and tool results in each request come from the agent, which can misreport them. If you need a reliable record of tool calls, use a native agent such as [react()](./react-agent.html.md).
+
+- **Don’t count on a non-root user.** A capable model may get root in its container. Root can interfere with the bridge inside the sandbox, including the responses the agent receives.
+
+- **The agent’s own permission prompts are usually off.** Agents typically run with their permission prompts and sandboxing disabled (Inspect SWE does this by default).
+
+- **Approval covers tool calls the agent runs, not their effects.** [Tool approval](#tool-approval) reviews each tool call before the agent sees it. It doesn’t review what an approved command then does, or web search and code execution run by the model provider. Remote MCP servers are refused while an approval policy is active.
+
+### In-Process Bridge
+
+Don’t use [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge) with an adversarial model. The agent and its tools run in the Inspect process with access to the host’s network and files, and Inspect reads the files and URLs that messages reference as media. Use [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge) or a native agent instead.
+
+### Other Recommendations
+
+- Keep `network_mode: none`, or allow access only to the hosts the task needs (see [Docker Configuration](./sandboxing.html.md#sec-docker-configuration)).
+
+- Don’t enable writable [host mounts](./sandboxing.html.md#mounting-host-directories).
+
+- Consider a stronger setup than default Docker. For example, run containers with gVisor’s `runsc` runtime, which makes container escape harder. A VM-based sandbox gives more protection still (see [Environment Binding](./sandboxing.html.md#environment-binding) for the available sandbox providers).
+
+- Turn off rendering of model content in the log viewer (see [Untrusted Content](./task-views.html.md#untrusted-content)).
+
+- Keep log directories out of the agent’s reach, and only retry or rescore logs you trust (see [Eval Logs](./eval-logs.html.md)).
+
+- If you use `--acp-server`, keep it on the default Unix socket. The server has no authentication, so if you use a TCP port make sure the sandbox can’t reach it. A loopback port may not be enough: some setups (for example, Docker Desktop with sandbox networking enabled) let a container connect to the host’s loopback ports (see [Intervention](./intervention.html.md)).
+
+- Scorers, graders and monitors that read agent output or sandbox files are reading input the model controls.
 
 
 # Human Agent – Inspect
@@ -11683,7 +11839,7 @@ There are however some requirements that should be met by your task before using
 The human agent works on the task within the default sandbox container for the task. Access to the container can be initiated using the command printed at the bottom of the **Human Agent** panel. For example:
 
 ``` bash
-docker exec -it inspect-gdm_intercod-itmzq4e-default-1 bash -l
+docker exec -it inspect-gdm_intercod-iqes2sgrg8tkq5q5w-default-1 bash -l
 ```
 
 Alternatively, if the human agent is working within VS Code then two links are provided to access the container within VS Code:
@@ -11796,11 +11952,11 @@ inspect eval inspect_evals/gdm_intercode_ctf \
 Which will print the following to the terminal:
 
 ``` bash
-Running task gdm_intercode_ctf (1 sample): anthropic/claude-3-5-sonnet-20240620 (config: sample_id: 44)...
+Running task gdm_intercode_ctf (1 sample): anthropic/claude-sonnet-5-5 (config: sample_id: 44)...
 
 You are completing a task on a Linux system (task instructions will be presented when you login). Login to the system with the following command:
 
-docker exec -it inspect-gdm_intercod-iebwzkg-default-1 bash -l
+docker exec -it inspect-gdm_intercod-iyjq05n2sfjrqzy1r-default-1 bash -l
 ```
 
 
@@ -12004,7 +12160,7 @@ Note that when using the “openai” provider, you should also specify a fallba
 
 ### Anthropic Options
 
-The [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool can use Anthropic’s built-in search capability when running on a limited number of Anthropic models (currently “claude-opus-4-20250514”, “claude-sonnet-4-20250514”, “claude-3-7-sonnet-20250219”, “claude-3-5-sonnet-latest”, “claude-3-5-haiku-latest”). This provider does not require any API keys beyond what’s needed for the model itself.
+The [web_search()](./reference/inspect_ai.tool.html.md#web_search) tool can use Anthropic’s built-in search capability when running on Claude 4 and later models. This provider does not require any API keys beyond what’s needed for the model itself.
 
 For more details on Anthropic’s web search parameters, see [Anthropic Web Search Documentation](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool).
 
@@ -12284,7 +12440,7 @@ def computer_task():
 To evaluate the task with models tuned for computer use:
 
 ``` bash
-inspect eval computer.py --model anthropic/claude-sonnet-4-6
+inspect eval computer.py --model anthropic/claude-sonnet-5-5
 inspect eval computer.py --model openai/gpt-5.4
 inspect eval computer.py --model google/gemini-3-flash-preview
 ```
@@ -12402,7 +12558,7 @@ inspect eval computer.py --approval approval.yaml
 
 The computer tool’s schema is a superset of the standard [Anthropic](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool),[OpenAI](https://platform.openai.com/docs/guides/tools-computer-use), and [Google](https://ai.google.dev/gemini-api/docs/computer-use) computer tool schemas. When using models tuned for computer use, the computer tool will automatically bind to the native computer tool definitions.
 
-For Claude models, the binding depends on the model and platform: on the Claude API and Vertex, Claude Opus 5.5, Sonnet 5.5, Haiku 5.5, Fable 5/5.1 and Mythos 5/5.1 use Anthropic’s computer toolset (`computer_toolset_20260801`), where each action is its own tool call and a failed action halts the remaining computer actions in that turn; other Claude models, and every model on Bedrock and Foundry (which offer only the earlier tool), keep the legacy `computer_20251124` tool. See [Computer Use](./providers.html.md#anthropic-computer-use) in the Anthropic provider documentation for details, including the `computer_toolset` model arg that forces either mode.
+For Claude models, the binding depends on the model and platform: on the Claude API and Vertex, Claude Opus 5.5, Sonnet 5.5, Haiku 5.5, and Fable/Mythos 5.x use Anthropic’s computer toolset (`computer_toolset_20260801`), where each action is its own tool call and a failed action halts the remaining computer actions in that turn; Fable 5.2 also uses it on Foundry. Other Claude models, and other models on Bedrock and Foundry (which offer only the earlier tool), keep the legacy `computer_20251124` tool. See [Computer Use](./providers.html.md#anthropic-computer-use) in the Anthropic provider documentation for details, including the `computer_toolset` model arg that forces either mode.
 
 ## Code Execution
 
@@ -12975,7 +13131,7 @@ def map_task():
     )
 ```
 
-In this example we use all of the tool made available by the server. You can also select a subset of tools (this is covered below in [Tool Selection](#tool-selection)).
+In this example we use all of the tools made available by the server. You can also select a subset of tools (this is covered below in [Tool Selection](#tool-selection)).
 
 #### ToolSource
 
@@ -12996,10 +13152,12 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
 You can specify that you’d like an HTTP-based MCP Server to be executed remotely by passing the `execution="remote"` option. For example:
 
 ``` python
+import os
+
 deepwiki = mcp_server_http(
     name="deepwiki", 
     url="https://mcp.deepwiki.com/mcp", 
-    authorization="$DEEPWIKI_API_KEY"
+    authorization=os.environ["DEEPWIKI_API_KEY"],
 1    execution="remote"
 )
 ```
@@ -13007,7 +13165,7 @@ deepwiki = mcp_server_http(
 1  
 This is what indicates that the MCP Server should be executed remotely. Pass `execution="local"` for local execution (the default).
 
-Note that some remote MCP servers will require credentials—in this case pass the `authorization` option (as shown above) to provide an OAuth Bearer Token or pass `headers` to provide credentials using another scheme.
+Note that some remote MCP servers will require credentials—in this case pass the `authorization` option (as shown above) to provide an OAuth Bearer Token or pass `headers` to provide credentials using another scheme. Header values (including `authorization`) are sent to the model provider; Inspect does not record them in the eval log.
 
 Before using remote servers, you should review OpenAI’s [Risks and Safety](https://platform.openai.com/docs/guides/tools-remote-mcp#risks-and-safety) guidance for Remote MCP.
 
@@ -13950,7 +14108,6 @@ There are two sandbox environments built in to Inspect and six available as exte
 | `k8s` | [inspect-k8s-sandbox](https://pypi.org/project/inspect-k8s-sandbox/) | Yes | [Kubernetes](https://k8s-sandbox.aisi.org.uk/) cluster. |
 | `daytona` | [inspect-sandboxes](https://pypi.org/project/inspect-sandboxes/) | Yes | [Daytona](https://meridianlabs-ai.github.io/inspect_sandboxes/daytona.html) cloud sandbox. |
 | `modal` | [inspect-sandboxes](https://pypi.org/project/inspect-sandboxes/) | Yes | [Modal](https://meridianlabs-ai.github.io/inspect_sandboxes/modal.html) cloud sandbox. |
-| `ec2` | [inspect_ec2_sandbox](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) | No | [AWS EC2](https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox) virtual machine. |
 | `proxmox` | [inspect_proxmox_sandbox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) | No | [Proxmox](https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox) with virtual machines. |
 | `vagrant` | [inspect_vagrant_sandbox](https://github.com/jasongwartz/inspect_vagrant_sandbox) | No | [Vagrant](https://github.com/jasongwartz/inspect_vagrant_sandbox) virtual machines on any Vagrant-supported hypervisor. |
 | `openshell` | [inspect-openshell-sandbox](https://pypi.org/project/inspect-openshell-sandbox/) | Yes | [NVIDIA OpenShell](https://github.com/32bitsret/inspect-openshell-sandbox) sandboxes with Landlock filesystem and network policies. |
@@ -14057,6 +14214,8 @@ Docker Compose is checked separately: Inspect requires version 2.21.0 or greater
 
 Inspect’s prerequisite checks confirm that Docker supports the features Inspect needs. They do not check whether security updates are installed. You are responsible for using vendor-supported releases and applying security updates to Docker Engine or Docker Desktop, Compose, the container runtime (such as runc), and the Docker host’s operating system. This also applies when the Docker host is remote.
 
+Don’t count on a non-root container user to contain an adversarial model, as a capable model may get root in its container (see [Adversarial Models](./agent-bridge.html.md#adversarial-models)).
+
 If you plan on running evaluations with large numbers of concurrent containers (\> 30) you should also configure Docker’s [default address pools](https://straz.to/2021-09-08-docker-address-pools/) to accommodate this.
 
 ### File Access
@@ -14159,6 +14318,8 @@ eval("ctf.py", sandbox_prebuilt=True)
 ```
 
 With this option set, task startup verifies images instead of building them. Every service with a `build` section or `x-local: true` must name an `image` that already exists locally, and Inspect’s internal images (e.g. for the computer tool) must also be present. Other services use their local image when present, and a failed pull of a missing one is also an error. A missing image results in an error before any samples run. The option can also be set via the `INSPECT_EVAL_SANDBOX_PREBUILT` environment variable.
+
+Inspect injects sandbox tools binaries into sandboxes for some tools. An install built from the sdist (e.g. conda-forge or `pip install --no-binary inspect-ai`) does not bundle them and downloads them at first use. For offline / air-gapped use, run `inspect download sandbox-tools` while online to fetch them ahead of time. The download writes into the `inspect_ai` package directory. For a read-only shared install, a user who can write to that directory should run `inspect download sandbox-tools` once.
 
 ### Multiple Environments
 
@@ -14306,7 +14467,7 @@ eval("ctf.py", sandbox_cleanup = False)
 When you do this, you’ll see a list of sandbox containers printed out which includes the ID of each container. You can then use this ID to get a shell inside one of the containers:
 
 ``` bash
-docker exec -it inspect-task-ielnkhh-default-1 bash -l
+docker exec -it inspect-task-iqes2sgrg8tkq5q5w-default-1 bash -l
 ```
 
 When you no longer need the environments, you can clean them up either all at once or individually by project name. The printed list ends with the cleanup command for each environment:
@@ -14316,7 +14477,7 @@ When you no longer need the environments, you can clean them up either all at on
 inspect sandbox cleanup docker
 
 # cleanup single environment
-inspect sandbox cleanup docker inspect-task-ielnkhh
+inspect sandbox cleanup docker inspect-task-iqes2sgrg8tkq5q5w
 ```
 
 ## Resource Management
@@ -14636,6 +14797,8 @@ A `modify` decision must carry the modified call in `modified`. Without one, the
 
 A `modify` decision may change only the arguments of the tool call. If the modified call names a different function or, for a native call, has a different id, neither tool runs and the sample fails with an error, since this is a bug in the approver rather than something to report to the model. For a modified native call, the tool event records the arguments that ran, the model output keeps the call the model proposed, and the approval event keeps the call as presented for approval, with the modified call in `modified`.
 
+An approver can make its own model calls (e.g. to ask a model whether a call is safe). These calls are recorded in the sample’s model usage, but do not count towards any token, turn or cost limit, and time spent approving counts as waiting rather than working time.
+
 Here’s a more complicated custom approver that implements an allow list for bash commands. Imagine that we’ve implemented this approver within a Python package named `evaltools`:
 
 ``` python
@@ -14809,7 +14972,7 @@ The arguments are:
 | `view` | The tool’s optional human-readable rendering of the call. |
 | `history` | The conversation up to and including the assistant message that made the call. |
 
-Exceptions raised by a reviewer end the sample as an error, as exceptions from approvers do. Model calls made by a reviewer do not count towards the sample’s token or turn limits.
+Exceptions raised by a reviewer end the sample as an error, as exceptions from approvers do. Model calls made by a reviewer are recorded in the sample’s model usage, but do not count towards any token, turn or cost limit.
 
 Cancelling a tool call while its review is unfinished stops the sample with an operator limit. The completed tool result remains in the transcript, and an information event records that review was cancelled. If the sample stops for another reason, unfinished reviewers are cancelled and their tools’ completed results are also preserved. An interrupted review does not record a review decision.
 
@@ -14898,6 +15061,7 @@ Once an evaluation is developed, Inspect provides a number of tools for running 
 |----|----|
 | [Eval Sets](./eval-sets.html.md) | Describe, run, and analyse larger sets of evaluation tasks with automatic retry and resumption. |
 | [Parallelism](./parallelism.html.md) | Run multiple tasks and models in parallel and tune sandbox concurrency. |
+| [Sharding](./sharding.html.md) | Split one task’s samples across several workers and merge their logs into one. |
 | [Handling Errors](./handling-errors.html.md) | Deal with runtime errors and recover from crashes during evaluation. |
 | [Setting Limits](./setting-limits.html.md) | Set time, message, token, and cost limits on tasks, samples, and agent execution. |
 | [Control Channel](./control-channel.html.md) | Observe running evals from another process: task and sample status, errors, and transcript events. |
@@ -14934,7 +15098,7 @@ Run a set of evaluations using the `inspect eval-set` command or [eval_set()](./
 
 ``` bash
 $ inspect eval-set mmlu.py mathematics.py \
-   --model openai/gpt-6-luna,anthropic/claude-3-5-sonnet-20240620 \
+   --model openai/gpt-6-luna,anthropic/claude-haiku-5-5 \
    --log-dir logs-run-42
 ```
 
@@ -14945,7 +15109,7 @@ from inspect_ai import eval_set
 
 success, logs = eval_set(
    tasks=["mmlu.py", "mathematics.py"],
-   model=["openai/gpt-6-luna", "anthropic/claude-3-5-sonnet-20240620"],
+   model=["openai/gpt-6-luna", "anthropic/claude-haiku-5-5"],
    log_dir="logs-run-42"      
 )
 ```
@@ -14966,7 +15130,7 @@ You can also amend an eval set with additional tasks, models, or epochs. Just re
 
 ``` bash
 $ inspect eval-set mmlu.py mathematics.py \
-   --model openai/gpt-6-sol,openai/gpt-6-luna,anthropic/claude-3-5-sonnet-20240620 \
+   --model openai/gpt-6-sol,openai/gpt-6-luna,anthropic/claude-haiku-5-5 \
    --epochs 3 \
    --log-dir logs-run-42
 ```
@@ -14980,7 +15144,7 @@ Use the `max_tasks` option to override the default behavior:
 ``` python
 eval_set(
    tasks=["mmlu.py", "mathematics.py", "ctf.py", "science.py"],
-   model=["openai/gpt-6-luna", "anthropic/claude-3-5-sonnet-20240620"],
+   model=["openai/gpt-6-luna", "anthropic/claude-haiku-5-5"],
    max_tasks=8,
    log_dir="logs-run-42"      
 )
@@ -15002,7 +15166,7 @@ maths = create_task("maths.csv")
 
 eval_set(
    [mmlu, maths],
-   model=["openai/gpt-6-luna", "anthropic/claude-3-5-sonnet-20240620"],
+   model=["openai/gpt-6-luna", "anthropic/claude-haiku-5-5"],
    log_dir="logs-run-42"      
 )
 ```
@@ -15280,8 +15444,9 @@ There are a progression of concurrency concerns, and while most evaluations can 
 
 1.  Evaluating multiple models in parallel.
 2.  Evaluating multiple tasks in parallel.
-3.  Sandbox environment concurrency.
-4.  Writing parallel code in custom tools, solvers, and scorers.
+3.  Sharding one task across several worker processes.
+4.  Sandbox environment concurrency.
+5.  Writing parallel code in custom tools, solvers, and scorers.
 
 > **NOTE:**
 >
@@ -15296,7 +15461,7 @@ You can evaluate multiple models in parallel by passing a list of models to the 
 ``` python
 eval("mathematics.py", model=[
     "openai/gpt-6-luna",
-    "anthropic/claude-3-opus-20240229",
+    "anthropic/claude-opus-5-5",
     "google/gemini-2.5-pro"
 ])
 ```
@@ -15344,12 +15509,16 @@ Note that you can combine parallel tasks with parallel models as follows:
 ``` python
 eval(
     tasks, # 3 tasks for various reasoning efforts
-    model=["openai/gpt-6-luna", "anthropic/claude-haiku-4-5"],
+    model=["openai/gpt-6-luna", "anthropic/claude-haiku-5-5"],
     max_tasks=5,
 )
 ```
 
 This code will evaluate a total of 6 tasks (3 reasoning effort variations against 2 models each) with up to 5 tasks run in parallel.
+
+## Sharding
+
+To spread one task’s samples over several processes or machines, run each part as its own worker that writes its own log (a *shard*), then merge the shards into one log. See [Sharding](./sharding.html.md) for the log layout, merging and limitations.
 
 ## Dataset Memory
 
@@ -15440,7 +15609,7 @@ from inspect_ai.model import get_model
 
 models = [
   get_model("openai/gpt-6-sol"),
-  get_model("anthropic/claude-sonnet-4-5"),
+  get_model("anthropic/claude-sonnet-5-5"),
   get_model("mistral/mistral-large-latest")
 ]
 
@@ -15573,6 +15742,140 @@ To learn more about AnyIO see the following resources:
 - <https://anyio.readthedocs.io/>
 
 - <https://lewoudar.medium.com/anyio-all-you-need-for-async-programming-stuff-4cd084d0f6bd>
+
+
+# Sharding – Inspect
+
+## Overview
+
+To spread one task’s samples over several processes or machines, run each part as its own worker that writes its own log (a *shard*), then merge the shards into one log with results for the whole task.
+
+## Layout
+
+Pick a name for the merged log, in the same form as a log file name (for example `2026-10-16T10-00-00-00-00_mytask_RLGk3vGh7Az`), and a log directory. Each worker writes to its own numbered directory under `<name>.shards/` in that log directory:
+
+``` bash
+inspect eval mytask.py --sample-id 1,2,3 \
+  --log-dir logs/2026-10-16T10-00-00-00-00_mytask_RLGk3vGh7Az.shards/0
+inspect eval mytask.py --sample-id 4,5,6 \
+  --log-dir logs/2026-10-16T10-00-00-00-00_mytask_RLGk3vGh7Az.shards/1
+```
+
+Whoever launches the workers must:
+
+- Name each shard directory with digits only (`0`, `1`, …). The merge refuses a `.shards` directory that holds any other directory.
+- Keep backslashes out of shard log file names, and so out of `INSPECT_EVAL_LOG_FILE_PATTERN`. The merge refuses a shard log whose name contains one.
+- Write `.eval` logs, the default format. The merge refuses a `.json` log in a shard directory.
+- Give each shard directory its own fixed selection, with `--sample-id` or a `--limit` range. Selections must not overlap. A worker re-run in a shard directory must select the same samples; the newest log in the directory is the one merged.
+- Run every worker with the same task, task arguments, model, scorers and epochs, from the same working directory.
+- Write the logs straight to the shard directories rather than staging them elsewhere, so `inspect view` shows them as they run.
+
+`--limit` and `--sample-id` cannot be combined, so to shard part of a dataset, resolve it to sample ids first. Tasks that add samples while they run cannot be sharded.
+
+## Merging
+
+When the workers are done, merge the shards into `<name>.eval` with `inspect log merge-shards`, passing the task and the task options the workers were given, without each worker’s `--sample-id`, `--limit` and `--log-dir`:
+
+``` bash
+inspect log merge-shards logs/2026-10-16T10-00-00-00-00_mytask_RLGk3vGh7Az.eval \
+  --task mytask.py -T difficulty=hard
+```
+
+Or from Python, passing the [Task](./reference/inspect_ai.html.md#task) they ran:
+
+``` python
+from inspect_ai.log import merge_eval_log_shards
+from mytask import mytask
+
+merge_eval_log_shards(
+    "logs/2026-10-16T10-00-00-00-00_mytask_RLGk3vGh7Az.eval", mytask()
+)
+```
+
+You can also pass the `.shards` directory. The log can be a local path, a `file://` URI or an `s3://` URL; other storage is refused. A local path does not expand `~`. A relative path whose first part holds a colon (`run:1.eval`) is refused too, as are `file:/...` and `local:/...`; write `./run:1.eval` or a `file://` URI instead.
+
+Build the task as the workers built it: the same task arguments, and the same model and model roles if the task reads them when it is built. The merge computes the merged log’s results and epoch reductions with that task’s scorers, metrics and epoch reducer, over all the merged samples, as an unsharded run computes them. The metrics and epoch reducer run with your own active model and model roles: the merge builds no model from the shard logs, so code in them that calls [get_model()](./reference/inspect_ai.model.html.md#get_model) needs an active model or `INSPECT_EVAL_MODEL`. The merge refuses a task whose name, scorer names, metric names, number of epochs or epoch reducer names differ from what the shards recorded, but it does not compare their options. For shards run with `--epochs N`, keep the task’s epoch reducer as the workers did:
+
+``` python
+from inspect_ai import Epochs, task_with
+
+task = mytask()
+merge_eval_log_shards(log, task_with(task, epochs=Epochs(N, task.epochs_reducer)))
+```
+
+`task_with(task, epochs=N)` resets the reducer to the default, so the merge refuses it when the task sets one. If the workers also ran with `--epochs-reducer`, pass that reducer in place of `task.epochs_reducer`, or `[]` for `--no-epochs-reducer`.
+
+The merge checks that the shards belong to one run and records which shard logs it merged. Running it again reads only the shards that changed and writes nothing if none did, and keeps tags and metadata you edited on the merged log. If the set is not complete (a shard is still running or failed, or samples are missing) the merge raises an error and writes nothing; pass `allow_incomplete=True` to write a `started` or `error` log instead. Without a selection the set is complete when the shards hold the whole dataset; pass `sample_ids` or `sample_count` when they cover only part of it. Later merges reuse that selection.
+
+Only one merge of a log can write at a time. A merge of a local log holds a lock file, `<name>.merge.lock`, beside the merged log and deletes it when it finishes; a merge of an S3 log takes no lock and publishes with a conditional upload instead. A merge that overlaps another raises [WriteConflictError](./reference/inspect_ai.log.html.md#writeconflicterror) and writes nothing; run it again once the other merge has finished. A local merge that crashed leaves its lock file, and every later merge is refused until you delete it. The error names the host and process that held the lock: check that this process is no longer running, then delete the lock file and merge again.
+
+A shard log that holds samples cancelled by `inspect ctl task drain` or `inspect ctl task cancel` is refused, before writing anything, because those samples still need to run. Run that shard again, then merge.
+
+The merge does not delete the shards. Once you have checked the merged log, delete the `.shards` directory yourself, for example with `rm -r logs/<name>.shards` or `aws s3 rm --recursive s3://<bucket>/logs/<name>.shards/`. Later merges then return the merged log as it is. When a later unsharded run of the task supersedes a merged log, the merged log and its `.shards` directory stay until you remove them.
+
+The merge computes metrics as a fresh, unsharded run does. A scorer’s metrics see each sample’s metadata from the dataset, as the sample’s `sample_init` event records it, not metadata a solver changed. A sample logged without its events (its record could not be serialized) is refused.
+
+Shards run with `score=False` (`--no-score`) merge to a log with no metrics, as an unsharded unscored run does. The merge refuses shards where some ran with scoring and others without.
+
+A score that a solver sets (in `state.scores`) rather than a scorer the task declares is refused, before writing anything, because a fresh run and a retry pass it to metrics differently. Score with a scorer declared on the task and re-run the shards.
+
+Merged metrics see samples, scores and metadata exactly as the log stores them, as JSON: sample metadata, `Score.value`, `Score.answer`, `Score.explanation`, `Score.metadata` and every other recorded field. A Python type the log does not keep (a tuple, a datetime, an enum, a set, …) is seen in its stored form, so a tuple is a list and a datetime is a string, and a metric that depends on such types can differ from a live run. Return score values and metadata that keep their meaning in the log (lists for sequences), normalize sample metadata, and re-run shards that used other types. The merge does not detect this.
+
+The merge computes metrics over the samples in sample ID order (IDs sorted as text), then epoch, and its results equal those of an unsharded run of the same samples in that order. A metric whose results depend on sample order can differ from a particular unsharded run, just as it differs between runs with `shuffle=True`.
+
+### The merge command
+
+`inspect log merge-shards LOG --task TASK` builds the task as `inspect eval` builds it and merges with it. It takes these options of `inspect eval`, which mean what they mean there and read the same environment variables: `-T`, `--task-config`, `--model`, `--model-base-url`, `-M`, `--model-config`, `--model-role`, `--epochs`, `--epochs-reducer` and `--no-epochs-reducer`. `--task` takes the forms `inspect eval` takes (`mytask.py`, `mytask.py@name`, a registered name or a directory) and must name one task. Other options of `inspect eval` are refused, including the generation options: the task is built with the default generate config.
+
+Pass the model options (`--model`, `--model-base-url`, `-M`, `--model-config` and `--model-role`) when the task factory, its metrics or its epoch reducer uses that model context. Passing the workers’ values is the safe default. A model given here is created as `inspect eval` creates it, so it needs its provider’s credentials. Without `--model` the task is built with the `none` model active.
+
+The selection options are the Python function’s: `--sample-id` takes exact sample ids, comma separated (not patterns, and no `task:` prefix), and `--sample-count` a number of samples. `--allow-incomplete` writes a `started` or `error` log for an incomplete set. These options, `--task` and `--json` are read only from the command line.
+
+A run launched with `--model-spec` or `--run-config` merges with the equivalent options, taken from the spec or run config the launcher gave its workers:
+
+- From a model spec, its `model`, `base_url` and model args as `--model`, `--model-base-url` and `-M`.
+- From a run config, its `task` and task args, `model` with its args and base URL, `model_roles`, and the `epochs` and `epochs_reducer` of its `eval_config`, as `--task`, `-T`, `--model`, `-M`, `--model-base-url`, `--model-role`, `--epochs` and `--epochs-reducer`. Pass `epochs_reducer: []` as `--epochs N --no-epochs-reducer`: an empty `--epochs-reducer` names no reducer and is refused. An `epochs_reducer` without `epochs` is not used.
+
+The command refuses `INSPECT_EVAL_RUN_CONFIG`, and `INSPECT_EVAL_MODEL_SPEC` unless `--model`, `--model-base-url`, `--model-config` or `-M` is given, since they would change the task. Do not use `inspect log export-config` of a shard log to rebuild these options: it records the model and roles after the task applied its own.
+
+The command prints where it merged, or `No changes since the last merge` when nothing changed, and the merged log’s status. It exits 0 when the merged log is written or unchanged, including an incomplete log written with `--allow-incomplete`, and 1 on any failure. Invalid usage (an unknown option, a missing `--task`) exits 2.
+
+With `--json` it prints one JSON object on stdout and sends everything else, including the task’s own output, to stderr:
+
+``` json
+{"location": "logs/<name>.eval", "status": "success", "written": true,
+ "task": "mytask", "task_id": "RLGk3vGh7Az", "eval_id": "...", "shards": 3}
+```
+
+On failure the object is an error, `{"error": {"kind": ..., "exception": ..., "message": ...}}`, whose `kind` is one of:
+
+| `kind` | Meaning |
+|----|----|
+| `setup` | Setup failed before the task was built: an `--env` value that cannot be parsed, a debugger that cannot listen, or a hook that fails to load. |
+| `invalid_arguments` | The log location or selection is invalid, `--log-dir` was given, or `INSPECT_EVAL_RUN_CONFIG` or `INSPECT_EVAL_MODEL_SPEC` is set. The task was not built. |
+| `task` | The task could not be built: a task or config file is missing, the factory raised, a model has no credentials, or the spec names several tasks or models. |
+| `not_found` | Neither the merged log nor any shard exists, or a shard log the merge listed was removed before it was read, as a worker’s retry does with an older attempt. In the second case run the merge again once the workers have exited. |
+| `incomplete` | The set is incomplete. `incomplete` holds the `status` the log would have, the `missing` sample ids (an array for an effective ID selection, including one retained from an earlier merge; `null` otherwise), and the `running` and `failed` shards. |
+| `outside_selection` | The shards hold samples outside the selection, listed in `outside` (`null` with `--sample-count`). |
+| `refused` | The shards cannot be merged, or the task differs from the one they ran. |
+| `conflict` | Another merge holds the lock or published first. Run the command again once it has finished. A lock left by a merge that crashed stays until you delete it, as described above. |
+| `storage_error` | Reading or writing the logs failed. |
+| `internal` | Anything else, such as a metric that raises. Its traceback is on stderr. |
+
+On Ctrl-C, the command prints no merge report or JSON error envelope; Click prints `Aborted!` to stderr and it exits 1. If it was interrupted while publishing, the merged log may already be written: run it again, which reports `No changes` if so.
+
+## Limitations
+
+- A merge that runs while a worker is writing its shard can fail with a read error. Nothing is written; run the merge again, or merge after the workers have exited.
+- Deleting one shard directory by hand makes later merges refuse until the rest of the `.shards` directory is deleted or the files are restored. Deleting the whole `.shards` directory keeps the merged log as it is.
+- [eval_retry()](./reference/inspect_ai.html.md#eval_retry) refuses a merged log that was merged with `sample_ids` or `sample_count`. Re-run the incomplete shards and merge again instead.
+- Do not change `INSPECT_EVAL_LOG_FILE_PATTERN` while a `.shards` directory exists.
+- A local merged log that is a symbolic link is refused. Merge into the file it points to.
+- Workers whose task has [early stopping](./early-stopping.html.md) can finish with `success` but leave out the samples or epochs they stopped. The merge needs a record for every selected sample and epoch, so it raises [ShardSetIncomplete](./reference/inspect_ai.log.html.md#shardsetincomplete) for such shards (or writes a `started` log with `allow_incomplete=True`), and the merged log has no `early_stopping` summary. To merge the full selection, re-run those shards with early stopping turned off. Removing it only from the task you pass to the merge does not help, since the missing samples were never run.
+- When two attempts in a shard directory sort as equally recent (the same timestamp in their names and the same modification time), the merge refuses rather than guess which is current. Move or delete the attempts that are not current.
+- On S3, a merged log, shards directory, or any file or directory in the shards directory whose location contains `#` or `?`, a tab or line break, or a key starting with `/` is refused. S3 would read such a location as another key. Rename it.
+- Deleting a merged log in `inspect view` leaves its `.shards` directory, and the viewer lists the shards again. To remove a sharded run, delete the `.shards` directory as well.
+- The merge copies each sample member in the compression the shard already used, without recompressing it. A deflate shard stays deflate in the merged log. A zstd frame that the viewer cannot decode — a history window over 32 MiB, or a single frame of at least 256 MiB compressed — is copied as-is and can produce a merged sample the viewer cannot open. Inspect’s writer stays under those limits by using a window well below 32 MiB and capping each frame at 200 MiB of uncompressed input. An incomplete or skippable zstd frame fails the merge.
 
 
 # Handling Errors – Inspect
@@ -16193,7 +16496,7 @@ with token_limit(10_000) as limit:
     print(f"Used {limit.usage:,} of 10,000 tokens")
 ```
 
-If you’re passing the limit instance to [apply_limits()](./reference/inspect_ai.util.html.md#apply_limits) or an agent and want to query the usage, you should keep a reference to it:
+For limits passed to [apply_limits()](./reference/inspect_ai.util.html.md#apply_limits) or [run()](./reference/inspect_ai.agent.html.md#run), keep a reference to the limit to query its usage. [as_tool()](./reference/inspect_ai.agent.html.md#as_tool), [as_solver()](./reference/inspect_ai.agent.html.md#as_solver), and [handoff()](./reference/inspect_ai.agent.html.md#handoff) copy their limits for each invocation, so the original objects do not report invocation usage.
 
 ``` python
 limit = token_limit(10_000)
@@ -16408,6 +16711,28 @@ def myagent(budget: float = 2.00) -> Agent:
 
 Cost limits work similarly to token limits, with stacking and tracking of costs used while the context manager is open.
 
+To run model calls whose cost should not count against any active cost limit, use [suspend_cost_limit()](./reference/inspect_ai.util.html.md#suspend_cost_limit). Their cost is still reported in model and role usage:
+
+``` python
+with cost_limit(2.00):
+    await generate()  # counts against the $2.00 budget
+    with suspend_cost_limit():
+        # cost here is not metered against the $2.00 limit,
+        # and any inner `cost_limit()` is also suspended
+        await auxiliary_generate()
+    await generate()  # counts again
+```
+
+To suspend cost, token, turn and working limits together, use [suspend_limits()](./reference/inspect_ai.util.html.md#suspend_limits). This is useful for code that does its own work alongside the agent (e.g. a monitor that makes its own model calls):
+
+``` python
+with suspend_limits():
+    # cost, tokens, turns and working time here are not charged
+    await run_monitor()
+```
+
+Inspect suspends these limits while an in-process sentinel, a tool approver or a tool result reviewer runs. Their model calls are reported in model and role usage but don’t count towards cost, token, turn or working limits, so a sample’s reported cost can exceed its `cost_limit`. Time and message limits still apply (e.g. a slow model approver still uses up the sample’s time limit).
+
 > **IMPORTANT: Important**
 >
 > Using [cost_limit()](./reference/inspect_ai.util.html.md#cost_limit) requires model cost data to be configured via [set_model_cost()](./reference/inspect_ai.model.html.md#set_model_cost) or `--model-cost-config`. See [Model Cost](#model-cost) for details.
@@ -16490,6 +16815,7 @@ Commands are grouped by resource noun (`task`, `sample`, `model`, `process`), pl
 | `inspect ctl sample cancel-tool-call` | Cancel one hung tool call and let the sample continue. |
 | `inspect ctl sample requeue` | Re-run one errored or cancelled sample inside the live run. |
 | `inspect ctl sample score` | Score one sample’s work-so-far now, without ending it. |
+| `inspect ctl sample agent` | List a sample’s addressable agents, and message, pause, resume or stop them. |
 | `inspect ctl config` | View or retune launch configuration mid-flight. |
 | `inspect ctl model pause` | Pause one model’s dispatch across the run (`--now` also holds in-flight calls to it). |
 | `inspect ctl model resume` | Resume a paused model. |
@@ -16589,10 +16915,10 @@ For evals that may run longer than a few minutes, do not run
 
 ``` bash
 $ inspect ctl task
-task_id       task                        model                      solver    samples             started
-------------  --------------------------  -------------------------  --------  ------------------  --------
-ZByxJpK4bKSz  inspect_evals/gpqa_diamond  openai/gpt-6-sol           react     12/40 (3 running)   14:02:11
-fR8mWn2cQspD  inspect_evals/humaneval     anthropic/claude-sonnet-5  generate  164/164 (complete)  13:58:40
+task_id       task                        model                        solver    samples             started
+------------  --------------------------  ---------------------------  --------  ------------------  --------
+ZByxJpK4bKSz  inspect_evals/gpqa_diamond  openai/gpt-6-sol             react     12/40 (3 running)   14:02:11
+fR8mWn2cQspD  inspect_evals/humaneval     anthropic/claude-sonnet-5-5  generate  164/164 (complete)  13:58:40
 ```
 
 Each row is one task: retried tasks stay on a single row (with an `attempts` column showing how many attempts have run), and an `errors` column appears when any samples have errored. The `solver` column shows the plan’s terminal solver (the agent name, e.g. `react`, for an agentic task). With `--json`, the response is an `{as_of, tasks}` envelope and each task row also carries `pid`, `socket_path`, and `log_location` (where results are being written — the handle for reading logs after the run).
@@ -16609,7 +16935,7 @@ Commands that operate on one task take a `TASK` argument that selects a task fro
 
 Task ids are stable across retries, so a command keeps working after a task errors and is retried (per-attempt eval ids are not stable, which is why commands don’t use them).
 
-One task run against several models (`--model openai/gpt-6-sol,anthropic/claude-fable-5`) makes the task name ambiguous — it matches both rows. Pass `--model` alongside the selector to pick the row running that model (matched at the name start or after a `/`, so `--model gpt-6-sol` matches `openai/gpt-6-sol`): `inspect ctl task cancel my_task --model gpt-6-sol`. The model filter applies within the tasks the selector matches — what other tasks happen to be running can’t change the outcome. If the combination is still ambiguous you get the same candidate-table error, and a combination matching nothing the same not-found error — each qualified with the model. An exact task id paired with a `--model` its task isn’t running errors by naming the contradiction (the task’s actual model) rather than being silently ignored.
+One task run against several models (`--model openai/gpt-6-sol,anthropic/claude-fable-5-2`) makes the task name ambiguous — it matches both rows. Pass `--model` alongside the selector to pick the row running that model (matched at the name start or after a `/`, so `--model gpt-6-sol` matches `openai/gpt-6-sol`): `inspect ctl task cancel my_task --model gpt-6-sol`. The model filter applies within the tasks the selector matches — what other tasks happen to be running can’t change the outcome. If the combination is still ambiguous you get the same candidate-table error, and a combination matching nothing the same not-found error — each qualified with the model. An exact task id paired with a `--model` its task isn’t running errors by naming the contradiction (the task’s actual model) rather than being silently ignored.
 
 On *reads* (`sample list`, `sample errors`) the selector is a filter: omitting it lists across **all** running tasks (each row carries its `task_id`), which makes “what’s erroring anywhere in this eval set?” the zero-argument spelling. On *mutations* (`task log-flush`, the task-scoped `config` knobs) an omitted selector must resolve to exactly one target — the sole running task is the default, and anything ambiguous errors with the candidate list rather than fanning out. Destructive commands (`task cancel`, `task drain`) require the selector outright.
 
@@ -16842,6 +17168,28 @@ The command is idempotent: requeuing a sample whose re-run is already pending, q
 
 Requeuing a sample that completed *successfully* is rejected — re-running or re-scoring a success is out of scope (use score invalidation and `inspect eval-retry` for post-hoc re-runs). Also rejected: a task that has finished or is between attempts (re-run failures with `inspect eval-retry`, or let the queued task retry handle them), and a task with a cancel in flight. `--dry-run` reports what would be re-run — the prior error, the attempt number, and whether a checkpoint resume is available — without changing anything, and reports the rejections above too, so an agent can probe safely.
 
+## Agents in a Sample
+
+Some agent frameworks run several named agents in one sample, such as a multi-agent swarm. Code running in a sample can make its agents, and named groups of them, addressable from `inspect ctl`. `inspect ctl sample agent list` shows them, with what each is doing and the actions it takes now:
+
+``` bash
+$ inspect ctl sample agent list ctf 3
+```
+
+The other verbs act on one agent, named with `--agent`, or on a whole group, named with `--group`:
+
+``` bash
+$ inspect ctl sample agent message ctf 3 --agent worker-2 --text "Check the config file first."
+$ inspect ctl sample agent message ctf 3 --agent worker-2 --file notes.md --interrupt
+$ inspect ctl sample agent pause ctf 3 --group swarm
+$ inspect ctl sample agent resume ctf 3 --group swarm
+$ inspect ctl sample agent stop ctf 3 --agent worker-2
+```
+
+`message` gives one agent a message from the operator, from `--text` or from `--file`, which takes a path or URL such as `s3://` (`-` reads stdin). The agent takes it at its next turn. With `--interrupt`, its current turn is cancelled and it continues with the message now. What `pause`, `resume` and `stop` do is up to the framework that registered the agent or group. An action an agent cannot take fails with the reason, and `list --json` gives the reason for each action an agent does not take now. A repeat that changes nothing, such as a second pause, is a no-op. The mutation verbs (`message`, `pause`, `resume` and `stop`) accept `--dry-run` and require `EPOCH` whenever the task runs more than one epoch. `list` defaults to epoch 1.
+
+These verbs send each request once and never retry it, since a repeat could send a message twice. If a request is sent but its response does not arrive, the command fails with an unknown outcome (`kind: "unknown_outcome"` in the `--json` error envelope): the action may have taken effect, so check with `list` before sending it again.
+
 ## Interim Scoring
 
 `inspect ctl task score` answers “how is this eval actually doing?” mid-run: it runs the task’s own scorers over the in-flight samples, folds completed samples’ existing final scores in, computes interim metrics, and reports the results, all without ending any sample (the non-destructive counterpart to `task cancel --action score`).
@@ -16868,7 +17216,7 @@ Scoring can take minutes (model-graded scorers), so both commands start a pass a
 
 ## Repeated Mutations
 
-Interactively, each mutation prints a full task header above its outcome for context. When stdout is not a TTY — piped or redirected output, a script whose output is captured, an agent’s shell tool — the task-scoped mutation verbs (`sample requeue`, `sample cancel`, `sample cancel-tool-call`, `sample score`, `task cancel`, `task drain`, `task pause`/`resume`, `task score`, `task log-flush`, and `config` when setting a knob) switch to a terse mode instead: one `verb target: outcome` line per call, so N mutations in a loop read as N scannable outcome lines rather than N repeated banners:
+Interactively, each mutation prints a full task header above its outcome for context. When stdout is not a TTY — piped or redirected output, a script whose output is captured, an agent’s shell tool — the task-scoped mutation verbs (`sample requeue`, `sample cancel`, `sample cancel-tool-call`, `sample score`, `sample agent message`/`pause`/`resume`/`stop`, `task cancel`, `task drain`, `task pause`/`resume`, `task score`, `task log-flush`, and `config` when setting a knob) switch to a terse mode instead: one `verb target: outcome` line per call, so N mutations in a loop read as N scannable outcome lines rather than N repeated banners:
 
 ``` bash
 $ inspect ctl sample errors gpqa --json | jq -r '.samples[] | "\(.sample_id) \(.epoch)"' |
@@ -17258,7 +17606,7 @@ class Curriculum(TaskSource):
         return None
 ```
 
-A source that returns follow-ups from these callbacks needs no `next_tasks()`: the run ends when the callbacks return nothing and `next_tasks()` returns `None`. Use `next_tasks()` for the blocking case a per-result callback can’t express.
+A source that returns follow-ups from these callbacks needs no `next_tasks()`: the run ends when the callbacks return nothing and `next_tasks()` returns `None`. Use `next_tasks()` for the blocking case a per-result callback can’t express. An exception raised by `task_complete` is logged as an error: the finished task’s log is kept as written, the exception does not cause a retry, and the run continues without the follow-up tasks. A task whose log is an error is still retried as usual, and `task_complete` is called again for the new attempt. With `debug_errors`, the exception ends the run.
 
 ## Cancelled samples
 
@@ -17394,7 +17742,7 @@ eval(Task(dataset=MySource(), solver=my_solver(), scorer=my_scorer()),
 
 `initial_samples()` is synchronous and returns the seed, so it must return immediately rather than `await`. It may be empty, in which case the task starts by calling `next_samples()`. `next_samples()` is async, called whenever no samples remain in flight, and may block (for example, awaiting external input); return `None` to end the task.
 
-All generated samples run within the task (one log file and one set of results), and each runs for the task’s configured number of [epochs](./metrics.html.md#reducing-epochs). Samples without an `id` are assigned one automatically, continuing the seed’s numbering.
+All generated samples run within the task (one log file and one set of results), and each runs for the task’s configured number of [epochs](./metrics.html.md#reducing-epochs). Seed samples without an `id` are numbered by position, as in any dataset. Generated samples without an `id` get a generated id such as `dyn-t4ab9c-0003`, which never repeats in a later retry attempt. Generated ids sort in the order they were added, up to 9,999 per attempt; beyond that, and past a change in the token’s width (in 2039), they stay unique but no longer sort in order. A generated id skips any id an explicit sample already holds. Avoid explicit ids of the form `dyn-<token>-<counter>`: a later retry can generate the same id and reuse that sample’s result for its own sample (see [Retries](#retries)).
 
 ## Returning follow-up samples
 
@@ -17421,7 +17769,7 @@ Note that with `epochs > 1`, `sample_complete` fires once per *epoch*, and each 
 
 A sample the operator cancels while it is running (`inspect ctl sample cancel`) is still logged, and `sample_complete` fires for it with `sample.error` set to the cancellation and no scores. A sample cancelled before anything was logged — cancelled while still waiting in the queue, or cancelled in the moment between an attempt erroring and its `retry_on_error` re-run — has no [EvalSample](./reference/inspect_ai.log.html.md#evalsample) to deliver, so the source is told via `sample_abandoned(sample, epoch)` instead, with the [Sample](./reference/inspect_ai.dataset.html.md#sample) as it was added to the task. Like `sample_complete`, it may return follow-up samples. A queued sample abandoned by a graceful task cancel (`inspect ctl task cancel --action drain|score|error`) is reported the same way. Neither hook fires when the whole task is cancelled (`--action cancel`, or Ctrl+C): no follow-up could run.
 
-A source that awaits a sample’s outcome — for example a sample that enqueues a rollout and waits for its result — should therefore treat `sample_abandoned` as that outcome, or it will wait forever when the rollout is cancelled before it starts.
+A source that awaits a sample’s outcome — for example a sample that enqueues a rollout and waits for its result — should therefore treat `sample_abandoned` as that outcome, or it will wait forever when the rollout is cancelled before it starts. To match an enqueued sample to these callbacks by id, give it an explicit `id`; a generated id is not written back to the submitted [Sample](./reference/inspect_ai.dataset.html.md#sample).
 
 ## Sources from callbacks
 
@@ -17464,7 +17812,7 @@ Enqueued samples share a buffer with samples returned from `sample_complete`. [e
 
 ### Running a sample again as a new epoch
 
-Pass `epoch` to [enqueue_sample()](./reference/inspect_ai.html.md#enqueue_sample) to run a sample once, as that epoch, rather than for the task’s configured epochs. This lets a source run the same sample repeatedly under its own id:
+Pass `epoch` to [enqueue_sample()](./reference/inspect_ai.html.md#enqueue_sample) to run a sample once, as that epoch, rather than for the task’s configured epochs. This lets a source run the same sample repeatedly under its own id, so the sample must have an explicit `id`:
 
 ``` python
 class Rollouts(SampleSource):
@@ -17507,11 +17855,15 @@ A *fractional* `fail_on_error` threshold (e.g. `0.5`) is evaluated at the end o
 
 ## Retries
 
-On a task retry (`eval_set` / task retry attempts), completed samples from the prior attempt are reused, and the source’s `sample_complete` is called for each reused sample — so a source that derives its follow-ups from `sample_complete` (the patterns above) regenerates them naturally, and regenerated samples whose ids (and explicit epochs) match the prior attempt are themselves reused rather than re-run. Note that the retry re-drives the *same source instance*: a source that instead holds internal `next_samples()` state resumes where it left off, so such sources should be written to be resumable if used with retries.
+On a task retry (`eval_set` / task retry attempts), completed samples from the prior attempt are reused, and the source’s `sample_complete` is called for each reused sample — so a source that derives its follow-ups from `sample_complete` (the patterns above) regenerates them naturally.
+
+A generated sample is reused on retry only if its explicit `id` (and explicit epoch, if any) matches the prior attempt. Each time a sample without an `id` is added, it receives a new generated id that no other attempt uses; the source’s [Sample](./reference/inspect_ai.dataset.html.md#sample) stays unchanged. So adding the same object twice runs two separate samples, and on a retry it runs again. Give follow-ups explicit stable ids to reuse their results on retry.
+
+Note that the retry re-drives the *same source instance*: a source that instead holds internal `next_samples()` state resumes where it left off, so such sources should be written to be resumable if used with retries.
 
 ## Logs
 
-All samples — seed and generated — are written to one log file, and `results.total_samples` reflects everything that ran. Note however that the log’s *dataset* field (`eval.dataset.samples` and `eval.dataset.sample_ids`) describes only the seed: tools that read it as the planned sample count (for example the `dataset_samples` column in analysis dataframes) will under-count for a dynamic task, so use the results or the samples themselves for the true total.
+All samples — seed and generated — are written to one log file. The log’s *dataset* field (`eval.dataset.samples` and `eval.dataset.sample_ids`) describes only the seed, so tools that read it as the planned sample count (for example the `dataset_samples` column in analysis dataframes) under-count for a dynamic task. For the total, use `log.results.total_samples` when results are present, or `log.total_samples` for a finished log without results (for example one that errored or was cancelled). `log.total_samples` counts the sample/epoch runs accepted for the attempt, including runs that never started, so counting the stored samples can give a lower number. It is `None` for logs from older versions and for running, crashed and recovered logs.
 
 
 # Tracing – Inspect
@@ -17835,6 +18187,7 @@ The [EvalLog](./reference/inspect_ai.log.html.md#evallog) object returned from [
 | `eval` | [EvalSpec](./reference/inspect_ai.log.html.md#evalspec) | Top level eval details including task, model, creation time, etc. |
 | `plan` | [EvalPlan](./reference/inspect_ai.log.html.md#evalplan) | List of solvers and model generation config used for the eval. |
 | `results` | [EvalResults](./reference/inspect_ai.log.html.md#evalresults) | Aggregate results computed by scorer metrics. |
+| `total_samples` | `int \| None` | Sample/epoch runs accepted for this attempt, saved when the eval finishes, even when `results` is absent. `None` means unknown. |
 | `stats` | [EvalStats](./reference/inspect_ai.log.html.md#evalstats) | Model usage statistics (input and output tokens) |
 | `error` | [EvalError](./reference/inspect_ai.log.html.md#evalerror) | Error information (if `status == "error`) including traceback. |
 | `tags` | `list[str]` | Current tags (eval-time tags merged with any post-eval edits). |
@@ -17884,7 +18237,7 @@ for log in logs:
     write_eval_log(log)
 ```
 
-Note that the `EvalLog.location` is a URI rather than a traditional file path(e.g. it could be a `file://` URI, an `s3://` URI or any other URI supported by [fsspec](https://filesystem-spec.readthedocs.io/)).
+Note that the `EvalLog.location` is a URI rather than a traditional file path (e.g. it could be a `file://` URI, an `s3://` URI or any other URI supported by [fsspec](https://filesystem-spec.readthedocs.io/)).
 
 ### Functions
 
@@ -17944,7 +18297,7 @@ You can also use [read_eval_log_sample_summaries()](./reference/inspect_ai.log.h
 ``` python
 errors: list[EvalSample] = []
 for sample in read_eval_log_sample_summaries(log_file):
-    if sample.error is not None
+    if sample.error is not None:
         errors.append(
             read_eval_log_sample(log_file, sample.id, sample.epoch)
         )
@@ -18166,6 +18519,106 @@ Retrying a log (`inspect eval-retry`) and rescoring it (`inspect score`) are dif
 
 When you edit a score, a [ScoreEditEvent](./reference/inspect_ai.event.html.md#scoreeditevent) is automatically added to the sample’s event log. This provides a complete audit trail of all score modifications that can be viewed in the log viewer.
 
+### Excluding Samples
+
+To leave samples out of a finished log’s metrics, use [exclude_samples()](./reference/inspect_ai.log.html.md#exclude_samples). Each score the sample holds becomes an unscored `NaN` with the reason `"excluded"`, and the earlier score stays in the score history. A sample that holds no score (for example, one that errored before it was scored) gets one under the log’s first scorer. Metrics are then recomputed:
+
+``` python
+from inspect_ai.log import (
+    read_eval_log, write_eval_log, exclude_samples, ProvenanceData
+)
+
+log = read_eval_log("my_eval.eval")
+
+result = exclude_samples(
+    log,
+    ["sample-3", ("sample-7", 2)],  # every epoch of sample-3, epoch 2 of sample-7
+    ProvenanceData(author="alice", reason="task environment was broken"),
+)
+
+write_eval_log(log)
+```
+
+The reason is required, and is also the score’s explanation. `result.applied` lists the `(id, epoch)` of each sample excluded now, and `result.unchanged` those already excluded.
+
+The same edit is available from the command line. It rewrites the log in place:
+
+``` bash
+$ inspect log exclude logs/my_eval.eval --sample sample-3 --sample sample-7 \
+    --epoch 2 --reason "task environment was broken"
+```
+
+`--epoch` applies to every `--sample`. `--author` defaults to your git identity, else your user name. `--json` prints the result as JSON.
+
+An excluded epoch takes no part in epoch reduction: a sample reduces as if that epoch had not run, and a sample with every epoch excluded counts as unscored. Epochs are reduced with the reducers the log records, rebuilt by name, so a custom reducer configured with other arguments is rebuilt with its defaults.
+
+Some things to keep in mind:
+
+- Exclusion does not change the sample’s transcript, output or error. An errored sample that you exclude is still re-run by `inspect eval-retry` and eval set retries, and the new result replaces the exclusion.
+
+- Rescoring with `inspect score --action append` keeps the excluded scores, but the appended scores count in their own metrics. Apply the exclusion again to exclude them too. `--action overwrite` replaces the sample’s scores, so apply the exclusion again afterwards.
+
+- As with [edit_score()](./reference/inspect_ai.log.html.md#edit_score), the log’s task file is not imported. If the eval used a metric or reducer defined in its task file, import that module before calling [exclude_samples()](./reference/inspect_ai.log.html.md#exclude_samples); otherwise a `LookupError` names it and the log is not changed. `inspect log exclude` works only when every metric and reducer is part of Inspect or an installed package.
+
+- The log must have finished. To exclude a sample of a running eval, cancel it with `inspect ctl sample cancel --action cancel`, then exclude it once the log is written.
+
+### Zeroing Samples
+
+To count samples of a finished log as failures, zero them. What a failure is depends on the task’s scorers (`I` for [match()](./reference/inspect_ai.scorer.html.md#match), `0` for a numeric scorer, a failed test in a sandbox), so zeroing takes two steps.
+
+First, run the samples again with the [empty_attempt()](./reference/inspect_ai.solver.html.md#empty_attempt) solver, which does nothing. `Task.setup` still runs, so the sample’s environment is prepared, and the task’s scorers then score the untouched state:
+
+``` bash
+$ inspect eval my_task.py --solver inspect_ai/empty_attempt \
+    --sample-id sample-3,sample-7 --log-dir logs/empty
+```
+
+Then copy those verdicts into the log with [zero_samples()](./reference/inspect_ai.log.html.md#zero_samples). Each score of the empty-attempt sample replaces the score of the same name, with the reason `"zeroed"`, and the earlier score stays in the score history. Metrics are then recomputed:
+
+``` python
+from inspect_ai.log import (
+    read_eval_log, write_eval_log, zero_samples, ProvenanceData
+)
+
+log = read_eval_log("logs/my_eval.eval")
+empty = read_eval_log("logs/empty/my_empty_attempt.eval")
+
+result = zero_samples(
+    log,
+    empty,
+    ["sample-3", ("sample-7", 2)],  # every epoch of sample-3, epoch 2 of sample-7
+    ProvenanceData(author="alice", reason="the agent was given the answer"),
+)
+
+write_eval_log(log)
+```
+
+Or from the command line, which rewrites the log in place:
+
+``` bash
+$ inspect log zero logs/my_eval.eval --from logs/empty/my_empty_attempt.eval \
+    --sample sample-3 --reason "the agent was given the answer"
+```
+
+When running the empty attempt:
+
+- Write its log to its own log directory. An eval set’s log directory is also where it looks for logs to reuse.
+
+- Pass the settings the original run had (model, task arguments, sandbox). The verdict reflects the task and settings of the empty-attempt run; [zero_samples()](./reference/inspect_ai.log.html.md#zero_samples) compares only the task name and scorer names of the two logs.
+
+- `--sample-id` selects samples by pattern and may include a task prefix. Samples it selects that you do not zero are ignored; a sample you zero that it did not run is refused.
+
+- The run uses the task’s epochs (or `--epochs`), and every epoch you zero must be in its log.
+
+A zero must count in the metrics, so [zero_samples()](./reference/inspect_ai.log.html.md#zero_samples) refuses, and edits nothing, when:
+
+- The sample id is an integer. Inspect numbers samples without ids by position, so an integer id need not name the same sample in another run.
+- The empty attempt errored, hit a limit, or holds no score.
+- A verdict is a dict or list, is unscored (`NaN`, for example when a grader failed), or cites messages or events of the empty attempt’s transcript.
+- The sample holds a score the empty attempt does not produce (from a scorer that returned nothing, a solver, or `inspect score --action append`).
+
+Exclude such samples instead. As with exclusion, zeroing does not change the sample’s transcript, output or error, so `inspect eval-retry` still re-runs a zeroed errored sample, and rescoring with `inspect score` scores the original transcript, not the empty attempt. `inspect score --action overwrite` replaces the sample’s scores, so apply the zero again afterwards.
+
 ### Tags & Metadata Editing
 
 You can also edit the tags and metadata associated with a log after evaluation. This is useful for workflows like QA review, categorisation, and filtering—for example, tagging a log as `"needs_qa"` at eval time, then updating it to `"qa_passed"` after review.
@@ -18314,13 +18767,15 @@ As with other log file oriented environment variables, you may find it convenien
 
 We’ve shown a number of Python functions that let you work with eval logs from code. However, you may be writing an orchestration or visualisation tool in another language (e.g. TypeScript) where its not particularly convenient to call the Python API. The Inspect CLI has a few commands intended to make it easier to work with Inspect logs from other languages:
 
-| Command                     | Description                               |
-|-----------------------------|-------------------------------------------|
-| `inspect log list`          | List all logs in the log directory.       |
-| `inspect log dump`          | Print log file contents as JSON.          |
-| `inspect log convert`       | Convert between log file formats.         |
+| Command | Description |
+|----|----|
+| `inspect log list` | List all logs in the log directory. |
+| `inspect log dump` | Print log file contents as JSON. |
+| `inspect log convert` | Convert between log file formats. |
 | `inspect log export-config` | Export a run config YAML from a log file. |
-| `inspect log schema`        | Print JSON schema for log files.          |
+| `inspect log exclude` | [Exclude samples](#excluding-samples) from a log’s metrics. |
+| `inspect log zero` | [Zero samples](#zeroing-samples) of a log. |
+| `inspect log schema` | Print JSON schema for log files. |
 
 ### Listing Logs
 
@@ -19208,7 +19663,7 @@ eval(
     model="openai/gpt-6-luna",
     scanner=ScannerConfig(
         scanners=[refusal(), eval_awareness()],
-        model="anthropic/claude-opus-4-7",
+        model="anthropic/claude-opus-5-5",
     ),
 )
 ```
@@ -19219,7 +19674,7 @@ The same scanners can be specified from the CLI with `--scanner`:
 inspect eval tasks/agentic_search.py \
     --model openai/gpt-6-luna \
     --scanner my_scanners.py \
-    --scan-model anthropic/claude-opus-4-7
+    --scan-model anthropic/claude-opus-5-5
 ```
 
 On the CLI, `--scanner` accepts a YAML/JSON config file, a Python file containing `@scanner` functions (optionally `file.py@func` to pick one), or a registry reference like `pkgname/scanner_name`.
@@ -19618,7 +20073,7 @@ Keys are fnmatch-style globs (`"*"`, `"audit_*"`, or exact scanner names). As a 
 
 ## Untrusted Content
 
-By default the viewer renders log content richly: model output and scores are shown as markdown (with math and syntax highlighting), terminal output keeps its colors, and images, audio, and video are displayed. When the content comes from a model you can’t trust (for example, during pre-deployment testing of a model without safeguards), set `trust_content=False` to have the viewer show all of the log’s content as plain text instead:
+By default the viewer renders log content richly: model output and scores are shown as markdown (with math and syntax highlighting), terminal output keeps its colors, and images, audio, and video are displayed. When the content comes from a model you can’t trust (for example, during pre-deployment testing of a model without safeguards), set `trust_content=False` to have the viewer show the log’s content as literal text and replace media with placeholders:
 
 ``` python
 @task
@@ -20508,7 +20963,7 @@ These events bracket the execution of evaluations. A single [eval()](./reference
 | `on_run_start` | [RunStart](./reference/inspect_ai.hooks.html.md#runstart) | At the start of a single [eval()](./reference/inspect_ai.html.md#eval) / [eval_retry()](./reference/inspect_ai.html.md#eval_retry) invocation (`data.task_names` lists the tasks to run). |
 | `on_run_end` | [RunEnd](./reference/inspect_ai.hooks.html.md#runend) | At the end of a run — `data.exception` and `data.logs` carry the outcome. |
 | `on_task_start` | [TaskStart](./reference/inspect_ai.hooks.html.md#taskstart) | When a task begins executing (`data.spec` is the [EvalSpec](./reference/inspect_ai.log.html.md#evalspec); `data.plan` is the resolved [EvalPlan](./reference/inspect_ai.log.html.md#evalplan)). |
-| `on_task_end` | [TaskEnd](./reference/inspect_ai.hooks.html.md#taskend) | When a task completes (`data.log` is the [EvalLog](./reference/inspect_ai.log.html.md#evallog)). |
+| `on_task_end` | [TaskEnd](./reference/inspect_ai.hooks.html.md#taskend) | When a task completes, errors, or is cancelled (`data.log` is the final [EvalLog](./reference/inspect_ai.log.html.md#evallog); check `data.log.status`). Called once for every `on_task_start`, including each task retry attempt. |
 
 ### Sample
 
@@ -20598,7 +21053,7 @@ class WBHooks(Hooks):
     ...
 ```
 
-Because `enabled()` is consulted before every hook invocation (potentially many times per sample), keep its implementation cheap or cache the result.
+Because `enabled()` is consulted before every hook invocation (potentially many times per sample), keep its implementation cheap or cache the result. One exception: a hook that received `on_task_start` always gets the matching `on_task_end`, even if `enabled()` returns `False` by then.
 
 ## Skipping Full Sample Materialization
 
@@ -20728,3 +21183,29 @@ myfs = "evaltools:MyFs"
 ```
 
 Once this package is installed, you’ll be able to use `myfs://` with Inspect without any further registration.
+
+### Streaming Large Files
+
+Some callers read part of a file as a stream, for example a member of a zipped eval log that is parsed as it arrives. On an async filesystem (one that derives from fsspec’s `AsyncFileSystem`), Inspect serves such a read by calling `_cat_file()` once for the whole range and holding the result in memory.
+
+A filesystem can have Inspect fetch the range in 8 MiB pieces instead, as the caller consumes them, by defining one optional method that binds a reader to a single version of the file:
+
+``` python
+async def _pinned_range_reader(
+    self, path: str
+) -> tuple[int, Callable[[int, int], Coroutine[Any, Any, bytes]]]:
+    info = await self._info(path)
+    return info["size"], functools.partial(self._read_version, path, info["etag"])
+```
+
+The method returns the size of the version it bound, and an `async` function `read(start, end)` that:
+
+- Returns exactly the bytes `[start, end)` of that version, where `0 <= start < end <= size`. Inspect raises `OSError` for any other length.
+- Has the storage service enforce the version on every request, the first included. A metadata check followed by an unconditional request is not enough.
+- Raises if that version is no longer available. An `OSError` subclass that names the file is recommended; Inspect passes the error on unchanged.
+
+Inspect also reads through the reader when it downloads a whole log to a temporary file, so the download is of one version. Reads that Inspect needs whole, such as a ZIP directory or a member read into memory, still call `_cat_file()` once.
+
+Inspect calls the method with the path stripped of its protocol, and runs both it and `read` on the filesystem’s own event loop, one call at a time per reader. It may repeat a range after a cancelled read, may hold a reader for a long time, and never closes one. A missing file should raise `FileNotFoundError` from the method.
+
+The method is not consulted for `s3://`, `http://`, `https://` or `reference://` paths, nor for a filesystem wrapped in `dir://`.

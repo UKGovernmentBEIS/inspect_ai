@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.10.19">
+<meta name="generator" content="quarto-1.11.9">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -77,14 +77,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="../favicon.svg" rel="icon" type="image/svg+xml">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/scrollable-regions/scrollable-regions.js" type="module"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
 <script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="../site_libs/quarto-html/anchor.min.js"></script>
 <link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="../site_libs/quarto-html/quarto-syntax-highlighting-bf27225e3a48a9273f3daa8f8e829971.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-63b5708e65d6cd79cd7618c58d0c21e7.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-771725699ea44adeffca0fa6042fd43a.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -127,16 +128,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <meta name="twitter:title" content="Inspect">
 <meta name="twitter:description" content="Open-source framework for large language model evaluations">
 <meta name="twitter:image" content="https://inspect.aisi.org.uk/images/inspect.png">
-<meta name="twitter:image-height" content="1258">
-<meta name="twitter:image-width" content="2400">
 <meta name="twitter:card" content="summary_large_image">
 </head>
 
-<body class="nav-sidebar docked nav-fixed quarto-light">
+<body class="nav-sidebar docked nav-fixed quarto-light"><a id="quarto-skip-link" class="visually-hidden-focusable" href="#quarto-document-content">Skip to main content</a>
 
 <div id="quarto-search-results"></div>
   <header id="quarto-header" class="headroom fixed-top">
-    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark" aria-label="Site">
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
     <a href="../index.html" class="navbar-brand navbar-brand-logo">
@@ -147,8 +146,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <span class="navbar-title">Inspect</span>
     </a>
   </div>
-            <div id="quarto-search" class="" title="Search"></div>
-          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
   <span class="navbar-toggler-icon"></span>
 </button>
           <div class="collapse navbar-collapse" id="navbarCollapse">
@@ -223,15 +221,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           </div> <!-- /navcollapse -->
             <div class="quarto-navbar-tools">
 </div>
+            <div id="quarto-search" class="" title="Search"></div>
       </div> <!-- /container-fluid -->
     </nav>
-  <nav class="quarto-secondary-nav">
+  <nav class="quarto-secondary-nav" aria-label="Toolbar">
     <div class="container-fluid d-flex">
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.agent.html">Python API</a></li><li class="breadcrumb-item"><a href="../reference/inspect_ai.hooks.html">inspect_ai.hooks</a></li></ol></nav>
-        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        <nav class="quarto-page-breadcrumbs" aria-label="Breadcrumbs"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.agent.html">Python API</a></li><li class="breadcrumb-item"><a href="../reference/inspect_ai.hooks.html">inspect_ai.hooks</a></li></ol></nav>
+        <a class="flex-grow-1" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
   </nav>
@@ -239,7 +238,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <!-- content -->
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
-  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto" aria-label="Section">
     <div class="sidebar-menu-container"> 
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item">
@@ -251,21 +250,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.agent.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Python API</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-1-label">Python API</span></a>
+            <button type="button" class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" aria-controls="quarto-sidebar-section-1" aria-expanded="true" aria-label="Toggle section: Python API">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-1" aria-labelledby="quarto-sidebar-section-1-label" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.agent.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.agent</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-2-label">inspect_ai.agent</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" aria-controls="quarto-sidebar-section-2" aria-expanded="false" aria-label="Toggle section: inspect_ai.agent">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-2" aria-labelledby="quarto-sidebar-section-2-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.agent.html#react" class="sidebar-item-text sidebar-link">
@@ -517,12 +516,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.analysis.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.analysis</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-3-label">inspect_ai.analysis</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" aria-controls="quarto-sidebar-section-3" aria-expanded="false" aria-label="Toggle section: inspect_ai.analysis">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-3" aria-labelledby="quarto-sidebar-section-3-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.analysis.html#evals_df" class="sidebar-item-text sidebar-link">
@@ -750,12 +749,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.approval.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.approval</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-4-label">inspect_ai.approval</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" aria-controls="quarto-sidebar-section-4" aria-expanded="false" aria-label="Toggle section: inspect_ai.approval">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-4" aria-labelledby="quarto-sidebar-section-4-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.approval.html#auto_approver" class="sidebar-item-text sidebar-link">
@@ -815,12 +814,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.dataset.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.dataset</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-5-label">inspect_ai.dataset</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" aria-controls="quarto-sidebar-section-5" aria-expanded="false" aria-label="Toggle section: inspect_ai.dataset">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-5" aria-labelledby="quarto-sidebar-section-5-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.dataset.html#csv_dataset" class="sidebar-item-text sidebar-link">
@@ -874,12 +873,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.event.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.event</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-6-label">inspect_ai.event</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" aria-controls="quarto-sidebar-section-6" aria-expanded="false" aria-label="Toggle section: inspect_ai.event">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-6" aria-labelledby="quarto-sidebar-section-6-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.event.html#modelevent" class="sidebar-item-text sidebar-link">
@@ -1155,12 +1154,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.hooks.html" class="sidebar-item-text sidebar-link active">
- <span class="menu-text">inspect_ai.hooks</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="true" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-7-label">inspect_ai.hooks</span></a>
+            <button type="button" class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" aria-controls="quarto-sidebar-section-7" aria-expanded="true" aria-label="Toggle section: inspect_ai.hooks">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 show">  
+      <ul id="quarto-sidebar-section-7" aria-labelledby="quarto-sidebar-section-7-label" class="collapse list-unstyled sidebar-section depth2 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.hooks.html#hooks" class="sidebar-item-text sidebar-link">
@@ -1268,12 +1267,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.log.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.log</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-8-label">inspect_ai.log</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" aria-controls="quarto-sidebar-section-8" aria-expanded="false" aria-label="Toggle section: inspect_ai.log">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-8" aria-labelledby="quarto-sidebar-section-8-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.log.html#list_eval_logs" class="sidebar-item-text sidebar-link">
@@ -1414,6 +1413,30 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#exclude_samples" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">exclude_samples</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#zero_samples" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">zero_samples</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#dispositionresult" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">DispositionResult</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#sampleselector" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleSelector</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.log.html#logupdate" class="sidebar-item-text sidebar-link">
  <span class="menu-text">LogUpdate</span></a>
   </div>
@@ -1500,6 +1523,54 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.log.html#recoverythresholdexceeded" class="sidebar-item-text sidebar-link">
  <span class="menu-text">RecoveryThresholdExceeded</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#merge_eval_log_shards" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">merge_eval_log_shards</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#merge_eval_log_shards_async" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">merge_eval_log_shards_async</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#shardmergeresult" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ShardMergeResult</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#shardseterror" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ShardSetError</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#shardselectionerror" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ShardSelectionError</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#shardsetincomplete" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ShardSetIncomplete</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalshards" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalShards</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalshardentry" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalShardEntry</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1693,12 +1764,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.model.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.model</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-9-label">inspect_ai.model</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" aria-controls="quarto-sidebar-section-9" aria-expanded="false" aria-label="Toggle section: inspect_ai.model">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-9" aria-labelledby="quarto-sidebar-section-9-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.model.html#get_model" class="sidebar-item-text sidebar-link">
@@ -2245,17 +2316,23 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">record_response_headers</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#active_model_event_id" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">active_model_event_id</span></a>
+  </div>
+</li>
       </ul>
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-10-label">inspect_ai</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" aria-controls="quarto-sidebar-section-10" aria-expanded="false" aria-label="Toggle section: inspect_ai">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-10" aria-labelledby="quarto-sidebar-section-10-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.html#eval" class="sidebar-item-text sidebar-link">
@@ -2375,12 +2452,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.review.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.review</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-11-label">inspect_ai.review</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" aria-controls="quarto-sidebar-section-11" aria-expanded="false" aria-label="Toggle section: inspect_ai.review">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-11" aria-labelledby="quarto-sidebar-section-11-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.review.html#human_reviewer" class="sidebar-item-text sidebar-link">
@@ -2434,12 +2511,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.scorer.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.scorer</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-12-label">inspect_ai.scorer</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" aria-controls="quarto-sidebar-section-12" aria-expanded="false" aria-label="Toggle section: inspect_ai.scorer">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-12" aria-labelledby="quarto-sidebar-section-12-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.scorer.html#match" class="sidebar-item-text sidebar-link">
@@ -2751,12 +2828,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.solver.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.solver</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-13-label">inspect_ai.solver</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" aria-controls="quarto-sidebar-section-13" aria-expanded="false" aria-label="Toggle section: inspect_ai.solver">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-13" aria-labelledby="quarto-sidebar-section-13-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.solver.html#generate" class="sidebar-item-text sidebar-link">
@@ -2767,6 +2844,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.solver.html#use_tools" class="sidebar-item-text sidebar-link">
  <span class="menu-text">use_tools</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#empty_attempt" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">empty_attempt</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -2858,12 +2941,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.tool.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.tool</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-14-label">inspect_ai.tool</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" aria-controls="quarto-sidebar-section-14" aria-expanded="false" aria-label="Toggle section: inspect_ai.tool">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-14" aria-labelledby="quarto-sidebar-section-14-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.tool.html#web_search" class="sidebar-item-text sidebar-link">
@@ -3133,12 +3216,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.util.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.util</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-15-label">inspect_ai.util</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" aria-controls="quarto-sidebar-section-15" aria-expanded="false" aria-label="Toggle section: inspect_ai.util">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-15" aria-labelledby="quarto-sidebar-section-15-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.util.html#store" class="sidebar-item-text sidebar-link">
@@ -3273,8 +3356,20 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#suspend_cost_limit" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">suspend_cost_limit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.util.html#suspend_working_limit" class="sidebar-item-text sidebar-link">
  <span class="menu-text">suspend_working_limit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#suspend_limits" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">suspend_limits</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -3720,12 +3815,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.viewer.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.viewer</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-16-label">inspect_ai.viewer</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" aria-controls="quarto-sidebar-section-16" aria-expanded="false" aria-label="Toggle section: inspect_ai.viewer">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-16" aria-labelledby="quarto-sidebar-section-16-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.viewer.html#viewerconfig" class="sidebar-item-text sidebar-link">
@@ -3793,12 +3888,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_cache.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">CLI Commands</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-17-label">CLI Commands</span></a>
+            <button type="button" class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" aria-controls="quarto-sidebar-section-17" aria-expanded="true" aria-label="Toggle section: CLI Commands">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-17" aria-labelledby="quarto-sidebar-section-17-label" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_cache.html" class="sidebar-item-text sidebar-link">
@@ -3873,7 +3968,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-        <nav id="TOC" role="doc-toc" class="toc-active" data-toc-expanded="1">
+        <nav id="TOC" role="doc-toc" aria-labelledby="toc-title" class="toc-active" data-toc-expanded="1">
     <h2 id="toc-title">On this page</h2>
    
   <ul>
@@ -3904,9 +3999,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content">
+<main class="content" id="quarto-document-content" tabindex="-1">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.agent.html">Python API</a></li><li class="breadcrumb-item"><a href="../reference/inspect_ai.hooks.html">inspect_ai.hooks</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="Breadcrumbs"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.agent.html">Python API</a></li><li class="breadcrumb-item"><a href="../reference/inspect_ai.hooks.html">inspect_ai.hooks</a></li></ol></nav>
 <div class="quarto-title">
 <h1 class="title">inspect_ai.hooks</h1>
 </div>
@@ -3949,7 +4044,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h4 class="anchored" data-anchor-id="ownership-of-hook-event-data">Ownership of hook event data</h4>
 <p>Event objects passed via <code>on_sample_event</code> and the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.log.html#evalsample">EvalSample</a></span> passed via <code>on_sample_end</code> are owned by the framework. Hook implementations may read these objects and may retain references for inspection, but <strong>must not mutate them in place</strong>. The framework retains references to these objects and may serialize, copy, or further transform them after the hook returns; in-place mutation is undefined behavior. If a hook needs a mutable working copy, call <code>data.event.model_copy(deep=True)</code> (or the equivalent on the sample) inside the hook and operate on that copy.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L361">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L361">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Hooks</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
@@ -3963,7 +4058,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Hooks may wish to override this to e.g.&nbsp;check the presence of an environment variable or a configuration setting.</p>
 <p>Will be called frequently, so consider caching the result if the computation is expensive. Keep the value stable during a sample so finalization can determine whether the hook needs the full sample before dispatching <code>on_sample_end</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L399">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L399">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> enabled(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div>
@@ -3975,7 +4070,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Whether <code>on_sample_end</code> requires the fully materialized sample.</p>
 <p>Defaults to <code>True</code>. Summary-only hooks may return <code>False</code> to allow empty <code>events</code> and <code>attachments</code> and <code>timelines=None</code>. They must also accept a full sample when another consumer needs its history. Hooks using the default <code>Hooks.on_sample_end</code> never require full history.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L413">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L413">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> needs_full_sample(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div>
@@ -3987,7 +4082,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>On eval set start.</p>
 <p>A “eval set” is an invocation of <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#eval_set">eval_set()</a></span> for a log directory. Note that the <code>eval_set_id</code> will be stable across multiple invocations of <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#eval_set">eval_set()</a></span> for the same log directory.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L423">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L423">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_eval_set_start(<span class="va">self</span>, data: EvalSetStart) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -4001,7 +4096,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>On eval set end.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L435">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L435">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_eval_set_end(<span class="va">self</span>, data: EvalSetEnd) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -4016,7 +4111,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>On run start.</p>
 <p>A “run” is a single invocation of <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#eval">eval()</a></span> or <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#eval_retry">eval_retry()</a></span> which may contain many Tasks, each with many Samples and many epochs. Note that <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#eval_retry">eval_retry()</a></span> can be invoked multiple times within an <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#eval_set">eval_set()</a></span>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L443">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L443">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_run_start(<span class="va">self</span>, data: RunStart) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -4030,7 +4125,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>On run end.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L455">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L455">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_run_end(<span class="va">self</span>, data: RunEnd) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -4044,7 +4139,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>On task start.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L463">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L463">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_task_start(<span class="va">self</span>, data: TaskStart) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -4057,8 +4152,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dt>on_task_end</dt>
 <dd>
 <p>On task end.</p>
+<p>Called once for every <code>on_task_start</code> call (each task retry attempt has its own pair), with the task’s final log: on success, and also when the task errors or is cancelled. <code>data.log.status</code> is then <code>"error"</code> or <code>"cancelled"</code>, and <code>data.log.results</code> may be partial or missing. If the final log could not be written, or <code>debug_errors</code> re-raised an exception before it was written, <code>data.log</code> is an errored log that was not written to the log directory. A log that was written is passed as is.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L471">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L471">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_task_end(<span class="va">self</span>, data: TaskEnd) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -4075,7 +4171,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>If the sample errors and retries, this will not be called again.</p>
 <p>If a sample is run for multiple epochs, this will be called once per epoch.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L479">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L488">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_sample_init(<span class="va">self</span>, data: SampleInit) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -4091,7 +4187,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Called when a sample is about to be start. If the sample errors and retries, this will not be called again.</p>
 <p>If a sample is run for multiple epochs, this will be called once per epoch.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L495">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L504">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_sample_start(<span class="va">self</span>, data: SampleStart) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -4106,7 +4202,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>On sample event.</p>
 <p>Called when a sample event is emmitted. Pending events are not logged here (i.e.&nbsp;ToolEvent and ModelEvent are not logged until they are complete).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L508">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L517">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_sample_event(<span class="va">self</span>, data: SampleEvent) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -4122,7 +4218,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Called when a sample has either completed successfully, or when a sample has errored and has no retries remaining.</p>
 <p>If a sample is run for multiple epochs, this will be called once per epoch.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L520">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L529">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_sample_end(<span class="va">self</span>, data: SampleEnd) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -4138,7 +4234,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>This is called before cache lookup and before model API access verification, so hook mutations to inputs/tools/config are reflected in cache keys and in the actual API call.</p>
 <p>Note that this fires inside the retry wrapper, so it will be called on each retry attempt, not just the first.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L533">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L542">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_before_model_generate(<span class="va">self</span>, data: BeforeModelGenerate) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -4153,7 +4249,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Called before a model call is retried after a transient failure.</p>
 <p>Fires once per retry (i.e.&nbsp;not for the initial attempt), before the backoff sleep. Useful for surfacing how much time is spent in rate limiting and other retries (see <code>data.wait_time</code> for the upcoming backoff duration).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L548">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L557">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_model_retry(<span class="va">self</span>, data: ModelRetry) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -4168,7 +4264,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>On sample attempt start.</p>
 <p>Fired at the beginning of every attempt (including the first). Unlike on_sample_start which fires once per sample, this fires on retries too.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L561">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L570">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_sample_attempt_start(<span class="va">self</span>, data: SampleAttemptStart) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -4183,7 +4279,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>On sample attempt end.</p>
 <p>Fired at the end of every attempt (including the last). Unlike on_sample_end which fires once per sample, this fires on retries too.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L572">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L581">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_sample_attempt_end(<span class="va">self</span>, data: SampleAttemptEnd) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -4198,7 +4294,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Called when a call to a model’s generate() method completes successfully without hitting Inspect’s local cache.</p>
 <p>Note that this is not called when Inspect’s local cache is used and is a cache hit (i.e.&nbsp;if no external API call was made). Provider-side caching will result in this being called.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L583">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L592">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_model_usage(<span class="va">self</span>, data: ModelUsageData) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -4212,7 +4308,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Called when a call to a model’s generate() method completes successfully by hitting Inspect’s local cache.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L595">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L604">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_model_cache_usage(<span class="va">self</span>, data: ModelCacheUsageData) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -4227,7 +4323,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Called before the sample is scored.</p>
 <p>Can be used by hooks to demarcate the end of solver execution and the start of scoring.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L603">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L612">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> on_sample_scoring(<span class="va">self</span>, data: SampleScoring) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -4242,7 +4338,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Optionally override an API key.</p>
 <p>When overridden, this method may return a new API key value which will be used in place of the original one during the eval.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L613">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L622">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> override_api_key(<span class="va">self</span>, data: ApiKeyOverride) <span class="op">-&gt;</span> <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -4261,9 +4357,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Either decorate a subclass of <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.hooks.html#hooks">Hooks</a></span>, or a function which returns the type of a subclass of <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.hooks.html#hooks">Hooks</a></span>. This decorator will instantiate the hook class and store it in the registry.</p>
 <p>Instantiation happens eagerly, when the decorator runs (i.e.&nbsp;when the defining module is imported), and the resulting instance is reused for every event for the lifetime of the process. See <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.hooks.html#hooks">Hooks</a></span> for what that implies for instance state.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L631">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L640">Source</a>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> hooks(name: <span class="bu">str</span>, description: <span class="bu">str</span>) <span class="op">-&gt;</span> Callable[..., Type[T]]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> hooks(</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span>, description: <span class="bu">str</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> Callable[[Type[T] <span class="op">|</span> Callable[[], Type[T]]], Type[T]]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
 <dd>
@@ -4282,7 +4380,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="apikeyoverride">ApiKeyOverride</h3>
 <p>Api key override hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L351">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L351">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ApiKeyOverride</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4304,7 +4402,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="modelusagedata">ModelUsageData</h3>
 <p>Model usage hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L245">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L245">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ModelUsageData</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4350,7 +4448,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="modelretry">ModelRetry</h3>
 <p>Model retry hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L310">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L310">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ModelRetry</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4404,7 +4502,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalsetstart">EvalSetStart</h3>
 <p>Eval set start hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L39">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L39">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb26"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalSetStart</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4426,7 +4524,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="evalsetend">EvalSetEnd</h3>
 <p>Eval set end event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L51">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L51">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb27"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalSetEnd</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4448,7 +4546,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="runend">RunEnd</h3>
 <p>Run end hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L75">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L75">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> RunEnd</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4478,7 +4576,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="runstart">RunStart</h3>
 <p>Run start hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L63">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L63">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> RunStart</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4504,7 +4602,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="sampleend">SampleEnd</h3>
 <p>Sample end hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L181">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L181">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb30"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleEnd</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4538,7 +4636,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="sampleinit">SampleInit</h3>
 <p>Sample init hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L133">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L133">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb31"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleInit</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4572,7 +4670,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="samplestart">SampleStart</h3>
 <p>Sample start hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L149">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L149">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb32"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleStart</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4607,7 +4705,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Sample attempt start hook event data.</p>
 <p>Fired at the beginning of every attempt (including the first). Unlike on_sample_start which fires once per sample, this fires on retries too.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L197">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L197">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb33"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleAttemptStart</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4646,7 +4744,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Sample attempt end hook event data.</p>
 <p>Fired at the end of every attempt (including the last). Unlike on_sample_end which fires once per sample, this fires on retries too.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L219">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L219">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb34"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleAttemptEnd</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4692,7 +4790,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="sampleevent">SampleEvent</h3>
 <p>Sample event hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L165">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L165">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb35"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleEvent</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4726,7 +4824,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="taskend">TaskEnd</h3>
 <p>Task end hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L118">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L118">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb36"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TaskEnd</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4756,7 +4854,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="taskstart">TaskStart</h3>
 <p>Task start hook event data.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/hooks/_hooks.py#L91">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/hooks/_hooks.py#L91">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb37"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TaskStart</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -4943,7 +5041,8 @@ document.addEventListener("DOMContentLoaded", function () {
           return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
       }
       // Inspect non-navigation links and adorn them if external
-     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      window.quartoDecorateExternalLinks = function (root) {
+     var links = (root || window.document).querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
       for (var i=0; i<links.length; i++) {
         const link = links[i];
         if (!isInternal(link.href)) {
@@ -4952,8 +5051,69 @@ document.addEventListener("DOMContentLoaded", function () {
           if (link.dataset.originalHref !== undefined) {
             link.href = link.dataset.originalHref;
           }
+          if (!link.classList.contains('no-external-icon')) {
+          }
         }
       }
+      };
+      window.quartoDecorateExternalLinks(window.document);
+    // Esc closes the popup (WCAG 1.4.13) and focus leaving both trigger and
+    // popup closes it (WCAG 2.4.11); tippy handles neither for interactive popups.
+    const hideOnEscAndFocusOut = {
+      name: 'hideOnEscAndFocusOut',
+      defaultValue: true,
+      fn(instance) {
+        const dismiss = () => {
+          // A show scheduled by the trigger delay would otherwise reopen it
+          instance.clearDelayTimeouts();
+          instance.hide();
+        };
+        const onKeyDown = (event) => {
+          if (event.key !== 'Escape') {
+            return;
+          }
+          // Keep Esc from also reaching page handlers (e.g. reveal.js overview),
+          // except an open reveal.js slide menu, which Esc should close too.
+          // The menu handles keys only when its keyboard option is on.
+          const menuHandlesEsc = window.Reveal?.getPlugin?.('menu')?.isOpen() &&
+            window.Reveal.getConfig().menu?.keyboard !== false;
+          if (!menuHandlesEsc) {
+            event.stopPropagation();
+          }
+          if (instance.popper.contains(window.document.activeElement)) {
+            // Disabled while refocusing so the focus trigger does not reopen it
+            instance.disable();
+            instance.reference.focus();
+            instance.enable();
+          }
+          dismiss();
+        };
+        const onFocusOut = (event) => {
+          const target = event.relatedTarget;
+          if (target && !instance.reference.contains(target) &&
+              !instance.popper.contains(target)) {
+            dismiss();
+          }
+        };
+        // On the trigger too: a click trigger (code-annotations: select) has no
+        // blur handling. Attached for the instance's lifetime so leaving the
+        // trigger also cancels a show still pending on the trigger delay.
+        instance.reference.addEventListener('focusout', onFocusOut);
+        return {
+          onShow() {
+            window.document.addEventListener('keydown', onKeyDown, true);
+            instance.popper.addEventListener('focusout', onFocusOut);
+          },
+          onHide() {
+            window.document.removeEventListener('keydown', onKeyDown, true);
+            instance.popper.removeEventListener('focusout', onFocusOut);
+          },
+          onDestroy() {
+            instance.reference.removeEventListener('focusout', onFocusOut);
+          },
+        };
+      },
+    };
     function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
       const config = {
         allowHTML: true,
@@ -4967,6 +5127,7 @@ document.addEventListener("DOMContentLoaded", function () {
         interactiveBorder: 10,
         theme: 'quarto',
         placement: 'bottom-start',
+        plugins: [hideOnEscAndFocusOut],
       };
       if (contentFn) {
         config.content = contentFn;
@@ -5129,44 +5290,54 @@ document.addEventListener("DOMContentLoaded", function () {
           const lineIds = lines.map((line) => {
             return targetCell + "-" + line;
           })
-          let top = null;
-          let height = null;
-          let parent = null;
+          // Each band is positioned against its own containing block, which is
+          // not the offsetParent of the lines, so place it from client rects.
+          const placeBand = (band, firstEl, lastEl, codeBlock) => {
+            const container = band.offsetParent;
+            if (container === null) {
+              return;
+            }
+            const containerRect = container.getBoundingClientRect();
+            // Reveal.js scales slides with a transform, so convert client
+            // pixels back to the CSS pixels of the container.
+            const scale = containerRect.height / container.offsetHeight || 1;
+            const firstRect = firstEl.getBoundingClientRect();
+            const lastRect = lastEl.getBoundingClientRect();
+            const top = (firstRect.top - containerRect.top) / scale - container.clientTop + container.scrollTop;
+            const height = (lastRect.bottom - firstRect.top) / scale;
+            band.style.top = top - 2 + "px";
+            band.style.height = height + 4 + "px";
+            if (codeBlock) {
+              // Without the copy button wrapper, the containing block is wider
+              // than the code block, so span the code block explicitly.
+              const blockRect = codeBlock.getBoundingClientRect();
+              band.style.left = (blockRect.left - containerRect.left) / scale - container.clientLeft + container.scrollLeft + "px";
+              band.style.width = blockRect.width / scale + "px";
+            }
+          };
           if (lineIds.length > 0) {
-              //compute the position of the single el (top and bottom and make a div)
-              const el = window.document.getElementById(lineIds[0]);
-              top = el.offsetTop;
-              height = el.offsetHeight;
-              parent = el.parentElement.parentElement;
-            if (lineIds.length > 1) {
-              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
-              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
-              height = bottom - top;
+            const el = window.document.getElementById(lineIds[0]);
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const parent = el.parentElement.parentElement;
+            // cook up a div (if necessary) and position it
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
             }
-            if (top !== null && height !== null && parent !== null) {
-              // cook up a div (if necessary) and position it 
-              let div = window.document.getElementById("code-annotation-line-highlight");
-              if (div === null) {
-                div = window.document.createElement("div");
-                div.setAttribute("id", "code-annotation-line-highlight");
-                div.style.position = 'absolute';
-                parent.appendChild(div);
-              }
-              div.style.top = top - 2 + "px";
-              div.style.height = height + 4 + "px";
-              div.style.left = 0;
-              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
-              if (gutterDiv === null) {
-                gutterDiv = window.document.createElement("div");
-                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
-                gutterDiv.style.position = 'absolute';
-                const codeCell = window.document.getElementById(targetCell);
-                const gutter = codeCell.querySelector('.code-annotation-gutter');
-                gutter.appendChild(gutterDiv);
-              }
-              gutterDiv.style.top = top - 2 + "px";
-              gutterDiv.style.height = height + 4 + "px";
+            placeBand(div, el, lastEl, parent.closest("div.sourceCode") || parent);
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
             }
+            placeBand(gutterDiv, el, lastEl);
             selectedAnnoteEl = annoteEl;
           }
         };
@@ -5244,6 +5415,7 @@ document.addEventListener("DOMContentLoaded", function () {
             interactiveBorder: 10,
             theme: 'quarto',
             placement: 'right',
+            plugins: [hideOnEscAndFocusOut],
             positionFixed: true,
             popperOptions: {
               modifiers: [
@@ -5306,7 +5478,10 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
   </script>
-<nav class="page-navigation">
+  <script type="application/javascript">
+  window.quartoScrollableRegionsLabels = {"code":"Scrollable code","output":"Scrollable output"};
+  </script>
+<nav class="page-navigation" aria-label="Page">
   <div class="nav-page nav-page-previous">
       <a href="../reference/inspect_ai.event.html#communicationwait" class="pagination-link" aria-label="CommunicationWait">
         <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">CommunicationWait</span>

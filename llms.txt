@@ -67,6 +67,7 @@
 
 - [Eval Sets](https://inspect.aisi.org.uk/eval-sets.html.md): Describing, running, and analysing larger sets of evaluation tasks.
 - [Parallelism](https://inspect.aisi.org.uk/parallelism.html.md): Running multiple tasks and models in parallel, sandbox concurrency, and writing parallel custom code.
+- [Sharding](https://inspect.aisi.org.uk/sharding.html.md): Running one task's samples as several worker processes, each writing its own log, and merging those logs into one eval log.
 - [Handling Errors](https://inspect.aisi.org.uk/handling-errors.html.md): Techniques for dealing with runtime errors and recovering from crashes during evaluation.
 - [Setting Limits](https://inspect.aisi.org.uk/setting-limits.html.md): Setting time, message, token, and cost limits on evaluation tasks, samples, and agent execution.
 - [Control Channel](https://inspect.aisi.org.uk/control-channel.html.md): Launch evals from scripts and agents (inspect eval --json launch handoff, and --detach to run an eval in the background, detached from the terminal), then observe and direct them from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, conversation and store snapshots, stall diagnosis from trace logs, task, sample, and tool-call cancellation, sample requeue, pause and resume, interim scoring, launch-config retuning, log flushing, and keep-alive.

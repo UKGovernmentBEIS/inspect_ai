@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.10.19">
+<meta name="generator" content="quarto-1.11.9">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -39,14 +39,15 @@ ul.task-list li input[type="checkbox"] {
 <link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/scrollable-regions/scrollable-regions.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-bf27225e3a48a9273f3daa8f8e829971.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-63b5708e65d6cd79cd7618c58d0c21e7.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-771725699ea44adeffca0fa6042fd43a.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -89,16 +90,14 @@ ul.task-list li input[type="checkbox"] {
 <meta name="twitter:title" content="Inspect">
 <meta name="twitter:description" content="Open-source framework for large language model evaluations">
 <meta name="twitter:image" content="https://inspect.aisi.org.uk/images/inspect.png">
-<meta name="twitter:image-height" content="1258">
-<meta name="twitter:image-width" content="2400">
 <meta name="twitter:card" content="summary_large_image">
 </head>
 
-<body class="nav-fixed quarto-light">
+<body class="nav-fixed quarto-light"><a id="quarto-skip-link" class="visually-hidden-focusable" href="#quarto-document-content">Skip to main content</a>
 
 <div id="quarto-search-results"></div>
   <header id="quarto-header" class="headroom fixed-top">
-    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark" aria-label="Site">
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
     <a href="./index.html" class="navbar-brand navbar-brand-logo">
@@ -109,8 +108,7 @@ ul.task-list li input[type="checkbox"] {
     <span class="navbar-title">Inspect</span>
     </a>
   </div>
-            <div id="quarto-search" class="" title="Search"></div>
-          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
   <span class="navbar-toggler-icon"></span>
 </button>
           <div class="collapse navbar-collapse" id="navbarCollapse">
@@ -185,6 +183,7 @@ ul.task-list li input[type="checkbox"] {
           </div> <!-- /navcollapse -->
             <div class="quarto-navbar-tools">
 </div>
+            <div id="quarto-search" class="" title="Search"></div>
       </div> <!-- /container-fluid -->
     </nav>
 </header>
@@ -193,62 +192,85 @@ ul.task-list li input[type="checkbox"] {
 <!-- sidebar -->
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-        <nav id="TOC" role="doc-toc" class="toc-active" data-toc-expanded="1">
+        <nav id="TOC" role="doc-toc" aria-labelledby="toc-title" class="toc-active" data-toc-expanded="1">
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#section" id="toc-section" class="nav-link active" data-scroll-target="#section">0.3.287 (2026-10-31)</a>
+  <li><a href="#section" id="toc-section" class="nav-link active" data-scroll-target="#section">0.3.291 (2026-11-17)</a>
   <ul class="collapse">
   <li><a href="#features" id="toc-features" class="nav-link" data-scroll-target="#features">Features</a></li>
   <li><a href="#bug-fixes" id="toc-bug-fixes" class="nav-link" data-scroll-target="#bug-fixes">Bug Fixes</a></li>
   </ul></li>
-  <li><a href="#section-1" id="toc-section-1" class="nav-link" data-scroll-target="#section-1">0.3.286 (2026-10-28)</a>
+  <li><a href="#section-1" id="toc-section-1" class="nav-link" data-scroll-target="#section-1">0.3.290 (2026-11-13)</a>
   <ul class="collapse">
-  <li><a href="#breaking-changes" id="toc-breaking-changes" class="nav-link" data-scroll-target="#breaking-changes">Breaking Changes</a></li>
   <li><a href="#features-1" id="toc-features-1" class="nav-link" data-scroll-target="#features-1">Features</a></li>
   <li><a href="#bug-fixes-1" id="toc-bug-fixes-1" class="nav-link" data-scroll-target="#bug-fixes-1">Bug Fixes</a></li>
   <li><a href="#performance-improvements" id="toc-performance-improvements" class="nav-link" data-scroll-target="#performance-improvements">Performance Improvements</a></li>
   </ul></li>
-  <li><a href="#section-2" id="toc-section-2" class="nav-link" data-scroll-target="#section-2">0.3.285 (2026-10-25)</a>
+  <li><a href="#section-2" id="toc-section-2" class="nav-link" data-scroll-target="#section-2">0.3.289 (2026-11-10)</a>
   <ul class="collapse">
   <li><a href="#features-2" id="toc-features-2" class="nav-link" data-scroll-target="#features-2">Features</a></li>
   <li><a href="#bug-fixes-2" id="toc-bug-fixes-2" class="nav-link" data-scroll-target="#bug-fixes-2">Bug Fixes</a></li>
   </ul></li>
-  <li><a href="#section-3" id="toc-section-3" class="nav-link" data-scroll-target="#section-3">0.3.284 (2026-10-25)</a>
+  <li><a href="#section-3" id="toc-section-3" class="nav-link" data-scroll-target="#section-3">0.3.288 (2026-11-06)</a>
   <ul class="collapse">
+  <li><a href="#breaking-changes" id="toc-breaking-changes" class="nav-link" data-scroll-target="#breaking-changes">Breaking Changes</a></li>
   <li><a href="#features-3" id="toc-features-3" class="nav-link" data-scroll-target="#features-3">Features</a></li>
   <li><a href="#bug-fixes-3" id="toc-bug-fixes-3" class="nav-link" data-scroll-target="#bug-fixes-3">Bug Fixes</a></li>
   <li><a href="#performance-improvements-1" id="toc-performance-improvements-1" class="nav-link" data-scroll-target="#performance-improvements-1">Performance Improvements</a></li>
   </ul></li>
-  <li><a href="#section-4" id="toc-section-4" class="nav-link" data-scroll-target="#section-4">0.3.283 (2026-10-21)</a>
+  <li><a href="#section-4" id="toc-section-4" class="nav-link" data-scroll-target="#section-4">0.3.287 (2026-10-31)</a>
   <ul class="collapse">
-  <li><a href="#breaking-changes-1" id="toc-breaking-changes-1" class="nav-link" data-scroll-target="#breaking-changes-1">Breaking Changes</a></li>
   <li><a href="#features-4" id="toc-features-4" class="nav-link" data-scroll-target="#features-4">Features</a></li>
   <li><a href="#bug-fixes-4" id="toc-bug-fixes-4" class="nav-link" data-scroll-target="#bug-fixes-4">Bug Fixes</a></li>
-  <li><a href="#performance-improvements-2" id="toc-performance-improvements-2" class="nav-link" data-scroll-target="#performance-improvements-2">Performance Improvements</a></li>
   </ul></li>
-  <li><a href="#section-5" id="toc-section-5" class="nav-link" data-scroll-target="#section-5">0.3.282 (2026-10-19)</a>
+  <li><a href="#section-5" id="toc-section-5" class="nav-link" data-scroll-target="#section-5">0.3.286 (2026-10-28)</a>
   <ul class="collapse">
-  <li><a href="#breaking-changes-2" id="toc-breaking-changes-2" class="nav-link" data-scroll-target="#breaking-changes-2">Breaking Changes</a></li>
+  <li><a href="#breaking-changes-1" id="toc-breaking-changes-1" class="nav-link" data-scroll-target="#breaking-changes-1">Breaking Changes</a></li>
   <li><a href="#features-5" id="toc-features-5" class="nav-link" data-scroll-target="#features-5">Features</a></li>
   <li><a href="#bug-fixes-5" id="toc-bug-fixes-5" class="nav-link" data-scroll-target="#bug-fixes-5">Bug Fixes</a></li>
-  <li><a href="#performance-improvements-3" id="toc-performance-improvements-3" class="nav-link" data-scroll-target="#performance-improvements-3">Performance Improvements</a></li>
+  <li><a href="#performance-improvements-2" id="toc-performance-improvements-2" class="nav-link" data-scroll-target="#performance-improvements-2">Performance Improvements</a></li>
   </ul></li>
-  <li><a href="#section-6" id="toc-section-6" class="nav-link" data-scroll-target="#section-6">0.3.281 (2026-10-15)</a>
+  <li><a href="#section-6" id="toc-section-6" class="nav-link" data-scroll-target="#section-6">0.3.285 (2026-10-25)</a>
   <ul class="collapse">
-  <li><a href="#breaking-changes-3" id="toc-breaking-changes-3" class="nav-link" data-scroll-target="#breaking-changes-3">Breaking Changes</a></li>
   <li><a href="#features-6" id="toc-features-6" class="nav-link" data-scroll-target="#features-6">Features</a></li>
   <li><a href="#bug-fixes-6" id="toc-bug-fixes-6" class="nav-link" data-scroll-target="#bug-fixes-6">Bug Fixes</a></li>
   </ul></li>
-  <li><a href="#section-7" id="toc-section-7" class="nav-link" data-scroll-target="#section-7">0.3.280 (2026-10-14)</a>
+  <li><a href="#section-7" id="toc-section-7" class="nav-link" data-scroll-target="#section-7">0.3.284 (2026-10-25)</a>
   <ul class="collapse">
   <li><a href="#features-7" id="toc-features-7" class="nav-link" data-scroll-target="#features-7">Features</a></li>
   <li><a href="#bug-fixes-7" id="toc-bug-fixes-7" class="nav-link" data-scroll-target="#bug-fixes-7">Bug Fixes</a></li>
+  <li><a href="#performance-improvements-3" id="toc-performance-improvements-3" class="nav-link" data-scroll-target="#performance-improvements-3">Performance Improvements</a></li>
+  </ul></li>
+  <li><a href="#section-8" id="toc-section-8" class="nav-link" data-scroll-target="#section-8">0.3.283 (2026-10-21)</a>
+  <ul class="collapse">
+  <li><a href="#breaking-changes-2" id="toc-breaking-changes-2" class="nav-link" data-scroll-target="#breaking-changes-2">Breaking Changes</a></li>
+  <li><a href="#features-8" id="toc-features-8" class="nav-link" data-scroll-target="#features-8">Features</a></li>
+  <li><a href="#bug-fixes-8" id="toc-bug-fixes-8" class="nav-link" data-scroll-target="#bug-fixes-8">Bug Fixes</a></li>
+  <li><a href="#performance-improvements-4" id="toc-performance-improvements-4" class="nav-link" data-scroll-target="#performance-improvements-4">Performance Improvements</a></li>
+  </ul></li>
+  <li><a href="#section-9" id="toc-section-9" class="nav-link" data-scroll-target="#section-9">0.3.282 (2026-10-19)</a>
+  <ul class="collapse">
+  <li><a href="#breaking-changes-3" id="toc-breaking-changes-3" class="nav-link" data-scroll-target="#breaking-changes-3">Breaking Changes</a></li>
+  <li><a href="#features-9" id="toc-features-9" class="nav-link" data-scroll-target="#features-9">Features</a></li>
+  <li><a href="#bug-fixes-9" id="toc-bug-fixes-9" class="nav-link" data-scroll-target="#bug-fixes-9">Bug Fixes</a></li>
+  <li><a href="#performance-improvements-5" id="toc-performance-improvements-5" class="nav-link" data-scroll-target="#performance-improvements-5">Performance Improvements</a></li>
+  </ul></li>
+  <li><a href="#section-10" id="toc-section-10" class="nav-link" data-scroll-target="#section-10">0.3.281 (2026-10-15)</a>
+  <ul class="collapse">
+  <li><a href="#breaking-changes-4" id="toc-breaking-changes-4" class="nav-link" data-scroll-target="#breaking-changes-4">Breaking Changes</a></li>
+  <li><a href="#features-10" id="toc-features-10" class="nav-link" data-scroll-target="#features-10">Features</a></li>
+  <li><a href="#bug-fixes-10" id="toc-bug-fixes-10" class="nav-link" data-scroll-target="#bug-fixes-10">Bug Fixes</a></li>
+  </ul></li>
+  <li><a href="#section-11" id="toc-section-11" class="nav-link" data-scroll-target="#section-11">0.3.280 (2026-10-14)</a>
+  <ul class="collapse">
+  <li><a href="#features-11" id="toc-features-11" class="nav-link" data-scroll-target="#features-11">Features</a></li>
+  <li><a href="#bug-fixes-11" id="toc-bug-fixes-11" class="nav-link" data-scroll-target="#bug-fixes-11">Bug Fixes</a></li>
   <li><a href="#reverts" id="toc-reverts" class="nav-link" data-scroll-target="#reverts">Reverts</a></li>
   </ul></li>
-  <li><a href="#section-8" id="toc-section-8" class="nav-link" data-scroll-target="#section-8">0.3.279 (2026-10-12)</a>
+  <li><a href="#section-12" id="toc-section-12" class="nav-link" data-scroll-target="#section-12">0.3.279 (2026-10-12)</a>
   <ul class="collapse">
-  <li><a href="#bug-fixes-8" id="toc-bug-fixes-8" class="nav-link" data-scroll-target="#bug-fixes-8">Bug Fixes</a></li>
+  <li><a href="#bug-fixes-12" id="toc-bug-fixes-12" class="nav-link" data-scroll-target="#bug-fixes-12">Bug Fixes</a></li>
   </ul></li>
   <li><a href="#october-2026" id="toc-october-2026" class="nav-link" data-scroll-target="#october-2026">0.3.278 (09 October 2026)</a></li>
   <li><a href="#october-2026-1" id="toc-october-2026-1" class="nav-link" data-scroll-target="#october-2026-1">0.3.277 (06 October 2026)</a></li>
@@ -529,7 +551,7 @@ ul.task-list li input[type="checkbox"] {
 </nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content">
+<main class="content" id="quarto-document-content" tabindex="-1">
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
@@ -551,17 +573,234 @@ ul.task-list li input[type="checkbox"] {
 
 
 <section id="section" class="level2">
-<h2 class="anchored" data-anchor-id="section"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.286...0.3.287">0.3.287</a> (2026-10-31)</h2>
+<h2 class="anchored" data-anchor-id="section"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.290...0.3.291">0.3.291</a> (2026-11-17)</h2>
 <section id="features" class="level3">
 <h3 class="anchored" data-anchor-id="features">Features</h3>
+<ul>
+<li>count samples of a finished log as failures with an empty-attempt run and inspect log zero (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6579">#6579</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/7e056a2ee8060b9a124051152a0f5a5dc8e92a69">7e056a2</a>)</li>
+<li>eval-set selection workers can run their tasks with empty_attempt() for zero_samples() (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6605">#6605</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/2dada8174ba768669ee0561e7c1f393fd3640bd8">2dada81</a>)</li>
+<li>exclude samples of a finished log from its metrics, from Python or inspect log exclude (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6543">#6543</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/dcb464f3b795bf68e530c34fc0ef0f8163b81539">dcb464f</a>)</li>
+<li><strong>hf:</strong> option to ignore a model repository’s generation config, and record template and generation settings in the log (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6610">#6610</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/33308b0794f3002814c364e0eb2085bd6dddae73">33308b0</a>)</li>
+<li>inspect log merge-shards merges a sharded run’s logs from the command line (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6581">#6581</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/5387a26f05c78ca3f927e521550f4eaaa00a6aee">5387a26</a>)</li>
+<li><strong>openai:</strong> support GPT-6.2 Astra and GPT-6.2 Sol (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6614">#6614</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/25de4667cccd18753ac76b06698e0b7d9432d84d">25de466</a>)</li>
+<li><strong>sentinel:</strong> ask a person about a call when a sentinel sidecar escalates it (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6519">#6519</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/b1816681f4f4b7e6fb492c555befe1bb724706f0">b181668</a>)</li>
+<li><strong>sentinel:</strong> ask a person about a model’s whole turn when a sentinel sidecar escalates it (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6596">#6596</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/d30a1774f822dbd59ed8cff26421fb09cd7cc7ec">d30a177</a>)</li>
+<li><strong>sentinel:</strong> ask a person about a request when a sentinel sidecar escalates it (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6617">#6617</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/bcc1d85e6a9acdcff23b2ecb190d7fc5d6803752">bcc1d85</a>)</li>
+<li><strong>sentinel:</strong> human() can ask a person about a request before the model is sent it (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6615">#6615</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/b1f60783be2a277ad6028e1cb2ad8ba2e126547c">b1f6078</a>)</li>
+<li><strong>sentinel:</strong> run sentinels for bridged agents (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5765">#5765</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/c7f96dad0abc668b9bfc8d6c324984d17ea1ca8f">c7f96da</a>)</li>
+<li>update Fireworks and Together model info (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6426">#6426</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/ca0ab01e5ff4cefd34223a7463b6e245e2bd3808">ca0ab01</a>)</li>
+</ul>
+</section>
+<section id="bug-fixes" class="level3">
+<h3 class="anchored" data-anchor-id="bug-fixes">Bug Fixes</h3>
+<ul>
+<li>a bridged host tool answered with the agent’s own timeout is no longer linked as its result (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6523">#6523</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/d59b5e258ff932e6930b9aff9e600845d72f2999">d59b5e2</a>)</li>
+<li>ACP clients show the agent as still working after a turn ends on a limit or error (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6553">#6553</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/8c2e11fc81e1aee489101645a91d549934bd0b7d">8c2e11f</a>)</li>
+<li>an MCP tool called while its local server is still connecting no longer runs ahead of the handshake or fails with it (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6552">#6552</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/cf2e2d766de42f6cbf1e440be7690073da73ad0a">cf2e2d7</a>)</li>
+<li>Anthropic usage undercounted when a request compacts its context (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6390">#6390</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/998f93ab4126d760cdbba16af40cde9d24f50dd4">998f93a</a>)</li>
+<li>exclude sentinel, approver and reviewer spend from cost limits; add suspend_cost_limit() and suspend_limits() (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6517">#6517</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/bf036e406781d6f17760629d586a88773e2afdc3">bf036e4</a>)</li>
+<li>exec_remote start whose command closes stdin before reading its input always fails with “Connection lost” instead of sometimes starting with the input dropped (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6540">#6540</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/e5dee1ceb5533b4811b481bf667ced15047f7983">e5dee1c</a>)</li>
+<li>Gemini computer-use calls lose Gemini’s intent field and exact coordinates on replay (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6589">#6589</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/3f34c357fd15f8d861974fda47228bd9db509b7f">3f34c35</a>)</li>
+<li>harden checkpoint snapshot IDs against option injection (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6580">#6580</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/b01cb66f237d66fa648f01097d7fdbea63a76408">b01cb66</a>)</li>
+<li>install_skills() inside a sandbox identity scope fails for a skill with scripts when the image’s working directory is closed to the scope’s user (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6583">#6583</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/ce19dd38e490120590c78cbeea0f5e3e8d3ba5f6">ce19dd3</a>)</li>
+<li>model completions in logs from before 0.3.123 read back as text instead of an attachment:// reference (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6587">#6587</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/3276a5206c6fd044242fd5fc1ab5cacc8fb712b7">3276a52</a>)</li>
+<li>model text that begins with attachment:// or tc:// reads back from the log as written (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6584">#6584</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/ab2122c02c53b2bd1a5203597775ac0e25bb8e8f">ab2122c</a>)</li>
+<li>OpenAI native compaction crashes when a user message contains an image or file (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6436">#6436</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/92fa03413a6228b03388559e0a46499b7d743798">92fa034</a>)</li>
+<li>reduce probability of Docker sandbox project name collisions (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6575">#6575</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/386b4874c3397639c4df7a4b2d1206685f510e8b">386b487</a>)</li>
+<li>remote MCP server credentials are no longer written to eval logs (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6492">#6492</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/85829201b7b40c9f06da145548b3f7f0318b8e84">8582920</a>)</li>
+<li>replay pairs each tool call with its own approvals and sentinel checks when a call id repeats (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6370">#6370</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/db7be4ef6664d3081ae9779a5fccf251cc357126">db7be4e</a>)</li>
+<li>S3 downloads keep extra chunks in memory on a busy machine (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6586">#6586</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/f442184d977da21da62d1888e6364e84b8bc06a1">f442184</a>)</li>
+<li>samples_df no longer uses pandas’ deprecated drop_duplicates(inplace=True) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6383">#6383</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/a3b8090965f96f27f51dfdd00bf99d2c42cda5a6">a3b8090</a>)</li>
+<li>sandbox calls inside a sandbox identity scope default to the scope’s working directory (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6539">#6539</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/a2e99b2a04fe2b99cf278257d9a33a40511dd0e2">a2e99b2</a>)</li>
+<li>tools with an <code>Enum</code>, <code>date</code> or <code>Path</code> parameter default failing every model call (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6458">#6458</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/f68c610e99f04829045ab8ebe75b2b8bd71dc042">f68c610</a>)</li>
+</ul>
+</section>
+</section>
+<section id="section-1" class="level2">
+<h2 class="anchored" data-anchor-id="section-1"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.289...0.3.290">0.3.290</a> (2026-11-13)</h2>
+<section id="features-1" class="level3">
+<h3 class="anchored" data-anchor-id="features-1">Features</h3>
+<ul>
+<li>active_model_event_id() returns the in-flight model call attempt’s event id (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6529">#6529</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/c060c201c5681dd09dbe3edb5f01e5947218bfb9">c060c20</a>)</li>
+<li>each message keeps one id through the agent bridge and the log, and tool events record the message that proposed them (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6143">#6143</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/187d19f65c82f3bc49c1b3d82726e2b4f67bb78f">187d19f</a>)</li>
+<li>excluded epochs are left out of epoch reduction, and score reasons gain excluded and zeroed (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6528">#6528</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/b4aa05b85d3698fbae65eaa0beb14e2e8eb9cc2c">b4aa05b</a>)</li>
+<li><strong>google:</strong> support Gemini 4 Carbon (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6466">#6466</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/8c6f22ad8315fa7f9f8870369ba2e28c47d76886">8c6f22a</a>)</li>
+<li><strong>google:</strong> support Gemini 4 Hydrogen (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6547">#6547</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/d0c2ae1697b3d2189660d5cbe522e9640d773d71">d0c2ae1</a>)</li>
+<li>logs of errored or cancelled evals keep their total sample count (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6476">#6476</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/5a1654f60e8e96a7425574d395bcff73cf0aa40b">5a1654f</a>)</li>
+<li><strong>meta:</strong> support Muse Ember 1.0 and Muse Wonder 1.0 (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6467">#6467</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/e95b39b81a659707a321160b22c3f3d073153a22">e95b39b</a>)</li>
+<li><strong>mistral:</strong> support Mistral Large 4 (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6531">#6531</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/1ac148207dd8bd2e68691254e8d47b2c2a7d7971">1ac1482</a>)</li>
+<li>sandbox agent bridge inside a sandbox identity scope serves only the scope’s user (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6270">#6270</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/9a0b77e912d464e604e6ea9ad7c7eb2bbcb8331c">9a0b77e</a>)</li>
+<li><strong>sentinel:</strong> count a sentinel sidecar’s judging time as waiting and its judge models’ usage in the eval (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6513">#6513</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/0152514e8d814dad6f41cfc01f2c06f63448f60c">0152514</a>)</li>
+<li><strong>sentinel:</strong> sign calls to a sentinel sidecar instead of sending the eval’s token (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6444">#6444</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/9961043a82527fac6bbc938a4397692b76f07c5d">9961043</a>)</li>
+</ul>
+</section>
+<section id="bug-fixes-1" class="level3">
+<h3 class="anchored" data-anchor-id="bug-fixes-1">Bug Fixes</h3>
+<ul>
+<li>a bridged agent’s host tools make no model call after a limit is reached (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6500">#6500</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/55e93440737edeba60cfbacd267d0f697419d3bb">55e9344</a>)</li>
+<li>a bridged agent’s queued requests and native compactions make no model call after a limit is reached (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6434">#6434</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/10dc86e4847f4413637bd3eb554a9430a54e69f4">10dc86e</a>)</li>
+<li>a large denied sandbox bridge host tool call no longer uses extra memory to check for retries (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6471">#6471</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/6a1efac23e07446fb3cf83df459ac06b20572757">6a1efac</a>)</li>
+<li>a retry chosen in the cancel dialog no longer re-runs a task cancelled with inspect ctl (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6457">#6457</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/40d60b8e2a75d9dae2f93f85235e7238607c3d8b">40d60b8</a>)</li>
+<li>a second eval() in the same process ignores a changed display setting (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6267">#6267</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/674ac5e8233538850d1aaf96e6bf2f258a81cf15">674ac5e</a>)</li>
+<li>ACP approval and ask_user requests stuck on a client that switched sample or rejected the request (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6487">#6487</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/acd87bb65173dd0c6c3a33c51f7dc19e63c0030a">acd87bb</a>)</li>
+<li>agents wrapped with as_tool or as_solver fail when reused with limits (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6387">#6387</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/842a2334f6c3ffd03eef0b60e31e348044a16980">842a233</a>)</li>
+<li>an operator cancel during scoring no longer hides a scorer error (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6455">#6455</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/4364a566d5e9ae4feda7ae24128e82523fea0973">4364a56</a>)</li>
+<li><strong>anthropic:</strong> long requests no longer retry forever on the 10 minute read timeout (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6511">#6511</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/fbb88c6e834bd2c043ca4d2430472c340a196416">fbb88c6</a>)</li>
+<li>async fsspec reads block the event loop (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6012">#6012</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/099d83a155ff055836951ddedfbe77f414284c39">099d83a</a>)</li>
+<li><strong>computer:</strong> type action doesn’t use Return for newlines (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6490">#6490</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/fba8be67ec1a10a204a536341b2f63fb250b6854">fba8be6</a>)</li>
+<li>count a sample once toward <code>fail_on_error</code> when its <code>score_on_error</code> scoring also fails (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6507">#6507</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/36294bba53f4d703f1048de2b84e8ee5334c68e9">36294bb</a>)</li>
+<li>eval() raises an error instead of silently running a different task registered under the same name (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6231">#6231</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/918246a85f113e1266e3517c9d1dbc50e8f320ca">918246a</a>)</li>
+<li>keep a host’s Rich progress context usable after an eval (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6409">#6409</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/95024b3ff5d06f691708f14730911f6e001bcb39">95024b3</a>)</li>
+<li>keep the other batch results when one result row fails to parse (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6217">#6217</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/36eaa3e68e0316ef775b9cf52e29d2cb45fc0cca">36eaa3e</a>)</li>
+<li>list_files() no longer runs a path starting with - as a find action (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6489">#6489</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/88eef6a234f8522dd7c0e5745c6a0e4f2486227e">88eef6a</a>)</li>
+<li>math() timeouts no longer look like wrong answers in eval logs (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6384">#6384</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/16a39eb9ccfe118ecc945b7371b806c786a2be15">16a39eb</a>)</li>
+<li>messages_df() keeps messages that several samples share (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6389">#6389</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/8abad63fa05d9ceb894d56aee454f829eef1d5df">8abad63</a>)</li>
+<li><strong>moonshot:</strong> honor low and high reasoning effort for Kimi K3 (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5946">#5946</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/bc9998ccac23456e206b67205d4e0ba043ebe769">bc9998c</a>)</li>
+<li><strong>openai-responses:</strong> preserve content_filter stop reason on partial tool calls (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6227">#6227</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/d08cf1575be01ba0a3e3a160708543d1aecbc8ac">d08cf15</a>)</li>
+<li><strong>openai:</strong> computer tool results with no screenshot no longer fail the next request with a 400 (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6516">#6516</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/35fa4037047ea6ce5fd5e3d491759c838f33d23b">35fa403</a>)</li>
+<li>pick the JSON reader from the URL path, not the whole URL (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6209">#6209</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/3391d54fa531ccab8f9cb7d7fa68e880815bc0a1">3391d54</a>)</li>
+<li>read digits before a Chinese unit as one number (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6208">#6208</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/c8c58d469ae99ccd87bda69b4ceab82aad493df1">c8c58d4</a>)</li>
+<li>recovered samples keep their store (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6165">#6165</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/13149f62d05e0e1acb51ef5dc294541d8a0d7719">13149f6</a>)</li>
+<li>score numbers wrapped in full-width punctuation (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6381">#6381</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/a82e7026adf766279a5658478c9258e8ca00361f">a82e702</a>)</li>
+<li><strong>sentinel:</strong> a sidecar call that ends a sample on a token, cost or turn limit shows only the model’s time (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6542">#6542</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/e4435baa530d05324358bedc3782609c952f9876">e4435ba</a>)</li>
+<li>stop Hugging Face provider sending two BOS tokens for Gemma and Llama 3 (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6385">#6385</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/2ce28a37c514d2d6188f3f8d4ed672663c3678f0">2ce28a3</a>)</li>
+<li>vLLM and SGLang server API keys are no longer written to logs or startup errors (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6493">#6493</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/793f79eaaed4314069f0d14843c7c56ad0b21136">793f79e</a>)</li>
+<li>web_search() Google provider no longer logs the API key on connection retry (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6491">#6491</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/050c34fd0e3c1c2d69dac96d59507ef9e4997aa7">050c34f</a>)</li>
+</ul>
+</section>
+<section id="performance-improvements" class="level3">
+<h3 class="anchored" data-anchor-id="performance-improvements">Performance Improvements</h3>
+<ul>
+<li>copy shard sample members into the merged log without recompressing them (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6488">#6488</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/26f6d05755a65b09164398ed42c8f0f489abdfe5">26f6d05</a>)</li>
+</ul>
+</section>
+</section>
+<section id="section-2" class="level2">
+<h2 class="anchored" data-anchor-id="section-2"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.288...0.3.289">0.3.289</a> (2026-11-10)</h2>
+<section id="features-2" class="level3">
+<h3 class="anchored" data-anchor-id="features-2">Features</h3>
+<ul>
+<li><strong>anthropic:</strong> support Claude Fable 5.2 (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6443">#6443</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/cd2d730ec0fd59180094cec0dbfbd434d233890a">cd2d730</a>)</li>
+<li><strong>sentinel:</strong> act on a sentinel sidecar’s decisions when model calls go through a proxy (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6303">#6303</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/a0ce5ab59f538252a635753afef0ba06d7c99cde">a0ce5ab</a>)</li>
+</ul>
+</section>
+<section id="bug-fixes-2" class="level3">
+<h3 class="anchored" data-anchor-id="bug-fixes-2">Bug Fixes</h3>
+<ul>
+<li>ACP code no longer imports acp.helpers, which agent-client-protocol 1.0 removed (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6422">#6422</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/73db901191f357d5ed651fbcd7580fe2e613611d">73db901</a>)</li>
+<li><strong>anthropic:</strong> estimate tokens locally for Bedrock models (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6175">#6175</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/a5639be80de28e9711b83fa4870a4a61c73060c9">a5639be</a>)</li>
+<li><strong>bedrock:</strong> include cache tokens in streamed usage (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5942">#5942</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/3e9fc574826ff0b71b340ab71d7fa282dff40334">3e9fc57</a>)</li>
+<li>checkpoint restore time is linear (not quadratic) in the number of restored events (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6401">#6401</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/319a319fc063388aa8ea8851383d724d80cc2c99">319a319</a>)</li>
+<li>eval_set no longer re-runs or double-returns a task logged by separate runs (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6428">#6428</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/0fae2fee49506f4522fdc55334731dd33b7634a4">0fae2fe</a>)</li>
+<li>evaluate missing samples when eval_set selection changes (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6427">#6427</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/2e0eff396f7b62032b24953b3d4db1526a4803f3">2e0eff3</a>)</li>
+<li>f1 stop words not removed when separated by a newline or tab (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5940">#5940</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/e253d18ea2c0a3ea1c7030c354aa442ab7268e8d">e253d18</a>)</li>
+<li>Gemini go_back, go_forward and search computer calls are replayed with the wrong arguments (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6373">#6373</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/63a724c5895686f2b6dbacc9742b57d5998ea04f">63a724c</a>)</li>
+<li><strong>google:</strong> computer use doesn’t clear field before typing text (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6145">#6145</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/6088d4b3c2d1bd16afe81c9cbfa5f64892183053">6088d4b</a>)</li>
+<li>inspect score –stream replacing its input log with a partial log (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6174">#6174</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/18982e35a68d4aebfff7f351e2c029067014ed8c">18982e3</a>)</li>
+<li><strong>openrouter:</strong> preserve max reasoning effort (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6185">#6185</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/4a7d219c642fa20c07fdd8c19b5fa3f9d19478cb">4a7d219</a>)</li>
+<li>preserve eval samples containing lone surrogate messages (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6386">#6386</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/31136331885d1b84b4962eaac05138be2ddd49c9">3113633</a>)</li>
+<li>preserve retry cost and dataset memory limits and accept model cost config (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6429">#6429</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/36431815fc0d1dcd5dbece3edc19347a964b730a">3643181</a>)</li>
+<li>reject duplicate column names in csv_dataset (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6057">#6057</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/9838aeb9cb821e378773ba2ecee286ca89f70261">9838aeb</a>)</li>
+<li>samples_df, messages_df and events_df raise on unreadable eval columns despite strict=False (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6186">#6186</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/395fa3fda324b378a0e8fd577ea5d213af5ff2ae">395fa3f</a>)</li>
+<li>score compound Chinese large units such as 一万亿 correctly (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6179">#6179</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/d92ad2edbba7565814fd433f760b6e14c773074d">d92ad2e</a>)</li>
+<li>tag blank completions with reason no_response in model_graded_qa and choice (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5987">#5987</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/7a168f5ff95496bcd8bb237247f56cbf9d366437">7a168f5</a>)</li>
+<li>task listing and evaluation with absolute paths (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5268">#5268</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/da64cc6475734b3b4873de6c1957d727c86ba192">da64cc6</a>)</li>
+<li>task retries no longer reuse one dynamic sample’s result for another sample without an id (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6314">#6314</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/d7c01220c17947f53078141f1f2d299e837436e8">d7c0122</a>)</li>
+<li>the sdist no longer includes the sandbox tools binaries; an install built from it downloads them at first use (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6306">#6306</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/033726e73482aa87fd65139fcc61c3a2fea0ce6d">033726e</a>)</li>
+<li>Type sandboxenv and hooks so decorated classes keep their own type (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6009">#6009</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/b30ad16c2eaa7d6c7051759bd5ec253d2b0d09d5">b30ad16</a>)</li>
+</ul>
+</section>
+</section>
+<section id="section-3" class="level2">
+<h2 class="anchored" data-anchor-id="section-3"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.287...0.3.288">0.3.288</a> (2026-11-06)</h2>
+<section id="breaking-changes" class="level3">
+<h3 class="anchored" data-anchor-id="breaking-changes">Breaking Changes</h3>
+<ul>
+<li>environments with <code>google-genai</code> <code>2.x</code> fail the <code>validate_google_client</code> version check. Install <code>google-genai&gt;=3.0.0</code>.</li>
+<li>Evaluations using the automatically generated Docker sandbox must provide an explicit image if they need the <code>nonroot</code> account, <code>pipx</code>, or Playwright browser dependencies.</li>
+<li>Replace calls to <code>web_browser()</code> or its <code>web_browser_tools()</code> alias with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> for retrieval, or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#computer">computer()</a></span> / sandbox MCP tools for browser interaction; see #5497 for migration options.</li>
+</ul>
+</section>
+<section id="features-3" class="level3">
+<h3 class="anchored" data-anchor-id="features-3">Features</h3>
+<ul>
+<li>a runtime can keep a react() or deepagent() loop going after it answers (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6212">#6212</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/cea079d229b82a5c3b784abcb32d3e26a3391738">cea079d</a>)</li>
+<li>custom tools inside a sandbox identity scope run as the scope’s user (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6316">#6316</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/572e288078027db90ce3c776774f2e1ee3e6c756">572e288</a>)</li>
+<li>experimental transcript events for agent communication and agent swarm evidence (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6164">#6164</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/cba2b16fb411863ab381bc856567f635d0a29107">cba2b16</a>)</li>
+<li>inspect ctl sample agent lists a sample’s named agents and messages, pauses, resumes or stops them (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6297">#6297</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/0a56f693ba9132c43a1347180542376101f716d7">0a56f69</a>)</li>
+<li>remove deprecated web browser tools (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6264">#6264</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/de4b309791b2d4d49d3064f3c2760f37ba86cc92">de4b309</a>)</li>
+<li>run each agent’s sandbox tools as its own user (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6190">#6190</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/f59945e549850a88825ba0368b14ca3d9a699b32">f59945e</a>)</li>
+<li><strong>sentinel:</strong> replay logs that do not record model-call origins, with turns inferred from the timeline (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6098">#6098</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/7cf09c929b3ea9138762ca9e4d8d23f119554ee6">7cf09c9</a>)</li>
+<li>use the official Python image for default Docker sandboxes (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6238">#6238</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/cb7645ffe83bf6fee7778832f03610f50a5cd2e3">cb7645f</a>)</li>
+</ul>
+</section>
+<section id="bug-fixes-3" class="level3">
+<h3 class="anchored" data-anchor-id="bug-fixes-3">Bug Fixes</h3>
+<ul>
+<li><code>inspect view</code> no longer terminates an unrelated process that reused a crashed server’s pid (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6247">#6247</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/689a92e1ed94e35ed75a750808686d928d4f2f94">689a92e</a>)</li>
+<li>a bridged agent’s retries after a limit no longer pay for a compaction each (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6304">#6304</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/3c75374903e48d2d8e49eea9dcf01c1bf351867f">3c75374</a>)</li>
+<li>a sample limit reached by overlapping bridged generations ends the sample after an inner limit (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6263">#6263</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/642ee4bd00bf24a2b1f77e7237cebb75a8ad5ee2">642ee4b</a>)</li>
+<li>aborting one task while a sample fails no longer stops the whole run (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6272">#6272</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/1ddc34d5bc96f79c387459ddd046b6072a17b384">1ddc34d</a>)</li>
+<li><strong>agent-bridge:</strong> Gemini tool calls through the chat completions bridge keep their thought signatures (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5892">#5892</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/00d9882b6c1081071100ab448b4bfaa4606b1afa">00d9882</a>)</li>
+<li>an interrupted agent turn no longer breaks the conversation on Bedrock or Google, or leaves its tool calls pending in the log (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6296">#6296</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/c0f2e4275dcdbd2ca145616e473a8f70a82c0508">c0f2e42</a>)</li>
+<li>avoid tenacity 9.2.1 ‘initial’ DeprecationWarning in retry backoff (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6196">#6196</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/9498a0aa426c24e9e02e05b6dab30b8103f21129">9498a0a</a>), closes <a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5989">#5989</a></li>
+<li>batch result send failure no longer crashes the eval (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6233">#6233</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/ae3af3549d20a2aa0244ec169529db5cfee0b113">ae3af35</a>)</li>
+<li><strong>bedrock:</strong> enable adaptive thinking on Claude 5 (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5941">#5941</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/bfc7c72f11d009e62189c411d9a019a4f3923ae4">bfc7c72</a>)</li>
+<li>closing the task cancel dialog no longer clears a pending drain or cancel (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6250">#6250</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/242da5feb0dd14ef1d3b9fa110719502bbf5b9eb">242da5f</a>)</li>
+<li>computer() keeps its latest screenshots when other tools have also run (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6180">#6180</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/3d31a1ddbffa03da5b7d8ca92e4d4cca570f1415">3d31a1d</a>)</li>
+<li>cost limits now count calls that trip a token limit (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6349">#6349</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/829f1b93ad7eac13da659c50b6bf99d4d18ad7b6">829f1b9</a>)</li>
+<li>dataframe column paths with [*] rejected under jsonpath-ng 1.16.0 (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6318">#6318</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/1a0409407acaa5c421156f1e4eaddcfd90672585">1a04094</a>)</li>
+<li>Docker exec with a timeout returns a command’s own exit 124 instead of raising TimeoutError (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6183">#6183</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/706b4c5d6a3af83150ae3fc66ddf84b6bc37f50f">706b4c5</a>)</li>
+<li>don’t score an earlier grade when the final verdict line can’t be parsed (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6198">#6198</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/c7fa0d25cdd5c6477cc25e7c5cc26eafab2296b6">c7fa0d2</a>)</li>
+<li>evals_df() model_args column shows the model args instead of the (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/7e0c5a0edfc6f72830bc82724d602103cf9a0a5a">7e0c5a0</a>)</li>
+<li>evals_df() model_args column shows the model args instead of the base URL (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6172">#6172</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/7e0c5a0edfc6f72830bc82724d602103cf9a0a5a">7e0c5a0</a>)</li>
+<li>exec_remote returns fast commands without a fixed 5 s poll wait (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6313">#6313</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/7b62abc5059f8bc50de4bf0d336f29fdfbce7e59">7b62abc</a>)</li>
+<li><strong>google:</strong> batch requests with thought signatures or inline media serialize to JSON (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6242">#6242</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/e08662fde87fb18cb207902156165e6abad803a5">e08662f</a>), closes <a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6214">#6214</a></li>
+<li><strong>google:</strong> failed, cancelled or expired batch jobs no longer hang their samples (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6234">#6234</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/4499e044d5e24e37759b8baa0c0a581e6e2b8f33">4499e04</a>)</li>
+<li><strong>google:</strong> Gemini 3 400 error when replaying a web search and a parallel function call (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6289">#6289</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/e84896ece8c78f4654ecb67daeb4c0aefbeb2324">e84896e</a>)</li>
+<li><strong>google:</strong> streamed responses drop signed generated images (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6241">#6241</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/6ba32968711b1a7437ad6e9e71064a33b2de49a8">6ba3296</a>)</li>
+<li>harden model-graded scorer prompts against fake data markers in the graded answer (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6282">#6282</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/e016fe2bd75d503da4ade67ebe77feda64174bfb">e016fe2</a>)</li>
+<li>human approval cancelled as it is answered no longer fails with KeyError (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6266">#6266</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/87f50167f72d031b382eb2fc1edb3a6afeb340ce">87f5016</a>)</li>
+<li>keep cached responses separate when model arguments change (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6271">#6271</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/d30b97302b30379c45dcea2964134cf73adf5d7f">d30b973</a>)</li>
+<li>old logs read back with different message ids and working_start on every read (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6103">#6103</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/75692ec4d555ff8d481b2cc44c76fa63d0e2801f">75692ec</a>)</li>
+<li>on_task_end hook not called when a task is cancelled or fails (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6273">#6273</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/c6782725a79d9cd7e9be595b7c7a7ae47aaf4fb3">c678272</a>)</li>
+<li><strong>openai:</strong> cancelled or expired batches no longer hang their samples (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6249">#6249</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/bc4dda083c39ca285b001591350f6fb1f77784e7">bc4dda0</a>)</li>
+<li>read ctl –file stdin with click.open_file (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6336">#6336</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/5f6910e7395db17bd6d3bdbe957ba1910628ad12">5f6910e</a>)</li>
+<li>read_eval_log(exclude_fields={“events”}) no longer fails on samples (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/8e0ae3e43323f812a897d5308ee62cc3d99e7b07">8e0ae3e</a>)</li>
+<li>read_eval_log(exclude_fields={“events”}) no longer fails on samples with timelines (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6173">#6173</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/8e0ae3e43323f812a897d5308ee62cc3d99e7b07">8e0ae3e</a>)</li>
+<li>report closed exec_remote stdin consistently (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6343">#6343</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/1a9fb3db0302499af394afabd10c754431a3a4a3">1a9fb3d</a>)</li>
+<li>require google-genai&gt;=3.0.0, accept Gemini /v1/ on sandbox proxy, default Developer API to v1beta (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6352">#6352</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/39d40bc3b829ec6b11d1ef1235f648e7e8c8d095">39d40bc</a>)</li>
+<li>retry sample buffer connect when a sibling removes its directory during mkdir (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6305">#6305</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/27f18ff7d5bd4b8d7752912c1e0cd28e2e912e88">27f18ff</a>)</li>
+<li>sample event stream ownership and cancellation cleanup (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5737">#5737</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/cb9eae36635a2ea2a3d6a0459b5667c712e6ebd2">cb9eae3</a>)</li>
+<li>sandbox exec_remote returns the command’s exit code when it exits just before a kill (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6251">#6251</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/9619c27d069f8b3625c26df58ee5911c958ada19">9619c27</a>)</li>
+<li>sandbox tools installed by another Inspect release are no longer reused (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6302">#6302</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/09f1ba3bd8c7a9e6ccb9dcff25f8f9e220723b1f">09f1ba3</a>)</li>
+<li>show prerequisite errors when the display is disabled (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6229">#6229</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/14fd61845184c432927dd87799b1085516c8826c">14fd618</a>)</li>
+<li>show the import error when a required hook’s package fails to load, and keep checking on later calls (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6257">#6257</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/15c780b8922232e93c4aab0915d2421d6e87b91d">15c780b</a>)</li>
+<li>throttled display updates stop firing after an error or a cancelled eval (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6248">#6248</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/a156049422bb4319aaf86c0b0c7f678338c6b26e">a156049</a>)</li>
+<li>tool_with() keeps a tool’s current name and descriptions unless they are passed, so renaming an MCP tool works (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6181">#6181</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/ae224b7ce37a05d1d3cb932b14bbd58ecc8e4955">ae224b7</a>)</li>
+<li>tools in a sandbox identity scope get the scope user’s HOME, not one the image sets (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6276">#6276</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/325942c556beeb7d57ece4f89632727a6a5d348f">325942c</a>)</li>
+<li>verify every non-dev sandbox-tools binary before inject (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6342">#6342</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/2d902baee4edd72afcba524447dc7f2ac5bb4923">2d902ba</a>)</li>
+</ul>
+</section>
+<section id="performance-improvements-1" class="level3">
+<h3 class="anchored" data-anchor-id="performance-improvements-1">Performance Improvements</h3>
+<ul>
+<li>share logged model-call messages across calls (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6047">#6047</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/c3360cea51762b3b2411f0d471da33de418724ba">c3360ce</a>)</li>
+</ul>
+</section>
+</section>
+<section id="section-4" class="level2">
+<h2 class="anchored" data-anchor-id="section-4"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.286...0.3.287">0.3.287</a> (2026-10-31)</h2>
+<section id="features-4" class="level3">
+<h3 class="anchored" data-anchor-id="features-4">Features</h3>
 <ul>
 <li>a runtime can hold and rewrite a react() conversation at turn boundaries, and compaction handlers gain reset() (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6201">#6201</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/7340817a6fb5eb20c14520d13ce8c146d2d893c8">7340817</a>)</li>
 <li>reserve the range_goal registry type for inspect_ranges goal types (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6224">#6224</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/3dcbf005c0763cd91ea5e2da87551e57c04c61c1">3dcbf00</a>)</li>
 <li><strong>sentinel:</strong> the sentinel host gives the input budget and the token count of a monitor model (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6132">#6132</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/f1074f913b1f9adf31482271b7eaa91545652f9c">f1074f9</a>)</li>
 </ul>
 </section>
-<section id="bug-fixes" class="level3">
-<h3 class="anchored" data-anchor-id="bug-fixes">Bug Fixes</h3>
+<section id="bug-fixes-4" class="level3">
+<h3 class="anchored" data-anchor-id="bug-fixes-4">Bug Fixes</h3>
 <ul>
 <li>an agent limit reached by a sandbox-bridged agent ends that agent, not the sample (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6123">#6123</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/c0b94c3a4403ab59232f53ae3736f4decafe560e">c0b94c3</a>)</li>
 <li><strong>anthropic:</strong> unrecognised Claude models fail with “Invalid signature in thinking block” when an agent’s tools change (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6206">#6206</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/18216c31acfeb6c56cdb35bb61f6328c6c75665b">18216c3</a>)</li>
@@ -582,17 +821,17 @@ ul.task-list li input[type="checkbox"] {
 </ul>
 </section>
 </section>
-<section id="section-1" class="level2">
-<h2 class="anchored" data-anchor-id="section-1"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.285...0.3.286">0.3.286</a> (2026-10-28)</h2>
-<section id="breaking-changes" class="level3">
-<h3 class="anchored" data-anchor-id="breaking-changes">Breaking Changes</h3>
+<section id="section-5" class="level2">
+<h2 class="anchored" data-anchor-id="section-5"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.285...0.3.286">0.3.286</a> (2026-10-28)</h2>
+<section id="breaking-changes-1" class="level3">
+<h3 class="anchored" data-anchor-id="breaking-changes-1">Breaking Changes</h3>
 <ul>
 <li>Docker read_file() now uses the container’s default execution user instead of Docker’s privileged copy API. Callers needing privileged reads must request user=“root”; callers acting for a different sandbox user must pass that user. Docker reads require tar with –no-recursion, /bin/sh and /usr/bin/timeout, and no longer retry the former compose-cp host-timeout path. Sandbox providers must update read_file()/write_file() override signatures; explicit-user calls are rejected until supported. In particular, human_cli(user=…) cannot collect terminal recordings on older providers, including Kubernetes: collection warns and omits those logs. Set record_session=False until support is added, or use the sandbox’s default identity if appropriate. This is deliberate security tightening: dropping an explicit user could read a protected file through a sandbox-controlled log symlink with the reader’s greater privileges.</li>
 <li>recomputing, editing or recovering a log no longer imports files or builds models it names (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6007">#6007</a>)</li>
 </ul>
 </section>
-<section id="features-1" class="level3">
-<h3 class="anchored" data-anchor-id="features-1">Features</h3>
+<section id="features-5" class="level3">
+<h3 class="anchored" data-anchor-id="features-5">Features</h3>
 <ul>
 <li><strong>openai:</strong> support GPT-6.1 Terra (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6100">#6100</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/f7f36818b2340d0fd3e9386d1fa48fbddfd451b9">f7f3681</a>)</li>
 <li><strong>sentinel:</strong> a live sentinel follows the span a bridged agent’s event sink gives each generate (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6004">#6004</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/1692fd8d736449ed17494d6e202a16f9a2be28d7">1692fd8</a>)</li>
@@ -601,8 +840,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Terminals tab shows all of a sample’s terminals together on one shared clock (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6149">#6149</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/89d8bba35fc152b9209b1ab2c9e59947f88924c6">89d8bba</a>)</li>
 </ul>
 </section>
-<section id="bug-fixes-1" class="level3">
-<h3 class="anchored" data-anchor-id="bug-fixes-1">Bug Fixes</h3>
+<section id="bug-fixes-5" class="level3">
+<h3 class="anchored" data-anchor-id="bug-fixes-5">Bug Fixes</h3>
 <ul>
 <li>caches set never to expire no longer read back from logs as expiring after a week (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6088">#6088</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/05fc2c610c560509105bba3b59d81f70985bcaa9">05fc2c6</a>)</li>
 <li>enforce user permissions for sandbox file reads and writes (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6107">#6107</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/c136d291f423b88ba944fb8dbda4ed7b2a71398c">c136d29</a>)</li>
@@ -624,34 +863,34 @@ ul.task-list li input[type="checkbox"] {
 <li>truncated logs that read as empty now raise an error (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6086">#6086</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/ace82fe881919f61797b4068ea921ddd60a45caa">ace82fe</a>)</li>
 </ul>
 </section>
-<section id="performance-improvements" class="level3">
-<h3 class="anchored" data-anchor-id="performance-improvements">Performance Improvements</h3>
+<section id="performance-improvements-2" class="level3">
+<h3 class="anchored" data-anchor-id="performance-improvements-2">Performance Improvements</h3>
 <ul>
 <li>log flushes to S3 upload only the samples written since the last flush, not the whole <code>.eval</code> file (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6025">#6025</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/6e61a683d31373a3ecaecd52eefc059681f4d14e">6e61a68</a>)</li>
 <li>reduce memory spikes and stalls when finalizing long samples (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/4879">#4879</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/9c68f8fb493d93ac9c77b22c4829c4e393fef185">9c68f8f</a>)</li>
 </ul>
 </section>
 </section>
-<section id="section-2" class="level2">
-<h2 class="anchored" data-anchor-id="section-2"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.284...0.3.285">0.3.285</a> (2026-10-25)</h2>
-<section id="features-2" class="level3">
-<h3 class="anchored" data-anchor-id="features-2">Features</h3>
+<section id="section-6" class="level2">
+<h2 class="anchored" data-anchor-id="section-6"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.284...0.3.285">0.3.285</a> (2026-10-25)</h2>
+<section id="features-6" class="level3">
+<h3 class="anchored" data-anchor-id="features-6">Features</h3>
 <ul>
 <li>viewer Terminals tab for recorded terminal sessions and a merged Info tab (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6079">#6079</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/e37ce2fd3533ba53221d751e4e4eced74d4869b3">e37ce2f</a>)</li>
 </ul>
 </section>
-<section id="bug-fixes-2" class="level3">
-<h3 class="anchored" data-anchor-id="bug-fixes-2">Bug Fixes</h3>
+<section id="bug-fixes-6" class="level3">
+<h3 class="anchored" data-anchor-id="bug-fixes-6">Bug Fixes</h3>
 <ul>
 <li>.eval reads with exclude_fields failing on large float literals (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6045">#6045</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/641b8712f7d4e18c4813c261068e2a88022fb553">641b871</a>)</li>
 <li>agent bridge returns non-beta Anthropic usage to beta.messages calls with anthropic 2.3 (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6061">#6061</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/3dcd2ded36085d7c068d966a8d3118563296916e">3dcd2de</a>)</li>
 </ul>
 </section>
 </section>
-<section id="section-3" class="level2">
-<h2 class="anchored" data-anchor-id="section-3"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.283...0.3.284">0.3.284</a> (2026-10-25)</h2>
-<section id="features-3" class="level3">
-<h3 class="anchored" data-anchor-id="features-3">Features</h3>
+<section id="section-7" class="level2">
+<h2 class="anchored" data-anchor-id="section-7"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.283...0.3.284">0.3.284</a> (2026-10-25)</h2>
+<section id="features-7" class="level3">
+<h3 class="anchored" data-anchor-id="features-7">Features</h3>
 <ul>
 <li><strong>moonshot:</strong> support Kimi K3.1 Pro and K3.1 Pro Highspeed (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6072">#6072</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/eade928ea4119e0f0eddfe58617d9993ba9d710a">eade928</a>)</li>
 <li><strong>sentinel:</strong> step.agent_messages is the running agent’s own message list at every stage (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5986">#5986</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/4744d5fdd8077ec28231d0a0f0a7289628a9b2b6">4744d5f</a>)</li>
@@ -659,8 +898,8 @@ ul.task-list li input[type="checkbox"] {
 <li>viewer plays asciicasts stored in the sample store under asciinema:* keys (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6069">#6069</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/473fac0ad0e65ef5a558c977203b401e9fe2c319">473fac0</a>)</li>
 </ul>
 </section>
-<section id="bug-fixes-3" class="level3">
-<h3 class="anchored" data-anchor-id="bug-fixes-3">Bug Fixes</h3>
+<section id="bug-fixes-7" class="level3">
+<h3 class="anchored" data-anchor-id="bug-fixes-7">Bug Fixes</h3>
 <ul>
 <li>collect() drops the cause of a task’s error (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6000">#6000</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/2521656e345f995e37b1bea09d3f212e4819bd18">2521656</a>)</li>
 <li><strong>computer:</strong> reject out-of-bounds click coordinates instead of clicking at the screen edge (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5927">#5927</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/1529d0dc3c3937770b036a646f78bc59ea96c994">1529d0d</a>)</li>
@@ -685,24 +924,24 @@ ul.task-list li input[type="checkbox"] {
 <li><strong>tests:</strong> make test_deployment_name_normalization able to fail (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5908">#5908</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/48c53ebd3aab232e4fcc75730818b18593b4a38f">48c53eb</a>), closes <a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5615">#5615</a></li>
 </ul>
 </section>
-<section id="performance-improvements-1" class="level3">
-<h3 class="anchored" data-anchor-id="performance-improvements-1">Performance Improvements</h3>
+<section id="performance-improvements-3" class="level3">
+<h3 class="anchored" data-anchor-id="performance-improvements-3">Performance Improvements</h3>
 <ul>
 <li>retrying an eval whose logs are on S3 no longer re-uploads the prior attempt’s log before the retry starts (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5899">#5899</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/1031b575f9dad158860faa0f9dba0025864b0e68">1031b57</a>)</li>
 </ul>
 </section>
 </section>
-<section id="section-4" class="level2">
-<h2 class="anchored" data-anchor-id="section-4"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.282...0.3.283">0.3.283</a> (2026-10-21)</h2>
-<section id="breaking-changes-1" class="level3">
-<h3 class="anchored" data-anchor-id="breaking-changes-1">Breaking Changes</h3>
+<section id="section-8" class="level2">
+<h2 class="anchored" data-anchor-id="section-8"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.282...0.3.283">0.3.283</a> (2026-10-21)</h2>
+<section id="breaking-changes-2" class="level3">
+<h3 class="anchored" data-anchor-id="breaking-changes-2">Breaking Changes</h3>
 <ul>
 <li>dataset loaders now read a top-level <code>checkpoint</code> field as the sample’s checkpoint configuration and raise when it isn’t a valid one. Datasets that use <code>checkpoint</code> for unrelated data should pass <code>FieldSpec(checkpoint=None)</code> to skip the field, or <code>FieldSpec(checkpoint="&lt;column&gt;")</code> to read checkpoint settings from another column. Dataset records also can’t set the checkpoint <code>trigger</code>; set it with <code>Task(checkpoint=CheckpointConfig(trigger=...))</code> or <code>eval(checkpoint=...)</code> instead.</li>
 <li>Perplexity requests failing after Sonar moved to the Agent API (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5703">#5703</a>)</li>
 </ul>
 </section>
-<section id="features-4" class="level3">
-<h3 class="anchored" data-anchor-id="features-4">Features</h3>
+<section id="features-8" class="level3">
+<h3 class="anchored" data-anchor-id="features-8">Features</h3>
 <ul>
 <li><strong>meta:</strong> send prompt cache key and request 24 hour cache retention (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6005">#6005</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/17d440355b9b4a718ba7ec0e6b203f39489c409d">17d4403</a>)</li>
 <li>pass arguments to a registered sentinel with –sentinel-arg (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5877">#5877</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/b9f257419ad32c88cb49eff1edf2800170093ddd">b9f2574</a>)</li>
@@ -711,8 +950,8 @@ ul.task-list li input[type="checkbox"] {
 <li><strong>sentinel:</strong> tool steps carry the id of the message that made the call and its request’s tool choice (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5964">#5964</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/c90c3a1bf0be223393dcd0732e5ebc9e4c4222df">c90c3a1</a>)</li>
 </ul>
 </section>
-<section id="bug-fixes-4" class="level3">
-<h3 class="anchored" data-anchor-id="bug-fixes-4">Bug Fixes</h3>
+<section id="bug-fixes-8" class="level3">
+<h3 class="anchored" data-anchor-id="bug-fixes-8">Bug Fixes</h3>
 <ul>
 <li>a span that raises or is cancelled logs its own store changes (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5961">#5961</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/560385640e12a59b417275e660f1ce40f4f2a783">5603856</a>)</li>
 <li><strong>anthropic:</strong> Anthropic provider fails on anthropic 2.0 with ‘Cannot instantiate typing.Union’ (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/6003">#6003</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/f35c925bbc89a1aa7dd0268385064c1505334228">f35c925</a>)</li>
@@ -728,31 +967,31 @@ ul.task-list li input[type="checkbox"] {
 <li>write checkpoint attachments.json in insertion order so restic can deduplicate it (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5967">#5967</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/22141c91d80528e729123f6aac287566334367a9">22141c9</a>)</li>
 </ul>
 </section>
-<section id="performance-improvements-2" class="level3">
-<h3 class="anchored" data-anchor-id="performance-improvements-2">Performance Improvements</h3>
+<section id="performance-improvements-4" class="level3">
+<h3 class="anchored" data-anchor-id="performance-improvements-4">Performance Improvements</h3>
 <ul>
 <li>make repeated inspect ctl –log-dir polls read only the logs that changed (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5776">#5776</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/973cf7925abefd248c86f4638fad0ddd5d9b97d7">973cf79</a>)</li>
 </ul>
 </section>
 </section>
-<section id="section-5" class="level2">
-<h2 class="anchored" data-anchor-id="section-5"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.281...0.3.282">0.3.282</a> (2026-10-19)</h2>
-<section id="breaking-changes-2" class="level3">
-<h3 class="anchored" data-anchor-id="breaking-changes-2">Breaking Changes</h3>
+<section id="section-9" class="level2">
+<h2 class="anchored" data-anchor-id="section-9"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.281...0.3.282">0.3.282</a> (2026-10-19)</h2>
+<section id="breaking-changes-3" class="level3">
+<h3 class="anchored" data-anchor-id="breaking-changes-3">Breaking Changes</h3>
 <ul>
 <li>tool state scopes so agents running concurrently in one sample keep separate tool state (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5861">#5861</a>)</li>
 </ul>
 </section>
-<section id="features-5" class="level3">
-<h3 class="anchored" data-anchor-id="features-5">Features</h3>
+<section id="features-9" class="level3">
+<h3 class="anchored" data-anchor-id="features-9">Features</h3>
 <ul>
 <li><strong>sharding:</strong> conditional S3 writes and a local lock helper (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5775">#5775</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/5384f7393564f76b040be5d5e06cb2767e96037d">5384f73</a>)</li>
 <li>show a sharded run as one task in inspect ctl –log-dir (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5774">#5774</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/c0e60d046796cb741ecaafc3184c1d027521e119">c0e60d0</a>)</li>
 <li>tool state scopes so agents running concurrently in one sample keep separate tool state (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5861">#5861</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/c03cd9274352a3b9d5d3466774aae778a23f20f2">c03cd92</a>)</li>
 </ul>
 </section>
-<section id="bug-fixes-5" class="level3">
-<h3 class="anchored" data-anchor-id="bug-fixes-5">Bug Fixes</h3>
+<section id="bug-fixes-9" class="level3">
+<h3 class="anchored" data-anchor-id="bug-fixes-9">Bug Fixes</h3>
 <ul>
 <li>cancelled trio eval with the rich display fails instead of returning its log (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5872">#5872</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/f99c61d02d4205c4caf740c456633d901dfb4d19">f99c61d</a>)</li>
 <li>gemini-2.5-pro repeating tool calls after a tool result (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5753">#5753</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/8181840c18f1c004c1be851f83919d73f67d0f82">8181840</a>)</li>
@@ -761,23 +1000,23 @@ ul.task-list li input[type="checkbox"] {
 <li><strong>view:</strong> enforce the log viewer’s Content-Security-Policy in inspect view and view bundle (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5552">#5552</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/7afcb2411d3459250bbab3246b454cef69a34d62">7afcb24</a>)</li>
 </ul>
 </section>
-<section id="performance-improvements-3" class="level3">
-<h3 class="anchored" data-anchor-id="performance-improvements-3">Performance Improvements</h3>
+<section id="performance-improvements-5" class="level3">
+<h3 class="anchored" data-anchor-id="performance-improvements-5">Performance Improvements</h3>
 <ul>
 <li>faster events_df() on long agent transcripts (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5819">#5819</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/21ea6355860798307785592f05aa41bb6c3d47fe">21ea635</a>)</li>
 </ul>
 </section>
 </section>
-<section id="section-6" class="level2">
-<h2 class="anchored" data-anchor-id="section-6"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.280...0.3.281">0.3.281</a> (2026-10-15)</h2>
-<section id="breaking-changes-3" class="level3">
-<h3 class="anchored" data-anchor-id="breaking-changes-3">Breaking Changes</h3>
+<section id="section-10" class="level2">
+<h2 class="anchored" data-anchor-id="section-10"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.280...0.3.281">0.3.281</a> (2026-10-15)</h2>
+<section id="breaking-changes-4" class="level3">
+<h3 class="anchored" data-anchor-id="breaking-changes-4">Breaking Changes</h3>
 <ul>
 <li>require Python 3.11 and test on Python 3.14 (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5862">#5862</a>)</li>
 </ul>
 </section>
-<section id="features-6" class="level3">
-<h3 class="anchored" data-anchor-id="features-6">Features</h3>
+<section id="features-10" class="level3">
+<h3 class="anchored" data-anchor-id="features-10">Features</h3>
 <ul>
 <li>add swarm_controller and swarm_channel registry types (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5860">#5860</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/a11afc94322a431782f57c0f48a3d6b7666413c3">a11afc9</a>)</li>
 <li><strong>agent-bridge:</strong> forward allowed Anthropic betas, Accept-Encoding and Responses reasoning context (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5708">#5708</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/be4fd1fba7bd6c31bf5f708a4d90f3fca969ae07">be4fd1f</a>)</li>
@@ -786,8 +1025,8 @@ ul.task-list li input[type="checkbox"] {
 <li>sentinel monitors can call context.host.score (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5865">#5865</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/b0a5cd1d3b0c5f240df3ba696d3edd1d15e78bb1">b0a5cd1</a>)</li>
 </ul>
 </section>
-<section id="bug-fixes-6" class="level3">
-<h3 class="anchored" data-anchor-id="bug-fixes-6">Bug Fixes</h3>
+<section id="bug-fixes-10" class="level3">
+<h3 class="anchored" data-anchor-id="bug-fixes-10">Bug Fixes</h3>
 <ul>
 <li>Antigravity host tool calls being denied as unproposed by the sandbox agent bridge (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5717">#5717</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/46e79a4f46f288cbbd67a43842dde684d598a469">46e79a4</a>)</li>
 <li>count overlapping waits once in working time and add suspend_working_limit() (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5758">#5758</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/974c17d43738702adde22f404293d07c316242af">974c17d</a>)</li>
@@ -800,18 +1039,18 @@ ul.task-list li input[type="checkbox"] {
 </ul>
 </section>
 </section>
-<section id="section-7" class="level2">
-<h2 class="anchored" data-anchor-id="section-7"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.279...0.3.280">0.3.280</a> (2026-10-14)</h2>
-<section id="features-7" class="level3">
-<h3 class="anchored" data-anchor-id="features-7">Features</h3>
+<section id="section-11" class="level2">
+<h2 class="anchored" data-anchor-id="section-11"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.279...0.3.280">0.3.280</a> (2026-10-14)</h2>
+<section id="features-11" class="level3">
+<h3 class="anchored" data-anchor-id="features-11">Features</h3>
 <ul>
 <li><strong>agent-bridge:</strong> filters can now tell which agent a bridged model request belongs to (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/4791">#4791</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/1b78969d6350bd8ce84bba84a92cbaddf8b175d6">1b78969</a>)</li>
 <li><strong>google:</strong> support Gemini 4 Argon (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5843">#5843</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/76e69f92b9e4f84fda6214d69c15842f8e20dd49">76e69f9</a>)</li>
 <li>keep the response headers of a model call (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5795">#5795</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/1b167913bce1c6bb9dbf85bd67edbc02015b706c">1b16791</a>)</li>
 </ul>
 </section>
-<section id="bug-fixes-7" class="level3">
-<h3 class="anchored" data-anchor-id="bug-fixes-7">Bug Fixes</h3>
+<section id="bug-fixes-11" class="level3">
+<h3 class="anchored" data-anchor-id="bug-fixes-11">Bug Fixes</h3>
 <ul>
 <li>Behavior change: Docker sandboxes now block writable host mounts by default; use read-only mounts, Sample.files or Docker-managed volumes, or the unsafe opt-in (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5830">#5830</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/d7495e8020d362f22aa7ac8ae238c3c9c6ca5602">d7495e8</a>)</li>
 <li>Groq and OpenAI on Bedrock requests failing during credential refresh (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/5707">#5707</a>) (<a href="https://github.com/UKGovernmentBEIS/inspect_ai/commit/618d6f0a49c9b6d969e1244717f78cc081400879">618d6f0</a>)</li>
@@ -827,10 +1066,10 @@ ul.task-list li input[type="checkbox"] {
 </ul>
 </section>
 </section>
-<section id="section-8" class="level2">
-<h2 class="anchored" data-anchor-id="section-8"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.278...0.3.279">0.3.279</a> (2026-10-12)</h2>
-<section id="bug-fixes-8" class="level3">
-<h3 class="anchored" data-anchor-id="bug-fixes-8">Bug Fixes</h3>
+<section id="section-12" class="level2">
+<h2 class="anchored" data-anchor-id="section-12"><a href="https://github.com/UKGovernmentBEIS/inspect_ai/compare/0.3.278...0.3.279">0.3.279</a> (2026-10-12)</h2>
+<section id="bug-fixes-12" class="level3">
+<h3 class="anchored" data-anchor-id="bug-fixes-12">Bug Fixes</h3>
 <ul>
 <li>Internal improvements.</li>
 </ul>
@@ -5421,7 +5660,8 @@ document.addEventListener("DOMContentLoaded", function () {
           return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
       }
       // Inspect non-navigation links and adorn them if external
-     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      window.quartoDecorateExternalLinks = function (root) {
+     var links = (root || window.document).querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
       for (var i=0; i<links.length; i++) {
         const link = links[i];
         if (!isInternal(link.href)) {
@@ -5430,8 +5670,69 @@ document.addEventListener("DOMContentLoaded", function () {
           if (link.dataset.originalHref !== undefined) {
             link.href = link.dataset.originalHref;
           }
+          if (!link.classList.contains('no-external-icon')) {
+          }
         }
       }
+      };
+      window.quartoDecorateExternalLinks(window.document);
+    // Esc closes the popup (WCAG 1.4.13) and focus leaving both trigger and
+    // popup closes it (WCAG 2.4.11); tippy handles neither for interactive popups.
+    const hideOnEscAndFocusOut = {
+      name: 'hideOnEscAndFocusOut',
+      defaultValue: true,
+      fn(instance) {
+        const dismiss = () => {
+          // A show scheduled by the trigger delay would otherwise reopen it
+          instance.clearDelayTimeouts();
+          instance.hide();
+        };
+        const onKeyDown = (event) => {
+          if (event.key !== 'Escape') {
+            return;
+          }
+          // Keep Esc from also reaching page handlers (e.g. reveal.js overview),
+          // except an open reveal.js slide menu, which Esc should close too.
+          // The menu handles keys only when its keyboard option is on.
+          const menuHandlesEsc = window.Reveal?.getPlugin?.('menu')?.isOpen() &&
+            window.Reveal.getConfig().menu?.keyboard !== false;
+          if (!menuHandlesEsc) {
+            event.stopPropagation();
+          }
+          if (instance.popper.contains(window.document.activeElement)) {
+            // Disabled while refocusing so the focus trigger does not reopen it
+            instance.disable();
+            instance.reference.focus();
+            instance.enable();
+          }
+          dismiss();
+        };
+        const onFocusOut = (event) => {
+          const target = event.relatedTarget;
+          if (target && !instance.reference.contains(target) &&
+              !instance.popper.contains(target)) {
+            dismiss();
+          }
+        };
+        // On the trigger too: a click trigger (code-annotations: select) has no
+        // blur handling. Attached for the instance's lifetime so leaving the
+        // trigger also cancels a show still pending on the trigger delay.
+        instance.reference.addEventListener('focusout', onFocusOut);
+        return {
+          onShow() {
+            window.document.addEventListener('keydown', onKeyDown, true);
+            instance.popper.addEventListener('focusout', onFocusOut);
+          },
+          onHide() {
+            window.document.removeEventListener('keydown', onKeyDown, true);
+            instance.popper.removeEventListener('focusout', onFocusOut);
+          },
+          onDestroy() {
+            instance.reference.removeEventListener('focusout', onFocusOut);
+          },
+        };
+      },
+    };
     function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
       const config = {
         allowHTML: true,
@@ -5445,6 +5746,7 @@ document.addEventListener("DOMContentLoaded", function () {
         interactiveBorder: 10,
         theme: 'quarto',
         placement: 'bottom-start',
+        plugins: [hideOnEscAndFocusOut],
       };
       if (contentFn) {
         config.content = contentFn;
@@ -5607,44 +5909,54 @@ document.addEventListener("DOMContentLoaded", function () {
           const lineIds = lines.map((line) => {
             return targetCell + "-" + line;
           })
-          let top = null;
-          let height = null;
-          let parent = null;
+          // Each band is positioned against its own containing block, which is
+          // not the offsetParent of the lines, so place it from client rects.
+          const placeBand = (band, firstEl, lastEl, codeBlock) => {
+            const container = band.offsetParent;
+            if (container === null) {
+              return;
+            }
+            const containerRect = container.getBoundingClientRect();
+            // Reveal.js scales slides with a transform, so convert client
+            // pixels back to the CSS pixels of the container.
+            const scale = containerRect.height / container.offsetHeight || 1;
+            const firstRect = firstEl.getBoundingClientRect();
+            const lastRect = lastEl.getBoundingClientRect();
+            const top = (firstRect.top - containerRect.top) / scale - container.clientTop + container.scrollTop;
+            const height = (lastRect.bottom - firstRect.top) / scale;
+            band.style.top = top - 2 + "px";
+            band.style.height = height + 4 + "px";
+            if (codeBlock) {
+              // Without the copy button wrapper, the containing block is wider
+              // than the code block, so span the code block explicitly.
+              const blockRect = codeBlock.getBoundingClientRect();
+              band.style.left = (blockRect.left - containerRect.left) / scale - container.clientLeft + container.scrollLeft + "px";
+              band.style.width = blockRect.width / scale + "px";
+            }
+          };
           if (lineIds.length > 0) {
-              //compute the position of the single el (top and bottom and make a div)
-              const el = window.document.getElementById(lineIds[0]);
-              top = el.offsetTop;
-              height = el.offsetHeight;
-              parent = el.parentElement.parentElement;
-            if (lineIds.length > 1) {
-              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
-              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
-              height = bottom - top;
+            const el = window.document.getElementById(lineIds[0]);
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const parent = el.parentElement.parentElement;
+            // cook up a div (if necessary) and position it
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
             }
-            if (top !== null && height !== null && parent !== null) {
-              // cook up a div (if necessary) and position it 
-              let div = window.document.getElementById("code-annotation-line-highlight");
-              if (div === null) {
-                div = window.document.createElement("div");
-                div.setAttribute("id", "code-annotation-line-highlight");
-                div.style.position = 'absolute';
-                parent.appendChild(div);
-              }
-              div.style.top = top - 2 + "px";
-              div.style.height = height + 4 + "px";
-              div.style.left = 0;
-              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
-              if (gutterDiv === null) {
-                gutterDiv = window.document.createElement("div");
-                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
-                gutterDiv.style.position = 'absolute';
-                const codeCell = window.document.getElementById(targetCell);
-                const gutter = codeCell.querySelector('.code-annotation-gutter');
-                gutter.appendChild(gutterDiv);
-              }
-              gutterDiv.style.top = top - 2 + "px";
-              gutterDiv.style.height = height + 4 + "px";
+            placeBand(div, el, lastEl, parent.closest("div.sourceCode") || parent);
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
             }
+            placeBand(gutterDiv, el, lastEl);
             selectedAnnoteEl = annoteEl;
           }
         };
@@ -5722,6 +6034,7 @@ document.addEventListener("DOMContentLoaded", function () {
             interactiveBorder: 10,
             theme: 'quarto',
             placement: 'right',
+            plugins: [hideOnEscAndFocusOut],
             positionFixed: true,
             popperOptions: {
               modifiers: [
@@ -5783,6 +6096,9 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
   });
+  </script>
+  <script type="application/javascript">
+  window.quartoScrollableRegionsLabels = {"code":"Scrollable code","output":"Scrollable output"};
   </script>
 </div> <!-- /content -->
 <footer class="footer">

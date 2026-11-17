@@ -44,17 +44,6 @@
     ]
   },
   {
-    "id": "ec2-sandbox",
-    "name": "EC2 Sandbox",
-    "url": "https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox",
-    "desc": "Python package that provides a EC2 virtual machine sandbox environment for Inspect.",
-    "author": "UK AISI",
-    "author_url": "https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox",
-    "categories": [
-      "Sandboxes"
-    ]
-  },
-  {
     "id": "proxmox-sandbox",
     "name": "Proxmox Sandbox",
     "url": "https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox",
@@ -116,6 +105,39 @@
     "desc": "Runs each sample in a Firecracker microVM on Runtime Cloud, from the same Dockerfile or single-service compose file as the Docker sandbox.",
     "author": "Runtime",
     "author_url": "https://github.com/withruntime/runtime",
+    "categories": [
+      "Sandboxes"
+    ]
+  },
+  {
+    "id": "briq-sandbox",
+    "name": "briq Sandbox",
+    "url": "https://github.com/briq-cloud/inspect-briq",
+    "desc": "Runs each sample in its own briq microVM, destroyed when the sample ends.",
+    "author": "briq",
+    "author_url": "https://github.com/briq-cloud/inspect-briq",
+    "categories": [
+      "Sandboxes"
+    ]
+  },
+  {
+    "id": "boxd-sandbox",
+    "name": "boxd Sandbox",
+    "url": "https://github.com/boxd-sh/boxd-inspect",
+    "desc": "Runs each sample in its own boxd machine, a full Ubuntu VM. Tasks with a compose.yaml or Dockerfile run unchanged, with Docker inside the machine.",
+    "author": "boxd",
+    "author_url": "https://boxd.sh/?ref=inspect_ai",
+    "categories": [
+      "Sandboxes"
+    ]
+  },
+  {
+    "id": "kosa8-sandbox",
+    "name": "kosa8 Sandbox",
+    "url": "https://github.com/kosa8ai/inspect-kosa8",
+    "desc": "Runs each sample in its own kosa8 Cloud microVM, deleted when the sample ends. Sandboxes can sleep and wake with their memory and files kept.",
+    "author": "kosa8",
+    "author_url": "https://kosa8.com/?ref=inspect_ai",
     "categories": [
       "Sandboxes"
     ]
@@ -189,8 +211,8 @@
   {
     "id": "inspect-falsify",
     "name": "Inspect falsify",
-    "url": "https://github.com/studio-11-co/falsify-inspect",
-    "desc": "Pre-register an evaluation's success criteria (metric, threshold, dataset hash, seed) as a tamper-evident PRML manifest before the run, then verify eval logs against the locked claim via installed hooks.",
+    "url": "https://github.com/falsify-dev/falsify-inspect",
+    "desc": "Record an evaluation's pass criteria (metric, threshold, dataset hash, seed) in a hashed PRML manifest, then check an eval log's result, model and dataset against them via an Inspect hook or a CI gate command.",
     "author": "C\u00fcneyt \u00d6zt\u00fcrk",
     "author_url": "https://falsify.dev",
     "categories": [
@@ -264,6 +286,17 @@
     ]
   },
   {
+    "id": "scorio",
+    "name": "Scorio",
+    "url": "https://github.com/mohsenhariri/scorio/blob/python-v0.2.4/docs/integrations/inspect.rst",
+    "desc": "Bayes@N posterior means and standard deviations for repeated binary scores.",
+    "author": "Mohsen Hariri",
+    "author_url": "https://github.com/mohsenhariri/scorio",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
     "id": "proofbundle",
     "name": "proofbundle",
     "url": "https://github.com/b7n0de/proofbundle",
@@ -281,6 +314,50 @@
     "desc": "Emits signed Agent Correction Records on INCORRECT eval scores via Inspect hooks \u2014 Ed25519, hash-chained, key-pinned receipts evidencing caught agent failures, verifiable offline.",
     "author": "SaInT8888888888",
     "author_url": "https://github.com/SaInT8888888888",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "inspect-grounding",
+    "name": "Inspect Grounding",
+    "url": "https://github.com/Chris316-git/inspect-grounding",
+    "desc": "Deterministic numeric-grounding scorer \u2014 flags numbers in model output that do not appear in the input, tool results or metadata. No judge model or API calls.",
+    "author": "Yanheng Li",
+    "author_url": "https://github.com/Chris316-git",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "inspect-oscal",
+    "name": "inspect-oscal",
+    "url": "https://github.com/Johnbjoseph-cybersec/inspect-oscal",
+    "desc": "Converts Inspect eval logs into validated OSCAL assessment-results, mapping scores to NIST AI RMF subcategories, with each log's SHA-256 as evidence. Evidence for GRC teams, not a compliance verdict.",
+    "author": "John B Joseph",
+    "author_url": "https://github.com/Johnbjoseph-cybersec",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "anchorset",
+    "name": "anchorset",
+    "url": "https://github.com/ogous/anchorset/blob/main/docs/INSPECT.md",
+    "desc": "Regression tests for your LLM evals, and checks on the judge that grades them. Re-grades the model_graded_qa answers in an Inspect log with an old and a new judge and shows which labels moved.",
+    "author": "Ogous Chan Ali",
+    "author_url": "https://github.com/ogous",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "arci-verdict",
+    "name": "ARCI verdict",
+    "url": "https://github.com/ajaysurya1221/agent-reliability-ci/blob/main/docs/recipes/verdict.md",
+    "desc": "Regression verdict from two eval logs \u2014 reads a baseline and a candidate Inspect JSON log (epochs as rounds) and returns PASS, BLOCK or INCONCLUSIVE from a rule file fixed before the runs, with an exact sequential test. The error bound is stated only under its conditions; a rule written after the logs exist is labelled descriptive.",
+    "author": "Ajay Surya Senthilrajan",
+    "author_url": "https://github.com/ajaysurya1221",
     "categories": [
       "Analysis"
     ]

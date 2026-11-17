@@ -32,7 +32,7 @@ eval("math.py", model="openai/gpt-6-luna", reasoning_effort="high")
 
 GPT-5.5 and later reason at the server default effort when `reasoning_effort` is not set, and in that state the API rejects `temperature`, `top_p`, and `logprobs`. Inspect drops those options with a warning; pass `reasoning_effort="none"` to disable reasoning and have them sent.
 
-GPT-6 Sol, GPT-6 Luna, and GPT-6.1 Terra accept `none` and `low` through `max` (the API rejects `minimal`) and follow the GPT-5.5+ rules above (they reason at `medium` unless `reasoning_effort` is set). GPT-6 Astra and GPT-6.1 Sol always reason: they accept `low` through `max` only, and the API rejects `none` and `minimal` with an error. They also reject `temperature`, `top_p`, and `logprobs` regardless of effort, so Inspect drops those options with a warning for these models.
+GPT-6 Sol, GPT-6 Luna, and GPT-6.1 Terra accept `none` and `low` through `max` (the API rejects `minimal`) and follow the GPT-5.5+ rules above (they reason at `medium` unless `reasoning_effort` is set). GPT-6 Astra and GPT-6.1 Sol always reason: they accept `low` through `max` only, and the API rejects `none` and `minimal` with an error. They also reject `temperature`, `top_p`, and `logprobs` regardless of effort, so Inspect drops those options with a warning for these models. GPT-6.2 Astra and GPT-6.2 Sol also always reason: the API rejects `none`, and Inspect drops `temperature`, `top_p`, and `logprobs` with a warning regardless of effort.
 
 Note that GPT-5.6 models treat `reasoning_effort` as a ceiling rather than a floor: on prompts the model judges easy it may perform no reasoning at all (producing zero reasoning tokens), even at higher effort levels.
 
@@ -67,17 +67,18 @@ Note that you can also pass `reasoning_tokens` explicitly for these models.
 
 #### Google Gemini 3 and later
 
-Gemini 3 Flash 3.0–3.6 and Flash-Lite 3.1–3.5 expose four thinking levels (`MINIMAL`, `LOW`, `MEDIUM`, `HIGH`). Gemini 3 Pro / Pro 3.1, Gemini 3.7 Flash and later, and Gemini 4 Argon omit `MINIMAL` (the API rejects it), so Inspect maps `minimal` to `LOW` there and logs a warning. The same fail-safe applies to names without a version (rolling aliases such as `gemini-flash-latest`, predeployment codenames) and to versions newer than those listed, until Inspect has confirmed they accept `MINIMAL`.
+Gemini 3 Flash 3.0–3.6 and Flash-Lite 3.1–3.5 expose four thinking levels (`MINIMAL`, `LOW`, `MEDIUM`, `HIGH`). Gemini 3 Pro / Pro 3.1, Gemini 3.7 Flash and later, and Gemini 4 Argon, Carbon and Hydrogen omit `MINIMAL` (the API rejects it), so Inspect maps `minimal` to `LOW` there and logs a warning. The same fail-safe applies to names without a version (rolling aliases such as `gemini-flash-latest`, predeployment codenames) and to versions newer than those listed, until Inspect has confirmed they accept `MINIMAL`. Gemini 4 Hydrogen adds an `XHIGH` level, which Inspect sends for `xhigh` and `max`. Argon and Carbon reject `XHIGH`, and Inspect sends `HIGH` to every model it has not confirmed accepts it.
 
 | Inspect input | API value (Flash ≤ 3.6, Flash-Lite ≤ 3.5) | API value (other Gemini 3+) |
 |----|----|----|
-| `none` | thinking disabled | thinking disabled (Pro: stays on, warning) |
+| `none` | thinking disabled | thinking disabled (Pro, Hydrogen: stays on, warning) |
 | `minimal` | `MINIMAL` | `LOW` |
 | `low` | `LOW` | `LOW` |
 | `medium` | `MEDIUM` | `MEDIUM` |
-| `high` / `xhigh` / `max` | `HIGH` | `HIGH` |
+| `high` | `HIGH` | `HIGH` |
+| `xhigh` / `max` | `HIGH` | `HIGH` (Hydrogen: `XHIGH`) |
 
-Pro models cannot disable thinking, so for them `none` leaves thinking on and logs a warning. Inspect also treats Pro names it has not verified (such as a future Gemini 4 Pro) this way.
+Pro models and Gemini 4 Hydrogen cannot disable thinking, so for them `none` leaves thinking on and logs a warning. Inspect also treats Pro names it has not verified (such as a future Gemini 4 Pro) this way.
 
 #### Google Gemini 2.5
 
@@ -135,18 +136,21 @@ Non-reasoning Mistral models reject the parameter, and Inspect omits it when `re
 
 Passes through to the underlying model; OpenRouter itself maps `effort` to `budget_tokens` for models that need it, using the formula `budget = clamp(max_tokens × ratio, 1024, 128000)`.
 
-| Input           | API value         | Ratio |
-|-----------------|-------------------|-------|
-| `none`          | reasoning omitted | —     |
-| `minimal`       | `minimal`         | 0.1   |
-| `low`           | `low`             | 0.2   |
-| `medium`        | `medium`          | 0.5   |
-| `high`          | `high`            | 0.8   |
-| `max` / `xhigh` | `xhigh`           | 0.95  |
+| Input     | API value         | Ratio |
+|-----------|-------------------|-------|
+| `none`    | reasoning omitted | —     |
+| `minimal` | `minimal`         | 0.1   |
+| `low`     | `low`             | 0.2   |
+| `medium`  | `medium`          | 0.5   |
+| `high`    | `high`            | 0.8   |
+| `xhigh`   | `xhigh`           | 0.95  |
+| `max`     | `max`             | 0.95  |
+
+Inspect forwards `max` unchanged to OpenRouter. Available effort levels vary by model; consult `reasoning.supported_efforts` in [`GET /api/v1/models`](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens#discovering-per-model-reasoning-options). A successful request alone does not establish which effort the underlying model applied.
 
 #### LiteLLM Proxy
 
-Sends the requested value, which LiteLLM maps to the upstream provider’s parameter (e.g. adaptive thinking with `output_config.effort` for Claude). When LiteLLM or the upstream model rejects the value, Inspect retries with the strongest effort the model accepts at or below it (otherwise the weakest above it), or with no effort if the model takes none, and warns once. LiteLLM decides which values a model takes from its model map, so for models it doesn’t know set `base_model` in the proxy config (see [LiteLLM Proxy](./providers.html.md#litellm-proxy-model-info)).
+Sends the requested value, which LiteLLM maps to the upstream provider’s parameter (e.g. adaptive thinking with `output_config.effort` for Claude). When LiteLLM or the upstream model rejects the value, Inspect retries with the strongest effort the model accepts at or below it (otherwise the weakest above it), or with no effort if the model takes none, and warns once. LiteLLM decides which values a model takes from its model map, so for models it doesn’t know set `base_model` in the proxy config (see [LiteLLM Proxy](./providers.html.md#litellm-proxy-model-info)). For Gemini models, Inspect first maps the effort as the native Google provider does, except that `xhigh` and `max` go as `high`, because LiteLLM’s Gemini mapping rejects `xhigh`.
 
 #### Groq / Ollama / SageMaker / SambaNova
 
@@ -197,6 +201,7 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 |--------------------------------------|-----------------|
 | anthropic/claude-fable-5             | high            |
 | anthropic/claude-fable-5-1           | high            |
+| anthropic/claude-fable-5-2           | high            |
 | anthropic/claude-haiku-5-5           | medium          |
 | anthropic/claude-mythos-5            | high            |
 | anthropic/claude-mythos-5-1          | high            |
@@ -224,12 +229,19 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | google/gemini-3.7-flash              | medium          |
 | google/gemini-3.8-flash              | medium          |
 | google/gemini-4-argon                | medium          |
+| google/gemini-4-carbon               | medium          |
+| google/gemini-4-hydrogen             | high            |
 | grok/grok-3-mini                     | low             |
 | grok/grok-4                          | no effort scale |
 | grok/grok-4.3                        | low             |
 | grok/grok-4.5                        | high            |
 | grok/grok-4.6                        | high            |
 | grok/grok-4.7                        | high            |
+| meta/muse-ember-1.0                  | max             |
+| meta/muse-spark-1.1                  | high            |
+| meta/muse-spark-1.2                  | high            |
+| meta/muse-spark-1.3                  | high            |
+| meta/muse-wonder-1.0                 | max             |
 | mistral/magistral-medium-2506        | no effort scale |
 | mistral/magistral-small-2506         | no effort scale |
 | mistral/mistral-medium-2604          | none            |

@@ -29,7 +29,7 @@ inspect list tasks [OPTIONS] [PATHS]...
 | Name | Type | Description | Default |
 |----|----|----|----|
 | `-F` | text | One or more boolean task filters (e.g. -F light=true or -F draft~=false) | `Sentinel.UNSET` |
-| `--absolute` | boolean | List absolute paths to task scripts (defaults to relative to the cwd). | `False` |
+| `--absolute` | boolean | List absolute paths to task scripts (defaults to relative to the cwd). Required for tasks on a different Windows drive or UNC share. | `False` |
 | `--json` | boolean | Output listing as JSON | `False` |
 | `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level (defaults to ‘warning’) | `warning` |
 | `--log-dir` | text | Directory for log files. | `./logs` |

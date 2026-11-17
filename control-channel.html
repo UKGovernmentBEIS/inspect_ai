@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.10.19">
+<meta name="generator" content="quarto-1.11.9">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -76,14 +76,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/scrollable-regions/scrollable-regions.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-bf27225e3a48a9273f3daa8f8e829971.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-63b5708e65d6cd79cd7618c58d0c21e7.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-771725699ea44adeffca0fa6042fd43a.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -126,16 +127,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <meta name="twitter:title" content="Inspect">
 <meta name="twitter:description" content="Open-source framework for large language model evaluations">
 <meta name="twitter:image" content="https://inspect.aisi.org.uk/images/inspect.png">
-<meta name="twitter:image-height" content="1258">
-<meta name="twitter:image-width" content="2400">
 <meta name="twitter:card" content="summary_large_image">
 </head>
 
-<body class="nav-sidebar docked nav-fixed quarto-light">
+<body class="nav-sidebar docked nav-fixed quarto-light"><a id="quarto-skip-link" class="visually-hidden-focusable" href="#quarto-document-content">Skip to main content</a>
 
 <div id="quarto-search-results"></div>
   <header id="quarto-header" class="headroom fixed-top">
-    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark" aria-label="Site">
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
     <a href="./index.html" class="navbar-brand navbar-brand-logo">
@@ -146,8 +145,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <span class="navbar-title">Inspect</span>
     </a>
   </div>
-            <div id="quarto-search" class="" title="Search"></div>
-          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
   <span class="navbar-toggler-icon"></span>
 </button>
           <div class="collapse navbar-collapse" id="navbarCollapse">
@@ -222,15 +220,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           </div> <!-- /navcollapse -->
             <div class="quarto-navbar-tools">
 </div>
+            <div id="quarto-search" class="" title="Search"></div>
       </div> <!-- /container-fluid -->
     </nav>
-  <nav class="quarto-secondary-nav">
+  <nav class="quarto-secondary-nav" aria-label="Toolbar">
     <div class="container-fluid d-flex">
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./running.html">Running</a></li><li class="breadcrumb-item"><a href="./control-channel.html">Control Channel</a></li></ol></nav>
-        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        <nav class="quarto-page-breadcrumbs" aria-label="Breadcrumbs"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./running.html">Running</a></li><li class="breadcrumb-item"><a href="./control-channel.html">Control Channel</a></li></ol></nav>
+        <a class="flex-grow-1" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
   </nav>
@@ -238,18 +237,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <!-- content -->
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
-  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto" aria-label="Section">
     <div class="sidebar-menu-container"> 
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false">
- <span class="menu-text">Basics</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+            <button type="button" class="sidebar-item-text sidebar-item-toggle sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" aria-controls="quarto-sidebar-section-1" aria-expanded="false">
+ <span class="menu-text" id="quarto-sidebar-section-1-label">Basics</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
       </div>
-      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-1" aria-labelledby="quarto-sidebar-section-1-label" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./index.html" class="sidebar-item-text sidebar-link">
@@ -284,13 +280,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
- <span class="menu-text">Components</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+            <button type="button" class="sidebar-item-text sidebar-item-toggle sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" aria-controls="quarto-sidebar-section-2" aria-expanded="false">
+ <span class="menu-text" id="quarto-sidebar-section-2-label">Components</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
       </div>
-      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-2" aria-labelledby="quarto-sidebar-section-2-label" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./tasks.html" class="sidebar-item-text sidebar-link">
@@ -319,13 +312,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
- <span class="menu-text">Models</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+            <button type="button" class="sidebar-item-text sidebar-item-toggle sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" aria-controls="quarto-sidebar-section-3" aria-expanded="false">
+ <span class="menu-text" id="quarto-sidebar-section-3-label">Models</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
       </div>
-      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-3" aria-labelledby="quarto-sidebar-section-3-label" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./models.html" class="sidebar-item-text sidebar-link">
@@ -391,12 +381,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="./scoring.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Scoring</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-4-label">Scoring</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" aria-controls="quarto-sidebar-section-4" aria-expanded="false" aria-label="Toggle section: Scoring">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-4" aria-labelledby="quarto-sidebar-section-4-label" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./standard-scorers.html" class="sidebar-item-text sidebar-link">
@@ -449,13 +439,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false">
- <span class="menu-text">Agents</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+            <button type="button" class="sidebar-item-text sidebar-item-toggle sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" aria-controls="quarto-sidebar-section-5" aria-expanded="false">
+ <span class="menu-text" id="quarto-sidebar-section-5-label">Agents</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
       </div>
-      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-5" aria-labelledby="quarto-sidebar-section-5-label" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./agents.html" class="sidebar-item-text sidebar-link">
@@ -514,13 +501,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
- <span class="menu-text">Tools</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+            <button type="button" class="sidebar-item-text sidebar-item-toggle sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" aria-controls="quarto-sidebar-section-6" aria-expanded="false">
+ <span class="menu-text" id="quarto-sidebar-section-6-label">Tools</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
       </div>
-      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-6" aria-labelledby="quarto-sidebar-section-6-label" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./tools.html" class="sidebar-item-text sidebar-link">
@@ -568,12 +552,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="./running.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Running</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="true" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-7-label">Running</span></a>
+            <button type="button" class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" aria-controls="quarto-sidebar-section-7" aria-expanded="true" aria-label="Toggle section: Running">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-7" aria-labelledby="quarto-sidebar-section-7-label" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./eval-sets.html" class="sidebar-item-text sidebar-link">
@@ -584,6 +568,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./parallelism.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Parallelism</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sharding.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sharding</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -633,12 +623,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="./analysis.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Analysis</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-8-label">Analysis</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" aria-controls="quarto-sidebar-section-8" aria-expanded="false" aria-label="Toggle section: Analysis">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-8" aria-labelledby="quarto-sidebar-section-8-label" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./eval-logs.html" class="sidebar-item-text sidebar-link">
@@ -674,12 +664,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="./extensions.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Extensions</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-9-label">Extensions</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" aria-controls="quarto-sidebar-section-9" aria-expanded="false" aria-label="Toggle section: Extensions">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-9" aria-labelledby="quarto-sidebar-section-9-label" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./extensions-model-api.html" class="sidebar-item-text sidebar-link">
@@ -724,7 +714,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-        <nav id="TOC" role="doc-toc" class="toc-active" data-toc-expanded="1">
+        <nav id="TOC" role="doc-toc" aria-labelledby="toc-title" class="toc-active" data-toc-expanded="1">
     <h2 id="toc-title">On this page</h2>
    
   <ul>
@@ -741,6 +731,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#cancellation" id="toc-cancellation" class="nav-link" data-scroll-target="#cancellation">Cancellation</a></li>
   <li><a href="#draining" id="toc-draining" class="nav-link" data-scroll-target="#draining">Draining</a></li>
   <li><a href="#requeue" id="toc-requeue" class="nav-link" data-scroll-target="#requeue">Requeue</a></li>
+  <li><a href="#agents-in-a-sample" id="toc-agents-in-a-sample" class="nav-link" data-scroll-target="#agents-in-a-sample">Agents in a Sample</a></li>
   <li><a href="#interim-scoring" id="toc-interim-scoring" class="nav-link" data-scroll-target="#interim-scoring">Interim Scoring</a></li>
   <li><a href="#repeated-mutations" id="toc-repeated-mutations" class="nav-link" data-scroll-target="#repeated-mutations">Repeated Mutations</a></li>
   <li><a href="#pause-and-resume" id="toc-pause-and-resume" class="nav-link" data-scroll-target="#pause-and-resume">Pause and Resume</a></li>
@@ -754,9 +745,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content">
+<main class="content" id="quarto-document-content" tabindex="-1">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./running.html">Running</a></li><li class="breadcrumb-item"><a href="./control-channel.html">Control Channel</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="Breadcrumbs"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./running.html">Running</a></li><li class="breadcrumb-item"><a href="./control-channel.html">Control Channel</a></li></ol></nav>
 <div class="quarto-title">
 <h1 class="title">Control Channel</h1>
 </div>
@@ -860,38 +851,42 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Score one sample’s work-so-far now, without ending it.</td>
 </tr>
 <tr class="even">
+<td><code>inspect ctl sample agent</code></td>
+<td>List a sample’s addressable agents, and message, pause, resume or stop them.</td>
+</tr>
+<tr class="odd">
 <td><code>inspect ctl config</code></td>
 <td>View or retune launch configuration mid-flight.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>inspect ctl model pause</code></td>
 <td>Pause one model’s dispatch across the run (<code>--now</code> also holds in-flight calls to it).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>inspect ctl model resume</code></td>
 <td>Resume a paused model.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>inspect ctl process list</code></td>
 <td>List running Inspect processes.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>inspect ctl process anomalies</code></td>
 <td>Show in-flight and anomalous actions from a process’s trace log.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>inspect ctl process keep</code></td>
 <td>Make a process stay alive after its eval finishes.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>inspect ctl process release</code></td>
 <td>Let a keep-alive process exit.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>inspect ctl process pause</code></td>
 <td>Pause a whole running eval or eval-set (<code>--now</code> also holds in-flight samples).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>inspect ctl process resume</code></td>
 <td>Resume a paused eval or eval-set.</td>
 </tr>
@@ -956,10 +951,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="listing-tasks">Listing Tasks</h2>
 <p><code>inspect ctl task</code> lists the tasks of every running eval on the machine:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">task_id</span>       task                        model                      solver    samples             started</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="ex">------------</span>  <span class="at">--------------------------</span>  <span class="at">-------------------------</span>  <span class="at">--------</span>  <span class="at">------------------</span>  <span class="at">--------</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="ex">ZByxJpK4bKSz</span>  inspect_evals/gpqa_diamond  openai/gpt-6-sol           react     12/40 <span class="er">(</span><span class="ex">3</span> running<span class="kw">)</span>   <span class="ex">14:02:11</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="ex">fR8mWn2cQspD</span>  inspect_evals/humaneval     anthropic/claude-sonnet-5  generate  164/164 <span class="er">(</span><span class="bu">complete</span><span class="kw">)</span>  <span class="ex">13:58:40</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">task_id</span>       task                        model                        solver    samples             started</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="ex">------------</span>  <span class="at">--------------------------</span>  <span class="at">---------------------------</span>  <span class="at">--------</span>  <span class="at">------------------</span>  <span class="at">--------</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="ex">ZByxJpK4bKSz</span>  inspect_evals/gpqa_diamond  openai/gpt-6-sol             react     12/40 <span class="er">(</span><span class="ex">3</span> running<span class="kw">)</span>   <span class="ex">14:02:11</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="ex">fR8mWn2cQspD</span>  inspect_evals/humaneval     anthropic/claude-sonnet-5-5  generate  164/164 <span class="er">(</span><span class="bu">complete</span><span class="kw">)</span>  <span class="ex">13:58:40</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Each row is one task: retried tasks stay on a single row (with an <code>attempts</code> column showing how many attempts have run), and an <code>errors</code> column appears when any samples have errored. The <code>solver</code> column shows the plan’s terminal solver (the agent name, e.g.&nbsp;<code>react</code>, for an agentic task). With <code>--json</code>, the response is an <code>{as_of, tasks}</code> envelope and each task row also carries <code>pid</code>, <code>socket_path</code>, and <code>log_location</code> (where results are being written — the handle for reading logs after the run).</p>
 <p>Two more columns appear only when they have something to report: <code>refusals</code> (model refusals) and <code>http_retries</code> (rate-limit and transient HTTP retries). Both are running totals over the task’s own samples — the finished ones plus the live counts of those still in flight — so they are readable mid-run rather than only at the end. Both are always present in the <code>--json</code> row. They count every <em>attempt</em>, so a sample retried under <code>retry_on_error</code> contributes what each attempt saw; these are counts of things that happened, not properties of a final state. Note <code>http_retries</code> is unrelated to <code>attempts</code> (whole-task retries) and to a sample’s own <code>retries</code> (failed attempts of that sample).</p>
 <p>These are the same events the TUI footer tallies, but attributed per eval rather than per process — which is what makes them usable from <code>inspect ctl</code> at all, since one process commonly runs several evals at once and a detached run has no display to print a footer. An event reported outside any sample is counted in the process-global total only, so it appears in the footer and in no task row.</p>
@@ -969,7 +964,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="selecting-a-task">Selecting a Task</h2>
 <p>Commands that operate on one task take a <code>TASK</code> argument that selects a task from this list. It matches a task id (or unique prefix) first, then a task name — anchored at the start of the name or after a <code>/</code>, so <code>gpqa</code> matches <code>inspect_evals/gpqa_diamond</code>. When only one task is running you can omit it entirely.</p>
 <p>Task ids are stable across retries, so a command keeps working after a task errors and is retried (per-attempt eval ids are not stable, which is why commands don’t use them).</p>
-<p>One task run against several models (<code>--model openai/gpt-6-sol,anthropic/claude-fable-5</code>) makes the task name ambiguous — it matches both rows. Pass <code>--model</code> alongside the selector to pick the row running that model (matched at the name start or after a <code>/</code>, so <code>--model gpt-6-sol</code> matches <code>openai/gpt-6-sol</code>): <code>inspect ctl task cancel my_task --model gpt-6-sol</code>. The model filter applies within the tasks the selector matches — what other tasks happen to be running can’t change the outcome. If the combination is still ambiguous you get the same candidate-table error, and a combination matching nothing the same not-found error — each qualified with the model. An exact task id paired with a <code>--model</code> its task isn’t running errors by naming the contradiction (the task’s actual model) rather than being silently ignored.</p>
+<p>One task run against several models (<code>--model openai/gpt-6-sol,anthropic/claude-fable-5-2</code>) makes the task name ambiguous — it matches both rows. Pass <code>--model</code> alongside the selector to pick the row running that model (matched at the name start or after a <code>/</code>, so <code>--model gpt-6-sol</code> matches <code>openai/gpt-6-sol</code>): <code>inspect ctl task cancel my_task --model gpt-6-sol</code>. The model filter applies within the tasks the selector matches — what other tasks happen to be running can’t change the outcome. If the combination is still ambiguous you get the same candidate-table error, and a combination matching nothing the same not-found error — each qualified with the model. An exact task id paired with a <code>--model</code> its task isn’t running errors by naming the contradiction (the task’s actual model) rather than being silently ignored.</p>
 <p>On <em>reads</em> (<code>sample list</code>, <code>sample errors</code>) the selector is a filter: omitting it lists across <strong>all</strong> running tasks (each row carries its <code>task_id</code>), which makes “what’s erroring anywhere in this eval set?” the zero-argument spelling. On <em>mutations</em> (<code>task log-flush</code>, the task-scoped <code>config</code> knobs) an omitted selector must resolve to exactly one target — the sole running task is the default, and anything ambiguous errors with the candidate list rather than fanning out. Destructive commands (<code>task cancel</code>, <code>task drain</code>) require the selector outright.</p>
 </section>
 <section id="sample-status" class="level2">
@@ -1230,38 +1225,51 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p><code>sample requeue</code> is also how a <em>cancel-before-start</em> is reversed (see <a href="#cancellation">Cancellation</a>): requeuing a sample that was cancelled before it started withdraws the cancel, and the sample runs normally when it gets a slot — it keeps its place in the queue rather than going to the back. Once the cancelled sample’s run has been discarded (when it would have started, or at task teardown), the requeue is rejected instead — there is no prior record to re-run from; use <code>inspect eval-retry</code> after the run.</p>
 <p>Requeuing a sample that completed <em>successfully</em> is rejected — re-running or re-scoring a success is out of scope (use score invalidation and <code>inspect eval-retry</code> for post-hoc re-runs). Also rejected: a task that has finished or is between attempts (re-run failures with <code>inspect eval-retry</code>, or let the queued task retry handle them), and a task with a cancel in flight. <code>--dry-run</code> reports what would be re-run — the prior error, the attempt number, and whether a checkpoint resume is available — without changing anything, and reports the rejections above too, so an agent can probe safely.</p>
 </section>
+<section id="agents-in-a-sample" class="level2">
+<h2 class="anchored" data-anchor-id="agents-in-a-sample">Agents in a Sample</h2>
+<p>Some agent frameworks run several named agents in one sample, such as a multi-agent swarm. Code running in a sample can make its agents, and named groups of them, addressable from <code>inspect ctl</code>. <code>inspect ctl sample agent list</code> shows them, with what each is doing and the actions it takes now:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample agent list ctf 3</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The other verbs act on one agent, named with <code>--agent</code>, or on a whole group, named with <code>--group</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample agent message ctf 3 <span class="at">--agent</span> worker-2 <span class="at">--text</span> <span class="st">"Check the config file first."</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample agent message ctf 3 <span class="at">--agent</span> worker-2 <span class="at">--file</span> notes.md <span class="at">--interrupt</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample agent pause ctf 3 <span class="at">--group</span> swarm</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample agent resume ctf 3 <span class="at">--group</span> swarm</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample agent stop ctf 3 <span class="at">--agent</span> worker-2</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code>message</code> gives one agent a message from the operator, from <code>--text</code> or from <code>--file</code>, which takes a path or URL such as <code>s3://</code> (<code>-</code> reads stdin). The agent takes it at its next turn. With <code>--interrupt</code>, its current turn is cancelled and it continues with the message now. What <code>pause</code>, <code>resume</code> and <code>stop</code> do is up to the framework that registered the agent or group. An action an agent cannot take fails with the reason, and <code>list --json</code> gives the reason for each action an agent does not take now. A repeat that changes nothing, such as a second pause, is a no-op. The mutation verbs (<code>message</code>, <code>pause</code>, <code>resume</code> and <code>stop</code>) accept <code>--dry-run</code> and require <code>EPOCH</code> whenever the task runs more than one epoch. <code>list</code> defaults to epoch 1.</p>
+<p>These verbs send each request once and never retry it, since a repeat could send a message twice. If a request is sent but its response does not arrive, the command fails with an unknown outcome (<code>kind: "unknown_outcome"</code> in the <code>--json</code> error envelope): the action may have taken effect, so check with <code>list</code> before sending it again.</p>
+</section>
 <section id="interim-scoring" class="level2">
 <h2 class="anchored" data-anchor-id="interim-scoring">Interim Scoring</h2>
 <p><code>inspect ctl task score</code> answers “how is this eval actually doing?” mid-run: it runs the task’s own scorers over the in-flight samples, folds completed samples’ existing final scores in, computes interim metrics, and reports the results, all without ending any sample (the non-destructive counterpart to <code>task cancel --action score</code>).</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task score gpqa</span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task score gpqa <span class="at">--dry-run</span>          <span class="co"># counts by disposition, no scoring</span></span>
-<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task score gpqa <span class="at">--completed-only</span>   <span class="co"># no holds: metrics over final scores</span></span>
-<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task score gpqa <span class="at">--no-wait</span> <span class="at">--json</span>   <span class="co"># start, then re-run to poll</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task score gpqa</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task score gpqa <span class="at">--dry-run</span>          <span class="co"># counts by disposition, no scoring</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task score gpqa <span class="at">--completed-only</span>   <span class="co"># no holds: metrics over final scores</span></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task score gpqa <span class="at">--no-wait</span> <span class="at">--json</span>   <span class="co"># start, then re-run to poll</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Each in-flight sample is scored on its work-so-far by briefly <em>holding</em> it: the sample parks at its next model call (the same gate <code>pause --now</code> uses, applied to just that sample), its then-stable live state is scored — with full fidelity: real conversation, live store, live sandbox — and it is released and keeps running. The interim score is recorded on the sample’s transcript as an intermediate score event (exactly as the in-task <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">score()</a></span> API records one), so it persists into the log; the sample’s final scores are unaffected. A sample that doesn’t reach a model call within the hold timeout (a long tool call, a solver phase with no model calls) is skipped and reported rather than scored mid-motion, and one that completes first simply resolves normally — its final score supersedes. Samples are held one at a time, and scorer model calls never count against a held sample’s token/cost limits.</p>
 <p>Completed samples are folded in, never re-scored: already-scored samples contribute their final scores to the interim metrics, and unscored completed samples (a scorer that errored earlier, for example) are reported skipped — writing scores into a mid-run log isn’t safe, so <code>inspect score</code> after the run remains the way to score them. Errored samples count as scoreable only when the eval’s <code>score_on_error</code> would score them; cancelled and not-yet-started samples are skipped. A task that is <a href="#draining">draining</a> can still be interim scored — its in-flight samples are running normally — whereas a pass on a task whose in-flight samples are being resolved by <code>task cancel --action score|error</code> stops at the first held sample and reports the interruption. A run started with <code>--no-score</code> can’t be interim scored at all — the task has no scorers in-process, and the command reports exactly that; use <code>inspect score</code> on its log after the run.</p>
 <p><code>inspect ctl sample score</code> is the same machinery scoped to one sample — “how is <em>this</em> sample doing?” for a long-tail agentic sample that has been running for hours. The sample is resolved to the same dispositions: in-flight is held, scored on its work-so-far, and released; completed-and-scored reports its existing final scores (never re-scored); completed-unscored points at post-run <code>inspect score</code>. A sample-scoped pass computes no interim metrics — the sample’s scores are the payload. Like the other sample verbs, <code>EPOCH</code> is required whenever the task runs more than one epoch:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample score gpqa 42</span>
-<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample score gpqa 42 2 <span class="at">--dry-run</span>   <span class="co"># epoch 2's disposition, no scoring</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample score gpqa 42</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample score gpqa 42 2 <span class="at">--dry-run</span>   <span class="co"># epoch 2's disposition, no scoring</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Scoring can take minutes (model-graded scorers), so both commands start a pass and poll it to completion, rendering progress; <code>--no-wait</code> returns immediately, and the follow-up is <code>--status</code>, which reports the current (or most recent) pass without starting one (a bare re-run joins a still-running pass — one pass per task at a time, shared between the task-wide and sample-scoped forms, so holds never stack — but would start a fresh pass, with fresh holds, once the first finishes; <code>sample score</code> joins only a running pass for that same sample, <code>task score</code> never joins a sample-scoped pass, and both report a foreign-scope pass as a conflict to retry after). In the results, <code>failed</code> counts genuine scoring failures; in-flight samples the pass never attempted (they completed on their own, or never parked) or that every scorer declined to score (a scorer may return no score, e.g.&nbsp;for work it considers too incomplete) are reported <code>unscored</code>. Metrics are labeled interim for a reason: epochs may be incomplete and in-flight scores describe a moment mid-run. Two costs to know about: a held sample’s wall-clock <code>time_limit</code> keeps running while held (so avoid <em>recurring</em> full passes — use <code>--completed-only</code>, which takes no holds and makes no scorer calls, for periodic polling), and scorer model calls share the process’s connection limits with the running eval (a held sample’s parked calls release their connection slots while parked, so the pass’s own graders don’t starve behind the hold). Scorers should be read-only with respect to the sandbox to be safely interim-scorable — a scorer that mutates the environment (cleanup scripts, marker files) can perturb the still-running agent.</p>
 </section>
 <section id="repeated-mutations" class="level2">
 <h2 class="anchored" data-anchor-id="repeated-mutations">Repeated Mutations</h2>
-<p>Interactively, each mutation prints a full task header above its outcome for context. When stdout is not a TTY — piped or redirected output, a script whose output is captured, an agent’s shell tool — the task-scoped mutation verbs (<code>sample requeue</code>, <code>sample cancel</code>, <code>sample cancel-tool-call</code>, <code>sample score</code>, <code>task cancel</code>, <code>task drain</code>, <code>task pause</code>/<code>resume</code>, <code>task score</code>, <code>task log-flush</code>, and <code>config</code> when setting a knob) switch to a terse mode instead: one <code>verb target: outcome</code> line per call, so N mutations in a loop read as N scannable outcome lines rather than N repeated banners:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample errors gpqa <span class="at">--json</span> <span class="kw">|</span> <span class="ex">jq</span> <span class="at">-r</span> <span class="st">'.samples[] | "\(.sample_id) \(.epoch)"'</span> <span class="kw">|</span></span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="bu">read</span> <span class="at">-r</span> <span class="va">s</span> <span class="va">e</span><span class="kw">;</span> <span class="cf">do</span> <span class="ex">inspect</span> ctl sample requeue gpqa <span class="st">"</span><span class="va">$s</span><span class="st">"</span> <span class="st">"</span><span class="va">$e</span><span class="st">"</span><span class="kw">;</span> <span class="cf">done</span> <span class="kw">|</span> <span class="fu">tee</span> requeue.log</span>
-<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a><span class="ex">requeue</span> gpqa/11 <span class="er">(</span><span class="ex">epoch</span> 1<span class="kw">)</span><span class="bu">:</span> accepted — will re-run from the back of the sample queue</span>
-<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="ex">requeue</span> gpqa/17 <span class="er">(</span><span class="ex">epoch</span> 1<span class="kw">)</span><span class="bu">:</span> accepted — will resume from its checkpoint</span>
-<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="ex">requeue</span> gpqa/23 <span class="er">(</span><span class="ex">epoch</span> 1<span class="kw">)</span><span class="bu">:</span> no-op — a re-run is already pending</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Interactively, each mutation prints a full task header above its outcome for context. When stdout is not a TTY — piped or redirected output, a script whose output is captured, an agent’s shell tool — the task-scoped mutation verbs (<code>sample requeue</code>, <code>sample cancel</code>, <code>sample cancel-tool-call</code>, <code>sample score</code>, <code>sample agent message</code>/<code>pause</code>/<code>resume</code>/<code>stop</code>, <code>task cancel</code>, <code>task drain</code>, <code>task pause</code>/<code>resume</code>, <code>task score</code>, <code>task log-flush</code>, and <code>config</code> when setting a knob) switch to a terse mode instead: one <code>verb target: outcome</code> line per call, so N mutations in a loop read as N scannable outcome lines rather than N repeated banners:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl sample errors gpqa <span class="at">--json</span> <span class="kw">|</span> <span class="ex">jq</span> <span class="at">-r</span> <span class="st">'.samples[] | "\(.sample_id) \(.epoch)"'</span> <span class="kw">|</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="bu">read</span> <span class="at">-r</span> <span class="va">s</span> <span class="va">e</span><span class="kw">;</span> <span class="cf">do</span> <span class="ex">inspect</span> ctl sample requeue gpqa <span class="st">"</span><span class="va">$s</span><span class="st">"</span> <span class="st">"</span><span class="va">$e</span><span class="st">"</span><span class="kw">;</span> <span class="cf">done</span> <span class="kw">|</span> <span class="fu">tee</span> requeue.log</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="ex">requeue</span> gpqa/11 <span class="er">(</span><span class="ex">epoch</span> 1<span class="kw">)</span><span class="bu">:</span> accepted — will re-run from the back of the sample queue</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a><span class="ex">requeue</span> gpqa/17 <span class="er">(</span><span class="ex">epoch</span> 1<span class="kw">)</span><span class="bu">:</span> accepted — will resume from its checkpoint</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a><span class="ex">requeue</span> gpqa/23 <span class="er">(</span><span class="ex">epoch</span> 1<span class="kw">)</span><span class="bu">:</span> no-op — a re-run is already pending</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>(The pipe is what selects the terse form here — a loop whose stdout still goes to the terminal keeps the full rendering for each call.) Two exceptions to the strict one-line shape: a qualified <code>config</code> set appends <code>!</code> warning and <code>note:</code> lines after its outcome line (a process-scoped retune’s blast-radius note, a knob that could not be applied), and a <code>task score</code> (or <code>sample score</code>) that joins an already-running pass prints a join-note line (which pass it joined, and whether its flags differ) before its outcome line — scripts that count lines should prefer <code>--json</code>. Pass <code>--terse</code> to force the one-line mode on a terminal, or <code>--no-terse</code> to keep the full header rendering in a pipe. For scripts that branch on precise per-call outcomes, prefer <code>--json</code>: it takes precedence over both terse flags, and the mutation result envelope (<code>{target, applied, dry_run, detail}</code>) distinguishes applied from the idempotent no-op from dry-run structurally for the cancel, requeue, pause, and resume verbs (<code>task log-flush</code> reports <code>applied: true</code> even when nothing was buffered — its <code>detail</code> carries the flushed count).</p>
 </section>
 <section id="pause-and-resume" class="level2">
 <h2 class="anchored" data-anchor-id="pause-and-resume">Pause and Resume</h2>
 <p>Pause is the missing state between “running” and “cancelled”: it stops a run from <em>starting</em> new work while keeping the process, its queue, and this control surface alive, and it is non-destructive, idempotent, and reversible. By default the pause applies to dispatch, not to execution — think pausing a job queue, not suspending a process: samples already running (including model calls in flight) are not frozen or interrupted; they run to completion while new work holds. When in-flight spend must stop too, <code>pause --now</code> (the hard pause, below) additionally holds running samples at their next model call. Typical uses: ride out a provider incident without feeding more samples into it, stop spending while a cost question is decided, yield shared rate-limit capacity to a more urgent eval, or hold a run steady while you investigate a suspicious transcript (the read commands keep answering while paused).</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl process pause                    <span class="co"># pause the whole run (eval or eval-set)</span></span>
-<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl process resume                   <span class="co"># pick up exactly where it left off</span></span>
-<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl model pause openai/gpt-6-luna    <span class="co"># pause just one model's work</span></span>
-<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl model resume openai/gpt-6-luna   <span class="co"># the rest of the run kept going</span></span>
-<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl process pause <span class="at">--now</span>              <span class="co"># hard pause: also hold in-flight samples</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb26"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl process pause                    <span class="co"># pause the whole run (eval or eval-set)</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl process resume                   <span class="co"># pick up exactly where it left off</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl model pause openai/gpt-6-luna    <span class="co"># pause just one model's work</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl model resume openai/gpt-6-luna   <span class="co"># the rest of the run kept going</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl process pause <span class="at">--now</span>              <span class="co"># hard pause: also hold in-flight samples</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Under a pause, in-flight samples finish naturally — solving, scoring, and log writes complete under their original limits — but no new samples leave the queue, no task retries start, and (for an eval set) no further tasks dispatch. Queued samples spend none of their time limits: they are exactly as resumable as before the pause. Quiesce time is therefore bounded by the longest in-flight work: a long-running agentic sample, or a batched generate call awaiting a provider batch, holds the run semi-active until it completes. When in-flight work must wind down faster than that, compose pause with <code>inspect ctl config --max-connections</code> (throttle in-flight demand without discarding progress) or a targeted <code>inspect ctl sample cancel</code> — or reach for the hard pause.</p>
 <p>Adding <code>--now</code> to any pause verb makes it a <em>hard</em> pause: in addition to stopping dispatch, in-flight samples hold at their next model call. Outstanding model calls (and batch waits) finish, then no new call starts until resume — the lever for a provider incident or budget stop where an hour-long agentic sample should neither keep spending nor be cancelled and lose its progress. The hold covers provider-native compaction too (compacting rewrites the conversation, and for a long-context sample can be its most expensive single call), but not token counting: <code>count_tokens()</code> traffic is non-generative and cheap, and continues under a hard pause. Time spent parked is a known wait. A <code>working_limit</code> still burns down while other <a href="./setting-limits.html#working-limit">known work</a> runs in the same sample; otherwise the hold does not consume it. The wall clock keeps running: a sample held past its <code>time_limit</code> takes an ordinary time-limit outcome (though if scoring itself calls a model — a model-graded scorer — that call holds at the gate too, so the sample fully completes only after resume), the trade-off you accept for freezing it in place. <code>resume</code> clears both strengths, a plain <code>pause</code> after a <code>pause --now</code> downgrades it to the soft pause (last-write-wins), and cancel still escalates over a hold. One scoping difference from the soft model latch: <code>model pause MODEL --now</code> holds every generate call <em>to</em> MODEL — other tasks’ role and grader calls included — not just the tasks whose primary model matches.</p>
 <p><code>inspect ctl task pause</code> / <code>resume</code> scope the same thing to one task of an eval set, and <code>inspect ctl model pause MODEL</code> / <code>resume MODEL</code> to one model of a multi-model run: every task whose <em>primary</em> model matches holds — including eval-set tasks that haven’t started yet, which task-level pause can’t reach — while other models’ work continues (in-flight samples, including other tasks’ role/grader calls to the paused model, still finish naturally). <code>MODEL</code> is the exact name shown by <code>inspect ctl task list</code>. The task, model, and process pauses are independent latches — resuming one never clears another, so resuming a run after an incident never silently un-pauses a task (or model) you paused for its own reasons. All the verbs accept <code>--dry-run</code> and report <code>changed: false</code> on an idempotent repeat. Pause never blocks teardown: cancel and drain work unchanged on a paused task (a stamped cancel or drain passes the pause gate, so queued samples held by a soft pause abandon at once and the drain completes under the pause; under a hard <code>pause --now</code> the held in-flight samples stay parked, so the drain concludes on <code>resume</code> or on escalation to <code>cancel --action score</code>), config retunes compose with it, and pausing a task that is <em>between attempts</em> works, parking the queued retry (which a later <code>task cancel</code> or <code>task drain</code> can abandon outright).</p>
@@ -1272,25 +1280,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="stall-diagnosis" class="level2">
 <h2 class="anchored" data-anchor-id="stall-diagnosis">Stall Diagnosis</h2>
 <p><code>inspect ctl process anomalies [PID]</code> shows <em>why</em> a process is stalled: it reconstructs from the process’s trace log which actions (model calls, sandbox operations, subprocesses) are currently in flight — with live durations — plus any that were cancelled (<code>--all</code> adds errored and timed-out actions, and <code>--filter</code> narrows by message text). An in-flight operation emits no transcript event until it returns, so this is the read that names what a stalled sample with a high <code>idle</code> is actually waiting on.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl process anomalies 12345</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb27"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl process anomalies 12345</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Unlike the other reads, this one opens the process’s trace file directly rather than asking the process — so it works even against a process too busy or wedged to answer (the escalation path when another command reports “busy”), and even post-mortem: passing the pid of an exited process reads its trace file (kept on disk for the last 10 runs) to show what was in flight when it died, with durations dated to the file’s last write. With no <code>PID</code> it reads every running Inspect process, one section per pid.</p>
 </section>
 <section id="configuration" class="level2">
 <h2 class="anchored" data-anchor-id="configuration">Configuration</h2>
 <p><code>inspect ctl config</code> shows a running eval’s retunable launch configuration, and can retune it mid-run — for example to throttle an eval that is hammering a provider or overloading a machine, or to open it up when more capacity becomes available. Any <code>inspect eval</code> launch flag that can be retuned mid-flight is settable here, under the same spelling:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb26"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl config gpqa</span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect_evals/gpqa_diamond</span> <span class="er">(</span><span class="ex">ZByxJpK4bKSz</span><span class="kw">)</span>  <span class="ex">·</span>  openai/gpt-6-sol  ·  running  ·  12/40</span>
-<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="ex">config:</span></span>
-<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>  <span class="ex">max</span> samples <span class="pp">[</span><span class="ss">task</span><span class="pp">]</span>:         50 <span class="er">(</span><span class="ex">40</span> in use, tracking adaptive connections — set to pin<span class="kw">)</span></span>
-<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>  <span class="ex">max</span> sandboxes <span class="pp">[</span><span class="ss">process</span><span class="pp">]</span>:    docker 40 <span class="er">(</span><span class="ex">12</span> in use<span class="kw">)</span></span>
-<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>  <span class="ex">max</span> subprocesses <span class="pp">[</span><span class="ss">process</span><span class="pp">]</span>: 16 <span class="er">(</span><span class="ex">9</span> in use<span class="kw">)</span></span>
-<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>  <span class="ex">adaptive</span> connections <span class="pp">[</span><span class="ss">process</span><span class="pp">]</span>:</span>
-<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>    <span class="ex">openai/gpt-6-sol:</span> 45 <span class="er">(</span><span class="ex">38</span> in use<span class="kw">)</span><span class="ex">,</span> range 10–100, last: 40→45 steady_state_up</span>
-<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>  <span class="ex">log</span> buffer <span class="pp">[</span><span class="ss">task</span><span class="pp">]</span>:          10 samples <span class="er">(</span><span class="ex">2</span> pending<span class="kw">)</span></span>
-<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a>  <span class="ex">shared</span> sync <span class="pp">[</span><span class="ss">task</span><span class="pp">]</span>:         off</span>
-<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl config gpqa <span class="at">--max-connections</span> 20</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl config gpqa</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect_evals/gpqa_diamond</span> <span class="er">(</span><span class="ex">ZByxJpK4bKSz</span><span class="kw">)</span>  <span class="ex">·</span>  openai/gpt-6-sol  ·  running  ·  12/40</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a><span class="ex">config:</span></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>  <span class="ex">max</span> samples <span class="pp">[</span><span class="ss">task</span><span class="pp">]</span>:         50 <span class="er">(</span><span class="ex">40</span> in use, tracking adaptive connections — set to pin<span class="kw">)</span></span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>  <span class="ex">max</span> sandboxes <span class="pp">[</span><span class="ss">process</span><span class="pp">]</span>:    docker 40 <span class="er">(</span><span class="ex">12</span> in use<span class="kw">)</span></span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>  <span class="ex">max</span> subprocesses <span class="pp">[</span><span class="ss">process</span><span class="pp">]</span>: 16 <span class="er">(</span><span class="ex">9</span> in use<span class="kw">)</span></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>  <span class="ex">adaptive</span> connections <span class="pp">[</span><span class="ss">process</span><span class="pp">]</span>:</span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>    <span class="ex">openai/gpt-6-sol:</span> 45 <span class="er">(</span><span class="ex">38</span> in use<span class="kw">)</span><span class="ex">,</span> range 10–100, last: 40→45 steady_state_up</span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>  <span class="ex">log</span> buffer <span class="pp">[</span><span class="ss">task</span><span class="pp">]</span>:          10 samples <span class="er">(</span><span class="ex">2</span> pending<span class="kw">)</span></span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>  <span class="ex">shared</span> sync <span class="pp">[</span><span class="ss">task</span><span class="pp">]</span>:         off</span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl config gpqa <span class="at">--max-connections</span> 20</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Scope is a property of each knob, not of the command: task-scoped knobs apply to the selected task, process-scoped knobs apply to every task in the process. The output labels every knob with its scope (in <code>--json</code>, each knob carries <code>"scope": "task" | "process"</code>), and a <code>--dry-run</code> reports the blast radius of a process-scoped change.</p>
 <table class="caption-top table">
 <colgroup>
@@ -1414,23 +1422,23 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="log-flushing" class="level2">
 <h2 class="anchored" data-anchor-id="log-flushing">Log Flushing</h2>
 <p>Completed samples are buffered and written to the (possibly remote, e.g.&nbsp;S3) log in batches (see <code>--log-buffer</code> above). <code>inspect ctl task log-flush</code> writes any buffered samples to the log immediately, so they become readable and analyzable without waiting for the buffer to fill. It is safe to repeat — a flush with nothing pending writes nothing.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb27"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task log-flush gpqa</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect ctl task log-flush gpqa</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="processes-and-keep-alive" class="level2">
 <h2 class="anchored" data-anchor-id="processes-and-keep-alive">Processes and Keep Alive</h2>
 <p><code>inspect ctl process</code> lists the running Inspect processes (their pids, keep-alive status, and hosted tasks). The pid is the selector <code>process keep</code> / <code>process release</code> take; with a single running process it can be omitted.</p>
 <p>A process exits as soon as its eval finishes, taking the control endpoint with it. That is a problem for scripted workflows that want to inspect results after completion: the process may be gone by the time they look. The <code>--ctl-server</code> option controls this:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--ctl-server</span><span class="op">=</span>keep</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb30"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--ctl-server</span><span class="op">=</span>keep</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>With <code>keep</code>, the process stays running after the eval finishes — its state remains queryable via <code>inspect ctl</code> and its logs are fully written — until you release it:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl process release</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb31"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl process release</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>You can also latch keep-alive onto an eval that is <em>already running</em> (launched without <code>--ctl-server=keep</code>) with <code>inspect ctl process keep</code>.</p>
 <p>If more than one process is parked, <code>release</code> lists their pids and you disambiguate by passing one (<code>inspect ctl process release &lt;pid&gt;</code>). Release also works ahead of time: issued while the eval is still running, it means “exit when done” — the process skips the park and exits as soon as the eval finishes (it never cancels in-flight work). <code>keep</code> and <code>release</code> are last-write-wins, so a <code>keep</code> issued after a <code>release</code> (while the eval is still running) restores the park. From Python, pass <code>ctl_server="keep"</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span>. For eval sets, keep-alive requires <code>retry_immediate=True</code> (the default).</p>
 </section>
 <section id="reading-a-log-directory" class="level2">
 <h2 class="anchored" data-anchor-id="reading-a-log-directory">Reading a Log Directory</h2>
 <p><code>inspect ctl task list</code> and the <code>sample</code> reads can read a run’s <code>.eval</code> logs instead of a live process. Pass <code>--log-dir</code> with a local path or an S3 (or other fsspec) URL:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb30"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl task list <span class="at">--log-dir</span> s3://my-bucket/logs</span>
-<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl sample errors gpqa <span class="at">--log-dir</span> s3://my-bucket/logs</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb32"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl task list <span class="at">--log-dir</span> s3://my-bucket/logs</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> ctl sample errors gpqa <span class="at">--log-dir</span> s3://my-bucket/logs</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Use it when the eval runs on another machine, or after it has finished. It needs only read access to the directory and writes nothing there. It never runs task code or recomputes metrics.</p>
 <p>Data is only as fresh as the log: a completed sample normally reaches it within about 60 seconds. Running samples are visible only when the eval runs with <code>--log-shared</code>, as of its last sync (every 10 seconds by default). These are usual intervals, not guarantees: a failed upload or a stopped worker delays them. Human output starts with a line on stderr that says where the data comes from.</p>
 <table class="caption-top table">
@@ -1512,7 +1520,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="disabling-the-control-server" class="level2">
 <h2 class="anchored" data-anchor-id="disabling-the-control-server">Disabling the Control Server</h2>
 <p>The control server is on by default. To run an eval without it:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb31"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--ctl-server</span><span class="op">=</span>false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb33"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py <span class="at">--ctl-server</span><span class="op">=</span>false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The <code>INSPECT_EVAL_CTL_SERVER</code> environment variable mirrors the option (for example, set <code>INSPECT_EVAL_CTL_SERVER=false</code> to disable it across a CI job). It applies to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> / <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> called from Python as well as to the CLI, whenever <code>ctl_server</code> is not passed explicitly — including <code>INSPECT_EVAL_CTL_SERVER=keep</code>, which makes a Python <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> park after it finishes just as <code>--ctl-server=keep</code> does. If the server fails to bind (for example, on a read-only filesystem) the eval logs a warning and runs normally without it — eval results never depend on the control channel.</p>
 
 
@@ -1668,7 +1676,8 @@ document.addEventListener("DOMContentLoaded", function () {
           return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
       }
       // Inspect non-navigation links and adorn them if external
-     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      window.quartoDecorateExternalLinks = function (root) {
+     var links = (root || window.document).querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
       for (var i=0; i<links.length; i++) {
         const link = links[i];
         if (!isInternal(link.href)) {
@@ -1677,8 +1686,69 @@ document.addEventListener("DOMContentLoaded", function () {
           if (link.dataset.originalHref !== undefined) {
             link.href = link.dataset.originalHref;
           }
+          if (!link.classList.contains('no-external-icon')) {
+          }
         }
       }
+      };
+      window.quartoDecorateExternalLinks(window.document);
+    // Esc closes the popup (WCAG 1.4.13) and focus leaving both trigger and
+    // popup closes it (WCAG 2.4.11); tippy handles neither for interactive popups.
+    const hideOnEscAndFocusOut = {
+      name: 'hideOnEscAndFocusOut',
+      defaultValue: true,
+      fn(instance) {
+        const dismiss = () => {
+          // A show scheduled by the trigger delay would otherwise reopen it
+          instance.clearDelayTimeouts();
+          instance.hide();
+        };
+        const onKeyDown = (event) => {
+          if (event.key !== 'Escape') {
+            return;
+          }
+          // Keep Esc from also reaching page handlers (e.g. reveal.js overview),
+          // except an open reveal.js slide menu, which Esc should close too.
+          // The menu handles keys only when its keyboard option is on.
+          const menuHandlesEsc = window.Reveal?.getPlugin?.('menu')?.isOpen() &&
+            window.Reveal.getConfig().menu?.keyboard !== false;
+          if (!menuHandlesEsc) {
+            event.stopPropagation();
+          }
+          if (instance.popper.contains(window.document.activeElement)) {
+            // Disabled while refocusing so the focus trigger does not reopen it
+            instance.disable();
+            instance.reference.focus();
+            instance.enable();
+          }
+          dismiss();
+        };
+        const onFocusOut = (event) => {
+          const target = event.relatedTarget;
+          if (target && !instance.reference.contains(target) &&
+              !instance.popper.contains(target)) {
+            dismiss();
+          }
+        };
+        // On the trigger too: a click trigger (code-annotations: select) has no
+        // blur handling. Attached for the instance's lifetime so leaving the
+        // trigger also cancels a show still pending on the trigger delay.
+        instance.reference.addEventListener('focusout', onFocusOut);
+        return {
+          onShow() {
+            window.document.addEventListener('keydown', onKeyDown, true);
+            instance.popper.addEventListener('focusout', onFocusOut);
+          },
+          onHide() {
+            window.document.removeEventListener('keydown', onKeyDown, true);
+            instance.popper.removeEventListener('focusout', onFocusOut);
+          },
+          onDestroy() {
+            instance.reference.removeEventListener('focusout', onFocusOut);
+          },
+        };
+      },
+    };
     function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
       const config = {
         allowHTML: true,
@@ -1692,6 +1762,7 @@ document.addEventListener("DOMContentLoaded", function () {
         interactiveBorder: 10,
         theme: 'quarto',
         placement: 'bottom-start',
+        plugins: [hideOnEscAndFocusOut],
       };
       if (contentFn) {
         config.content = contentFn;
@@ -1854,44 +1925,54 @@ document.addEventListener("DOMContentLoaded", function () {
           const lineIds = lines.map((line) => {
             return targetCell + "-" + line;
           })
-          let top = null;
-          let height = null;
-          let parent = null;
+          // Each band is positioned against its own containing block, which is
+          // not the offsetParent of the lines, so place it from client rects.
+          const placeBand = (band, firstEl, lastEl, codeBlock) => {
+            const container = band.offsetParent;
+            if (container === null) {
+              return;
+            }
+            const containerRect = container.getBoundingClientRect();
+            // Reveal.js scales slides with a transform, so convert client
+            // pixels back to the CSS pixels of the container.
+            const scale = containerRect.height / container.offsetHeight || 1;
+            const firstRect = firstEl.getBoundingClientRect();
+            const lastRect = lastEl.getBoundingClientRect();
+            const top = (firstRect.top - containerRect.top) / scale - container.clientTop + container.scrollTop;
+            const height = (lastRect.bottom - firstRect.top) / scale;
+            band.style.top = top - 2 + "px";
+            band.style.height = height + 4 + "px";
+            if (codeBlock) {
+              // Without the copy button wrapper, the containing block is wider
+              // than the code block, so span the code block explicitly.
+              const blockRect = codeBlock.getBoundingClientRect();
+              band.style.left = (blockRect.left - containerRect.left) / scale - container.clientLeft + container.scrollLeft + "px";
+              band.style.width = blockRect.width / scale + "px";
+            }
+          };
           if (lineIds.length > 0) {
-              //compute the position of the single el (top and bottom and make a div)
-              const el = window.document.getElementById(lineIds[0]);
-              top = el.offsetTop;
-              height = el.offsetHeight;
-              parent = el.parentElement.parentElement;
-            if (lineIds.length > 1) {
-              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
-              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
-              height = bottom - top;
+            const el = window.document.getElementById(lineIds[0]);
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const parent = el.parentElement.parentElement;
+            // cook up a div (if necessary) and position it
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
             }
-            if (top !== null && height !== null && parent !== null) {
-              // cook up a div (if necessary) and position it 
-              let div = window.document.getElementById("code-annotation-line-highlight");
-              if (div === null) {
-                div = window.document.createElement("div");
-                div.setAttribute("id", "code-annotation-line-highlight");
-                div.style.position = 'absolute';
-                parent.appendChild(div);
-              }
-              div.style.top = top - 2 + "px";
-              div.style.height = height + 4 + "px";
-              div.style.left = 0;
-              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
-              if (gutterDiv === null) {
-                gutterDiv = window.document.createElement("div");
-                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
-                gutterDiv.style.position = 'absolute';
-                const codeCell = window.document.getElementById(targetCell);
-                const gutter = codeCell.querySelector('.code-annotation-gutter');
-                gutter.appendChild(gutterDiv);
-              }
-              gutterDiv.style.top = top - 2 + "px";
-              gutterDiv.style.height = height + 4 + "px";
+            placeBand(div, el, lastEl, parent.closest("div.sourceCode") || parent);
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
             }
+            placeBand(gutterDiv, el, lastEl);
             selectedAnnoteEl = annoteEl;
           }
         };
@@ -1969,6 +2050,7 @@ document.addEventListener("DOMContentLoaded", function () {
             interactiveBorder: 10,
             theme: 'quarto',
             placement: 'right',
+            plugins: [hideOnEscAndFocusOut],
             positionFixed: true,
             popperOptions: {
               modifiers: [
@@ -2031,7 +2113,10 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
   </script>
-<nav class="page-navigation">
+  <script type="application/javascript">
+  window.quartoScrollableRegionsLabels = {"code":"Scrollable code","output":"Scrollable output"};
+  </script>
+<nav class="page-navigation" aria-label="Page">
   <div class="nav-page nav-page-previous">
       <a href="./setting-limits.html" class="pagination-link" aria-label="Setting Limits">
         <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Setting Limits</span>

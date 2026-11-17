@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.10.19">
+<meta name="generator" content="quarto-1.11.9">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -76,14 +76,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/scrollable-regions/scrollable-regions.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-bf27225e3a48a9273f3daa8f8e829971.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-63b5708e65d6cd79cd7618c58d0c21e7.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-771725699ea44adeffca0fa6042fd43a.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
 <link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
 <link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
@@ -129,16 +130,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <meta name="twitter:title" content="Inspect">
 <meta name="twitter:description" content="Open-source framework for large language model evaluations">
 <meta name="twitter:image" content="https://inspect.aisi.org.uk/images/inspect.png">
-<meta name="twitter:image-height" content="1258">
-<meta name="twitter:image-width" content="2400">
 <meta name="twitter:card" content="summary_large_image">
 </head>
 
-<body class="nav-sidebar docked nav-fixed quarto-light">
+<body class="nav-sidebar docked nav-fixed quarto-light"><a id="quarto-skip-link" class="visually-hidden-focusable" href="#quarto-document-content">Skip to main content</a>
 
 <div id="quarto-search-results"></div>
   <header id="quarto-header" class="headroom fixed-top">
-    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark" aria-label="Site">
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
     <a href="./index.html" class="navbar-brand navbar-brand-logo">
@@ -149,8 +148,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <span class="navbar-title">Inspect</span>
     </a>
   </div>
-            <div id="quarto-search" class="" title="Search"></div>
-          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
   <span class="navbar-toggler-icon"></span>
 </button>
           <div class="collapse navbar-collapse" id="navbarCollapse">
@@ -225,15 +223,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           </div> <!-- /navcollapse -->
             <div class="quarto-navbar-tools">
 </div>
+            <div id="quarto-search" class="" title="Search"></div>
       </div> <!-- /container-fluid -->
     </nav>
-  <nav class="quarto-secondary-nav">
+  <nav class="quarto-secondary-nav" aria-label="Toolbar">
     <div class="container-fluid d-flex">
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./analysis.html">Analysis</a></li><li class="breadcrumb-item"><a href="./eval-logs.html">Log Files</a></li></ol></nav>
-        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        <nav class="quarto-page-breadcrumbs" aria-label="Breadcrumbs"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./analysis.html">Analysis</a></li><li class="breadcrumb-item"><a href="./eval-logs.html">Log Files</a></li></ol></nav>
+        <a class="flex-grow-1" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
   </nav>
@@ -241,18 +240,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <!-- content -->
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
-  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto" aria-label="Section">
     <div class="sidebar-menu-container"> 
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false">
- <span class="menu-text">Basics</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+            <button type="button" class="sidebar-item-text sidebar-item-toggle sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" aria-controls="quarto-sidebar-section-1" aria-expanded="false">
+ <span class="menu-text" id="quarto-sidebar-section-1-label">Basics</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
       </div>
-      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-1" aria-labelledby="quarto-sidebar-section-1-label" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./index.html" class="sidebar-item-text sidebar-link">
@@ -287,13 +283,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
- <span class="menu-text">Components</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+            <button type="button" class="sidebar-item-text sidebar-item-toggle sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" aria-controls="quarto-sidebar-section-2" aria-expanded="false">
+ <span class="menu-text" id="quarto-sidebar-section-2-label">Components</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
       </div>
-      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-2" aria-labelledby="quarto-sidebar-section-2-label" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./tasks.html" class="sidebar-item-text sidebar-link">
@@ -322,13 +315,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
- <span class="menu-text">Models</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+            <button type="button" class="sidebar-item-text sidebar-item-toggle sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" aria-controls="quarto-sidebar-section-3" aria-expanded="false">
+ <span class="menu-text" id="quarto-sidebar-section-3-label">Models</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
       </div>
-      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-3" aria-labelledby="quarto-sidebar-section-3-label" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./models.html" class="sidebar-item-text sidebar-link">
@@ -394,12 +384,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="./scoring.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Scoring</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-4-label">Scoring</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" aria-controls="quarto-sidebar-section-4" aria-expanded="false" aria-label="Toggle section: Scoring">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-4" aria-labelledby="quarto-sidebar-section-4-label" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./standard-scorers.html" class="sidebar-item-text sidebar-link">
@@ -452,13 +442,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false">
- <span class="menu-text">Agents</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+            <button type="button" class="sidebar-item-text sidebar-item-toggle sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" aria-controls="quarto-sidebar-section-5" aria-expanded="false">
+ <span class="menu-text" id="quarto-sidebar-section-5-label">Agents</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
       </div>
-      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-5" aria-labelledby="quarto-sidebar-section-5-label" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./agents.html" class="sidebar-item-text sidebar-link">
@@ -517,13 +504,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
- <span class="menu-text">Tools</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+            <button type="button" class="sidebar-item-text sidebar-item-toggle sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" aria-controls="quarto-sidebar-section-6" aria-expanded="false">
+ <span class="menu-text" id="quarto-sidebar-section-6-label">Tools</span><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
       </div>
-      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-6" aria-labelledby="quarto-sidebar-section-6-label" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./tools.html" class="sidebar-item-text sidebar-link">
@@ -571,12 +555,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="./running.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Running</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-7-label">Running</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" aria-controls="quarto-sidebar-section-7" aria-expanded="false" aria-label="Toggle section: Running">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-7" aria-labelledby="quarto-sidebar-section-7-label" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./eval-sets.html" class="sidebar-item-text sidebar-link">
@@ -587,6 +571,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./parallelism.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Parallelism</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sharding.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sharding</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -636,12 +626,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="./analysis.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Analysis</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="true" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-8-label">Analysis</span></a>
+            <button type="button" class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" aria-controls="quarto-sidebar-section-8" aria-expanded="true" aria-label="Toggle section: Analysis">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-8" aria-labelledby="quarto-sidebar-section-8-label" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./eval-logs.html" class="sidebar-item-text sidebar-link active">
@@ -677,12 +667,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="./extensions.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Extensions</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-9-label">Extensions</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" aria-controls="quarto-sidebar-section-9" aria-expanded="false" aria-label="Toggle section: Extensions">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-9" aria-labelledby="quarto-sidebar-section-9-label" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./extensions-model-api.html" class="sidebar-item-text sidebar-link">
@@ -727,7 +717,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-        <nav id="TOC" role="doc-toc" class="toc-active" data-toc-expanded="1">
+        <nav id="TOC" role="doc-toc" aria-labelledby="toc-title" class="toc-active" data-toc-expanded="1">
     <h2 id="toc-title">On this page</h2>
    
   <ul>
@@ -763,6 +753,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#recomputing-metrics" id="toc-recomputing-metrics" class="nav-link" data-scroll-target="#recomputing-metrics">Recomputing Metrics</a></li>
   <li><a href="#logs-from-others" id="toc-logs-from-others" class="nav-link" data-scroll-target="#logs-from-others">Logs from Others</a></li>
   <li><a href="#score-edit-events" id="toc-score-edit-events" class="nav-link" data-scroll-target="#score-edit-events">Score Edit Events</a></li>
+  <li><a href="#excluding-samples" id="toc-excluding-samples" class="nav-link" data-scroll-target="#excluding-samples">Excluding Samples</a></li>
+  <li><a href="#zeroing-samples" id="toc-zeroing-samples" class="nav-link" data-scroll-target="#zeroing-samples">Zeroing Samples</a></li>
   <li><a href="#tags-metadata-editing" id="toc-tags-metadata-editing" class="nav-link" data-scroll-target="#tags-metadata-editing">Tags &amp; Metadata Editing</a></li>
   </ul></li>
   <li><a href="#sec-amazon-s3" id="toc-sec-amazon-s3" class="nav-link" data-scroll-target="#sec-amazon-s3">Amazon S3</a></li>
@@ -783,9 +775,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content">
+<main class="content" id="quarto-document-content" tabindex="-1">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./analysis.html">Analysis</a></li><li class="breadcrumb-item"><a href="./eval-logs.html">Log Files</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="Breadcrumbs"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./analysis.html">Analysis</a></li><li class="breadcrumb-item"><a href="./eval-logs.html">Log Files</a></li></ol></nav>
 <div class="quarto-title">
 <h1 class="title">Log Files</h1>
 </div>
@@ -993,36 +985,41 @@ Important
 <td>Aggregate results computed by scorer metrics.</td>
 </tr>
 <tr class="even">
+<td><code>total_samples</code></td>
+<td><code>int \| None</code></td>
+<td>Sample/epoch runs accepted for this attempt, saved when the eval finishes, even when <code>results</code> is absent. <code>None</code> means unknown.</td>
+</tr>
+<tr class="odd">
 <td><code>stats</code></td>
 <td><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalstats">EvalStats</a></span></td>
 <td>Model usage statistics (input and output tokens)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>error</code></td>
 <td><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalerror">EvalError</a></span></td>
 <td>Error information (if <code>status == "error</code>) including traceback.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>tags</code></td>
 <td><code>list[str]</code></td>
 <td>Current tags (eval-time tags merged with any post-eval edits).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>metadata</code></td>
 <td><code>dict[str, Any]</code></td>
 <td>Current metadata (eval-time metadata merged with any post-eval edits).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>log_updates</code></td>
 <td><code>list[LogUpdate]</code></td>
 <td>Post-eval edits to tags and metadata (with provenance tracking).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>samples</code></td>
 <td><code>list[EvalSample]</code></td>
 <td>Each sample evaluated, including its input, output, target, and score.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>reductions</code></td>
 <td><code>list[EvalSampleReduction]</code></td>
 <td>Reductions of sample values for multi-epoch evaluations.</td>
@@ -1053,7 +1050,7 @@ Important
 <span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    log <span class="op">=</span> read_eval_log(log.location)</span>
 <span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># edit EvalLog as required</span></span>
 <span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    write_eval_log(log)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Note that the <code>EvalLog.location</code> is a URI rather than a traditional file path(e.g.&nbsp;it could be a <code>file://</code> URI, an <code>s3://</code> URI or any other URI supported by <a href="https://filesystem-spec.readthedocs.io/">fsspec</a>).</p>
+<p>Note that the <code>EvalLog.location</code> is a URI rather than a traditional file path (e.g.&nbsp;it could be a <code>file://</code> URI, an <code>s3://</code> URI or any other URI supported by <a href="https://filesystem-spec.readthedocs.io/">fsspec</a>).</p>
 </section>
 <section id="functions" class="level3">
 <h3 class="anchored" data-anchor-id="functions">Functions</h3>
@@ -1121,7 +1118,7 @@ Important
 <p>You can also use <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log_sample_summaries">read_eval_log_sample_summaries()</a></span> as means of filtering which samples you want to read in full. For example, imagine you only want to read samples that include errors:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>errors: <span class="bu">list</span>[EvalSample] <span class="op">=</span> []</span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> sample <span class="kw">in</span> read_eval_log_sample_summaries(log_file):</span>
-<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> sample.error <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> sample.error <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
 <span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>        errors.append(</span>
 <span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>            read_eval_log_sample(log_file, sample.<span class="bu">id</span>, sample.epoch)</span>
 <span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>        )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -1300,32 +1297,103 @@ Important
 <h3 class="anchored" data-anchor-id="score-edit-events">Score Edit Events</h3>
 <p>When you edit a score, a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.event.html#scoreeditevent">ScoreEditEvent</a></span> is automatically added to the sample’s event log. This provides a complete audit trail of all score modifications that can be viewed in the log viewer.</p>
 </section>
+<section id="excluding-samples" class="level3">
+<h3 class="anchored" data-anchor-id="excluding-samples">Excluding Samples</h3>
+<p>To leave samples out of a finished log’s metrics, use <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#exclude_samples">exclude_samples()</a></span>. Each score the sample holds becomes an unscored <code>NaN</code> with the reason <code>"excluded"</code>, and the earlier score stays in the score history. A sample that holds no score (for example, one that errored before it was scored) gets one under the log’s first scorer. Metrics are then recomputed:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> (</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>    read_eval_log, write_eval_log, exclude_samples, ProvenanceData</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> read_eval_log(<span class="st">"my_eval.eval"</span>)</span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> exclude_samples(</span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a>    log,</span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"sample-3"</span>, (<span class="st">"sample-7"</span>, <span class="dv">2</span>)],  <span class="co"># every epoch of sample-3, epoch 2 of sample-7</span></span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>    ProvenanceData(author<span class="op">=</span><span class="st">"alice"</span>, reason<span class="op">=</span><span class="st">"task environment was broken"</span>),</span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a>write_eval_log(log)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The reason is required, and is also the score’s explanation. <code>result.applied</code> lists the <code>(id, epoch)</code> of each sample excluded now, and <code>result.unchanged</code> those already excluded.</p>
+<p>The same edit is available from the command line. It rewrites the log in place:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb34"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log exclude logs/my_eval.eval <span class="at">--sample</span> sample-3 <span class="at">--sample</span> sample-7 <span class="dt">\</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--epoch</span> 2 <span class="at">--reason</span> <span class="st">"task environment was broken"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code>--epoch</code> applies to every <code>--sample</code>. <code>--author</code> defaults to your git identity, else your user name. <code>--json</code> prints the result as JSON.</p>
+<p>An excluded epoch takes no part in epoch reduction: a sample reduces as if that epoch had not run, and a sample with every epoch excluded counts as unscored. Epochs are reduced with the reducers the log records, rebuilt by name, so a custom reducer configured with other arguments is rebuilt with its defaults.</p>
+<p>Some things to keep in mind:</p>
+<ul>
+<li><p>Exclusion does not change the sample’s transcript, output or error. An errored sample that you exclude is still re-run by <code>inspect eval-retry</code> and eval set retries, and the new result replaces the exclusion.</p></li>
+<li><p>Rescoring with <code>inspect score --action append</code> keeps the excluded scores, but the appended scores count in their own metrics. Apply the exclusion again to exclude them too. <code>--action overwrite</code> replaces the sample’s scores, so apply the exclusion again afterwards.</p></li>
+<li><p>As with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#edit_score">edit_score()</a></span>, the log’s task file is not imported. If the eval used a metric or reducer defined in its task file, import that module before calling <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#exclude_samples">exclude_samples()</a></span>; otherwise a <code>LookupError</code> names it and the log is not changed. <code>inspect log exclude</code> works only when every metric and reducer is part of Inspect or an installed package.</p></li>
+<li><p>The log must have finished. To exclude a sample of a running eval, cancel it with <code>inspect ctl sample cancel --action cancel</code>, then exclude it once the log is written.</p></li>
+</ul>
+</section>
+<section id="zeroing-samples" class="level3">
+<h3 class="anchored" data-anchor-id="zeroing-samples">Zeroing Samples</h3>
+<p>To count samples of a finished log as failures, zero them. What a failure is depends on the task’s scorers (<code>I</code> for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#match">match()</a></span>, <code>0</code> for a numeric scorer, a failed test in a sandbox), so zeroing takes two steps.</p>
+<p>First, run the samples again with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#empty_attempt">empty_attempt()</a></span> solver, which does nothing. <code>Task.setup</code> still runs, so the sample’s environment is prepared, and the task’s scorers then score the untouched state:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb35"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval my_task.py <span class="at">--solver</span> inspect_ai/empty_attempt <span class="dt">\</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> sample-3,sample-7 <span class="at">--log-dir</span> logs/empty</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Then copy those verdicts into the log with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#zero_samples">zero_samples()</a></span>. Each score of the empty-attempt sample replaces the score of the same name, with the reason <code>"zeroed"</code>, and the earlier score stays in the score history. Metrics are then recomputed:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb36"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> (</span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>    read_eval_log, write_eval_log, zero_samples, ProvenanceData</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> read_eval_log(<span class="st">"logs/my_eval.eval"</span>)</span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>empty <span class="op">=</span> read_eval_log(<span class="st">"logs/empty/my_empty_attempt.eval"</span>)</span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> zero_samples(</span>
+<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a>    log,</span>
+<span id="cb36-10"><a href="#cb36-10" aria-hidden="true" tabindex="-1"></a>    empty,</span>
+<span id="cb36-11"><a href="#cb36-11" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"sample-3"</span>, (<span class="st">"sample-7"</span>, <span class="dv">2</span>)],  <span class="co"># every epoch of sample-3, epoch 2 of sample-7</span></span>
+<span id="cb36-12"><a href="#cb36-12" aria-hidden="true" tabindex="-1"></a>    ProvenanceData(author<span class="op">=</span><span class="st">"alice"</span>, reason<span class="op">=</span><span class="st">"the agent was given the answer"</span>),</span>
+<span id="cb36-13"><a href="#cb36-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb36-14"><a href="#cb36-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-15"><a href="#cb36-15" aria-hidden="true" tabindex="-1"></a>write_eval_log(log)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Or from the command line, which rewrites the log in place:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb37"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log zero logs/my_eval.eval <span class="at">--from</span> logs/empty/my_empty_attempt.eval <span class="dt">\</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample</span> sample-3 <span class="at">--reason</span> <span class="st">"the agent was given the answer"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>When running the empty attempt:</p>
+<ul>
+<li><p>Write its log to its own log directory. An eval set’s log directory is also where it looks for logs to reuse.</p></li>
+<li><p>Pass the settings the original run had (model, task arguments, sandbox). The verdict reflects the task and settings of the empty-attempt run; <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#zero_samples">zero_samples()</a></span> compares only the task name and scorer names of the two logs.</p></li>
+<li><p><code>--sample-id</code> selects samples by pattern and may include a task prefix. Samples it selects that you do not zero are ignored; a sample you zero that it did not run is refused.</p></li>
+<li><p>The run uses the task’s epochs (or <code>--epochs</code>), and every epoch you zero must be in its log.</p></li>
+</ul>
+<p>A zero must count in the metrics, so <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#zero_samples">zero_samples()</a></span> refuses, and edits nothing, when:</p>
+<ul>
+<li>The sample id is an integer. Inspect numbers samples without ids by position, so an integer id need not name the same sample in another run.</li>
+<li>The empty attempt errored, hit a limit, or holds no score.</li>
+<li>A verdict is a dict or list, is unscored (<code>NaN</code>, for example when a grader failed), or cites messages or events of the empty attempt’s transcript.</li>
+<li>The sample holds a score the empty attempt does not produce (from a scorer that returned nothing, a solver, or <code>inspect score --action append</code>).</li>
+</ul>
+<p>Exclude such samples instead. As with exclusion, zeroing does not change the sample’s transcript, output or error, so <code>inspect eval-retry</code> still re-runs a zeroed errored sample, and rescoring with <code>inspect score</code> scores the original transcript, not the empty attempt. <code>inspect score --action overwrite</code> replaces the sample’s scores, so apply the zero again afterwards.</p>
+</section>
 <section id="tags-metadata-editing" class="level3">
 <h3 class="anchored" data-anchor-id="tags-metadata-editing">Tags &amp; Metadata Editing</h3>
 <p>You can also edit the tags and metadata associated with a log after evaluation. This is useful for workflows like QA review, categorisation, and filtering—for example, tagging a log as <code>"needs_qa"</code> at eval time, then updating it to <code>"qa_passed"</code> after review.</p>
 <p>Use <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#edit_eval_log">edit_eval_log()</a></span> to add or remove tags and set or remove metadata keys:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> (</span>
-<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>    read_eval_log, write_eval_log, edit_eval_log,</span>
-<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>    TagsEdit, MetadataEdit, ProvenanceData,</span>
-<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Read the log file</span></span>
-<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> read_eval_log(<span class="st">"my_eval.eval"</span>)</span>
-<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Edit tags and metadata</span></span>
-<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> edit_eval_log(log, [</span>
-<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a>    TagsEdit(tags_add<span class="op">=</span>[<span class="st">"qa_passed"</span>], tags_remove<span class="op">=</span>[<span class="st">"needs_qa"</span>]),</span>
-<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a>    MetadataEdit(</span>
-<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a>        metadata_set<span class="op">=</span>{<span class="st">"reviewer"</span>: <span class="st">"alice"</span>},</span>
-<span id="cb33-14"><a href="#cb33-14" aria-hidden="true" tabindex="-1"></a>        metadata_remove<span class="op">=</span>[<span class="st">"draft_notes"</span>],</span>
-<span id="cb33-15"><a href="#cb33-15" aria-hidden="true" tabindex="-1"></a>    ),</span>
-<span id="cb33-16"><a href="#cb33-16" aria-hidden="true" tabindex="-1"></a>], ProvenanceData(author<span class="op">=</span><span class="st">"alice"</span>, reason<span class="op">=</span><span class="st">"QA complete"</span>))</span>
-<span id="cb33-17"><a href="#cb33-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb33-18"><a href="#cb33-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Write back to the log file</span></span>
-<span id="cb33-19"><a href="#cb33-19" aria-hidden="true" tabindex="-1"></a>write_eval_log(log)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb38"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> (</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>    read_eval_log, write_eval_log, edit_eval_log,</span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>    TagsEdit, MetadataEdit, ProvenanceData,</span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Read the log file</span></span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> read_eval_log(<span class="st">"my_eval.eval"</span>)</span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-9"><a href="#cb38-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Edit tags and metadata</span></span>
+<span id="cb38-10"><a href="#cb38-10" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> edit_eval_log(log, [</span>
+<span id="cb38-11"><a href="#cb38-11" aria-hidden="true" tabindex="-1"></a>    TagsEdit(tags_add<span class="op">=</span>[<span class="st">"qa_passed"</span>], tags_remove<span class="op">=</span>[<span class="st">"needs_qa"</span>]),</span>
+<span id="cb38-12"><a href="#cb38-12" aria-hidden="true" tabindex="-1"></a>    MetadataEdit(</span>
+<span id="cb38-13"><a href="#cb38-13" aria-hidden="true" tabindex="-1"></a>        metadata_set<span class="op">=</span>{<span class="st">"reviewer"</span>: <span class="st">"alice"</span>},</span>
+<span id="cb38-14"><a href="#cb38-14" aria-hidden="true" tabindex="-1"></a>        metadata_remove<span class="op">=</span>[<span class="st">"draft_notes"</span>],</span>
+<span id="cb38-15"><a href="#cb38-15" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb38-16"><a href="#cb38-16" aria-hidden="true" tabindex="-1"></a>], ProvenanceData(author<span class="op">=</span><span class="st">"alice"</span>, reason<span class="op">=</span><span class="st">"QA complete"</span>))</span>
+<span id="cb38-17"><a href="#cb38-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-18"><a href="#cb38-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Write back to the log file</span></span>
+<span id="cb38-19"><a href="#cb38-19" aria-hidden="true" tabindex="-1"></a>write_eval_log(log)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>After editing, access the current tags and metadata directly on the log:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb34"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>log.tags        <span class="co"># ["qa_passed", ...]</span></span>
-<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>log.metadata    <span class="co"># {"reviewer": "alice", ...}</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb39"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a>log.tags        <span class="co"># ["qa_passed", ...]</span></span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>log.metadata    <span class="co"># {"reviewer": "alice", ...}</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The original eval-time values are always preserved in <code>log.eval.tags</code> and <code>log.eval.metadata</code>. All post-eval edits are recorded in <code>log.log_updates</code> as an append-only edit history with provenance (author and reason), providing a full audit trail.</p>
 <p>No-op edits are automatically filtered—adding a tag that already exists or removing one that doesn’t will not create an edit entry.</p>
 </section>
@@ -1344,15 +1412,15 @@ AWS_DEFAULT_REGION=eu-west-2</code></pre>
 <h2 class="anchored" data-anchor-id="sec-hugging-face-storage-buckets">Hugging Face Storage Buckets</h2>
 <p>You can store evaluation logs in <a href="https://huggingface.co/docs/hub/storage-buckets">Hugging Face Storage Buckets</a> using the <code>hf://buckets/&lt;owner&gt;/&lt;bucket&gt;/&lt;path&gt;</code> URI scheme. Storage buckets are useful for durable, shared log storage and are accessed through the <code>huggingface_hub</code> filesystem integration.</p>
 <p>First install the Hugging Face Hub package, then create a bucket and authenticate with Hugging Face:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb36"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="st">"huggingface_hub&gt;=1.6.0"</span></span>
-<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="ex">hf</span> auth login</span>
-<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a><span class="ex">hf</span> buckets create my-org/inspect-logs <span class="at">--private</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb41"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="st">"huggingface_hub&gt;=1.6.0"</span></span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a><span class="ex">hf</span> auth login</span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a><span class="ex">hf</span> buckets create my-org/inspect-logs <span class="at">--private</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Then set the log directory to a bucket path:</p>
 <pre class="env"><code>INSPECT_LOG_DIR=hf://buckets/my-org/inspect-logs/runs
 HF_TOKEN=hf_...</code></pre>
 <p>You can then run evaluations and view logs directly from the bucket:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb38"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval popularity.py <span class="at">--model</span> openai/gpt-6-luna</span>
-<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> view <span class="at">--log-dir</span> hf://buckets/my-org/inspect-logs/runs</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb43"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval popularity.py <span class="at">--model</span> openai/gpt-6-luna</span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> view <span class="at">--log-dir</span> hf://buckets/my-org/inspect-logs/runs</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Inspect does not create Hugging Face buckets automatically; create the bucket first and authenticate with an account or token that can write to it. Bucket contents are mutable, so use a unique prefix for shared runs when you want to avoid overwriting prior logs.</p>
 <p>Note that <code>hf://buckets/...</code> is the URI scheme for Hugging Face Storage Buckets. The <code>hf/&lt;org&gt;/&lt;name&gt;</code> output path used by <code>inspect view bundle</code> publishes a static viewer to a Hugging Face Space instead.</p>
 <section id="sec-azure" class="level3">
@@ -1390,18 +1458,14 @@ inspect view  # streams directly from Azure</code></pre>
 <pre><code>{timestamp}_{task}_{id}</code></pre>
 <p>Where <code>timestamp</code> is the time the log was created; <code>task</code> is the name of the task the log corresponds to; and <code>id</code> is a unique task id.</p>
 <p>The <code>{timestamp}</code> part of the log file name is required to ensure that log files appear in sequential order in the filesystem. However, the rest of the filename can be customized using the <code>INSPECT_EVAL_LOG_FILE_PATTERN</code> environment variable, which can include any combination of <code>task</code>, <code>model</code>, and <code>id</code> fields. For example, to include the <code>model</code> in log file names:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb45"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">INSPECT_EVAL_LOG_FILE_PATTERN</span><span class="op">=</span>{task}_{model}_{id}</span>
-<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py </span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb50"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">INSPECT_EVAL_LOG_FILE_PATTERN</span><span class="op">=</span>{task}_{model}_{id}</span>
+<span id="cb50-2"><a href="#cb50-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py </span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>As with other log file oriented environment variables, you may find it convenient to define this in a <code>.env</code> file from the location where you run your evals.</p>
 </section>
 <section id="sec-log-commands" class="level2">
 <h2 class="anchored" data-anchor-id="sec-log-commands">Log Commands</h2>
 <p>We’ve shown a number of Python functions that let you work with eval logs from code. However, you may be writing an orchestration or visualisation tool in another language (e.g.&nbsp;TypeScript) where its not particularly convenient to call the Python API. The Inspect CLI has a few commands intended to make it easier to work with Inspect logs from other languages:</p>
 <table class="caption-top table">
-<colgroup>
-<col style="width: 36%">
-<col style="width: 63%">
-</colgroup>
 <thead>
 <tr class="header">
 <th>Command</th>
@@ -1426,6 +1490,14 @@ inspect view  # streams directly from Azure</code></pre>
 <td>Export a run config YAML from a log file.</td>
 </tr>
 <tr class="odd">
+<td><code>inspect log exclude</code></td>
+<td><a href="#excluding-samples">Exclude samples</a> from a log’s metrics.</td>
+</tr>
+<tr class="even">
+<td><code>inspect log zero</code></td>
+<td><a href="#zeroing-samples">Zero samples</a> of a log.</td>
+</tr>
+<tr class="odd">
 <td><code>inspect log schema</code></td>
 <td>Print JSON schema for log files.</td>
 </tr>
@@ -1434,14 +1506,14 @@ inspect view  # streams directly from Azure</code></pre>
 <section id="listing-logs" class="level3">
 <h3 class="anchored" data-anchor-id="listing-logs">Listing Logs</h3>
 <p>You can use the <code>inspect log list</code> command to enumerate all of the logs for a given log directory. This command will utilise the <code>INSPECT_LOG_DIR</code> if it is set (alternatively you can specify a <code>--log-dir</code> directly). You’ll likely also want to use the <code>--json</code> flag to get more granular and structured information on the log files. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb46"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span>           <span class="co"># uses INSPECT_LOG_DIR</span></span>
-<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--log-dir</span> ./security_04-07-2024</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb51"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span>           <span class="co"># uses INSPECT_LOG_DIR</span></span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--log-dir</span> ./security_04-07-2024</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>You can also use the <code>--status</code> option to list only logs with a <code>success</code> or <code>error</code> status:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb47"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> success</span>
-<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> error</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb52"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> success</span>
+<span id="cb52-2"><a href="#cb52-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> error</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>There is no CLI filter for <a href="./handling-errors.html#eval-retries">retryable</a> logs: <code>--status</code> accepts a single value, and <code>retryable</code> is not one of its values (<code>started</code>, <code>success</code>, <code>cancelled</code> or <code>error</code>). Listing the incomplete statuses is as close as the command gets, so compare the two listings against your successful runs:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb48"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> error</span>
-<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> cancelled</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb53"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> error</span>
+<span id="cb53-2"><a href="#cb53-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> cancelled</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="reading-logs" class="level3">
 <h3 class="anchored" data-anchor-id="reading-logs">Reading Logs</h3>
@@ -1451,30 +1523,30 @@ inspect view  # streams directly from Azure</code></pre>
 <li>Log files can be located on remote storage systems (e.g.&nbsp;Amazon S3) that users have configured read/write credentials for within their Inspect environment, and you’ll want to be sure to take advantage of these credentials.</li>
 </ol>
 <p>For example, here we read a local log file and a log file on Amazon S3:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb49"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log dump file:///home/user/log/logfile.json</span>
-<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log dump s3://my-evals-bucket/logfile.json</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb54"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log dump file:///home/user/log/logfile.json</span>
+<span id="cb54-2"><a href="#cb54-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log dump s3://my-evals-bucket/logfile.json</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="converting-logs" class="level3">
 <h3 class="anchored" data-anchor-id="converting-logs">Converting Logs</h3>
 <p>You can convert between the two underlying <a href="#sec-log-format">log formats</a> using the <code>inspect log convert</code> command. The convert command takes a source path (with either a log file or a directory of log files) along with two required arguments that specify the conversion (<code>--to</code> and <code>--output-dir</code>). For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb50"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert source.json <span class="at">--to</span> eval <span class="at">--output-dir</span> log-output</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb55"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert source.json <span class="at">--to</span> eval <span class="at">--output-dir</span> log-output</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or for an entire directory:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb51"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert logs <span class="at">--to</span> eval <span class="at">--output-dir</span> logs-eval</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb56"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert logs <span class="at">--to</span> eval <span class="at">--output-dir</span> logs-eval</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Logs that are already in the target format are simply copied to the output directory. By default, log files in the target directory will not be overwritten, however you can add the <code>--overwrite</code> flag to force an overwrite.</p>
 <p>Note that the output directory is always required to enforce the practice of not doing conversions that result in side-by-side log files that are identical save for their format.</p>
 </section>
 <section id="exporting-run-config" class="level3">
 <h3 class="anchored" data-anchor-id="exporting-run-config">Exporting Run Config</h3>
 <p>The <code>inspect log export-config</code> command reads a log file and writes a YAML (or JSON) file that captures the complete configuration used for that run — task, model, model roles, generation parameters, solver, and eval settings. The output can be passed directly to <code>inspect eval --run-config</code> to reproduce the run:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb52"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log export-config logs/my_run.eval <span class="op">&gt;</span> run.yaml</span>
-<span id="cb52-2"><a href="#cb52-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--run-config</span> run.yaml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb57"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb57-1"><a href="#cb57-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log export-config logs/my_run.eval <span class="op">&gt;</span> run.yaml</span>
+<span id="cb57-2"><a href="#cb57-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--run-config</span> run.yaml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>This closes the round-trip: <code>eval → log → export-config → eval</code>. By default output goes to stdout; use <code>--output</code> to write to a file, and <code>--format json</code> for JSON instead of YAML.</p>
 <p>See <a href="./tasks.html#run-config">Run Config File</a> for the full schema that <code>--run-config</code> accepts.</p>
 </section>
 <section id="log-schema" class="level3">
 <h3 class="anchored" data-anchor-id="log-schema">Log Schema</h3>
 <p>Log files are stored in JSON. You can get the JSON schema for the log file format with a call to <code>inspect log schema</code>:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb53"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log schema</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb58"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log schema</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="callout callout-style-simple callout-important callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -1644,7 +1716,8 @@ document.addEventListener("DOMContentLoaded", function () {
           return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
       }
       // Inspect non-navigation links and adorn them if external
-     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      window.quartoDecorateExternalLinks = function (root) {
+     var links = (root || window.document).querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
       for (var i=0; i<links.length; i++) {
         const link = links[i];
         if (!isInternal(link.href)) {
@@ -1653,8 +1726,69 @@ document.addEventListener("DOMContentLoaded", function () {
           if (link.dataset.originalHref !== undefined) {
             link.href = link.dataset.originalHref;
           }
+          if (!link.classList.contains('no-external-icon')) {
+          }
         }
       }
+      };
+      window.quartoDecorateExternalLinks(window.document);
+    // Esc closes the popup (WCAG 1.4.13) and focus leaving both trigger and
+    // popup closes it (WCAG 2.4.11); tippy handles neither for interactive popups.
+    const hideOnEscAndFocusOut = {
+      name: 'hideOnEscAndFocusOut',
+      defaultValue: true,
+      fn(instance) {
+        const dismiss = () => {
+          // A show scheduled by the trigger delay would otherwise reopen it
+          instance.clearDelayTimeouts();
+          instance.hide();
+        };
+        const onKeyDown = (event) => {
+          if (event.key !== 'Escape') {
+            return;
+          }
+          // Keep Esc from also reaching page handlers (e.g. reveal.js overview),
+          // except an open reveal.js slide menu, which Esc should close too.
+          // The menu handles keys only when its keyboard option is on.
+          const menuHandlesEsc = window.Reveal?.getPlugin?.('menu')?.isOpen() &&
+            window.Reveal.getConfig().menu?.keyboard !== false;
+          if (!menuHandlesEsc) {
+            event.stopPropagation();
+          }
+          if (instance.popper.contains(window.document.activeElement)) {
+            // Disabled while refocusing so the focus trigger does not reopen it
+            instance.disable();
+            instance.reference.focus();
+            instance.enable();
+          }
+          dismiss();
+        };
+        const onFocusOut = (event) => {
+          const target = event.relatedTarget;
+          if (target && !instance.reference.contains(target) &&
+              !instance.popper.contains(target)) {
+            dismiss();
+          }
+        };
+        // On the trigger too: a click trigger (code-annotations: select) has no
+        // blur handling. Attached for the instance's lifetime so leaving the
+        // trigger also cancels a show still pending on the trigger delay.
+        instance.reference.addEventListener('focusout', onFocusOut);
+        return {
+          onShow() {
+            window.document.addEventListener('keydown', onKeyDown, true);
+            instance.popper.addEventListener('focusout', onFocusOut);
+          },
+          onHide() {
+            window.document.removeEventListener('keydown', onKeyDown, true);
+            instance.popper.removeEventListener('focusout', onFocusOut);
+          },
+          onDestroy() {
+            instance.reference.removeEventListener('focusout', onFocusOut);
+          },
+        };
+      },
+    };
     function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
       const config = {
         allowHTML: true,
@@ -1668,6 +1802,7 @@ document.addEventListener("DOMContentLoaded", function () {
         interactiveBorder: 10,
         theme: 'quarto',
         placement: 'bottom-start',
+        plugins: [hideOnEscAndFocusOut],
       };
       if (contentFn) {
         config.content = contentFn;
@@ -1830,44 +1965,54 @@ document.addEventListener("DOMContentLoaded", function () {
           const lineIds = lines.map((line) => {
             return targetCell + "-" + line;
           })
-          let top = null;
-          let height = null;
-          let parent = null;
+          // Each band is positioned against its own containing block, which is
+          // not the offsetParent of the lines, so place it from client rects.
+          const placeBand = (band, firstEl, lastEl, codeBlock) => {
+            const container = band.offsetParent;
+            if (container === null) {
+              return;
+            }
+            const containerRect = container.getBoundingClientRect();
+            // Reveal.js scales slides with a transform, so convert client
+            // pixels back to the CSS pixels of the container.
+            const scale = containerRect.height / container.offsetHeight || 1;
+            const firstRect = firstEl.getBoundingClientRect();
+            const lastRect = lastEl.getBoundingClientRect();
+            const top = (firstRect.top - containerRect.top) / scale - container.clientTop + container.scrollTop;
+            const height = (lastRect.bottom - firstRect.top) / scale;
+            band.style.top = top - 2 + "px";
+            band.style.height = height + 4 + "px";
+            if (codeBlock) {
+              // Without the copy button wrapper, the containing block is wider
+              // than the code block, so span the code block explicitly.
+              const blockRect = codeBlock.getBoundingClientRect();
+              band.style.left = (blockRect.left - containerRect.left) / scale - container.clientLeft + container.scrollLeft + "px";
+              band.style.width = blockRect.width / scale + "px";
+            }
+          };
           if (lineIds.length > 0) {
-              //compute the position of the single el (top and bottom and make a div)
-              const el = window.document.getElementById(lineIds[0]);
-              top = el.offsetTop;
-              height = el.offsetHeight;
-              parent = el.parentElement.parentElement;
-            if (lineIds.length > 1) {
-              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
-              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
-              height = bottom - top;
+            const el = window.document.getElementById(lineIds[0]);
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const parent = el.parentElement.parentElement;
+            // cook up a div (if necessary) and position it
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
             }
-            if (top !== null && height !== null && parent !== null) {
-              // cook up a div (if necessary) and position it 
-              let div = window.document.getElementById("code-annotation-line-highlight");
-              if (div === null) {
-                div = window.document.createElement("div");
-                div.setAttribute("id", "code-annotation-line-highlight");
-                div.style.position = 'absolute';
-                parent.appendChild(div);
-              }
-              div.style.top = top - 2 + "px";
-              div.style.height = height + 4 + "px";
-              div.style.left = 0;
-              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
-              if (gutterDiv === null) {
-                gutterDiv = window.document.createElement("div");
-                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
-                gutterDiv.style.position = 'absolute';
-                const codeCell = window.document.getElementById(targetCell);
-                const gutter = codeCell.querySelector('.code-annotation-gutter');
-                gutter.appendChild(gutterDiv);
-              }
-              gutterDiv.style.top = top - 2 + "px";
-              gutterDiv.style.height = height + 4 + "px";
+            placeBand(div, el, lastEl, parent.closest("div.sourceCode") || parent);
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
             }
+            placeBand(gutterDiv, el, lastEl);
             selectedAnnoteEl = annoteEl;
           }
         };
@@ -1945,6 +2090,7 @@ document.addEventListener("DOMContentLoaded", function () {
             interactiveBorder: 10,
             theme: 'quarto',
             placement: 'right',
+            plugins: [hideOnEscAndFocusOut],
             positionFixed: true,
             popperOptions: {
               modifiers: [
@@ -2007,7 +2153,10 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
   </script>
-<nav class="page-navigation">
+  <script type="application/javascript">
+  window.quartoScrollableRegionsLabels = {"code":"Scrollable code","output":"Scrollable output"};
+  </script>
+<nav class="page-navigation" aria-label="Page">
   <div class="nav-page nav-page-previous">
       <a href="./analysis.html" class="pagination-link" aria-label="Analysis">
         <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Analysis</span>

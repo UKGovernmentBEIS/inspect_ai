@@ -26,6 +26,9 @@ inspect log [OPTIONS] COMMAND [ARGS]...
 | [schema](#inspect-log-schema) | Print JSON schema for log files. |
 | [export-config](#inspect-log-export-config) | Export the run configuration from a log file. |
 | [recover](#inspect-log-recover) | Recover crashed eval logs from sample buffer databases. |
+| [exclude](#inspect-log-exclude) | Exclude samples of a finished log from its metrics. |
+| [zero](#inspect-log-zero) | Score samples of a finished log as empty attempts. |
+| [merge-shards](#inspect-log-merge-shards) | Merge the shard logs of a sharded run into its merged log. |
 
 ## inspect log list
 
@@ -157,6 +160,106 @@ inspect log recover [OPTIONS] [LOG_FILE]
 | `--trust-log` | boolean | Import the log’s task file to load metrics that are not registered, and rebuild metric options that hold models or other objects. This runs the task file’s code, so use it only for logs you trust. | `False` |
 | `--list` | boolean | List recoverable logs instead of recovering. | `False` |
 | `--json` | boolean | Output listing as JSON (only with –list). | `False` |
+| `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level (defaults to ‘warning’) | `warning` |
+| `--log-dir` | text | Directory for log files. | `./logs` |
+| `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `log` \| `none`) | Set the display type (defaults to ‘full’) | `full` |
+| `--traceback-locals` | boolean | Include values of local variables in tracebacks (note that this can leak private data e.g. API keys so should typically only be enabled for targeted debugging). | `False` |
+| `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | `Sentinel.UNSET` |
+| `--debug` | boolean | Wait to attach debugger | `False` |
+| `--debug-port` | integer | Port number for debugger | `5678` |
+| `--debug-errors` | boolean | Raise task errors (rather than logging them) so they can be debugged. | `False` |
+| `--help` | boolean | Show this message and exit. | `False` |
+
+## inspect log exclude
+
+Exclude samples of a finished log from its metrics.
+
+Each score of the sample becomes an unscored NaN with the reason ‘excluded’, recording the author and reason; the earlier score stays in its history. A sample with no score gets one under the log’s first scorer. Metrics are recomputed and LOG_FILE is rewritten in place.
+
+The sample’s transcript and error are not changed, so eval-retry still re-runs an errored sample, which replaces the exclusion.
+
+Metrics and epoch reducers must be registered in Inspect or an installed package; the log’s task file is not imported.
+
+#### Usage
+
+``` text
+inspect log exclude [OPTIONS] LOG_FILE
+```
+
+#### Options
+
+| Name | Type | Description | Default |
+|----|----|----|----|
+| `--sample` | text | Id of a sample to exclude (every epoch, unless –epoch is given). Repeat for more samples. | `Sentinel.UNSET` |
+| `--epoch` | integer range (`1` and above) | Exclude only this epoch of each named sample. | None |
+| `--reason` | text | Why the samples are excluded. | `Sentinel.UNSET` |
+| `--author` | text | Author of the exclusion (default: the git identity, else the user name). | None |
+| `--json` | boolean | Print the result as JSON. | `False` |
+| `--help` | boolean | Show this message and exit. | `False` |
+
+## inspect log zero
+
+Score samples of a finished log as empty attempts.
+
+First run the samples again with ‘inspect eval TASK –solver inspect_ai/empty_attempt –sample-id ID’, a solver that does nothing, and write that log to a log directory of its own. Then pass it with –from. Each score of its sample is copied into the sample of LOG_FILE with the reason ‘zeroed’, recording the author and reason; the earlier score stays in its history. Metrics are recomputed and LOG_FILE is rewritten in place.
+
+Only samples with string ids, and verdicts that count in metrics (a single value that is not NaN), can be zeroed. Exclude other samples instead.
+
+The sample’s transcript and error are not changed, so eval-retry still re-runs an errored sample, which replaces the zero.
+
+Metrics and epoch reducers must be registered in Inspect or an installed package; the log’s task file is not imported.
+
+#### Usage
+
+``` text
+inspect log zero [OPTIONS] LOG_FILE
+```
+
+#### Options
+
+| Name | Type | Description | Default |
+|----|----|----|----|
+| `--from` | text | Log of an eval of the same task run with the solver inspect_ai/empty_attempt. | `Sentinel.UNSET` |
+| `--sample` | text | Id of a sample to zero (every epoch, unless –epoch is given). Repeat for more samples. | `Sentinel.UNSET` |
+| `--epoch` | integer range (`1` and above) | Zero only this epoch of each named sample. | None |
+| `--reason` | text | Why the samples are zeroed. | `Sentinel.UNSET` |
+| `--author` | text | Author of the zero (default: the git identity, else the user name). | None |
+| `--json` | boolean | Print the result as JSON. | `False` |
+| `--help` | boolean | Show this message and exit. | `False` |
+
+## inspect log merge-shards
+
+Merge the shard logs of a sharded run into its merged log.
+
+LOG is the merged log (`<name>.eval`) or its shards directory (`<name>.shards`). Pass the task options the workers were given (`-T`, `--model`, `--model-role`, `--epochs`, …); they mean what they mean to `inspect eval`. Exits 1 on any failure.
+
+Learn more at <https://inspect.aisi.org.uk/sharding.html>.
+
+#### Usage
+
+``` text
+inspect log merge-shards [OPTIONS] LOG
+```
+
+#### Options
+
+| Name | Type | Description | Default |
+|----|----|----|----|
+| `--task` | text | The task the shards ran, as for `inspect eval` (file.py, <file.py@name>, a registered name or a directory). | `Sentinel.UNSET` |
+| `-T` | text | One or more task arguments (e.g. -T arg=value) | `Sentinel.UNSET` |
+| `--task-config` | text | YAML or JSON config file with task arguments. | `Sentinel.UNSET` |
+| `--model` | text | Model used to evaluate tasks. | `Sentinel.UNSET` |
+| `--model-base-url` | text | Base URL for for model API | `Sentinel.UNSET` |
+| `-M` | text | One or more native model arguments (e.g. -M arg=value) | `Sentinel.UNSET` |
+| `--model-config` | text | YAML or JSON config file with model arguments. | `Sentinel.UNSET` |
+| `--model-role` | text | Named model role with model name or YAML/JSON config, e.g. –model-role critic=openai/gpt-6-luna or –model-role grader=“{model: mockllm/model, temperature: 0.5}”. Bind multiple models to a role with a comma-separated list of names or a YAML/JSON list of configs, e.g. –model-role grader=openai/gpt-6-luna,google/gemini-2.0-flash | `Sentinel.UNSET` |
+| `--epochs` | integer | Number of times to repeat dataset (defaults to 1) | `Sentinel.UNSET` |
+| `--epochs-reducer` | text | Method for reducing per-epoch sample scores into a single score. Built in reducers include ‘mean’, ‘median’, ‘mode’, ‘max’, and ‘at_least\_{n}’. | `Sentinel.UNSET` |
+| `--no-epochs-reducer` | boolean | Do not reduce per-epoch sample scores. | `False` |
+| `--sample-id` | text | Intended selection as exact sample ids, comma separated. Not patterns; no ‘task:’ prefix. | `Sentinel.UNSET` |
+| `--sample-count` | integer | Intended selection as a number of samples (exclusive with –sample-id). | `Sentinel.UNSET` |
+| `--allow-incomplete` | boolean | Write a ‘started’ or ‘error’ merged log when the shard set is incomplete. | `False` |
+| `--json` | boolean | Print one JSON object on stdout: the merged log’s location, status and whether it was written, or an error envelope. | `False` |
 | `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level (defaults to ‘warning’) | `warning` |
 | `--log-dir` | text | Directory for log files. | `./logs` |
 | `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `log` \| `none`) | Set the display type (defaults to ‘full’) | `full` |

@@ -59,7 +59,7 @@ These events bracket the execution of evaluations. A single [eval()](./reference
 | `on_run_start` | [RunStart](./reference/inspect_ai.hooks.html.md#runstart) | At the start of a single [eval()](./reference/inspect_ai.html.md#eval) / [eval_retry()](./reference/inspect_ai.html.md#eval_retry) invocation (`data.task_names` lists the tasks to run). |
 | `on_run_end` | [RunEnd](./reference/inspect_ai.hooks.html.md#runend) | At the end of a run — `data.exception` and `data.logs` carry the outcome. |
 | `on_task_start` | [TaskStart](./reference/inspect_ai.hooks.html.md#taskstart) | When a task begins executing (`data.spec` is the [EvalSpec](./reference/inspect_ai.log.html.md#evalspec); `data.plan` is the resolved [EvalPlan](./reference/inspect_ai.log.html.md#evalplan)). |
-| `on_task_end` | [TaskEnd](./reference/inspect_ai.hooks.html.md#taskend) | When a task completes (`data.log` is the [EvalLog](./reference/inspect_ai.log.html.md#evallog)). |
+| `on_task_end` | [TaskEnd](./reference/inspect_ai.hooks.html.md#taskend) | When a task completes, errors, or is cancelled (`data.log` is the final [EvalLog](./reference/inspect_ai.log.html.md#evallog); check `data.log.status`). Called once for every `on_task_start`, including each task retry attempt. |
 
 ### Sample
 
@@ -149,7 +149,7 @@ class WBHooks(Hooks):
     ...
 ```
 
-Because `enabled()` is consulted before every hook invocation (potentially many times per sample), keep its implementation cheap or cache the result.
+Because `enabled()` is consulted before every hook invocation (potentially many times per sample), keep its implementation cheap or cache the result. One exception: a hook that received `on_task_start` always gets the matching `on_task_end`, even if `enabled()` returns `False` by then.
 
 ## Skipping Full Sample Materialization
 

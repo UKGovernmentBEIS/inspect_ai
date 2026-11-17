@@ -64,7 +64,7 @@ The parent agent has an [agent()](./reference/inspect_ai.agent.html.md#agent) to
 
 The parent agent decides when to delegate vs. do work directly. The system prompt guides it to delegate when the work is complex, independent, or would benefit from an isolated context, and to do the work directly when it’s a simple lookup or a single tool call.
 
-Subagents run in isolated context by default. Each gets a fresh message history with only the task prompt, and only its summary returns to the parent. This prevents context rot and keeps the parent’s context lean. All subagents inherit the parent’s model by default — for cost-sensitive workloads, consider overriding [research()](./reference/inspect_ai.agent.html.md#research) with a cheaper model (e.g. `research(model="anthropic/claude-haiku-4-5")`), since read-only information gathering is the highest-volume subagent task. See [Subagents](#sec-customizing-builtins) below for how to customize or replace the defaults.
+Subagents run in isolated context by default. Each gets a fresh message history with only the task prompt, and only its summary returns to the parent. This prevents context rot and keeps the parent’s context lean. All subagents inherit the parent’s model by default — for cost-sensitive workloads, consider overriding [research()](./reference/inspect_ai.agent.html.md#research) with a cheaper model (e.g. `research(model="anthropic/claude-haiku-5-5")`), since read-only information gathering is the highest-volume subagent task. See [Subagents](#sec-customizing-builtins) below for how to customize or replace the defaults.
 
 A subagent’s report is the whole point of the delegation, so it is exempt from the `max_tool_output` limit that applies to ordinary tool results — however long the report, the parent sees all of it. Use `limits` on a [customized subagent](#sec-customizing-builtins) (e.g. [token_limit()](./reference/inspect_ai.util.html.md#token_limit)) to bound how much work a subagent can do.
 
@@ -203,7 +203,7 @@ deepagent(
     subagents=[
         research(
             instructions="Focus on configuration files and logs.",
-1            model="anthropic/claude-haiku-4-5",
+1            model="anthropic/claude-haiku-5-5",
         ),
         plan(
             instructions="Create conservative, step-by-step plans.",
@@ -251,7 +251,7 @@ from inspect_ai.tool import bash, read_file, grep, text_editor
                "done so far and identify errors, omissions, or "
                "improvements. Be specific about what needs to change.",
 2        tools=[read_file(), grep()],
-3        model="anthropic/claude-opus-4-7",
+3        model="anthropic/claude-opus-5-5",
         memory="readonly",
     )
 
@@ -327,7 +327,7 @@ deepagent(
         plan(),
 1        general(fork=True),
     ],
-2    model="anthropic/claude-sonnet-4-6",
+2    model="anthropic/claude-sonnet-5-5",
 )
 ```
 

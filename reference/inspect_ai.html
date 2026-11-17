@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.10.19">
+<meta name="generator" content="quarto-1.11.9">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -73,18 +73,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
 <link href="../reference/inspect_ai.qmd#eval" rel="next">
-<link href="../reference/inspect_ai.model.qmd#record_response_headers" rel="prev">
+<link href="../reference/inspect_ai.model.qmd#active_model_event_id" rel="prev">
 <link href="../favicon.svg" rel="icon" type="image/svg+xml">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/scrollable-regions/scrollable-regions.js" type="module"></script>
 <script src="../site_libs/quarto-html/popper.min.js"></script>
 <script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="../site_libs/quarto-html/anchor.min.js"></script>
 <link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="../site_libs/quarto-html/quarto-syntax-highlighting-bf27225e3a48a9273f3daa8f8e829971.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-63b5708e65d6cd79cd7618c58d0c21e7.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-771725699ea44adeffca0fa6042fd43a.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -127,16 +128,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <meta name="twitter:title" content="Inspect">
 <meta name="twitter:description" content="Open-source framework for large language model evaluations">
 <meta name="twitter:image" content="https://inspect.aisi.org.uk/images/inspect.png">
-<meta name="twitter:image-height" content="1258">
-<meta name="twitter:image-width" content="2400">
 <meta name="twitter:card" content="summary_large_image">
 </head>
 
-<body class="nav-sidebar docked nav-fixed quarto-light">
+<body class="nav-sidebar docked nav-fixed quarto-light"><a id="quarto-skip-link" class="visually-hidden-focusable" href="#quarto-document-content">Skip to main content</a>
 
 <div id="quarto-search-results"></div>
   <header id="quarto-header" class="headroom fixed-top">
-    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark" aria-label="Site">
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
     <a href="../index.html" class="navbar-brand navbar-brand-logo">
@@ -147,8 +146,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <span class="navbar-title">Inspect</span>
     </a>
   </div>
-            <div id="quarto-search" class="" title="Search"></div>
-          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
   <span class="navbar-toggler-icon"></span>
 </button>
           <div class="collapse navbar-collapse" id="navbarCollapse">
@@ -223,15 +221,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           </div> <!-- /navcollapse -->
             <div class="quarto-navbar-tools">
 </div>
+            <div id="quarto-search" class="" title="Search"></div>
       </div> <!-- /container-fluid -->
     </nav>
-  <nav class="quarto-secondary-nav">
+  <nav class="quarto-secondary-nav" aria-label="Toolbar">
     <div class="container-fluid d-flex">
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.agent.html">Python API</a></li><li class="breadcrumb-item"><a href="../reference/inspect_ai.html">inspect_ai</a></li></ol></nav>
-        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        <nav class="quarto-page-breadcrumbs" aria-label="Breadcrumbs"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.agent.html">Python API</a></li><li class="breadcrumb-item"><a href="../reference/inspect_ai.html">inspect_ai</a></li></ol></nav>
+        <a class="flex-grow-1" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
   </nav>
@@ -239,7 +238,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <!-- content -->
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
-  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto" aria-label="Section">
     <div class="sidebar-menu-container"> 
     <ul class="list-unstyled mt-1">
         <li class="sidebar-item">
@@ -251,21 +250,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.agent.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Python API</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-1-label">Python API</span></a>
+            <button type="button" class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" aria-controls="quarto-sidebar-section-1" aria-expanded="true" aria-label="Toggle section: Python API">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-1" aria-labelledby="quarto-sidebar-section-1-label" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.agent.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.agent</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-2-label">inspect_ai.agent</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" aria-controls="quarto-sidebar-section-2" aria-expanded="false" aria-label="Toggle section: inspect_ai.agent">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-2" aria-labelledby="quarto-sidebar-section-2-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.agent.html#react" class="sidebar-item-text sidebar-link">
@@ -517,12 +516,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.analysis.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.analysis</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-3-label">inspect_ai.analysis</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" aria-controls="quarto-sidebar-section-3" aria-expanded="false" aria-label="Toggle section: inspect_ai.analysis">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-3" aria-labelledby="quarto-sidebar-section-3-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.analysis.html#evals_df" class="sidebar-item-text sidebar-link">
@@ -750,12 +749,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.approval.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.approval</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-4-label">inspect_ai.approval</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" aria-controls="quarto-sidebar-section-4" aria-expanded="false" aria-label="Toggle section: inspect_ai.approval">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-4" aria-labelledby="quarto-sidebar-section-4-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.approval.html#auto_approver" class="sidebar-item-text sidebar-link">
@@ -815,12 +814,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.dataset.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.dataset</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-5-label">inspect_ai.dataset</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" aria-controls="quarto-sidebar-section-5" aria-expanded="false" aria-label="Toggle section: inspect_ai.dataset">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-5" aria-labelledby="quarto-sidebar-section-5-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.dataset.html#csv_dataset" class="sidebar-item-text sidebar-link">
@@ -874,12 +873,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.event.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.event</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-6-label">inspect_ai.event</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" aria-controls="quarto-sidebar-section-6" aria-expanded="false" aria-label="Toggle section: inspect_ai.event">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-6" aria-labelledby="quarto-sidebar-section-6-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.event.html#modelevent" class="sidebar-item-text sidebar-link">
@@ -1155,12 +1154,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.hooks.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.hooks</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-7-label">inspect_ai.hooks</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" aria-controls="quarto-sidebar-section-7" aria-expanded="false" aria-label="Toggle section: inspect_ai.hooks">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-7" aria-labelledby="quarto-sidebar-section-7-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.hooks.html#hooks" class="sidebar-item-text sidebar-link">
@@ -1268,12 +1267,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.log.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.log</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-8-label">inspect_ai.log</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" aria-controls="quarto-sidebar-section-8" aria-expanded="false" aria-label="Toggle section: inspect_ai.log">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-8" aria-labelledby="quarto-sidebar-section-8-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.log.html#list_eval_logs" class="sidebar-item-text sidebar-link">
@@ -1414,6 +1413,30 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#exclude_samples" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">exclude_samples</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#zero_samples" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">zero_samples</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#dispositionresult" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">DispositionResult</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#sampleselector" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleSelector</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.log.html#logupdate" class="sidebar-item-text sidebar-link">
  <span class="menu-text">LogUpdate</span></a>
   </div>
@@ -1500,6 +1523,54 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.log.html#recoverythresholdexceeded" class="sidebar-item-text sidebar-link">
  <span class="menu-text">RecoveryThresholdExceeded</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#merge_eval_log_shards" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">merge_eval_log_shards</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#merge_eval_log_shards_async" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">merge_eval_log_shards_async</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#shardmergeresult" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ShardMergeResult</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#shardseterror" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ShardSetError</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#shardselectionerror" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ShardSelectionError</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#shardsetincomplete" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ShardSetIncomplete</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalshards" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalShards</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#evalshardentry" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalShardEntry</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1693,12 +1764,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.model.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.model</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-9-label">inspect_ai.model</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" aria-controls="quarto-sidebar-section-9" aria-expanded="false" aria-label="Toggle section: inspect_ai.model">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-9" aria-labelledby="quarto-sidebar-section-9-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.model.html#get_model" class="sidebar-item-text sidebar-link">
@@ -2245,17 +2316,23 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">record_response_headers</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.model.html#active_model_event_id" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">active_model_event_id</span></a>
+  </div>
+</li>
       </ul>
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.html" class="sidebar-item-text sidebar-link active">
- <span class="menu-text">inspect_ai</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="true" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-10-label">inspect_ai</span></a>
+            <button type="button" class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" aria-controls="quarto-sidebar-section-10" aria-expanded="true" aria-label="Toggle section: inspect_ai">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth2 show">  
+      <ul id="quarto-sidebar-section-10" aria-labelledby="quarto-sidebar-section-10-label" class="collapse list-unstyled sidebar-section depth2 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.html#eval" class="sidebar-item-text sidebar-link">
@@ -2375,12 +2452,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.review.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.review</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-11-label">inspect_ai.review</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" aria-controls="quarto-sidebar-section-11" aria-expanded="false" aria-label="Toggle section: inspect_ai.review">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-11" aria-labelledby="quarto-sidebar-section-11-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.review.html#human_reviewer" class="sidebar-item-text sidebar-link">
@@ -2434,12 +2511,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.scorer.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.scorer</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-12-label">inspect_ai.scorer</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" aria-controls="quarto-sidebar-section-12" aria-expanded="false" aria-label="Toggle section: inspect_ai.scorer">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-12" aria-labelledby="quarto-sidebar-section-12-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.scorer.html#match" class="sidebar-item-text sidebar-link">
@@ -2751,12 +2828,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.solver.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.solver</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-13-label">inspect_ai.solver</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" aria-controls="quarto-sidebar-section-13" aria-expanded="false" aria-label="Toggle section: inspect_ai.solver">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-13" aria-labelledby="quarto-sidebar-section-13-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.solver.html#generate" class="sidebar-item-text sidebar-link">
@@ -2767,6 +2844,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.solver.html#use_tools" class="sidebar-item-text sidebar-link">
  <span class="menu-text">use_tools</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.solver.html#empty_attempt" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">empty_attempt</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -2858,12 +2941,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.tool.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.tool</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-14-label">inspect_ai.tool</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" aria-controls="quarto-sidebar-section-14" aria-expanded="false" aria-label="Toggle section: inspect_ai.tool">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-14" aria-labelledby="quarto-sidebar-section-14-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.tool.html#web_search" class="sidebar-item-text sidebar-link">
@@ -3133,12 +3216,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.util.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.util</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-15-label">inspect_ai.util</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" aria-controls="quarto-sidebar-section-15" aria-expanded="false" aria-label="Toggle section: inspect_ai.util">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-15" aria-labelledby="quarto-sidebar-section-15-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.util.html#store" class="sidebar-item-text sidebar-link">
@@ -3273,8 +3356,20 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#suspend_cost_limit" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">suspend_cost_limit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.util.html#suspend_working_limit" class="sidebar-item-text sidebar-link">
  <span class="menu-text">suspend_working_limit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.util.html#suspend_limits" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">suspend_limits</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -3720,12 +3815,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.viewer.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.viewer</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="false" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-16-label">inspect_ai.viewer</span></a>
+            <button type="button" class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" aria-controls="quarto-sidebar-section-16" aria-expanded="false" aria-label="Toggle section: inspect_ai.viewer">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-16" aria-labelledby="quarto-sidebar-section-16-label" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.viewer.html#viewerconfig" class="sidebar-item-text sidebar-link">
@@ -3793,12 +3888,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_cache.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">CLI Commands</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
+ <span class="menu-text" id="quarto-sidebar-section-17-label">CLI Commands</span></a>
+            <button type="button" class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" aria-controls="quarto-sidebar-section-17" aria-expanded="true" aria-label="Toggle section: CLI Commands">
+              <i class="bi bi-chevron-right ms-2" aria-hidden="true"></i>
+            </button> 
       </div>
-      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-17" aria-labelledby="quarto-sidebar-section-17-label" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_cache.html" class="sidebar-item-text sidebar-link">
@@ -3873,7 +3968,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-        <nav id="TOC" role="doc-toc" class="toc-active" data-toc-expanded="1">
+        <nav id="TOC" role="doc-toc" aria-labelledby="toc-title" class="toc-active" data-toc-expanded="1">
     <h2 id="toc-title">On this page</h2>
    
   <ul>
@@ -3915,9 +4010,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content">
+<main class="content" id="quarto-document-content" tabindex="-1">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.agent.html">Python API</a></li><li class="breadcrumb-item"><a href="../reference/inspect_ai.html">inspect_ai</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="Breadcrumbs"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.agent.html">Python API</a></li><li class="breadcrumb-item"><a href="../reference/inspect_ai.html">inspect_ai</a></li></ol></nav>
 <div class="quarto-title">
 <h1 class="title">inspect_ai</h1>
 </div>
@@ -3947,7 +4042,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="eval">eval</h3>
 <p>Evaluate tasks using a Model.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/eval.py#L134">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/eval.py#L135">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="bu">eval</span>(</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    tasks: Tasks,</span>
@@ -4012,48 +4107,49 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-61"><a href="#cb1-61" aria-hidden="true" tabindex="-1"></a>    scan_id: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
 <span id="cb1-62"><a href="#cb1-62" aria-hidden="true" tabindex="-1"></a>    task_retry_attempts: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
 <span id="cb1-63"><a href="#cb1-63" aria-hidden="true" tabindex="-1"></a>    sentinel: SentinelSpec <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-64"><a href="#cb1-64" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
-<span id="cb1-65"><a href="#cb1-65" aria-hidden="true" tabindex="-1"></a>    max_retries: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-66"><a href="#cb1-66" aria-hidden="true" tabindex="-1"></a>    timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-67"><a href="#cb1-67" aria-hidden="true" tabindex="-1"></a>    attempt_timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-68"><a href="#cb1-68" aria-hidden="true" tabindex="-1"></a>    stream_idle_timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-69"><a href="#cb1-69" aria-hidden="true" tabindex="-1"></a>    max_connections: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-70"><a href="#cb1-70" aria-hidden="true" tabindex="-1"></a>    adaptive_connections: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> AdaptiveConcurrency <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-71"><a href="#cb1-71" aria-hidden="true" tabindex="-1"></a>    system_message: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-72"><a href="#cb1-72" aria-hidden="true" tabindex="-1"></a>    max_tokens: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-73"><a href="#cb1-73" aria-hidden="true" tabindex="-1"></a>    top_p: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-74"><a href="#cb1-74" aria-hidden="true" tabindex="-1"></a>    temperature: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-75"><a href="#cb1-75" aria-hidden="true" tabindex="-1"></a>    stop_seqs: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-76"><a href="#cb1-76" aria-hidden="true" tabindex="-1"></a>    best_of: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-77"><a href="#cb1-77" aria-hidden="true" tabindex="-1"></a>    frequency_penalty: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-78"><a href="#cb1-78" aria-hidden="true" tabindex="-1"></a>    presence_penalty: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-79"><a href="#cb1-79" aria-hidden="true" tabindex="-1"></a>    logit_bias: <span class="bu">dict</span>[<span class="bu">int</span>, <span class="bu">float</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-80"><a href="#cb1-80" aria-hidden="true" tabindex="-1"></a>    seed: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-81"><a href="#cb1-81" aria-hidden="true" tabindex="-1"></a>    top_k: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-82"><a href="#cb1-82" aria-hidden="true" tabindex="-1"></a>    num_choices: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-83"><a href="#cb1-83" aria-hidden="true" tabindex="-1"></a>    logprobs: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-84"><a href="#cb1-84" aria-hidden="true" tabindex="-1"></a>    top_logprobs: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-85"><a href="#cb1-85" aria-hidden="true" tabindex="-1"></a>    prompt_logprobs: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-86"><a href="#cb1-86" aria-hidden="true" tabindex="-1"></a>    parallel_tool_calls: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-87"><a href="#cb1-87" aria-hidden="true" tabindex="-1"></a>    internal_tools: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-88"><a href="#cb1-88" aria-hidden="true" tabindex="-1"></a>    max_tool_output: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-89"><a href="#cb1-89" aria-hidden="true" tabindex="-1"></a>    cache_prompt: Literal[<span class="st">'auto'</span>] <span class="op">|</span> <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-90"><a href="#cb1-90" aria-hidden="true" tabindex="-1"></a>    fallback_models: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-91"><a href="#cb1-91" aria-hidden="true" tabindex="-1"></a>    fail_on_refusal: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-92"><a href="#cb1-92" aria-hidden="true" tabindex="-1"></a>    verbosity: Literal[<span class="st">'low'</span>, <span class="st">'medium'</span>, <span class="st">'high'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-93"><a href="#cb1-93" aria-hidden="true" tabindex="-1"></a>    effort: Literal[<span class="st">'low'</span>, <span class="st">'medium'</span>, <span class="st">'high'</span>, <span class="st">'xhigh'</span>, <span class="st">'max'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-94"><a href="#cb1-94" aria-hidden="true" tabindex="-1"></a>    reasoning_effort: Literal[<span class="st">'none'</span>, <span class="st">'minimal'</span>, <span class="st">'low'</span>, <span class="st">'medium'</span>, <span class="st">'high'</span>, <span class="st">'xhigh'</span>, <span class="st">'max'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-95"><a href="#cb1-95" aria-hidden="true" tabindex="-1"></a>    reasoning_mode: Literal[<span class="st">'standard'</span>, <span class="st">'pro'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-96"><a href="#cb1-96" aria-hidden="true" tabindex="-1"></a>    reasoning_tokens: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-97"><a href="#cb1-97" aria-hidden="true" tabindex="-1"></a>    reasoning_summary: Literal[<span class="st">'none'</span>, <span class="st">'concise'</span>, <span class="st">'detailed'</span>, <span class="st">'auto'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-98"><a href="#cb1-98" aria-hidden="true" tabindex="-1"></a>    reasoning_history: Literal[<span class="st">'none'</span>, <span class="st">'all'</span>, <span class="st">'last'</span>, <span class="st">'auto'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-99"><a href="#cb1-99" aria-hidden="true" tabindex="-1"></a>    response_schema: ResponseSchema <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-100"><a href="#cb1-100" aria-hidden="true" tabindex="-1"></a>    extra_headers: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-101"><a href="#cb1-101" aria-hidden="true" tabindex="-1"></a>    extra_body: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-102"><a href="#cb1-102" aria-hidden="true" tabindex="-1"></a>    modalities: <span class="bu">list</span>[OutputModality] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-103"><a href="#cb1-103" aria-hidden="true" tabindex="-1"></a>    cache: <span class="bu">bool</span> <span class="op">|</span> CachePolicy <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-104"><a href="#cb1-104" aria-hidden="true" tabindex="-1"></a>    batch: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> BatchConfig <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb1-105"><a href="#cb1-105" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">list</span>[EvalLog]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-64"><a href="#cb1-64" aria-hidden="true" tabindex="-1"></a>    sentinel_proxy: SentinelProxy <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-65"><a href="#cb1-65" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
+<span id="cb1-66"><a href="#cb1-66" aria-hidden="true" tabindex="-1"></a>    max_retries: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-67"><a href="#cb1-67" aria-hidden="true" tabindex="-1"></a>    timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-68"><a href="#cb1-68" aria-hidden="true" tabindex="-1"></a>    attempt_timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-69"><a href="#cb1-69" aria-hidden="true" tabindex="-1"></a>    stream_idle_timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-70"><a href="#cb1-70" aria-hidden="true" tabindex="-1"></a>    max_connections: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-71"><a href="#cb1-71" aria-hidden="true" tabindex="-1"></a>    adaptive_connections: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> AdaptiveConcurrency <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-72"><a href="#cb1-72" aria-hidden="true" tabindex="-1"></a>    system_message: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-73"><a href="#cb1-73" aria-hidden="true" tabindex="-1"></a>    max_tokens: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-74"><a href="#cb1-74" aria-hidden="true" tabindex="-1"></a>    top_p: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-75"><a href="#cb1-75" aria-hidden="true" tabindex="-1"></a>    temperature: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-76"><a href="#cb1-76" aria-hidden="true" tabindex="-1"></a>    stop_seqs: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-77"><a href="#cb1-77" aria-hidden="true" tabindex="-1"></a>    best_of: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-78"><a href="#cb1-78" aria-hidden="true" tabindex="-1"></a>    frequency_penalty: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-79"><a href="#cb1-79" aria-hidden="true" tabindex="-1"></a>    presence_penalty: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-80"><a href="#cb1-80" aria-hidden="true" tabindex="-1"></a>    logit_bias: <span class="bu">dict</span>[<span class="bu">int</span>, <span class="bu">float</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-81"><a href="#cb1-81" aria-hidden="true" tabindex="-1"></a>    seed: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-82"><a href="#cb1-82" aria-hidden="true" tabindex="-1"></a>    top_k: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-83"><a href="#cb1-83" aria-hidden="true" tabindex="-1"></a>    num_choices: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-84"><a href="#cb1-84" aria-hidden="true" tabindex="-1"></a>    logprobs: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-85"><a href="#cb1-85" aria-hidden="true" tabindex="-1"></a>    top_logprobs: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-86"><a href="#cb1-86" aria-hidden="true" tabindex="-1"></a>    prompt_logprobs: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-87"><a href="#cb1-87" aria-hidden="true" tabindex="-1"></a>    parallel_tool_calls: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-88"><a href="#cb1-88" aria-hidden="true" tabindex="-1"></a>    internal_tools: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-89"><a href="#cb1-89" aria-hidden="true" tabindex="-1"></a>    max_tool_output: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-90"><a href="#cb1-90" aria-hidden="true" tabindex="-1"></a>    cache_prompt: Literal[<span class="st">'auto'</span>] <span class="op">|</span> <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-91"><a href="#cb1-91" aria-hidden="true" tabindex="-1"></a>    fallback_models: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-92"><a href="#cb1-92" aria-hidden="true" tabindex="-1"></a>    fail_on_refusal: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-93"><a href="#cb1-93" aria-hidden="true" tabindex="-1"></a>    verbosity: Literal[<span class="st">'low'</span>, <span class="st">'medium'</span>, <span class="st">'high'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-94"><a href="#cb1-94" aria-hidden="true" tabindex="-1"></a>    effort: Literal[<span class="st">'low'</span>, <span class="st">'medium'</span>, <span class="st">'high'</span>, <span class="st">'xhigh'</span>, <span class="st">'max'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-95"><a href="#cb1-95" aria-hidden="true" tabindex="-1"></a>    reasoning_effort: Literal[<span class="st">'none'</span>, <span class="st">'minimal'</span>, <span class="st">'low'</span>, <span class="st">'medium'</span>, <span class="st">'high'</span>, <span class="st">'xhigh'</span>, <span class="st">'max'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-96"><a href="#cb1-96" aria-hidden="true" tabindex="-1"></a>    reasoning_mode: Literal[<span class="st">'standard'</span>, <span class="st">'pro'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-97"><a href="#cb1-97" aria-hidden="true" tabindex="-1"></a>    reasoning_tokens: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-98"><a href="#cb1-98" aria-hidden="true" tabindex="-1"></a>    reasoning_summary: Literal[<span class="st">'none'</span>, <span class="st">'concise'</span>, <span class="st">'detailed'</span>, <span class="st">'auto'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-99"><a href="#cb1-99" aria-hidden="true" tabindex="-1"></a>    reasoning_history: Literal[<span class="st">'none'</span>, <span class="st">'all'</span>, <span class="st">'last'</span>, <span class="st">'auto'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-100"><a href="#cb1-100" aria-hidden="true" tabindex="-1"></a>    response_schema: ResponseSchema <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-101"><a href="#cb1-101" aria-hidden="true" tabindex="-1"></a>    extra_headers: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-102"><a href="#cb1-102" aria-hidden="true" tabindex="-1"></a>    extra_body: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-103"><a href="#cb1-103" aria-hidden="true" tabindex="-1"></a>    modalities: <span class="bu">list</span>[OutputModality] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-104"><a href="#cb1-104" aria-hidden="true" tabindex="-1"></a>    cache: <span class="bu">bool</span> <span class="op">|</span> CachePolicy <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-105"><a href="#cb1-105" aria-hidden="true" tabindex="-1"></a>    batch: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> BatchConfig <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb1-106"><a href="#cb1-106" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">list</span>[EvalLog]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">tasks</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.html#tasks">Tasks</a></span></span></dt>
 <dd>
@@ -4303,6 +4399,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Monitors and protocols that watch the agent’s steps (requires the <code>inspect_sentinel</code> package). Experimental: not yet a stable API; may change without notice. A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in <code>observe_only()</code> to record without acting. Overrides the task’s sentinel. Defaults to no sentinel.</p>
 </dd>
+<dt><code class="ref-definition">sentinel_proxy</code> <span class="element-type"><span class="element-type-name">SentinelProxy</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Whether to look for a sentinel sidecar behind each model’s proxy, which then judges the agent’s model calls. Off unless set: <code>off</code> (the default) never looks, <code>auto</code> uses a sidecar it finds, and <code>required</code> fails a task unless one is found. Only an Anthropic, OpenAI or OpenAI-compatible model whose base URL was set is probed. Experimental: not yet a stable API; may change without notice.</p>
+</dd>
 <dt><code class="ref-definition">max_retries</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Maximum number of times to retry request, so e.g.&nbsp;1 allows two attempts total (defaults to unlimited).</p>
@@ -4469,7 +4569,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="eval_retry">eval_retry</h3>
 <p>Retry a previously failed evaluation task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/eval.py#L1347">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/eval.py#L1356">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> eval_retry(</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    tasks: <span class="bu">str</span> <span class="op">|</span> EvalLogInfo <span class="op">|</span> EvalLog <span class="op">|</span> <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="bu">list</span>[EvalLogInfo] <span class="op">|</span> <span class="bu">list</span>[EvalLog],</span>
@@ -4511,7 +4611,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>    checkpoint: CheckpointConfig <span class="op">|</span> <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
 <span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>    incomplete_action: IncompleteAction <span class="op">=</span> <span class="st">"retry"</span>,</span>
 <span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a>    incomplete_max: <span class="bu">int</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">list</span>[EvalLog]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a>    model_cost_config: <span class="bu">str</span> <span class="op">|</span> <span class="bu">dict</span>[<span class="bu">str</span>, ModelCost] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a>    sentinel_proxy: SentinelProxy <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb2-43"><a href="#cb2-43" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">list</span>[EvalLog]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">tasks</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalloginfo">EvalLogInfo</a></span> | <span class="element-type-name"><a href="../reference/inspect_ai.log.html#evallog">EvalLog</a></span> | list[<span class="element-type-name">str</span>] | list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evalloginfo">EvalLogInfo</a></span>] | list[<span class="element-type-name"><a href="../reference/inspect_ai.log.html#evallog">EvalLog</a></span>]</span></dt>
 <dd>
@@ -4669,13 +4771,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Safety threshold for <code>incomplete_action="error"</code> (count if &gt;= 1, or proportion of expected samples if strictly less than 1, so <code>1.0</code> means one sample, not 100%): when more than this many samples are in progress, fall back to the default recover-and-retry behavior. Has no effect (a warning is logged) with <code>incomplete_action="retry"</code>.</p>
 </dd>
+<dt><code class="ref-definition">model_cost_config</code> <span class="element-type"><span class="element-type-name">str</span> | dict[<span class="element-type-name">str</span>, <span class="element-type-name"><a href="../reference/inspect_ai.model.html#modelcost">ModelCost</a></span>] | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>YAML or JSON file with model prices for cost tracking (or dictionary of model names to ModelCost instances).</p>
+</dd>
+<dt><code class="ref-definition">sentinel_proxy</code> <span class="element-type"><span class="element-type-name">SentinelProxy</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Whether to look for a sentinel sidecar behind each model’s proxy, as <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#eval">eval()</a></span> takes it. The log doesn’t record it, so a retry is told again. Experimental: not yet a stable API; may change without notice.</p>
+</dd>
 </dl>
 </section>
 <section id="eval_set" class="level3">
 <h3 class="anchored" data-anchor-id="eval_set">eval_set</h3>
 <p>Evaluate a set of tasks.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/evalset.py#L239">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/evalset.py#L246">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> eval_set(</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    tasks: Tasks,</span>
@@ -4746,48 +4856,49 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb3-67"><a href="#cb3-67" aria-hidden="true" tabindex="-1"></a>    eval_set_id: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
 <span id="cb3-68"><a href="#cb3-68" aria-hidden="true" tabindex="-1"></a>    embed_viewer: <span class="bu">bool</span> <span class="op">=</span> ...,</span>
 <span id="cb3-69"><a href="#cb3-69" aria-hidden="true" tabindex="-1"></a>    sentinel: SentinelSpec <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-70"><a href="#cb3-70" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
-<span id="cb3-71"><a href="#cb3-71" aria-hidden="true" tabindex="-1"></a>    max_retries: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-72"><a href="#cb3-72" aria-hidden="true" tabindex="-1"></a>    timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-73"><a href="#cb3-73" aria-hidden="true" tabindex="-1"></a>    attempt_timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-74"><a href="#cb3-74" aria-hidden="true" tabindex="-1"></a>    stream_idle_timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-75"><a href="#cb3-75" aria-hidden="true" tabindex="-1"></a>    max_connections: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-76"><a href="#cb3-76" aria-hidden="true" tabindex="-1"></a>    adaptive_connections: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> AdaptiveConcurrency <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-77"><a href="#cb3-77" aria-hidden="true" tabindex="-1"></a>    system_message: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-78"><a href="#cb3-78" aria-hidden="true" tabindex="-1"></a>    max_tokens: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-79"><a href="#cb3-79" aria-hidden="true" tabindex="-1"></a>    top_p: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-80"><a href="#cb3-80" aria-hidden="true" tabindex="-1"></a>    temperature: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-81"><a href="#cb3-81" aria-hidden="true" tabindex="-1"></a>    stop_seqs: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-82"><a href="#cb3-82" aria-hidden="true" tabindex="-1"></a>    best_of: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-83"><a href="#cb3-83" aria-hidden="true" tabindex="-1"></a>    frequency_penalty: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-84"><a href="#cb3-84" aria-hidden="true" tabindex="-1"></a>    presence_penalty: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-85"><a href="#cb3-85" aria-hidden="true" tabindex="-1"></a>    logit_bias: <span class="bu">dict</span>[<span class="bu">int</span>, <span class="bu">float</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-86"><a href="#cb3-86" aria-hidden="true" tabindex="-1"></a>    seed: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-87"><a href="#cb3-87" aria-hidden="true" tabindex="-1"></a>    top_k: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-88"><a href="#cb3-88" aria-hidden="true" tabindex="-1"></a>    num_choices: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-89"><a href="#cb3-89" aria-hidden="true" tabindex="-1"></a>    logprobs: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-90"><a href="#cb3-90" aria-hidden="true" tabindex="-1"></a>    top_logprobs: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-91"><a href="#cb3-91" aria-hidden="true" tabindex="-1"></a>    prompt_logprobs: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-92"><a href="#cb3-92" aria-hidden="true" tabindex="-1"></a>    parallel_tool_calls: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-93"><a href="#cb3-93" aria-hidden="true" tabindex="-1"></a>    internal_tools: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-94"><a href="#cb3-94" aria-hidden="true" tabindex="-1"></a>    max_tool_output: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-95"><a href="#cb3-95" aria-hidden="true" tabindex="-1"></a>    cache_prompt: Literal[<span class="st">'auto'</span>] <span class="op">|</span> <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-96"><a href="#cb3-96" aria-hidden="true" tabindex="-1"></a>    fallback_models: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-97"><a href="#cb3-97" aria-hidden="true" tabindex="-1"></a>    fail_on_refusal: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-98"><a href="#cb3-98" aria-hidden="true" tabindex="-1"></a>    verbosity: Literal[<span class="st">'low'</span>, <span class="st">'medium'</span>, <span class="st">'high'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-99"><a href="#cb3-99" aria-hidden="true" tabindex="-1"></a>    effort: Literal[<span class="st">'low'</span>, <span class="st">'medium'</span>, <span class="st">'high'</span>, <span class="st">'xhigh'</span>, <span class="st">'max'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-100"><a href="#cb3-100" aria-hidden="true" tabindex="-1"></a>    reasoning_effort: Literal[<span class="st">'none'</span>, <span class="st">'minimal'</span>, <span class="st">'low'</span>, <span class="st">'medium'</span>, <span class="st">'high'</span>, <span class="st">'xhigh'</span>, <span class="st">'max'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-101"><a href="#cb3-101" aria-hidden="true" tabindex="-1"></a>    reasoning_mode: Literal[<span class="st">'standard'</span>, <span class="st">'pro'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-102"><a href="#cb3-102" aria-hidden="true" tabindex="-1"></a>    reasoning_tokens: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-103"><a href="#cb3-103" aria-hidden="true" tabindex="-1"></a>    reasoning_summary: Literal[<span class="st">'none'</span>, <span class="st">'concise'</span>, <span class="st">'detailed'</span>, <span class="st">'auto'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-104"><a href="#cb3-104" aria-hidden="true" tabindex="-1"></a>    reasoning_history: Literal[<span class="st">'none'</span>, <span class="st">'all'</span>, <span class="st">'last'</span>, <span class="st">'auto'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-105"><a href="#cb3-105" aria-hidden="true" tabindex="-1"></a>    response_schema: ResponseSchema <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-106"><a href="#cb3-106" aria-hidden="true" tabindex="-1"></a>    extra_headers: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-107"><a href="#cb3-107" aria-hidden="true" tabindex="-1"></a>    extra_body: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-108"><a href="#cb3-108" aria-hidden="true" tabindex="-1"></a>    modalities: <span class="bu">list</span>[OutputModality] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-109"><a href="#cb3-109" aria-hidden="true" tabindex="-1"></a>    cache: <span class="bu">bool</span> <span class="op">|</span> CachePolicy <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-110"><a href="#cb3-110" aria-hidden="true" tabindex="-1"></a>    batch: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> BatchConfig <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
-<span id="cb3-111"><a href="#cb3-111" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">tuple</span>[<span class="bu">bool</span>, <span class="bu">list</span>[EvalLog]]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb3-70"><a href="#cb3-70" aria-hidden="true" tabindex="-1"></a>    sentinel_proxy: SentinelProxy <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-71"><a href="#cb3-71" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
+<span id="cb3-72"><a href="#cb3-72" aria-hidden="true" tabindex="-1"></a>    max_retries: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-73"><a href="#cb3-73" aria-hidden="true" tabindex="-1"></a>    timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-74"><a href="#cb3-74" aria-hidden="true" tabindex="-1"></a>    attempt_timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-75"><a href="#cb3-75" aria-hidden="true" tabindex="-1"></a>    stream_idle_timeout: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-76"><a href="#cb3-76" aria-hidden="true" tabindex="-1"></a>    max_connections: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-77"><a href="#cb3-77" aria-hidden="true" tabindex="-1"></a>    adaptive_connections: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> AdaptiveConcurrency <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-78"><a href="#cb3-78" aria-hidden="true" tabindex="-1"></a>    system_message: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-79"><a href="#cb3-79" aria-hidden="true" tabindex="-1"></a>    max_tokens: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-80"><a href="#cb3-80" aria-hidden="true" tabindex="-1"></a>    top_p: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-81"><a href="#cb3-81" aria-hidden="true" tabindex="-1"></a>    temperature: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-82"><a href="#cb3-82" aria-hidden="true" tabindex="-1"></a>    stop_seqs: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-83"><a href="#cb3-83" aria-hidden="true" tabindex="-1"></a>    best_of: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-84"><a href="#cb3-84" aria-hidden="true" tabindex="-1"></a>    frequency_penalty: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-85"><a href="#cb3-85" aria-hidden="true" tabindex="-1"></a>    presence_penalty: <span class="bu">float</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-86"><a href="#cb3-86" aria-hidden="true" tabindex="-1"></a>    logit_bias: <span class="bu">dict</span>[<span class="bu">int</span>, <span class="bu">float</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-87"><a href="#cb3-87" aria-hidden="true" tabindex="-1"></a>    seed: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-88"><a href="#cb3-88" aria-hidden="true" tabindex="-1"></a>    top_k: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-89"><a href="#cb3-89" aria-hidden="true" tabindex="-1"></a>    num_choices: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-90"><a href="#cb3-90" aria-hidden="true" tabindex="-1"></a>    logprobs: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-91"><a href="#cb3-91" aria-hidden="true" tabindex="-1"></a>    top_logprobs: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-92"><a href="#cb3-92" aria-hidden="true" tabindex="-1"></a>    prompt_logprobs: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-93"><a href="#cb3-93" aria-hidden="true" tabindex="-1"></a>    parallel_tool_calls: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-94"><a href="#cb3-94" aria-hidden="true" tabindex="-1"></a>    internal_tools: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-95"><a href="#cb3-95" aria-hidden="true" tabindex="-1"></a>    max_tool_output: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-96"><a href="#cb3-96" aria-hidden="true" tabindex="-1"></a>    cache_prompt: Literal[<span class="st">'auto'</span>] <span class="op">|</span> <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-97"><a href="#cb3-97" aria-hidden="true" tabindex="-1"></a>    fallback_models: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-98"><a href="#cb3-98" aria-hidden="true" tabindex="-1"></a>    fail_on_refusal: <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-99"><a href="#cb3-99" aria-hidden="true" tabindex="-1"></a>    verbosity: Literal[<span class="st">'low'</span>, <span class="st">'medium'</span>, <span class="st">'high'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-100"><a href="#cb3-100" aria-hidden="true" tabindex="-1"></a>    effort: Literal[<span class="st">'low'</span>, <span class="st">'medium'</span>, <span class="st">'high'</span>, <span class="st">'xhigh'</span>, <span class="st">'max'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-101"><a href="#cb3-101" aria-hidden="true" tabindex="-1"></a>    reasoning_effort: Literal[<span class="st">'none'</span>, <span class="st">'minimal'</span>, <span class="st">'low'</span>, <span class="st">'medium'</span>, <span class="st">'high'</span>, <span class="st">'xhigh'</span>, <span class="st">'max'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-102"><a href="#cb3-102" aria-hidden="true" tabindex="-1"></a>    reasoning_mode: Literal[<span class="st">'standard'</span>, <span class="st">'pro'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-103"><a href="#cb3-103" aria-hidden="true" tabindex="-1"></a>    reasoning_tokens: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-104"><a href="#cb3-104" aria-hidden="true" tabindex="-1"></a>    reasoning_summary: Literal[<span class="st">'none'</span>, <span class="st">'concise'</span>, <span class="st">'detailed'</span>, <span class="st">'auto'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-105"><a href="#cb3-105" aria-hidden="true" tabindex="-1"></a>    reasoning_history: Literal[<span class="st">'none'</span>, <span class="st">'all'</span>, <span class="st">'last'</span>, <span class="st">'auto'</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-106"><a href="#cb3-106" aria-hidden="true" tabindex="-1"></a>    response_schema: ResponseSchema <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-107"><a href="#cb3-107" aria-hidden="true" tabindex="-1"></a>    extra_headers: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span>] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-108"><a href="#cb3-108" aria-hidden="true" tabindex="-1"></a>    extra_body: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-109"><a href="#cb3-109" aria-hidden="true" tabindex="-1"></a>    modalities: <span class="bu">list</span>[OutputModality] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-110"><a href="#cb3-110" aria-hidden="true" tabindex="-1"></a>    cache: <span class="bu">bool</span> <span class="op">|</span> CachePolicy <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-111"><a href="#cb3-111" aria-hidden="true" tabindex="-1"></a>    batch: <span class="bu">bool</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> BatchConfig <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> ...,</span>
+<span id="cb3-112"><a href="#cb3-112" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">tuple</span>[<span class="bu">bool</span>, <span class="bu">list</span>[EvalLog]]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
 <dt><code class="ref-definition">tasks</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.html#tasks">Tasks</a></span></span></dt>
 <dd>
@@ -5061,6 +5172,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Monitors and protocols that watch the agent’s steps (requires the <code>inspect_sentinel</code> package). Experimental: not yet a stable API; may change without notice. A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in <code>observe_only()</code> to record without acting. Overrides the task’s sentinel. Defaults to no sentinel.</p>
 </dd>
+<dt><code class="ref-definition">sentinel_proxy</code> <span class="element-type"><span class="element-type-name">SentinelProxy</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Whether to look for a sentinel sidecar behind each model’s proxy, which then judges the agent’s model calls. Off unless set: <code>off</code> (the default) never looks, <code>auto</code> uses a sidecar it finds, and <code>required</code> fails a task unless one is found. Only an Anthropic, OpenAI or OpenAI-compatible model whose base URL was set is probed. Experimental: not yet a stable API; may change without notice.</p>
+</dd>
 <dt><code class="ref-definition">max_retries</code> <span class="element-type"><span class="element-type-name">int</span> | <span class="element-type-name">None</span></span></dt>
 <dd>
 <p>Maximum number of times to retry request, so e.g.&nbsp;1 allows two attempts total (defaults to unlimited).</p>
@@ -5228,7 +5343,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Score an evaluation log.</p>
 <p>Scoring uses the model (unless <code>model</code> is passed) and model roles recorded in the log, with their base URLs and model args. Only score logs you trust. The log’s metrics are rebuilt without importing its task file.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/score.py#L98">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/score.py#L104">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> score(</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    log: EvalLog,</span>
@@ -5290,7 +5405,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Evaluation task.</p>
 <p>Tasks are the basis for defining and running evaluations.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/task.py#L82">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/task.py#L82">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Task</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4 class-methods">
@@ -5300,7 +5415,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Create a task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/task.py#L88">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/task.py#L88">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
@@ -5512,7 +5627,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Task adapted with alternate values for one or more options.</p>
 <p>This function modifies the passed task in place and returns it. If you want to create multiple variations of a single task using <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#task_with">task_with()</a></span> you should create the underlying task multiple times.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/task.py#L321">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/task.py#L321">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task_with(</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    task: Task,</span>
@@ -5708,7 +5823,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Identifiers have the form <code>{task_file}@{task_name}#{args_hash}/{model}/{additional_hash}</code> (the <code>{task_file}@</code> prefix is omitted for tasks without a source file). The additional hash covers the remaining fields that distinguish tasks within an eval set (solver plan, generate config, model args, model roles, task version, and execution limits), excluding runtime/transport options that don’t affect model output (e.g.&nbsp;<code>max_retries</code>, <code>max_connections</code>).</p>
 <p>The same identifier is computed from a <code>ResolvedTask</code> (before running) and from the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.log.html#evallog">EvalLog</a></span> that running it produces — <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#eval_set">eval_set()</a></span> uses this to pair tasks with their existing log files across retries, and external runners can correlate enumerated tasks with logs the same way. The computation is versioned by <code>TASK_IDENTIFIER_VERSION</code>: persisted identifiers must be recomputed when the version changes.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/evalset.py#L2140">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/evalset.py#L2285">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task_identifier(</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    task: ResolvedTask <span class="op">|</span> EvalLog,</span>
@@ -5730,7 +5845,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Task epochs.</p>
 <p>Number of epochs to repeat samples over and optionally one or more reducers used to combine scores from samples across epochs. If not specified the “mean” score reducer is used.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/epochs.py#L4">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/epochs.py#L4">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Epochs</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
@@ -5749,7 +5864,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Task epochs.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/epochs.py#L12">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/epochs.py#L12">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, epochs: <span class="bu">int</span>, reducer: ScoreReducers <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -5770,7 +5885,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="taskinfo">TaskInfo</h3>
 <p>Task information (file, name, and attributes).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/task.py#L539">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/task.py#L539">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TaskInfo(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
@@ -5796,7 +5911,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>One or more tasks.</p>
 <p>Tasks to be evaluated. Many forms of task specification are supported including directory names, task functions, task classes, and task instances (a single task or list of tasks can be specified). None is a request to read a task out of the current working directory.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/tasks.py#L7">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/tasks.py#L7">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>Tasks: TypeAlias <span class="op">=</span> (</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">str</span></span>
@@ -5824,7 +5939,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Drives a running eval from code: a seed plus result-driven follow-ups.</p>
 <p>Subclass and override the methods you need. The default implementations are no-ops / empty, so a bare <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#tasksource">TaskSource</a></span> runs nothing — override at least <code>initial_tasks</code> and <code>next_tasks</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/task_source.py#L39">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/task_source.py#L39">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TaskSource</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4 class-methods">
@@ -5835,7 +5950,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Tasks to run first (the seed).</p>
 <p>Called once, synchronously, before the run starts — so it must return immediately (no awaiting / blocking). The returned tasks drive the run’s up-front setup (concurrency, validation) and are the first batch.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/task_source.py#L47">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/task_source.py#L47">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> initial_tasks(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Task"</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div>
@@ -5847,7 +5962,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The next batch of tasks to run, or <code>None</code> when the run is complete.</p>
 <p>Called after each batch finishes (after that batch’s <code>sample_complete</code> / <code>task_complete</code> notifications). May <code>await</code> — for more results or external input — and may block indefinitely; return <code>None</code> to end the run.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/task_source.py#L56">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/task_source.py#L56">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> next_tasks(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Task"</span>] <span class="op">|</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div>
@@ -5860,7 +5975,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p><code>sample</code> is the completed sample and <code>task</code> is the task it ran under (the sample alone doesn’t identify its task). Return a list of tasks to add to the run (equivalent to calling <code>enqueue_task</code> with them): they run after the current batch, before the next <code>next_tasks()</code>. Return <code>None</code> (the default) to add nothing.</p>
 <p>Fires for every sample the task logs, including one cancelled individually by an operator (its <code>error</code> is then the cancellation, with no scores), but not for samples cancelled by the task itself unwinding (a task-level cancel or ^C) – those reach the source only via the log passed to <code>task_complete</code>. A cancelled sample’s <code>error.message</code> is the cancellation exception’s repr (it starts with <code>CancelledError(</code> or <code>Cancelled(</code>), which is how to tell it from a genuine error. A sample cancelled before it produced anything to log is reported via :meth:<code>sample_abandoned</code> instead.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/task_source.py#L66">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/task_source.py#L66">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> sample_complete(</span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>, sample: <span class="st">"EvalSample"</span>, task: <span class="st">"Task"</span></span>
@@ -5882,7 +5997,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p><code>sample</code> is a copy of the sample as the task’s dataset held it, <code>epoch</code> the epoch that was abandoned and <code>task</code> the task it was queued under. Nothing about the run reached the log (no <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.log.html#evalsample">EvalSample</a></span> exists, and the sample is absent from the log passed to <code>task_complete</code>), so unlike :meth:<code>sample_complete</code> there is no result to deliver. Return a list of tasks to add to the run (equivalent to calling <code>enqueue_task</code> with them) or <code>None</code> (the default) to add nothing.</p>
 <p>Fires when an operator cancels a sample still waiting in the queue (<code>inspect ctl sample cancel --action cancel</code>), when a cancel lands on an errored sample in the window before its <code>retry_on_error</code> re-run, or when a graceful task cancel (<code>--action drain</code>, <code>score</code>, <code>error</code>) abandons a queued sample — in each case the task itself keeps running, so a source waiting on the sample must hear that it will never complete. Like :meth:<code>sample_complete</code> it does not fire for samples cancelled by the task itself unwinding (a task-level cancel or ^C), nor for a withdrawn requeue (the prior terminal outcome, already reported, stands). With <code>epochs &gt; 1</code> it fires once per abandoned epoch, as <code>sample_complete</code> fires once per completed one.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/task_source.py#L89">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/task_source.py#L89">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> sample_abandoned(</span>
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>, sample: <span class="st">"Sample"</span>, epoch: <span class="bu">int</span>, task: <span class="st">"Task"</span></span>
@@ -5907,7 +6022,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>A task finished — observe its log and optionally return follow-up tasks.</p>
 <p>Return a list of tasks to add to the run (like <code>enqueue_task</code>): they run after the current batch. Return <code>None</code> (the default) to add nothing.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/task_source.py#L118">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/task_source.py#L118">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> task_complete(<span class="va">self</span>, log: <span class="st">"EvalLog"</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Task"</span>] <span class="op">|</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -5922,7 +6037,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Create a :class:<span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#tasksource">TaskSource</a></span> from a seed plus optional callbacks.</p>
 <p>A convenience for when subclassing is more than you need: provide the initial tasks directly and, optionally, callbacks that react to results. The <code>sample_complete</code> / <code>task_complete</code> callbacks may <strong>return</strong> a list of follow-up tasks to add to the run (see those methods); <code>next_tasks</code> is the blocking / explicit-pull alternative. Callbacks typically close over shared state (e.g.&nbsp;accumulated scores) to decide what to run next.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/task_source.py#L126">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/task_source.py#L126">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> from_tasks(</span>
@@ -5972,7 +6087,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Drives a running task from code: a seed plus result-driven follow-ups.</p>
 <p>Subclass and override the methods you need. The default implementations are no-ops / empty, so a bare <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#samplesource">SampleSource</a></span> runs nothing — override at least <code>initial_samples</code> and <code>next_samples</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/sample_source.py#L41">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/sample_source.py#L41">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleSource</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4 class-methods">
@@ -5983,7 +6098,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Samples to run first (the seed).</p>
 <p>Called once, synchronously, when the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#task">Task</a></span> is created — so it must return immediately (no awaiting / blocking). The returned samples drive the task’s up-front setup (validation, sandbox startup) and are the first batch. May be empty, in which case the task starts by calling <code>next_samples()</code>. The seed isn’t required for sandboxes: a sandbox config first seen in a later-added sample gets the same startup (image build/pull, validation, registered cleanup) before that sample runs.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/sample_source.py#L49">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/sample_source.py#L49">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> initial_samples(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Sample"</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div>
@@ -5995,7 +6110,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>More samples to run, or <code>None</code> when the task is complete.</p>
 <p>Called whenever no samples remain in flight or buffered (after those samples’ <code>sample_complete</code> notifications). May <code>await</code> — for more results or external input — and may block indefinitely; return <code>None</code> to end the task. (If samples were enqueued while a <code>None</code> return was in progress they still run, and this method may then be called again.)</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/sample_source.py#L63">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/sample_source.py#L63">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> next_samples(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Sample"</span>] <span class="op">|</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div>
@@ -6007,9 +6122,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>A sample finished — observe it and optionally return follow-up samples.</p>
 <p>Return a list of samples to add to the task (equivalent to calling <code>enqueue_sample</code> with them): they start as soon as there is free capacity. Return <code>None</code> (the default) to add nothing.</p>
 <p>Fires for every sample the task logs, including one cancelled individually by an operator (its <code>error</code> is then the cancellation, with no scores), but not for samples cancelled by the task itself unwinding (a task-level cancel or ^C), where any follow-ups could never run. A cancelled sample’s <code>error.message</code> is the cancellation exception’s repr (it starts with <code>CancelledError(</code> or <code>Cancelled(</code>), which is how to tell it from a genuine error. A sample cancelled before it produced anything to log is reported via :meth:<code>sample_abandoned</code> instead.</p>
-<p>On a task retry this is also called for samples reused from the prior attempt, so a completion-driven source regenerates its follow-ups (returned samples whose ids match the prior attempt are themselves reused rather than re-run).</p>
+<p>On a task retry this is also called for samples reused from the prior attempt, so a completion-driven source regenerates its follow-ups. A returned sample with an explicit id that matches the prior attempt is reused rather than re-run; one without an id gets a new generated id and runs again.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/sample_source.py#L74">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/sample_source.py#L74">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> sample_complete(<span class="va">self</span>, sample: <span class="st">"EvalSample"</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="st">"Sample"</span>] <span class="op">|</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -6025,7 +6140,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p><code>sample</code> is a copy of the sample as it was added to the task and <code>epoch</code> the epoch that was abandoned. Nothing about the run reached the log (no <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.log.html#evalsample">EvalSample</a></span> exists), so unlike :meth:<code>sample_complete</code> there is no result to deliver. Return a list of samples to add to the task (equivalent to calling <code>enqueue_sample</code> with them) or <code>None</code> (the default) to add nothing.</p>
 <p>Fires when an operator cancels a sample still waiting in the queue (<code>inspect ctl sample cancel --action cancel</code>), when a cancel lands on an errored sample in the window before its <code>retry_on_error</code> re-run, or when a graceful task cancel (<code>--action drain</code>, <code>score</code>, <code>error</code>) abandons a queued sample — in each case the task itself keeps running, so a source waiting on the sample must hear that it will never complete. Like :meth:<code>sample_complete</code> it does not fire for samples cancelled by the task itself unwinding (a task-level cancel or ^C), nor for a withdrawn requeue (the prior terminal outcome, already reported, stands). With <code>epochs &gt; 1</code> it fires once per abandoned epoch, as <code>sample_complete</code> fires once per completed one.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/sample_source.py#L98">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/sample_source.py#L99">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> sample_abandoned(</span>
 <span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>, sample: <span class="st">"Sample"</span>, epoch: <span class="bu">int</span></span>
@@ -6046,7 +6161,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Create a :class:<span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#samplesource">SampleSource</a></span> from a seed plus optional callbacks.</p>
 <p>A convenience for when subclassing is more than you need: provide the initial samples directly and, optionally, callbacks that react to results. The <code>sample_complete</code> callback may <strong>return</strong> a list of follow-up samples to add to the task (see that method); <code>next_samples</code> is the blocking / explicit-pull alternative. Callbacks typically close over shared state (e.g.&nbsp;accumulated scores) to decide what to run next.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/sample_source.py#L126">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/sample_source.py#L127">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
 <span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> from_samples(</span>
@@ -6087,7 +6202,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The tasks run in this process under the current run’s <code>run_id</code> (a fresh <code>eval_id</code>/<code>task_id</code> each, their own log files), resolved against the run’s models and config.</p>
 <p>When the run is driven by a :class:<code>~inspect_ai.TaskSource</code>, added tasks are <em>live</em>: they start as soon as there is free capacity. Otherwise they run as a follow-up batch, after the in-flight batch of tasks completes.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/enqueue.py#L91">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/enqueue.py#L91">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb26"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> enqueue_task(tasks: <span class="st">"Tasks"</span>, <span class="op">*</span>, run_id: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -6104,12 +6219,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="enqueue_sample" class="level3">
 <h3 class="anchored" data-anchor-id="enqueue_sample">enqueue_sample</h3>
 <p>Add one or more samples to the running task.</p>
-<p>The samples run in the current task as soon as there is free capacity (bounded by <code>max_samples</code>), each for the task’s configured number of epochs. Samples without an <code>id</code> are assigned one automatically.</p>
-<p>Pass <code>epoch</code> to run each sample once, as that epoch, instead, so the same id can be run repeatedly. Each <code>(id, epoch)</code> may be added once (a sample added without <code>epoch</code> takes epochs 1 to the task’s <code>epochs</code>); a duplicate fails the task.</p>
+<p>The samples run in the current task as soon as there is free capacity (bounded by <code>max_samples</code>), each for the task’s configured number of epochs. Each time a sample without an <code>id</code> is added, it runs under a new generated id such as <code>dyn-t4ab9c-0003</code> (the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span> you pass is not changed), so on a task retry it runs again; only samples with explicit ids are reused from the prior attempt. Generated ids sort in the order they were added, up to 9,999 per attempt; beyond that, and past a change in the token’s width, they stay unique but no longer sort in order.</p>
+<p>Pass <code>epoch</code> to run each sample once, as that epoch, instead, so the same id can be run repeatedly. Samples added with <code>epoch</code> must have an explicit <code>id</code>, since a sample without one gets a fresh id each time it is added. Each <code>(id, epoch)</code> may be added once (a sample added without <code>epoch</code> takes epochs 1 to the task’s <code>epochs</code>); a duplicate fails the task.</p>
 <p>Only available inside a task driven by a :class:<span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#samplesource">SampleSource</a></span> (i.e.&nbsp;a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#task">Task</a></span> whose <code>dataset</code> is a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#samplesource">SampleSource</a></span>) — a plain task’s sample set is fixed, so there is no loop to run additions. Callable from any code running within such a task — a solver, a scorer, a tool — but it must be called from the task’s event loop (where those all run), not from a worker thread.</p>
 <p>When the eval was run with <code>--limit</code>, samples beyond the limit are ignored (with a warning); with <code>--sample-id</code>, only samples matching the filter run.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/sample_source.py#L267">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/sample_source.py#L268">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb27"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> enqueue_sample(</span>
 <span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>    samples: <span class="st">"Sample | list[Sample]"</span>, <span class="op">*</span>, epoch: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span></span>
@@ -6132,7 +6247,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="scanners">Scanners</h3>
 <p>Argument shape accepted by <code>eval_set(scanner=...)</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/scan.py#L178">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/scan.py#L178">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>    Scanners: TypeAlias <span class="op">=</span> (</span>
 <span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>        Sequence[Scanner[Any] <span class="op">|</span> <span class="bu">tuple</span>[<span class="bu">str</span>, Scanner[Any]]]</span>
@@ -6145,7 +6260,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Configure scanners attached to an <code>eval_set</code> run.</p>
 <p>A subset of scout’s <code>ScanJob</code> / <code>ScanJobConfig</code> schema, narrowed to the fields that make sense when <code>eval_set</code> is generating the transcripts.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/scan.py#L53">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/scan.py#L53">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ScannerConfig(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
@@ -6206,7 +6321,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Load a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#scannerconfig">ScannerConfig</a></span> from a YAML or JSON config file.</p>
 <p>Scanner entries in the file are written as <code>ScannerSpec</code> references (a registry <code>name</code> plus optional <code>params</code> and <code>file</code>). They are resolved to live <code>Scanner</code> objects via scout’s registry, loading any referenced <code>file</code> modules. <code>model_args</code> may also be a path to a separate YAML/JSON file, which is read and inlined.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/task/scan.py#L115">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/task/scan.py#L115">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethod</span></span>
 <span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> from_file(cls, path: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="st">"ScannerConfig"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -6227,7 +6342,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="view-1">view</h3>
 <p>Run the Inspect View server.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_view/view.py#L24">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_view/view.py#L24">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb31"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> view(</span>
 <span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>    log_dir: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
@@ -6301,7 +6416,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="task-1">task</h3>
 <p>Decorator for registering tasks.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/registry.py#L124">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/registry.py#L188">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb32"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task(<span class="op">*</span>args: Any, name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, <span class="op">**</span>attribs: Any) <span class="op">-&gt;</span> Any</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -6324,7 +6439,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Decorator for registering task sources.</p>
 <p>Mirrors <code>@task</code>: registers a function that returns a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#tasksource">TaskSource</a></span> so it can be referenced and loaded by name (e.g.&nbsp;<code>eval("file.py@my_source")</code> or <code>inspect eval file.py@my_source -T arg=value</code>) and parameterized.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14fd61845184c432927dd87799b1085516c8826c/src/inspect_ai/_eval/registry.py#L288">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/8012060c0d88631a819b7dd271c944357d9ba26f/src/inspect_ai/_eval/registry.py#L352">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb33"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task_source(<span class="op">*</span>args: Any, name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, <span class="op">**</span>attribs: Any) <span class="op">-&gt;</span> Any</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -6496,7 +6611,8 @@ document.addEventListener("DOMContentLoaded", function () {
           return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
       }
       // Inspect non-navigation links and adorn them if external
-     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      window.quartoDecorateExternalLinks = function (root) {
+     var links = (root || window.document).querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
       for (var i=0; i<links.length; i++) {
         const link = links[i];
         if (!isInternal(link.href)) {
@@ -6505,8 +6621,69 @@ document.addEventListener("DOMContentLoaded", function () {
           if (link.dataset.originalHref !== undefined) {
             link.href = link.dataset.originalHref;
           }
+          if (!link.classList.contains('no-external-icon')) {
+          }
         }
       }
+      };
+      window.quartoDecorateExternalLinks(window.document);
+    // Esc closes the popup (WCAG 1.4.13) and focus leaving both trigger and
+    // popup closes it (WCAG 2.4.11); tippy handles neither for interactive popups.
+    const hideOnEscAndFocusOut = {
+      name: 'hideOnEscAndFocusOut',
+      defaultValue: true,
+      fn(instance) {
+        const dismiss = () => {
+          // A show scheduled by the trigger delay would otherwise reopen it
+          instance.clearDelayTimeouts();
+          instance.hide();
+        };
+        const onKeyDown = (event) => {
+          if (event.key !== 'Escape') {
+            return;
+          }
+          // Keep Esc from also reaching page handlers (e.g. reveal.js overview),
+          // except an open reveal.js slide menu, which Esc should close too.
+          // The menu handles keys only when its keyboard option is on.
+          const menuHandlesEsc = window.Reveal?.getPlugin?.('menu')?.isOpen() &&
+            window.Reveal.getConfig().menu?.keyboard !== false;
+          if (!menuHandlesEsc) {
+            event.stopPropagation();
+          }
+          if (instance.popper.contains(window.document.activeElement)) {
+            // Disabled while refocusing so the focus trigger does not reopen it
+            instance.disable();
+            instance.reference.focus();
+            instance.enable();
+          }
+          dismiss();
+        };
+        const onFocusOut = (event) => {
+          const target = event.relatedTarget;
+          if (target && !instance.reference.contains(target) &&
+              !instance.popper.contains(target)) {
+            dismiss();
+          }
+        };
+        // On the trigger too: a click trigger (code-annotations: select) has no
+        // blur handling. Attached for the instance's lifetime so leaving the
+        // trigger also cancels a show still pending on the trigger delay.
+        instance.reference.addEventListener('focusout', onFocusOut);
+        return {
+          onShow() {
+            window.document.addEventListener('keydown', onKeyDown, true);
+            instance.popper.addEventListener('focusout', onFocusOut);
+          },
+          onHide() {
+            window.document.removeEventListener('keydown', onKeyDown, true);
+            instance.popper.removeEventListener('focusout', onFocusOut);
+          },
+          onDestroy() {
+            instance.reference.removeEventListener('focusout', onFocusOut);
+          },
+        };
+      },
+    };
     function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
       const config = {
         allowHTML: true,
@@ -6520,6 +6697,7 @@ document.addEventListener("DOMContentLoaded", function () {
         interactiveBorder: 10,
         theme: 'quarto',
         placement: 'bottom-start',
+        plugins: [hideOnEscAndFocusOut],
       };
       if (contentFn) {
         config.content = contentFn;
@@ -6682,44 +6860,54 @@ document.addEventListener("DOMContentLoaded", function () {
           const lineIds = lines.map((line) => {
             return targetCell + "-" + line;
           })
-          let top = null;
-          let height = null;
-          let parent = null;
+          // Each band is positioned against its own containing block, which is
+          // not the offsetParent of the lines, so place it from client rects.
+          const placeBand = (band, firstEl, lastEl, codeBlock) => {
+            const container = band.offsetParent;
+            if (container === null) {
+              return;
+            }
+            const containerRect = container.getBoundingClientRect();
+            // Reveal.js scales slides with a transform, so convert client
+            // pixels back to the CSS pixels of the container.
+            const scale = containerRect.height / container.offsetHeight || 1;
+            const firstRect = firstEl.getBoundingClientRect();
+            const lastRect = lastEl.getBoundingClientRect();
+            const top = (firstRect.top - containerRect.top) / scale - container.clientTop + container.scrollTop;
+            const height = (lastRect.bottom - firstRect.top) / scale;
+            band.style.top = top - 2 + "px";
+            band.style.height = height + 4 + "px";
+            if (codeBlock) {
+              // Without the copy button wrapper, the containing block is wider
+              // than the code block, so span the code block explicitly.
+              const blockRect = codeBlock.getBoundingClientRect();
+              band.style.left = (blockRect.left - containerRect.left) / scale - container.clientLeft + container.scrollLeft + "px";
+              band.style.width = blockRect.width / scale + "px";
+            }
+          };
           if (lineIds.length > 0) {
-              //compute the position of the single el (top and bottom and make a div)
-              const el = window.document.getElementById(lineIds[0]);
-              top = el.offsetTop;
-              height = el.offsetHeight;
-              parent = el.parentElement.parentElement;
-            if (lineIds.length > 1) {
-              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
-              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
-              height = bottom - top;
+            const el = window.document.getElementById(lineIds[0]);
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const parent = el.parentElement.parentElement;
+            // cook up a div (if necessary) and position it
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
             }
-            if (top !== null && height !== null && parent !== null) {
-              // cook up a div (if necessary) and position it 
-              let div = window.document.getElementById("code-annotation-line-highlight");
-              if (div === null) {
-                div = window.document.createElement("div");
-                div.setAttribute("id", "code-annotation-line-highlight");
-                div.style.position = 'absolute';
-                parent.appendChild(div);
-              }
-              div.style.top = top - 2 + "px";
-              div.style.height = height + 4 + "px";
-              div.style.left = 0;
-              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
-              if (gutterDiv === null) {
-                gutterDiv = window.document.createElement("div");
-                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
-                gutterDiv.style.position = 'absolute';
-                const codeCell = window.document.getElementById(targetCell);
-                const gutter = codeCell.querySelector('.code-annotation-gutter');
-                gutter.appendChild(gutterDiv);
-              }
-              gutterDiv.style.top = top - 2 + "px";
-              gutterDiv.style.height = height + 4 + "px";
+            placeBand(div, el, lastEl, parent.closest("div.sourceCode") || parent);
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
             }
+            placeBand(gutterDiv, el, lastEl);
             selectedAnnoteEl = annoteEl;
           }
         };
@@ -6797,6 +6985,7 @@ document.addEventListener("DOMContentLoaded", function () {
             interactiveBorder: 10,
             theme: 'quarto',
             placement: 'right',
+            plugins: [hideOnEscAndFocusOut],
             positionFixed: true,
             popperOptions: {
               modifiers: [
@@ -6859,10 +7048,13 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   });
   </script>
-<nav class="page-navigation">
+  <script type="application/javascript">
+  window.quartoScrollableRegionsLabels = {"code":"Scrollable code","output":"Scrollable output"};
+  </script>
+<nav class="page-navigation" aria-label="Page">
   <div class="nav-page nav-page-previous">
-      <a href="../reference/inspect_ai.model.html#record_response_headers" class="pagination-link" aria-label="record_response_headers">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">record_response_headers</span>
+      <a href="../reference/inspect_ai.model.html#active_model_event_id" class="pagination-link" aria-label="active_model_event_id">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">active_model_event_id</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">

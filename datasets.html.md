@@ -195,8 +195,8 @@ eval("ctf.py", sample_shuffle=42)
 You can also shuffle datasets directly within a task definition. To do this, either use the `shuffle()` method or the `shuffle` parameter of the dataset loading functions:
 
 ``` python
-# shuffle method
-dataset = dataset.shuffle()
+# shuffle method (in place)
+dataset.shuffle()
 
 # shuffle on load
 dataset = json_dataset("data.jsonl", shuffle=True)
@@ -216,8 +216,8 @@ For datasets that contain `choices`, you can shuffle the choices when the data i
 There are two ways to shuffle choices:
 
 ``` python
-# Method 1: Using the dataset method
-dataset = dataset.shuffle_choices()
+# Method 1: Using the dataset method (in place)
+dataset.shuffle_choices()
 
 # Method 2: During dataset loading
 dataset = json_dataset("data.jsonl", shuffle_choices=True)
@@ -226,8 +226,8 @@ dataset = json_dataset("data.jsonl", shuffle_choices=True)
 For reproducible shuffling, you can specify a random seed:
 
 ``` python
-# Using a seed with the dataset method
-dataset = dataset.shuffle_choices(seed=42)
+# Using a seed with the dataset method (in place)
+dataset.shuffle_choices(seed=42)
 
 # Using a seed during loading
 dataset = json_dataset("data.jsonl", shuffle_choices=42)

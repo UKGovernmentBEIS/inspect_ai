@@ -8,8 +8,9 @@ There are a progression of concurrency concerns, and while most evaluations can 
 
 1.  Evaluating multiple models in parallel.
 2.  Evaluating multiple tasks in parallel.
-3.  Sandbox environment concurrency.
-4.  Writing parallel code in custom tools, solvers, and scorers.
+3.  Sharding one task across several worker processes.
+4.  Sandbox environment concurrency.
+5.  Writing parallel code in custom tools, solvers, and scorers.
 
 > **NOTE:**
 >
@@ -24,7 +25,7 @@ You can evaluate multiple models in parallel by passing a list of models to the 
 ``` python
 eval("mathematics.py", model=[
     "openai/gpt-6-luna",
-    "anthropic/claude-3-opus-20240229",
+    "anthropic/claude-opus-5-5",
     "google/gemini-2.5-pro"
 ])
 ```
@@ -72,12 +73,16 @@ Note that you can combine parallel tasks with parallel models as follows:
 ``` python
 eval(
     tasks, # 3 tasks for various reasoning efforts
-    model=["openai/gpt-6-luna", "anthropic/claude-haiku-4-5"],
+    model=["openai/gpt-6-luna", "anthropic/claude-haiku-5-5"],
     max_tasks=5,
 )
 ```
 
 This code will evaluate a total of 6 tasks (3 reasoning effort variations against 2 models each) with up to 5 tasks run in parallel.
+
+## Sharding
+
+To spread one task’s samples over several processes or machines, run each part as its own worker that writes its own log (a *shard*), then merge the shards into one log. See [Sharding](./sharding.html.md) for the log layout, merging and limitations.
 
 ## Dataset Memory
 
@@ -168,7 +173,7 @@ from inspect_ai.model import get_model
 
 models = [
   get_model("openai/gpt-6-sol"),
-  get_model("anthropic/claude-sonnet-4-5"),
+  get_model("anthropic/claude-sonnet-5-5"),
   get_model("mistral/mistral-large-latest")
 ]
 
