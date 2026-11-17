@@ -2366,6 +2366,58 @@ async def test_checking_a_turn_s_calls_against_its_message_takes_work_linear_in_
     assert await reads_for(64) == 4 * await reads_for(16)
 
 
+class _CannotCopy:
+    def __deepcopy__(self, memo: dict[int, Any]) -> "_CannotCopy":
+        raise TypeError("cannot copy")
+
+
+@pytest.mark.parametrize("edit", ["replaced", "appended"])
+async def test_a_step_checks_an_output_logged_live_as_it_is_when_the_step_runs(
+    edit: str,
+) -> None:
+    """An output that can't be copied is logged live (`_snapshot_message`), so an edit the agent makes after a call's first step shows in the event. A later step checks the calls it holds then, not those it held at the first."""
+    from inspect_ai._sentinel._dispatch import (
+        sentinel_after_tool_call,
+        sentinel_before_tool_call,
+    )
+
+    seen: Steps = []
+    output = calls_output(READ)
+    output.message.metadata = {"uncopyable": _CannotCopy()}
+    added = replace(READ, id="read_2")
+    user = ChatMessageUser(content=TASK)
+
+    with active([bridge_recording(seen)]):
+        returned = await Scripted(output).model.generate([user])
+        [event] = generations()
+        assert event.output.message is returned.message
+        # the agent's history holds a copy of the message, sharing its calls
+        history: list[ChatMessage] = [user, returned.message.model_copy()]
+        await sentinel_before_tool_call("", returned.message.id, READ, None, history)
+        if edit == "replaced":
+            returned.message.tool_calls = []
+            call = READ
+        else:
+            assert returned.message.tool_calls is not None
+            returned.message.tool_calls.append(added)
+            call = added
+        result = ChatMessageTool(content="ok", tool_call_id=call.id)
+        await sentinel_after_tool_call(
+            "", returned.message.id, call, result, "ok", None, None, history
+        )
+
+    before, after = seen
+    assert before.assistant_message is event.output.message
+    if edit == "replaced":
+        # the event's message no longer holds the call
+        assert after.assistant_message is None
+        assert after.input is None
+    else:
+        assert after.assistant_message is event.output.message
+        assert added in (after.assistant_message.tool_calls or [])
+        assert after.input is not None
+
+
 async def test_a_given_producer_counts_only_if_its_message_holds_the_call() -> None:
     from inspect_ai._sentinel._dispatch import sentinel_before_tool_call
 

@@ -64,6 +64,7 @@ from inspect_ai.model._model import (
     Model,
     active_model,
     get_model,
+    is_snapshot,
     model_roles,
     suspend_model_event_sink,
 )
@@ -135,7 +136,7 @@ async def sentinel_before_tool_call(
 ) -> Decision | None:
     """Run the sentinel before a tool call runs.
 
-    `producer` is the model call that produced `call`, if the caller knows it (an agent bridge); otherwise it is found in `history`. `assistant_message` is the message that made the call, if it is not `producer`'s output message (a bridge that handed the call over under a fresh id).
+    `producer` is the model call that produced `call`, if the caller knows it (an agent bridge); otherwise it is found in `history`. `assistant_message` is the message that made the call, if it is not `producer`'s output message (a bridge that handed the call over under a fresh id): the caller's own copy, which it doesn't change after.
     """
     if not _watches(BeforeToolCall):
         return None
@@ -441,19 +442,29 @@ def _producer(
             _producing_event(call, history) if history is not None else None
         )
     produced = producer_of(producer, assistant_message)
-    if produced is None or not _holds(produced.message, call):
+    if produced is None or not _holds(
+        produced.message,
+        call,
+        stable=produced.message is not producer.output.message,
+    ):
         return None
     return produced
 
 
-def _holds(message: ChatMessageAssistant, call: ToolCall) -> bool:
-    return call.id in _call_ids.of(message)
+def _holds(message: ChatMessageAssistant, call: ToolCall, *, stable: bool) -> bool:
+    """Whether `message` holds `call`.
+
+    A `stable` message (one its owner doesn't change after, such as a bridge's handed copy) or an event output that is a snapshot (`is_snapshot`) has its ids read once (`_CallIds`). Any other message is an output logged live, which can change between steps, so it is read each time.
+    """
+    if stable or is_snapshot(message):
+        return call.id in _call_ids.of(message)
+    return any(proposed.id == call.id for proposed in message.tool_calls or [])
 
 
 class _CallIds:
     """Each assistant message's tool call ids, read once per message object.
 
-    A turn's steps share their producer's message (the `ModelEvent`'s snapshot, or the copy an agent bridge handed over), so checking that it holds each step's call reads it once per turn, not once per step. Entries are keyed by identity, since messages aren't hashable, and go with their message. A message's ids are read when it is first checked; these messages aren't changed after the model call. No lock: the sentinel's steps run on the event loop thread.
+    A turn's steps share their producer's message (the `ModelEvent`'s snapshot, or the copy an agent bridge handed over), so checking that it holds each step's call reads it once per turn, not once per step. Entries are keyed by identity, since messages aren't hashable, and go with their message. A message's ids are read when it is first checked, so only messages that don't change after are given (`_holds`). No lock: the sentinel's steps run on the event loop thread.
     """
 
     def __init__(self) -> None:
@@ -489,7 +500,7 @@ def _producing_event(call: ToolCall, history: list[ChatMessage]) -> ModelEvent |
         return None
     except Exception as ex:
         raise SentinelFailure(ex) from ex
-    if event is None or not _holds(event.output.message, call):
+    if event is None or not _holds(event.output.message, call, stable=False):
         return None
     return event
 
