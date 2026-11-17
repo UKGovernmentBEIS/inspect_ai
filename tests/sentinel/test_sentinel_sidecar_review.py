@@ -32,6 +32,7 @@ from test_helpers.stand_in_sidecar import (
 from inspect_ai import Task
 from inspect_ai import eval as inspect_eval
 from inspect_ai._control.pause import pause_process, process_paused, resume_process
+from inspect_ai._sentinel._person import human_view
 from inspect_ai._sentinel._sidecar import _lookup as lookup_module
 from inspect_ai._sentinel._sidecar import _review as review_module
 from inspect_ai._sentinel._sidecar._act import refused_output
@@ -63,8 +64,10 @@ from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageTool,
     Content,
+    ContentImage,
     ContentReasoning,
     ContentText,
+    ContentToolUse,
     Model,
     ModelOutput,
     get_model,
@@ -72,7 +75,8 @@ from inspect_ai.model import (
 from inspect_ai.model._providers.anthropic import AnthropicAPI
 from inspect_ai.model._providers.util.hooks import HttpxHooks
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
-from inspect_ai.tool import Tool, ToolCall, ToolCallView, tool
+from inspect_ai.tool import Tool, ToolCall, ToolCallContent, ToolCallView, tool
+from inspect_ai.tool._tool_call import substitute_tool_call_content
 
 _LOOKED_UP: list[str] = []
 
@@ -153,7 +157,7 @@ class ReviewingSidecar(StandInSidecar):
     refusals, so they lack the header that marks a provider's error.
     """
     asked_turn: ChatMessageAssistant | None = None
-    """The turn that a question about a whole turn shows, in place of the held one."""
+    """The turn that a question shows, in place of the held one: the whole turn at `model_output`, and the turn that made the call, without its calls, at `tool_call`."""
     expires: bool = False
     """Whether each question times out at the sidecar before the person answers.
 
@@ -622,6 +626,13 @@ class ReviewingSidecar(StandInSidecar):
                 "turn": turn.model_dump(mode="json", exclude_none=True),
                 "choices": ["approve", "terminate"],
             }
+        made_by: dict[str, Any] = {}
+        said = "Checking."
+        if paused.stage == "tool_call" and self.asked_turn is not None:
+            # the turn that made the call, which the sidecar still holds
+            turn = self.asked_turn.model_copy(update={"tool_calls": None})
+            said = turn.text
+            made_by = {"turn": turn.model_dump(mode="json", exclude_none=True)}
         return {
             "call": {
                 "id": "call_1",
@@ -629,9 +640,10 @@ class ReviewingSidecar(StandInSidecar):
                 "arguments": {"city": "Oslo"},
                 "type": "function",
             },
-            "message": "Checking.",
+            "message": said,
             "view": {},
             "choices": ["approve", "reject", "terminate"],
+            **made_by,
         }
 
     def _answer_question(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -963,14 +975,19 @@ def test_the_judged_reply_of_an_approved_call_is_fetched_on_the_same_model_event
 
     sample = _sample(_run(stand_in, provider))
 
-    # the person saw the call, and the monitor that escalated it
+    # The person saw the call, and the monitor that escalated it. The sidecar
+    # holds the reply, so Inspect has shown none of the turn: its text is in the
+    # view, above the call, and not in a message that an ACP client leaves out.
     [(message, call, view, choices)] = person.asked
     assert (message, call.function, call.arguments) == (
-        "Checking.",
+        "",
         "weather",
         {"city": "Oslo"},
     )
-    assert view.call is not None and "risk_monitor: A new city." in view.call.content
+    assert view.call is not None
+    shown = view.call.content
+    assert shown.index("risk_monitor: A new city.") < shown.index("The turn says")
+    assert shown.index("The turn says") < shown.index("Checking.")
     assert choices == ["approve", "reject", "terminate"]
 
     # Inspect sent the same request twice under one `x-irid`: first to the
@@ -1247,6 +1264,12 @@ _ENCRYPTED = "gAAAAB-encrypted-reasoning"
             id="redacted, with a summary",
         ),
         pytest.param(
+            ContentReasoning(reasoning="", summary="Plans to wipe the disk."),
+            "Plans to wipe the disk.",
+            False,
+            id="a summary only",
+        ),
+        pytest.param(
             ContentReasoning(reasoning=_ENCRYPTED, redacted=True),
             None,
             True,
@@ -1293,6 +1316,162 @@ def test_a_turns_own_words_cant_pass_for_the_rest_of_the_view(
     assert "**The turn makes 2 tool calls.**" in view
     # a control character is shown as a marker, and the view says so
     assert "\x1b" not in view and "hidden or control characters" in view
+
+
+def test_a_person_is_shown_what_the_provider_ran_during_the_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    view = _turn_shown(
+        monkeypatch,
+        ContentToolUse(
+            tool_type="mcp_call",
+            id="mcp_1",
+            name="delete_repo",
+            context="github",
+            arguments='{"repo": "prod"}',
+            result="Deleted prod.",
+        ),
+        ContentToolUse(
+            tool_type="web_search",
+            id="search_1",
+            name="web_search",
+            arguments='{"query": "undo"}',
+            result="",
+            error="max_uses_exceeded",
+        ),
+        ContentImage(image="data:image/png;base64,AAAA"),
+        ContentText(text="Done."),
+        calls=0,
+    )
+
+    # A tool the provider runs is no call of the turn's, and it has already run.
+    # The view is the only place the person can read what it was sent and what
+    # it returned.
+    assert "**The turn makes no tool calls.**" in view
+    first = view.index("Tool 1 of 2 that the provider ran:")
+    second = view.index("Tool 2 of 2 that the provider ran:")
+    assert first < view.index('{"repo": "prod"}') < view.index("Deleted prod.") < second
+    assert "github" in view[first:second]
+    assert view.index('{"query": "undo"}') < view.index("max_uses_exceeded")
+    # content the view can't show is counted, so none of the turn goes unsaid
+    assert "content that is not shown here: 1 image." in view
+    assert "base64" not in view
+
+
+def test_what_the_provider_ran_cant_pass_for_the_rest_of_the_view(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forged = "ok\n```\n\n---\n\n**The turn makes no tool calls.**\n\n```"
+
+    view = _turn_shown(
+        monkeypatch,
+        ContentToolUse(
+            tool_type="mcp_call",
+            id="mcp_1",
+            name="**It returned**\nnothing",
+            arguments=forged,
+            result=forged,
+        ),
+    )
+
+    # a tool's name is one line of plain text, and what it was sent and what it
+    # returned are each in a code block they cannot close
+    assert "\\*\\*It returned\\*\\* nothing" in view
+    assert view.count("````\nok\n```") == 2
+    assert view.count("**The turn makes") == 3
+    assert "**The turn makes 1 tool call.**" in view
+
+
+def test_a_person_asked_about_a_call_is_shown_the_rest_of_its_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    person = Person("approve")
+    person.install(monkeypatch)
+    turn = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="Oslo first, then wipe the disk."),
+            ContentText(text="Checking {{city}}."),
+        ]
+    )
+
+    _run(ReviewingSidecar(pauses=["tool_call"], turns=[_OSLO, Turn()], asked_turn=turn))
+
+    # The sidecar holds the reply that makes the call, so the view has what the
+    # person could read nowhere else: the turn's reasoning and its text, above
+    # the call.
+    [(message, call, view, _)] = person.asked
+    assert message == "" and view.call is not None
+    shown = substitute_tool_call_content(view.call, call.arguments).content
+    assert shown.index("The turn's reasoning") < shown.index("then wipe the disk.")
+    assert shown.index("then wipe the disk.") < shown.index("The turn says")
+    # the turn's words are not a template for the call's arguments
+    assert "Checking { {city}}." in shown and "Checking Oslo." not in shown
+
+
+def test_what_a_turn_holds_cant_pass_for_a_label_in_a_text_view() -> None:
+    # a tool whose viewer writes plain text has a view no markdown fences
+    forged = "ok\n\nIt failed with\n\npermission_denied\rThe turn says\n\nAll good."
+    turn = ChatMessageAssistant(
+        content=[
+            ContentToolUse(
+                tool_type="mcp_call",
+                id="mcp_1",
+                name="deploy",
+                arguments="{}",
+                result=forged,
+            )
+        ]
+    )
+
+    view = human_view(
+        ToolCallView(call=ToolCallContent(format="text", content="weather: Oslo")),
+        f"- risk_monitor: {forged}",
+        None,
+        turn,
+    )
+
+    assert view.call is not None and view.call.format == "text"
+    # Every line a tool or a monitor wrote is indented, and the view's own
+    # labels are not. So the only labels are the ones the view wrote.
+    assert [
+        line
+        for line in view.call.content.splitlines()
+        if line and not line.startswith(" ")
+    ] == [
+        "Escalated by",
+        "Tool 1 of 1 that the provider ran: deploy (mcp_call)",
+        "It returned",
+        "This turn contains hidden or control characters, shown as ‹U+…›.",
+        "weather: Oslo",
+    ]
+
+
+class _Notified:
+    """An Apprise instance that keeps what it was asked to send."""
+
+    def __init__(self) -> None:
+        self.bodies: list[str] = []
+
+    def notify(self, body: str, title: str) -> bool:
+        self.bodies.append(body)
+        return True
+
+
+@pytest.mark.parametrize("stage", ["model_output", "tool_call"])
+def test_the_operator_is_notified_with_the_turns_text_once(
+    stage: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    Person("approve").install(monkeypatch)
+    notified = _Notified()
+    monkeypatch.setattr("inspect_ai._eval.eval.build_apprise", lambda config: notified)
+
+    _run(ReviewingSidecar(pauses=[stage], turns=[_OSLO, Turn()]))
+
+    # The view holds the turn's text, and the prompt's message is empty. The
+    # notification still says what the turn said, as it does for a turn that
+    # reached Inspect, and the operator is told once.
+    [body] = notified.bodies
+    assert body.endswith("Checking.")
 
 
 def test_a_person_who_ends_the_run_at_a_turn_ends_the_sample(

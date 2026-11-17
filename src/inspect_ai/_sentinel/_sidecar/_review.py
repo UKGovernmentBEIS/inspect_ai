@@ -43,6 +43,7 @@ from inspect_ai.util._limit import LimitExceededError
 
 from .._person import (
     HUMAN_CHOICES,
+    approve_with_text_in_view,
     ask_about_turn,
     chosen_decision,
     escalation_lines,
@@ -730,6 +731,9 @@ def _asked_about(question: dict[str, Any]) -> str:
 _TURN_STAGE = "model_output"
 """The stage of a question about a model's whole turn, asked after a generate."""
 
+_CALL_STAGE = "tool_call"
+"""The stage of a question about a call that has not run. The sidecar holds the reply that makes it."""
+
 
 async def _show_question(
     question: dict[str, Any],
@@ -761,12 +765,34 @@ async def _show_question(
     call = _TOOL_CALL.validate_python(question.get("call"))
     view = ToolCallView.model_validate(question.get("view") or {})
     result = question.get("result")
+    said = str(question.get("message") or "")
+    escalated = escalation_lines(escalations) if escalations else None
+    if question.get("stage") == _CALL_STAGE:
+        # The sidecar holds the reply here too, so the view shows what the
+        # turn holds besides its calls.
+        turn = question.get("turn")
+        approval = await approve_with_text_in_view(
+            approve,
+            said,
+            call,
+            human_view(
+                view,
+                escalated,
+                None,
+                ChatMessageAssistant.model_validate(turn)
+                if turn is not None
+                else ChatMessageAssistant(content=said),
+            ),
+            # Inspect's own copy of the conversation, as below
+            history,
+        )
+        return chosen_decision(approval, offered)
     approval = await approve(
-        str(question.get("message") or ""),
+        said,
         call,
         human_view(
             view,
-            escalation_lines(escalations) if escalations else None,
+            escalated,
             ChatMessageTool.model_validate(result) if result is not None else None,
         ),
         # Inspect's own copy of the conversation, not the sidecar's. Each
