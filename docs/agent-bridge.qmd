@@ -413,7 +413,7 @@ Running the agent inside the sandbox has these limits:
 
 -   **The agent's own permission prompts are usually off.** Agents typically run with their permission prompts and sandboxing disabled (Inspect SWE does this by default).
 
--   **Approval covers tool calls, not their effects.** [Tool approval](#tool-approval) reviews each tool call the model makes. It doesn't review what an approved command then does.
+-   **Approval covers tool calls the agent runs, not their effects.** [Tool approval](#tool-approval) reviews each tool call before the agent sees it. It doesn't review what an approved command then does, or web search and code execution run by the model provider. Remote MCP servers are refused while an approval policy is active.
 
 ### In-Process Bridge
 
