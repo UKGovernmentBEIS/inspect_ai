@@ -585,7 +585,13 @@ class PortRequest:
   the end of the creator's attempt (`run_one` sets
   `ended` and closes the attempt's channels in the step it gives its slot
   back) and `RunQueue.end`. Closing a channel whose record is still `queued`
-  with no request ends the record with no log. A creator that forgets to
+  with no request ends the record with no log, unless the record's abort is
+  requested (cancelled while queued): that record stays queued for the
+  dispatcher to start its abort attempt, which ends it with the abort log
+  and one report to the source, or for `end_unstarted()` if dispatch ends
+  first. The abort's own `apply` closes the channel, and so can an explicit
+  `close()` or the creator's attempt ending before the dispatcher's next
+  pass, so the exception covers every close. A creator that forgets to
   close cannot keep a rollout task open past its own attempt. Samples
   already buffered or running when a drain, `score` or `error` cancel
   closes it follow the directive's existing rules and settle through
@@ -910,7 +916,10 @@ test touched), with mockllm models; every test that waits is bounded with
     running; `close()` and `async with` leaving running rollouts to finish;
   - the terminal-outcome table row by row: a target whose sent sample's
     setup fails, whose log init fails, cancelled while queued (its abort
-    log, with no file), closed before any sample was sent (no attempt, no
+    log, with no file), cancelled while queued with no sample sent, alone,
+    then closed explicitly, and with its creator's attempt ending before the
+    dispatcher's next pass (each ending with the abort log and one source
+    report while the run is open), closed before any sample was sent (no attempt, no
     log; the display's task total drops by one, as for an added task ended
     unstarted), and still queued at a latched cancellation (with the waiter in
     a sibling attempt's shielded cleanup);

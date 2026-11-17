@@ -686,10 +686,18 @@ receives the same `TaskCancel`, so after registration `cancel_task` reaches
 the same object. The retry-abandon stamp stays only where it is today, for
 a pending retry of a registered task through `cancel_task`. A record
 cancelled while queued already holds its aborted `TaskCancel` and scope when
-`run_one` starts it, so `_run_task` aborts at its first checkpoint, at the
-latest inside `logger.init()` before `recorder.log_init()` returns: before
-the display row opens, before `on_task_start` runs and before any log file
-exists, with no logger location. Today's abort handling covers every point
+`run_one` starts it, so `_run_task` aborts at its first checkpoint. That
+checkpoint must come before any startup side effect, and the recorders do
+not provide one: `EvalRecorder.log_init` reaches a lock first, but
+`JSONRecorder.log_init`, and `record_inherited_config_updates` with no
+retunes, return without one, so `logger.init()` would set the location and
+create the sample buffer database and `task_run` could open the display
+row before the header flush delivered the cancellation. So `task_run`'s
+first statement inside the attempt's scope is an explicit
+`await anyio.lowlevel.checkpoint()`, before its first retry-abandon check
+and `logger.init()`. A pre-cancelled attempt aborts there, for every
+recorder: before the display row opens, before `on_task_start` runs and
+before any log file or buffer database exists, with no logger location. Today's abort handling covers every point
 before registration:
 
 - before the row opens (`logger.init()`, prior-log seeding): the
@@ -862,8 +870,9 @@ bindings, and the registered `task_cleanup` calls, none of which refer to a
 
 #### A task's log starts with its attempt
 
-`task_run` awaits `logger.init()` as its first startup step, after its first
-retry-abandon check and before prior-log seeding and `log_start()`.
+`task_run` awaits `logger.init()` as its first startup step, after the
+explicit checkpoint ("Aborting an attempt that has not registered") and its
+first retry-abandon check, and before prior-log seeding and `log_start()`.
 `TaskLogger.reinit()`, which `run_one` awaits before publishing a retry,
 still detaches the old attempt's live state and releases an unfinished
 attempt's recorder entry (keeping its destination), but no longer calls
@@ -1732,8 +1741,9 @@ test that waits on a run is bounded with `fail_after`.
   ending B through the abort path with one report, the "Task cancelled by
   user (abort)" log, no retry, no log file, `next_tasks()` released and
   the run ending normally, on asyncio and trio: B cancelled, and in another
-  run drained, while queued behind a running A; B cancelled while queued
-  and paused (the cancel starts it anyway); B cancelled before the task
+  run drained, while queued behind a running A, with `.eval` and `.json`
+  logs (no location, no buffer database, no display row); B cancelled
+  while queued and paused (the cancel starts it anyway); B cancelled before the task
   screen opens (Textual's app load held on an event), counted once off the
   total; B a queued retry whose first attempt's log init failed, cancelled
   while it waits (two reports: the failed attempt and the aborted one); B
@@ -1865,7 +1875,7 @@ state in the single `eval_run`), so the setup fixes come first.
    names seeded from `eval_set_tasks`, `startup_sandboxes` and the record's
    resolution cache for every task; `prepare_options`, `TaskInjection`,
    `PreparedFeed`, `_empty_feed` removed), `_eval/eval.py` (one `eval_run`),
-   `_eval/task/run.py` (`logger.init()` at the start of `task_run`; the
+   `_eval/task/run.py` (an explicit checkpoint, then `logger.init()`, at the start of `task_run`; the
    seed's `startup_sandboxes` call after the task-start hooks;
    `on_row_opened()` and `on_registered()`;
    `unwritten_task_log` with no location),
