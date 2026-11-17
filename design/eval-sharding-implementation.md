@@ -1481,16 +1481,22 @@ is guarded.
 
 ### Eval-set integration
 
-Changes in `src/inspect_ai/_eval/evalset.py`; none in selection mode, which
+Changes in `src/inspect_ai/_eval/evalset.py`, with the startup merge in
+`src/inspect_ai/_eval/evalset_shards.py`; none in selection mode, which
 never scans the directory.
 
 **Startup merge.** In `try_eval`, before the directory is read for pairing:
 
 1. Build `eval_set_args` and `all_tasks` (identifiers) first; they are
    pure and today are built just after the listing (`:1047`, `:1083`).
-2. `list_eval_logs(log_dir)` once. Every listed file for which
+2. `list_eval_logs(log_dir)` once, then the existing prerequisite checks
+   (distinct task identifiers, and every log outside the companions
+   mapped to a task unless `log_dir_allow_dirty`), so an eval set they
+   refuse merges nothing. Every listed file for which
    `is_shard_path(log_dir, name)` is true (shared helper) marks a
-   companion: the path up to the first component below `log_dir` that ends
+   companion; listed local names are `file://` plus the native path, so
+   they are compared as native paths, keeping `#`, `?` and `%`. The
+   companion is the path up to the first component below `log_dir` that ends
    in `.shards`. Collect the distinct companions. A log nested deeper in a
    companion (inside a shard's ancillary directory, including a companion
    nested there) is an ordinary log: it marks no companion and takes part
@@ -1569,7 +1575,8 @@ never scans the directory.
    | Local merge lock held (`<name>.merge.lock`), including one left by a crashed merge | `WriteConflictError` | wait for the other merge to finish and re-run; if no merge is running (the lock's `pid`/`host` shown in the message), delete the lock file and re-run |
    | Lost S3 publish race (another merge published first, or the merged log changed during the pass) | `WriteConflictError` | re-run once the other merge has finished; the merge is idempotent |
    | Anything else (a storage or transport error) | the original exception | the cause is in the message and the chained exception; fix it and re-run |
-6. If any merge wrote, list again; otherwise reuse the listing.
+6. If any merge wrote, list again and repeat the prerequisite checks;
+   otherwise reuse the listing.
 7. **A companion is not merged once an unsharded retry of its merged log
    exists** (decisions: Ransom, 2026-11-17). Before any merge writes, each
    companion's `task_id` is taken from its merged log when it is listed,

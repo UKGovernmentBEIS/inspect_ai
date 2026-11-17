@@ -1095,18 +1095,29 @@ def eval_set(
             (task_identifier(task, eval_set_args), task) for task in resolved_tasks
         ]
 
-        # list all logs currently in the log directory, merge shard sets (and
-        # list again if a merge wrote), then update manifest if there are logs
+        # list all logs currently in the log directory (update manifest if there are some)
         log_files = list_eval_logs(log_dir)
         eval_set_files = without_shard_logs(log_dir, log_files)
-        all_logs = read_logs(eval_set_files)
-        # evalset_shards imports this module
+        listed_logs = read_logs(eval_set_files)
+        if len(listed_logs) > 0:
+            _write_log_dir_manifest(log_dir, logs=eval_set_files)
+
+        # validate that:
+        #  (1) All tasks have a unique identifier
+        #  (2) All logs have identifiers that map to tasks
+        # before merging shard sets, so a refused eval set merges nothing
+        all_logs = validate_eval_set_prerequisites(
+            resolved_tasks, listed_logs, log_dir_allow_dirty, eval_set_args
+        )
+
+        # merge shard sets, then list again if a merge wrote
+        # (evalset_shards imports this module)
         from .evalset_shards import merge_shard_sets
 
         if merge_shard_sets(
             log_dir,
             log_files,
-            all_logs,
+            listed_logs,
             all_tasks,
             epochs=epochs,
             limit=limit,
@@ -1114,16 +1125,13 @@ def eval_set(
         ):
             log_files = list_eval_logs(log_dir)
             eval_set_files = without_shard_logs(log_dir, log_files)
-            all_logs = read_logs(eval_set_files)
-        if len(all_logs) > 0:
+            all_logs = validate_eval_set_prerequisites(
+                resolved_tasks,
+                read_logs(eval_set_files),
+                log_dir_allow_dirty,
+                eval_set_args,
+            )
             _write_log_dir_manifest(log_dir, logs=eval_set_files)
-
-        # validate that:
-        #  (1) All tasks have a unique identifier
-        #  (2) All logs have identifiers that map to tasks
-        all_logs = validate_eval_set_prerequisites(
-            resolved_tasks, all_logs, log_dir_allow_dirty, eval_set_args
-        )
 
         # write eval-set info containing data about
         # all the tasks that are a part of this eval set

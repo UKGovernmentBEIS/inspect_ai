@@ -4972,6 +4972,27 @@ def test_list_all_eval_logs_skips_shards_but_keeps_logs_nested_deeper(
     assert [local_path(log.info.name) for log in kept] == [str(nested)]
 
 
+@pytest.mark.parametrize("delimiter", ["#", "?"])
+def test_shard_logs_are_found_under_a_path_with_url_delimiters(
+    tmp_path: Path, delimiter: str
+) -> None:
+    from inspect_ai._eval.evalset_shards import (
+        refuse_scanner_with_shards,
+        shard_sets_in,
+    )
+    from inspect_ai.log._shards._walk import without_shard_logs
+
+    log_dir = tmp_path / f"experiment{delimiter}509"
+    _shard(log_dir, "0", [1, 2])
+    listed = list_eval_logs(str(log_dir))
+
+    assert without_shard_logs(str(log_dir), listed) == []
+    [companion] = shard_sets_in(str(log_dir), listed)
+    assert companion.endswith(f"experiment{delimiter}509/{SHARD_NAME}.shards")
+    with pytest.raises(PrerequisiteError, match="cannot run scanners"):
+        refuse_scanner_with_shards(str(log_dir))
+
+
 @pytest.mark.parametrize("form", ["ids", "count", "none"])
 def test_log_samples_complete_on_a_merged_log_compares_its_ids(
     tmp_path: Path, form: str
@@ -5343,6 +5364,27 @@ def test_eval_set_stops_when_a_startup_merge_is_refused(
     assert str(_shards_dir(tmp_path)) in str(raised.value)
     assert shard_runs == []
     assert _log_names(tmp_path) == names
+
+
+@pytest.mark.parametrize("refusal", ["dirty", "duplicate"])
+def test_eval_set_refuses_its_inputs_before_merging(
+    tmp_path: Path, shard_runs: list[int | str], refusal: str
+) -> None:
+    _shard(tmp_path, "0", [1, 2, 3, 4, 5, 6])
+    tasks: list[Task] = [sharded_task()]
+    if refusal == "dirty":
+        eval(unsharded_task(), model="mockllm/model", log_dir=str(tmp_path))
+        message = "not associated"
+    else:
+        tasks.append(sharded_task())
+        message = "not distinct"
+    shard_runs.clear()
+
+    with pytest.raises(PrerequisiteError, match=message):
+        _sharded_eval_set(tmp_path, tasks=tasks)
+
+    assert not _merged_log(tmp_path).exists()
+    assert shard_runs == []
 
 
 def test_eval_set_stops_on_a_storage_error_from_a_startup_merge(
