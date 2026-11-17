@@ -39,9 +39,9 @@ from inspect_ai.log._condense import (
     attachment_refs_from_object,
     attachment_refs_from_value,
     condense_event,
-    condense_raw_sample,
     condense_sample,
     condensed_sample_summary,
+    mark_attachments_resolved,
     resolve_sample_attachments,
 )
 from inspect_ai.log._convert import convert_eval_logs
@@ -1523,6 +1523,118 @@ def test_rescoring_keeps_literal_reference_text(
     assert sample.messages[-1].text == literal
 
 
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+@pytest.mark.parametrize("action", ["append", "overwrite"])
+def test_rescoring_fully_read_log_keeps_literal_reference_text(
+    tmp_path: str,
+    log_format: Literal["eval", "json"],
+    action: Literal["append", "overwrite"],
+) -> None:
+    # the earlier reply names the attachment the grader's text is stored in
+    grader_text = "tc://ordinary-grader-text"
+    reply = f"attachment://{mm3_hash(grader_text)}"
+    log_file = _run_literal_eval(str(tmp_path), log_format, reply)
+
+    scored = score(
+        read_eval_log(log_file, resolve_attachments="full"),
+        _literal_grader(grader_text),
+        action=action,
+        display="none",
+    )
+    rescored = os.path.join(tmp_path, f"rescored.{log_format}")
+    write_eval_log(scored, rescored)
+
+    reread = read_eval_log(rescored, resolve_attachments=True)
+    assert reread.samples
+    sample = reread.samples[0]
+    assert sample.messages[0].text == _LITERAL_SYSTEM_PROMPT
+    assert sample.messages[-1].text == reply
+    assert sample.output.completion == reply
+    model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
+    assert len(model_events) == 3
+    assert model_events[1].input[0].text == _LITERAL_SYSTEM_PROMPT
+    assert model_events[1].output.message.text == reply
+    assert model_events[-1].output.message.text == grader_text
+
+
+@pytest.mark.parametrize("to", ["eval", "json"])
+@pytest.mark.parametrize("resolve", [False, "core", "full"])
+@pytest.mark.parametrize("protocol", ["attachment://", "tc://"])
+def test_writing_read_log_keeps_literals_and_genuine_references(
+    tmp_path: str,
+    literal_eval_log: Callable[[str], str],
+    to: Literal["eval", "json"],
+    resolve: Literal[False, "core", "full"],
+    protocol: str,
+) -> None:
+    # after a "core" read the sample keeps the system prompt's attachment,
+    # which its model calls reference and the literal names
+    log = read_eval_log(literal_eval_log(protocol), resolve_attachments=resolve)
+    copy = os.path.join(tmp_path, f"copy.{to}")
+    write_eval_log(log, copy)
+
+    reread = read_eval_log(copy, resolve_attachments=True)
+    assert reread.samples
+    _assert_literals_read_back(reread.samples[0], f"{protocol}{_LITERAL_KEY}")
+
+
+def _resolved_core_sample() -> EvalSample:
+    """Sample whose message text names an attachment that its model call references."""
+    long_text = "genuine long text " * 10
+    key = mm3_hash(long_text)
+    event = ModelEvent(
+        model="test-model",
+        input=[ChatMessageUser(content=long_text)],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("test-model", "reply"),
+        call=ModelCall(
+            request={"messages": [{"role": "user", "content": f"attachment://{key}"}]},
+            response={},
+        ),
+    )
+    return EvalSample(
+        id="sample",
+        epoch=1,
+        input="input",
+        target="target",
+        messages=[ChatMessageAssistant(content=f"attachment://{key}")],
+        events=[event],
+        attachments={key: long_text},
+    )
+
+
+def test_unmarked_sample_is_condensed_as_holding_references() -> None:
+    sample = mark_attachments_resolved(_resolved_core_sample(), "core")
+    literal = sample.messages[0].text
+    long_text = next(iter(sample.attachments.values()))
+
+    resolved = resolve_sample_attachments(condense_sample(sample), "full")
+    assert resolved.messages[0].text == literal
+
+    # dumping and validating drops the mark, so the literal is taken as a
+    # reference, as before the mark existed
+    unmarked = EvalSample.model_validate(sample.model_dump())
+    resolved = resolve_sample_attachments(condense_sample(unmarked), "full")
+    assert resolved.messages[0].text == long_text
+
+
+def test_resolving_a_resolved_sample_resolves_only_what_is_left() -> None:
+    sample = mark_attachments_resolved(_resolved_core_sample(), "core")
+    literal = sample.messages[0].text
+    long_text = next(iter(sample.attachments.values()))
+
+    assert resolve_sample_attachments(sample, "core") is sample
+    full = resolve_sample_attachments(sample, "full")
+    assert full.messages[0].text == literal
+    [event] = [e for e in full.events if isinstance(e, ModelEvent)]
+    assert event.call is not None
+    assert event.call.request["messages"] == [{"role": "user", "content": long_text}]
+    assert full.attachments == {}
+    assert resolve_sample_attachments(full, "full") is full
+
+
 _RETRY_IMAGE = "data:image/png;base64," + ("A" * 200)
 
 
@@ -1671,7 +1783,7 @@ def test_recondense_does_not_wrap_genuine_references() -> None:
         assert model_event.call.response == {"content": long_text}
 
 
-def test_condense_raw_sample_escapes_literals_outside_model_calls() -> None:
+def test_condense_core_sample_escapes_literals_outside_model_calls() -> None:
     long_text = "genuine long text " * 10
     text_ref = f"{ATTACHMENT_PROTOCOL}{mm3_hash(long_text)}"
     event = ModelEvent(
@@ -1697,7 +1809,9 @@ def test_condense_raw_sample_escapes_literals_outside_model_calls() -> None:
         attachments={mm3_hash(long_text): long_text},
     )
 
-    resolved = resolve_sample_attachments(condense_raw_sample(sample), "full")
+    resolved = resolve_sample_attachments(
+        condense_sample(mark_attachments_resolved(sample, "core")), "full"
+    )
     assert resolved.messages[0].text == text_ref
     [model_event] = [e for e in resolved.events if isinstance(e, ModelEvent)]
     assert model_event.output.message.text == text_ref
@@ -1742,7 +1856,9 @@ def test_seeded_error_retries_are_resolved() -> None:
     rerun = EvalSample(
         id="sample", epoch=1, input="input", target="target", error_retries=[seeded]
     )
-    resolved = resolve_sample_attachments(condense_raw_sample(rerun), "full")
+    resolved = resolve_sample_attachments(
+        condense_sample(mark_attachments_resolved(rerun, "core")), "full"
+    )
     assert resolved.error_retries is not None
     retry_events = resolved.error_retries[0].events
     assert retry_events is not None

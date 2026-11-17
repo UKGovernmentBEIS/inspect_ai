@@ -149,9 +149,9 @@ class WalkContext(TypedDict):
     call_fn: NotRequired[Callable[[str], str]]
     """Content function for ``ModelEvent.call`` payloads (``walk_model_event``).
 
-    ``condense_raw_sample`` sets it because the transcript has already
-    condensed model calls while every other field is still raw. When absent,
-    calls go through ``content_fn``.
+    Set where calls are in a different state from the other fields: a
+    sample resolved with "core" (or produced by a run) holds condensed calls
+    and raw values elsewhere. When absent, calls go through ``content_fn``.
     """
 
     media_fn: NotRequired[Callable[[str], str]]
@@ -315,11 +315,14 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     `resolve_attachments()`. Removal of base64 encoded images is a
     one-way operation.
 
-    The sample is taken to be condensed already (read from a log without
-    resolving attachments, or returned by this function): a string that
-    begins with `attachment://` or `tc://` and names one of its attachments
-    is kept as a reference. Any other string with those prefixes is stored as
-    an attachment of its own, so it reads back as written.
+    The sample's attachment state (see `EvalSample`) says which strings
+    that begin with `attachment://` or `tc://` are references. In a sample
+    that holds references (the default, as read from a log without resolving
+    attachments), one that names an attachment is kept as a reference. In a
+    sample resolved with "core" (or just produced by a run), strings outside
+    `ModelEvent.call` are all literal text; in one resolved with "full",
+    every string is. Each literal string with those prefixes is stored as an
+    attachment of its own, so it reads back as written.
 
     Args:
        sample (EvalSample): Eval sample to condense.
@@ -328,158 +331,23 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     Returns:
        EvalSample: Eval sample in condensed form.
     """
-    return _condense_sample(sample, log_images, raw=False)
-
-
-def condense_raw_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
-    """Condense a sample whose fields hold raw values, except model calls.
-
-    For a sample just produced by a run, whose `ModelEvent.call` payloads the
-    transcript condensed while it ran, and for a sample resolved with
-    `"core"`, which has the same shape. Every string outside model calls
-    that begins with `attachment://` or `tc://` is literal text, even when it
-    names one of the sample's attachments, so it is stored as an attachment
-    of its own and reads back as written. Model calls are condensed as in
-    `condense_sample`.
-
-    Args:
-       sample: Eval sample to condense.
-       log_images: Should base64 images be logged for this sample.
-
-    Returns:
-       Eval sample in condensed form.
-    """
-    return _condense_sample(sample, log_images, raw=True)
-
-
-def _escape_refs_fn(attachments: MutableMapping[str, str]) -> Callable[[str], str]:
-    """Content function storing each string with a reference prefix as an attachment."""
-    create_attachment = attachment_fn(attachments)
-
-    def fn(text: str) -> str:
-        return create_attachment(text) if _has_ref_prefix(text) else text
-
-    return fn
-
-
-def escape_literal_refs(sample: EvalSample) -> EvalSample:
-    """Store literal reference text outside model calls as attachments of its own.
-
-    For a resolved sample that is written without condensing. One resolved
-    with `"core"` keeps the attachments its model calls still reference,
-    which a literal `attachment://` or `tc://` string elsewhere could name;
-    one resolved fully has none, but a reader still takes a literal `tc://`
-    string as a reference. Each such string becomes a reference to an
-    attachment holding it, so it reads back as written. Other content,
-    model calls included, stays as it is.
-
-    Args:
-       sample: Sample resolved with `"core"` or `"full"`.
-
-    Returns:
-       The sample with its literal reference text stored as attachments.
-    """
-    attachments = dict(sample.attachments)
-    content_fn = _escape_refs_fn(attachments)
-
-    def context() -> WalkContext:
-        return WalkContext(message_cache={}, only_core=True)
-
-    return sample.model_copy(
-        update={
-            "input": walk_input(sample.input, content_fn, context()),
-            "messages": walk_chat_messages(sample.messages, content_fn, context()),
-            "events": walk_events(sample.events, content_fn, context()),
-            "error_retries": [
-                retry.model_copy(
-                    update={"events": walk_events(retry.events, content_fn, context())}
-                )
-                if retry.events is not None
-                else retry
-                for retry in sample.error_retries
-            ]
-            if sample.error_retries is not None
-            else None,
-            "attachments": attachments,
-        }
-    )
-
-
-def escape_literal_event_refs(
-    events: Sequence[Event], attachments: MutableMapping[str, str]
-) -> list[Event]:
-    """Store literal reference text in raw events outside model calls as attachments.
-
-    For new events merged into a condensed sample (scorer events added by
-    `score()`), which `condense_sample` would otherwise take as references
-    when a literal names one of the sample's attachments.
-
-    Args:
-       events: Raw events.
-       attachments: The sample's attachments, which the literals are added to.
-
-    Returns:
-       The events with their literal reference text stored as attachments.
-    """
-    return walk_events(
-        list(events),
-        _escape_refs_fn(attachments),
-        WalkContext(message_cache={}, only_core=True),
-    )
-
-
-def condensed_sample_summary(sample: EvalSample) -> EvalSampleSummary:
-    """Summary of a condensed sample, with literal reference text in its input restored.
-
-    For recorders, which summarize the condensed samples they write.
-    Condensing stores literal `attachment://` and `tc://` text as an
-    attachment of its own, and summaries carry no attachments, so the
-    literal is put back. As the sample is condensed, a reference whose
-    attachment holds prefixed text is such a literal; other references stay
-    as they are. Not for resolved samples, whose input text is already
-    literal: use `EvalSample.summary()`.
-
-    Args:
-       sample: Condensed sample.
-
-    Returns:
-       Summary of the sample.
-    """
-    attachments = sample.attachments
-    if isinstance(sample.input, str) or not any(
-        _has_ref_prefix(value) for value in attachments.values()
-    ):
-        return sample.summary()
-
-    def content_fn(text: str) -> str:
-        if text.startswith(ATTACHMENT_PROTOCOL):
-            value = attachments.get(text.removeprefix(ATTACHMENT_PROTOCOL))
-            if value is not None and _has_ref_prefix(value):
-                return value
-        return text
-
-    input = walk_input(
-        sample.input, content_fn, WalkContext(message_cache={}, only_core=True)
-    )
-    return sample.model_copy(update={"input": input}).summary()
-
-
-def _condense_sample(sample: EvalSample, log_images: bool, raw: bool) -> EvalSample:
+    state = attachment_state(sample)
     existing_attachments = dict(sample.attachments)
     attachments = dict(existing_attachments)
     rewritten_attachments: set[str] = set()
     events_policy = events_attachment_fn(attachments, log_images, escape_refs=True)
     messages_policy = messages_attachment_fn(attachments, log_images, escape_refs=True)
-    call_fn = existing_attachments_content_fn(
+    condensed_fn = existing_attachments_content_fn(
         existing_attachments, rewritten_attachments, events_policy
     )
-    events_fn = events_policy if raw else call_fn
+    call_fn = events_policy if state == "full" else condensed_fn
+    events_fn = condensed_fn if state == "condensed" else events_policy
     messages_fn = (
-        messages_policy
-        if raw
-        else existing_attachments_content_fn(
+        existing_attachments_content_fn(
             existing_attachments, rewritten_attachments, messages_policy
         )
+        if state == "condensed"
+        else messages_policy
     )
     # The events and messages walks rewrite content differently (events_fn
     # pools long text as attachments; messages_fn leaves it inline), so they
@@ -595,15 +463,169 @@ def _condense_sample(sample: EvalSample, log_images: bool, raw: bool) -> EvalSam
         )
 
     referenced_attachments = attachment_refs_from_value(dumped_sample)
-    return condensed_sample.model_copy(
-        update={
-            "attachments": {
-                hash: value
-                for hash, value in attachments.items()
-                if hash not in rewritten_attachments or hash in referenced_attachments
+    return _with_attachment_state(
+        condensed_sample.model_copy(
+            update={
+                "attachments": {
+                    hash: value
+                    for hash, value in attachments.items()
+                    if hash not in rewritten_attachments
+                    or hash in referenced_attachments
+                }
             }
-        }
+        ),
+        "condensed",
     )
+
+
+AttachmentState = Literal["condensed", "core", "full"]
+"""How far a sample's attachment references have been resolved (see `EvalSample`)."""
+
+
+def attachment_state(sample: EvalSample) -> AttachmentState:
+    """How far the sample's attachment references have been resolved."""
+    return sample._attachment_state
+
+
+def mark_attachments_resolved(
+    sample: EvalSample, state: Literal["core", "full"]
+) -> EvalSample:
+    """Mark a sample whose fields hold raw values as resolved, in place.
+
+    For a sample built from raw values rather than read from a log: one
+    produced by a run is "core", since the transcript condensed its
+    `ModelEvent.call` payloads while it ran.
+
+    Returns:
+       The sample.
+    """
+    return _with_attachment_state(sample, state)
+
+
+def _with_attachment_state(sample: EvalSample, state: AttachmentState) -> EvalSample:
+    sample._attachment_state = state
+    return sample
+
+
+def _escape_refs_fn(attachments: MutableMapping[str, str]) -> Callable[[str], str]:
+    """Content function storing each string with a reference prefix as an attachment."""
+    create_attachment = attachment_fn(attachments)
+
+    def fn(text: str) -> str:
+        return create_attachment(text) if _has_ref_prefix(text) else text
+
+    return fn
+
+
+def escape_literal_refs(sample: EvalSample) -> EvalSample:
+    """Store a resolved sample's literal reference text as attachments of its own.
+
+    For a sample written without condensing (the JSON recorder). Readers
+    take a string that begins with `attachment://` or `tc://` as a
+    reference, so each such literal string becomes a reference to an
+    attachment holding it, and reads back as written. Which strings are
+    literal follows the sample's attachment state (see `condense_sample`):
+    none in a sample that holds references, which is returned as it is.
+    Other content stays as it is.
+
+    Args:
+       sample: Sample to write.
+
+    Returns:
+       The sample with its literal reference text stored as attachments.
+    """
+    state = attachment_state(sample)
+    if state == "condensed":
+        return sample
+    attachments = dict(sample.attachments)
+    content_fn = _escape_refs_fn(attachments)
+
+    def context() -> WalkContext:
+        return WalkContext(message_cache={}, only_core=state == "core")
+
+    return _with_attachment_state(
+        sample.model_copy(
+            update={
+                "input": walk_input(sample.input, content_fn, context()),
+                "messages": walk_chat_messages(sample.messages, content_fn, context()),
+                "events": walk_events(sample.events, content_fn, context()),
+                "error_retries": [
+                    retry.model_copy(
+                        update={
+                            "events": walk_events(retry.events, content_fn, context())
+                        }
+                    )
+                    if retry.events is not None
+                    else retry
+                    for retry in sample.error_retries
+                ]
+                if sample.error_retries is not None
+                else None,
+                "attachments": attachments,
+            }
+        ),
+        "condensed",
+    )
+
+
+def escape_literal_event_refs(
+    events: Sequence[Event], attachments: MutableMapping[str, str]
+) -> list[Event]:
+    """Store literal reference text in raw events outside model calls as attachments.
+
+    For new events merged into a sample that holds references (scorer events
+    added by `score()`), which `condense_sample` would otherwise take as
+    references when a literal names one of the sample's attachments.
+
+    Args:
+       events: Raw events.
+       attachments: The sample's attachments, which the literals are added to.
+
+    Returns:
+       The events with their literal reference text stored as attachments.
+    """
+    return walk_events(
+        list(events),
+        _escape_refs_fn(attachments),
+        WalkContext(message_cache={}, only_core=True),
+    )
+
+
+def condensed_sample_summary(sample: EvalSample) -> EvalSampleSummary:
+    """Summary of a sample, with literal reference text in its input restored.
+
+    For recorders, which summarize the condensed samples they write.
+    Condensing stores literal `attachment://` and `tc://` text as an
+    attachment of its own, and summaries carry no attachments, so the
+    literal is put back: in a sample that holds references, a reference
+    whose attachment holds prefixed text is such a literal; other references
+    stay as they are. A resolved sample's input is already literal.
+
+    Args:
+       sample: Sample to summarize.
+
+    Returns:
+       Summary of the sample.
+    """
+    attachments = sample.attachments
+    if (
+        attachment_state(sample) != "condensed"
+        or isinstance(sample.input, str)
+        or not any(_has_ref_prefix(value) for value in attachments.values())
+    ):
+        return sample.summary()
+
+    def content_fn(text: str) -> str:
+        if text.startswith(ATTACHMENT_PROTOCOL):
+            value = attachments.get(text.removeprefix(ATTACHMENT_PROTOCOL))
+            if value is not None and _has_ref_prefix(value):
+                return value
+        return text
+
+    input = walk_input(
+        sample.input, content_fn, WalkContext(message_cache={}, only_core=True)
+    )
+    return sample.model_copy(update={"input": input}).summary()
 
 
 def condense_event(
@@ -877,6 +899,10 @@ def resolve_sample_attachments(
     attachments its references still point at are retained; "full" resolves
     everything and clears the field.
 
+    The returned sample is marked as resolved (see `EvalSample`). A sample
+    already resolved that far is returned as it is; for one resolved with
+    "core", "full" resolves only its model calls.
+
     Args:
        sample (EvalSample): Eval sample with attachments.
        resolve_attachments: Should attachments be resolved. "core" means only resolving attachments in the core fields.
@@ -886,11 +912,17 @@ def resolve_sample_attachments(
     """
     if resolve_attachments is False:
         return sample
+    level: Literal["core", "full"] = "core" if resolve_attachments == "core" else "full"
+    state = attachment_state(sample)
+    if state == "full" or state == level:
+        return sample
+    if state == "core":
+        return _resolve_core_sample_calls(sample)
 
     content_fn = resolve_attachment_fn(sample.attachments)
     context = WalkContext(
         message_cache={},
-        only_core=resolve_attachments == "core",
+        only_core=level == "core",
     )
 
     # Resolve pools before events — pool messages may contain attachment:// refs
@@ -944,8 +976,10 @@ def resolve_sample_attachments(
         }
     )
 
+    _with_attachment_state(resolved_sample, level)
+
     # "full" resolves every reference, so nothing can still point at the map.
-    if resolve_attachments != "core" or not sample.attachments:
+    if level == "full" or not sample.attachments:
         return resolved_sample
 
     # "core" leaves ModelEvent.call condensed, so its attachment:// refs
@@ -963,6 +997,39 @@ def resolve_sample_attachments(
             }
         }
     )
+
+
+def _resolve_core_sample_calls(sample: EvalSample) -> EvalSample:
+    """Resolve the model calls of a sample resolved with "core".
+
+    Its other fields hold raw values already, and resolving them again would
+    take literal reference text in them as references.
+    """
+    call_fn = resolve_attachment_fn(sample.attachments)
+
+    def context() -> WalkContext:
+        return WalkContext(message_cache={}, only_core=False, call_fn=call_fn)
+
+    def unchanged(text: str) -> str:
+        return text
+
+    resolved = sample.model_copy(
+        update={
+            "events": walk_events(sample.events, unchanged, context()),
+            "error_retries": [
+                retry.model_copy(
+                    update={"events": walk_events(retry.events, unchanged, context())}
+                )
+                if retry.events is not None
+                else retry
+                for retry in sample.error_retries
+            ]
+            if sample.error_retries is not None
+            else None,
+            "attachments": {},
+        }
+    )
+    return _with_attachment_state(resolved, "full")
 
 
 def _sample_attachment_refs(sample: EvalSample) -> set[str]:

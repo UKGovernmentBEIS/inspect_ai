@@ -25,7 +25,7 @@ from inspect_ai._util.json import (
 )
 from inspect_ai._util.trace import trace_action
 
-from .._condense import condensed_sample_summary
+from .._condense import condensed_sample_summary, escape_literal_refs
 from .._config_update import ConfigUpdate
 from .._edit import LogUpdate
 from .._log import (
@@ -397,6 +397,11 @@ class JSONRecorder(FileRecorder):
         # sort samples before writing as they can come in out of order
         if log.samples:
             sort_samples(log.samples)
+            # samples are written as they are, so a resolved sample's literal
+            # reference text must become attachments
+            samples = [escape_literal_refs(sample) for sample in log.samples]
+            if any(a is not b for a, b in zip(samples, log.samples)):
+                log = log.model_copy(update={"samples": samples})
 
         fs = filesystem(location)
         # Standard write

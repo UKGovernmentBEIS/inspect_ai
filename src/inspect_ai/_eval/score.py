@@ -61,6 +61,7 @@ from inspect_ai.log import (
     EvalLog,
 )
 from inspect_ai.log._condense import (
+    attachment_state,
     escape_literal_event_refs,
     resolve_sample_attachments,
 )
@@ -620,13 +621,14 @@ async def _run_score_task(
                         scorer=registry_unqualified_name(scorer),
                     )
 
-    # slice off only the newly added events; they are raw, while the sample
-    # they join is condensed
-    attachments = dict(sample.attachments)
-    new_events = escape_literal_event_refs(
-        transcript().events[len(resolved_sample.events) :], attachments
-    )
-    sample.attachments = attachments
+    # slice off only the newly added events; they are raw, so where the
+    # sample they join holds references their literal reference text must
+    # become attachments
+    new_events = transcript().events[len(resolved_sample.events) :]
+    if attachment_state(sample) == "condensed":
+        attachments = dict(sample.attachments)
+        new_events = escape_literal_event_refs(new_events, attachments)
+        sample.attachments = attachments
 
     sample.scores = _get_updated_scores(sample, results, action=action)
     sample.events = _get_updated_events(sample, new_events, action=action)

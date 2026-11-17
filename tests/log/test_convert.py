@@ -14,14 +14,16 @@ from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
+    Event,
     InfoEvent,
     ModelEvent,
     SampleInitEvent,
     ScoreEvent,
+    SubtaskEvent,
     ToolEvent,
 )
 from inspect_ai.log import EvalError, EvalRetryError
-from inspect_ai.log._condense import condense_raw_sample, resolve_sample_attachments
+from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._convert import convert_eval_logs
 from inspect_ai.log._edit import (
     MetadataEdit,
@@ -53,6 +55,8 @@ from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageUser,
+    GenerateConfig,
+    ModelCall,
     ModelOutput,
     get_model,
 )
@@ -940,7 +944,7 @@ def test_convert_chunked_keeps_raw_fields_that_read_like_references(
     assert log.location
 
     # add event metadata and a copy of the events as retry history, then
-    # write the sample as a run would (raw, then condensed)
+    # write the fully read sample back
     full = read_eval_log(log.location, resolve_attachments="full")
     assert full.samples
     raw = full.samples[0]
@@ -958,7 +962,7 @@ def test_convert_chunked_keeps_raw_fields_that_read_like_references(
             ],
         }
     )
-    full.samples = [condense_raw_sample(raw)]
+    full.samples = [raw]
     source = tmp_path / "source" / pathlib.Path(log.location).name
     write_eval_log(full, str(source))
 
@@ -1012,3 +1016,96 @@ def test_convert_chunked_keeps_raw_fields_that_read_like_references(
             e for e in event_list if isinstance(e, InfoEvent) and e.data == "note"
         ]
         assert info_event.metadata == {"note": final}
+
+
+@pytest.fixture
+def legacy_nested_event_log(tmp_path: pathlib.Path) -> tuple[pathlib.Path, str]:
+    """Log whose subtask and tool events hold nested events, as older Inspect wrote them.
+
+    Older writers condensed the nested events, so their model input, choice
+    text and call payload hold genuine references; they reload as dicts.
+    Returns the log path and the referenced content.
+    """
+    content = "nested model input that was pooled " * 4
+    ref = f"attachment://{mm3_hash(content)}"
+    nested_model = ModelEvent(
+        model="mockllm/model",
+        input=[ChatMessageUser(content=ref)],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("mockllm/model", ref),
+        call=ModelCall(
+            request={"messages": [{"role": "user", "content": ref}]}, response={}
+        ),
+    ).model_dump(mode="json")
+    nested_subtask = SubtaskEvent(
+        name="inner", input={}, events=[nested_model]
+    ).model_dump(mode="json")
+    legacy_events: list[Event] = [
+        SubtaskEvent(name="outer", input={}, events=[nested_model, nested_subtask]),
+        ToolEvent(id="call", function="echo", arguments={}, events=[nested_model]),
+    ]
+
+    [log] = inspect_eval(
+        Task(dataset=[Sample(input="hello")]),
+        model="mockllm/model",
+        log_dir=str(tmp_path / "logs"),
+        display="none",
+    )
+    assert log.location
+    read = read_eval_log(log.location)
+    assert read.samples
+    sample = read.samples[0]
+    read.samples = [
+        sample.model_copy(
+            update={
+                "events": [*sample.events, *legacy_events],
+                "error_retries": [
+                    EvalRetryError(
+                        message="retry",
+                        traceback="",
+                        traceback_ansi="",
+                        events=list(legacy_events),
+                    )
+                ],
+                "attachments": {**sample.attachments, mm3_hash(content): content},
+            }
+        )
+    ]
+    source = tmp_path / "source" / pathlib.Path(log.location).name
+    write_eval_log(read, str(source))
+    return source, content
+
+
+def test_convert_chunked_renumbers_references_in_legacy_nested_events(
+    tmp_path: pathlib.Path, legacy_nested_event_log: tuple[pathlib.Path, str]
+):
+    source, content = legacy_nested_event_log
+    output_dir = tmp_path / "chunked"
+    convert_eval_logs_to_chunked(str(source), str(output_dir), chunk_size=_CHUNK_SIZE)
+    with zipfile.ZipFile(output_dir / source.name) as zf:
+        sample, attachments = _reassemble_chunked_sample(zf, 1, 1)
+
+    def nested_refs(nested: dict) -> list[str]:
+        return [
+            nested["input"][0]["content"],
+            nested["output"]["choices"][0]["message"]["content"],
+            nested["call"]["request"]["messages"][0]["content"],
+        ]
+
+    assert sample.error_retries is not None
+    retry_events = sample.error_retries[0].events
+    assert retry_events is not None
+    refs: list[str] = []
+    for event_list in (sample.events, retry_events):
+        [outer] = [e for e in event_list if isinstance(e, SubtaskEvent)]
+        [tool_event] = [e for e in event_list if isinstance(e, ToolEvent)]
+        nested_model, nested_subtask = outer.events
+        refs += nested_refs(nested_model)
+        refs += nested_refs(nested_subtask["events"][0])
+        refs += nested_refs(tool_event.events[0])
+    assert len(refs) == 18
+    for ref in refs:
+        assert re.fullmatch(r"attachment://\d+", ref), ref
+        assert attachments[ref.removeprefix("attachment://")] == content

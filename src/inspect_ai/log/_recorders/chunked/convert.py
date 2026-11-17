@@ -33,6 +33,8 @@ from inspect_ai.event._pool import (
     condense_model_event_calls,
     condense_model_event_inputs,
 )
+from inspect_ai.event._subtask import SubtaskEvent
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.model._chat_message import ChatMessage
 
 from ..._condense import (
@@ -275,11 +277,9 @@ def chunked_sample(
         return WalkContext(message_cache={}, only_core=False, media_fn=renumber_fn)
 
     def renumber_events(events: list[Event]) -> list[Event]:
-        return walk_events(
-            _renumber_completion_refs(events, renumber_fn),
-            renumber_fn,
-            renumber_context(),
-        )
+        events = _renumber_completion_refs(events, renumber_fn)
+        events = _renumber_legacy_nested_refs(events, renumber_fn)
+        return walk_events(events, renumber_fn, renumber_context())
 
     messages = walk_chat_messages(messages, renumber_fn, renumber_context())
     events = renumber_events(events)
@@ -342,6 +342,46 @@ def _renumber_completion_refs(
                 "output": event.output.model_copy(update={"completion": new_completion})
             }
         )
+
+    return [renumbered(event) for event in events]
+
+
+def _renumber_legacy_nested_refs(
+    events: list[Event], renumber_fn: Callable[[str], str]
+) -> list[Event]:
+    """Renumber references in the deprecated nested events of older logs.
+
+    `SubtaskEvent.events` and `ToolEvent.events` are typed `list[Any]`, so
+    they reload as plain dicts, which the typed walkers leave untouched.
+    Inspect no longer writes them; the older writers that did condensed them
+    into references, so each string in them that is a whole reference is
+    renumbered.
+    """
+
+    def renumbered_value(value: Any) -> Any:
+        if isinstance(value, str):
+            return renumber_fn(value)
+        elif isinstance(value, list):
+            return [renumbered_value(item) for item in value]
+        elif isinstance(value, dict):
+            return {key: renumbered_value(item) for key, item in value.items()}
+        else:
+            return value
+
+    def renumbered_nested(nested: list[Any]) -> list[Any]:
+        return [
+            renumbered_value(item)
+            if isinstance(item, dict)
+            else renumbered(item)
+            if isinstance(item, (SubtaskEvent, ToolEvent))
+            else item
+            for item in nested
+        ]
+
+    def renumbered(event: Event) -> Event:
+        if isinstance(event, (SubtaskEvent, ToolEvent)) and event.events:
+            return event.model_copy(update={"events": renumbered_nested(event.events)})
+        return event
 
     return [renumbered(event) for event in events]
 
