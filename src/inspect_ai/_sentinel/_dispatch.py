@@ -145,8 +145,8 @@ async def sentinel_before_tool_call(
         view = resolve_tool_call_view(call, viewer, reject_on_error=True)
     except ToolCallViewError as ex:
         raise ToolApprovalError(str(ex)) from ex
-    produced = _producer(call, history, producer, assistant_message)
     conversation = current_conversation()
+    produced = _producer(call, history, producer, assistant_message, conversation)
     step = before_tool_call(
         conversation=conversation,
         message=message,
@@ -205,8 +205,8 @@ async def sentinel_after_tool_call(
     if not _watches(AfterToolCall):
         return
     _require_message_id()
-    produced = _producer(call, history, producer, assistant_message)
     conversation = current_conversation()
+    produced = _producer(call, history, producer, assistant_message, conversation)
     step = after_tool_call(
         conversation=conversation,
         message=message,
@@ -432,14 +432,17 @@ def _producer(
     history: list[ChatMessage] | None,
     producer: ModelEvent | None,
     assistant_message: ChatMessageAssistant | None,
+    conversation: str,
 ) -> Producer | None:
-    """What a tool step reads of the model call that produced `call`: `producer`, else the one found in `history`.
+    """What a tool step reads of the model call that produced `call`: `producer`, else the one found in `history` (`_found_producer`).
 
     A `producer` the caller gives counts only if its message (`assistant_message`, else its output message) holds `call`, as for one found in `history` (`_producing_event`).
     """
     if producer is None:
-        return producer_of(
-            _producing_event(call, history) if history is not None else None
+        return (
+            _found_producer(call, history, conversation)
+            if history is not None
+            else None
         )
     produced = producer_of(producer, assistant_message)
     if produced is None or not _holds(
@@ -490,19 +493,73 @@ def _producing_event(call: ToolCall, history: list[ChatMessage]) -> ModelEvent |
 
     Only a model call whose output holds `call` counts. A call the scaffold added to the model's message is not the model's, which is also how replay decides.
     """
+    event = _message_event(call, history)
+    if event is None or not _holds(event.output.message, call, stable=False):
+        return None
+    return event
+
+
+def _message_event(call: ToolCall, history: list[ChatMessage]) -> ModelEvent | None:
+    """The model call that produced the message in `history` holding `call`, whether or not its output holds `call`."""
     index = _assistant_index(call, history)
     message_id = history[index].id if index is not None else None
     if message_id is None:
         return None
     try:
-        event = transcript().history.find_last(produced_by(message_id))
+        return transcript().history.find_last(produced_by(message_id))
     except TranscriptHistoryUnavailableError:
         return None
     except Exception as ex:
         raise SentinelFailure(ex) from ex
-    if event is None or not _holds(event.output.message, call, stable=False):
+
+
+class _Turn(NamedTuple):
+    event: str | None
+    """The producing `ModelEvent`'s uuid."""
+
+    producer: Producer
+
+    stable: bool
+    """Whether the producer's message doesn't change: a snapshot, or a copy read back from the transcript's buffer."""
+
+
+def _found_producer(
+    call: ToolCall, history: list[ChatMessage], conversation: str
+) -> Producer | None:
+    """What a tool step reads of the model call found in `history` (`_producing_event`), shared by the steps of its turn.
+
+    A bounded transcript evicts the model call from memory while its turn's steps still run, and each later lookup reads back a new copy of it. So a conversation keeps its latest producer, by the event's uuid, and a step whose call that event produced gets the same producer, before and after eviction. Only a producer whose message doesn't change is kept: a snapshot output (`is_snapshot`), or a copy read back from the buffer, which nothing else holds. An output logged live is read from the event each time, as `_holds` does. The next turn's producer replaces it, so a conversation keeps at most one.
+    """
+    event = _message_event(call, history)
+    if event is None:
         return None
-    return event
+    turns = _turns.setdefault(transcript(), {})
+    turn = turns.get(conversation)
+    if turn is None or turn.event != event.uuid:
+        produced = producer_of(event)
+        assert produced is not None
+        turn = _Turn(
+            event.uuid,
+            produced,
+            stable=is_snapshot(produced.message) or not _resident(event),
+        )
+        if event.uuid is not None and turn.stable:
+            turns[conversation] = turn
+    if not _holds(turn.producer.message, call, stable=turn.stable):
+        return None
+    return turn.producer
+
+
+def _resident(event: ModelEvent) -> bool:
+    """Whether `event` is the transcript's own object, rather than a copy read back from its buffer."""
+    history = transcript().history
+    if not history.resident_events_truncated:
+        return True
+    return any(resident is event for resident in reversed(history.resident_events))
+
+
+# each conversation's latest producer, per sample (`_found_producer`)
+_turns: "WeakKeyDictionary[Transcript, dict[str, _Turn]]" = WeakKeyDictionary()
 
 
 class _HostNative:

@@ -2567,6 +2567,79 @@ def test_tools_from_an_evicted_model_call_are_resolved(
         assert step.tools == producer_tools(log, step.call.id)
 
 
+@pytest.mark.parametrize("stages", ["both", "after"])
+def test_a_turn_s_tool_steps_share_its_model_call_after_it_is_evicted(
+    stages: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A turn's tool steps share one producer when its model call is evicted after the first step (`both`) or before it (`after`, where the first step reads it back)."""
+    import inspect_ai._eval.task.run as task_run
+    from inspect_ai.log._recorders.buffer import transcript_history_provider
+
+    monkeypatch.setenv("INSPECT_TRANSCRIPT_BOUNDED", "true")
+    monkeypatch.setattr(task_run, "DEFAULT_RESIDENT_TAIL", 3)
+    provider_reads: list[int] = []
+    events_from = (
+        transcript_history_provider.BufferTranscriptHistoryProvider.events_from
+    )
+
+    def counted(self: Any, start: int, limit: int | None = None) -> Sequence[Event]:
+        provider_reads.append(start)
+        return events_from(self, start, limit)
+
+    monkeypatch.setattr(
+        transcript_history_provider.BufferTranscriptHistoryProvider,
+        "events_from",
+        counted,
+    )
+    calls = [
+        ToolCall(id=f"c{i}", function="addition", arguments={"x": i, "y": 1})
+        for i in range(8)
+    ]
+    turn = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content="", tool_calls=calls, model="mockllm/model"
+                ),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[turn, ModelOutput.from_content("mockllm/model", "done")],
+        memoize=False,
+    )
+    before: Seen = []
+    after: list[AfterToolCall] = []
+    task = Task(
+        dataset=[Sample(input="Add.")],
+        solver=[use_tools(addition()), generate()],
+        sentinel=[d3_recording(before), d3_recording_after(after)]
+        if stages == "both"
+        else [d3_recording_after(after)],
+    )
+    log = eval(task, model=model, log_dir=str(tmp_path))[0]
+    assert log.status == "success", log.error
+    # the producing model call was read back from the buffer
+    assert provider_reads
+    steps: list[BeforeToolCall | AfterToolCall] = [step for _, step in before]
+    steps.extend(after)
+    assert len(steps) == (16 if stages == "both" else 8)
+    first = steps[0]
+    assert first.assistant_message is not None
+    assert first.input is not None and first.tools is not None
+    assert [call.id for call in first.assistant_message.tool_calls or []] == [
+        call.id for call in calls
+    ]
+    for step in steps:
+        assert step.assistant_message is first.assistant_message
+        assert step.input is not None and step.tools is not None
+        assert all(a is b for a, b in zip(step.input, first.input, strict=True))
+        assert all(a is b for a, b in zip(step.tools, first.tools, strict=True))
+
+
 def test_model_input_skips_monitor_calls() -> None:
     from inspect_ai._sentinel._dispatch import _producing_event
 
