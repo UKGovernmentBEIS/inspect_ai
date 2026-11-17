@@ -10,9 +10,18 @@ from pydantic_core import to_jsonable_python
 from typing_extensions import Unpack
 
 from inspect_ai._cli.common import CommonOptions, common_options, process_common_options
+from inspect_ai._cli.log_merge_shards import merge_shards_command
 from inspect_ai._cli.util import int_or_bool_flag_callback
 from inspect_ai._util.constants import PKG_PATH
-from inspect_ai.log import EvalStatus, IncompleteAction, list_eval_logs
+from inspect_ai.log import (
+    DispositionResult,
+    EvalLog,
+    EvalStatus,
+    IncompleteAction,
+    ProvenanceData,
+    SampleSelector,
+    list_eval_logs,
+)
 from inspect_ai.log._convert import convert_eval_logs
 from inspect_ai.log._file import (
     eval_log_json_str,
@@ -530,6 +539,210 @@ def recover_command(
         if stats.failed_count > 0 and log.status == "error":
             print(f"\nTo re-run the {stats.failed_count} failed/cancelled samples:")
             print(f"  inspect eval-retry {output_path}")
+
+
+@log_command.command("exclude")
+@click.argument("log_file")
+@click.option(
+    "--sample",
+    "sample_ids",
+    multiple=True,
+    required=True,
+    help="Id of a sample to exclude (every epoch, unless --epoch is given). "
+    "Repeat for more samples.",
+)
+@click.option(
+    "--epoch",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Exclude only this epoch of each named sample.",
+)
+@click.option("--reason", type=str, required=True, help="Why the samples are excluded.")
+@click.option(
+    "--author",
+    type=str,
+    default=None,
+    help="Author of the exclusion (default: the git identity, else the user name).",
+)
+@click.option(
+    "--json",
+    "json_output",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Print the result as JSON.",
+)
+def exclude_command(
+    log_file: str,
+    sample_ids: tuple[str, ...],
+    epoch: int | None,
+    reason: str,
+    author: str | None,
+    json_output: bool,
+) -> None:
+    """Exclude samples of a finished log from its metrics.
+
+    Each score of the sample becomes an unscored NaN with the reason
+    'excluded', recording the author and reason; the earlier score stays in
+    its history. A sample with no score gets one under the log's first
+    scorer. Metrics are recomputed and LOG_FILE is rewritten in place.
+
+    The sample's transcript and error are not changed, so eval-retry still
+    re-runs an errored sample, which replaces the exclusion.
+
+    Metrics and epoch reducers must be registered in Inspect or an installed
+    package; the log's task file is not imported.
+    """
+    from inspect_ai.log._disposition import exclude_samples
+
+    _run_disposition(
+        "excluded",
+        exclude_samples,
+        log_file,
+        sample_ids,
+        epoch,
+        reason,
+        author,
+        json_output,
+    )
+
+
+@log_command.command("zero")
+@click.argument("log_file")
+@click.option(
+    "--from",
+    "empty_log",
+    required=True,
+    help="Log of an eval of the same task run with the solver "
+    "inspect_ai/empty_attempt.",
+)
+@click.option(
+    "--sample",
+    "sample_ids",
+    multiple=True,
+    required=True,
+    help="Id of a sample to zero (every epoch, unless --epoch is given). "
+    "Repeat for more samples.",
+)
+@click.option(
+    "--epoch",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Zero only this epoch of each named sample.",
+)
+@click.option("--reason", type=str, required=True, help="Why the samples are zeroed.")
+@click.option(
+    "--author",
+    type=str,
+    default=None,
+    help="Author of the zero (default: the git identity, else the user name).",
+)
+@click.option(
+    "--json",
+    "json_output",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Print the result as JSON.",
+)
+def zero_command(
+    log_file: str,
+    empty_log: str,
+    sample_ids: tuple[str, ...],
+    epoch: int | None,
+    reason: str,
+    author: str | None,
+    json_output: bool,
+) -> None:
+    """Score samples of a finished log as empty attempts.
+
+    First run the samples again with 'inspect eval TASK --solver
+    inspect_ai/empty_attempt --sample-id ID', a solver that does nothing, and
+    write that log to a log directory of its own. Then pass it with --from. Each score of its sample is copied into
+    the sample of LOG_FILE with the reason 'zeroed', recording the author and
+    reason; the earlier score stays in its history. Metrics are recomputed
+    and LOG_FILE is rewritten in place.
+
+    Only samples with string ids, and verdicts that count in metrics (a single
+    value that is not NaN), can be zeroed. Exclude other samples instead.
+
+    The sample's transcript and error are not changed, so eval-retry still
+    re-runs an errored sample, which replaces the zero.
+
+    Metrics and epoch reducers must be registered in Inspect or an installed
+    package; the log's task file is not imported.
+    """
+    from inspect_ai.log._disposition import zero_samples
+
+    empty = read_eval_log(empty_log)
+    _run_disposition(
+        "zeroed",
+        lambda log, selectors, provenance: zero_samples(
+            log, empty, selectors, provenance
+        ),
+        log_file,
+        sample_ids,
+        epoch,
+        reason,
+        author,
+        json_output,
+    )
+
+
+def _run_disposition(
+    verb: str,
+    apply: Callable[[EvalLog, list[SampleSelector], ProvenanceData], DispositionResult],
+    log_file: str,
+    sample_ids: tuple[str, ...],
+    epoch: int | None,
+    reason: str,
+    author: str | None,
+    json_output: bool,
+) -> None:
+    """Apply a disposition to LOG_FILE, write it back and print the result."""
+    from inspect_ai._cli.util import default_provenance_author
+    from inspect_ai._util.error import WriteConflictError
+    from inspect_ai.log import write_eval_log
+    from inspect_ai.log._headline import headline_metric
+
+    log = read_eval_log(log_file)
+    selectors: list[SampleSelector] = [
+        (sample_id, epoch) if epoch is not None else sample_id
+        for sample_id in sample_ids
+    ]
+    provenance = ProvenanceData(
+        author=author or default_provenance_author(), reason=reason
+    )
+    try:
+        result = apply(log, selectors, provenance)
+        if result.applied:
+            write_eval_log(log, log_file, if_match_etag=log.etag)
+    except (ValueError, LookupError, WriteConflictError) as ex:
+        raise click.ClickException(str(ex)) from ex
+
+    if json_output:
+        print(
+            dumps(
+                {
+                    "log": log_file,
+                    "applied": [list(target) for target in result.applied],
+                    "unchanged": [list(target) for target in result.unchanged],
+                },
+                indent=2,
+            )
+        )
+        return
+
+    for sample_id, sample_epoch in result.applied:
+        print(f"{verb} {sample_id} (epoch {sample_epoch})")
+    for sample_id, sample_epoch in result.unchanged:
+        print(f"unchanged {sample_id} (epoch {sample_epoch})")
+    headline = headline_metric(log)
+    if headline is not None:
+        print(f"{headline.score.name}/{headline.name}: {headline.metric.value}")
+
+
+log_command.add_command(merge_shards_command)
 
 
 _TS_MONO_APP = PKG_PATH / "_view" / "ts-mono" / "apps" / "inspect"

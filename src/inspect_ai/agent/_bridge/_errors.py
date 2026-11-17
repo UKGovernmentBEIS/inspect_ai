@@ -75,8 +75,10 @@ def provider_error_payload(ex: Exception) -> ProviderErrorPayload:
     except ImportError:
         return payload
 
+    seen: set[int] = set()
     provider_error: Exception | None = ex
-    while provider_error is not None:
+    while provider_error is not None and id(provider_error) not in seen:
+        seen.add(id(provider_error))
         if isinstance(provider_error, APIStatusError) and isinstance(
             provider_error.body, dict
         ):

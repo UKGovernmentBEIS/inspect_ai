@@ -174,7 +174,12 @@ from inspect_ai.model._internal import (
 from inspect_ai.model._retry import batch_admin_retry_config
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
-from inspect_ai.tool._mcp._remote import is_mcp_server_tool
+from inspect_ai.tool._mcp._remote import (
+    is_mcp_server_tool,
+    mcp_server_config,
+    redact_anthropic_mcp_servers,
+    redact_anthropic_sdk_debug_log,
+)
 from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
 from inspect_ai.util._json import (
     JSON_SCHEMA_EXTENDED_FIELDS,
@@ -183,7 +188,7 @@ from inspect_ai.util._json import (
 )
 
 from ..._util.httpx import httpx_classify_retry
-from .._call_tools import TOOL_CALLS_FAIL_FAST
+from .._call_tools import TOOL_CALLS_FAIL_FAST, repeated_call_ids
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -460,6 +465,8 @@ class AnthropicAPI(ModelAPI):
         computer_toolset: bool | None = None,
         **model_args: Any,
     ):
+        redact_anthropic_sdk_debug_log()
+
         # extract any service prefix from model name
         parts = model_name.split("/")
         if len(parts) > 1:
@@ -1071,7 +1078,9 @@ class AnthropicAPI(ModelAPI):
                 if container is not None:
                     request["container"] = container
 
-                model_call = set_active_model_event_call(request, model_call_filter)
+                model_call = set_active_model_event_call(
+                    redact_anthropic_mcp_servers(request), model_call_filter
+                )
 
                 # stream if the caller passed on_stream or (in auto mode) when
                 # using reasoning or >= 8192 max_tokens; an explicit streaming
@@ -2507,7 +2516,7 @@ class AnthropicAPI(ModelAPI):
         mcp_servers: list[MCPServerConfigHTTP] = []
         for tool in tools:
             if is_mcp_server_tool(tool):
-                mcp_servers.append(MCPServerConfigHTTP.model_validate(tool.options))
+                mcp_servers.append(mcp_server_config(tool))
             else:
                 standard_tools.append(tool)
         return standard_tools, mcp_servers
@@ -3858,6 +3867,7 @@ async def assistant_message_block_params(
     computer_toolset_call_ids: Collection[str] = frozenset(),
 ) -> list[MessageBlockParam]:
     block_params: list[MessageBlockParam] = []
+    derive_anthropic_recorded_functions(message)
 
     # build block params per content item ("segments") so that client tool
     # calls can be spliced back at their original interleaved positions below.
@@ -3924,11 +3934,11 @@ async def assistant_message_block_params(
     tools_by_position: dict[int, list[MessageBlockParam]] = {}
     for tool_call in message.tool_calls or []:
         position = (
-            content_len
-            if combined
-            else assistant_internal().client_tool_call_positions.get(
+            assistant_internal().client_tool_call_positions.get(
                 tool_call.id, content_len
             )
+            if not combined and _has_recorded_state(tool_call)
+            else content_len
         )
         position = min(max(position, 0), content_len)
         if tool_call.id in computer_toolset_call_ids:
@@ -4122,6 +4132,15 @@ class _AssistantInternal:
     with client tool calls in a single turn). Keyed by tool use id (like
     `tool_call_internal_names`) so it survives the agent bridge and log
     round-trip."""
+    client_tool_call_functions: dict[str, str] = field(default_factory=dict)
+    """The function each tool use id's internal name and position were recorded
+    for, keyed by tool use id.
+
+    A call to another function under the id (a filter changed the function
+    and kept the id) replays without them (`_has_recorded_state`). An id
+    restored from a checkpoint written before this was recorded has none until
+    it is derived from the message holding its call
+    (`derive_anthropic_recorded_functions`)."""
     server_mcp_tool_uses: dict[
         str, tuple[BetaMCPToolUseBlockParam, BetaRequestMCPToolResultBlockParam]
     ] = field(default_factory=dict)
@@ -4175,6 +4194,9 @@ def init_sample_anthropic_assistant_internal(value: JsonValue | None = None) -> 
     )
     internal.client_tool_call_positions.update(
         cast("dict[str, int]", value.get("client_tool_call_positions", {}))
+    )
+    internal.client_tool_call_functions.update(
+        cast("dict[str, str]", value.get("client_tool_call_functions", {}))
     )
     internal.server_mcp_tool_uses.update(
         {
@@ -4240,6 +4262,7 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
         internal.thinking_blocks
         or internal.tool_call_internal_names
         or internal.client_tool_call_positions
+        or internal.client_tool_call_functions
         or internal.server_mcp_tool_uses
         or span_table
         or internal.containers
@@ -4251,6 +4274,7 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
             "thinking_blocks": dict(internal.thinking_blocks),
             "tool_call_internal_names": dict(internal.tool_call_internal_names),
             "client_tool_call_positions": dict(internal.client_tool_call_positions),
+            "client_tool_call_functions": dict(internal.client_tool_call_functions),
             "server_mcp_tool_uses": {
                 tool_use_id: list(use_result)
                 for tool_use_id, use_result in internal.server_mcp_tool_uses.items()
@@ -4274,6 +4298,43 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
             "containers": dict(internal.containers),
         },
     )
+
+
+def derive_anthropic_recorded_functions(message: ChatMessageAssistant) -> None:
+    """Record the function of the message's calls whose name and position have none.
+
+    A checkpoint written before functions were recorded restores a tool use
+    id's internal name and position without one. They are the call's under
+    the id in the first message to hold it: an output as generated,
+    before a filter can change its calls (`derive_recorded_functions`), or the
+    earliest message of a request (`assistant_message_block_params`). An id
+    several of the message's calls to different functions share has no
+    derivable function, so its name and position are dropped.
+    """
+    internal = assistant_internal()
+    if not (internal.tool_call_internal_names or internal.client_tool_call_positions):
+        return
+    derived: dict[str, str | None] = {}
+    for call in message.tool_calls or []:
+        if call.id in internal.client_tool_call_functions or (
+            call.id not in internal.tool_call_internal_names
+            and call.id not in internal.client_tool_call_positions
+        ):
+            continue
+        if derived.setdefault(call.id, call.function) != call.function:
+            derived[call.id] = None
+    for call_id, function in derived.items():
+        if function is None:
+            forget_anthropic_tool_call(call_id)
+        else:
+            internal.client_tool_call_functions[call_id] = function
+
+
+def forget_anthropic_tool_call(call_id: str) -> None:
+    """Drop the call's internal name and position, so the call replays from itself."""
+    assistant_internal().tool_call_internal_names.pop(call_id, None)
+    assistant_internal().client_tool_call_positions.pop(call_id, None)
+    assistant_internal().client_tool_call_functions.pop(call_id, None)
 
 
 _anthropic_assistant_internal: ContextVar[_AssistantInternal] = ContextVar(
@@ -4660,6 +4721,20 @@ async def model_output_from_message(
         output_tokens = sum(
             it.get("output_tokens", 0) for it in iterations if isinstance(it, dict)
         )
+        cache_writes = [
+            it.get("cache_creation_input_tokens")
+            for it in iterations
+            if isinstance(it, dict)
+        ]
+        cache_reads = [
+            it.get("cache_read_input_tokens")
+            for it in iterations
+            if isinstance(it, dict)
+        ]
+        if any(v is not None for v in cache_writes):
+            input_tokens_cache_write = sum(v or 0 for v in cache_writes)
+        if any(v is not None for v in cache_reads):
+            input_tokens_cache_read = sum(v or 0 for v in cache_reads)
         # the first iteration read the request's input (later ones read a
         # compacted or extended version of it)
         first = next((it for it in iterations if isinstance(it, dict)), None)
@@ -5064,6 +5139,9 @@ def content_and_tool_calls_from_assistant_content_blocks(
             assistant_internal().client_tool_call_positions[content_block.id] = len(
                 content
             )
+            assistant_internal().client_tool_call_functions[content_block.id] = (
+                tool_name
+            )
             tool_calls.append(
                 ToolCall(
                     id=content_block.id,
@@ -5153,6 +5231,11 @@ def content_and_tool_calls_from_assistant_content_blocks(
     # caller and take precedence)
     if local_span_recorder:
         index_server_tool_spans(span_recorder.take_spans(include_open=True))
+
+    # an id the content repeats keeps no name or position, so no call replays
+    # another's
+    for call_id in repeated_call_ids(tool_calls or []):
+        forget_anthropic_tool_call(call_id)
 
     return content, tool_calls
 
@@ -5536,6 +5619,7 @@ async def _capture_compaction_from_stream(
     """
     compaction_content: str | None = None
     container: Container | None = None
+    iterations: Any = None
     # tool_use blocks by content index, so input_json_delta fragments can be
     # attributed to their call id / function when reported as stream deltas
     tool_blocks: dict[int, Any] = {}
@@ -5595,6 +5679,7 @@ async def _capture_compaction_from_stream(
                 report_model_stream_progress()
         elif event.type == "message_delta":
             usage = getattr(event, "usage", None)
+            iterations = getattr(usage, "iterations", None) or iterations
             report_model_stream_progress(
                 getattr(usage, "output_tokens", None) if usage is not None else None
             )
@@ -5607,6 +5692,10 @@ async def _capture_compaction_from_stream(
     if message.container is None and container is not None:
         message.container = container
 
+    # patch the usage.iterations the SDK snapshot dropped
+    if iterations is not None and getattr(message.usage, "iterations", None) is None:
+        setattr(message.usage, "iterations", iterations)
+
     # Fix up compaction blocks with captured content
     if compaction_content is not None:
         for block in message.content:
@@ -5618,7 +5707,21 @@ async def _capture_compaction_from_stream(
 
 
 def _internal_name_from_tool_call(tool_call: ToolCall) -> str | None:
+    if not _has_recorded_state(tool_call):
+        return None
     return assistant_internal().tool_call_internal_names.get(tool_call.id, None)
+
+
+def _has_recorded_state(tool_call: ToolCall) -> bool:
+    """Whether the internal name and position under the call's id are the call's.
+
+    They are when they were recorded for its function
+    (`client_tool_call_functions`). A call to another function under the id,
+    or under an id whose function is unknown, replays from itself, with its
+    own name, last in its message.
+    """
+    function = assistant_internal().client_tool_call_functions.get(tool_call.id)
+    return tool_call.type == "function" and function == tool_call.function
 
 
 def _computer_toolset_fail_fast_tools(

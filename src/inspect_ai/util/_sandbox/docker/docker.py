@@ -480,10 +480,14 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         file = self.container_file(file)
 
         # The requested user may be root, so utilities must not come from the
-        # image's PATH.
+        # image's PATH. The commands run from "/", as `read_file()`'s do: the
+        # path is absolute, and the user may be unable to enter the default
+        # working directory.
         parent = Path(file).parent.as_posix()
         if parent != ".":
-            result = await self.exec(pinned_command(["mkdir", "-p", parent]), user=user)
+            result = await self.exec(
+                pinned_command(["mkdir", "-p", parent]), cwd="/", user=user
+            )
             if not result.success:
                 raise_for_unsupported_user(result.stderr or result.stdout, user)
                 if "permission denied" in result.stderr.casefold():
@@ -496,6 +500,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             result = await self.exec(
                 pinned_shell_command('set -e\ntee -- "$1" > /dev/null', file),
                 input=contents,
+                cwd="/",
                 timeout=TIMEOUT,
                 user=user,
             )
@@ -506,6 +511,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     'set -e\nbase64 -d | tee -- "$1" > /dev/null', file
                 ),
                 input=base64_contents,
+                cwd="/",
                 timeout=TIMEOUT,
                 user=user,
             )
@@ -513,7 +519,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             raise_for_unsupported_user(result.stderr or result.stdout, user)
             if "permission denied" in result.stderr.casefold():
                 ls_result = await self.exec(
-                    pinned_command(["ls", "-la", "."]), user=user
+                    pinned_command(["ls", "-la", "--", parent]), cwd="/", user=user
                 )
                 error_string = f"Permission was denied. Error details: {result.stderr}; ls -la: {ls_result.stdout}"
                 raise PermissionError(error_string)

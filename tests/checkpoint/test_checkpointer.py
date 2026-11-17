@@ -107,7 +107,7 @@ def _fake_summary(checkpoint_id: int) -> ResticBackupSummary:
         backup_start="2026-01-01T00:00:00Z",  # type: ignore[arg-type]
         backup_end="2026-01-01T00:00:00Z",  # type: ignore[arg-type]
         total_duration=0.0,
-        snapshot_id=f"fake-snap-{checkpoint_id:05d}",
+        snapshot_id=f"{checkpoint_id:064x}",
     )
 
 
@@ -430,7 +430,7 @@ async def test_fire_emits_checkpoint_event(dirs: _Dirs) -> None:
     # Flattened checkpoint fields carry full per-repo info; with no real
     # restic the stub values from `_CountingCheckpointer._backup_host`
     # round-trip.
-    assert first.host.snapshot_id.startswith("fake-snap-")
+    assert first.host.snapshot_id == f"{1:064x}"
 
 
 async def test_fire_includes_events_emitted_before_checkpointer_construction(

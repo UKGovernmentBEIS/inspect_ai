@@ -19,7 +19,6 @@ from typing import (
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_core import to_json
 
-from inspect_ai._sentinel._context import warn_sentinel_bridged
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._agent import Agent, AgentState, agent
@@ -41,6 +40,7 @@ from inspect_ai.model._providers.providers import (
     validate_anthropic_client,
     validate_openai_client,
 )
+from inspect_ai.tool._mcp._remote import redact_anthropic_sdk_debug_log
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
@@ -434,7 +434,6 @@ async def agent_bridge(
     """
     # ensure one time init
     init_bridge_request_patch()
-    warn_sentinel_bridged()
 
     # resolve granted capabilities (in-process bridges grant by default: the
     # scaffold already shares the host's network, so withholding buys nothing)
@@ -658,6 +657,10 @@ def init_anthropic_request_patch() -> None:
         return
 
     validate_anthropic_client("agent bridge")
+
+    # the agent's own requests carry its MCP credentials, and the target model
+    # may not be Anthropic (which would otherwise install the redactor)
+    redact_anthropic_sdk_debug_log()
 
     # httpx2 deferred for the same reason as in init_openai_request_patch
     # above (it arrives transitively via anthropic >= 1)

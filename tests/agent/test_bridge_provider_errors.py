@@ -462,6 +462,16 @@ def test_provider_error_payload_handles_retry_error_with_successful_attempt() ->
     }
 
 
+@pytest.mark.timeout(10)
+def test_provider_error_payload_ends_on_a_cause_cycle() -> None:
+    outer = RuntimeError("outer")
+    inner = ValueError("inner")
+    outer.__cause__ = inner
+    inner.__cause__ = outer
+
+    assert provider_error_payload(outer) == {"status": None, "message": "outer"}
+
+
 # ---------- _forward_provider_errors (service.py) ----------
 
 
@@ -1520,7 +1530,7 @@ class _ExitedProxy:
     """A model proxy process that has already exited cleanly.
 
     Killing it lets a request held for the bridge's shutdown go on, and waits
-    for its reply to be written or, for a held reply, begun.
+    for its reply to be written or, for a judged reply, begun.
     """
 
     def __init__(self, scaffold: _Scaffold) -> None:
