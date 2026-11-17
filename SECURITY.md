@@ -47,7 +47,7 @@ When you evaluate an adversarial model, the sandbox is the security boundary. Wi
 - Capabilities you grant to an agent, such as agent bridge grants, writable host mounts, sandbox networking, or an ACP server on a non-local address.
 - Credentials you put in a sandbox yourself, for example through an agent's environment. Code in the sandbox can read them.
 - Tools you give to an in-process `agent_bridge()` agent, and methods you expose with `sandbox_service()`. These run on the host.
-- Other processes in a sandbox calling that sandbox's agent bridge, when the bridge is set up to serve them. By default it serves every process in its sandbox. Inside a `sandbox_identity()` scope it serves only that scope's user, and getting around that is in scope.
+- Other processes in a sandbox calling that sandbox's agent bridge, when the bridge is set up to serve them. By default it serves every process in its sandbox. Where a bridge is limited to one sandbox user, another user calling it is in scope.
 - A bridged agent misreporting its conversation history or tool results. Inspect does not run the agent's tools, so the transcript is the agent's own account.
 - Root, or the user Inspect's tools run as, interfering with the agent bridge inside its own sandbox, when only that sandbox's sample is affected.
 - Bypassing an agent's own permission prompts or sandboxing. Agents usually run with these turned off.
