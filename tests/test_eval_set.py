@@ -4800,6 +4800,8 @@ SHARD_NAME = f"2026-10-16T10-00-00-00-00_sharded-task_{SHARD_TASK_ID}"
 # state rather than task arguments, so every run has the same identifier
 _SHARD_RAN: list[int | str] = []
 _SHARD_FAILING: set[int | str] = set()
+# ids of extra dataset rows, appended to the sharded task's six samples
+_SHARD_EXTRA_IDS: list[int] = []
 
 
 @solver
@@ -4816,7 +4818,10 @@ def _shard_solver() -> Solver:
 @task
 def sharded_task() -> Task:
     return Task(
-        dataset=[Sample(id=i, input=f"question {i}", target="x") for i in range(1, 7)],
+        dataset=[
+            Sample(id=i, input=f"question {i}", target="x")
+            for i in [*range(1, 7), *_SHARD_EXTRA_IDS]
+        ],
         solver=_shard_solver(),
         scorer=includes(),
     )
@@ -4835,9 +4840,11 @@ def unsharded_task() -> Task:
 def shard_runs() -> Iterator[list[int | str]]:
     _SHARD_RAN.clear()
     _SHARD_FAILING.clear()
+    _SHARD_EXTRA_IDS.clear()
     yield _SHARD_RAN
     _SHARD_RAN.clear()
     _SHARD_FAILING.clear()
+    _SHARD_EXTRA_IDS.clear()
 
 
 def _shards_dir(log_dir: Path) -> Path:
@@ -5058,6 +5065,38 @@ def test_eval_set_resumes_a_shard_set_on_s3(
     assert merged.status == "started" and merged.eval.shards is not None
 
 
+@pytest.mark.parametrize("selection", [{"sample_id": [1, 2]}, {"limit": 2}])
+def test_eval_set_prefers_a_complete_merged_log_over_an_older_failed_run(
+    tmp_path: Path, shard_runs: list[int | str], selection: dict[str, Any]
+) -> None:
+    _SHARD_FAILING.add(1)
+    success, _ = _sharded_eval_set(tmp_path, retry_attempts=0, **selection)
+    assert not success
+    _SHARD_FAILING.clear()
+    _shard(tmp_path, "0", [1])
+    _shard(tmp_path, "1", [2])
+    shard_runs.clear()
+
+    success, [log] = _sharded_eval_set(tmp_path, **selection)
+
+    assert success and shard_runs == []
+    assert local_path(log.location) == str(_merged_log(tmp_path))
+
+
+def test_eval_set_reports_duplicate_ids_in_a_merged_task(
+    tmp_path: Path, shard_runs: list[int | str]
+) -> None:
+    _shard(tmp_path, "0", [1, 2, 3])
+    _shard(tmp_path, "1", [4, 5, 6])
+    success, _ = _sharded_eval_set(tmp_path)
+    assert success
+
+    _SHARD_EXTRA_IDS.append(1)
+    with pytest.raises(PrerequisiteError, match="duplicate"):
+        _sharded_eval_set(tmp_path)
+    assert shard_runs == []
+
+
 def test_eval_set_retries_a_failed_shard_set_from_its_merged_log(
     tmp_path: Path, shard_runs: list[int | str]
 ) -> None:
@@ -5225,6 +5264,25 @@ def test_eval_set_identifies_a_shard_set_from_a_later_shard(
 
     assert success and shard_runs == []
     assert log.eval.shards is not None
+
+
+def test_eval_set_reuses_its_log_where_listed_names_use_another_url_form(
+    azure_like_fs: type[Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # names are listed as azmem:// under an azmemalias:// log dir, as adlfs
+    # lists az:// and account-qualified abfss:// paths as abfs://
+    monkeypatch.setattr(azure_like_fs, "default_account", "acct")
+    log_dir = "azmemalias://container@acct/logs"
+    success, [first] = eval_set(
+        unsharded_task(), model="mockllm/model", log_dir=log_dir, display="none"
+    )
+    assert success
+
+    success, [again] = eval_set(
+        unsharded_task(), model="mockllm/model", log_dir=log_dir, display="none"
+    )
+
+    assert success and again.eval.eval_id == first.eval.eval_id
 
 
 def test_retry_cleanup_prefers_a_successful_unsharded_log_over_a_merged_log(

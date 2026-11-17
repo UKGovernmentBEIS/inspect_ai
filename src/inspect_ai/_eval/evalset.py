@@ -5,7 +5,7 @@ import hashlib
 import logging
 import os
 import threading
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from datetime import datetime
@@ -1872,7 +1872,18 @@ def list_all_eval_logs(
 
 def without_shards(log_dir: str, log_files: list[EvalLogInfo]) -> list[EvalLogInfo]:
     """The log files that are not in a shard set below `log_dir` (see `is_shard_path`)."""
-    return [info for info in log_files if not is_shard_path(log_dir, info.name)]
+    root = _listing_root(log_dir)
+    return [info for info in log_files if not is_shard_path(root, info.name)]
+
+
+def _listing_root(log_dir: str) -> str:
+    """`log_dir` in the form of the names its listing returns.
+
+    Some backends list names under another form of the directory (adlfs lists
+    `az://` and account-qualified `abfss://` paths as `abfs://`), so listed
+    names are compared with this form rather than `log_dir` as given.
+    """
+    return filesystem(log_dir).dir_as_uri(log_dir)
 
 
 def read_logs(
@@ -1937,11 +1948,12 @@ def merge_shard_sets(
             merge's exception is the cause). The other merges still running
             are cancelled.
     """
+    root = _listing_root(log_dir)
     shard_sets = sorted(
         {
             companion
             for info in log_files
-            if (companion := shard_companion(log_dir, info.name)) is not None
+            if (companion := shard_companion(root, info.name)) is not None
         }
     )
     if not shard_sets:
@@ -2164,7 +2176,22 @@ def list_latest_eval_logs(
         )
         for tid, task in all_tasks
     }
-    return one_log_per_task_identifier(complete_logs, incomplete_logs, requested)
+    merged_tids = {
+        log.task_identifier for log in latest_logs if log.header.eval.shards is not None
+    }
+    requested_ids = {
+        tid: frozenset(
+            str(id)
+            for id in selected_sample_ids(
+                task.task.dataset, limit, sample_id, task.task.name, task_names
+            )
+        )
+        for tid, task in all_tasks
+        if tid in merged_tids
+    }
+    return one_log_per_task_identifier(
+        complete_logs, incomplete_logs, requested, requested_ids
+    )
 
 
 def log_samples_complete(
@@ -2210,9 +2237,12 @@ def log_samples_complete(
         return True
 
     # a merged shard log is `success` only when it holds its recorded
-    # selection for every epoch, so the recorded ids decide
+    # selection for every epoch, so the recorded ids decide. Duplicate
+    # selected ids leave it incomplete, so the retry's unique-id check
+    # reports them (an id set cannot show them)
     if log.header.eval.shards is not None:
-        return {str(id) for id in log.header.eval.dataset.sample_ids or []} == ids
+        recorded = {str(id) for id in log.header.eval.dataset.sample_ids or []}
+        return len(ids) * epoch_count == planned and recorded == ids
     if not log.header.results:
         return False
 
@@ -2301,12 +2331,17 @@ def one_log_per_task_identifier(
     complete_logs: list[Log],
     incomplete_logs: list[Log],
     requested: dict[str, _Selection],
+    requested_ids: Mapping[str, frozenset[str]] = {},
 ) -> tuple[list[Log], list[Log]]:
     """Keep one log per task identifier.
 
     When any of a task's logs was recorded for the requested `limit` and
     `sample_id` (`requested`, keyed by task identifier), only those are
     considered, since a log for another selection can hold other samples.
+    A merged shard log records its selection as ids rather than as `limit`
+    or `sample_id`, so it counts as recorded for the requested selection
+    when its ids equal the selected ids (`requested_ids`, as strings, keyed
+    by task identifier and needed for every task with a merged log).
     Among them a log with invalidated samples is retried first (see
     `invalidate_samples()`). Otherwise the run that started most recently
     wins, complete or not: a newer incomplete log can be the failed retry of
@@ -2319,11 +2354,18 @@ def one_log_per_task_identifier(
     not chosen are left on disk.
     """
 
-    def rank(log: Log) -> tuple[bool, bool, datetime, float]:
+    def selected(log: Log) -> bool:
+        if log.header.eval.shards is not None:
+            recorded = log.header.eval.dataset.sample_ids or []
+            return frozenset(map(str, recorded)) == requested_ids[log.task_identifier]
         config = log.header.eval.config
         return (
-            _selection(config.limit, config.sample_id)
-            == requested[log.task_identifier],
+            _selection(config.limit, config.sample_id) == requested[log.task_identifier]
+        )
+
+    def rank(log: Log) -> tuple[bool, bool, datetime, float]:
+        return (
+            selected(log),
             log.header.invalidated,
             datetime.fromisoformat(
                 log.header.stats.started_at or log.header.eval.created
