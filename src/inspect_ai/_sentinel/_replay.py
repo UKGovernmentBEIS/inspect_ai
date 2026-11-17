@@ -3,6 +3,7 @@
 import logging
 import re
 from bisect import bisect_left, bisect_right
+from collections import Counter
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, replace
 from functools import partial
@@ -100,7 +101,7 @@ def steps_from_events(
 
     Inspect logs record origins on every model call or on none. If a transcript mixes calls with and without origins, recorded calls retain their recorded classification and calls without origins are inferred; continuity across that mixed sequence is not guaranteed.
 
-    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later; older or unknown versions omit them and warn once when a selected human approver appears. A `tool_call` step whose call an approver changed has no `view.context`: the `ApprovalEvent` view describes the call the approver was shown, and live renders the changed call's context again, which the log does not record. A log is refused where the call an approval approved (its modified call, else the call it records) is not the call its `ToolEvent` records, unless a recorded sentinel modify changed the call again to the one the `ToolEvent` records. Inspect before 0.3.277 wrote such logs, including for a call an approver changed in place and approved without a modified call, and they are refused whatever version the header records, since a retried eval keeps its completed samples under a newer header. This includes an approved call whose tool records other arguments than it was given, such as `memory()` resolving a path: the log does not show which implementation ran. Replay such a transcript from its messages instead. Where such a call has no recorded step and its `ToolEvent` has a parsing or approval error, it may have been refused before it ran or raised the error after running, so replay skips its tool steps with a warning naming the call instead of refusing the log. Where one model response proposes several calls under one id (Mistral names calls whose ids the model omitted `"null"`), each execution is paired with the call of its function and, where several share it, the arguments its approval, else its `ToolEvent`, records; calls of one function that differ only in their arguments are interchangeable, since the steps take their arguments from the log. Where that names no single call (a sentinel modify, whatever arguments its tool then records, that the execution has no approval for, or has one in a log before 0.3.277 or of unknown version, or calls that differ in more than their arguments), replay skips the execution's tool steps with a warning naming the call. Otherwise, where a call's check records a sentinel modify and its `ToolEvent` records other arguments than the modify gave it (a tool can rewrite them, as `memory()` resolves a path; a modify a stronger decision outranked counts too), replay skips the call's tool steps with a warning naming the call, whatever its id: the log does not show the call the sentinel was shown.
+    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later; older or unknown versions omit them and warn once when a selected human approver appears. A `tool_call` step whose call an approver changed has no `view.context`: the `ApprovalEvent` view describes the call the approver was shown, and live renders the changed call's context again, which the log does not record. A log is refused where the call an approval approved (its modified call, else the call it records) is not the call its `ToolEvent` records, unless a recorded sentinel modify changed the call again to the one the `ToolEvent` records. Inspect before 0.3.277 wrote such logs, including for a call an approver changed in place and approved without a modified call, and they are refused whatever version the header records, since a retried eval keeps its completed samples under a newer header. This includes an approved call whose tool records other arguments than it was given, such as `memory()` resolving a path: the log does not show which implementation ran. Replay such a transcript from its messages instead. Where such a call has no recorded step and its `ToolEvent` has a parsing or approval error, it may have been refused before it ran or raised the error after running, so replay skips its tool steps with a warning naming the call instead of refusing the log. Where one model response proposes several calls under one id (Mistral names calls whose ids the model omitted `"null"`), each execution is paired with the call of its function and, where several share it, the arguments its approval, else its `ToolEvent`, records; calls of one function that differ only in their arguments are interchangeable, since the steps take their arguments from the log. Where that names no single call (a sentinel modify, whatever arguments its tool then records, that the execution has no approval for, or has one in a log before 0.3.277 or of unknown version, or calls that differ in more than their arguments), replay skips the execution's tool steps with a warning naming the call. Otherwise, where a call's check records a sentinel modify and its `ToolEvent` records other arguments than the modify gave it (a tool can rewrite them, as `memory()` resolves a path; a modify a stronger decision outranked counts too), replay skips the call's tool steps with a warning naming the call, whatever its id: the log does not show the call the sentinel was shown. Where a call's check records a sentinel modify and replay has no approval it relies on (none, or one in a log before 0.3.277 or of unknown version), the log does not record the call the sentinel was shown, which the tool's validation can have changed from the model's arguments (`memory()` resolves a path, validation fills a Pydantic default): under a call id another execution also records (a shared `"null"`, a repeated id), replay skips the call's tool steps with a warning naming the call; under a unique id it builds the `tool_call` step from the model's arguments.
 
     A tool call is joined to the model call that proposed it by the id of the message its `ToolEvent` records (`call_message_id`, written since inspect_ai #6143), and a call no model call proposed (a pre-filled message) to the message holding it, by the same id. Where the id names several model calls' output (a cached output reused), a native call's producer is the latest of those model calls before the call, in the call's own conversation where they are in several. Where the event records no proposing message (an older log), or the id names no model call's output, it is the latest model call that proposed the call's id before the call (in the call's own conversation, where model calls in several conversations proposed it), a bridge's generation included.
 
@@ -718,6 +719,10 @@ class _Driver:
         # event indexes of ToolEvents whose check reports a sentinel modify
         # none of whose arguments they record (_check_unmatched_modify)
         self.unmatched_modifies: set[int] = set()
+        # event indexes of ToolEvents under an id several executions share
+        # whose checked call a sentinel modify replaced unrecorded
+        # (_check_unrecorded_check)
+        self.unrecorded_checks: set[int] = set()
         # span id -> the region holding it
         self._regions: dict[str | None, _Region] = {}
         self._span_begins: dict[str, SpanBeginEvent] | None = None
@@ -940,11 +945,15 @@ class _Driver:
             for c in calls
             if not _bridged(c.event) and c.event.execution_id is None
         }
+        executions = Counter(
+            entry.event.id for entry in calls if not _bridged(entry.event)
+        )
         for entry in calls:
             self._take_checks(entry)
             self._attribute(entry)
             self._check_modified_approval(entry)
             self._check_unmatched_modify(entry)
+            self._check_unrecorded_check(entry, executions[entry.event.id])
         if self.unattributed_calls:
             logging.getLogger(__name__).warning(
                 "Skipped the tool steps of call(s) %s: the model response proposed "
@@ -978,6 +987,20 @@ class _Driver:
                     repr(entry.event.id)
                     for entry in calls
                     if entry.index in self.unmatched_modifies
+                ),
+            )
+        if self.unrecorded_checks:
+            logging.getLogger(__name__).warning(
+                "Skipped the tool steps of call(s) %s: a sentinel modified each "
+                "under a call id other calls share, and without an approval "
+                "replay can rely on, the log cannot show the call the sentinel "
+                "was shown.",
+                ", ".join(
+                    dict.fromkeys(
+                        repr(entry.event.id)
+                        for entry in calls
+                        if entry.index in self.unrecorded_checks
+                    )
                 ),
             )
         for group in generates:
@@ -1229,6 +1252,35 @@ class _Driver:
         self._settle_at_end(call.before_span)
         self._settle_at_end(call.after_span)
 
+    def _check_unrecorded_check(self, call: _Call, executions: int) -> None:
+        """Skip a native call whose check reports a sentinel modify, under an id other executions share, unless replay relies on its approval.
+
+        The check is of the call as its tool validated it, which can differ
+        from the model's proposal (`memory()` resolves a path, validation fills
+        a Pydantic default). The modify replaces that call in the `ToolEvent`,
+        so only an approval the log can be relied on for
+        (`approval_log_reliable`) records it; otherwise `_tool_call` would build
+        the check from the proposal. Under an id another execution's
+        `ToolEvent` records too (`executions`: a provider's shared `"null"`, a
+        repeated id), the call's steps are skipped (`unrecorded_checks`).
+        Under a unique id the check is still built from the proposal, so it
+        can show the model's arguments where live showed the validated ones.
+        """
+        event = call.event
+        if (
+            executions <= 1
+            or call.proposal is None
+            or call.index in self.unverified_calls
+            or call.index in self.unmatched_modifies
+            or _bridged(event)
+            or (self.approval_log_reliable and call.approval is not None)
+            or self._sentinel_modify(call.before_span, event) is None
+        ):
+            return
+        self.unrecorded_checks.add(call.index)
+        self._settle_at_end(call.before_span)
+        self._settle_at_end(call.after_span)
+
     def _take_checks(self, call: _Call) -> None:
         """Pair a native call with its recorded checks.
 
@@ -1401,6 +1453,7 @@ class _Driver:
             or call.assistant is None
             or call.index in self.unverified_calls
             or call.index in self.unmatched_modifies
+            or call.index in self.unrecorded_checks
         ):
             return
         recorded = before_span is not None or after_span is not None
