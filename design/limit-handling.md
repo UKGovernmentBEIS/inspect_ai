@@ -22,10 +22,11 @@ and skip the sandbox bridge's refusal, as they do today.
 
 The limit nodes' own state, not the errors they raise, is the record of what
 happened. Once reached, a limit refuses every later model call in its scope.
-Under a cost limit, a call to a model with no price is refused, and a
-response that reports no usage fails its call, as any model failure does.
-Failed attempts and calls cancelled in flight are not charged, as today, so
-they can take spend past a cost limit. A limit error that reaches its owner stands. When
+Under a cost limit, a call to a model with no price of its own is refused
+before dispatch. Failed attempts, calls cancelled in flight and responses
+that report no usage are not charged, as today, so they can take spend past
+a cost limit; failing calls that report no usage is left to a separate
+design. A limit error that reaches its owner stands. When
 none does, a scope that owns limits checks them when it ends normally, and
 so does the sample, once all of its work, background cleanup included, has
 finished. So, within a running attempt, a limit error that some handler
@@ -73,7 +74,8 @@ Its edge cases all come from the same few interactions in Inspect:
   reached is not raised after it, and an unpriced model that the start-time
   check does not cover (a subagent, approver or monitor model) can be called
   without bound under a cost limit. So can a priced model whose provider
-  returns no usage.
+  returns no usage, which this design leaves to a separate one (see "Not
+  this design").
 - **Groups are reduced before they are compared.** A task group's errors
   are reduced to the first in several places before any limit-aware code
   sees them, and a sentinel wraps a limit its monitor reached in another
@@ -106,10 +108,9 @@ consumer can rely on without studying these interactions.
   than an exception.
 - A stated guarantee that a runtime can catch a sample limit, stop in an
   orderly way and re-raise it.
-- A cost limit meters every call that comes back: a model with no price is
-  refused before dispatch, and a response that reports no usage fails its
-  call. Failed attempts and cancelled calls stay uncharged,
-  as today, and that overshoot is stated.
+- A cost limit refuses a call to a model with no price before dispatch.
+  Failed attempts, cancelled calls and responses that report no usage stay
+  uncharged, as today, and that overshoot is stated.
 - A list of what inspect_swarm can then delete or simplify.
 - Keep `token_limit()`, `cost_limit()`, `turn_limit()`, `message_limit()`,
   `apply_limits()`, `run(limits=...)` and their signatures.
@@ -200,8 +201,15 @@ Errors are consumed in these places:
   N+1 generations and raises after the last one. The bridge checks turns,
   with `>`, at the start of each request
   (`src/inspect_ai/agent/_bridge/sandbox/service.py:111`).
-- The cost of a call is `model_usage_cost()` (`_model.py:3757`): `None` when
-  the called model has no cost data. Before the eval starts, and for each
+- The cost of a call is `model_usage_cost()` (`_model.py:3757-3819`). When
+  the provider reports that other models served the call
+  (`ModelAPI.served_model_usage()`), and each of them has cost data, the
+  call is priced from them before the called model's own cost data is
+  consulted (`:3786-3816`). OpenRouter reports this for routers such as
+  `openrouter/auto` (`_providers/openrouter.py:190-200`), which have no
+  entry in the model database, so a router call is priced today from its
+  serving models alone. Otherwise the cost is `None` when the called model
+  has no cost data. Before the eval starts, and for each
   task enqueued later, `resolve_model_costs()`
   (`src/inspect_ai/model/_util.py:67-98`, called at
   `src/inspect_ai/_eval/eval.py:879` and `:1352`) requires cost data for the
@@ -212,26 +220,13 @@ Errors are consumed in these places:
   `src/inspect_ai/_sentinel/_dispatch.py:416-421`). Models
   resolved later (a subagent's `get_model()`, an approver or review model
   given by name, a swarm member's model) are not covered.
-- Three providers fill in zero usage when a response reports none. Mistral's `mistral_completion_from_stream()` substitutes
-  `UsageInfo(0, 0, 0)` with a warning (`_providers/mistral.py:646-652`),
-  which `MistralAPI.generate()` converts to a `ModelUsage` (`:366-374`).
-  SageMaker's stream assembly writes a zero `usage` dictionary
-  (`_providers/sagemaker.py:790-791`) before the shared OpenAI conversion.
-  Grok converts its protobuf `usage` unconditionally
-  (`_providers/grok.py:683`), so an absent usage message reads as zeros, on
-  every route; in a stream, the SDK copies each chunk's `usage` into the
-  accumulated response, so a usage-less chunk also replaces an earlier
-  reported total with zeros. These outputs are indistinguishable from a
-  reported zero. The other
-  conversions keep a missing usage as `None` (the shared OpenAI conversion,
-  `src/inspect_ai/model/_openai.py:1206-1231`; Google,
-  `_providers/google.py:2606-2610`), or raise (Bedrock streaming,
-  `_providers/bedrock.py:1228-1233`). Google's continuations and
-  malformed-function-call retries, and the LiteLLM proxy's
-  malformed-function-call retries, sum the usage of several requests with
-  `sum_usage()`, which skips a request with none, so a call whose requests
-  reported usage only in part returns that part as its usage (see "Usage
-  summed over several requests").
+- A call whose usage is missing records nothing into token or cost
+  limits: the inner generation records usage only when `output.usage` is
+  set (`_model.py:1988`), and native compaction only when its `usage` is
+  (`:1546`). Some providers read usage a response left out as zero:
+  Mistral's streams without a usage chunk (`_providers/mistral.py:646-652`),
+  SageMaker's stream assembly (`_providers/sagemaker.py:790-791`) and Grok's
+  protobuf conversion (`_providers/grok.py:683`), which record zero.
 - `suspend_token_limit()` and `suspend_turn_limit()` stop recording *and*
   checking for their kind (`_limit.py:620-646`, `:796-820`). Cost has no
   suspension in the code read for this design; approval, review and
@@ -250,18 +245,6 @@ Errors are consumed in these places:
   `should_retry()` decides, and the retry policy has no attempt limit unless
   `max_retries` or `timeout` is set (`_model.py:2066-2081`,
   `src/inspect_ai/model/_retry.py:70-74`).
-- Several providers turn a rejection of the request into an output rather
-  than an error, with no usage: OpenAI's HTTP 400 `context_length_exceeded`
-  becomes a `model_length` output and its content-policy rejections a
-  `content_filter` output (`openai_handle_bad_request()` and
-  `openai_refusal_model_output()`, `src/inspect_ai/model/_openai.py:1666-1712`),
-  which Chat Completions and Responses return to the model wrapper
-  (`_providers/openai_completions.py:152-158`,
-  `_providers/openai_responses.py:313-320`). ReAct relies on the
-  `model_length` output to compact or truncate and retry. The same helper
-  also converts errors that arrive mid-stream
-  (`openai_handle_stream_error()`), after inference has started. Other
-  providers have their own converters (listed under "Unmetered calls").
 - `apply_limits()` catches only a bare error whose `source` is one of its
   limits (`_limit.py:181-187`).
 - `run()` returns `(state, None)` from inside its `apply_limits()` block
@@ -354,8 +337,8 @@ tokens per call, run against this branch's base):
 5. **A suspended call is invisible to the kinds it suspends.** Inside
    `suspend_token_limit()`, `suspend_turn_limit()` or `suspend_cost_limit()`
    (or `suspend_limits()`, all of them), limits of that kind neither record
-   nor check the calls made in the block, and the cost rules for unmetered
-   calls (rule 9) skip a call while cost is suspended. The `dispatch_guard()`
+   nor check the calls made in the block, and the unpriced-model refusal
+   (rule 9) skips a call while cost is suspended. The `dispatch_guard()`
    checks are skipped while token limits are suspended, as today, so
    `suspend_token_limit()` and `suspend_limits()` skip them and
    `suspend_turn_limit()` or `suspend_cost_limit()` alone does not.
@@ -375,13 +358,11 @@ tokens per call, run against this branch's base):
    outermost limit any of its requests reached (generations and host tools
    alike), refuses every later model call with it, and raises it when the
    agent has unwound.
-9. **A cost limit refuses what it cannot meter.** While a cost limit is on
-   the chain and cost is not suspended, a call to a model with no cost data
-   is refused before dispatch, and a response whose usage is missing or
-   totals zero (other than an output Inspect built from the provider's
-   rejection of the request) fails its call with a non-retryable error, as
-   any model failure does. Nothing is marked. Failed attempts and cancelled
-   calls are not charged.
+9. **A cost limit refuses an unpriced model.** While a cost limit is on the
+   chain and cost is not suspended, a call to a model with no cost data of
+   its own, a router included, is refused before dispatch. Nothing is
+   marked. Failed attempts, cancelled calls and responses that report no
+   usage are not charged, as today.
 
 Rules 3 and 7 together make node state the record of limits. The design
 does not try to carry every limit error intact through every handler that
@@ -390,9 +371,10 @@ delivery). A swallowed limit error costs time, not budget: the next call
 under the limit is refused before dispatch, and if no limit error reaches
 the owner, its exit check finds the limit. That holds within one attempt: a
 checkpoint resume keeps usage but drops the mark of a limit that refused a
-call ("Checkpoints"). An unmetered-call error (rule 9) is a model failure,
-not a limit: a handler that swallows one and calls again gets one more call
-that no limit counts ("Unmetered calls"). Where Inspect's own
+call ("Checkpoints"). An unpriced-model refusal (rule 9) is not a limit
+error, and nothing marks it: a handler that swallows one and calls the model
+again is refused again, with nothing spent ("Unpriced models"). Where
+Inspect's own
 code changes how errors
 travel (rules 4, 6 and 8), it is so that the right owner hears first, not so
 that the error survives.
@@ -505,7 +487,7 @@ def check_limits(raise_for_equal: bool = False, at_exit: bool = False) -> None:
   refused after a provider error (`_model.py:1170`).
 - `_check_limits_before_dispatch(model: Model | None = None)` (`_model.py:3689`)
   calls `check_limits(raise_for_equal=True)`, then the unpriced-model check
-  (rule 9, "Unmetered calls") when `model` is given, and then the
+  (rule 9, "Unpriced models") when `model` is given, and then the
   `dispatch_guard()` checks, which are skipped while token limits are
   suspended, as today (`_model.py:3689-3701`, rule 5). It is
   still called per attempt, after the cache lookup, so a cache hit is never
@@ -626,13 +608,18 @@ sidecar's result, run under `suspend_limits()`, so they record into and
 check no token, turn or cost limit. That includes the pre-dispatch check, so
 a reached sample cost limit does not refuse an approver's call, and a
 `cost_limit()` opened inside the suspended block is not enforced either
-(suspension wins over nested limits, as for tokens today). The rules for
-unmetered calls skip them too (rule 9): an unpriced approver, reviewer or
-monitor model is not refused, and a response without usage does not fail.
-For that exemption to hold, the start-time price check no longer requires
-prices for role models, which it cannot tell apart by use ("No price:
-refused before dispatch"). Their spend is still recorded in model and role
-usage and in the sample's reported cost.
+(suspension wins over nested limits, as for tokens today). The
+unpriced-model refusal skips them too (rule 9): an unpriced approver,
+reviewer or monitor model is not refused. For that exemption to hold, the
+start-time price check no longer requires prices for role models, which it
+cannot tell apart by use ("Unpriced models"). Their spend is still recorded
+in model and role usage and in the sample's reported cost.
+
+A consumer's own check on a node of a suspended kind is skipped with it,
+since `check_limits()` skips the node. inspect_swarm's lever closes a stop
+gate on a cost node when it stops a member; a callback already running at
+the stop can then make further calls, uncounted, until it returns or is
+cancelled ("What inspect_swarm can delete or simplify").
 
 Calls made while token limits are suspended also skip `dispatch_guard()`,
 as they do today (`_model.py:3689-3701`); approval, review and sentinel
@@ -697,12 +684,26 @@ leaves message limits active, and `generate()` checks the innermost message
 limit before dispatch (`src/inspect_ai/model/_model.py:1041-1044`,
 `src/inspect_ai/util/_limit.py:744-758`), so a monitor whose own prompt
 reaches an inherited message cap raises a message limit. It keeps today's
-handling: the wrapper turns it into a `SentinelFailure`, which in a bridge
-becomes an ordinary error reply with no kept limit, and which a native tool
+handling: the wrapper turns it into a `SentinelFailure`, which a native tool
 or the runner unwraps as today (`_sentinel_exception()`,
-`_call_tools.py:170-177`; `run.py:2913-2916`). Message limits are outside
-the chain's exit checks, so nothing records it later. This design does not
-change it.
+`_call_tools.py:170-177`; `run.py:2913-2916`). In a bridge the outcome
+depends on the request:
+
+- In a bridged generation, it becomes an ordinary error reply, with no kept
+  limit.
+- In a bridged host tool, `tool_call_error()` does not map it, so
+  `_raised()` treats it as an unexpected error, which requests sample failure
+  (`src/inspect_ai/agent/_bridge/sandbox/host_tool.py:438-453`, `:400-401`).
+  When the agent unwinds, `_error_after_unwind()` selects a requested
+  failure ahead of the kept limit (`sandbox/bridge.py:377-396`). So a
+  monitor in an in-flight host tool that reaches a message limit ends the
+  sample in an error, even when the bridge has already kept a token, cost
+  or turn limit. That is the exception guarantee 4 makes for an exit
+  decided by a non-limit error ("What a runtime can rely on"), and the
+  priority is unchanged.
+
+Message limits are outside the chain's exit checks, so nothing records the
+message limit later. This design does not change it.
 
 ### The owner's exit check
 
@@ -918,7 +919,7 @@ async def generate_forwarding_errors(json_data, headers=None):
             bridge.keep_limit(control)
             _warn_other_errors(ex)
             return {PROVIDER_ERROR_KEY: provider_error_payload(ex)}
-        ...  # refusals, response filter errors, unmetered calls: fail the sample
+        ...  # refusals, response filter errors, UnmeteredCallError: fail the sample
         ...  # other errors: unchanged
 ```
 
@@ -969,13 +970,12 @@ async def generate_forwarding_errors(json_data, headers=None):
   exit check when the solvers return, whether the limit is exceeded or was
   reached exactly by a refused request: for example a swarm that
   hard-stopped the member and then returned.
-- An unmetered call (`UnmeteredCallError`, see "Unmetered calls") in a
-  bridged generation fails the sample through `bridge.request_fail()`, as a
-  `ModelRefusalError` or `ResponseFilterError` does, so the sample fails with
-  the error's message. If a cancellation displaces that failure before it is
-  delivered, nothing records it, and a retried request to a model whose
-  responses report no usage is made and fails again: one uncounted call per
-  displaced failure ("Unmetered calls").
+- A refused unpriced model (`UnmeteredCallError`, see "Unpriced models")
+  in a bridged generation fails the sample through `bridge.request_fail()`,
+  as a `ModelRefusalError` or `ResponseFilterError` does, so the sample
+  fails with the error's message. If a cancellation displaces that failure
+  before it is delivered, nothing records it; a retried request is refused
+  again before dispatch, with nothing spent.
 
 Every bridged request and host tool runs in the bridge's service task, which
 inherits the agent's chain. So two limits reached by different requests are
@@ -1046,19 +1046,19 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    cleanup after another escaped, or when an adapter's state copy raises a
    different limit (see "What the owner can miss"). An exit decided by a non-limit error, a
    termination or an operator interrupt keeps that outcome.
-5. **A cost limit meters every call that comes back.** No model without
-   cost data is dispatched under a sample or swarm cost limit, and a
-   response whose usage is missing or zero (other than a rejection output)
-   fails its call with `UnmeteredCallError` (rule 9). The agents' spend
-   under a cost limit is therefore at most the limit, plus the calls
-   already in flight when it was reached, plus what the limit does not see:
-   one call for each time code catches a no-usage `UnmeteredCallError` and
-   calls again, failed attempts, which the retry policy bounds
-   (`max_retries`, unlimited by default), and every dispatched call that is
-   cancelled before its usage is recorded (one cancelled scope can cancel
-   several, such as a bridge's concurrent requests or a member's background
-   work). Approval, review and sentinel spend is not counted at all
-   (rule 5).
+5. **No unpriced model runs under a cost limit.** No model without cost
+   data of its own, a router included, is dispatched under a sample or
+   swarm cost limit (rule 9). The agents' spend under a cost limit is
+   therefore at most the limit, plus the calls already in flight when it was
+   reached, plus what the limit does not see: responses whose usage is
+   missing or read as zero, as today, so a priced model whose provider omits
+   usage is not bounded by a cost limit at all (a separate design covers
+   it, see "Not this design"); failed attempts, which the retry policy
+   bounds (`max_retries`, unlimited by default); and every dispatched call
+   that is cancelled before its usage is recorded (one cancelled scope can
+   cancel several, such as a bridge's concurrent requests or a member's
+   background work). Approval, review and sentinel spend is not counted at
+   all (rule 5).
 
 Guarantees 2 and 4 rest on node state, which lives for one attempt. A
 checkpoint resume restores usage but not the `_raised` mark, so a refusal at
@@ -1073,56 +1073,48 @@ Message limits are per conversation: a sample message limit reached in a
 member's own conversation (one with no message limit of its own) is raised
 there like any other foreign error, and reaches the runtime the same way.
 
-### Unmetered calls
+### Unpriced models
 
-Under a cost limit, every call that comes back must be metered (decision:
-Ransom, 2026-11-12, refusing unpriced models; scope: Ransom, 2026-11-16,
-calls that came back). Two things make such a call unmetered: the model has
-no cost data, or the provider's response reports no usage, so there is
-nothing to price. Both fail the call with one error, as any model failure
-does, and mark nothing (decision: Ransom, 2026-11-17). Neither applies while
-cost is suspended (rule 5), so approval, review and sentinel calls are
-exempt.
+Under a cost limit, a call to a model with no cost data is refused before
+dispatch (decision: Ransom, 2026-11-12), with one error and no mark
+(decision: Ransom, 2026-11-17). The refusal does not apply while cost is
+suspended (rule 5), so approval, review and sentinel calls are exempt.
 
-Calls that do not come back are not charged, as today: an attempt that
-fails (an error response, a timeout, a connection reset, an empty stream)
-and a call cancelled in flight (decision: Ransom, 2026-11-16). A provider
-may still bill some of them. Spend under a cost limit can therefore exceed
-it by the cost of failed attempts, which Inspect retries up to
-`max_retries` (unlimited by default) and `timeout`, and by the cost of every
-dispatched call that is cancelled before its usage is recorded; one
-cancelled scope can cancel several calls at once (the bridge's sandbox
-service runs one task per pending request,
-`src/inspect_ai/util/_sandbox/service.py:441-449`). The retry policy is the
-only bound on failed attempts.
+**What a cost limit does not see.** These calls are not charged, as today:
+
+- An attempt that fails (an error response, a timeout, a connection reset,
+  an empty stream), and a call cancelled in flight (decision: Ransom,
+  2026-11-16). A provider may still bill some of them. Inspect retries
+  failed attempts up to `max_retries` (unlimited by default) and `timeout`,
+  the only bound on them. One cancelled scope can cancel several dispatched
+  calls at once (the bridge's sandbox service runs one task per pending
+  request, `src/inspect_ai/util/_sandbox/service.py:441-449`).
+- A response whose usage is missing, or which the provider's conversion
+  reads as zero ("Current behaviour"). A priced model whose provider omits
+  usage is therefore unmetered under a cost limit, as today. Failing such
+  calls is the subject of a separate design ("Not this design").
 
 **The error.** `UnmeteredCallError(PrerequisiteError)`, a private error
-defined in `_limit.py` beside the cost limit. Its message says which case
-it is and what to do:
+defined in `_limit.py` beside the cost limit. Its message names the model
+and how to price it: "cost_limit requires cost data for every model called
+under it. No cost data for '<model>'. Use set_model_cost() or
+--model-cost-config to configure pricing." For a model not in the model
+database the last sentence is the one `model_usage_cost()` already uses:
+"It is not in the model database, so use set_model_info() with a ModelInfo
+that includes cost." `resolve_model_costs()`
+(`src/inspect_ai/model/_util.py:67-98`) and this error share one helper for
+this text.
 
-- no price: "cost_limit requires cost data for every model called under it.
-  No cost data for '<model>'. Use set_model_cost() or --model-cost-config to
-  configure pricing." For a model not in the model database the last
-  sentence is the one `model_usage_cost()` already uses: "It is not in the
-  model database, so use set_model_info() with a ModelInfo that includes
-  cost." `resolve_model_costs()` (`src/inspect_ai/model/_util.py:67-98`)
-  and this error share one helper for this text.
-- no usage: "cost_limit requires usage from every call made under it.
-  '<model>' returned no token usage, so the cost of the call is unknown."
-
-It is never retried: `Model.should_retry()` (`_model.py:2066`) returns
-`False` for it before any other test, so a provider's `should_retry()` never
-sees it. Nor is it recovered as a sentinel sidecar's refusal: the attempt's
-`except` handler (`_model.py:1865-1880`) first offers an error to
-`refused_output()`, which asks `_would_retry()` (`:2591-2598`, which calls
-the provider's classifier directly) and can replace the error with the
-sidecar's withheld turn or an empty output, and the outer handler
-(`:1158-1165`) offers it to `refusal_after_error()` the same way. Both
-handlers re-raise an `UnmeteredCallError` before either lookup (the attempt
-handler completes the `ModelEvent` with the error first, as for an
-uncaught provider exception), and `_would_retry()` returns `False` for it
-without consulting the provider. A genuine provider error keeps today's
-refusal recovery and billed-usage accounting. It is not a `LimitExceededError`, so no limit owner catches it.
+It is raised before the attempt's request is sent, so nothing is spent. It
+is never retried: `Model.should_retry()` (`_model.py:2066`) returns `False`
+for it before any other test, so a provider's classifier never sees it. A
+sentinel sidecar does not recover it as a refusal: each generate attempt
+first forgets the sidecar's record of the previous attempt
+(`begin_attempt()`, `_model.py:1685`;
+`src/inspect_ai/_sentinel/_sidecar/_received.py:98-105`), and
+`refused_output()` and `refusal_after_error()` ask nothing of an attempt
+whose request was not sent (`src/inspect_ai/_sentinel/_sidecar/_act.py:76`,
+`:97`). It is not a `LimitExceededError`, so no limit owner catches it.
 When it reaches the sample runner the sample fails with it, as a sample
 error. Native tools do not map it (`tool_call_error()` returns `None` for
 it), and a bridged host tool treats it as an unexpected error, which fails
@@ -1130,27 +1122,39 @@ the sample (`host_tool.py:450-452`); a bridged generation fails the sample
 with it through `bridge.request_fail()` (see "The sandbox bridge").
 
 Nothing is marked, so the cost limit is not reached by the error. Code that
-catches it and calls again (a compaction fallback, a hook that logs and
-continues, a first-error reduction, a cancelled bridge delivery) makes
-another call: a call to an unpriced model is refused again before dispatch,
-with nothing spent, and a call whose response reports no usage is made and
-fails again. So each catch of a no-usage error costs one call that no
-limit counts.
+catches it and calls the same model again (a compaction fallback, a hook
+that logs and continues, a first-error reduction) is refused again before
+dispatch, with nothing spent.
 
-**No price: refused before dispatch.**
+**When.** In `_check_limits_before_dispatch(model)`, after the limit check
+and before the guards: if cost is not suspended, any cost node on the chain
+has a limit (not `None`), and `_get_model_info_direct(model)` has no
+`cost`, it raises. This is the start-time check's test
+(`resolve_model_costs()`), applied to each call. It is not
+`model_usage_cost()`'s test, which can price a call from its serving models
+when the called model has no cost data ("Current behaviour"); the
+difference matters only for a model with no price of its own whose
+provider reports the models that served it, such as a router (below). The check runs per attempt,
+for `generate()` and native compaction, for agent and subagent models;
+approver, reviewer and monitor models are exempt, because their calls run
+with cost suspended.
 
-- **When.** In `_check_limits_before_dispatch(model)`, after the limit check
-  and before the guards: if cost is not suspended, any cost node on the
-  chain has a limit (not `None`), and `_get_model_info_direct(model)` has no
-  `cost`, it raises. This is the same lookup and the same test as
-  `model_usage_cost()`'s "called model has no cost data" case and as the
-  start-time check. It runs per attempt, for `generate()` and native
-  compaction, for agent and subagent models; approver, reviewer and monitor
-  models are exempt, because their calls run with cost suspended.
 - **Not refused.** A cache hit (no dispatch). A priced model whose provider
   reports that an unpriced model served the call: that call is priced at the
   called model's rates with a warning, as today. A model with cost data of
   zero.
+- **Routers need their own price.** A router such as `openrouter/auto` has
+  no cost data of its own; today its calls are priced from the models
+  OpenRouter reports served them. Under an active, unsuspended cost limit,
+  a router without its own price is now refused before dispatch, like any
+  model without cost data (decision: Ransom, 2026-11-17), as the
+  start-time check already refuses it as a task model. Giving the router a
+  price admits it: `set_model_cost()` or `--model-cost-config` for a router
+  the model database knows, or `set_model_info()` with a `ModelInfo` that
+  includes cost for one it does not, such as `openrouter/auto`. Its calls are still priced from their
+  serving models when those have cost data, and the router's own price is
+  the fallback `model_usage_cost()` uses when a serving model has none.
+  Without a cost limit, or with cost suspended, nothing changes.
 - **At start.** `resolve_model_costs()` keeps requiring cost data for the
   task's own model, which the sample's agent calls by default, so the
   common misconfiguration still fails before any sample runs. It no longer
@@ -1162,221 +1166,6 @@ limit counts.
   model called by an agent, unsuspended, under the cost limit is refused at
   that call by the per-dispatch check above. A role cannot be exempted by
   name either, since any code can resolve any role.
-
-**No usage: the call fails.** `ModelOutput.usage` is optional
-(`src/inspect_ai/model/_model_output.py:286`), and a provider can omit it,
-or fill in zeros when a response reports none ("Current behaviour"). Today
-the inner generation records nothing when `output.usage` is `None`
-(`_model.py:1988`), and native compaction records nothing when its `usage`
-is `None` (`_model.py:1546`), so such calls never advance a cost limit, and
-a priced model that never reports usage can be called without bound under
-one.
-
-A real successful call always reports at least one input token, so usage
-that is missing or totals zero means the provider did not report it. One
-helper states the test:
-
-```python
-def require_reported_usage(usage: ModelUsage | None, model: str) -> None:
-    """Raise UnmeteredCallError when a cost limit needs usage the call did not report."""
-    if cost_limit_tree.is_suspended() or not _active_cost_limit():
-        return
-    if usage is None or (
-        usage.input_tokens
-        + usage.output_tokens
-        + (usage.input_tokens_cache_read or 0)
-        + (usage.input_tokens_cache_write or 0)
-    ) <= 0:
-        raise UnmeteredCallError(...)  # the no-usage message
-```
-
-`_active_cost_limit()` is true when a cost node on the chain has a limit
-that is not `None`. Without an active cost limit nothing changes, and usage
-of zero is recorded as zero, as today. The helper runs in two places in
-`Model`, inside the attempt so that a failure is handled like any other
-model failure (its `ModelEvent` completes with the error, `_model.py:1866`,
-and no usage is recorded):
-
-- in `generate()`, after `self.api.generate()` returns and its timeouts are
-  checked (`_model.py:1850-1864`), on the output's usage unless the output
-  is a rejection output (below);
-- in native compaction's `_compact()`, after `self.api.compact()` returns
-  (`_model.py:1531-1532`), on the returned usage.
-
-A cache hit is not dispatched and not checked. The billed usage of a
-sentinel-sidecar refusal (`_model.py:1170`) is recorded only when the
-sidecar reports it, as today; that path follows a provider error, not a
-successful response, and is left as is.
-
-**Usage summed over several requests.** Some providers make several billed
-requests for one call and return the sum of their usage with `sum_usage()`
-(`src/inspect_ai/model/_model_output.py:485-497`), which skips a request
-that reported none, so the sum can be non-zero although one request
-reported nothing. Three paths do this for successful responses:
-
-- **Google** continuations and malformed-function-call retries:
-  `_ContinuationChain.add()` sums each response's usage
-  (`_providers/google.py:254-258`), and the output carries the chain's sum
-  (`:943-949`).
-- **The LiteLLM proxy's** malformed-function-call retries add the usage of
-  each discarded attempt to the final output's
-  (`_providers/litellm_proxy.py:961`, `:970`).
-- **Anthropic** continuations (`pause_turn` and other continued turns):
-  `_perform_request_and_continuations()` passes the head response and each
-  continuation leg through `chain.add()` (`_providers/anthropic.py:1368`),
-  and `_ContinuationChain.add()` sums their usage (`:355-358`). The SDK's
-  `message.usage` is required but its counts can be zero, and the
-  converter keeps those zeros, so a zero leg summed with a positive one
-  passes a check on the sum.
-
-Each applies the same test to every successful request before it sums
-(decision: Ransom, 2026-11-17). Google checks at the sites where a request
-is known to have completed, not in `_ContinuationChain.add()`, because its
-streaming path also adds records for interrupted hops (below):
-
-- In `_generate_with_continuations()` (non-streaming), every response is a
-  completed request, so it calls `require_reported_usage()` on the
-  response's converted usage before `chain.add(response)`
-  (`_providers/google.py:997-998`).
-- In `_stream_with_continuations()`, it calls it before
-  `chain.add(response)` (`:1063-1064`) only when the hop's stream ended
-  without an error and with a finish reason (`error is None and
-  leg.finished`): a completed `CONTINUATION` hop or the final response.
-  A hop that the SDK is recovering is not checked: a stream that raised a
-  transport error, or ended early without a finish reason, after which
-  `state.end_hop(error)` resumes from the last checkpoint or start token
-  (`:1037-1065`), including a hop that carried a continuation marker before
-  its transport error. `_StreamedLeg.response()` and `_cut_off_usage()`
-  (`:362-430`) build such a record from whatever was received, and its
-  usage can be absent or zero; it is still added to the chain and its
-  reported part summed, as today. These hops are failed attempts the SDK
-  recovers, which are not charged beyond what they reported (as for any
-  failed attempt), and the common check still requires the call's
-  final summed usage to be positive.
-
-The proxy calls it on each attempt's output usage before adding it
-to `discarded_usage` and on the final output unless that is a rejection
-output, and Anthropic calls it on each leg's output usage before
-`chain.add()` (`anthropic.py:1368`).
-
-A converted error that returns an output after earlier legs needs its own
-check, because the accumulated usage is attached to it before the common
-check sees it. Anthropic's converted errors go through `chain.report()`,
-not `chain.add()`, and `report()` replaces the output's usage with the
-earlier legs' total (`anthropic.py:381`); Google's handled-error branch
-does the same with `chain.usage` (below). So a mid-stream content-filter
-error in a continuation after a positive `pause_turn` leg would come back
-with that leg's positive usage and pass. At each such return site
-(Anthropic's three conversion branches, `anthropic.py:1112-1135`, and
-Google's `handle_client_error()` branch, `google.py:905-914`), an output
-whose `_rejection` is not set is checked on its own usage with
-`require_reported_usage()` before the accumulated usage is attached; a
-converted stream error has none, so under an active, unsuspended cost limit
-it fails. A labelled rejection is not checked there, and returns carrying
-the earlier legs' usage as specified. The error raised at any of these
-sites leaves the provider's `generate()` and is
-handled by `Model` as above, so the call fails and none of its requests are
-charged, as for any failed attempt. The check has the same gating
-everywhere: it does nothing without an active cost limit or while cost is
-suspended. `sum_usage()` itself is unchanged.
-
-Google's converted-error return must carry the usage of every response
-that completed. Today it takes `attempts_usage` and
-`attempts_input_context_tokens`, which advance only when a whole continued
-attempt returns (`google.py:870-874`, `:905-914`), so the legs of a
-continuation in progress are dropped: a continuation leg that reported 42
-tokens followed by a context-length 400 returns `usage=None`, and the
-rejection exemption means nothing counts it. The handled-error branch
-instead sets `handled.usage = chain.usage` and
-`handled.input_context_tokens = chain.input_context_tokens` (the first
-request's input size); `attempts_usage` and `attempts_input_context_tokens`
-go. Google's batch route makes no continuations (`google.py:1000-1003`).
-Raised failures and cancellations are unchanged: they return no output, as
-for any failed attempt. Anthropic's continuation chain already reports its
-accumulated usage on a converted-error return (`chain.report()`,
-`anthropic.py:1112-1135`), and the LiteLLM proxy sums each discarded
-attempt before retrying, so neither drops completed responses.
-
-**Grok streams keep their last reported usage.** Grok converts its
-protobuf `usage` unconditionally (`_providers/grok.py:683`), and in a
-stream the SDK's `Response.process_chunk()` copies every chunk's `usage`
-into the accumulated response (`CopyFrom(chunk.usage)`, xai-sdk), so a
-usage-less tail chunk overwrites an earlier reported total with zeros,
-which the check above would turn into a false failure. The stream loop
-(`grok.py:405-415`) keeps its own copy of the usage of the last raw chunk
-with `chunk.proto.HasField("usage")`, and passes it to the conversion:
-`_model_output_from_response(response, tools, usage: SamplingUsage | None
-= None)` uses it in place of `response.usage` when given. A stream with no
-reported usage converts to zero usage, as today, and fails the check under a
-cost limit. The unary, structured and batch routes are unchanged: an absent
-usage there reads as zeros and fails the check. The logged response
-(`MessageToDict(chat_response._proto)`) is unchanged.
-
-**Rejection outputs are exempt.** Several providers return the provider's
-rejection of a request as an output with no usage (see "Current
-behaviour"), and ReAct needs OpenAI's `model_length` output to compact or
-truncate and retry. Such an output was built by Inspect from an error
-response received in place of a completion, so no inference ran. The stop
-reason alone does not show that: `model_length` and `content_filter` also
-end outputs after inference or mid-stream. So the provenance travels with
-the output:
-
-- `ModelOutput` gains a private attribute, `_rejection: bool =
-  PrivateAttr(default=False)`, which is not serialized, so logs, the cache
-  and the viewer's types are unchanged; `model_copy()` keeps it.
-  `rejection_output(output) -> ModelOutput` (in `_model_output.py`) sets it
-  and returns the output.
-- `rejection_output()` is applied only to an output built from an error
-  *response* to the request: an HTTP status error, or a gRPC or Bedrock
-  error code, received before any output. An output built from a
-  mid-stream failure, after the provider started responding, is not
-  tagged. The decision is made at each entry path, where the error's
-  origin is known, not once per converter, because several converters
-  serve both:
-  - The shared OpenAI converter `openai_handle_bad_request()` applies it
-    when its exception is an `APIStatusError` (a status response), and not
-    for the status-less `APIError` that `openai_handle_stream_error()`
-    passes it for a mid-stream failure.
-  - Anthropic: the `BadRequestError` branch (`anthropic.py:1112-1116`, a
-    real HTTP 400 such as a context overflow) and the HTTP 413 branch
-    (`:1118-1126`) tag their outputs, so ReAct's overflow recovery keeps
-    working under a cost limit. The plain-`APIStatusError` branch that
-    routes a mid-stream content-filter error to `handle_bad_request()`
-    (`:1128-1135`) does not. The origin cannot be read from the exception
-    afterwards: `_normalize_stream_error()` (`:5463-5498`, called at
-    `:1090` and `:2098`) rewrites a stream's 200 to the status the error
-    type implies, which can be 400 or 413. So when it rewrites a 200, it
-    records the exception as stream-origin (a private
-    `_inspect_stream_error = True` attribute on the exception it returns),
-    and the three branches tag only an exception without that mark.
-  - Groq: `GroqAPI.generate()` tags the output of `handle_bad_request()`
-    when it converts an `APIStatusError` (`groq.py:379-380`), and not when
-    it converts the plain `APIError` of an error delivered in the stream
-    body (`:381-390`).
-  - The other converters listed below are classified the same way at each
-    of their call sites.
-- The check skips an output whose `_rejection` is set. Every other output
-  with missing or zero usage fails, including a rejection-shaped output from
-  a converter that has not been classified, which fails closed. Requests
-  summed into a rejection output (Google's earlier legs, the proxy's
-  earlier attempts) were each checked before they were summed.
-
-The converters to classify, from a survey of the providers: the shared
-OpenAI converter (`_openai.py:1666-1712`, used by Chat Completions,
-Responses and the OpenAI-compatible providers), `anthropic.py:1120` (the 413
-too-large response) and `:2206` (`handle_bad_request`), `azureai.py:544`,
-`bedrock.py:933`, `cloudflare.py:82`, `deepseek.py:116`, `google.py:1454`,
-`grok.py:550` and `:563`, `groq.py:545`, `mistral.py:438`, `moonshot.py:174`,
-`openai_compatible.py:586`, `sglang.py:284`, `together.py:145`,
-`vllm.py:699`, and the LiteLLM proxy's `litellm_error_model_output()`
-(`_litellm_proxy_errors.py:65`, `:73`, called from `litellm_proxy.py:1193`),
-all under `src/inspect_ai/model/_providers/`. Each builds its output from an
-error raised for the request; the implementation tags, at each call site,
-only the conversions of an error received before any output, and leaves
-every stream-origin conversion untagged. Each provider with a shared
-converter gets a paired test under an active cost limit: its HTTP
-rejection returns the output, and the same condition delivered mid-stream
-fails with `UnmeteredCallError`.
 
 After a call, the check runs for every call (rule 2), so a call with no cost
 made outside any cost limit still checks token and turn limits.
@@ -1440,26 +1229,46 @@ each of these interactions as a case of its own. Under the rules above they beco
   (`_runner.py:414-416`). It could use `outermost_limit()` (private, so on
   the same terms as the swarm's other internals).
 
-What the swarm must change: its `_SwarmTurnNode._check_self()` takes the new
-`raise_for_equal` argument. Its other overrides (`record()`, the token and
-cost `_check_self()`, the message `check()`) are called as today, through
-`_check_marked()`. A member whose model has no cost data, or whose provider
-returns no usage, under a swarm cost node now fails that call with
-`UnmeteredCallError` (rule 9), so the swarm needs pricing and usage for
-every member model wherever it uses cost nodes. The error is not a limit,
-so it does not reach a cap. Uncaught, it fails the swarm: the member's
-foreground classification treats it as a foreign error and calls the
-member's fatal callback (`_member.py:662-688`), and
-`MemberBackground._run()` contains only selected limit errors, so a
-background one takes its fatal branch and is re-raised into the owning task
-group (`_background.py:138-147`); the controller's fatal callback marks the
-swarm failed (`_controller/_control.py:649`, `:1214-1215`). The one
-uncounted call per catch applies only where agent or user code catches the
-error and calls again. Approver, reviewer and monitor
-spend no longer counts toward its cost caps or shares (rule 5), so a swarm
-ledger that compares spend to caps must take that spend from model or role
-usage. Its per-member `background_target` is what the guarantees'
-prerequisite asks for, so it keeps it.
+What the swarm must change:
+
+- **The turn override.** Its `SwarmTurnNode._check_self()`
+  (`inspect_swarm/src/inspect_swarm/_budget.py:606`) takes the new
+  `raise_for_equal` argument, before or with the Inspect change that passes
+  it (implementation plan, step 1). Its other overrides (`record()`, the
+  token and cost `_check_self()`, the message `check()`) are called as
+  today, through `_check_marked()`.
+- **Pricing.** A member whose model has no cost data of its own (a router
+  included) under a swarm cost node now has that call refused with
+  `UnmeteredCallError` (rule 9), so the swarm needs a price for every
+  member model wherever it uses cost nodes. The error is not a limit, so it
+  does not reach a cap. Uncaught, it fails the swarm: the member's
+  foreground classification treats it as a foreign error and calls the
+  member's fatal callback (`_member.py:662-688`), and
+  `MemberBackground._run()` contains only selected limit errors, so a
+  background one takes its fatal branch and is re-raised into the owning
+  task group (`_background.py:138-147`); the controller's fatal callback
+  marks the swarm failed (`_controller/_control.py:649`, `:1214-1215`).
+- **Policy spend.** Approver, reviewer and monitor spend no longer counts
+  toward its cost caps or shares (rule 5), so a swarm ledger that compares
+  spend to caps must take that spend from model or role usage.
+- **The lever's stop gate and running callbacks.** When the swarm stops a
+  member, its lever closes a stop gate on its cost node, whose
+  `_check_self()` then raises on every check
+  (`inspect_swarm/src/inspect_swarm/_budget.py:530-536`). Today Inspect
+  checks cost before every dispatch even while token metering is
+  suspended, so an approval or review callback running when the stop
+  arrives can finish its dispatched call but cannot start another, which
+  inspect_swarm's `design/swarm-limits.md` promises. Under rule 5 those
+  callbacks run with cost suspended, and `check_limits()` skips suspended
+  cost nodes, the gate included. A callback already running when a member
+  stops may therefore make further model calls until it returns or is
+  cancelled, and those calls count against no limit (decision: Ransom,
+  2026-11-17). Every unsuspended call still meets the gate. The swarm's
+  design drops its promise that a callback cannot start another call after
+  the stop.
+
+Its per-member `background_target` is what the guarantees' prerequisite
+asks for, so it keeps it.
 
 ## Alternatives considered
 
@@ -1539,21 +1348,36 @@ other roles, but a role's name does not say how it is used, and any code
 can resolve any role. The per-dispatch check decides by the call's own
 suspension instead.
 
-**Mark the cost limit when a call cannot be metered.** A durable
+**Mark the cost limit when a call cannot be priced.** A durable
 "unmetered" mark on every cost limit the call ran under would refuse every
 later call, so a handler that swallows the error gains nothing. It needed a
 mark that every check honours, a notification so a swarm cap stops at once,
-rules for a marked limit set to `None`, and caveats for checkpoints, and
-each review found another provider path that reported missing usage as
-zero or summed it away. Failing the call, like any model failure, and
-treating zero usage as unreported costs one uncounted call each time code
-catches the error and calls again (decision: Ransom, 2026-11-17).
+rules for a marked limit set to `None`, and caveats for checkpoints. An
+unpriced call is refused before dispatch with nothing spent, so a handler
+that swallows the refusal and calls again is refused again; no mark is
+needed (decision: Ransom, 2026-11-17).
 
-**Charge usage summed over several requests as reported.** Google's
-continuations and the proxy's retries would return whatever their sum says.
-A request that reported nothing would then be uncounted inside a sum that
-looks complete, so each successful request is checked before it is summed
-instead (decision: Ransom, 2026-11-17).
+**Admit a router priced by its serving models.** Keeping `openrouter/auto`
+callable under a cost limit with serving-model prices only would need a
+check before dispatch that predicts whether the model that will serve the
+call is priced; a serving model with no cost data would leave the call
+unmetered. A router needs its own price, the same test the start-time
+check applies (decision: Ransom, 2026-11-17).
+
+**Keep the swarm's stop gate for suspended calls.** A swarm-owned gate
+checked outside the suspended kinds would keep inspect_swarm's promise that
+a callback running at a member's stop starts no further call. It would add
+a check that suspension does not cover, a separate path of the kind rule 5
+removes. Callbacks running at the stop may continue until they return or
+are cancelled (decision: Ransom, 2026-11-17).
+
+**Fail calls that report no usage in this design.** A response whose usage
+is missing or zero would fail its call, so a cost limit would bound every
+call that comes back. Each review of it found another provider path that
+reports missing usage as zero, sums it away, or converts a mid-stream
+failure into an output, and it changes how safety blocks end samples. It
+moves to its own design (decision: Ransom, 2026-11-17; see "Not this
+design").
 
 **Route background work to the `run()` that started it.** Every
 `background()` call would need an owner per limit scope, which changes the
@@ -1625,9 +1449,15 @@ documented. Behaviour changes:
   Their spend is still in model and role usage and the sample's reported
   cost, which can therefore exceed the configured cost limit. An unpriced
   approver, reviewer or monitor model under a cost limit is not refused,
-  and their responses without usage do not fail. As today, they still skip
-  the bridge's guard, so they run for requests already in flight after the
-  bridge keeps a limit.
+  As today, they still skip the bridge's guard, so they run for requests
+  already in flight after the bridge keeps a limit.
+- **inspect_swarm's stop gate no longer stops running callbacks.** An
+  approval or review callback already running when the swarm stops its
+  member can make further model calls until it returns or is cancelled,
+  where today the lever's stop gate refuses them; those calls count against
+  no limit. inspect_swarm's design drops its promise that a callback cannot
+  start another call after the stop ("What inspect_swarm can delete or
+  simplify").
 - **Unpriced models under a cost limit fail.** A call to a model with no
   cost data, made while a sample, agent or swarm cost limit is active, is
   refused before dispatch with an `UnmeteredCallError` (a
@@ -1635,12 +1465,23 @@ documented. Behaviour changes:
   fails with that error unless something swallows it; every later call to
   that model is refused the same way. Evals that
   pass today with a cost limit and a subagent or agent that resolves an
-  unpriced model now fail on that model's first call; approver, reviewer
+  unpriced model, a router included, now fail on that model's first call;
+  approver, reviewer
   and monitor models are exempt. The fix is to give the model a price with
   `set_model_cost()` or `--model-cost-config` (or `set_model_info()` for a
   model not in the database). Evals with no cost limit, and cache hits, are
   unaffected. Unpriced calls outside a cost limit now also raise a reached
   token or turn limit after they return, like any call.
+- **Routers need their own price under a cost limit.** A router such as
+  `openrouter/auto`, whose calls are priced today from the models that
+  served them, is refused before dispatch under an active, unsuspended
+  cost limit unless the router itself has cost data. Configure it with
+  `set_model_cost()` or `--model-cost-config`, or `set_model_info()` with a
+  `ModelInfo` that includes cost for a router not in the model database
+  (`openrouter/auto` is not). Calls are still priced from their serving
+  models where those are priced; the router's price is the fallback
+  `model_usage_cost()` uses when a serving model has none. A router as the
+  task model already fails at start today.
 - **Unpriced role models fail per call, not at start.** Today an eval with
   a cost limit and an unpriced model-role model fails before any sample
   runs, with a `PrerequisiteError` from `resolve_model_costs()`, at eval
@@ -1656,56 +1497,12 @@ documented. Behaviour changes:
   `max_retries` (unlimited by default) and `timeout` as the only bound on
   failed attempts, and by the cost of every dispatched call cancelled
   before its usage is recorded (one cancelled scope can cancel several).
-- **Calls with no usage under a cost limit fail.** A provider response
-  whose usage is missing or totals zero, under an active cost limit, now
-  fails the call with a non-retryable `UnmeteredCallError`, as a model
-  failure: its `ModelEvent` completes with the error and no usage is
-  recorded. This affects OpenAI-compatible servers and native-compaction
-  providers that omit usage, providers that fill in zeros (Mistral and
-  SageMaker streams without a usage chunk, Grok responses without a usage
-  message), and test models scripted to return none or zero (`mockllm`
-  fills in usage by default). Google and Anthropic calls whose continuation
-  (or Google malformed-function-call retry) got such a response, and
-  LiteLLM proxy calls whose malformed-function-call retries did, fail the
-  same way, whatever order the zero and positive responses came in, and
-  none of their requests are charged. A Google stream hop that drops or ends
-  early and that the SDK resumes is not such a response: it recovers as
-  today. Outputs Inspect builds from a
-  provider's rejection of the request (OpenAI's context-length 400, and the
-  other converters under "Unmetered calls") are exempt, so ReAct's overflow
-  compaction and truncation work as today. Without a cost limit nothing
-  changes. Fallback handlers that catch every exception (ReAct's overflow
-  recovery, `CompactionAuto`'s native-to-summary fallback) are unchanged:
-  one that catches the error and calls again makes one more call that no
-  limit counts.
-- **OpenAI safety blocks delivered after inference fail under a cost
-  limit.** OpenAI can deliver a safeguard or content-filter block (such as
-  `cyber_policy` or `content_policy_violation`) after inference started:
-  as an error event in a stream, or, on the Responses API, as a terminal
-  `model_response.error` on an ordinary, background-polled or batch
-  response, which the provider raises as `OpenAIResponseError`
-  (`src/inspect_ai/model/_providers/openai_responses.py:254-282`).
-  `openai_handle_stream_error()` (`src/inspect_ai/model/_openai.py:1715-1737`,
-  called at `openai_responses.py:321-329`) converts both into a
-  `content_filter` output with no usage. That is not the `APIStatusError`
-  path that labels rejection outputs, so under a cost limit the call now
-  fails with `UnmeteredCallError`, which fails the sample unless something
-  catches it; today the agent receives the `content_filter` output and can
-  continue. Cyber evals, which meet OpenAI's safety blocks often, run with
-  a cost limit will see such samples end in an error instead of a refusal
-  turn, with or without streaming. Only a block that arrives as an HTTP
-  status error (a 400 before any output) is a labelled rejection and stays
-  exempt. Without a cost limit nothing changes.
-- **Grok streams keep their last reported usage.** A Grok stream whose last
-  chunks carry no usage now reports the last usage it received, where today
-  it ends at zero.
-- **Google rejections during a continuation keep the completed usage.** A
-  Google call whose continuation is rejected (for example a context-length
-  400 after a continuation leg) now returns the usage of every response
-  that completed before the rejection, where today it returns the usage of
-  completed attempts only, or `None`. Token and cost limits, logged usage
-  and the sample's totals count those responses; the rejected request
-  itself is still not charged.
+- **Calls that report no usage stay unmetered.** Unchanged: a provider
+  response whose usage is missing records nothing under a cost limit, and
+  one whose conversion reads missing usage as zero (Mistral and SageMaker
+  streams without a usage chunk, Grok responses without a usage message)
+  records zero, so a cost limit does not bound a priced model whose
+  provider omits usage. A separate design covers it ("Not this design").
 - **`apply_limits()`** catches its own limit raised in an exception group
   (when every limit in it is its own or a descendant's; any other leaf,
   including a sourceless `custom` limit, propagates the group as today),
@@ -1736,9 +1533,7 @@ documented. Behaviour changes:
   weighted sums such as `(input * 0.1) + output` are unchanged.
 - **Private internals.** `_encloses()`, `_sample_roots()` and `_in_tree()`
   are removed. `_TurnLimit._check_self()` gains a parameter. Chain nodes gain
-  `_outer`, `_in_chain` and `_raised`. `ModelOutput` gains a private,
-  unserialized `_rejection` attribute.
-  `record_turn()` no longer checks. inspect_swarm is the only known user of
+  `_outer`, `_in_chain` and `_raised`. `record_turn()` no longer checks. inspect_swarm is the only known user of
   these classes (above).
 - **Persisted data and the viewer.** The checkpoint sample-runtime payload
   is unchanged and does not store the `_raised` mark, so a resumed sample
@@ -1750,7 +1545,8 @@ documented. Behaviour changes:
   precedence rule, that tool-based agents return a message for their own
   limits (an enclosing limit ends the caller), the new turn semantics, the
   suspension rule, that every model called under a cost limit needs cost
-  data, and that a token formula must be a non-negative weighted sum (the
+  data of its own (routers included), that calls reporting no usage are
+  not counted, and that a token formula must be a non-negative weighted sum (the
   formula paragraphs at `docs/setting-limits.qmd:164` and `:461`).
 
 ## Security
@@ -1767,27 +1563,26 @@ documented. Behaviour changes:
   as today.
 - **Error text** forwarded to the CLI is the existing `provider_error_payload`
   of the limit error (its type, value and limit), unchanged.
-- **Spend.** The agents' changes either refuse or fail a call sooner (a
-  reached turn limit, an unpriced model, a response with no usage) or make
-  a limit error propagate further; cache hits remain unrefused, as today.
+- **Spend.** The agents' changes either refuse a call sooner (a reached
+  turn limit, an unpriced model) or make a limit error propagate further;
+  cache hits remain unrefused, as today.
   The one change that lets calls through that are refused today is the cost
   suspension for approval, review and sentinel calls, whose spend a cost
   limit no longer bounds; it is set by host code (the policies Inspect
-  runs), not by a sandboxed agent or model output. With rule 9, a cost
-  limit meters every agent call that comes back whatever model a sample, a
+  runs), not by a sandboxed agent or model output. With rule 9, no
+  unpriced model runs under a cost limit whatever model a sample, a
   subagent or a sandboxed agent's request selects: the check runs on the
-  model a bridged request resolves to, whatever name the CLI sent. The
-  rejection flag that exempts an output is set only by Inspect's provider
-  converters from an error response, never from response content a model or
-  sandbox controls. A sandboxed agent that retries a request whose response
-  reports no usage gets one failed, uncounted call per retry; each failure
-  is delivered to the sample through `bridge.request_fail()`, which ends
-  it. Failed attempts and cancelled calls are outside the bound, as today.
+  model a bridged request resolves to, whatever name the CLI sent, and the
+  refusal is delivered to the sample through `bridge.request_fail()`, which
+  ends it. Responses that report no usage, failed attempts and cancelled
+  calls are outside the bound, as today; a sandboxed agent that selects a
+  priced model whose provider omits usage is not bounded by a cost limit
+  until the separate design for such calls ("Not this design").
 
 ## Testing
 
-All tests use mockllm with scripted usage and `set_model_info()` prices (as
-`tests/util/test_limit_cost.py` does). They need no network, Docker or
+All tests use mockllm, or a stub provider, with scripted usage and
+`set_model_info()` prices (as `tests/util/test_limit_cost.py` does). They need no network, Docker or
 provider, so the default PR test job runs them. Their async tests also run
 under trio with `--runtrio`.
 
@@ -1813,99 +1608,25 @@ under trio with `--runtrio`.
     and is charged (nothing is marked);
   - a cache hit of an unpriced model is served; with no cost limit an
     unpriced call is made;
-  - under `cost_limit(1.0)` a priced model whose scripted output has
-    `usage=None`, and one whose usage is all zeros (cache fields included),
-    fail with `UnmeteredCallError` (message: no usage) after one provider
-    call, with the `ModelEvent` completed with the error, no usage recorded
-    and no retry; a native compaction (a provider stub returning `None` or
-    zero usage) does the same; a response reporting only cache-read tokens
-    passes; without a cost limit, or inside `suspend_cost_limit()`, all
-    succeed and record what was reported;
-  - rejection outputs: an OpenAI client over `httpx.MockTransport` returning
-    HTTP 400 `context_length_exceeded` yields a `model_length` output with no
-    usage that is returned without error; the same for a 400
-    `content_policy_violation` (`content_filter`); the same rejection
-    delivered mid-stream through `openai_handle_stream_error()` fails with
-    `UnmeteredCallError` under the cost limit and returns the
-    `content_filter` output without one; the same two outcomes, with
-    streaming disabled, for a Responses API terminal
-    `model_response.error` (`content_policy_violation` and `cyber_policy`)
-    on an ordinary response, a background response after one poll, and a
-    batch result; a
-    provider stub returning a `model_length` output with no usage and no
-    rejection flag fails; one rejection case per classified converter
-    (implementation plan); paired cases where a converter serves both
-    origins: an Anthropic HTTP 400 context overflow and an HTTP 413 return
-    their `model_length` outputs under the cost limit, while a mid-stream
-    error that `_normalize_stream_error()` rewrites to 400 (and one to 413)
-    fails with `UnmeteredCallError`; a Groq HTTP 400
-    `context_length_exceeded` returns its output, while the same error in
-    the stream body fails;
-  - sidecar recovery does not catch it: with a sentinel sidecar whose
-    judgment is a refusal with a withheld turn, a sent request whose
-    successful response has no usage, and a provider whose
-    `should_retry()` raises if consulted, the call makes one provider
-    request, raises the original `UnmeteredCallError`, and completes its
-    `ModelEvent` with that error; the same through the outer
-    `refusal_after_error()` path; a genuine provider error under the same
-    sidecar is still recovered as a refusal, with its billed usage
-    recorded;
-  - a swallowed error costs one call (pinned): a no-usage error caught by a
-    hook that logs and continues is followed by another provider call that
-    fails the same way, and nothing refuses it before dispatch;
-  - summed usage, in `tests/model/providers/test_google.py` over a stubbed
-    SDK client: under a cost limit, a `CONTINUATION` response with no usage
-    followed by a reported response, and a `MALFORMED_FUNCTION_CALL`
-    response with zero usage followed by a reported retry, each fail with
-    `UnmeteredCallError` at the first response, before summing; a chain
-    whose every response reports usage passes with the sum; the same
-    `CONTINUATION` with no usage, streamed and completed, fails too; stream
-    recovery is not checked (pinned against today's tests
-    `test_dropped_stream_resumes_from_its_checkpoint`,
-    `test_cut_off_stream_resumes_from_its_checkpoint` and
-    `test_reconnect_without_checkpoint_keeps_its_usage`, run under a cost
-    limit): a hop that drops with a transport error after a checkpoint and
-    no usage, one that ends early with no usage, one reporting zero usage
-    before it is cut off, a metadata-only reconnect from a prior checkpoint,
-    and a hop that carried a `CONTINUATION` marker and then raised a
-    transport error each resume and finish, with the final response's
-    positive usage summed and charged; in
-    `tests/model/providers/test_litellm_proxy.py`, a malformed-call attempt
-    with no usage followed by a reported recovery fails, and one with usage
-    on both passes; a final rejection after reported attempts passes; in
-    `tests/model/providers/test_anthropic.py` over a stubbed client, under a
-    cost limit, a `pause_turn` leg with zero usage followed by a positive
-    leg fails at the zero leg, and a positive leg followed by a zero
-    continuation fails at the continuation, both before summing; controls
-    pass with the sum: two positive legs, a leg reporting only cache-read
-    tokens, the zero-then-positive chain with no cost limit, and the same
-    chain inside `suspend_cost_limit()`;
-  - converted errors after earlier legs, in
-    `tests/model/providers/test_anthropic.py` over a stubbed client: after
-    a positive `pause_turn` head, a continuation whose stream fails with a
-    content-filter error (normalized from 200 to 400) fails with
-    `UnmeteredCallError` under the cost limit, its `ModelEvent` completed
-    with the error and no usage recorded for the call, the head included
-    (failed-attempt accounting); the same with the error normalized to
-    413; a genuine HTTP 400 context overflow and an HTTP 413 after the same
-    head return their `model_length` outputs carrying the head's usage;
-    without a cost limit, and inside `suspend_cost_limit()`, the stream
-    error returns its `content_filter` output with the head's usage, as
-    today; Google's interrupted-hop recovery tests are unchanged;
-  - rejection during a Google continuation, streamed and not: a
-    continuation leg reporting 42 tokens followed by a context-length 400
-    returns a `model_length` output with usage 42 and the first request's
-    input size; a complete malformed-call attempt, then a continuation leg,
-    then the 400, returns the sum of all three completed responses; under a
-    cost limit both are charged and do not fail.
-    `test_continuation_failing_partway_fails_like_one_request` changes its
-    converted-400 expectations from `usage is None` and
-    `input_context_tokens is None` to the completed legs' usage and input
-    size; its raised-failure cases are unchanged;
-  - Grok streams, in `tests/model/providers/test_grok.py` with protobuf
-    chunk fixtures (no RPC): a stream whose reported total of 5 is followed
-    by a usage-less chunk converts to 5; a stream with no reported usage
-    converts to zero usage and fails under a cost limit;
+  - calls that report no usage stay uncharged (pinned, as today): under
+    `cost_limit(1.0)` a priced model whose scripted output has `usage=None`
+    is called and returns, recording nothing, and the next call is
+    dispatched;
+  - routers, in `tests/model/test_model_info.py` beside
+    `TestServedModelPricing`, with its `servedtest` stub provider (which
+    reports the model that served each call, as OpenRouter does for a
+    router) driven through `generate()`: under a cost limit, a called model
+    with no cost data of its own whose serving model has cost data is
+    refused before dispatch with `UnmeteredCallError`; after
+    `set_model_info()` gives the router a cost, the same call is dispatched
+    and priced from its serving model; with a serving model that has no
+    cost data it is priced at the router's rates; without a cost limit, and
+    inside `suspend_cost_limit()`, the unpriced router is dispatched and
+    priced from its serving model, as today;
+  - a sidecar does not recover the refusal: with a sentinel sidecar whose
+    judgment is a refusal with a withheld turn, a call to an unpriced model
+    under a cost limit raises `UnmeteredCallError` with no provider request
+    and no sidecar lookup;
   - start-time pricing, in `tests/test_sample_limits.py`: an eval with a
     cost limit, a priced task model and an unpriced `monitor` role model
     starts, and the same task enqueued during an eval is accepted
@@ -1931,7 +1652,10 @@ under trio with `--runtrio`.
   `dispatch_guard()`, and a reached message limit still refuses it; inside
   `suspend_token_limit()` alone the guard is skipped; inside
   `suspend_turn_limit()` alone and inside `suspend_cost_limit()` alone a
-  `dispatch_guard()` still refuses the call (pinned, as today);
+  `dispatch_guard()` still refuses the call (pinned, as today); inside
+  `suspend_limits()`, a `_CostLimit` subclass whose `_check_self()` always
+  raises (as inspect_swarm's closed stop gate does) is not checked, and the
+  same node refuses an unsuspended call;
   `token_limit()` and `TokenLimit` (including the `"input-output:10"`
   string form) refuse `input - output`, `input / output`
   and `input * output` with the family message, and accept `all`, `output`,
@@ -2028,7 +1752,7 @@ under trio with `--runtrio`.
     configured, each get the `limit` tool-error reply and make no tool,
     monitor or provider call, and the kept limit is unchanged;
   - an unpriced bridged model under a cost limit fails the sample with
-    `UnmeteredCallError`, and a bridged response without usage does too;
+    `UnmeteredCallError`, with no provider call;
   - a kept sample token limit reached exactly by a refused request, then a
     cancellation of the bridged agent before delivery and a normal return
     from the solver, ends the sample on the token limit;
@@ -2071,50 +1795,17 @@ Each step is one PR, in this order. Each keeps the suite green.
    `record_turn()` then `check_limits()`, `_check_limits_before_dispatch`.
    Tests: `tests/util/test_limit*.py`, `tests/checkpoint/test_sample_runtime.py`
    (the checkpoint code is unchanged).
-2. **Unmetered calls.** `_limit.py`: `UnmeteredCallError` and
-   `require_reported_usage()`. `_model.py`: the unpriced check in
-   `_check_limits_before_dispatch(model)` and the model passed by
-   `generate()`'s and compaction's per-attempt calls;
-   `require_reported_usage()` inside the generate attempt after
-   `self.api.generate()` returns (skipping rejection outputs) and inside
-   `_compact()`; `Model.should_retry()` and `_would_retry()` return `False`
-   for `UnmeteredCallError`, and the attempt's `except` handler and the
-   outer sidecar-recovery handler re-raise it before `refused_output()` or
-   `refusal_after_error()`. `src/inspect_ai/model/_model_output.py`: the
-   private `_rejection` attribute and `rejection_output()`. The rejection
-   converters listed under "Unmetered calls": `openai_handle_bad_request()`
-   in `_openai.py` for `APIStatusError` only, and each provider's call site
-   in `src/inspect_ai/model/_providers/` that converts an error response
-   received before any output; in `anthropic.py`, the stream-origin mark
-   set by `_normalize_stream_error()` and checked by the three conversion
-   branches; in `groq.py`, tagging only the `APIStatusError` branch. Summed usage:
-   `require_reported_usage()` per completed request in
-   `src/inspect_ai/model/_providers/google.py`, before `chain.add()` in
-   `_generate_with_continuations()` and, for hops that ended without an
-   error and with a finish reason, in `_stream_with_continuations()`,
-   and per attempt in `src/inspect_ai/model/_providers/litellm_proxy.py`,
-   and per leg before `chain.add()` in
-   `src/inspect_ai/model/_providers/anthropic.py`;
-   Google's `handle_client_error()` outputs take `chain.usage` and
-   `chain.input_context_tokens` in place of `attempts_usage` and
-   `attempts_input_context_tokens`. At each converted-error return site
-   that attaches accumulated usage (Anthropic's three branches before
-   `chain.report()`, Google's handled-error branch), an untagged output is
-   checked on its own usage first. `src/inspect_ai/model/_providers/grok.py`:
-   the stream loop keeps the last raw chunk's reported usage and passes it
-   to `_model_output_from_response()`.
+2. **Unpriced models.** `_limit.py`: `UnmeteredCallError`. `_model.py`:
+   the unpriced check in `_check_limits_before_dispatch(model)` and the
+   model passed by `generate()`'s and compaction's per-attempt calls;
+   `Model.should_retry()` returns `False` for `UnmeteredCallError`.
    `src/inspect_ai/model/_util.py`: `resolve_model_costs()` checks the task
    model only, with the shared message helper.
    `src/inspect_ai/agent/_bridge/sandbox/service.py`: `UnmeteredCallError`
    fails the sample. Tests: `tests/util/test_limit_cost.py`,
-   `tests/test_eval.py`, `tests/test_sample_limits.py`,
-   `tests/test_enqueue_task.py`, `tests/agent/test_bridge_provider_errors.py`,
-   `tests/model/providers/test_google.py`,
-   `tests/model/providers/test_litellm_proxy.py`,
-   `tests/model/providers/test_grok.py`,
-   `tests/model/providers/test_anthropic.py`, and one rejection case per
-   classified converter in that provider's existing test file under
-   `tests/model/providers/` (mocked transport, no API key).
+   `tests/model/test_model_info.py`, `tests/test_eval.py`,
+   `tests/test_sample_limits.py`, `tests/test_enqueue_task.py`,
+   `tests/agent/test_bridge_provider_errors.py`.
 3. **Suspension.** `_limit.py`: `check_limits()` skips suspended cost
    nodes. The guard checks stay skipped while token limits are suspended,
    as today, and run under turn-only or cost-only suspension.
@@ -2151,9 +1842,11 @@ Each step is one PR, in this order. Each keeps the suite green.
    `cost_limit()`, `turn_limit()`, `suspend_token_limit()`, `apply_limits()`
    and `run()`.
 
-inspect_swarm adapts in its own repository, alongside step 2: its
-`_SwarmTurnNode._check_self()` takes `raise_for_equal` ("What
-inspect_swarm can delete or simplify").
+inspect_swarm adapts in its own repository ("What inspect_swarm can delete
+or simplify"). Its `SwarmTurnNode._check_self()` takes `raise_for_equal`
+before or with step 1, which passes that argument to every `_check_self()`
+through `_check_marked()`; an override without it raises `TypeError` there.
+Its pricing, ledger and stop-gate changes go with steps 2 and 3.
 
 ## Open questions
 
@@ -2185,10 +1878,31 @@ None.
   limit error swallowed there costs: it surfaces one step later, at the
   next call under the limit, which is refused at no cost, or at the owner's
   exit check. Spend stays bounded and the sample limit is not lost. An
-  unmetered-call error swallowed there costs one uncounted call each time
-  the handler calls again. Making each re-raise these errors would only
-  make them arrive sooner.
+  unpriced-model refusal swallowed there is refused again at the handler's
+  next call to that model, with nothing spent. Making each re-raise these
+  errors would only make them arrive sooner.
 - Routing `background()` work to the `run()` or runtime that started it.
   Default deepagent background children keep their sample-scoped lifetime
   and report to the sample; a runtime that needs their errors installs a
   background target (see "What a runtime can rely on").
+- **Calls that report no usage under a cost limit**, a separate design
+  (decision: Ransom, 2026-11-17). It carries over these decisions
+  unchanged: a response whose usage is missing or totals zero (cache fields
+  included) fails its call with a non-retryable `UnmeteredCallError`, with
+  no mark; when one call sums several requests (Google's continuations and
+  malformed-function-call retries, Anthropic's continuations, the LiteLLM
+  proxy's malformed-function-call retries), each successful request is
+  checked before it is summed; only labelled HTTP rejections are exempt,
+  classified where the error originates (a status response before any
+  output, not a failure delivered mid-stream), so ReAct's overflow recovery
+  keeps working; and Google's converted-error output carries the usage of
+  every continuation leg that completed. Cases it must settle: Azure AI
+  streams that cannot request usage; OpenAI and Anthropic safety blocks,
+  streamed or terminal (Anthropic streams automatically for thinking or a
+  large `max_tokens`), which cyber evals meet often; Groq's mid-stream
+  context overflow; converted errors that attach earlier legs' usage
+  (Anthropic's `chain.report()`, Google's handled-error branch); the
+  LiteLLM proxy's final-output boundary and its second converter entry,
+  `handle_stream_error()`, which converts both an HTTP 403 xAI refusal and
+  a stream-body error; and Grok streams, whose usage-less tail chunk
+  overwrites a reported total with zeros.
