@@ -421,11 +421,16 @@ def _message_id(message_id: str | None) -> str:
     return message_id
 
 
-def _assistant_index(call: ToolCall, history: list[ChatMessage]) -> int | None:
+def _assistant_index(
+    call: ToolCall, history: list[ChatMessage], turn: "_ToolTurn | None" = None
+) -> int | None:
+    """The index of the last assistant message in `history` holding `call`, read through `turn`'s call positions if given (`_ToolTurn.holds`)."""
     for index in range(len(history) - 1, -1, -1):
         message = history[index]
-        if isinstance(message, ChatMessageAssistant) and any(
-            tool_call.id == call.id for tool_call in message.tool_calls or []
+        if isinstance(message, ChatMessageAssistant) and (
+            turn.holds(message, call.id)
+            if turn is not None
+            else any(tool_call.id == call.id for tool_call in message.tool_calls or [])
         ):
             return index
     return None
@@ -499,9 +504,11 @@ def _producing_event(call: ToolCall, history: list[ChatMessage]) -> ModelEvent |
     return event
 
 
-def _assistant_message_id(call: ToolCall, history: list[ChatMessage]) -> str | None:
+def _assistant_message_id(
+    call: ToolCall, history: list[ChatMessage], turn: "_ToolTurn | None" = None
+) -> str | None:
     """The id of the message in `history` holding `call`."""
-    index = _assistant_index(call, history)
+    index = _assistant_index(call, history, turn)
     return history[index].id if index is not None else None
 
 
@@ -520,12 +527,12 @@ def _found_producer(call: ToolCall, history: list[ChatMessage]) -> Producer | No
 
     A bounded transcript evicts the model call from memory while its turn's steps still run, and a lookup after that reads back a new copy of it. So within one `execute_tools()` call (`tool_turn`), the first step that finds a message's producer keeps it, and later steps for the same message get it without searching the history again. Only a producer whose message doesn't change is kept: a snapshot output (`is_snapshot`), or a copy read back from the buffer, which nothing else holds. An output logged live is found and checked each time.
     """
-    message_id = _assistant_message_id(call, history)
-    if message_id is None:
-        return None
     turn = _tool_turn.get()
     if turn is not None and turn.transcript is not transcript():
         turn = None
+    message_id = _assistant_message_id(call, history, turn)
+    if message_id is None:
+        return None
     kept = turn.kept(message_id) if turn is not None else None
     if kept is not None:
         return kept if _holds(kept.message, call, stable=True) else None
@@ -553,12 +560,38 @@ class _ToolTurn:
 
     A producer is kept until the call returns. A nested `execute_tools()` (a tool that runs its own turn) has its own `_ToolTurn`, so it doesn't replace the outer turn's producers.
 
-    A kept producer is what `_message_event` would find only while no other model call that produces the same message id completes: a cached generate output, for one, keeps its message id. So each kept producer records the count of such completions (`_Completions`) when it was found, and is dropped if the count has changed.
+    A kept producer is what `_message_event` would find only while no other model call that produces the same message id completes: a cached generate output, for one, keeps its message id. So each kept producer records the count of such completions (`_Completions`) when it was found, and is dropped if the count has changed. The turn watches each id it keeps until it ends (`close`).
+
+    It also indexes where each call id sits in the history's assistant messages (`holds`), so finding each step's message takes constant work, not a scan of its sibling calls.
     """
 
     def __init__(self, transcript: Transcript) -> None:
         self.transcript = transcript
         self._kept: dict[str, tuple[Producer, int]] = {}
+        self._watched: set[str] = set()
+        self._positions: dict[int, tuple[ChatMessageAssistant, dict[str, int]]] = {}
+
+    def holds(self, message: ChatMessageAssistant, call_id: str) -> bool:
+        """Whether `message` holds a call with id `call_id` now.
+
+        History messages are the agent's own and can change, so the indexed position is only a guess: it is confirmed by reading the call there. When there is no confirmed position, the message's calls are read again and the index rebuilt, which gives the answer as it is now.
+        """
+        entry = self._positions.get(id(message))
+        if entry is not None and entry[0] is message:
+            position = entry[1].get(call_id)
+            calls = message.tool_calls
+            if (
+                position is not None
+                and calls is not None
+                and position < len(calls)
+                and calls[position].id == call_id
+            ):
+                return True
+        positions: dict[str, int] = {}
+        for position, call in enumerate(message.tool_calls or []):
+            positions.setdefault(call.id, position)
+        self._positions[id(message)] = (message, positions)
+        return call_id in positions
 
     def kept(self, message_id: str) -> Producer | None:
         found = self._kept.get(message_id)
@@ -571,18 +604,35 @@ class _ToolTurn:
         return producer
 
     def keep(self, message_id: str, producer: Producer) -> None:
-        count = _Completions.of(self.transcript).watch(message_id)
+        completions = _Completions.of(self.transcript)
+        if message_id in self._watched:
+            count = completions.count(message_id)
+            assert count is not None
+        else:
+            count = completions.watch(message_id)
+            self._watched.add(message_id)
         self._kept[message_id] = (producer, count)
+
+    def close(self) -> None:
+        """Stop watching the ids this turn kept producers for."""
+        if self._watched:
+            completions = _Completions.of(self.transcript)
+            for message_id in self._watched:
+                completions.unwatch(message_id)
+            self._watched.clear()
+        self._kept.clear()
+        self._positions.clear()
 
 
 class _Completions:
     """How many times a model call producing each watched message id has completed in a transcript, counted from when the id is first watched.
 
-    One per transcript, subscribed to its events when a tool turn first keeps a producer. Ids are watched only once a tool turn keeps a producer for them, so this holds one count per such message for the rest of the sample. No lock: events are logged on the event loop thread.
+    One per transcript, subscribed to its events when a tool turn first keeps a producer. An id is watched while a tool turn that kept a producer for it is running (nested and concurrent turns each count), and forgotten when the last of them ends. No lock: events are logged on the event loop thread.
     """
 
     def __init__(self) -> None:
         self._counts: dict[str, int] = {}
+        self._watchers: dict[str, int] = {}
 
     @staticmethod
     def of(transcript: Transcript) -> "_Completions":
@@ -593,7 +643,17 @@ class _Completions:
         return completions
 
     def watch(self, message_id: str) -> int:
+        """Watch `message_id` for one more tool turn, returning its count."""
+        self._watchers[message_id] = self._watchers.get(message_id, 0) + 1
         return self._counts.setdefault(message_id, 0)
+
+    def unwatch(self, message_id: str) -> None:
+        watchers = self._watchers[message_id] - 1
+        if watchers > 0:
+            self._watchers[message_id] = watchers
+        else:
+            del self._watchers[message_id]
+            del self._counts[message_id]
 
     def count(self, message_id: str) -> int | None:
         return self._counts.get(message_id)
@@ -612,11 +672,13 @@ _tool_turn: ContextVar[_ToolTurn | None] = ContextVar("_tool_turn", default=None
 @contextmanager
 def tool_turn() -> Iterator[None]:
     """Share each producer found by the tool steps of one `execute_tools()` call (`_ToolTurn`)."""
-    token = _tool_turn.set(_ToolTurn(transcript()))
+    turn = _ToolTurn(transcript())
+    token = _tool_turn.set(turn)
     try:
         yield
     finally:
         _tool_turn.reset(token)
+        turn.close()
 
 
 class _HostNative:

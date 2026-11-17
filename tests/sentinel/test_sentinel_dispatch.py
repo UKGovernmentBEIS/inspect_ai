@@ -2688,7 +2688,7 @@ def assert_share_one_producer(
 def test_a_turn_s_tool_steps_share_its_model_call_across_nested_turns(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A tool that runs its own turn (`generate()` and `execute_tools()`) in the same conversation doesn't change the producer the outer turn's later steps get."""
+    """A tool that runs its own turn (`generate()` and `execute_tools()`) in the same conversation doesn't change the producer the outer turn's later steps get, and no message id is still watched once the turns end."""
     count_provider_reads(monkeypatch)
     inner = get_model(
         "mockllm/inner",
@@ -2737,9 +2737,10 @@ def test_a_turn_s_tool_steps_share_its_model_call_across_nested_turns(
     )
     before: Seen = []
     after: list[AfterToolCall] = []
+    watches: list[int] = []
     task = Task(
         dataset=[Sample(input="Add.")],
-        solver=[use_tools(nested()), generate()],
+        solver=[use_tools(nested()), generate(), record_watches(watches)],
         sentinel=[d3_recording(before), d3_recording_after(after)],
     )
     log = eval(task, model=model, log_dir=str(tmp_path))[0]
@@ -2754,6 +2755,143 @@ def test_a_turn_s_tool_steps_share_its_model_call_across_nested_turns(
         inner_steps = [step for step in steps if step.call.id == f"inner{i}_0"]
         assert len(inner_steps) == 2
         assert_share_one_producer(inner_steps, [f"inner{i}_0"])
+    # the turns kept producers, and stopped watching their ids when they ended
+    assert watches == [0]
+
+
+@solver
+def record_watches(watches: list[int]) -> Solver:
+    """Record how many message ids the sample's transcript still watches (`_Completions`); fails if no tool turn kept a producer."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        from inspect_ai._sentinel._dispatch import _completions
+
+        watches.append(len(_completions[transcript()]._counts))
+        return state
+
+    return solve
+
+
+async def test_a_message_id_is_watched_until_the_last_tool_turn_keeping_it_ends() -> (
+    None
+):
+    from inspect_ai._sentinel._dispatch import _completions, _tool_turn, tool_turn
+    from inspect_ai._sentinel._steps import Producer
+
+    init_transcript(Transcript())
+    producer = Producer([], [], "auto", ChatMessageAssistant(content=""))
+
+    def keep(message_id: str) -> None:
+        turn = _tool_turn.get()
+        assert turn is not None
+        turn.keep(message_id, producer)
+
+    with tool_turn():
+        keep("m1")
+        keep("m2")
+        keep("m1")
+        with tool_turn():
+            keep("m1")
+        completions = _completions[transcript()]
+        assert len(completions._counts) == 2
+
+        # two turns overlap, and the first to start ends first
+        a_kept, b_kept, a_done = anyio.Event(), anyio.Event(), anyio.Event()
+
+        async def first() -> None:
+            with tool_turn():
+                keep("m3")
+                a_kept.set()
+                await b_kept.wait()
+            a_done.set()
+
+        async def second() -> None:
+            await a_kept.wait()
+            with tool_turn():
+                keep("m3")
+                b_kept.set()
+                await a_done.wait()
+                assert completions.count("m3") == 0
+            assert completions.count("m3") is None
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(first)
+            tg.start_soon(second)
+        assert len(completions._counts) == 2
+    assert len(completions._counts) == 0
+
+
+def test_a_tool_turn_s_call_index_answers_for_the_message_as_it_is_now() -> None:
+    """History messages are the agent's own and can change between steps, so an indexed position counts only once the call there is read."""
+    from inspect_ai._sentinel._dispatch import _ToolTurn
+
+    init_transcript(Transcript())
+    turn = _ToolTurn(transcript())
+    a, b, c = (ToolCall(id=id, function="f", arguments={}) for id in "abc")
+    message = ChatMessageAssistant(content="", tool_calls=[a, b])
+    assert turn.holds(message, "b") and not turn.holds(message, "c")
+    # replaced: b is gone and a has moved
+    message.tool_calls = [c, a]
+    assert not turn.holds(message, "b")
+    assert turn.holds(message, "a") and turn.holds(message, "c")
+    # changed in place, at a position the index has
+    message.tool_calls[0] = b
+    assert turn.holds(message, "b") and not turn.holds(message, "c")
+    message.tool_calls.append(c)
+    assert turn.holds(message, "c")
+    a.id = "z"
+    assert not turn.holds(message, "a") and turn.holds(message, "z")
+    message.tool_calls = None
+    assert not turn.holds(message, "b")
+
+
+def test_finding_each_native_tool_step_s_message_takes_work_linear_in_its_calls(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The sentinel's reads of call ids over a native turn's steps grow linearly with its calls: finding the message that holds each step's call doesn't scan its sibling calls per step."""
+    import sys
+
+    from inspect_ai._sentinel import _dispatch
+
+    reads = 0
+
+    def get(self: ToolCall) -> str:
+        nonlocal reads
+        if sys._getframe(1).f_code.co_filename == _dispatch.__file__:
+            reads += 1
+        return cast(str, self.__dict__["id"])
+
+    def set(self: ToolCall, value: str) -> None:
+        self.__dict__["id"] = value
+
+    monkeypatch.setattr(ToolCall, "id", property(get, set), raising=False)
+
+    def reads_for(calls: int) -> int:
+        nonlocal reads
+        model = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                calls_output(calls, "c"),
+                ModelOutput.from_content("mockllm/model", "done"),
+            ],
+            memoize=False,
+        )
+        before: Seen = []
+        after: list[AfterToolCall] = []
+        task = Task(
+            dataset=[Sample(input="Add.")],
+            solver=[use_tools(addition()), generate()],
+            sentinel=[d3_recording(before), d3_recording_after(after)],
+        )
+        reads = 0
+        log = eval(task, model=model, log_dir=str(tmp_path))[0]
+        assert log.status == "success", log.error
+        assert len(before) == len(after) == calls
+        assert all(step.assistant_message is not None for _, step in before)
+        return reads
+
+    # linear: about 4 times as many for 4 times the calls (quadratic gives about 16)
+    assert reads_for(32) <= 4.5 * reads_for(8)
 
 
 async def test_a_tool_turn_ends_when_it_is_cancelled_and_restores_the_outer_turn() -> (
