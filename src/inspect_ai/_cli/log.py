@@ -10,6 +10,7 @@ from pydantic_core import to_jsonable_python
 from typing_extensions import Unpack
 
 from inspect_ai._cli.common import CommonOptions, common_options, process_common_options
+from inspect_ai._cli.log_merge_shards import merge_shards_command
 from inspect_ai._cli.util import int_or_bool_flag_callback
 from inspect_ai._util.constants import PKG_PATH
 from inspect_ai.log import (
@@ -739,6 +740,9 @@ def _run_disposition(
     headline = headline_metric(log)
     if headline is not None:
         print(f"{headline.score.name}/{headline.name}: {headline.metric.value}")
+
+
+log_command.add_command(merge_shards_command)
 
 
 _TS_MONO_APP = PKG_PATH / "_view" / "ts-mono" / "apps" / "inspect"
