@@ -788,7 +788,8 @@ twice is reported three times.
   run-level cancellation), the unwritten "Task cancelled by user" log of an
   abort or retry request, or the unwritten error log of a failed
   `logger.init()`, which now runs inside the attempt. Today's early return
-  on `write_failed` becomes the one exception below.
+  on `write_failed` becomes the one exception below, on a flag of its own
+  (next bullet).
 - **Two exceptions, both today's.** A preview (`run_samples=False`) is not
   reported (`notify_task_source`'s own check). An attempt whose log storage
   failed after `init()` had returned (a failed prior-log seed, header flush
@@ -797,6 +798,16 @@ twice is reported three times.
   `reinit()`, separates that case from a failed `init()`, which is reported
   on every attempt, so a source waiting on a task whose `init()` keeps
   failing hears each failure and is not left waiting after the last.
+  Today's `write_failed` cannot mark this case, because `_run_task` also
+  sets it where an abort or retry leaves no written log and it builds the
+  unwritten "Task cancelled by user" log. So `write_failed` is replaced by
+  `storage_failed`, set only on the `except Exception` path that builds the
+  unwritten storage-error log, and only when `options.logger.initialized`
+  is true and `pop_finished_log()` returned no finished log; the abort and
+  retry branch never sets it. An abort or retry that interrupts
+  `log_start()` or the prior-log seed after `init()` returned is therefore
+  reported once with its abort or retry log, while a genuine header-storage
+  failure is still skipped.
 - **No attempt, no second report.** An attempt that returns no log of its
   own (a pending retry of a registered task abandoned by the stamp, which
   ends the record with its earlier attempt's log) reports nothing; nor does
@@ -1851,7 +1862,10 @@ test that waits on a run is bounded with `fail_after`.
   `task_retry_attempts` 0 and 2: B is reported once per attempt (once, and
   three times) with its initialization error, that error stays B's result,
   and the run ends with `next_tasks()` released, on asyncio and trio; a B
-  whose header flush fails after `init()` is not reported, as today.
+  whose header flush fails after `init()` is not reported, as today, while
+  a B aborted, and in another run asked to retry, while its `log_start()`
+  is held after `init()` returned is reported once with the unwritten
+  "Task cancelled by user" log, on asyncio and trio.
 - `tests/test_sample_source.py`: a mid-run configuration through
   `SandboxManager.start_for_samples`; its failure fails only that task, as
   today.
@@ -1964,6 +1978,7 @@ state in the single `eval_run`), so the setup fixes come first.
    waker, the uncounted start of an `abort_requested` record from the
    pending list, `RunQueue.cancel` setting `abort_requested`,
    `_run_task`'s single `notify_task_source` call with its two exceptions,
+   `storage_failed` replacing `write_failed` for the storage exception,
    the dispatcher's synchronous `start_attempt` removing the entry from
    pending, counting it when counted, moving the record into `attempt` and
    creating the attempt's fresh `TaskCancel` (its `can_retry` from the
