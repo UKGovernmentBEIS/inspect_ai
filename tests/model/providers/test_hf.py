@@ -12,6 +12,7 @@ import pytest
 from test_helpers.utils import (
     skip_if_github_action,
     skip_if_no_accelerate,
+    skip_if_no_torch,
     skip_if_no_transformers,
 )
 
@@ -1058,6 +1059,7 @@ def test_hf_model_config_hashes_selected_named_template(
 
 
 @skip_if_no_transformers
+@skip_if_no_torch
 @pytest.mark.parametrize("source", ["default", "path"])
 def test_hf_generation_config_override_survives_generate(source, tmp_path) -> None:
     """An adopted config must not be rebuilt from the model's legacy config.json.
@@ -1068,11 +1070,10 @@ def test_hf_generation_config_override_survives_generate(source, tmp_path) -> No
     """
     import json
 
+    torch = pytest.importorskip("torch")
     from transformers import GenerationConfig, GPT2Config, GPT2LMHeadModel
 
     from inspect_ai.model._providers.hf import resolve_generation_config
-
-    torch = pytest.importorskip("torch")
 
     # repetition_penalty here is a legacy generation parameter in config.json
     config = GPT2Config.from_dict(
@@ -1143,6 +1144,7 @@ def _custom_generation_config_class() -> Any:
 
 
 @skip_if_no_transformers
+@skip_if_no_torch
 def test_hf_generation_config_path_keeps_model_config_class(tmp_path) -> None:
     """A config loaded from a path uses the model's GenerationConfig subclass."""
     from inspect_ai.model._providers.hf import resolve_generation_config
@@ -1159,6 +1161,7 @@ def test_hf_generation_config_path_keeps_model_config_class(tmp_path) -> None:
 
 
 @skip_if_no_transformers
+@skip_if_no_torch
 def test_hf_generation_config_default_rejects_config_subclass() -> None:
     """A subclass with model-specific settings has no meaningful default."""
     from inspect_ai.model._providers.hf import resolve_generation_config

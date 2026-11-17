@@ -227,6 +227,10 @@ def skip_if_no_accelerate(func):
     return skip_if_no_package("accelerate")(func)
 
 
+def skip_if_no_torch(func):
+    return skip_if_no_package("torch")(func)
+
+
 def skip_if_no_transformer_lens(func):
     return skip_if_no_package("transformer_lens")(func)
 
