@@ -338,8 +338,11 @@ These rules do not depend on the user. A call that names `user="root"` and no
 `cwd` also runs in the scope's `cwd`, as `exec_remote()` already does, so the
 same relative path names the same file whoever the call runs as. Marked
 operations keep the provider's default directory, as they keep its default
-user. Outside a scope, in a scope without a `cwd`, on another sandbox and
-through `as_type()`, nothing changes. The `SandboxEvent` records the resolved
+user. A marked command that runs as the member names a directory the member
+can enter, as `install_skills()`'s `chmod +x` does with `/` (see
+[Public `install_skills()`](#public-install_skills)). Outside a scope, in a
+scope without a `cwd`, on another sandbox and through `as_type()`, nothing
+changes. The `SandboxEvent` records the resolved
 `cwd` in its options and the resolved path in its `file`, as it records the
 resolved user.
 
@@ -455,8 +458,12 @@ ways of calling it:
     `dir`, and to `chmod +x`, and the `chown` is skipped, because the writer
     already owns the files. Naming the member on each step keeps the steps
     consistent: no step can fall back to the default user while another runs
-    as the member. The skills land owned by the member, like every other
-    write the member's scaffold makes. Keeping the legacy root write here
+    as the member. `chmod +x` runs from `/`: the member may not be able to
+    enter the provider's working directory (an image `WORKDIR` of `/root`,
+    for example), and some runtimes refuse to start a command there.
+    `install.py` defines `INSTALL_SKILLS_AS_MEMBER_RUNS_FROM_ROOT = True` so
+    that inspect_swe can detect this. The skills land owned by the member,
+    like every other write the member's scaffold makes. Keeping the legacy root write here
     would put root-owned files into a directory the member controls,
     typically its home, with no ownership change after it, and a member could
     redirect that root write through a symbolic link it plants there. On a
