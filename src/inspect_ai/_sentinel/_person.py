@@ -255,7 +255,7 @@ class Prompt(NamedTuple):
     call: ToolCall
     view: ToolCallView
     said: str | None = None
-    """The turn's text, when the view holds it and `message` is empty. None when `message` carries it, or there is none."""
+    """What the operator's notification says when `message` is empty: the turn's text, which the view holds, or a line that says a request waits. None when `message` carries it."""
 
 
 async def _ask_with(
@@ -324,7 +324,7 @@ def request_prompt(
     blocks: list[str] = []
     if escalations:
         escalated = safe(escalation_lines(escalations))
-        blocks.append(f"**Escalated by**\n\n{fenced(escalated)}")
+        blocks.append(f"**Escalated by**\n\n{_code_block(escalated, _SAID)}")
     shown_blocks = [
         _message_markdown(message, position, sent, safe) for position, message in shown
     ]
@@ -355,7 +355,10 @@ def request_prompt(
     view = ToolCallView(
         call=ToolCallContent(format="markdown", content="\n\n---\n\n".join(blocks))
     )
-    return Prompt("", stands_for_request, view)
+    waiting = (
+        f"A request to {model} waits for a decision: {stands_for_request.function}."
+    )
+    return Prompt("", stands_for_request, view, waiting)
 
 
 def _messages(count: int) -> str:
@@ -365,14 +368,14 @@ def _messages(count: int) -> str:
 def _tools_offered(
     tools: Sequence[str], tool_choice: ToolChoice, safe: "_Escaped"
 ) -> str:
-    # The tools the request offers, and which the model is to call. A function
-    # the model must call is told from the three words by its type, since a
-    # tool can be named `auto`, `any` or `none`.
+    # The tools the request offers, and which the model is to call. Each name
+    # is counted and in a code span, so it can't pass for two tools or for the
+    # words around it. A function the model must call is told from the three
+    # words by its type, since a tool can be named `auto`, `any` or `none`.
     forced = isinstance(tool_choice, ToolFunction)
     if isinstance(tool_choice, ToolFunction):
         choice = (
-            "The model must call the function "
-            f"{_markdown_text(tool_choice.name, safe)}."
+            f"The model must call the function {_code_span(tool_choice.name, safe)}."
         )
     elif tool_choice == "auto":
         choice = "The model may call any of them, or none."
@@ -382,9 +385,9 @@ def _tools_offered(
         choice = "The model may call none of them."
     if not tools:
         # a call the model is forced to make is said even with no tool to make it
-        return f"Tools offered: none.{' ' + choice if forced else ''}"
-    offered = ", ".join(_markdown_text(name, safe) for name in tools)
-    return f"Tools offered: {offered}. {choice}"
+        return f"No tools are offered.{' ' + choice if forced else ''}"
+    offered = ", ".join(_code_span(name, safe) for name in tools)
+    return f"Tools offered ({len(tools)}): {offered}. {choice}"
 
 
 def _message_markdown(
@@ -431,7 +434,7 @@ def _message_markdown(
     if calls:
         parts.append(f"**It makes {_calls(len(calls))}.**")
         parts.extend(
-            _call_markdown(call, index, len(calls), safe)
+            _call_markdown(call, index, len(calls), safe, _SAID)
             for index, call in enumerate(calls, 1)
         )
     content = message.content
@@ -456,16 +459,17 @@ async def approve_with_text_in_view(
     view: ToolCallView,
     conversation: list[ChatMessage],
 ) -> Approval:
-    """Ask a person with a view that already holds the turn's text.
+    """Ask a person with a view that already holds what is asked about.
 
     The prompt's message is empty, so that no surface shows the text twice.
-    The human approver notifies the operator with the message, so the text is
+    The human approver notifies the operator with the message, so `said` is
     sent from here instead and the approver's own notification is turned off:
     the operator is told what a turn that reached Inspect would have told them.
 
     Args:
         approve: The human approver to ask with.
-        said: The turn's text, for the notification.
+        said: What the notification says: the turn's text, or a line that says
+            a request waits.
         call: The call to ask about.
         view: The view, which holds the text.
         conversation: The conversation to give the approval surface.
@@ -691,12 +695,15 @@ def _calls(count: int) -> str:
     return "1 tool call" if count == 1 else f"{count} tool calls"
 
 
-def _call_markdown(call: ToolCall, index: int, count: int, safe: _Escaped) -> str:
+def _call_markdown(
+    call: ToolCall, index: int, count: int, safe: _Escaped, text_label: str = ""
+) -> str:
     """One call: a header written here, then its content as a code block.
 
     The content is what the transcript shows (`ToolCall.view`, which
     `Model.generate` sets from the tool's viewer, or the default rendering),
-    with the call's placeholders filled in (see `_contained`).
+    with the call's placeholders filled in (see `_contained`). `text_label`
+    labels the block of content that has no language of its own.
     """
     content = substitute_tool_call_content(
         call.view or cast(ToolCallContent, default_tool_call_viewer(call).call),
@@ -705,10 +712,12 @@ def _call_markdown(call: ToolCall, index: int, count: int, safe: _Escaped) -> st
     header = f"**Call {index} of {count}:** {_markdown_text(call.function, safe)}"
     if content.title and content.title != call.function:
         header = f"{header} ({_markdown_text(content.title, safe)})"
-    return f"{header}\n\n{_contained(content, safe)}"
+    return f"{header}\n\n{_contained(content, safe, text_label)}"
 
 
-def _contained(content: ToolCallContent, safe: Callable[[str], str]) -> str:
+def _contained(
+    content: ToolCallContent, safe: Callable[[str], str], text_label: str = ""
+) -> str:
     """What a tool's viewer made, as one code block it cannot close.
 
     Viewers interpolate arguments into markdown unescaped, so an argument could
@@ -720,12 +729,13 @@ def _contained(content: ToolCallContent, safe: Callable[[str], str]) -> str:
     Args:
         content: The viewer's content, with the call's placeholders filled in.
         safe: Makes text an agent wrote safe to display.
+        text_label: The label of the block when the content is plain text.
     """
     block = _CODE_BLOCK.fullmatch(content.content)
     if content.format == "markdown" and block is not None:
         language, code = block.group("language").strip(), block.group("code")
     else:
-        language = "markdown" if content.format == "markdown" else ""
+        language = "markdown" if content.format == "markdown" else text_label
         code = content.content
     return _code_block(safe(code), language)
 
@@ -750,6 +760,14 @@ def _code_block(code: str, language: str) -> str:
 
     fence = _safe_code_fence(code)
     return f"{fence}{language}\n{code}\n{fence}"
+
+
+def _code_span(text: str, safe: _Escaped) -> str:
+    # one line of literal text, in a code span it cannot close
+    line = _one_line(text, safe)
+    longest = max((len(run) for run in re.findall("`+", line)), default=0)
+    ticks = "`" * (longest + 1)
+    return f"{ticks} {line} {ticks}"
 
 
 def _markdown_text(text: str, safe: _Escaped) -> str:

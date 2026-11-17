@@ -7,7 +7,7 @@ import hashlib
 import json
 from bisect import bisect_left, bisect_right
 from collections import Counter
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from typing import (
     TYPE_CHECKING,
     Literal,
@@ -136,24 +136,22 @@ def content_key(message: ChatMessage) -> str:
 
 
 def not_sent_before(
-    input: Sequence[ChatMessage], history: Sequence[ChatMessage] | None
+    input: Sequence[ChatMessage], sent: Mapping[str, int]
 ) -> list[tuple[int, ChatMessage]]:
     """The messages of a request that the model has not been sent before, each with its position in the request, counting from 1.
 
-    A message was sent before if `history` holds one with the same content (`content_key()`) that no earlier message of the request has been matched to. So a message rewritten since it was sent is here as its new version, as is an assistant message the scaffold wrote itself. A message sent before is left out wherever it now sits, so one that moved is not here. A message that repeats an earlier one, such as an agent's fixed prompt to continue, is here when the request holds it more times than `history` does.
+    A message was sent before if the model has been sent one with the same content (`content_key()`) that no earlier message of the request has been matched to. So a message rewritten since it was sent is here as its new version, as is an assistant message the scaffold wrote itself. A message sent before is left out wherever it now sits, so one that moved is not here. A message that repeats an earlier one, such as an agent's fixed prompt to continue, is here when the request holds it more times than any request the model was sent did.
 
     Args:
         input: The messages the request sends the model.
-        history: What the model has been sent before this request. With None, where that isn't known, every message is returned.
+        sent: By `content_key()`, the most copies of a message that any one request sent to the model held (`ConversationRecord.sent_to()`).
     """
-    if history is None:
-        return list(enumerate(input, 1))
-    sent = Counter(content_key(message) for message in history)
+    left = Counter(sent)
     new: list[tuple[int, ChatMessage]] = []
     for position, message in enumerate(input, 1):
         key = content_key(message)
-        if sent[key] > 0:
-            sent[key] -= 1
+        if left[key] > 0:
+            left[key] -= 1
         else:
             new.append((position, message))
     return new
@@ -180,6 +178,9 @@ class KeyedInput:
 
     def __len__(self) -> int:
         return len(self._keys)
+
+    def keys(self) -> Sequence[str]:
+        return self._keys
 
     def message(self, position: int) -> ChatMessage:
         return self._messages[position]
@@ -239,15 +240,18 @@ class ConversationRecord:
 
     def __init__(self) -> None:
         self.sent = _Sent()
-        # what each model has been sent, by the model's name
-        self._sent_to: dict[str, _Sent] = {}
+        # by a model's name and a message's key, the most copies of the
+        # message that any one input sent to the model held
+        self._sent_to: dict[str, Counter[str]] = {}
         self._decisions: list["HumanDecision"] = []
 
     def record(self, input: Sequence[ChatMessage], model: str) -> None:
         """Record an agent turn's input as sent, by the conversation and to `model`."""
         keyed = KeyedInput(input)
         self.sent.record_input(keyed)
-        self._sent_to.setdefault(model, _Sent()).record_input(keyed)
+        held = self._sent_to.setdefault(model, Counter())
+        for key, copies in Counter(keyed.keys()).items():
+            held[key] = max(held[key], copies)
 
     def publish(self, kept: Sequence["HumanDecision"]) -> None:
         """Add a settled step's `human()` decisions, once its sentinel span has ended."""
@@ -256,10 +260,12 @@ class ConversationRecord:
     def history(self) -> ListView[ChatMessage]:
         return view(self.sent.messages)
 
-    def sent_to(self, model: str) -> ListView[ChatMessage]:
-        """What the conversation has sent `model`. `history()` is what it has sent any model, so it holds a message that another model was sent and this one was not."""
-        sent = self._sent_to.get(model)
-        return view(sent.messages if sent is not None else [])
+    def sent_to(self, model: str) -> Mapping[str, int]:
+        """What the conversation has sent `model`: by `content_key()`, the most copies of a message that any one input held.
+
+        `history()` doesn't answer this. It holds what the conversation has sent any model, and a message again each time one is dropped and restored, so it can hold a message more times than any input did.
+        """
+        return self._sent_to.get(model, {})
 
     def human_decisions(self) -> ListView["HumanDecision"]:
         """The `human()` decisions published so far: a step's own, or a parallel step's still running, are not among them."""

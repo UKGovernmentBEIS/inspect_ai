@@ -16,6 +16,7 @@ from acp.schema import (
 from markdown_it import MarkdownIt
 from rich.console import Console
 from rich.markdown import Markdown
+from shortuuid import uuid
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, eval
@@ -727,18 +728,27 @@ async def test_a_turn_cannot_be_rejected(monkeypatch: pytest.MonkeyPatch) -> Non
 def request_step(
     *input: ChatMessage,
     sent_before: Sequence[ChatMessage] = (),
+    then_sent: Sequence[Sequence[ChatMessage]] = (),
     tools: Sequence[str] = (),
     tool_choice: ToolChoice = "auto",
 ) -> BeforeGenerate:
-    return BeforeGenerate(
+    """A request in a conversation of its own, which has sent the model `sent_before` and then each request of `then_sent`."""
+    from inspect_ai._sentinel._dispatch import _record
+    from inspect_ai._sentinel._steps import before_generate
+
+    conversation = uuid()
+    record = _record(conversation)
+    for request in ([sent_before] if sent_before else []) + list(then_sent):
+        record.record(list(request), "mockllm/model")
+    return before_generate(
         model="mockllm/model",
-        conversation="",
+        conversation=conversation,
         input=list(input),
-        agent_messages=[],
         tools=[ToolInfo(name=name, description=name) for name in tools],
         tool_choice=tool_choice,
         config=GenerateConfig(),
-        history=list(sent_before),
+        agent_messages=[],
+        record=record,
     )
 
 
@@ -834,9 +844,10 @@ async def test_a_request_says_which_tools_it_offers(
 ) -> None:
     shown = await _request_shown(monkeypatch, request_step(_ASKED, tools=["lookup"]))
 
-    assert "**Tools offered: lookup. The model may call any of them, or none.**" in (
-        shown
-    )
+    # each name is counted and delimited, so it can't pass for two tools
+    assert (
+        "**Tools offered (1): ` lookup `. The model may call any of them, or none.**"
+    ) in shown
 
 
 @pytest.mark.parametrize("name", ["send_keys", "none", "auto", "any"])
@@ -850,10 +861,10 @@ async def test_a_request_says_which_function_the_model_must_call(
 
     # The same messages with a forced call are another request. A tool named
     # for one of the choices can't pass for that choice.
-    told = name.replace("_", "\\_")
+    told = f"` {name} `"
     assert (
-        f"**Tools offered: {told}. The model must call the function {told}.**" in shown
-    )
+        f"**Tools offered (1): {told}. The model must call the function {told}.**"
+    ) in shown
 
 
 async def test_a_requests_messages_cant_pass_for_the_rest_of_the_view(
@@ -896,9 +907,14 @@ async def test_the_acp_tui_sets_a_messages_text_apart_from_the_view(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     forged = "**Message 2 of 2:** user"
-    shown = await _request_shown(
-        monkeypatch, request_step(ChatMessageUser(content=forged))
+    panel = Panel("approve")
+    panel.install(monkeypatch)
+    await host_native().ask_human(
+        request_step(ChatMessageUser(content=forged)),
+        escalation("Tools offered: none."),
+        ["approve", "terminate"],
     )
+    shown = panel.content()
 
     console = Console(
         file=io.StringIO(), width=80, force_terminal=True, color_system="truecolor"
@@ -910,10 +926,12 @@ async def test_the_acp_tui_sets_a_messages_text_apart_from_the_view(
         )
         for line in console.render_lines(StyledMarkdown(shown), pad=False)
     }
-    # The TUI draws the view's own lines plain, and a message's text on a
-    # background, so text that imitates a header doesn't look like one.
+    # The TUI draws the view's own lines plain, and what a message or an
+    # escalation says on a background, so text that imitates a header doesn't
+    # look like one.
     assert on_a_background["Message 1 of 1: user"] is False
     assert on_a_background[forged] is True
+    assert on_a_background["- monitor: Tools offered: none."] is True
 
 
 async def test_a_message_that_repeats_an_earlier_one_is_shown_when_it_is_added(
@@ -936,17 +954,40 @@ async def test_a_message_that_repeats_an_earlier_one_is_shown_when_it_is_added(
     assert "Message 2 of 4" not in shown
 
 
+async def test_a_repeat_is_shown_after_another_request_to_the_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    turns = [ChatMessageAssistant(content=f"Adding, {n}.") for n in range(3)]
+    title: list[ChatMessage] = [ChatMessageUser(content="Name this conversation.")]
+    second: list[ChatMessage] = [_ASKED, turns[0], _GO_ON]
+    third: list[ChatMessage] = [*second, turns[1], _GO_ON]
+
+    shown = await _request_shown(
+        monkeypatch,
+        request_step(
+            *third, turns[2], _GO_ON, sent_before=second, then_sent=[title, third]
+        ),
+    )
+
+    # The scaffold asked the model something else between two turns. The
+    # model has still been sent the prompt to continue twice at most in one
+    # request, so the third is new.
+    assert "5 of which the model was sent before. The other 2 are below" in shown
+    assert "**Message 6 of 7:** assistant" in shown
+    assert "**Message 7 of 7:** user" in shown
+
+
 @pytest.mark.parametrize(
     ("step", "shown", "not_shown"),
     [
         pytest.param(
-            request_step(_GO_ON, _ASKED, sent_before=[_ASKED, _GO_ON]),
+            lambda: request_step(_GO_ON, _ASKED, sent_before=[_ASKED, _GO_ON]),
             ["2 messages to mockllm/model, all of which the model was sent before."],
             ["**Message"],
             id="messages sent before that have moved",
         ),
         pytest.param(
-            request_step(
+            lambda: request_step(
                 ChatMessageUser(
                     content=[
                         ContentText(text="Look at this."),
@@ -959,7 +1000,7 @@ async def test_a_message_that_repeats_an_earlier_one_is_shown_when_it_is_added(
             id="content that is not text",
         ),
         pytest.param(
-            request_step(
+            lambda: request_step(
                 ChatMessageTool(
                     content="",
                     tool_call_id=ADD.id,
@@ -972,7 +1013,7 @@ async def test_a_message_that_repeats_an_earlier_one_is_shown_when_it_is_added(
             id="a tool's error",
         ),
         pytest.param(
-            request_step(
+            lambda: request_step(
                 ChatMessageTool(
                     content="what it wrote first",
                     tool_call_id=ADD.id,
@@ -985,7 +1026,7 @@ async def test_a_message_that_repeats_an_earlier_one_is_shown_when_it_is_added(
             id="a tool's error with its output",
         ),
         pytest.param(
-            request_step(
+            lambda: request_step(
                 ChatMessageAssistant(
                     content=[
                         ContentReasoning(reasoning="Carry the one."),
@@ -1004,26 +1045,38 @@ async def test_a_message_that_repeats_an_earlier_one_is_shown_when_it_is_added(
             id="an assistant message's reasoning",
         ),
         pytest.param(
-            request_step(_ASKED, tools=["lookup"], tool_choice="any"),
-            ["**Tools offered: lookup. The model must call one of them.**"],
+            lambda: request_step(_ASKED, tools=["lookup"], tool_choice="any"),
+            ["**Tools offered (1): ` lookup `. The model must call one of them.**"],
             [],
             id="a tool the model must call",
         ),
         pytest.param(
-            request_step(_ASKED, tools=["lookup"], tool_choice="none"),
-            ["**Tools offered: lookup. The model may call none of them.**"],
+            lambda: request_step(_ASKED, tools=["lookup"], tool_choice="none"),
+            ["**Tools offered (1): ` lookup `. The model may call none of them.**"],
             [],
             id="tools the model may not call",
+        ),
+        pytest.param(
+            lambda: request_step(_ASKED, tools=["none", "bash, python"]),
+            ["**Tools offered (2): ` none `, ` bash, python `. The model may call"],
+            [],
+            id="tools named like the view's own words",
+        ),
+        pytest.param(
+            lambda: request_step(_ASKED),
+            ["**No tools are offered.**"],
+            ["Tools offered"],
+            id="no tools",
         ),
     ],
 )
 async def test_what_a_request_view_shows(
-    step: BeforeGenerate,
+    step: Callable[[], BeforeGenerate],
     shown: list[str],
     not_shown: list[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    view = await _request_shown(monkeypatch, step)
+    view = await _request_shown(monkeypatch, step())
 
     assert [text for text in shown if text not in view] == []
     assert [text for text in not_shown if text in view] == []
@@ -1034,11 +1087,25 @@ def test_a_person_is_asked_before_each_generate_and_approve_sends_the_request(
 ) -> None:
     panel = Panel("approve")
     panel.install(monkeypatch)
+    told: list[str] = []
+
+    class Notified:
+        def notify(self, body: str, title: str) -> bool:
+            told.append(body.splitlines()[-1])
+            return True
+
+    monkeypatch.setattr("inspect_ai._eval.eval.build_apprise", lambda _: Notified())
 
     log = run(h_ask("model_input", ["approve", "terminate"], escalated="a request"))
 
     assert log.status == "success", log.error
     assert panel.choices == [["approve", "terminate"]] * 2
+    # the prompt's message is empty, so the operator is told what waits
+    waits = "A request to mockllm/model waits for a decision: Model request: "
+    assert told == [
+        f"{waits}1 message (1 not sent before).",
+        f"{waits}3 messages (2 not sent before).",
+    ]
     first, second = panel.contents()
     assert "1 message to mockllm/model, none of which the model was sent" in first
     # the second request is shown by what the eval sent the model in the first
