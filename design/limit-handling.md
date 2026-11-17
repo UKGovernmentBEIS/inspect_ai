@@ -1187,7 +1187,7 @@ successful response, and is left as is.
 requests for one call and return the sum of their usage with `sum_usage()`
 (`src/inspect_ai/model/_model_output.py:485-497`), which skips a request
 that reported none, so the sum can be non-zero although one request
-reported nothing. Two paths do this for successful responses:
+reported nothing. Three paths do this for successful responses:
 
 - **Google** continuations and malformed-function-call retries:
   `_ContinuationChain.add()` sums each response's usage
@@ -1196,19 +1196,26 @@ reported nothing. Two paths do this for successful responses:
 - **The LiteLLM proxy's** malformed-function-call retries add the usage of
   each discarded attempt to the final output's
   (`_providers/litellm_proxy.py:961`, `:970`).
+- **Anthropic** continuations (`pause_turn` and other continued turns):
+  `_perform_request_and_continuations()` passes the head response and each
+  continuation leg through `chain.add()` (`_providers/anthropic.py:1368`),
+  and `_ContinuationChain.add()` sums their usage (`:355-358`). The SDK's
+  `message.usage` is required but its counts can be zero, and the
+  converter keeps those zeros, so a zero leg summed with a positive one
+  passes a check on the sum.
 
 Each applies the same test to every successful request before it sums
 (decision: Ransom, 2026-11-17): `_ContinuationChain.add()` calls
 `require_reported_usage()` on the response's converted usage before adding
-it, and the proxy calls it on each attempt's output usage before adding it
+it, the proxy calls it on each attempt's output usage before adding it
 to `discarded_usage` and on the final output unless that is a rejection
-output. The error raised there leaves the provider's `generate()` and is
+output, and Anthropic calls it on each leg's output usage before
+`chain.add()` (`anthropic.py:1368`). Anthropic's converted errors go through
+`chain.report()`, not `chain.add()`, so a rejection is never checked there. The error raised there leaves the provider's `generate()` and is
 handled by `Model` as above, so the call fails and none of its requests are
-charged, as for any failed attempt. `sum_usage()` itself is unchanged.
-Anthropic's continuation chain also sums with `sum_usage()`
-(`_providers/anthropic.py:358`), but its response converter always builds a
-`ModelUsage` from the SDK's required `message.usage`, which the API
-reports on every response; it needs no change.
+charged, as for any failed attempt. The check has the same gating
+everywhere: it does nothing without an active cost limit or while cost is
+suspended. `sum_usage()` itself is unchanged.
 
 Google's converted-error return must carry the usage of every response
 that completed. Today it takes `attempts_usage` and
@@ -1570,9 +1577,10 @@ documented. Behaviour changes:
   providers that omit usage, providers that fill in zeros (Mistral and
   SageMaker streams without a usage chunk, Grok responses without a usage
   message), and test models scripted to return none or zero (`mockllm`
-  fills in usage by default). Google calls whose continuation or
-  malformed-function-call retry got such a response, and LiteLLM proxy
-  calls whose malformed-function-call retries did, fail the same way, and
+  fills in usage by default). Google and Anthropic calls whose continuation
+  (or Google malformed-function-call retry) got such a response, and
+  LiteLLM proxy calls whose malformed-function-call retries did, fail the
+  same way, whatever order the zero and positive responses came in, and
   none of their requests are charged. Outputs Inspect builds from a
   provider's rejection of the request (OpenAI's context-length 400, and the
   other converters under "Unmetered calls") are exempt, so ReAct's overflow
@@ -1581,6 +1589,19 @@ documented. Behaviour changes:
   recovery, `CompactionAuto`'s native-to-summary fallback) are unchanged:
   one that catches the error and calls again makes one more call that no
   limit counts.
+- **OpenAI mid-stream safety blocks fail under a cost limit.** With
+  streaming, OpenAI delivers a safeguard or content-filter block as an
+  error event after the stream has started, and
+  `openai_handle_stream_error()` (`src/inspect_ai/model/_openai.py:1715-1737`)
+  converts it into a `content_filter` output with no usage. Inference had
+  started, so it is not a rejection output, and under a cost limit the call
+  now fails with `UnmeteredCallError`, which fails the sample unless
+  something catches it; today the agent receives the `content_filter`
+  output and can continue. Cyber evals, which meet OpenAI's safety blocks
+  often, run with a cost limit and streaming will see such samples end in
+  an error instead of a refusal turn. Without a cost limit, or without
+  streaming (where the block arrives as a 400 rejection, exempt), nothing
+  changes.
 - **Grok streams keep their last reported usage.** A Grok stream whose last
   chunks carry no usage now reports the last usage it received, where today
   it ends at zero.
@@ -1710,7 +1731,9 @@ under trio with `--runtrio`.
     HTTP 400 `context_length_exceeded` yields a `model_length` output with no
     usage that is returned without error; the same for a 400
     `content_policy_violation` (`content_filter`); the same rejection
-    delivered mid-stream through `openai_handle_stream_error()` fails; a
+    delivered mid-stream through `openai_handle_stream_error()` fails with
+    `UnmeteredCallError` under the cost limit and returns the
+    `content_filter` output without one; a
     provider stub returning a `model_length` output with no usage and no
     rejection flag fails; one rejection case per classified converter
     (implementation plan);
@@ -1725,7 +1748,14 @@ under trio with `--runtrio`.
     whose every response reports usage passes with the sum; in
     `tests/model/providers/test_litellm_proxy.py`, a malformed-call attempt
     with no usage followed by a reported recovery fails, and one with usage
-    on both passes; a final rejection after reported attempts passes;
+    on both passes; a final rejection after reported attempts passes; in
+    `tests/model/providers/test_anthropic.py` over a stubbed client, under a
+    cost limit, a `pause_turn` leg with zero usage followed by a positive
+    leg fails at the zero leg, and a positive leg followed by a zero
+    continuation fails at the continuation, both before summing; controls
+    pass with the sum: two positive legs, a leg reporting only cache-read
+    tokens, the zero-then-positive chain with no cost limit, and the same
+    chain inside `suspend_cost_limit()`;
   - rejection during a Google continuation, streamed and not: a
     continuation leg reporting 42 tokens followed by a context-length 400
     returns a `model_length` output with usage 42 and the first request's
@@ -1913,7 +1943,9 @@ Each step is one PR, in this order. Each keeps the suite green.
    error response received before any output. Summed usage:
    `require_reported_usage()` per successful request in
    `_ContinuationChain.add()` (`src/inspect_ai/model/_providers/google.py`)
-   and per attempt in `src/inspect_ai/model/_providers/litellm_proxy.py`;
+   and per attempt in `src/inspect_ai/model/_providers/litellm_proxy.py`,
+   and per leg before `chain.add()` in
+   `src/inspect_ai/model/_providers/anthropic.py`;
    Google's `handle_client_error()` outputs take `chain.usage` and
    `chain.input_context_tokens` in place of `attempts_usage` and
    `attempts_input_context_tokens`. `src/inspect_ai/model/_providers/grok.py`:
@@ -1927,7 +1959,8 @@ Each step is one PR, in this order. Each keeps the suite green.
    `tests/test_enqueue_task.py`, `tests/agent/test_bridge_provider_errors.py`,
    `tests/model/providers/test_google.py`,
    `tests/model/providers/test_litellm_proxy.py`,
-   `tests/model/providers/test_grok.py`, and one rejection case per
+   `tests/model/providers/test_grok.py`,
+   `tests/model/providers/test_anthropic.py`, and one rejection case per
    classified converter in that provider's existing test file under
    `tests/model/providers/` (mocked transport, no API key).
 3. **Suspension.** `_limit.py`: `check_limits()` skips suspended cost
