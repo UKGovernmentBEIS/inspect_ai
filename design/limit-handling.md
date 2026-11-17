@@ -1216,9 +1216,31 @@ reported nothing. Three paths do this for successful responses:
   passes a check on the sum.
 
 Each applies the same test to every successful request before it sums
-(decision: Ransom, 2026-11-17): `_ContinuationChain.add()` calls
-`require_reported_usage()` on the response's converted usage before adding
-it, the proxy calls it on each attempt's output usage before adding it
+(decision: Ransom, 2026-11-17). Google checks at the sites where a request
+is known to have completed, not in `_ContinuationChain.add()`, because its
+streaming path also adds records for interrupted hops (below):
+
+- In `_generate_with_continuations()` (non-streaming), every response is a
+  completed request, so it calls `require_reported_usage()` on the
+  response's converted usage before `chain.add(response)`
+  (`_providers/google.py:997-998`).
+- In `_stream_with_continuations()`, it calls it before
+  `chain.add(response)` (`:1063-1064`) only when the hop's stream ended
+  without an error and with a finish reason (`error is None and
+  leg.finished`): a completed `CONTINUATION` hop or the final response.
+  A hop that the SDK is recovering is not checked: a stream that raised a
+  transport error, or ended early without a finish reason, after which
+  `state.end_hop(error)` resumes from the last checkpoint or start token
+  (`:1037-1065`), including a hop that carried a continuation marker before
+  its transport error. `_StreamedLeg.response()` and `_cut_off_usage()`
+  (`:362-430`) build such a record from whatever was received, and its
+  usage can be absent or zero; it is still added to the chain and its
+  reported part summed, as today. These hops are failed attempts the SDK
+  recovers, which are not charged beyond what they reported (as for any
+  failed attempt), and the common check still requires the call's
+  final summed usage to be positive.
+
+The proxy calls it on each attempt's output usage before adding it
 to `discarded_usage` and on the final output unless that is a rejection
 output, and Anthropic calls it on each leg's output usage before
 `chain.add()` (`anthropic.py:1368`). Anthropic's converted errors go through
@@ -1592,7 +1614,9 @@ documented. Behaviour changes:
   (or Google malformed-function-call retry) got such a response, and
   LiteLLM proxy calls whose malformed-function-call retries did, fail the
   same way, whatever order the zero and positive responses came in, and
-  none of their requests are charged. Outputs Inspect builds from a
+  none of their requests are charged. A Google stream hop that drops or ends
+  early and that the SDK resumes is not such a response: it recovers as
+  today. Outputs Inspect builds from a
   provider's rejection of the request (OpenAI's context-length 400, and the
   other converters under "Unmetered calls") are exempt, so ReAct's overflow
   compaction and truncation work as today. Without a cost limit nothing
@@ -1756,7 +1780,18 @@ under trio with `--runtrio`.
     followed by a reported response, and a `MALFORMED_FUNCTION_CALL`
     response with zero usage followed by a reported retry, each fail with
     `UnmeteredCallError` at the first response, before summing; a chain
-    whose every response reports usage passes with the sum; in
+    whose every response reports usage passes with the sum; the same
+    `CONTINUATION` with no usage, streamed and completed, fails too; stream
+    recovery is not checked (pinned against today's tests
+    `test_dropped_stream_resumes_from_its_checkpoint`,
+    `test_cut_off_stream_resumes_from_its_checkpoint` and
+    `test_reconnect_without_checkpoint_keeps_its_usage`, run under a cost
+    limit): a hop that drops with a transport error after a checkpoint and
+    no usage, one that ends early with no usage, one reporting zero usage
+    before it is cut off, a metadata-only reconnect from a prior checkpoint,
+    and a hop that carried a `CONTINUATION` marker and then raised a
+    transport error each resume and finish, with the final response's
+    positive usage summed and charged; in
     `tests/model/providers/test_litellm_proxy.py`, a malformed-call attempt
     with no usage followed by a reported recovery fails, and one with usage
     on both passes; a final rejection after reported attempts passes; in
@@ -1959,8 +1994,10 @@ Each step is one PR, in this order. Each keeps the suite green.
    in `_openai.py` for `APIStatusError` only, and each provider's converter
    in `src/inspect_ai/model/_providers/` that builds its output from an
    error response received before any output. Summed usage:
-   `require_reported_usage()` per successful request in
-   `_ContinuationChain.add()` (`src/inspect_ai/model/_providers/google.py`)
+   `require_reported_usage()` per completed request in
+   `src/inspect_ai/model/_providers/google.py`, before `chain.add()` in
+   `_generate_with_continuations()` and, for hops that ended without an
+   error and with a finish reason, in `_stream_with_continuations()`,
    and per attempt in `src/inspect_ai/model/_providers/litellm_proxy.py`,
    and per leg before `chain.add()` in
    `src/inspect_ai/model/_providers/anthropic.py`;
