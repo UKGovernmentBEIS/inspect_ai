@@ -22,10 +22,12 @@ from inspect_ai.event import (
     TimelineEvent,
     TimelineSpan,
 )
-from inspect_ai.log._condense import condense_sample
+from inspect_ai.log._condense import condense_sample, resolve_sample_attachments
 from inspect_ai.log._file import (
+    read_eval_log,
     read_eval_log_async,
     read_eval_log_sample_summaries_async,
+    write_eval_log,
 )
 from inspect_ai.log._log import (
     EvalConfig,
@@ -897,6 +899,65 @@ def _attachment_emitting_solver() -> Solver:
         return state
 
     return solve
+
+
+@pytest.mark.parametrize("consumer", ["task_source", "sample_feed"])
+def test_finalization_consumers_can_resolve_and_copy_bounded_history(
+    consumer: Literal["task_source", "sample_feed"],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    isolated_hooks_registry: None,
+) -> None:
+    import inspect_ai._eval.task.run as run_module
+
+    monkeypatch.setattr(run_module, "DEFAULT_RESIDENT_TAIL", 1)
+    monkeypatch.setenv("INSPECT_TRANSCRIPT_BOUNDED", "true")
+    received: list[EvalSample] = []
+    sample = Sample(input="question", target="answer")
+    task = Task(dataset=[sample], solver=[_attachment_emitting_solver()])
+
+    async def sample_complete(sample: EvalSample) -> None:
+        received.append(sample)
+
+    async def task_sample_complete(sample: EvalSample, task: Task) -> None:
+        received.append(sample)
+
+    source: Task | TaskSource
+    if consumer == "task_source":
+        source = TaskSource.from_tasks([task], sample_complete=task_sample_complete)
+    else:
+        source = Task(
+            dataset=SampleSource.from_samples(
+                [sample], sample_complete=sample_complete
+            ),
+            solver=[_attachment_emitting_solver()],
+        )
+    logs = eval(
+        source, model="mockllm/model", log_dir=str(tmp_path / "logs"), display="none"
+    )
+    assert logs[0].status == "success"
+    [materialized] = received
+
+    # the buffered long text was pooled as a genuine reference
+    expected: list[JsonValue] = [f"{i} {_long_content()}" for i in range(4)]
+
+    def contents(sample: EvalSample) -> list[JsonValue]:
+        return [
+            event.data["content"]
+            for event in sample.events
+            if isinstance(event, InfoEvent)
+            and isinstance(event.data, dict)
+            and "content" in event.data
+        ]
+
+    assert contents(materialized) == expected
+    assert contents(resolve_sample_attachments(materialized, "full")) == expected
+    for log_format in ("eval", "json"):
+        copy = str(tmp_path / f"copy.{log_format}")
+        write_eval_log(logs[0].model_copy(update={"samples": [materialized]}), copy)
+        reread = read_eval_log(copy, resolve_attachments=True)
+        assert reread.samples
+        assert contents(reread.samples[0]) == expected
 
 
 @pytest.mark.parametrize("consumer", ["scanner", "task_source", "sample_feed"])
