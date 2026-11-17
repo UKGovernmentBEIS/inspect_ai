@@ -4,13 +4,16 @@ import socket
 import subprocess
 import sys
 import textwrap
-from collections.abc import Iterator
+import zipfile
+from collections.abc import Awaitable, Callable, Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
+import anyio
 import pytest
+from test_helpers.buffer import simulate_crashed_buffer_db
 
-from inspect_ai import Task, TaskSource, eval_set, task
+from inspect_ai import Task, TaskSource, eval, eval_set, task
 from inspect_ai._control.eval_state import get_eval_states
 from inspect_ai._eval.eval_set_manifest import (
     INSPECT_EVAL_SET_CAPTURE,
@@ -29,8 +32,15 @@ from inspect_ai._eval.eval_set_selection import (
 )
 from inspect_ai._eval.evalset import task_identifier
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.file import local_path
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.dataset import Sample
+from inspect_ai.event import SampleInitEvent
 from inspect_ai.log import EvalLog, list_eval_logs, read_eval_log
+from inspect_ai.log._log import EvalSampleSummary
+from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+from inspect_ai.log._recorders.eval import LogStart
+from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import Score, Scorer, Target, exact, scorer
@@ -389,7 +399,8 @@ def test_eval_set_selection_forces_fail_on_error_off(
 
     `fail_on_error=True` (the default) would mark the log `error` on the first
     sample error. Worker mode overrides it so the errored sample becomes an
-    entry in the runner's adjudication queue rather than a failed task.
+    entry in the runner's adjudication queue rather than a failed task. This is
+    the default `completion="runner"`, so the selection omits the field.
     """
 
     @solver
@@ -445,8 +456,9 @@ def test_eval_set_selection_forces_fail_on_error_off(
 
     selection_path = tmp_path / "selection.json"
     selection_path.write_text(
-        selection_for(capture.tasks[0].identifier).model_dump_json()
+        selection_for(capture.tasks[0].identifier).model_dump_json(exclude_unset=True)
     )
+    assert "completion" not in selection_path.read_text()
     monkeypatch.setenv(INSPECT_EVAL_SET_SELECTION, str(selection_path))
     try:
         success, logs = eval_set(tasks=tasks(), **kwargs)
@@ -460,10 +472,401 @@ def test_eval_set_selection_forces_fail_on_error_off(
     assert logs[0].results.completed_samples == 1
 
 
+def run_with_completion(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    task: Callable[[], Task],
+    **kwargs: Any,
+) -> tuple[bool, list[EvalLog]]:
+    """Capture a one-task eval set, then run its task as a worker with `completion="definition"`."""
+    manifest_path = tmp_path / "manifest.json"
+    eval_set_kwargs: dict[str, Any] = dict(
+        model="mockllm/model",
+        log_dir=str(tmp_path / "logs"),
+        display="plain",
+        **kwargs,
+    )
+    monkeypatch.setenv(INSPECT_EVAL_SET_CAPTURE, str(manifest_path))
+    try:
+        with pytest.raises(SystemExit):
+            eval_set(tasks=[task()], **eval_set_kwargs)
+    finally:
+        monkeypatch.delenv(INSPECT_EVAL_SET_CAPTURE)
+    capture = EvalSetCapture.model_validate_json(manifest_path.read_bytes())
+
+    selection = EvalSetSelection(
+        version=EVAL_SET_SELECTION_VERSION,
+        eval_set_id="worker-test",
+        tasks=[EvalSetSelectionTask(identifier=capture.tasks[0].identifier)],
+        completion="definition",
+    )
+    selection_path = tmp_path / "selection.json"
+    selection_path.write_text(selection.model_dump_json())
+    monkeypatch.setenv(INSPECT_EVAL_SET_SELECTION, str(selection_path))
+    try:
+        return eval_set(tasks=[task()], **eval_set_kwargs)
+    finally:
+        monkeypatch.delenv(INSPECT_EVAL_SET_SELECTION)
+
+
+@solver
+def fail_attempts(attempts: list[str], failures: dict[str, int]) -> Solver:
+    """Record each sample attempt, raising until the sample has failed `failures[id]` times (`-1`: always)."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        sample_id = str(state.sample_id)
+        attempts.append(sample_id)
+        limit = failures.get(sample_id, 0)
+        if limit < 0 or attempts.count(sample_id) <= limit:
+            raise ValueError(f"sample {sample_id} errors")
+        return state
+
+    return solve
+
+
+def test_eval_set_selection_definition_completion_fails_the_task(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """With the definition's policy, an error beyond its tolerance fails the task after its retries.
+
+    The default `fail_on_error` tolerates no error, so the always-erroring
+    sample fails the first attempt and the one retry `retry_attempts=1` allows.
+    Each attempt leaves its own `error` log: the worker does no retry cleanup.
+    """
+    attempts: list[str] = []
+
+    def failing() -> Task:
+        return Task(
+            dataset=[Sample(id="ok", input="ok"), Sample(id="bad", input="bad")],
+            solver=fail_attempts(attempts, {"bad": -1}),
+            scorer=exact(),
+            name="failing",
+        )
+
+    success, logs = run_with_completion(
+        monkeypatch, tmp_path, failing, retry_attempts=1
+    )
+
+    assert not success
+    assert logs[0].status == "error"
+    assert attempts.count("bad") == 2
+    logs_written = [
+        read_eval_log(info) for info in list_eval_logs(str(tmp_path / "logs"))
+    ]
+    assert [log.status for log in logs_written] == ["error", "error"]
+
+
+@pytest.mark.parametrize(
+    "retry_immediate,retry_attempts",
+    # with batch retry, `retry_attempts` counts the first attempt
+    [(None, 1), (False, 2)],
+)
+def test_eval_set_selection_definition_completion_retries_in_process(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    retry_immediate: bool | None,
+    retry_attempts: int,
+) -> None:
+    """The definition's task retry runs in the worker, resuming the failed attempt.
+
+    Always immediate: batch retry (`retry_immediate=False`) is eval-set
+    orchestration, which a worker does not perform.
+    """
+    attempts: list[str] = []
+
+    def flaky() -> Task:
+        return Task(
+            dataset=[Sample(id="one", input="one"), Sample(id="two", input="two")],
+            solver=fail_attempts(attempts, {"two": 1}),
+            scorer=exact(),
+            name="flaky",
+        )
+
+    success, logs = run_with_completion(
+        monkeypatch,
+        tmp_path,
+        flaky,
+        retry_attempts=retry_attempts,
+        retry_immediate=retry_immediate,
+        max_samples=1,
+    )
+
+    assert success
+    assert logs[0].status == "success"
+    # "one" completed on the first attempt and was reused by the retry
+    assert attempts.count("one") == 1
+    assert attempts.count("two") == 2
+    assert logs[0].results is not None
+    assert logs[0].results.completed_samples == 2
+
+
+def test_eval_set_selection_definition_completion_honours_a_task_threshold(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A task's own `fail_on_error` threshold decides, and an error within it consumes no retry."""
+    attempts: list[str] = []
+
+    def tolerant() -> Task:
+        return Task(
+            dataset=[Sample(id=str(i), input=str(i)) for i in range(4)],
+            solver=fail_attempts(attempts, {"0": -1}),
+            scorer=exact(),
+            name="tolerant",
+            fail_on_error=0.5,
+        )
+
+    success, logs = run_with_completion(monkeypatch, tmp_path, tolerant)
+
+    assert success
+    assert logs[0].status == "success"
+    assert attempts.count("0") == 1
+    assert logs[0].results is not None
+    assert logs[0].results.completed_samples == 3
+
+
+@pytest.mark.parametrize("retry_immediate", [True, False])
+@pytest.mark.parametrize("retry_attempts", [1, 2, 3])
+def test_eval_set_selection_definition_completion_attempts_match_eval_set(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    retry_attempts: int,
+    retry_immediate: bool,
+) -> None:
+    """A failing task gets as many attempts under `completion="definition"` as under `eval_set()`.
+
+    That is `retry_attempts` retries after the first attempt when retries are
+    immediate, and `retry_attempts` attempts in all when they are batched.
+    """
+    attempts: list[str] = []
+
+    def failing() -> Task:
+        return Task(
+            dataset=[Sample(id="bad", input="bad")],
+            solver=fail_attempts(attempts, {"bad": -1}),
+            scorer=exact(),
+            name="failing",
+        )
+
+    kwargs: dict[str, Any] = dict(
+        retry_attempts=retry_attempts,
+        retry_immediate=retry_immediate,
+        retry_wait=0.01,
+    )
+    success, _ = eval_set(
+        tasks=[failing()],
+        model="mockllm/model",
+        log_dir=str(tmp_path / "stock"),
+        display="plain",
+        **kwargs,
+    )
+    assert not success
+    stock_attempts = len(attempts)
+    attempts.clear()
+
+    success, _ = run_with_completion(
+        monkeypatch, _mkdir(tmp_path / "selection"), failing, **kwargs
+    )
+
+    assert not success
+    assert len(attempts) == stock_attempts
+    assert stock_attempts == retry_attempts + (1 if retry_immediate else 0)
+
+
+def test_eval_set_selection_definition_completion_runs_a_resumed_complete_log(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Only a log completed by recovery stands in for a run: a `resume` of a complete log still runs the task."""
+    success, [first] = run_with_completion(monkeypatch, tmp_path, selection_task_two)
+    assert success
+    selection = EvalSetSelection(
+        version=EVAL_SET_SELECTION_VERSION,
+        eval_set_id="worker-test",
+        tasks=[
+            EvalSetSelectionTask(
+                identifier=task_identifier(first, None), resume=first.location
+            )
+        ],
+        completion="definition",
+    )
+    selection_path = tmp_path / "resume.json"
+    selection_path.write_text(selection.model_dump_json())
+    monkeypatch.setenv(INSPECT_EVAL_SET_SELECTION, str(selection_path))
+    try:
+        success, logs = eval_set(
+            tasks=[selection_task_two()],
+            model="mockllm/model",
+            log_dir=str(tmp_path / "logs"),
+            display="plain",
+        )
+    finally:
+        monkeypatch.delenv(INSPECT_EVAL_SET_SELECTION)
+
+    assert success
+    # the run wrote a log of its own beside the resumed one
+    assert len(list((tmp_path / "logs").glob("*.eval"))) == 2
+
+
+@solver
+def record_generate(calls: list[str]) -> Solver:
+    """Record each sample that reaches inference, then generate."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        calls.append(str(state.sample_id))
+        return await generate(state)
+
+    return solve
+
+
+def crash_log(task: Task, log_dir: Path) -> SampleBufferDatabase:
+    """Leave a crashed (`started`) log of a two-sample `task` in `log_dir`.
+
+    Sample 1 completed and sample 2 was in progress at the crash, both only in
+    the sample buffer, which the caller cleans up.
+    """
+    started_log = eval(
+        task, model="mockllm/model", log_dir=str(log_dir), run_samples=False
+    )[0]
+    with zipfile.ZipFile(local_path(started_log.location), "w") as zf:
+        zf.writestr(
+            "_journal/start.json",
+            to_json_str_safe(
+                LogStart(
+                    version=started_log.version,
+                    eval=started_log.eval,
+                    plan=started_log.plan,
+                )
+            ),
+        )
+    buffer = SampleBufferDatabase(started_log.location)
+    now = "2026-01-01T00:00:00+00:00"
+    completed = EvalSampleSummary(
+        id=1,
+        epoch=1,
+        input="Say hello",
+        target="hello",
+        scores={"accuracy": Score(value="C", answer="hello")},
+        started_at=now,
+        completed_at=now,
+    )
+    in_progress = EvalSampleSummary(
+        id=2, epoch=1, input="Say hello", target="hello", started_at=now
+    )
+    for summary in (completed, in_progress):
+        buffer.start_sample(summary)
+        buffer.log_events(
+            [
+                SampleEvent(
+                    id=summary.id,
+                    epoch=1,
+                    event=SampleInitEvent(
+                        sample=Sample(id=summary.id, input="Say hello"), state={}
+                    ),
+                )
+            ]
+        )
+    buffer.complete_sample(completed, sample_metadata=None)
+    simulate_crashed_buffer_db(buffer)
+    return buffer
+
+
+@pytest.mark.parametrize("completion", ["definition", "runner"])
+def test_eval_set_selection_resume_of_a_crashed_log_applies_incomplete_action(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    completion: Literal["runner", "definition"],
+) -> None:
+    """Under `completion="definition"` a resumed crashed log is recovered as `eval_set()` recovers it.
+
+    With `incomplete_action="error"` both resolve the sample in progress at the
+    crash as an error and finalize the recovered log, so nothing reruns. Under
+    `completion="runner"` recovery keeps the default disposition and the
+    sample reruns.
+    """
+    calls: list[str] = []
+
+    def crashed() -> Task:
+        return Task(
+            dataset=[
+                Sample(id=1, input="Say hello", target="hello"),
+                Sample(id=2, input="Say hello", target="hello"),
+            ],
+            solver=record_generate(calls),
+            name="crashed",
+        )
+
+    kwargs: dict[str, Any] = dict(
+        model="mockllm/model",
+        display="plain",
+        retry_attempts=1,
+        incomplete_action="error",
+    )
+    buffers: list[SampleBufferDatabase] = []
+    try:
+        stock_dir = tmp_path / "stock"
+        buffers.append(crash_log(crashed(), stock_dir))
+        stock_success, stock_logs = eval_set(
+            tasks=[crashed()], log_dir=str(stock_dir), **kwargs
+        )
+        stock_calls = calls.copy()
+        calls.clear()
+
+        selection_dir = tmp_path / "selection"
+        buffers.append(crash_log(crashed(), selection_dir))
+        manifest_path = tmp_path / "manifest.json"
+        monkeypatch.setenv(INSPECT_EVAL_SET_CAPTURE, str(manifest_path))
+        try:
+            with pytest.raises(SystemExit):
+                eval_set(tasks=[crashed()], log_dir=str(selection_dir), **kwargs)
+        finally:
+            monkeypatch.delenv(INSPECT_EVAL_SET_CAPTURE)
+        [captured] = EvalSetCapture.model_validate_json(
+            manifest_path.read_bytes()
+        ).tasks
+        assert captured.complete is False
+        selection = EvalSetSelection(
+            version=EVAL_SET_SELECTION_VERSION,
+            eval_set_id="worker-test",
+            tasks=[
+                EvalSetSelectionTask(
+                    identifier=captured.identifier, resume=captured.log
+                )
+            ],
+            completion=completion,
+        )
+        selection_path = tmp_path / "selection.json"
+        selection_path.write_text(selection.model_dump_json())
+        monkeypatch.setenv(INSPECT_EVAL_SET_SELECTION, str(selection_path))
+        try:
+            success, logs = eval_set(
+                tasks=[crashed()], log_dir=str(selection_dir), **kwargs
+            )
+        finally:
+            monkeypatch.delenv(INSPECT_EVAL_SET_SELECTION)
+    finally:
+        for buffer in buffers:
+            buffer.cleanup()
+
+    # the stock eval set finalizes the recovered log without rerunning anything
+    assert stock_success
+    assert [log.status for log in stock_logs] == ["success"]
+    assert "-recovered" in (stock_logs[0].location or "")
+    assert stock_calls == []
+
+    assert success
+    assert [log.status for log in logs] == ["success"]
+    if completion == "definition":
+        assert "-recovered" in (logs[0].location or "")
+        assert calls == stock_calls
+    else:
+        assert calls == ["2"]
+
+
 def _acp_probe_tasks(
-    observed: list[bool], discovered: list[tuple[int, str]] | None = None
+    observed: list[bool],
+    discovered: list[tuple[int, str]] | None = None,
+    probe: Callable[[], Awaitable[None]] | None = None,
 ) -> list[Task]:
-    """One sample that records whether ACP is the live human channel."""
+    """One sample that records whether ACP is the live human channel, then awaits `probe`."""
 
     @solver
     def observe_acp() -> Solver:
@@ -474,8 +877,10 @@ def _acp_probe_tasks(
             observed.append(acp_server_accepting_clients())
             if discovered is not None:
                 discovered.extend(
-                    (e.pid, str(e.target.socket_path)) for e in list_discovered_evals()
+                    (e.pid, e.target.describe()) for e in list_discovered_evals()
                 )
+            if probe is not None:
+                await probe()
             return state
 
         return solve
@@ -521,23 +926,34 @@ def short_acp_dir(monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
 @pytest.mark.skipif(
     not hasattr(socket, "AF_UNIX"), reason="AF_UNIX sockets not available."
 )
-def test_eval_set_selection_binds_an_acp_server(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, short_acp_dir: Path
+@pytest.mark.parametrize("acp_server", [None, False, 0])
+def test_eval_set_selection_defaults_to_the_unix_socket(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    short_acp_dir: Path,
+    acp_server: bool | int | None,
 ) -> None:
     """A selection-mode worker is reachable over ACP without being asked.
 
     Detached, the human-input chain is ACP -> Textual panel -> console, and a
     worker has neither of the last two. Binding the server is what turns
     `approver: human` and `ask_user()` from an errored sample in a successful
-    log into a sample that parks for someone to attach to.
+    log into a sample that parks for someone to attach to. A definition that
+    names no transport, or turns ACP off (`False`, `0`), gets the default socket.
     """
+    expected = (short_acp_dir / "acp" / f"{os.getpid()}.sock").resolve()
     observed: list[bool] = []
     discovered: list[tuple[int, str]] = []
+    bound: list[bool] = []
+
+    async def check_socket() -> None:
+        bound.append(expected.is_socket())
 
     kwargs: dict[str, Any] = dict(
         model="mockllm/model",
         log_dir=str(tmp_path / "logs"),
         display="plain",
+        acp_server=acp_server,
     )
     manifest_path = tmp_path / "manifest.json"
     monkeypatch.setenv(INSPECT_EVAL_SET_CAPTURE, str(manifest_path))
@@ -556,7 +972,9 @@ def test_eval_set_selection_binds_an_acp_server(
     )
     monkeypatch.setenv(INSPECT_EVAL_SET_SELECTION, str(selection_path))
     try:
-        success, logs = eval_set(tasks=_acp_probe_tasks(observed, discovered), **kwargs)
+        success, logs = eval_set(
+            tasks=_acp_probe_tasks(observed, discovered, check_socket), **kwargs
+        )
     finally:
         monkeypatch.delenv(INSPECT_EVAL_SET_SELECTION)
 
@@ -565,10 +983,11 @@ def test_eval_set_selection_binds_an_acp_server(
     # the routing shims commit to ACP rather than falling through to a panel
     # and a console that are not there
     assert observed == [True]
+    assert bound == [True]
     # and the socket is discoverable from the pid, which is all an external
     # runner knows about the worker it spawned
-    expected = (short_acp_dir / "acp" / f"{os.getpid()}.sock").resolve()
     assert discovered == [(os.getpid(), str(expected))]
+    assert not expected.exists()
 
 
 def test_eval_set_selection_fails_on_an_unbindable_acp_path(
@@ -617,6 +1036,67 @@ def test_eval_set_selection_fails_on_an_unbindable_acp_path(
 
     # it failed before running a sample rather than while pretending to work
     assert observed == []
+
+
+def test_eval_set_selection_keeps_an_explicit_acp_port(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, short_acp_dir: Path
+) -> None:
+    """A worker binds the TCP port its definition passes as `acp_server`.
+
+    A runner that reaches its workers by port-forward cannot attach to the
+    default AF_UNIX socket, so a worker that replaced the port with it could
+    never have a human approval answered.
+    """
+    with socket.socket() as free:
+        free.bind(("127.0.0.1", 0))
+        port = free.getsockname()[1]
+    observed: list[bool] = []
+    discovered: list[tuple[int, str]] = []
+
+    async def connect() -> None:
+        stream = await anyio.connect_tcp("127.0.0.1", port)
+        await stream.aclose()
+
+    success, _ = run_with_completion(
+        monkeypatch,
+        tmp_path,
+        lambda: _acp_probe_tasks(observed, discovered, connect)[0],
+        acp_server=port,
+    )
+
+    assert success
+    assert observed == [True]
+    assert discovered == [(os.getpid(), f"127.0.0.1:{port}")]
+    with pytest.raises(ConnectionRefusedError):
+        socket.create_connection(("127.0.0.1", port), timeout=5).close()
+
+
+@pytest.mark.skipif(
+    not hasattr(socket, "AF_UNIX"), reason="AF_UNIX sockets not available."
+)
+def test_eval_set_selection_keeps_an_explicit_acp_socket_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, short_acp_dir: Path
+) -> None:
+    """A worker binds the socket path its definition passes as `acp_server`."""
+    path = short_acp_dir / "definition.sock"
+    observed: list[bool] = []
+    discovered: list[tuple[int, str]] = []
+
+    async def connect() -> None:
+        stream = await anyio.connect_unix(path)
+        await stream.aclose()
+
+    success, _ = run_with_completion(
+        monkeypatch,
+        tmp_path,
+        lambda: _acp_probe_tasks(observed, discovered, connect)[0],
+        acp_server=str(path),
+    )
+
+    assert success
+    assert observed == [True]
+    assert discovered == [(os.getpid(), str(path))]
+    assert not path.exists()
 
 
 def _mkdir(path: Path) -> Path:
@@ -1202,6 +1682,17 @@ def test_eval_set_selection_resume_log_missing(
             ),
             "runner_notes",
         ),
+        (
+            json.dumps(
+                {
+                    "version": 8,
+                    "eval_set_id": "x",
+                    "tasks": [{"identifier": "y"}],
+                    "completion": "definiton",
+                }
+            ),
+            "completion",
+        ),
         # a version this inspect doesn't understand is reported as a version
         # mismatch even when the newer schema's fields are what fail validation
         (
@@ -1461,6 +1952,23 @@ _EXPECTED_SELECTION_FIELDS[7] = {
 }
 
 
+# v8 added `completion`, letting a selection keep the definition's own
+# `fail_on_error`, `continue_on_fail` and task retries instead of the runner
+# adjudicating completion from the log. Defaults to "runner", the v7 behaviour.
+_EXPECTED_SELECTION_FIELDS[8] = {
+    "selection": _EXPECTED_SELECTION_FIELDS[7]["selection"] | {"completion"},
+    "task": _EXPECTED_SELECTION_FIELDS[7]["task"],
+    "overrides": _EXPECTED_SELECTION_FIELDS[7]["overrides"],
+}
+
+
+# v9 added no field. A worker now keeps a port or socket path the definition
+# passes as `acp_server` instead of binding the default socket, and the version
+# lets a runner that reaches workers over TCP tell that the installed inspect
+# does.
+_EXPECTED_SELECTION_FIELDS[9] = _EXPECTED_SELECTION_FIELDS[8]
+
+
 def test_eval_set_selection_schema_stability() -> None:
     assert EVAL_SET_SELECTION_VERSION in _EXPECTED_SELECTION_FIELDS
     expected = _EXPECTED_SELECTION_FIELDS[EVAL_SET_SELECTION_VERSION]
@@ -1568,6 +2076,40 @@ def test_selection_scanners_are_gated_at_version_7(
         assert read_eval_set_selection(str(path)) is not None
     else:
         with pytest.raises(PrerequisiteError, match="schema version"):
+            read_eval_set_selection(str(path))
+
+
+@pytest.mark.parametrize(
+    ("version", "completion", "accepted"),
+    [(7, "definition", False), (7, "runner", False), (8, "definition", True)],
+    ids=[
+        "definition under version 7",
+        "an explicit runner under version 7",
+        "definition under version 8",
+    ],
+)
+def test_selection_completion_is_gated_at_version_8(
+    version: int, completion: str, accepted: bool, tmp_path: Path
+) -> None:
+    """`completion` is refused under an older version even at its default, which an older inspect would refuse as an unknown field."""
+    path = tmp_path / "selection.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": version,
+                "eval_set_id": "probe",
+                "tasks": [{"identifier": "a"}],
+                "completion": completion,
+            }
+        )
+    )
+
+    if accepted:
+        assert read_eval_set_selection(str(path)).completion == completion
+    else:
+        with pytest.raises(
+            PrerequisiteError, match="schema version 7 but sets completion"
+        ):
             read_eval_set_selection(str(path))
 
 
