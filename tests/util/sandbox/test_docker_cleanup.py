@@ -563,9 +563,9 @@ async def test_reported_projects_print_their_cleanup_commands(
     # Print through a console of the test's own: the global one takes its width
     # from the environment, and an earlier `display="none"` eval in this process
     # leaves it quiet.
-    monkeypatch.setattr(
-        cleanup_module, "print", Console(width=80, force_terminal=False).print
-    )
+    console = Console(width=80, force_terminal=False)
+    monkeypatch.setattr(cleanup_module, "print", console.print)
+    monkeypatch.setattr(cleanup_module, "get_console", lambda: console)
 
     task_name = "gpqa_diamond_long"
     with sandbox_lifecycle_scope():
@@ -580,6 +580,169 @@ async def test_reported_projects_print_their_cleanup_commands(
     for project_name in fake_docker.running:
         assert f"  inspect sandbox cleanup docker {project_name}" in lines
         assert any(f" {project_name}-default-1 " in line for line in lines)
+
+
+@pytest.mark.parametrize("width", [80, 120])
+async def test_reported_projects_preserve_long_sample_ids(
+    fake_docker: FakeDocker,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    width: int,
+) -> None:
+    """Retained samples remain distinguishable in the table and fallback list."""
+    console = Console(width=width, force_terminal=False)
+    monkeypatch.setattr(cleanup_module, "print", console.print)
+    monkeypatch.setattr(cleanup_module, "get_console", lambda: console)
+    sample_ids = [f"sample-{'0123456789' * 3}-{n}" for n in (1, 2)]
+    logs = await eval_async(
+        Task(
+            name="gpqa_diamond_long",
+            dataset=[Sample(id=sample_id, input="hello") for sample_id in sample_ids],
+            sandbox="docker",
+            solver=generate(),
+        ),
+        model="mockllm/model",
+        sandbox_cleanup=False,
+    )
+
+    assert logs[0].status == "success"
+    output = capsys.readouterr().out
+    for sample_id in sample_ids:
+        assert sample_id in output
+    if width == 80:
+        assert "│" not in output
+        assert output.count("Epoch: 1") == 2
+    else:
+        rows = [line.split("│") for line in output.splitlines() if line.startswith("│")]
+        assert {(row[1].strip(), row[2].strip()) for row in rows[1:]} == {
+            (sample_id, "1") for sample_id in sample_ids
+        }
+    for project_name in fake_docker.running:
+        assert f"{project_name}-default-1" in output
+
+
+@pytest.mark.parametrize("width", [40, 80, 94, 95, 120])
+@pytest.mark.parametrize(
+    "service",
+    [
+        "browser-automation-environment",
+        "context_length_mod_instrumental_only",
+        "context_length_mod_irreversibility_only",
+    ],
+)
+async def test_reported_projects_preserve_long_container_names(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    width: int,
+    service: str,
+) -> None:
+    """Names stay copyable and associated with the right sample and epoch."""
+    console = Console(width=width, force_terminal=False)
+    monkeypatch.setattr(cleanup_module, "print", console.print)
+    monkeypatch.setattr(cleanup_module, "get_console", lambda: console)
+    projects = [
+        ComposeProject(
+            name=f"inspect-gpqa_diamond-i{suffix}",
+            config=None,
+            sample_id=sample_id,
+            epoch=epoch,
+            env=None,
+        )
+        for sample_id, epoch, suffix in [
+            (1, 2, "qes2sgrg8tkq5q5w"),
+            (2, 3, "yjq05n2sfjrqzy1r"),
+        ]
+    ]
+    queried: list[ComposeProject] = []
+
+    async def compose_ps(project: ComposeProject, all: bool) -> list[dict[str, Any]]:
+        assert all
+        queried.append(project)
+        return [{"Name": f"{project.name}-{name}-1"} for name in ("default", service)]
+
+    monkeypatch.setattr(cleanup_module, "compose_ps", compose_ps)
+    with sandbox_lifecycle_scope():
+        for project in projects:
+            cleanup_module.project_startup(project)
+        await cleanup_module.project_cleanup_shutdown(False)
+
+    assert queried == projects
+    output = capsys.readouterr().out
+    lines = output.splitlines()
+    # This fixture needs 95 columns with the shortest of its three service names.
+    table_expected = width == 120 or (
+        width == 95 and service == "browser-automation-environment"
+    )
+    assert ("│" in output) == table_expected
+    for project in projects:
+        names = [f"{project.name}-{name}-1" for name in ("default", service)]
+        if table_expected:
+            row = next(line.split("│") for line in lines if names[0] in line)
+            assert row[1].strip() == str(project.sample_id)
+            assert row[2].strip() == str(project.epoch)
+        else:
+            block = (
+                f"Sample ID: {project.sample_id}\nEpoch: {project.epoch}\n"
+                + "\n".join(names)
+            )
+            assert block in output
+        for name in names:
+            assert any(name in line for line in lines)
+
+
+@pytest.mark.parametrize(
+    ("sample_id", "width", "table_expected"),
+    [
+        ("[red]sample[/red]", 80, True),
+        ("[red]sample[/red]", 79, False),
+        ("sample:smile:1", 80, True),
+        ("sample:smile:1", 40, False),
+        ("界" * 10, 83, True),
+        ("界" * 10, 82, False),
+        ("sample\tidentifier", 81, True),
+        ("sample\tidentifier", 80, False),
+        (None, 80, True),
+        (None, 40, False),
+    ],
+)
+@pytest.mark.parametrize("quiet", [False, True])
+async def test_reported_projects_measure_literal_sample_ids(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    sample_id: str | None,
+    width: int,
+    table_expected: bool,
+    quiet: bool,
+) -> None:
+    """Layout uses rendered cell widths, while both layouts respect quiet output."""
+    console = Console(width=width, force_terminal=False, quiet=quiet)
+    monkeypatch.setattr(cleanup_module, "print", console.print)
+    monkeypatch.setattr(cleanup_module, "get_console", lambda: console)
+    project = ComposeProject(
+        name="inspect-gpqa_diamond-iqes2sgrg8tkq5q5w",
+        config=None,
+        sample_id=sample_id,
+        epoch=12 if sample_id is not None else None,
+        env=None,
+    )
+    container_name = f"{project.name}-default-1"
+
+    async def compose_ps(project: ComposeProject, all: bool) -> list[dict[str, Any]]:
+        return [{"Name": container_name}]
+
+    monkeypatch.setattr(cleanup_module, "compose_ps", compose_ps)
+    with sandbox_lifecycle_scope():
+        cleanup_module.project_startup(project)
+        await cleanup_module.project_cleanup_shutdown(False)
+
+    output = capsys.readouterr().out
+    if quiet:
+        assert output == ""
+    else:
+        assert ("│" in output) == table_expected
+        assert container_name in output
+        if sample_id is not None and "\t" not in sample_id:
+            assert sample_id in output
 
 
 async def test_reported_compose_config_project_is_cleaned_up_by_name(
