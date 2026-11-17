@@ -13,6 +13,7 @@ from inspect_ai.event._event import DiscriminatedEvent, Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sentinel import SentinelEvent
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log import read_eval_log, write_eval_log
 from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSample, EvalSpec
 from inspect_ai.scorer import Reference
@@ -126,6 +127,7 @@ def _observation(**kwargs: Any) -> SentinelEvent:
         _observation(references=_REFERENCES),
         _sentinel_event(references=_REFERENCES),
         _observation(status="error", suspicion=None, error="ValueError: no model"),
+        _observation(stage="tool_result", execution_id="call_token"),
     ],
 )
 def test_sentinel_event_round_trips(event: SentinelEvent) -> None:
@@ -143,6 +145,32 @@ def test_sentinel_event_reads_continue_from_old_logs_as_proceed(status: str) -> 
     restored = adapter.validate_json(json.dumps(logged))
     assert isinstance(restored, SentinelEvent)
     assert restored.action == "proceed"
+
+
+def test_events_from_logs_without_an_execution_id_read_as_none() -> None:
+    adapter: TypeAdapter[Event] = TypeAdapter(DiscriminatedEvent)
+    approval = ApprovalEvent(
+        message="",
+        call=_MODIFIED,
+        approver="auto",
+        decision="approve",
+        execution_id="call_token",
+    )
+    tool = ToolEvent(
+        id="call_1",
+        function="read_file",
+        arguments={"path": "notes.txt"},
+        execution_id="run_1",
+    )
+    for event in [_observation(execution_id="call_token"), approval, tool]:
+        logged = event.model_dump(mode="json")
+        del logged["execution_id"]
+        restored = adapter.validate_json(json.dumps(logged))
+        assert isinstance(restored, SentinelEvent | ApprovalEvent | ToolEvent)
+        assert restored.execution_id is None
+    logged_events: list[Event] = [approval, tool]
+    for event in logged_events:
+        assert adapter.validate_json(adapter.dump_json(event)) == event
 
 
 def test_sentinel_event_rejects_invalid_suspicion() -> None:

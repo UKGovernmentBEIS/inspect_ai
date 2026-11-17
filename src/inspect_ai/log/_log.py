@@ -447,7 +447,17 @@ class EvalRetryError(BaseModel):
 
 
 class EvalSample(BaseModel):
-    """Sample from evaluation task."""
+    """Sample from evaluation task.
+
+    A sample remembers whether its attachment references have been resolved:
+    `resolve_sample_attachments()` (and reading a log with
+    `resolve_attachments`) marks the sample it returns, and writing a log
+    uses the mark to tell literal text that begins with `attachment://` or
+    `tc://` from a reference. The mark is not serialized. A sample without
+    it (built by hand, or passed through `model_dump()` and
+    `model_validate()`) is taken to hold references, as read from a log
+    without resolving attachments.
+    """
 
     id: int | str
     """Unique id for sample."""
@@ -609,6 +619,13 @@ class EvalSample(BaseModel):
 
     time_limit: int | None = Field(default=None)
     """Time limit ceiling in seconds the sample ran under (None when no limit); reflects mid-run (`inspect ctl config`) retunes."""
+
+    _attachment_state: Literal["condensed", "core", "full"] = PrivateAttr(
+        default="condensed"
+    )
+    """How far attachment references have been resolved: "condensed" (not
+    at all), "core" (all but `ModelEvent.call` and the call pool) or "full".
+    Set by `resolve_sample_attachments()`; read when condensing."""
 
     def summary(self) -> EvalSampleSummary:
         """Summary of sample.
