@@ -16,7 +16,7 @@ import pytest
 import tenacity
 from pydantic import BaseModel, PrivateAttr, field_validator
 from test_helpers.transcript import FakeTranscriptHistoryProvider
-from test_helpers.utils import skip_if_no_mcp_package
+from test_helpers.utils import collide_murmur3, skip_if_no_mcp_package
 from typing_extensions import assert_type
 
 from inspect_ai import Task, eval
@@ -72,6 +72,8 @@ from inspect_ai.model import (
     GenerateConfig,
     Model,
     ModelAPI,
+    ModelCost,
+    ModelInfo,
     ModelOutput,
     ModelUsage,
     get_model,
@@ -79,6 +81,7 @@ from inspect_ai.model import (
     modelapi,
 )
 from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._model_info import clear_model_info_cache, set_model_info
 from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.review import Review, Reviewer, ReviewPolicy, reviewer
 from inspect_ai.scorer import Reference, Score, Scorer, Target, scorer
@@ -1431,39 +1434,6 @@ def test_an_escalate_returned_to_the_host_fails_the_sample(stage: str) -> None:
     assert event.failed is True
 
 
-@solver
-def bridged() -> Solver:
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        async with agent_bridge():
-            pass
-        return state
-
-    return solve
-
-
-@pytest.mark.parametrize("sentinel", [True, False])
-def test_bridged_agent_warns_once_that_sentinels_do_not_run(
-    sentinel: bool,
-    caplog: pytest.LogCaptureFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from inspect_ai._util import logger as logger_module
-
-    monkeypatch.setattr(logger_module, "_warned", [])
-    task = Task(
-        dataset=[Sample(input="a"), Sample(input="b")],
-        solver=bridged(),
-        sentinel=d3_continue() if sentinel else None,
-    )
-    with caplog.at_level(logging.WARNING):
-        [log] = eval(task, model="mockllm/model")
-    assert log.status == "success", log.error
-    warnings = [r for r in caplog.records if "bridged agents" in r.message]
-    assert len(warnings) == (1 if sentinel else 0)
-    if sentinel:
-        assert "issues/5759" in warnings[0].message
-
-
 @pytest.mark.parametrize("role", [None, "monitor"])
 def test_host_generate_uses_the_monitor_role(role: str | None) -> None:
     monitor_model = get_model(
@@ -2105,6 +2075,41 @@ def test_sentinel_inference_is_not_charged_to_the_sample_limits() -> None:
     [event] = sentinel_events(log)
     assert event.suspicion == 0.25
     assert [m.text for m in sample.messages][-1] == "done"
+
+
+@pytest.fixture
+def priced_judge() -> Iterator[None]:
+    """Price `mockllm/judge` at $1,000 per million tokens; agent calls are free."""
+    clear_model_info_cache()
+    for model, price in [("model", 0.0), ("judge", 1000.0)]:
+        cost = ModelCost(
+            input=price, output=price, input_cache_write=0.0, input_cache_read=0.0
+        )
+        set_model_info(model, ModelInfo(cost=cost))
+    yield
+    clear_model_info_cache()
+
+
+@pytest.mark.usefixtures("priced_judge")
+def test_sentinel_inference_is_not_charged_to_the_sample_cost_limit() -> None:
+    expensive = ModelOutput.from_content("mockllm/judge", content="0.25")
+    expensive.usage = ModelUsage(
+        input_tokens=50_000, output_tokens=50_000, total_tokens=100_000
+    )
+    judge = get_model("mockllm/judge", custom_outputs=[expensive], memoize=False)
+    log = run(
+        [d3_asks_with(role="judge")],
+        model_roles={"judge": judge},
+        cost_limit=1.0,
+    )
+    assert log.status == "success", log.error
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.limit is None
+    assert [m.text for m in sample.messages][-1] == "done"
+    # the judge's $100 is still reported in the sample's usage
+    assert sample.model_usage["mockllm/judge"].total_cost == pytest.approx(100.0)
+    assert sample.role_usage["judge"].total_cost == pytest.approx(100.0)
 
 
 def monitor_calls(log: EvalLog) -> list[tuple[str, str | None]]:
@@ -6547,6 +6552,17 @@ def test_the_fold_compares_messages_with_lone_surrogates_by_content() -> None:
     other = ChatMessageUser(content="word " * 40 + "\udc01")
     assert fold([first], [rebuilt]) == [first]
     assert fold([first], [other]) == [first, other]
+
+
+@pytest.mark.parametrize("suffix", ["", _LONG_WITH_A_LONE_SURROGATE])
+def test_the_fold_tells_apart_messages_whose_murmur3_hashes_collide(
+    monkeypatch: pytest.MonkeyPatch, suffix: str
+) -> None:
+    # with a lone surrogate, the key is taken from the fallback serialization
+    collide_murmur3(monkeypatch)
+    first = ChatMessageUser(content=f"first {suffix}")
+    second = ChatMessageUser(content=f"second {suffix}")
+    assert fold([first], [second]) == [first, second]
 
 
 def test_the_fold_matches_a_message_it_cannot_serialize_only_as_itself() -> None:

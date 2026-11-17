@@ -76,7 +76,7 @@ def _fake_summary(checkpoint_id: int) -> ResticBackupSummary:
         backup_start="2026-01-01T00:00:00Z",  # type: ignore[arg-type]
         backup_end="2026-01-01T00:00:00Z",  # type: ignore[arg-type]
         total_duration=0.0,
-        snapshot_id=f"fake-snap-{checkpoint_id:05d}",
+        snapshot_id=f"{checkpoint_id:064x}",
     )
 
 

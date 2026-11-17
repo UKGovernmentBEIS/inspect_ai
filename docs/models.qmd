@@ -271,19 +271,19 @@ Task(
 **With `task_with()`:**
 
 ``` python
-task_with(my_task(), model_roles={"grader": "google/gemini-2.0-flash"})
+task_with(my_task(), model_roles={"grader": "google/gemini-3.6-flash"})
 ```
 
 **With `eval()`:**
 
 ``` python
-eval("math.py", model_roles={"grader": "google/gemini-2.0-flash"})
+eval("math.py", model_roles={"grader": "google/gemini-3.6-flash"})
 ```
 
 **On the CLI** with simple model names:
 
 ``` bash
-inspect eval math.py --model-role grader=google/gemini-2.0-flash
+inspect eval math.py --model-role grader=google/gemini-3.6-flash
 ```
 
 **On the CLI** with inline JSON/YAML for generation config:
@@ -309,7 +309,7 @@ eval(
     model_roles={
         "grader": [
             "openai/gpt-6-luna",
-            "google/gemini-2.0-flash",
+            "google/gemini-3.6-flash",
             "anthropic/claude-sonnet-5-5"
         ]
     }
@@ -320,7 +320,7 @@ Or equivalently on the CLI with comma-separated model names:
 
 ``` bash
 inspect eval math.py \
-    --model-role grader=openai/gpt-6-luna,google/gemini-2.0-flash,anthropic/claude-sonnet-5-5
+    --model-role grader=openai/gpt-6-luna,google/gemini-3.6-flash,anthropic/claude-sonnet-5-5
 ```
 
 When a list is bound to the role used by a [model-graded scorer](model-graded.qmd), each model grades independently and the final grade is chosen by majority vote (the same behaviour as passing a list of models to the scorer's `model` parameter). Prefer an odd number of graders: with an even-sized ensemble, a tied vote is resolved in favour of the earliest-listed model. Elsewhere, `get_model(role="...")` resolves to the first model in the list---use `model_roles()` (from `inspect_ai.model`) to access all of the models bound to a role. Note that a single-element list is equivalent to binding the single model directly.
@@ -382,10 +382,10 @@ from ctf_tasks import blues_clues
 tasks = [
     task_with(blues_clues(), model_roles = {
         "red_team": "openai/gpt-6-luna",
-        "blue_team": "google/gemini-2.0-flash"
+        "blue_team": "google/gemini-3.6-flash"
     }),
     task_with(blues_clues(), model_roles = {
-        "red_team": "google/gemini-2.0-flash",
+        "red_team": "google/gemini-3.6-flash",
         "blue_team": "openai/gpt-6-luna"
     })
 ]
@@ -399,7 +399,7 @@ As illustrated above, you can define as many named roles as you need. When using
 
 ``` bash
 inspect eval math.py \
-   --model-role red_team=google/gemini-2.0-flash \
+   --model-role red_team=google/gemini-3.6-flash \
    --model-role blue_team=openai/gpt-6-luna
 ```
 
