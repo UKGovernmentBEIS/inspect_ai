@@ -971,6 +971,17 @@ async def _gpt_6_none_effort_with_temperature(model_name: str) -> None:
     assert (output.usage.reasoning_tokens or 0) == 0
 
 
+async def _gpt_6_low_effort_with_temperature(model_name: str) -> None:
+    # for models that always reason, temperature is dropped (with a warning)
+    # even with an explicit effort
+    model = get_model(
+        f"openai/{model_name}",
+        config=GenerateConfig(temperature=0.5, reasoning_effort="low"),
+    )
+    output = await model.generate([ChatMessageUser(content="Say hello.")])
+    assert output.completion
+
+
 async def _gpt_6_max_effort(model_name: str) -> None:
     model = get_model(
         f"openai/{model_name}", config=GenerateConfig(reasoning_effort="max")
@@ -1030,13 +1041,7 @@ async def test_openai_gpt_6_1_sol_generate() -> None:
 @skip_if_no_openai
 @skip_if_no_openai_model("gpt-6.1-sol")
 async def test_openai_gpt_6_1_sol_low_effort_with_temperature() -> None:
-    # temperature is dropped (with a warning) even with an explicit effort
-    model = get_model(
-        "openai/gpt-6.1-sol",
-        config=GenerateConfig(temperature=0.5, reasoning_effort="low"),
-    )
-    output = await model.generate([ChatMessageUser(content="Say hello.")])
-    assert output.completion
+    await _gpt_6_low_effort_with_temperature("gpt-6.1-sol")
 
 
 @skip_if_no_openai
@@ -1066,6 +1071,48 @@ async def test_openai_gpt_6_1_terra_none_effort_with_temperature() -> None:
 @skip_if_no_openai_model("gpt-6.1-terra")
 async def test_openai_gpt_6_1_terra_max_reasoning_effort() -> None:
     await _gpt_6_max_effort("gpt-6.1-terra")
+
+
+# -- GPT-6.2 Astra / Sol (live) --
+#
+# Both always reason like GPT-6 Astra and GPT-6.1 Sol: `none` is rejected and
+# sampling params are dropped regardless of effort.
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-astra")
+async def test_openai_gpt_6_2_astra_generate() -> None:
+    await _gpt_6_generate("gpt-6.2-astra")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-astra")
+async def test_openai_gpt_6_2_astra_low_effort_with_temperature() -> None:
+    await _gpt_6_low_effort_with_temperature("gpt-6.2-astra")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-astra")
+async def test_openai_gpt_6_2_astra_max_reasoning_effort() -> None:
+    await _gpt_6_max_effort("gpt-6.2-astra")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-sol")
+async def test_openai_gpt_6_2_sol_generate() -> None:
+    await _gpt_6_generate("gpt-6.2-sol")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-sol")
+async def test_openai_gpt_6_2_sol_low_effort_with_temperature() -> None:
+    await _gpt_6_low_effort_with_temperature("gpt-6.2-sol")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-sol")
+async def test_openai_gpt_6_2_sol_max_reasoning_effort() -> None:
+    await _gpt_6_max_effort("gpt-6.2-sol")
 
 
 # -- skip_if_no_openai_model gate (no network) --

@@ -79,7 +79,11 @@ from inspect_ai._util.zipfile import (
     zipfile_compress_kwargs,
 )
 
-from .._condense import ATTACHMENT_PROTOCOL, condense_sample
+from .._condense import (
+    ATTACHMENT_PROTOCOL,
+    condense_sample,
+    condensed_sample_summary,
+)
 from .._config_update import ConfigUpdate
 from .._edit import LogUpdate
 from .._log import (
@@ -1162,7 +1166,9 @@ class ZipLogFile:
             self._zip_writestr(_journal_path(START_JSON), start)
 
     async def buffer_sample(self, sample: EvalSample) -> None:
-        buffered = _BufferedSample(sample=sample, summary=sample.summary())
+        buffered = _BufferedSample(
+            sample=sample, summary=condensed_sample_summary(sample)
+        )
         async with self._lock:
             # supersede any not-yet-flushed prior record for the same
             # (id, epoch) — e.g. a requeued sample's re-run going terminal
@@ -1209,7 +1215,7 @@ class ZipLogFile:
         eval_retry / score --overwrite). Caller must hold ``self._lock``.
         """
         self._summary_counter += 1
-        summary = sample.summary()
+        summary = condensed_sample_summary(sample)
         summary_file = _journal_summary_file(self._summary_counter)
         summary_path = _journal_summary_path(summary_file)
         self._zip_writestr(summary_path, [summary])
