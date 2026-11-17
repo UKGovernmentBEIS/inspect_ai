@@ -1,10 +1,10 @@
 import re
+import secrets
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
 
 import yaml
-from shortuuid import uuid
 
 from ..compose import ComposeConfig, is_dockerfile
 from ..environment import SandboxEnvironmentConfigType
@@ -19,6 +19,9 @@ from .mounts import validate_generated_host_paths
 logger = getLogger(__name__)
 
 TRACE_DOCKER = "Docker"
+
+# Lowercase Crockford base32 avoids ambiguous letters in user-facing names.
+_PROJECT_ID_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz"
 
 
 @dataclass
@@ -103,6 +106,7 @@ class ComposeProject:
 
 
 def task_project_name(task: str) -> str:
+    """Name a Compose project with 80 random bits to avoid sandbox collisions."""
     # ensure that task conforms to docker project name constraints
     task = task.lower()
     task = re.sub(r"[^a-z\d\-_]", "-", task)
@@ -110,8 +114,9 @@ def task_project_name(task: str) -> str:
     if len(task) == 0:
         task = "task"
 
+    suffix = "".join(secrets.choice(_PROJECT_ID_ALPHABET) for _ in range(16))
     # _- breaks docker project name constraints so we strip trailing underscores.
-    return f"inspect-{task[:12].rstrip('_')}-i{uuid().lower()[:6]}"
+    return f"inspect-{task[:12].rstrip('_')}-i{suffix}"
 
 
 inspect_project_pattern = r"^inspect-[a-z\d\-_]*-i[a-z\d]{6,}$"
