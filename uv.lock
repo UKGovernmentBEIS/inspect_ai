@@ -2251,7 +2251,7 @@ requires-dist = [
     { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=1.6.0" },
     { name = "ijson", specifier = ">=3.2.0" },
     { name = "inspect-scout", marker = "extra == 'dev'", specifier = ">=0.5.5" },
-    { name = "inspect-sentinel", marker = "extra == 'dev'", specifier = ">=0.3.1" },
+    { name = "inspect-sentinel", marker = "extra == 'dev'", specifier = ">=0.3.2" },
     { name = "ipython", marker = "extra == 'dev'" },
     { name = "jsonlines", specifier = ">=3.0.0" },
     { name = "jsonpatch", specifier = ">=1.32" },
@@ -2386,7 +2386,7 @@ wheels = [
 
 [[package]]
 name = "inspect-sentinel"
-version = "0.3.1"
+version = "0.3.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -2396,9 +2396,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/45/cc/7ee6995414c129b349618f439d1de1ef37ef81ce95a82d8dde7550127518/inspect_sentinel-0.3.1.tar.gz", hash = "sha256:89b1de2e0b2b99e0df36cd5735f7f3fc57641b7e797838f2332c474c1b78449f", size = 358227, upload-time = "2026-11-10T18:32:35.504Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/20/44/2c84c891ce9f939097f2e72cd25101ead81e9ebaeba9deb654ef814b8d27/inspect_sentinel-0.3.2.tar.gz", hash = "sha256:ce6124ce4e45d8e7969140eb9b8bd4524ad9f9fdf143b64e839730c8ad5ec1f5", size = 360697, upload-time = "2026-11-17T01:30:18.533Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/56/81/a3aa452ea85cbdc0cdd79b2c0370141f586431aa3f6dc10687d73e9066e5/inspect_sentinel-0.3.1-py3-none-any.whl", hash = "sha256:588a0ed9784ce71a76dbba2919925d2a9b19e510f38fc9f4a12e549286cd36b4", size = 371917, upload-time = "2026-11-10T18:32:33.782Z" },
+    { url = "https://files.pythonhosted.org/packages/50/7e/d01c77a3e4fa7eefdd90b210100bfb16fba6c0058ce60f5476e42d723157/inspect_sentinel-0.3.2-py3-none-any.whl", hash = "sha256:243f093cc43dd8bec110475c16a95bad63122d1516102045d2405a0b9b533b69", size = 374892, upload-time = "2026-11-17T01:30:16.559Z" },
 ]
 
 [[package]]
