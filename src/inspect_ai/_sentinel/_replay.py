@@ -109,10 +109,10 @@ def steps_from_events(
 
     - The model response proposed several calls under its id, and these rules do not pick one.
     - A sentinel modified it, and its `ToolEvent` records other arguments than the modify's, so the log does not show the call the sentinel was shown. A tool can rewrite its arguments, as `memory()` does when it resolves a path. This applies whatever its id, and also where another sentinel decision outranked the modify.
-    - A sentinel modified it, another execution records the same call id (a shared `"null"`, a repeated id), and it has no approval replay relies on.
+    - A sentinel modified it, another execution records the same call id (a shared `"null"`, a repeated id), and no approval records the call the sentinel was shown. This applies where it has no approval replay relies on, and where an approver modified it, since the approval records the approver's call before the tool validated it (`memory()` resolves a path).
     - It ended in a parsing or approval error, has no recorded sentinel check, and the call its approval approved is not the one its `ToolEvent` records. It may have been refused before it ran, or its tool may have raised the error after running, so it is skipped instead of refused.
 
-    Otherwise a call a sentinel modified that has no approval replay relies on keeps its tool steps, and its `tool_call` step is built from the proposed call, or an approver's change to it. The log does not record the call the sentinel was shown, which the tool's validation can have changed (`memory()` resolves a path, validation fills a Pydantic default).
+    Otherwise a call a sentinel modified that has no approval replay relies on keeps its tool steps, and its `tool_call` step is built from the proposed call, or an approver's change to it. The same holds for a call an approver modified before the sentinel did, whose step is built from the approver's call as the approval records it. The log does not record the call the sentinel was shown, which the tool's validation can have changed (`memory()` resolves a path, validation fills a Pydantic default).
 
     The tool steps of an agent bridge's calls are not rebuilt, recorded or not: a call the bridged scaffold ran itself leaves no `ToolEvent`, and for a call a sandbox bridge ran on the host (`ToolEvent.metadata["bridge"]`) the log records neither which model call produced it (the bridge can hand over a response filter's output, or one of several generations under one call id) nor its result as the bridge's service delivered it (the error text a scaffold received, for one). Replay skips these steps until the log records which message made each call, and logs a warning naming the calls. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A bridge's tool checks are recorded in spans named `sentinel_bridge`, so a native call under an id a bridge also checked keeps its own checks. A native call's producer is the latest model call that proposed its id (in the call's own conversation, where model calls in several conversations proposed it), a bridge's generation included (a native loop in a bridge request filter generates under the bridge's routing), so a native call run under an id a bridge generation proposed before it is given that generation; bridge-issued ids are reserved against the history, so this needs a prefilled native call or a provider or filter reusing an id.
 
@@ -922,9 +922,9 @@ class _Driver:
         if self.unrecorded_checks:
             logging.getLogger(__name__).warning(
                 "Skipped the tool steps of call(s) %s: a sentinel modified each "
-                "under a call id other calls share, and without an approval "
-                "replay can rely on, the log cannot show the call the sentinel "
-                "was shown.",
+                "under a call id other calls share, and no approval replay can "
+                "rely on records the call as its tool validated it, so the log "
+                "cannot show the call the sentinel was shown.",
                 ", ".join(
                     dict.fromkeys(
                         repr(entry.event.id)
@@ -1172,27 +1172,36 @@ class _Driver:
         self._settle_at_end(call.after_span)
 
     def _check_unrecorded_check(self, call: _Call, executions: int) -> None:
-        """Skip a native call whose check reports a sentinel modify, under an id other executions share, unless replay relies on its approval.
+        """Skip a native call whose check reports a sentinel modify, under an id other executions share, unless its approval records the call checked.
 
         The check is of the call as its tool validated it, which can differ
         from the model's proposal (`memory()` resolves a path, validation fills
         a Pydantic default). The modify replaces that call in the `ToolEvent`,
         so only an approval the log can be relied on for
-        (`approval_log_reliable`) records it; otherwise `_tool_call` would build
-        the check from the proposal. Under an id another execution's
+        (`approval_log_reliable`) records it, and only where the approver did
+        not modify the call: the approval records an approver's modified call
+        as the approver gave it, before its tool validated it (`memory()`
+        resolves its path). Otherwise `_tool_call` would build the check from
+        the proposal or that modified call. Under an id another execution's
         `ToolEvent` records too (`executions`: a provider's shared `"null"`, a
         repeated id), the call's steps are skipped (`unrecorded_checks`).
-        Under a unique id the check is still built from the proposal, so it
-        can show the model's arguments where live showed the validated ones.
+        Under a unique id the check is still built from the proposal or the
+        approver's modified call, so it can show other arguments than live
+        showed.
         """
         event = call.event
+        approval = call.approval
         if (
             executions <= 1
             or call.proposal is None
             or call.index in self.unverified_calls
             or call.index in self.unmatched_modifies
             or _bridged(event)
-            or (self.approval_log_reliable and call.approval is not None)
+            or (
+                self.approval_log_reliable
+                and approval is not None
+                and _approver_modified(approval) is None
+            )
             or self._sentinel_modify(call.before_span, event) is None
         ):
             return
@@ -1322,13 +1331,7 @@ class _Driver:
         recorded = before_span is not None or after_span is not None
         if not recorded and not self._checks_tool_calls(event, call.producer):
             return
-        approver_modified = (
-            approval.modified
-            if approval is not None
-            and approval.decision == "modify"
-            and approval.modified is not None
-            else None
-        )
+        approver_modified = _approver_modified(approval)
         checked = (
             before_span is not None
             # a result check paired by execution id is of a call that ran
@@ -2168,6 +2171,13 @@ def _same_call(a: ToolCall, b: ToolCall) -> bool:
 def _bridged(event: ToolEvent) -> bool:
     """Whether a sandbox bridge ran the call on the host."""
     return event.metadata is not None and "bridge" in event.metadata
+
+
+def _approver_modified(approval: ApprovalEvent | None) -> ToolCall | None:
+    """The call an approver's `modify` replaced the call with, which ran (`apply_tool_approval`); None for any other decision."""
+    if approval is None or approval.decision != "modify":
+        return None
+    return approval.modified
 
 
 def _approval_refused(approval: ApprovalEvent | None) -> bool:
