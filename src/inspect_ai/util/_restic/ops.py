@@ -158,10 +158,11 @@ async def restore_repo(
             "-r",
             repo,
             "restore",
-            f"{snapshot['id']}:{subfolder}",
             "--target",
             str(target_dir),
             "--verify",
+            "--",
+            f"{snapshot['id']}:{subfolder}",
         ],
         env=restic_env(password),
         check=True,
@@ -233,7 +234,7 @@ async def _list_latest_snapshot(
     """
     try:
         proc = await anyio.run_process(
-            [str(restic), "-r", repo, "ls", "--json", "latest"],
+            [str(restic), "-r", repo, "ls", "--json", "--", "latest"],
             env=restic_env(password),
             check=True,
         )
@@ -369,7 +370,7 @@ def _cap(paths: list[str], limit: int) -> tuple[list[str], int]:
 
 
 def _parse_listed_files(stdout: str, limit: int) -> tuple[list[str], int]:
-    """Parse ``restic ls <id> --json`` output into (files, overflow).
+    """Parse ``restic ls --json -- <id>`` output into (files, overflow).
 
     ``restic ls --json`` emits one JSON object per line: a leading
     snapshot object then one node per entry. Filter to file nodes
@@ -381,7 +382,7 @@ def _parse_listed_files(stdout: str, limit: int) -> tuple[list[str], int]:
 
 
 def _parse_changed_files(stdout: str, limit: int) -> tuple[list[str], int]:
-    """Parse ``restic diff <parent> <id> --json`` into (changed files, overflow).
+    """Parse ``restic diff --json -- <parent> <id>`` into (changed files, overflow).
 
     ``restic diff --json`` emits one ``{"message_type": "change", ...}``
     object per changed path plus a trailing ``statistics`` object. Keep
@@ -445,13 +446,13 @@ async def list_changed_files(
     parent = _previous_id(json.loads(snapshots.stdout.decode()), snapshot_id)
     if parent is None:
         proc = await anyio.run_process(
-            [str(restic), "-r", repo, "ls", snapshot_id, "--json"],
+            [str(restic), "-r", repo, "ls", "--json", "--", snapshot_id],
             env=restic_env(password),
             check=True,
         )
         return _parse_listed_files(proc.stdout.decode(), limit)
     proc = await anyio.run_process(
-        [str(restic), "-r", repo, "diff", parent, snapshot_id, "--json"],
+        [str(restic), "-r", repo, "diff", "--json", "--", parent, snapshot_id],
         env=restic_env(password),
         check=True,
     )
