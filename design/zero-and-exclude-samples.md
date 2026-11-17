@@ -147,28 +147,28 @@ in [Zeroing Samples](../docs/eval-logs.qmd#zeroing-samples).
 SampleSelector: TypeAlias = int | str | tuple[int | str, int]
 """A sample id (every epoch of it) or an (id, epoch) pair."""
 
-class DispositionResult(NamedTuple):
-    applied: list[tuple[int | str, int]]     # (id, epoch) edited now
-    unchanged: list[tuple[int | str, int]]   # already excluded (exclude only)
-
 def exclude_samples(
     log: EvalLog,
     samples: Sequence[SampleSelector],
     provenance: ProvenanceData,
-) -> DispositionResult: ...
+) -> list[tuple[int | str, int]]: ...
 
 def zero_samples(
     log: EvalLog,
     empty: EvalLog,
     samples: Sequence[SampleSelector],
     provenance: ProvenanceData,
-) -> DispositionResult: ...
+) -> list[tuple[int | str, int]]: ...
 ```
 
-All four are exported from `inspect_ai.log`. Both functions are synchronous,
-edit `log` in place and leave writing to the caller. Neither takes a task or
-a `trust_log` option. Every refusal is raised before the first edit, so a
-refused call leaves the log as it was.
+All three are exported from `inspect_ai.log`. Each function returns the
+`(id, epoch)` of every sample it edited, which is every target, in target
+order. Both are synchronous, edit `log` in place and leave writing to the
+caller. Neither takes a task or a `trust_log` option. Every refusal is
+raised before the first edit, so a refused call leaves the log as it was.
+
+The return type, and excluding an already excluded sample again, are not
+yet built; see [Not yet built](#not-yet-built).
 
 ### Checks on the log and the selectors
 
@@ -189,10 +189,10 @@ The targets are the matched samples in selector order, without repeats.
 
 For each target:
 
-- A target that holds scores, every one of which satisfies
-  `score_is_excluded()`, is reported in `unchanged` and not edited.
-- A target with other scores is edited under every key it holds, whichever
-  scorer, solver or appended rescoring wrote it.
+- A target that holds scores is edited under every key it holds, whichever
+  scorer, solver or appended rescoring wrote it. This includes a target whose
+  scores are all excluded already: excluding it again adds a history entry
+  and a `ScoreEditEvent` recording the new reason and author.
 - A target that holds no score is edited under one key: the name of the
   first entry of `log.eval.scorers`. If the log names no scorer, the call is
   refused ("sample ... holds no score and the log names no scorer to record
@@ -246,16 +246,21 @@ excluded instead:
 The root-`NaN` check follows the standard unscored filter. Refusing dict
 and list verdicts is zero's own restriction: ordinary metrics count
 dict-valued scores (keyed metrics read them), but zero supports single-value
-verdicts only. Individual metrics may apply further requirements (`krippendorff_alpha()` skips a scalar with a
-warning), so a successful recomputation does not prove that every metric uses
-the score.
+verdicts only. Individual metrics may apply further requirements
+(`krippendorff_alpha()` skips a scalar with a warning), so a successful
+recomputation does not prove that every metric uses the score.
 
 For each score `v` the empty-attempt sample holds, the edit under the same
 name is `ScoreEdit(value=v.value, answer=v.answer,
 explanation=v.explanation, metadata=deepcopy(v.metadata or {}),
 reason="zeroed", provenance=provenance)`. A name the target does not hold is
-added. There is no idempotence check: zeroing again applies the verdicts
-again and appends to the history, so `unchanged` is always empty.
+added.
+
+Neither function checks whether a target already carries its disposition:
+excluding or zeroing a sample again applies the edits again and appends to
+the history. An operator layer that re-applies its rulings on every pass and
+wants no repeat entries checks first, with `score_is_excluded()` for an
+exclusion or the current score's `reason` for a zero.
 
 ### Edits and recomputation
 
@@ -269,7 +274,7 @@ original stays in the history. The sample's `error`, `messages`, `output`,
 untouched. Dispositions stack: excluding a zeroed sample, or zeroing an
 excluded one, adds an edit.
 
-When there is at least one edit, the sequence is:
+The sequence is:
 
 1. `resolve_log_metrics(log, trust_log_advice=False)`, before the first edit.
    Metrics and epoch reducers are rebuilt from the header by the untrusted
@@ -283,9 +288,7 @@ When there is at least one edit, the sequence is:
    `reductions`.
 
 If metric computation raises after the edits, the in-memory log has been
-edited and must not be written, as with `edit_score()`. When nothing is
-applied (every exclusion target already excluded), nothing is resolved or
-recomputed.
+edited and must not be written, as with `edit_score()`.
 
 ## CLI
 
@@ -305,15 +308,50 @@ inspect log zero    LOG_FILE --from EMPTY_LOG --sample ID [--sample ID ...] [--e
   [`_cli/util.py`](../src/inspect_ai/_cli/util.py), shared with
   `inspect ctl`: the git identity, else the OS user name.
 - The command reads the log (and for zero, first the empty-attempt log)
-  whole, applies the function, and, when anything was applied, writes the
-  log back in place with `write_eval_log(log, LOG_FILE,
+  whole, applies the function, and writes the log back in place with `write_eval_log(log, LOG_FILE,
   if_match_etag=log.etag)`, so a concurrent rewrite of an S3 log fails with
   `WriteConflictError`. A `ValueError`, `LookupError` or
   `WriteConflictError` is reported as a command error.
-- Output: one line per target (`excluded <id> (epoch <n>)`, `zeroed ...` or
-  `unchanged ...`) and the log's headline metric after recomputation
+- Output: one line per target (`excluded <id> (epoch <n>)` or `zeroed ...`)
+  and the log's headline metric after recomputation
   (`<score>/<metric>: <value>`). `--json` prints
-  `{"log": ..., "applied": [[id, epoch], ...], "unchanged": [...]}` instead.
+  `{"log": ..., "applied": [[id, epoch], ...]}` instead. The unconditional
+  write and this output are not yet built; see
+  [Not yet built](#not-yet-built).
+
+## Not yet built
+
+The code on `main` differs from this document in one respect, which a
+follow-up implementation changes (decision: Ransom, 2026-11-17). Today
+`exclude_samples()` leaves a target whose held scores are all excluded
+unedited and reports it as unchanged, both functions return a
+`DispositionResult` NamedTuple (`applied`, and `unchanged`, which is always
+empty for zero), and the CLI prints `unchanged` lines, has an `"unchanged"`
+key in `--json`, and writes the log only when something was applied.
+
+The implementation removes:
+
+- in [`log/_disposition.py`](../src/inspect_ai/log/_disposition.py): the
+  `DispositionResult` NamedTuple, the "all scores already excluded" branch
+  of `exclude_samples()`, and the `if not edits: return` path in
+  `_apply_edits()`, which can no longer be reached because a selector that
+  matches nothing is refused; both functions return the list of edited
+  `(id, epoch)` pairs;
+- the `DispositionResult` export from
+  [`log/__init__.py`](../src/inspect_ai/log/__init__.py) and its entry in
+  `docs/reference/inspect_ai.log.qmd`;
+- in `_run_disposition()` in [`_cli/log.py`](../src/inspect_ai/_cli/log.py):
+  the `if result.applied:` write guard, the `unchanged` lines and the
+  `"unchanged"` JSON key;
+- tests: `test_exclude_samples_unchanged` and the `result.unchanged == []`
+  asserts in `tests/scorer/test_score_editing.py` and
+  `tests/log/test_zero_samples.py`, and the `unchanged` cases in
+  `tests/_cli/test_log_disposition.py`;
+- docs: the `result.unchanged` sentence in `docs/eval-logs.qmd`.
+
+The change must ship before the next release, while `DispositionResult` is
+unreleased: removing it after a release is a breaking change to
+`inspect_ai.log`.
 
 ## Decisions
 
@@ -326,6 +364,9 @@ inspect log zero    LOG_FILE --from EMPTY_LOG --sample ID [--sample ID ...] [--e
 - 2026-11-11: the operator runs the empty attempt as an ordinary eval with
   the entry point they ran the task with; Inspect's disposition code does
   not run it, and zero is a log-to-log edit like exclusion.
+- 2026-11-17: exclusion has no "already excluded" no-op, the same as zero,
+  and both functions return the list of edited `(id, epoch)` pairs instead
+  of a `DispositionResult` (see Not yet built).
 
 ## Alternatives considered
 
