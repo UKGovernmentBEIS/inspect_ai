@@ -62,6 +62,20 @@ $ inspect eval-set mmlu.py mathematics.py \
 ```
 
 
+### Sharded Tasks
+
+An eval set can finish a [sharded](sharding.qmd) run. When it starts, it merges each `<name>.shards/` directory in its log directory into `<name>.eval`, using the task in the eval set that the shards ran and the eval set's selection of that task's samples. It then treats the merged log like any other log: if samples are missing or a shard failed, it runs them in an ordinary, unsharded retry seeded from the merged log.
+
+The eval set stops with an error, before running any task, when it cannot merge a `.shards` directory. The error names the directory, the cause and what to do next. This includes:
+
+-   An eval set whose `sample_id` or `limit` selects fewer samples than the shards hold, or none of the task's samples.
+-   A `.shards` directory that holds only files that are not shard logs.
+-   Any reason the merge itself refuses, such as shards that do not match each other or a merge that is already running.
+
+A `.shards` directory whose task is not in the eval set is left alone, with a warning.
+
+Retry cleanup never removes a merged log or its `.shards` directory. When an unsharded retry supersedes a merged log, the merged log and its shards stay until you remove them. `eval_retry()` refuses a merged log that an eval set wrote; run the eval set again instead.
+
 ### Concurrency
 
 By default, `eval_set()` will run multiple tasks in parallel, using the greater of 10 and the number of models being evaluated as the default `max_tasks`. The eval set scheduler will always attempt to balance active tasks across models so that contention for a single model provider is minimized.

@@ -1,4 +1,6 @@
 import contextlib
+import copy
+import functools
 import hashlib
 import logging
 import os
@@ -9,8 +11,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, TypeVar, cast
 
+import anyio
 import rich
 from pydantic import BaseModel
+from rich.markup import escape
 from rich.status import Status
 from shortuuid import uuid
 from tenacity import (
@@ -60,22 +64,32 @@ from inspect_ai._sentinel._config import (
     SentinelSpec,
     resolve_sentinel_spec,
 )
-from inspect_ai._util._async import run_coroutine
+from inspect_ai._util._async import run_coroutine, tg_collect
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.azure import call_with_azure_auth_fallback
 from inspect_ai._util.dotenv import init_dotenv
-from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.error import PrerequisiteError, WriteConflictError
 from inspect_ai._util.file import (
     FileSystem,
     basename,
     file,
     filesystem,
+    local_path,
 )
 from inspect_ai._util.json import to_json_safe
+from inspect_ai._util.log_layout import eval_log_for_shards_dir
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, ApprovalPolicyConfig
-from inspect_ai.log import EvalLog, IncompleteAction
+from inspect_ai.log import (
+    EvalLog,
+    IncompleteAction,
+    ShardSelectionError,
+    ShardSetError,
+    merge_eval_log_shards_async,
+    read_eval_log_async,
+)
 from inspect_ai.log._bundle import bundle_log_dir, embed_log_dir
 from inspect_ai.log._file import (
     EvalLogInfo,
@@ -88,6 +102,7 @@ from inspect_ai.log._file import (
 from inspect_ai.log._log import EvalConfig
 from inspect_ai.log._recorders.buffer.buffer import cleanup_sample_buffers_for_log
 from inspect_ai.log._recorders.buffer.database import sample_buffer_shutdown_pending
+from inspect_ai.log._shards._walk import is_shard_path, list_shard_set, shard_companion
 from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
@@ -124,6 +139,7 @@ from .eval_set_manifest import (
     build_eval_set_capture,
     eval_set_capture_requested,
     samples_selected,
+    selected_sample_ids,
     task_args_hash,
 )
 from .eval_set_overrides import (
@@ -150,7 +166,12 @@ from .loader import resolve_task_args, solver_from_spec
 from .task import Epochs
 from .task.resolved import ResolvedTask, resolved_task_names
 from .task.scan import scan_context
-from .task.task import PreviousTask, resolve_epochs, resolve_task_epochs
+from .task.task import (
+    PreviousTask,
+    resolve_epochs,
+    resolve_task_epochs,
+    task_with,
+)
 from .task.task_source import TaskSource
 from .task.tasks import Tasks
 from .task.util import resolve_task_sample_ids, sample_id_filter
@@ -1079,11 +1100,6 @@ def eval_set(
             )
         _validate_sentinel(sentinel)
 
-        # list all logs currently in the log directory (update manifest if there are some)
-        all_logs = list_all_eval_logs(log_dir)
-        if len(all_logs) > 0:
-            write_log_dir_manifest(log_dir)
-
         eval_set_args = EvalSetArgsInTaskIdentifier(
             config=config,
             solver=solver,
@@ -1094,6 +1110,26 @@ def eval_set(
             working_limit=working_limit,
             cost_limit=cost_limit,
         )
+        all_tasks = [
+            (task_identifier(task, eval_set_args), task) for task in resolved_tasks
+        ]
+
+        # merge shard sets, then list all logs currently in the log directory
+        # (update manifest if there are some)
+        log_files = list_eval_logs(log_dir)
+        if merge_shard_sets(
+            log_dir,
+            log_files,
+            all_tasks,
+            epochs=epochs,
+            limit=limit,
+            sample_id=sample_id,
+        ):
+            log_files = list_eval_logs(log_dir)
+        all_logs = read_logs(without_shards(log_dir, log_files))
+        if len(all_logs) > 0:
+            write_log_dir_manifest(log_dir)
+
         # validate that:
         #  (1) All tasks have a unique identifier
         #  (2) All logs have identifiers that map to tasks
@@ -1120,9 +1156,6 @@ def eval_set(
             if not shuffle_changed(sample_shuffle, log.header.eval.config, limit)
         ]
         log_task_identifiers = [log.task_identifier for log in reusable_logs]
-        all_tasks = [
-            (task_identifier(task, eval_set_args), task) for task in resolved_tasks
-        ]
         pending_tasks = [
             task[1] for task in all_tasks if task[0] not in log_task_identifiers
         ]
@@ -1580,9 +1613,14 @@ def _recover_crashed_log(
             systemic crash still recovers-and-retries as it does today.
         incomplete_max: Safety threshold for a resolving disposition.
 
+    A merged shard log (`eval.shards` set) is never recovered: it has no
+    sample buffer, and the startup merge has already brought it up to date.
+
     Returns:
         The recovered log and file info, or the originals when no recovery was available.
     """
+    if eval_log.eval.shards is not None:
+        return eval_log, log_info
     if eval_log.status == "started" and eval_log.location:
         from inspect_ai.log._recover import (
             RecoveryNotAvailable,
@@ -1811,9 +1849,36 @@ def return_last_value(retry_state: RetryCallState) -> list[EvalLog]:
 # list all eval logs
 # recursive=False and progress are used by inspect_flow
 def list_all_eval_logs(
-    log_dir: str, recursive: bool = True, progress: ReadEvalLogsProgress | None = None
+    log_dir: str,
+    recursive: bool = True,
+    progress: ReadEvalLogsProgress | None = None,
+    skip_shards: bool = False,
 ) -> list[Log]:
+    """List the logs in a log directory with their headers.
+
+    Args:
+        log_dir: The log directory.
+        recursive: List subdirectories too.
+        progress: Reports header reads.
+        skip_shards: Leave out the shard logs and stray files of every
+            `<name>.shards/` directory (see `is_shard_path`) before reading
+            headers. Logs nested deeper in such a directory are kept.
+    """
     log_files = list_eval_logs(log_dir, recursive=recursive)
+    if skip_shards:
+        log_files = without_shards(log_dir, log_files)
+    return read_logs(log_files, progress)
+
+
+def without_shards(log_dir: str, log_files: list[EvalLogInfo]) -> list[EvalLogInfo]:
+    """The log files that are not in a shard set below `log_dir` (see `is_shard_path`)."""
+    return [info for info in log_files if not is_shard_path(log_dir, info.name)]
+
+
+def read_logs(
+    log_files: list[EvalLogInfo], progress: ReadEvalLogsProgress | None = None
+) -> list[Log]:
+    """Read the headers of listed logs and identify their tasks."""
     log_headers = read_eval_log_headers(log_files, progress)
     task_identifiers = [task_identifier(log_header, None) for log_header in log_headers]
     return [
@@ -1822,6 +1887,210 @@ def list_all_eval_logs(
             log_files, log_headers, task_identifiers
         )
     ]
+
+
+# shard sets identified or merged at once by the eval-set startup merge
+_MAX_CONCURRENT_SHARD_SETS = 4
+
+
+class _ShardSet(NamedTuple):
+    """A `<name>.shards/` directory in an eval set's log directory, and its task."""
+
+    shards_dir: str
+    merged: str
+    task: ResolvedTask
+
+
+def merge_shard_sets(
+    log_dir: str,
+    log_files: list[EvalLogInfo],
+    all_tasks: list[tuple[str, ResolvedTask]],
+    *,
+    epochs: int | Epochs | None,
+    limit: int | tuple[int, int] | None,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None,
+) -> bool:
+    """Merge every shard set in an eval set's log directory, before its logs are paired.
+
+    Each `<name>.shards/` that holds a listed log file is matched to the task
+    in `all_tasks` with the same identifier, read from its merged log
+    `<name>.eval` or else from its first shard's current attempt, and merged
+    with `allow_incomplete=True` and the eval set's selection of that task's
+    samples as ids. A shard set that matches no task is left alone with a
+    warning. The eval set then pairs, completes and retries the merged log
+    like any other log.
+
+    Args:
+        log_dir: The eval set's log directory.
+        log_files: Its listing.
+        all_tasks: The eval set's tasks and their identifiers.
+        epochs: The eval set's epochs, applied to the task passed to the merge.
+        limit: The eval set's `limit`.
+        sample_id: The eval set's `sample_id`.
+
+    Returns:
+        Whether any merge wrote its merged log.
+
+    Raises:
+        PrerequisiteError: A shard set holds only stray files, the eval set
+            selects none of its task's samples, or its merge failed (the
+            merge's exception is the cause). The other merges still running
+            are cancelled.
+    """
+    shard_sets = sorted(
+        {
+            companion
+            for info in log_files
+            if (companion := shard_companion(log_dir, info.name)) is not None
+        }
+    )
+    if not shard_sets:
+        return False
+    listed = {info.name for info in log_files}
+    task_names = resolved_task_names([task for _, task in all_tasks])
+    eval_epochs = resolve_epochs(epochs)
+
+    async def merge_all() -> bool:
+        limiter = anyio.CapacityLimiter(_MAX_CONCURRENT_SHARD_SETS)
+
+        async def identify(shards_dir: str) -> _ShardSet | None:
+            async with limiter:
+                with _shard_set_refusal(shards_dir):
+                    return await _identify_shard_set(fs, shards_dir, listed, all_tasks)
+
+        async with AsyncFilesystem() as fs:
+            found = await tg_collect(
+                [functools.partial(identify, s) for s in shard_sets]
+            )
+
+        merges: list[tuple[_ShardSet, list[str | int]]] = []
+        for shard_set in found:
+            if shard_set is None:
+                continue
+            task = shard_set.task.task
+            ids = selected_sample_ids(
+                task.dataset, limit, sample_id, task.name, task_names
+            )
+            if not ids:
+                raise PrerequisiteError(
+                    f"[bold]ERROR[/bold]: The eval set selects no samples of task "
+                    f"'{task.name}', while {_display(shard_set.shards_dir)} holds its "
+                    "shards. Include the task's samples in sample_id (or drop the "
+                    "selection), remove the task from the eval set, or move "
+                    f"{_display(shard_set.merged)} and {_display(shard_set.shards_dir)} "
+                    "out of the log directory."
+                )
+            merges.append((shard_set, ids))
+
+        async def merge(shard_set: _ShardSet, ids: list[str | int]) -> bool:
+            task = shard_set.task.task
+            if eval_epochs is not None:
+                task = task_with(
+                    copy.copy(task), epochs=resolve_task_epochs(task, eval_epochs)
+                )
+            async with limiter:
+                with _shard_set_refusal(shard_set.shards_dir):
+                    result = await merge_eval_log_shards_async(
+                        shard_set.merged,
+                        task,
+                        sample_ids=ids,
+                        allow_incomplete=True,
+                    )
+            return result.written
+
+        written = await tg_collect([functools.partial(merge, *m) for m in merges])
+        return any(written)
+
+    return run_coroutine(merge_all())
+
+
+async def _identify_shard_set(
+    fs: AsyncFilesystem,
+    shards_dir: str,
+    listed: set[str],
+    all_tasks: list[tuple[str, ResolvedTask]],
+) -> _ShardSet | None:
+    """Find the task of a shard set from one of its headers.
+
+    Reads the merged log's header when the merged log is listed, else that
+    of the first shard's current attempt. Any attempt would do: the merge
+    refuses shards whose identifiers differ.
+
+    Raises:
+        PrerequisiteError: The shard set has neither a merged log nor an
+            attempt, only stray files.
+    """
+    merged = eval_log_for_shards_dir(shards_dir)
+    if merged in listed:
+        location = merged
+    else:
+        listing = await list_shard_set(fs, shards_dir)
+        attempt = next(
+            (shard.current for shard in listing.shards if shard.current is not None),
+            None,
+        )
+        if attempt is None:
+            stray = "; ".join(
+                f"{_display(file.path)} ({file.reason})" for file in listing.stray
+            )
+            raise PrerequisiteError(
+                f"[bold]ERROR[/bold]: {_display(shards_dir)} holds no shard logs, only "
+                f"log files that are not shard attempts: {stray}. "
+                "Move or remove them, then re-run."
+            )
+        location = attempt.name
+    header = await read_eval_log_async(location, header_only=True)
+    identifier = task_identifier(header, None)
+    task = next((task for id, task in all_tasks if id == identifier), None)
+    if task is None:
+        logger.warning(
+            f"Not merging {_display(shards_dir)}: its shards are not associated "
+            "with a task passed to eval_set."
+        )
+        return None
+    return _ShardSet(shards_dir=shards_dir, merged=merged, task=task)
+
+
+@contextlib.contextmanager
+def _shard_set_refusal(shards_dir: str) -> Iterator[None]:
+    """Re-raise an exception from a shard set's startup merge as a `PrerequisiteError`.
+
+    The message names the shards directory, the cause and what to do next;
+    the original exception is the cause. Cancellation propagates unchanged.
+    """
+    try:
+        yield
+    except PrerequisiteError:
+        raise
+    except Exception as ex:
+        if isinstance(ex, ShardSelectionError):
+            advice = (
+                "The eval set's selection is narrower than what the shards hold. "
+                "Widen sample_id or limit to include every sharded sample (or drop "
+                "the selection to run the whole dataset), remove the task from the "
+                f"eval set, or move {_display(eval_log_for_shards_dir(shards_dir))} "
+                f"and {_display(shards_dir)} out of the log directory. If the ids "
+                "are not ones the run should hold, remove the shard named as "
+                "holding them. Then re-run."
+            )
+        elif isinstance(ex, ShardSetError):
+            advice = "Fix the files the message names, then re-run."
+        elif isinstance(ex, WriteConflictError):
+            advice = (
+                "Re-run once the other merge has finished. If no merge is running, "
+                "delete the lock file the message names and re-run."
+            )
+        else:
+            advice = "Fix the cause, then re-run."
+        raise PrerequisiteError(
+            f"[bold]ERROR[/bold]: eval_set() could not merge the shards in "
+            f"{_display(shards_dir)}: {escape(str(ex))}\n\n{advice}"
+        ) from ex
+
+
+def _display(location: str) -> str:
+    """A location for a message: a local path for a `file://` URI."""
+    return escape(local_path(location) if location.startswith("file://") else location)
 
 
 # get the latest logs (cleaning if requested). returns tuple of successful/unsuccessful
@@ -1925,32 +2194,25 @@ def log_samples_complete(
         samples_selected(dataset, limit, sample_id, task.task.name, task_names)
         * epoch_count
     )
-    selected_ids: set[str] | None
-    if sample_id is not None:
-        sample_id = resolve_task_sample_ids(task.task.name, sample_id, task_names)
-        matcher = sample_id_filter(sample_id if sample_id is not None else [])
-        selected_ids = {
-            str(selected_id)
-            for position, sample in enumerate(dataset, start=1)
-            if matcher.matches(
-                selected_id := sample.id if sample.id is not None else position
-            )
-        }
-    elif dataset.shuffled:
-        # a shuffle can draw a different subset on each task resolution, so
-        # ids cannot prove that a limit selection changed: compare counts
-        selected_ids = None
-    else:
-        selection = slice(*limit) if isinstance(limit, tuple) else slice(0, limit)
-        selected_ids = set()
-        for index in range(len(dataset))[selection]:
-            sample = dataset[index]
-            selected_ids.add(str(sample.id if sample.id is not None else index + 1))
+    ids = {
+        str(id)
+        for id in selected_sample_ids(
+            dataset, limit, sample_id, task.task.name, task_names
+        )
+    }
+    # a shuffle can draw a different subset on each task resolution, so ids
+    # cannot prove that a limit selection changed: compare counts
+    selected_ids = ids if sample_id is not None or not dataset.shuffled else None
 
     # a task no `task:id` selector named ran no samples, so its success log
     # holds none (and no results): nothing is outstanding
     if planned == 0:
         return True
+
+    # a merged shard log is `success` only when it holds its recorded
+    # selection for every epoch, so the recorded ids decide
+    if log.header.eval.shards is not None:
+        return {str(id) for id in log.header.eval.dataset.sample_ids or []} == ids
     if not log.header.results:
         return False
 
@@ -2102,7 +2364,7 @@ def cleanup_older_eval_logs(
 ) -> None:
     logs = [
         log
-        for log in list_all_eval_logs(log_dir)
+        for log in list_all_eval_logs(log_dir, skip_shards=True)
         if log.header.eval.task_id in task_ids
     ]
     latest_completed_task_eval_logs(
@@ -2133,6 +2395,13 @@ def latest_completed_task_eval_logs(
     runs stay. So does an owned `started` log whose sample buffer has not
     finished shutting down (its sync worker outlived the close timeout, or a
     sample reader still holds it): the buffer's files are still in use.
+
+    A merged shard log (`eval.shards` set) is never removed: its
+    `<name>.shards/` directory stays until the user removes both. Once an
+    unsharded log of the task has succeeded (a retry seeded from the merged
+    log), the newest log is chosen from the unsharded logs alone, and the
+    newest successful unsharded log is kept too: while a merged log remains,
+    it shows that the merged log is superseded.
 
     Args:
         logs: Logs of the tasks to select from.
@@ -2166,13 +2435,27 @@ def latest_completed_task_eval_logs(
             key=lambda id_log: id_log[0].mtime if id_log[0].mtime else 0, reverse=True
         )
 
+        # merged shard logs and the rest (see the docstring)
+        unsharded = [log for log in id_logs if log.header.eval.shards is None]
+        if len(unsharded) < len(id_logs) and any(
+            log.header.status == "success" for log in unsharded
+        ):
+            newest_success = next(
+                log for log in unsharded if log.header.status == "success"
+            )
+            latest = unsharded[0]
+            removable = [log for log in unsharded[1:] if log is not newest_success]
+        else:
+            latest = id_logs[0]
+            removable = [log for log in id_logs[1:] if log.header.eval.shards is None]
+
         # take the most recent
-        latest_completed_logs.append(id_logs[0])
+        latest_completed_logs.append(latest)
 
         # remove the rest if requested
         if cleanup_older:
-            fs = filesystem(id_logs[0][0].name)
-            for id_log in id_logs[1:]:
+            fs = filesystem(latest.info.name)
+            for id_log in removable:
                 if id_log.header.eval.eval_id in keep_eval_ids:
                     continue
                 try:

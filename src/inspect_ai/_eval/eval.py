@@ -1606,7 +1606,8 @@ def _check_merged_log_retry(eval_log: EvalLog) -> None:
         raise ValueError(
             f"Cannot retry {eval_log.location or 'the log'}: it was merged from "
             f"shards with a selection by sample {form}, which a retry cannot "
-            "reproduce. Re-run the incomplete shards and merge them again."
+            "reproduce. Run eval_set() over its log directory with the same "
+            "selection, or re-run the incomplete shards and merge them again."
         )
 
 

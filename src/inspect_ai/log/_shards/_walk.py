@@ -327,6 +327,29 @@ def is_shard_path(root: str, path: str) -> bool:
     Raises:
         ValueError: If ``path`` is not below ``root``.
     """
+    return _levels_below_companion(root, path) is not None
+
+
+def shard_companion(root: str, path: str) -> str | None:
+    """The ``<name>.shards`` directory whose shard set holds ``path``, or ``None``.
+
+    ``None`` when :func:`is_shard_path` is false. The directory is returned in
+    ``path``'s form: ``path`` without its last one or two components.
+
+    Raises:
+        ValueError: If ``path`` is not below ``root``.
+    """
+    levels = _levels_below_companion(root, path)
+    if levels is None:
+        return None
+    companion = path
+    for _ in range(levels):
+        companion = companion[: max(companion.rfind("/"), companion.rfind("\\"))]
+    return companion
+
+
+def _levels_below_companion(root: str, path: str) -> int | None:
+    """How many components of ``path`` follow its companion's (1 or 2), or ``None``."""
     root_parts = _location_parts(root)
     path_parts = _location_parts(path)
     if path_parts[: len(root_parts)] != root_parts:
@@ -334,8 +357,9 @@ def is_shard_path(root: str, path: str) -> bool:
     relative = path_parts[len(root_parts) :]
     for depth, part in enumerate(relative[:-1]):
         if part.endswith(_SHARDS_SUFFIX) and part != _SHARDS_SUFFIX:
-            return len(relative) - depth <= 3
-    return False
+            levels = len(relative) - depth - 1
+            return levels if levels <= 2 else None
+    return None
 
 
 def _shard_sort_key(shard: ShardDir) -> tuple[bool, int, str]:

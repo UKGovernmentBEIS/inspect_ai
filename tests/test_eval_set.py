@@ -56,7 +56,7 @@ from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.task import task_with
 from inspect_ai._util.asyncfiles import AsyncFilesystem
-from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.error import PrerequisiteError, WriteConflictError
 from inspect_ai._util.file import basename, filesystem, local_path, size_in_mb
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._view.common import read_eval_set_info_async
@@ -69,6 +69,7 @@ from inspect_ai.dataset import (
     json_dataset,
 )
 from inspect_ai.event import SampleInitEvent
+from inspect_ai.log import ShardSelectionError, ShardSetError
 from inspect_ai.log._edit import ProvenanceData, invalidate_samples
 from inspect_ai.log._file import (
     EvalLogInfo,
@@ -256,8 +257,18 @@ def test_latest_completed_task_eval_logs() -> None:
         shutil.rmtree(clean_dir, ignore_errors=True)
 
 
-def _sweep_log(path: Path, eval_id: str, mtime: float, status: str, run_id: str) -> Log:
-    """A `Log` carrying only the fields the retry-cleanup sweep consults."""
+def _sweep_log(
+    path: Path,
+    eval_id: str,
+    mtime: float,
+    status: str,
+    run_id: str,
+    merged: bool = False,
+) -> Log:
+    """A `Log` carrying only the fields the retry-cleanup sweep consults.
+
+    `merged` marks a merged shard log (`eval.shards` set).
+    """
     from types import SimpleNamespace
 
     return Log(
@@ -274,7 +285,12 @@ def _sweep_log(path: Path, eval_id: str, mtime: float, status: str, run_id: str)
             EvalLog,
             SimpleNamespace(
                 status=status,
-                eval=SimpleNamespace(task_id="tid", eval_id=eval_id, run_id=run_id),
+                eval=SimpleNamespace(
+                    task_id="tid",
+                    eval_id=eval_id,
+                    run_id=run_id,
+                    shards=object() if merged else None,
+                ),
             ),
         ),
         task_identifier="tid",
@@ -4772,3 +4788,504 @@ def test_eval_set_grown_dataset_without_stable_ids_still_reruns() -> None:
         final = read_eval_log(logs[0].location)
         assert final.status == "success"
         assert final.eval.dataset.samples == 4
+
+
+# Eval sets over sharded runs. Shards are written by mock-model evals into
+# `<log_dir>/<SHARD_NAME>.shards/<k>/`, as a launcher's workers write them.
+
+SHARD_TASK_ID = "Zx7Run1Id"
+SHARD_NAME = f"2026-10-16T10-00-00-00-00_sharded-task_{SHARD_TASK_ID}"
+
+# sample ids the sharded task's solver ran, and those it fails on; module
+# state rather than task arguments, so every run has the same identifier
+_SHARD_RAN: list[int | str] = []
+_SHARD_FAILING: set[int | str] = set()
+
+
+@solver
+def _shard_solver() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        _SHARD_RAN.append(state.sample_id)
+        if state.sample_id in _SHARD_FAILING:
+            raise RuntimeError(f"failed on {state.sample_id}")
+        return await generate(state)
+
+    return solve
+
+
+@task
+def sharded_task() -> Task:
+    return Task(
+        dataset=[Sample(id=i, input=f"question {i}", target="x") for i in range(1, 7)],
+        solver=_shard_solver(),
+        scorer=includes(),
+    )
+
+
+@task
+def unsharded_task() -> Task:
+    return Task(
+        dataset=[Sample(id=1, input="question", target="x")],
+        solver=generate(),
+        scorer=includes(),
+    )
+
+
+@pytest.fixture
+def shard_runs() -> Iterator[list[int | str]]:
+    _SHARD_RAN.clear()
+    _SHARD_FAILING.clear()
+    yield _SHARD_RAN
+    _SHARD_RAN.clear()
+    _SHARD_FAILING.clear()
+
+
+def _shards_dir(log_dir: Path) -> Path:
+    return log_dir / f"{SHARD_NAME}.shards"
+
+
+def _merged_log(log_dir: Path) -> Path:
+    return log_dir / f"{SHARD_NAME}.eval"
+
+
+def _shard(log_dir: Path, k: str, ids: list[int], **kwargs: Any) -> EvalLog:
+    """Run a worker over `ids` into shard directory `k`."""
+    log = eval(
+        sharded_task(),
+        model="mockllm/model",
+        sample_id=ids,
+        log_dir=str(_shards_dir(log_dir) / k),
+        display="none",
+        **kwargs,
+    )[0]
+    _SHARD_RAN.clear()
+    return log
+
+
+def _sharded_eval_set(
+    log_dir: Path, tasks: Any = None, **kwargs: Any
+) -> tuple[bool, list[EvalLog]]:
+    return eval_set(
+        tasks if tasks is not None else sharded_task(),
+        model="mockllm/model",
+        log_dir=str(log_dir),
+        display="none",
+        retry_wait=0.1,
+        **kwargs,
+    )
+
+
+def _log_names(log_dir: Path) -> list[str]:
+    return sorted(
+        str(Path(local_path(info.name)).relative_to(log_dir))
+        for info in list_eval_logs(str(log_dir))
+    )
+
+
+@pytest.mark.parametrize(
+    "limit,sample_id,expected",
+    [
+        (None, None, [1, 2, 3, 4]),
+        (2, None, [1, 2]),
+        ((1, 3), None, [2, 3]),
+        (None, [3, "1"], [1, 3]),
+        (None, "t:2", [2]),
+        (None, ["other:2"], []),
+    ],
+)
+def test_selected_sample_ids_are_the_ids_slice_dataset_selects(
+    limit: Any, sample_id: Any, expected: list[int]
+) -> None:
+    from inspect_ai._eval.eval_set_manifest import selected_sample_ids
+    from inspect_ai._eval.task.util import resolve_task_sample_ids, slice_dataset
+
+    # ids unset, so each is the position eval() gives it
+    dataset = MemoryDataset([Sample(input=f"q{i}") for i in range(4)])
+    selected = selected_sample_ids(dataset, limit, sample_id, "t", ["t", "other"])
+    assert selected == expected
+
+    for position, sample in enumerate(dataset, start=1):
+        sample.id = position
+    resolved = resolve_task_sample_ids("t", sample_id, ["t", "other"])
+    sliced = slice_dataset(dataset, limit, resolved)
+    assert [sample.id for sample in sliced] == selected
+
+
+def test_list_all_eval_logs_skips_shards_but_keeps_logs_nested_deeper(
+    tmp_path: Path,
+) -> None:
+    _shard(tmp_path, "0", [1, 2])
+    stray = _shards_dir(tmp_path) / "stray.eval"
+    nested = _shards_dir(tmp_path) / "0" / "scans" / "nested.eval"
+    nested.parent.mkdir()
+    [attempt] = (_shards_dir(tmp_path) / "0").glob("*.eval")
+    shutil.copy(attempt, stray)
+    shutil.copy(attempt, nested)
+
+    every = {local_path(log.info.name) for log in list_all_eval_logs(str(tmp_path))}
+    assert every == {str(attempt), str(stray), str(nested)}
+    kept = list_all_eval_logs(str(tmp_path), skip_shards=True)
+    assert [local_path(log.info.name) for log in kept] == [str(nested)]
+
+
+@pytest.mark.parametrize("form", ["ids", "count", "none"])
+def test_log_samples_complete_on_a_merged_log_compares_its_ids(
+    tmp_path: Path, form: str
+) -> None:
+    from inspect_ai.log import merge_eval_log_shards
+
+    _shard(tmp_path, "0", [1, 2, 3])
+    selections: dict[str, dict[str, Any]] = {
+        "ids": {"sample_ids": [1, 2, 3]},
+        "count": {"sample_count": 3},
+        "none": {},
+    }
+    selection = selections[form]
+    if form == "none":
+        _shard(tmp_path, "1", [4, 5, 6])
+    merge_eval_log_shards(str(_merged_log(tmp_path)), sharded_task(), **selection)
+    [log] = list_all_eval_logs(str(tmp_path), skip_shards=True)
+    assert log.header.status == "success" and log.header.eval.shards is not None
+    model = get_model("mockllm/model")
+    [resolved] = resolve_tasks([sharded_task()], {}, model, None, None, None)
+    all_tasks = [(log.task_identifier, resolved)]
+
+    def complete(epochs: Epochs | None, **selection: Any) -> bool:
+        return log_samples_complete(
+            log,
+            all_tasks,
+            ["sharded_task"],
+            epochs,
+            selection.get("limit"),
+            selection.get("sample_id"),
+        )
+
+    held = [1, 2, 3, 4, 5, 6] if form == "none" else [1, 2, 3]
+    assert complete(None, sample_id=held)
+    assert complete(Epochs(1), limit=len(held))
+    assert not complete(None, sample_id=held[:2])
+    if form != "none":
+        assert not complete(None, sample_id=[1, 2, 3, 4])
+    assert not complete(Epochs(2), sample_id=held)
+
+
+def test_eval_set_merges_a_complete_shard_set_and_runs_nothing(
+    tmp_path: Path, shard_runs: list[int | str]
+) -> None:
+    from inspect_ai._eval import evalset as evalset_module
+    from inspect_ai.log._file import read_eval_log_headers
+
+    _shard(tmp_path, "0", [1, 2, 3])
+    _shard(tmp_path, "1", [4, 5, 6])
+    read: list[str] = []
+    real_read = read_eval_log_headers
+
+    def spy(log_files: list[EvalLogInfo], *args: Any) -> list[EvalLog]:
+        read.extend(info.name for info in log_files)
+        return real_read(log_files, *args)
+
+    with patch.object(evalset_module, "read_eval_log_headers", spy):
+        success, logs = _sharded_eval_set(tmp_path)
+
+    assert success and shard_runs == []
+    [log] = logs
+    assert local_path(log.location) == str(_merged_log(tmp_path))
+    assert log.eval.task_id == SHARD_TASK_ID
+    assert log.eval.shards is not None and log.eval.shards.selection == "ids"
+    assert log.eval.dataset.sample_ids == [1, 2, 3, 4, 5, 6]
+    assert read and not any(".shards" in name for name in read)
+    assert len(_log_names(tmp_path)) == 3
+
+
+def test_eval_set_resumes_an_incomplete_shard_set_unsharded(
+    tmp_path: Path, shard_runs: list[int | str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import inspect_ai.log._recover as recover_module
+
+    recovered: list[str] = []
+    real_recover = recover_module.recover_eval_log
+
+    def spy(location: str, *args: Any, **kwargs: Any) -> EvalLog:
+        recovered.append(location)
+        return real_recover(location, *args, **kwargs)
+
+    monkeypatch.setattr(recover_module, "recover_eval_log", spy)
+    _shard(tmp_path, "0", [1, 2, 3])
+
+    success, [log] = _sharded_eval_set(tmp_path)
+
+    assert success and sorted(shard_runs) == [4, 5, 6]
+    assert recovered == []
+    assert log.eval.shards is None and log.eval.task_id == SHARD_TASK_ID
+    assert log.results is not None and log.results.total_samples == 6
+    merged = _merged_log(tmp_path)
+    merged_header = read_eval_log(str(merged), header_only=True)
+    assert merged_header.status == "started"
+    assert merged_header.eval.shards is not None
+    # the merged log has the newer mtime, and is still not the latest
+    os.utime(merged, (time.time() + 60, time.time() + 60))
+    before = merged.read_bytes()
+
+    shard_runs.clear()
+    success, [again] = _sharded_eval_set(tmp_path)
+
+    assert success and shard_runs == []
+    assert again.eval.eval_id == log.eval.eval_id
+    assert merged.read_bytes() == before
+    assert len(_log_names(tmp_path)) == 3
+
+
+def test_eval_set_resumes_a_shard_set_on_s3(
+    mock_s3: None, shard_runs: list[int | str]
+) -> None:
+    log_dir = "s3://test-bucket/logs"
+    eval(
+        sharded_task(),
+        model="mockllm/model",
+        sample_id=[1, 2, 3],
+        log_dir=f"{log_dir}/{SHARD_NAME}.shards/0",
+        display="none",
+    )
+    shard_runs.clear()
+
+    success, [log] = eval_set(
+        sharded_task(), model="mockllm/model", log_dir=log_dir, display="none"
+    )
+
+    assert success and sorted(shard_runs) == [4, 5, 6]
+    assert log.eval.shards is None
+    merged = read_eval_log(f"{log_dir}/{SHARD_NAME}.eval", header_only=True)
+    assert merged.status == "started" and merged.eval.shards is not None
+
+
+def test_eval_set_retries_a_failed_shard_set_from_its_merged_log(
+    tmp_path: Path, shard_runs: list[int | str]
+) -> None:
+    _SHARD_FAILING.add(2)
+    _shard(tmp_path, "0", [1, 2, 3])
+    _shard(tmp_path, "1", [4, 5, 6])
+    _SHARD_FAILING.clear()
+
+    success, [log] = _sharded_eval_set(tmp_path)
+
+    assert success
+    assert 2 in shard_runs and set(shard_runs) <= {1, 2, 3}
+    assert log.eval.shards is None
+    merged = read_eval_log(str(_merged_log(tmp_path)), header_only=True)
+    assert merged.status == "error" and merged.eval.shards is not None
+    assert _shards_dir(tmp_path).is_dir()
+
+
+def test_eval_retry_refuses_a_merged_log_an_eval_set_wrote(
+    tmp_path: Path, shard_runs: list[int | str]
+) -> None:
+    from inspect_ai import eval_retry
+
+    _shard(tmp_path, "0", [1, 2, 3])
+    _SHARD_FAILING.update({4, 5, 6})
+    success, _ = _sharded_eval_set(tmp_path, retry_attempts=0)
+    assert not success
+    merged = read_eval_log(str(_merged_log(tmp_path)), header_only=True)
+    assert merged.status == "started"
+    assert merged.eval.shards is not None and merged.eval.shards.selection == "ids"
+
+    shard_runs.clear()
+    with pytest.raises(ValueError, match=r"eval_set\(\)"):
+        eval_retry(str(_merged_log(tmp_path)), display="none")
+    assert shard_runs == []
+
+
+def _stray_in_root(log_dir: Path) -> None:
+    [attempt] = (_shards_dir(log_dir) / "0").glob("*.eval")
+    shutil.copy(attempt, _shards_dir(log_dir) / "stray.eval")
+
+
+def _ordinary_log_in_place(log_dir: Path) -> None:
+    [attempt] = (_shards_dir(log_dir) / "0").glob("*.eval")
+    shutil.copy(attempt, _merged_log(log_dir))
+
+
+def _held_lock(log_dir: Path) -> None:
+    (log_dir / f"{SHARD_NAME}.merge.lock").write_text('{"pid": 1, "host": "h"}')
+
+
+def _overlap(log_dir: Path) -> None:
+    _shard(log_dir, "1", [3, 4])
+
+
+@pytest.mark.parametrize(
+    "setup,eval_set_args,cause,message",
+    [
+        (_overlap, {}, ShardSetError, "Fix the files"),
+        (_stray_in_root, {}, ShardSetError, "stray.eval"),
+        (_ordinary_log_in_place, {}, ShardSetError, "ordinary log"),
+        (_held_lock, {}, WriteConflictError, "delete the lock file"),
+        (None, {"sample_id": [1, 2]}, ShardSelectionError, "Widen sample_id"),
+        (None, {"limit": 2}, ShardSelectionError, "Widen sample_id"),
+    ],
+)
+def test_eval_set_stops_when_a_startup_merge_is_refused(
+    tmp_path: Path,
+    shard_runs: list[int | str],
+    setup: Callable[[Path], None] | None,
+    eval_set_args: dict[str, Any],
+    cause: type[Exception],
+    message: str,
+) -> None:
+    _shard(tmp_path, "0", [1, 2, 3])
+    if setup is not None:
+        setup(tmp_path)
+    names = _log_names(tmp_path)
+
+    with pytest.raises(PrerequisiteError, match=message) as raised:
+        _sharded_eval_set(tmp_path, **eval_set_args)
+
+    assert isinstance(raised.value.__cause__, cause)
+    assert str(_shards_dir(tmp_path)) in str(raised.value)
+    assert shard_runs == []
+    assert _log_names(tmp_path) == names
+
+
+def test_eval_set_stops_on_a_storage_error_from_a_startup_merge(
+    tmp_path: Path, shard_runs: list[int | str]
+) -> None:
+    _shard(tmp_path, "0", [1, 2, 3])
+
+    async def fail(*args: Any, **kwargs: Any) -> Any:
+        raise OSError("listing failed")
+
+    with patch("inspect_ai.log._shards._api.list_shard_set", fail):
+        with pytest.raises(PrerequisiteError, match="listing failed") as raised:
+            _sharded_eval_set(tmp_path)
+    assert isinstance(raised.value.__cause__, OSError)
+    assert shard_runs == []
+
+
+def test_eval_set_stops_on_a_shards_dir_holding_only_stray_files(
+    tmp_path: Path, shard_runs: list[int | str]
+) -> None:
+    _shard(tmp_path, "0", [1, 2, 3])
+    [attempt] = (_shards_dir(tmp_path) / "0").glob("*.eval")
+    stray = _shards_dir(tmp_path) / ".hidden" / "stray.eval"
+    stray.parent.mkdir()
+    attempt.rename(stray)
+
+    with pytest.raises(PrerequisiteError, match="stray.eval"):
+        _sharded_eval_set(tmp_path)
+    assert shard_runs == []
+    assert not _merged_log(tmp_path).exists()
+
+
+@pytest.mark.parametrize("held", [True, False])
+def test_eval_set_stops_when_it_selects_no_samples_of_a_sharded_task(
+    tmp_path: Path, shard_runs: list[int | str], held: bool
+) -> None:
+    from inspect_ai._eval import evalset as evalset_module
+
+    shard = _shard(tmp_path, "0", [1, 2, 3])
+    if not held:
+        full = read_eval_log(shard.location)
+        full.status = "started"
+        full.results = None
+        full.samples = []
+        write_eval_log(full, shard.location)
+
+    with patch.object(evalset_module, "merge_eval_log_shards_async") as merge:
+        with pytest.raises(PrerequisiteError, match="selects no samples"):
+            _sharded_eval_set(
+                tmp_path,
+                tasks=[sharded_task(), unsharded_task()],
+                sample_id=["unsharded_task:1"],
+            )
+    merge.assert_not_called()
+    assert shard_runs == []
+
+
+def test_eval_set_leaves_a_shards_dir_of_another_task_alone(
+    tmp_path: Path, shard_runs: list[int | str], caplog: pytest.LogCaptureFixture
+) -> None:
+    _shard(tmp_path, "0", [1, 2, 3])
+
+    with caplog.at_level(logging.WARNING):
+        success, [log] = _sharded_eval_set(tmp_path, tasks=unsharded_task())
+
+    assert success and log.eval.task == "unsharded_task"
+    assert not _merged_log(tmp_path).exists()
+    assert any("Not merging" in r.getMessage() for r in caplog.records)
+
+
+def test_eval_set_identifies_a_shard_set_from_a_later_shard(
+    tmp_path: Path, shard_runs: list[int | str]
+) -> None:
+    (_shards_dir(tmp_path) / "0" / "scans").mkdir(parents=True)
+    (_shards_dir(tmp_path) / "0" / "scans" / "rows.txt").write_text("x")
+    _shard(tmp_path, "1", [1, 2, 3, 4, 5, 6])
+
+    success, [log] = _sharded_eval_set(tmp_path)
+
+    assert success and shard_runs == []
+    assert log.eval.shards is not None
+
+
+def test_retry_cleanup_prefers_a_successful_unsharded_log_over_a_merged_log(
+    tmp_path: Path,
+) -> None:
+    for name in ("m.eval", "u1.eval", "u2.eval"):
+        (tmp_path / name).touch()
+
+    latest = latest_completed_task_eval_logs(
+        logs=[
+            _sweep_log(tmp_path / "m.eval", "m", 3.0, "started", "x", merged=True),
+            _sweep_log(tmp_path / "u2.eval", "u2", 2.0, "success", "mine"),
+            _sweep_log(tmp_path / "u1.eval", "u1", 1.0, "error", "mine"),
+        ],
+        cleanup_older=True,
+        owned_run_ids={"mine"},
+    )
+
+    assert [log.header.eval.eval_id for log in latest] == ["u2"]
+    assert sorted(p.name for p in tmp_path.glob("*.eval")) == ["m.eval", "u2.eval"]
+
+
+def test_retry_cleanup_keeps_an_older_success_while_a_merged_log_remains(
+    tmp_path: Path,
+) -> None:
+    for name in ("m.eval", "s.eval", "e.eval", "old.eval"):
+        (tmp_path / name).touch()
+    logs = [
+        _sweep_log(tmp_path / "m.eval", "m", 1.0, "success", "x", merged=True),
+        _sweep_log(tmp_path / "old.eval", "old", 2.0, "error", "mine"),
+        _sweep_log(tmp_path / "s.eval", "s", 3.0, "success", "mine"),
+        _sweep_log(tmp_path / "e.eval", "e", 4.0, "error", "mine"),
+    ]
+
+    for _ in range(2):
+        latest = latest_completed_task_eval_logs(
+            logs=[log for log in logs if Path(log.info.name).exists()],
+            cleanup_older=True,
+            owned_run_ids={"mine"},
+        )
+        assert [log.header.eval.eval_id for log in latest] == ["e"]
+        assert sorted(p.name for p in tmp_path.glob("*.eval")) == [
+            "e.eval",
+            "m.eval",
+            "s.eval",
+        ]
+
+
+@pytest.mark.parametrize("status", ["started", "error", "success", "cancelled"])
+def test_retry_cleanup_never_removes_a_merged_log(tmp_path: Path, status: str) -> None:
+    for name in ("m.eval", "u.eval"):
+        (tmp_path / name).touch()
+
+    latest = latest_completed_task_eval_logs(
+        logs=[
+            _sweep_log(tmp_path / "m.eval", "m", 1.0, status, "mine", merged=True),
+            _sweep_log(tmp_path / "u.eval", "u", 2.0, "error", "mine"),
+        ],
+        cleanup_older=True,
+        owned_run_ids={"mine"},
+    )
+
+    assert [log.header.eval.eval_id for log in latest] == ["u"]
+    assert (tmp_path / "m.eval").exists()
