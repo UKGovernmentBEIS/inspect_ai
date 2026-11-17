@@ -130,6 +130,7 @@ On Ctrl-C, the command prints no merge report or JSON error envelope; Click prin
 -   A merge that runs while a worker is writing its shard can fail with a read error. Nothing is written; run the merge again, or merge after the workers have exited.
 -   Deleting one shard directory by hand makes later merges refuse until the rest of the `.shards` directory is deleted or the files are restored. Deleting the whole `.shards` directory keeps the merged log as it is.
 -   `eval_retry()` refuses a merged log that was merged with `sample_ids` or `sample_count`, which includes every merged log an eval set writes. Run the eval set again, or re-run the incomplete shards and merge again instead.
+-   An eval set with scanners refuses a log directory that holds a `.shards` directory. Scanning sharded tasks is not supported yet.
 -   Do not change `INSPECT_EVAL_LOG_FILE_PATTERN` while a `.shards` directory exists.
 -   A local merged log that is a symbolic link is refused. Merge into the file it points to.
 -   Workers whose task has [early stopping](early-stopping.qmd) can finish with `success` but leave out the samples or epochs they stopped. The merge needs a record for every selected sample and epoch, so it raises `ShardSetIncomplete` for such shards (or writes a `started` log with `allow_incomplete=True`), and the merged log has no `early_stopping` summary. To merge the full selection, re-run those shards with early stopping turned off. Removing it only from the task you pass to the merge does not help, since the missing samples were never run.

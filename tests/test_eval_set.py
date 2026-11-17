@@ -16,7 +16,7 @@ from collections.abc import Iterator
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, BinaryIO, Callable, ClassVar, cast
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 import anyio
 import pytest
@@ -3347,7 +3347,7 @@ def test_eval_set_bundle_when_all_complete(tmp_path: Path) -> None:
 
     # Second run: same log_dir, all logs already complete, but now with bundle_dir
     # bundle_log_dir should still be called to create the bundle
-    with patch("inspect_ai._eval.evalset.bundle_log_dir") as mock_bundle:
+    with patch("inspect_ai._eval.evalset._bundle_log_dir") as mock_bundle:
         success, logs = eval_set(
             tasks=[task1],
             log_dir=log_dir,
@@ -3357,11 +3357,10 @@ def test_eval_set_bundle_when_all_complete(tmp_path: Path) -> None:
         )
         assert success
         assert logs[0].status == "success"
-        mock_bundle.assert_called_once_with(
-            log_dir=log_dir,
-            output_dir=bundle_dir,
-            overwrite=True,
-        )
+        mock_bundle.assert_called_once()
+        assert mock_bundle.call_args.kwargs["log_dir"] == log_dir
+        assert mock_bundle.call_args.kwargs["output_dir"] == bundle_dir
+        assert mock_bundle.call_args.kwargs["overwrite"] is True
 
 
 def test_eval_set_bundle_after_retries_once(tmp_path: Path) -> None:
@@ -3397,6 +3396,30 @@ def test_eval_set_bundle_after_retries_once(tmp_path: Path) -> None:
     assert (bundle_dir / "index.html").exists()
     assert (bundle_dir / "logs" / "listing.json").exists()
     assert len(list((bundle_dir / "logs").glob("*.eval"))) == 1
+
+
+def _unreadable_older_attempt(log_dir: Path) -> None:
+    """An older attempt in shard 0 that the merge never reads."""
+    older = _shards_dir(log_dir) / "0" / "2020-01-01T00-00-00-00-00_x_Old1Id.eval"
+    older.write_bytes(b"x")
+
+
+def test_eval_set_bundle_leaves_out_shard_attempts(
+    tmp_path: Path, shard_runs: list[int | str]
+) -> None:
+    log_dir = tmp_path / "logs"
+    _shard(log_dir, "0", [1, 2, 3])
+    _unreadable_older_attempt(log_dir)
+    bundle_dir = tmp_path / "bundle"
+
+    success, [log] = _sharded_eval_set(log_dir, bundle_dir=str(bundle_dir))
+
+    # the incomplete merged log stays beside the unsharded retry
+    assert success and log.eval.shards is None
+    bundled = sorted(p.name for p in (bundle_dir / "logs").rglob("*.eval"))
+    assert len(bundled) == 2 and f"{SHARD_NAME}.eval" in bundled
+    listing = json.loads((bundle_dir / "logs" / "listing.json").read_text())
+    assert sorted(listing) == bundled
 
 
 def test_invalidation(tmp_path: Path):
@@ -3569,8 +3592,8 @@ def test_embed_viewer_writes_on_change() -> None:
     write_called = threading.Event()
 
     with (
-        patch("inspect_ai._eval.evalset.embed_log_dir"),
-        patch("inspect_ai._eval.evalset.list_eval_logs") as mock_list,
+        patch("inspect_ai._eval.evalset._embed_log_dir"),
+        patch("inspect_ai._eval.evalset.eval_set_log_files") as mock_list,
         patch("inspect_ai._eval.evalset.write_log_listing") as mock_write,
     ):
         mock_list.return_value = [log1]
@@ -3579,17 +3602,17 @@ def test_embed_viewer_writes_on_change() -> None:
         with _embed_viewer("/fake/dir", interval=0.05):
             assert write_called.wait(timeout=2.0), "listing.json was never updated"
 
-    # one periodic update (with pre-fetched logs) + one final update on context exit
+    # one periodic update + one final update on context exit, both with the
+    # eval set's logs
     assert mock_write.call_count == 2
-    mock_write.assert_any_call("/fake/dir", logs=[log1])
-    mock_write.assert_any_call("/fake/dir")
+    assert mock_write.call_args_list == [call("/fake/dir", logs=[log1])] * 2
 
 
 def test_embed_viewer_skips_when_unchanged() -> None:
     """Listing updater does not call write_log_listing when state is unchanged."""
     with (
-        patch("inspect_ai._eval.evalset.embed_log_dir"),
-        patch("inspect_ai._eval.evalset.list_eval_logs") as mock_list,
+        patch("inspect_ai._eval.evalset._embed_log_dir"),
+        patch("inspect_ai._eval.evalset.eval_set_log_files") as mock_list,
         patch("inspect_ai._eval.evalset.write_log_listing") as mock_write,
     ):
         mock_list.return_value = []  # always empty — matches initial frozenset()
@@ -3599,7 +3622,7 @@ def test_embed_viewer_skips_when_unchanged() -> None:
 
     # no periodic updates (state never changed), but one final update on context exit
     assert mock_write.call_count == 1
-    mock_write.assert_called_once_with("/fake/dir")
+    mock_write.assert_called_once_with("/fake/dir", logs=[])
 
 
 def test_eval_set_embed_viewer(tmp_path: Path) -> None:
@@ -3622,6 +3645,20 @@ def test_eval_set_embed_viewer(tmp_path: Path) -> None:
     listing = json.loads((tmp_path / "logs" / "listing.json").read_text())
     assert len(listing) == 1
     assert list(listing.values())[0]["status"] == "success"
+
+
+def test_eval_set_embed_viewer_leaves_out_shard_attempts(
+    tmp_path: Path, shard_runs: list[int | str]
+) -> None:
+    _shard(tmp_path, "0", [1, 2, 3])
+    _unreadable_older_attempt(tmp_path)
+
+    success, [log] = _sharded_eval_set(tmp_path, embed_viewer=True)
+
+    assert success and log.eval.shards is None
+    listing = json.loads((tmp_path / "listing.json").read_text())
+    assert f"{SHARD_NAME}.eval" in listing
+    assert len(listing) == 2 and not any(".shards" in name for name in listing)
 
 
 def test_eval_set_single_flush_error() -> None:
@@ -5126,10 +5163,31 @@ def test_eval_set_refuses_new_shards_after_a_newer_unsharded_retry(
     names = _log_names(tmp_path)
     shard_runs.clear()
 
-    with pytest.raises(PrerequisiteError, match="unsharded retry") as raised:
+    with pytest.raises(PrerequisiteError, match="holds shards it does not") as raised:
         _sharded_eval_set(tmp_path)
 
     assert str(_shards_dir(tmp_path)) in str(raised.value)
+    assert local_path(retry.location) in str(raised.value)
+    assert shard_runs == []
+    assert _merged_log(tmp_path).read_bytes() == merged
+    assert _log_names(tmp_path) == names
+
+
+def test_eval_set_refuses_a_new_selection_after_a_newer_unsharded_retry(
+    tmp_path: Path, shard_runs: list[int | str]
+) -> None:
+    _shard(tmp_path, "0", [1])
+    _SHARD_FAILING.add(3)
+    success, [retry] = _sharded_eval_set(tmp_path, limit=3, retry_attempts=0)
+    assert not success and retry.status == "error" and retry.eval.shards is None
+    _SHARD_FAILING.clear()
+    merged = _merged_log(tmp_path).read_bytes()
+    names = _log_names(tmp_path)
+    shard_runs.clear()
+
+    with pytest.raises(PrerequisiteError, match="selects 4 sample ids") as raised:
+        _sharded_eval_set(tmp_path, limit=4)
+
     assert local_path(retry.location) in str(raised.value)
     assert shard_runs == []
     assert _merged_log(tmp_path).read_bytes() == merged

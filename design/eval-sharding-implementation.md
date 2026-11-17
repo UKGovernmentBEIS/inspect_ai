@@ -1567,23 +1567,30 @@ never scans the directory.
    | Local merge lock held (`<name>.merge.lock`), including one left by a crashed merge | `WriteConflictError` | wait for the other merge to finish and re-run; if no merge is running (the lock's `pid`/`host` shown in the message), delete the lock file and re-run |
    | Lost S3 publish race (another merge published first, or the merged log changed during the pass) | `WriteConflictError` | re-run once the other merge has finished; the merge is idempotent |
    | Anything else (a storage or transport error) | the original exception | the cause is in the message and the chained exception; fix it and re-run |
-6. If any merge wrote, list again; otherwise reuse the listing. A merge
-   that wrote also clears the eval set's clean-scan shortcut for the rest
-   of the call (`scan_already_clean`, read before the first pass): the
-   prior scan never saw the merged samples, so the eval set's scanners
-   resume over its successful logs as after an unclean scan.
-7. **New shards after a newer unsharded retry are refused** (decision:
-   Ransom, 2026-11-17). Before any merge writes, a companion whose merged
-   log is listed is checked: when some shard's current attempt is not the
-   one the merged log's ledger records (a new or changed shard) and an
-   unsharded log of the merged log's `task_id` has a newer mtime than the
-   merged log, `eval_set()` stops with `PrerequisiteError` naming the
-   companion, the merged log and the newer logs, and saying to remove the
-   new shards or the unsharded retry. Merging would rewrite the merged log
-   the retry was seeded from with a newer mtime, and while no unsharded log
-   has succeeded, "Retry cleanup" below would then choose the merged log as
-   the latest and remove the retry, with the samples only it holds. The
-   check applies whatever the retry's status.
+6. If any merge wrote, list again; otherwise reuse the listing.
+7. **A rewrite of a merged log that an unsharded retry is newer than is
+   refused** (decisions: Ransom, 2026-11-17). Before any merge writes, each
+   companion whose merged log is listed is checked. When the merge would
+   rewrite the merged log, for any reason (a shard's current attempt is not
+   the one the ledger records, or the eval set's selection differs from the
+   recorded one in its ids or its form, such as the whole dataset against an
+   id list), and an unsharded log of the merged log's `task_id` has a newer
+   mtime than the merged log, `eval_set()` stops with `PrerequisiteError`
+   naming the merged log, the companion and the newer logs, and saying to
+   remove the unsharded retry or move the merged log and its companion out
+   of the log directory. Rewriting would replace the merged log the retry
+   was seeded from with a newer one, and while no unsharded log has
+   succeeded, "Retry cleanup" below would then choose the merged log as the
+   latest and remove the retry, with the samples only it holds. The check
+   applies whatever the retry's status. A companion with no current shard
+   is not checked: the merge then keeps the merged log as it is.
+8. **Scanners are refused over sharded tasks** (decision: Ransom,
+   2026-11-17). When `eval_set()` is given `scanner` and the log directory
+   holds a companion, it stops with `PrerequisiteError` before any merge,
+   viewer embedding or scan initialization: scanning sharded tasks is later
+   work. The eval set's scan resumption assumes every transcript it has not
+   scanned is in a log it ran or reused after the last clean scan, which a
+   startup merge breaks.
 
 **Shard skip before header reads.** `list_all_eval_logs` gains
 `skip_shards: bool = False`, which drops `is_shard_path(log_dir, name)`
@@ -1593,10 +1600,11 @@ the listing as an ordinary log, so the skip never hides a log that the
 shard walk does not report. Both eval-set call sites (startup and
 `cleanup_older_eval_logs`) pass `True`; `inspect_flow`'s callers keep the
 default. The startup path in step 2 applies the same filter to the listing
-it already holds. The same filter applies to the eval set's two log
-directory manifest writes and to the scanner's orphan-row sweep at scan
-finalization, which list the directory on their own: a shard's older
-attempts are never read by the merge, so they may be unreadable.
+it already holds. The eval set's log directory manifest, the embedded
+viewer's listings (initial, periodic and at exit) and the bundle's inputs
+take the same filtered list, and the scanner's orphan-row sweep at scan
+finalization applies the same filter: a shard's older attempts are never
+read by the merge, so they may be unreadable.
 
 **Completeness.** `log_samples_complete` gains a branch for a log with
 `eval.shards`: complete when `status == "success"` (already required by the

@@ -13,7 +13,12 @@ from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.file import absolute_file_path, filesystem
 from inspect_ai._view._csp import read_content_security_policy
 
-from ._file import log_files_from_ls, without_merged_shards, write_log_listing
+from ._file import (
+    EvalLogInfo,
+    log_files_from_ls,
+    without_merged_shards,
+    write_log_listing,
+)
 
 # INSPECT_VIEW_BUNDLE_OUT_DIR
 
@@ -98,6 +103,31 @@ def bundle_log_dir(
         fs_options (dict[str, Any]): Optional. Additional arguments to pass through
             to the filesystem provider (e.g. `S3FileSystem`).
     """
+    _bundle_log_dir(
+        log_dir=log_dir,
+        output_dir=output_dir,
+        overwrite=overwrite,
+        fs_options=fs_options,
+    )
+
+
+def _bundle_log_dir(
+    log_dir: str | None = None,
+    output_dir: str | None = None,
+    overwrite: bool = False,
+    fs_options: dict[str, Any] = {},
+    logs: list[EvalLogInfo] | None = None,
+) -> None:
+    """Bundle a log_dir (see `bundle_log_dir`).
+
+    Args:
+        log_dir: The log_dir to bundle.
+        output_dir: The directory to place bundled output.
+        overwrite: Whether to overwrite files in the output directory.
+        fs_options: Additional arguments to pass through to the filesystem provider.
+        logs: The logs to bundle, as listed in `log_dir` (defaults to listing
+            `log_dir`). An eval set passes the logs outside shard sets.
+    """
     # resolve the log directory
     if not log_dir:
         log_dir = os.getenv("INSPECT_LOG_DIR", "./logs")
@@ -152,7 +182,7 @@ def bundle_log_dir(
             # create a logs dir and copy logs into it
             view_logs_dir = os.path.join(working_dir, log_dir_name)
             os.makedirs(view_logs_dir)
-            copy_log_files(log_dir, view_logs_dir, p.update, fs_options)
+            copy_log_files(log_dir, view_logs_dir, p.update, fs_options, logs)
             p.update(25)
 
             # the copies' mtimes no longer order shards against their merged
@@ -290,11 +320,16 @@ def copy_log_files(
     target_dir: str,
     p: Callable[[int], None],
     fs_options: dict[str, Any] = {},
+    logs: list[EvalLogInfo] | None = None,
 ) -> None:
     log_fs = filesystem(log_dir, fs_options)
     if log_fs.exists(log_dir):
-        eval_logs = log_files_from_ls(
-            log_fs.ls(log_dir, recursive=True), ["json", "eval"], False
+        eval_logs = (
+            logs
+            if logs is not None
+            else log_files_from_ls(
+                log_fs.ls(log_dir, recursive=True), ["json", "eval"], False
+            )
         )
         if len(eval_logs) == 0:
             raise PrerequisiteError(
@@ -435,6 +470,22 @@ def embed_log_dir(
         fs_options (dict[str, Any]): Optional. Additional arguments to pass through
             to the filesystem provider (e.g. `S3FileSystem`).
     """
+    _embed_log_dir(log_dir=log_dir, fs_options=fs_options)
+
+
+def _embed_log_dir(
+    log_dir: str | None = None,
+    fs_options: dict[str, Any] = {},
+    logs: list[EvalLogInfo] | None = None,
+) -> None:
+    """Embed a log viewer into a log_dir (see `embed_log_dir`).
+
+    Args:
+        log_dir: The log_dir to embed the viewer in.
+        fs_options: Additional arguments to pass through to the filesystem provider.
+        logs: The logs to list, as listed in `log_dir` (defaults to listing
+            `log_dir`). An eval set passes the logs outside shard sets.
+    """
     from inspect_ai._display import display
 
     # resolve the log directory
@@ -453,7 +504,7 @@ def embed_log_dir(
 
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as working_dir:
         _prepare_viewer(working_dir, log_dir=".", abs_log_dir=log_dir)
-        write_log_listing(log_dir, output_dir=working_dir)
+        write_log_listing(log_dir, output_dir=working_dir, logs=logs)
         _copy_viewer_to_log_dir(working_dir, log_dir, log_fs)
 
     if log_fs.is_local():
