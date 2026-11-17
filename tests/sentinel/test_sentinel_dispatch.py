@@ -2855,6 +2855,117 @@ def test_a_turn_s_tool_steps_get_its_producer_not_a_later_model_call_with_its_me
         assert step.input[0].text == "Add."
 
 
+@pytest.mark.parametrize("stages", ["both", "after"])
+@pytest.mark.parametrize("inner", ["appended", "run"])
+def test_a_turn_s_tool_steps_get_its_producer_not_a_message_a_tool_adds_with_a_reused_call_id(
+    inner: str, stages: str, tmp_path: Path
+) -> None:
+    """A tool that adds another model's message to the turn's history, holding a call with the id of one of the turn's calls, doesn't change the producer the turn's steps get, also when it runs that message's calls in its own turn."""
+
+    def message_output(message_id: str, calls: list[ToolCall]) -> ModelOutput:
+        return ModelOutput(
+            model="mockllm/model",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        id=message_id, content=message_id, tool_calls=calls
+                    ),
+                    stop_reason="tool_calls",
+                )
+            ],
+        )
+
+    states: list[TaskState] = []
+
+    @tool(parallel=False)
+    def append_turn() -> Tool:
+        async def execute() -> str:
+            """Add an inner model's message to the conversation."""
+            inner_model = get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    message_output(
+                        "inner-message",
+                        [
+                            ToolCall(
+                                id="c1",
+                                function="addition",
+                                arguments={"x": 10, "y": 20},
+                            )
+                        ],
+                    )
+                ],
+                memoize=False,
+            )
+            returned = await inner_model.generate(
+                "Inner input", tools=[addition()], tool_choice="any"
+            )
+            state = states[0]
+            state.messages.append(returned.message)
+            if inner == "run":
+                result = await execute_tools(state.messages, [addition()])
+                state.messages.extend(result.messages)
+            return "ok"
+
+        return execute
+
+    @solver
+    def turn() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            states.append(state)
+            outer = message_output(
+                "outer-message",
+                [
+                    ToolCall(id="c0", function="append_turn", arguments={}),
+                    ToolCall(id="c1", function="addition", arguments={"x": 1, "y": 2}),
+                ],
+            )
+            model = get_model("mockllm/model", custom_outputs=[outer], memoize=False)
+            tools = [append_turn(), addition()]
+            returned = await model.generate(state.messages, tools=tools)
+            state.messages.append(returned.message)
+            result = await execute_tools(state.messages, tools)
+            state.messages.extend(result.messages)
+            return state
+
+        return solve
+
+    before: Seen = []
+    after: list[AfterToolCall] = []
+    task = Task(
+        dataset=[Sample(input="Outer input")],
+        solver=turn(),
+        sentinel=[d3_recording(before), d3_recording_after(after)]
+        if stages == "both"
+        else d3_recording_after(after),
+    )
+    log = eval(task, model="mockllm/model", log_dir=str(tmp_path))[0]
+    assert log.status == "success", log.error
+    steps: list[BeforeToolCall | AfterToolCall] = [step for _, step in before]
+    steps.extend(after)
+    outer_steps = [step for step in steps if step.call.arguments != {"x": 10, "y": 20}]
+    inner_steps = [step for step in steps if step.call.arguments == {"x": 10, "y": 20}]
+    per_call = 2 if stages == "both" else 1
+    assert len(outer_steps) == 2 * per_call
+    assert len(inner_steps) == (per_call if inner == "run" else 0)
+    for step in outer_steps:
+        assert step.message_id == "outer-message"
+        assert step.assistant_message is not None
+        assert step.assistant_message.id == "outer-message"
+        assert step.input is not None
+        assert [message.text for message in step.input] == ["Outer input"]
+        assert step.tools is not None
+        assert [t.name for t in step.tools] == ["append_turn", "addition"]
+        assert step.tool_choice == "auto"
+    for step in inner_steps:
+        assert step.message_id == "inner-message"
+        assert step.assistant_message is not None
+        assert step.assistant_message.id == "inner-message"
+        assert step.input is not None
+        assert [message.text for message in step.input] == ["Inner input"]
+        assert step.tool_choice == "any"
+
+
 @pytest.mark.parametrize("stages", ["both", "after", "evicted"])
 def test_a_turn_s_tool_steps_read_its_evicted_model_call_back_once(
     stages: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
