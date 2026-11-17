@@ -396,12 +396,22 @@ The implementation removes:
   parameter's annotation becomes
   `Callable[[EvalLog, list[SampleSelector], ProvenanceData], None]`;
 - tests in `tests/scorer/test_score_editing.py` and
-  `tests/log/test_zero_samples.py`: `test_exclude_samples_unchanged` is
-  deleted; elsewhere the `result = ` assignments and the
+  `tests/log/test_zero_samples.py`: the `result = ` assignments and the
   `result.unchanged` and `result.applied` asserts go (the
   selector-expansion test checks the log directly instead), and so does
   `test_zero_samples_twice`'s `assert result == ([("a", 1)], [])`, leaving
   its history and provenance checks;
+- `test_exclude_samples_unchanged` becomes a re-apply test: after `a` is
+  excluded, the mixed call `exclude_samples(log, ["a", "b"], ...)` grows
+  `a`'s score history and its sample's `ScoreEditEvent` count by one each
+  (and gives `b` its first), and its check that a value edit followed by an
+  exclusion leaves the score excluded stays;
+- a new empty-selector test beside it calls `exclude_samples(log, [], ...)`
+  on a log whose scorer names a metric the registry cannot build and
+  asserts `LookupError` with the log unchanged; `tests/log/test_zero_samples.py`
+  gets the same case for `zero_samples(log, empty, [], ...)`. These two
+  tests pin the two behaviours this change makes, which no other planned
+  test reaches (the CLI requires `--sample`);
 - in `tests/test_eval_set_selection.py`,
   `test_eval_set_selection_empty_attempt_log_can_zero_samples` calls
   `zero_samples()` without assigning it and drops its `result.applied`
