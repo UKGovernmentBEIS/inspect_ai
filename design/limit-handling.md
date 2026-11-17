@@ -1257,8 +1257,24 @@ streaming path also adds records for interrupted hops (below):
 The proxy calls it on each attempt's output usage before adding it
 to `discarded_usage` and on the final output unless that is a rejection
 output, and Anthropic calls it on each leg's output usage before
-`chain.add()` (`anthropic.py:1368`). Anthropic's converted errors go through
-`chain.report()`, not `chain.add()`, so a rejection is never checked there. The error raised there leaves the provider's `generate()` and is
+`chain.add()` (`anthropic.py:1368`).
+
+A converted error that returns an output after earlier legs needs its own
+check, because the accumulated usage is attached to it before the common
+check sees it. Anthropic's converted errors go through `chain.report()`,
+not `chain.add()`, and `report()` replaces the output's usage with the
+earlier legs' total (`anthropic.py:381`); Google's handled-error branch
+does the same with `chain.usage` (below). So a mid-stream content-filter
+error in a continuation after a positive `pause_turn` leg would come back
+with that leg's positive usage and pass. At each such return site
+(Anthropic's three conversion branches, `anthropic.py:1112-1135`, and
+Google's `handle_client_error()` branch, `google.py:905-914`), an output
+whose `_rejection` is not set is checked on its own usage with
+`require_reported_usage()` before the accumulated usage is attached; a
+converted stream error has none, so under an active, unsuspended cost limit
+it fails. A labelled rejection is not checked there, and returns carrying
+the earlier legs' usage as specified. The error raised at any of these
+sites leaves the provider's `generate()` and is
 handled by `Model` as above, so the call fails and none of its requests are
 charged, as for any failed attempt. The check has the same gating
 everywhere: it does nothing without an active cost limit or while cost is
@@ -1864,6 +1880,18 @@ under trio with `--runtrio`.
     pass with the sum: two positive legs, a leg reporting only cache-read
     tokens, the zero-then-positive chain with no cost limit, and the same
     chain inside `suspend_cost_limit()`;
+  - converted errors after earlier legs, in
+    `tests/model/providers/test_anthropic.py` over a stubbed client: after
+    a positive `pause_turn` head, a continuation whose stream fails with a
+    content-filter error (normalized from 200 to 400) fails with
+    `UnmeteredCallError` under the cost limit, its `ModelEvent` completed
+    with the error and no usage recorded for the call, the head included
+    (failed-attempt accounting); the same with the error normalized to
+    413; a genuine HTTP 400 context overflow and an HTTP 413 after the same
+    head return their `model_length` outputs carrying the head's usage;
+    without a cost limit, and inside `suspend_cost_limit()`, the stream
+    error returns its `content_filter` output with the head's usage, as
+    today; Google's interrupted-hop recovery tests are unchanged;
   - rejection during a Google continuation, streamed and not: a
     continuation leg reporting 42 tokens followed by a context-length 400
     returns a `model_length` output with usage 42 and the first request's
@@ -2069,7 +2097,10 @@ Each step is one PR, in this order. Each keeps the suite green.
    `src/inspect_ai/model/_providers/anthropic.py`;
    Google's `handle_client_error()` outputs take `chain.usage` and
    `chain.input_context_tokens` in place of `attempts_usage` and
-   `attempts_input_context_tokens`. `src/inspect_ai/model/_providers/grok.py`:
+   `attempts_input_context_tokens`. At each converted-error return site
+   that attaches accumulated usage (Anthropic's three branches before
+   `chain.report()`, Google's handled-error branch), an untagged output is
+   checked on its own usage first. `src/inspect_ai/model/_providers/grok.py`:
    the stream loop keeps the last raw chunk's reported usage and passes it
    to `_model_output_from_response()`.
    `src/inspect_ai/model/_util.py`: `resolve_model_costs()` checks the task
