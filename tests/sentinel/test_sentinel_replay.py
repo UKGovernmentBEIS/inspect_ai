@@ -2533,7 +2533,7 @@ REMINDER = "\n<system-reminder>You made this call before.</system-reminder>"
 
 
 def r14_rewrites_results(rewrite: str) -> Any:
-    """A request filter that rewrites a tool result the scaffold reported with a reminder, keeping its id, as inspect_swe's Kimi Code cleanup does: `stripped` removes the reminder in place, `replaced` replaces the result in place, `copied` returns copies without the reminder."""
+    """A request filter that rewrites a tool result the scaffold reported with a reminder, keeping its id, as inspect_swe's Kimi Code cleanup does: `stripped` removes the reminder in place, `replaced` replaces the result in place, `copied` returns copies without the reminder, `generated` generates from such copies itself and returns the output."""
 
     async def rewrite_results(
         model: Model,
@@ -2541,7 +2541,7 @@ def r14_rewrites_results(rewrite: str) -> Any:
         tools: list[ToolInfo],
         tool_choice: Any,
         config: GenerateConfig,
-    ) -> GenerateInput | None:
+    ) -> ModelOutput | GenerateInput | None:
         rewritten = [
             message.model_copy(
                 update={
@@ -2556,6 +2556,8 @@ def r14_rewrites_results(rewrite: str) -> Any:
         ]
         if rewrite == "copied":
             return GenerateInput(rewritten, tools, tool_choice, config)
+        if rewrite == "generated":
+            return await model.generate(rewritten, tools, tool_choice, config)
         messages[:] = rewritten
         return None
 
@@ -2592,7 +2594,7 @@ def r14_bridged_scaffold(case: str) -> Agent:
         from inspect_ai.agent._bridge.sandbox.service import call_tool
         from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 
-        filtered = case in ("stripped", "replaced", "copied", "kept")
+        filtered = case in ("stripped", "replaced", "copied", "generated", "kept")
         bridge = SandboxAgentBridge(
             state=state,
             filter=r14_rewrites_results("stripped" if case == "kept" else case)
@@ -3003,7 +3005,9 @@ def test_a_host_result_a_request_filter_rewrote_is_skipped_with_a_warning(
         assert list(dict.fromkeys(replay_warnings(caplog))) == [REWRITTEN_WARNING]
 
 
-@pytest.mark.parametrize("rewrite", ["stripped", "replaced", "copied", "kept"])
+@pytest.mark.parametrize(
+    "rewrite", ["stripped", "replaced", "copied", "generated", "kept"]
+)
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 def test_the_bridge_leaves_a_result_its_request_filter_rewrote_unlinked(
     rewrite: str,
@@ -3016,8 +3020,10 @@ def test_the_bridge_leaves_a_result_its_request_filter_rewrote_unlinked(
     # reminders the scaffold appends) leaves nothing in the log to tell it
     # by, so the bridge, which checked the result before its filter rewrote
     # it, leaves the run unlinked, and replay builds no tool_result step from
-    # the rewritten message. A filter that keeps the result (`kept`) keeps
-    # the link, and the steps replay as live
+    # the rewritten message. A filter that generates from rewritten copies
+    # itself (`generated`) leaves the request's input as it was, so the bridge
+    # leaves the link unmarked, and replay skips the step. A filter that keeps
+    # the result (`kept`) keeps the link, and the steps replay as live
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     probed, live = r14_live(rewrite)
     [result] = [step for stage, _, step in live if stage == "tool_result"]
@@ -3037,6 +3043,15 @@ def test_the_bridge_leaves_a_result_its_request_filter_rewrote_unlinked(
             assert replay_warnings(caplog) == []
             if sentinel == "inputs_only":
                 assert_steps_equal_live(replay, live)
+            continue
+        if rewrite == "generated":
+            assert host.message_id is not None
+            assert host.metadata is not None
+            assert "result_unfiltered" not in host.metadata["bridge"]
+            assert [(s.stage, s.id) for s in replay if s.stage.startswith("tool")] == [
+                ("tool_call", "host")
+            ]
+            assert list(dict.fromkeys(replay_warnings(caplog))) == [REWRITTEN_WARNING]
             continue
         assert host.message_id is None
         # without the link and a check, the run is not tied to its proposal

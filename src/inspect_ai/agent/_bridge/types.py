@@ -736,7 +736,9 @@ class AgentBridge:
                             del self._filtered_links[next(iter(self._filtered_links))]
                     transcript()._event_updated(event)
 
-    def _unlink_rewritten_results(self, messages: Sequence[ChatMessage]) -> None:
+    def _unlink_rewritten_results(
+        self, messages: Sequence[ChatMessage], generated: bool = True
+    ) -> None:
         """Unlink the host executions whose result message a request filter rewrote and kept the id of.
 
         The bridge links a result and checks it as the scaffold sent it, before
@@ -745,9 +747,12 @@ class AgentBridge:
         appends to results). The log then holds only the rewritten message
         under the id `ToolEvent.message_id` names, which is not the result the
         bridge checked, so the execution is left unlinked; one the filter left
-        as it was is marked unfiltered (`_mark_unfiltered`). `messages` are the
-        request's input after its filter ran; each linked result is compared
-        once, in the first request whose filter ran on it.
+        as it was is marked unfiltered (`_mark_unfiltered`), unless the filter
+        returned the request's output itself (not `generated`): it may have
+        generated from rewritten copies, which `messages` don't show, so the
+        link is left unmarked. `messages` are the request's input after its
+        filter ran; each linked result is compared once, in the first request
+        whose filter ran on it.
         """
         from inspect_ai.log._transcript import transcript
 
@@ -762,9 +767,10 @@ class AgentBridge:
                 continue
             if content_hash(message) != content:
                 event.message_id = None
-            else:
+                transcript()._event_updated(event)
+            elif generated:
                 _mark_unfiltered(event)
-            transcript()._event_updated(event)
+                transcript()._event_updated(event)
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call that `call` makes through a dispatcher, if any.

@@ -1551,7 +1551,9 @@ async def _bridge_generate_impl(
                 elif isinstance(result, GenerateInput):
                     # Update the inputs that will be used for generation
                     input_messages, tools, tool_choice, config = result
-                bridge._unlink_rewritten_results(input_messages)
+                bridge._unlink_rewritten_results(
+                    input_messages, generated=output is None
+                )
 
             # Run the generation if the filter didn't. If the bridge has a
             # model_event_sink installed, route ModelEvent emissions through it

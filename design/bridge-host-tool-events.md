@@ -598,9 +598,10 @@ proposal, and fixing the pairing would mean keeping evicted grants.
     since a `ModelEvent` is logged where its call began, and the request's
     end, a response filter and the handout are not logged. Its steps are
     skipped where something of the conversation (another request's turn, a
-    compaction, a check with decisions, another call's approval) is logged
-    between that point and the run, unless it is logged from a turn whose
-    input carries the reply the call was handed in.
+    compaction, a check with decisions, an approval of a call outside its
+    response) is logged between that point and the run, but for anything
+    logged once a turn whose input carries the reply the call was handed in
+    began.
   - A run's `tool_result` step with no result check is skipped where
     something of the conversation is logged between the run's end and the
     reporting turn: the bridge checks the result when the request arrives,
@@ -617,8 +618,11 @@ proposal, and fixing the pairing would mean keeping evicted grants.
     result before the request's filter, which can rewrite the message and
     keep its id (inspect_swe's Kimi Code cleanup strips reminders the agent
     appended). Where its filter changed the message in the first request
-    whose filter ran on it, the bridge resets `message_id` to `None`. A log
-    from before the mark has none, and its results are skipped. The step is
+    whose filter ran on it, the bridge resets `message_id` to `None`; where
+    the filter returned the request's output itself, it leaves the link
+    unmarked. A log from before the mark has none, and its results are
+    skipped. Kimi Code's adapter also renames tool call ids in its filter,
+    which changes every result it carries, so its host results are skipped. The step is
     also skipped where the log holds several contents under the message's
     id, or, for a run without an error, a message without the start of the
     run's result.

@@ -22,9 +22,12 @@ class ToolEvent(BaseEvent):
     was refused for lack of one, `"exempt"` when a server registered with
     `require_proposal=False` ran it without one, or `None` when the request
     was rejected before that check). Where the bridge links the execution
-    to the tool message holding its result (`message_id`), it also records
-    `result_unfiltered` (`True`): no request filter changed that message in
-    the request that first carried it, so it holds what the scaffold sent.
+    to the tool message holding its result (`message_id`), it records
+    `result_unfiltered` (`True`) when it can tell that message holds what the
+    scaffold sent: no request filter is set, or the filter left the message
+    unchanged and the bridge's own generation used it, in the request that
+    first carried it. Otherwise the key is absent (for example, the filter
+    returned the request's output itself, or never ran on the message).
     """
 
     event: Literal["tool"] = Field(default="tool")
