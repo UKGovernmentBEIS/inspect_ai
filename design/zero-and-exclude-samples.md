@@ -183,7 +183,10 @@ Both functions first check, each failure a `ValueError`:
   matches an `int` id with the same `str()`, because the CLI passes strings.
   All unmatched selectors are named in one error.
 
-The targets are the matched samples in selector order, without repeats.
+The targets are the matched samples in selector order, without repeats. An
+empty selector sequence is accepted and selects no target; the call then
+edits nothing and returns `[]`, but still resolves and recomputes the metrics
+as below. (The CLI cannot pass one: `--sample` is required.)
 
 ### Exclude
 
@@ -274,7 +277,7 @@ original stays in the history. The sample's `error`, `messages`, `output`,
 untouched. Dispositions stack: excluding a zeroed sample, or zeroing an
 excluded one, adds an edit.
 
-The sequence is:
+The sequence is the same whether or not there are targets:
 
 1. `resolve_log_metrics(log, trust_log_advice=False)`, before the first edit.
    Metrics and epoch reducers are rebuilt from the header by the untrusted
@@ -334,9 +337,11 @@ The implementation removes:
 - in [`log/_disposition.py`](../src/inspect_ai/log/_disposition.py): the
   `DispositionResult` NamedTuple, the "all scores already excluded" branch
   of `exclude_samples()`, and the `if not edits: return` path in
-  `_apply_edits()`, which can no longer be reached because a selector that
-  matches nothing is refused; both functions return the list of edited
-  `(id, epoch)` pairs;
+  `_apply_edits()`; both functions return the list of edited `(id, epoch)`
+  pairs. An empty selector sequence is still accepted and returns `[]`, but
+  now resolves and recomputes the metrics, so a metric or reducer the
+  registry cannot build raises `LookupError` even though no sample is
+  edited (today the call returns without resolving);
 - the `DispositionResult` export from
   [`log/__init__.py`](../src/inspect_ai/log/__init__.py) and its entry in
   `docs/reference/inspect_ai.log.qmd`;
