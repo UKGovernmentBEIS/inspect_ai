@@ -455,7 +455,7 @@ eval("ctf.py", sandbox_cleanup = False)
 When you do this, you'll see a list of sandbox containers printed out which includes the ID of each container. You can then use this ID to get a shell inside one of the containers:
 
 ``` bash
-docker exec -it inspect-task-ielnkhh-default-1 bash -l
+docker exec -it inspect-task-iqes2sgrg8tkq5q5w-default-1 bash -l
 ```
 
 When you no longer need the environments, you can clean them up either all at once or individually by project name. The printed list ends with the cleanup command for each environment:
@@ -465,7 +465,7 @@ When you no longer need the environments, you can clean them up either all at on
 inspect sandbox cleanup docker
 
 # cleanup single environment
-inspect sandbox cleanup docker inspect-task-ielnkhh
+inspect sandbox cleanup docker inspect-task-iqes2sgrg8tkq5q5w
 ```
 
 ## Resource Management

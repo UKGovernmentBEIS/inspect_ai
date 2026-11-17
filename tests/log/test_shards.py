@@ -1,16 +1,19 @@
 import contextlib
+import contextvars
 import enum
 import functools
 import json
 import os
+import re
 import zipfile
 import zlib
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
 from typing import Any, BinaryIO, cast
 
 import anyio
 import boto3
+import click.testing
 import pytest
 import zstandard
 
@@ -1928,15 +1931,16 @@ def test_merge_records_and_reads_back_each_selection_form(tmp_path: Path) -> Non
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2])
     header = merge_eval_log_shards(
-        merged, _task(), sample_ids=["2", 1, 3], allow_incomplete=True
+        merged, _task(), sample_ids=["2", 1, "3"], allow_incomplete=True
     ).log
     assert header.eval.shards is not None
     assert header.eval.shards.selection == "ids"
-    assert header.eval.dataset.sample_ids == ["2", 1, 3]
+    # held ids take the samples' types, in the given order; unheld stay as given
+    assert header.eval.dataset.sample_ids == [2, 1, "3"]
     # a later pass without a selection uses the recorded one
     with pytest.raises(ShardSetIncomplete) as raised:
         merge_eval_log_shards(merged, _task())
-    assert raised.value.missing == [3]
+    assert raised.value.missing == ["3"]
 
     result = merge_eval_log_shards(merged, _task(), sample_count=2)
     assert result.written and result.log.status == "success"
@@ -4391,6 +4395,845 @@ def test_a_declared_score_without_a_sample_init_event_is_refused(
     with pytest.raises(ShardSetError, match="Sample '5' has no sample_init event"):
         merge_eval_log_shards(merged, _task())
     assert not os.path.exists(merged) and _files(shards) == before
+
+
+# `inspect log merge-shards`. Workers run `eval("<tmp>/t.py@<name>", ...)`
+# into `<tmp>/logs/<name>.shards/<k>/`; the command builds the task from the
+# same file.
+
+_CLI_TASKS = """
+import logging
+import os
+from pathlib import Path
+
+from inspect_ai import Epochs, Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.model import get_model
+from inspect_ai.scorer import (
+    Metric,
+    SampleScore,
+    accuracy,
+    includes,
+    match,
+    mean,
+    metric,
+)
+from inspect_ai.solver import generate
+
+Path(__file__).with_name("imported").write_text("yes")
+
+
+def _task(**kwargs):
+    kwargs.setdefault("scorer", match())
+    return Task(
+        dataset=[
+            Sample(
+                id=i,
+                input=f"question {i}",
+                target="Default output from mockllm/model" if i % 2 else "other",
+            )
+            for i in range(1, 5)
+        ],
+        solver=generate(),
+        **kwargs,
+    )
+
+
+@task
+def plain():
+    return _task()
+
+
+@task
+def by_model():
+    name = get_model().name
+    Path(__file__).with_name("model").write_text(name)
+    return _task(metrics=[accuracy()] if name == "model" else [mean()])
+
+
+@task
+def by_role():
+    name = get_model(role="grader").name
+    return _task(metrics=[accuracy()] if name == "model" else [mean()])
+
+
+@task
+def by_arg(kind: str = "match"):
+    return _task(scorer=match() if kind == "match" else includes())
+
+
+@task
+def reduced():
+    return _task(epochs=Epochs(1, "mode"))
+
+
+@metric
+def shard_noisy() -> Metric:
+    def compute(scores: list[SampleScore]) -> float:
+        logging.getLogger("shard_noisy").warning("metric warning")
+        if os.environ.get("SHARD_METRIC_RAISES"):
+            raise RuntimeError("metric failed")
+        return 1.0
+
+    return compute
+
+
+@task
+def noisy():
+    print("factory output")
+    os.system("echo subprocess output")
+    return _task(metrics=[shard_noisy()])
+"""
+
+_CLI_ENV_CLEARED = (
+    "INSPECT_EVAL_MODEL",
+    "INSPECT_EVAL_MODEL_SPEC",
+    "INSPECT_EVAL_RUN_CONFIG",
+    "INSPECT_EVAL_MODEL_BASE_URL",
+    "INSPECT_EVAL_MODEL_ARGS",
+    "INSPECT_EVAL_MODEL_ROLE",
+    "INSPECT_EVAL_TASK_ARGS",
+    "INSPECT_EVAL_EPOCHS",
+    "INSPECT_EVAL_EPOCHS_REDUCER",
+    "INSPECT_EVAL_NO_EPOCHS_REDUCER",
+    "INSPECT_EVAL_SAMPLE_ID",
+    "INSPECT_LOG_DIR",
+)
+
+
+@pytest.fixture
+def task_file(tmp_path: Path) -> Path:
+    path = tmp_path / "t.py"
+    path.write_text(_CLI_TASKS)
+    (tmp_path / "broken.py").write_text(
+        "from inspect_ai import task\n\n\n"
+        "@task\ndef broken():\n    raise RuntimeError('factory failed')\n"
+    )
+    (tmp_path / "empty.py").write_text("X = 1\n")
+    return path
+
+
+def _cli_paths(root: Path, name: str) -> tuple[str, str]:
+    stem = f"{root}/logs/2026-10-16T10-00-00-00-00_{name}_{RUN_ID}"
+    return f"{stem}.eval", f"{stem}.shards"
+
+
+def _cli_workers(
+    task_file: Path, name: str, selections: list[list[int]], **kwargs: Any
+) -> tuple[str, str]:
+    """Run one worker per selection; return the merged log and shards dir."""
+    merged, shards = _cli_paths(task_file.parent, name)
+    for k, ids in enumerate(selections):
+        eval(
+            f"{task_file}@{name}",
+            model="mockllm/model",
+            log_dir=f"{shards}/{k}",
+            sample_id=ids,
+            display="none",
+            **kwargs,
+        )
+    (task_file.parent / "imported").unlink()
+    return merged, shards
+
+
+def _merge_cli(
+    *args: str, env: Mapping[str, str | None] | None = None
+) -> click.testing.Result:
+    from click.testing import CliRunner
+
+    from inspect_ai._cli.main import inspect as inspect_cli
+
+    environment: dict[str, str | None] = {name: None for name in _CLI_ENV_CLEARED}
+    environment.update(env or {})
+    # a copied context keeps the active model and roles out of later tests
+    return contextvars.copy_context().run(
+        CliRunner().invoke,
+        inspect_cli,
+        ["log", "merge-shards", *args],
+        env=environment,
+        auto_envvar_prefix="INSPECT",
+        catch_exceptions=False,
+    )
+
+
+def _merged(result: click.testing.Result) -> dict[str, Any]:
+    """The `--json` object of a command that succeeded."""
+    assert result.exit_code == 0, result.stderr
+    assert len(result.stdout.splitlines()) == 1, result.stdout
+    output = json.loads(result.stdout)
+    assert isinstance(output, dict) and "error" not in output
+    return output
+
+
+def _failed(result: click.testing.Result, kind: str) -> dict[str, Any]:
+    """The `--json` error envelope of a command that failed with `kind`."""
+    assert result.exit_code == 1, result.stdout
+    assert len(result.stdout.splitlines()) == 1, result.stdout
+    error = json.loads(result.stdout)["error"]
+    assert error["kind"] == kind, error
+    assert error["message"] in result.stderr
+    return cast(dict[str, Any], error)
+
+
+def _imported(task_file: Path) -> bool:
+    return (task_file.parent / "imported").exists()
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_merge_shards_command_equals_the_api_and_a_native_run(
+    task_file: Path, monkeypatch: pytest.MonkeyPatch, backend: str
+) -> None:
+    import shutil
+
+    from inspect_ai._eval.loader import load_tasks
+
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    merged, shards = _cli_workers(task_file, "plain", [[1, 2], [3, 4]])
+    native = eval(
+        f"{task_file}@plain",
+        model="mockllm/model",
+        log_dir=str(task_file.parent / "native"),
+        display="none",
+    )[0]
+    api_merged, api_shards = _cli_paths(task_file.parent / "api", "plain")
+    shutil.copytree(shards, api_shards)
+
+    result = _merge_cli(
+        merged, "--task", f"{task_file}@plain", "--sample-id", "1,2,3,4", "--json"
+    )
+    output = _merged(result)
+    header = read_eval_log(merged, header_only=True)
+    assert output == {
+        "location": merged,
+        "status": "success",
+        "written": True,
+        "task": "plain",
+        "task_id": RUN_ID,
+        "eval_id": header.eval.eval_id,
+        "shards": 2,
+    }
+    api = merge_eval_log_shards(
+        api_merged, load_tasks([f"{task_file}@plain"])[0], sample_ids=[1, 2, 3, 4]
+    )
+    assert header.eval.dataset.sample_ids == api.log.eval.dataset.sample_ids
+    assert header.eval.dataset.sample_ids == native.eval.dataset.sample_ids
+    assert header.eval.dataset.sample_ids == [1, 2, 3, 4]
+    assert header.results is not None and native.results is not None
+    assert header.results.scores == native.results.scores
+    assert api.log.results is not None
+    assert header.results.scores == api.log.results.scores
+    reductions = read_eval_log(merged).reductions
+    assert reductions is not None and native.reductions is not None
+    assert reductions[0].samples == native.reductions[0].samples
+
+    again = _merge_cli(merged, "--task", f"{task_file}@plain")
+    assert again.exit_code == 0, again.stderr
+    assert (
+        again.stdout
+        == f"No changes since the last merge: {merged}\n  status: success\n"
+    )
+    assert (
+        _merged(_merge_cli(merged, "--task", f"{task_file}@plain", "--json"))["written"]
+        is False
+    )
+
+
+def test_merge_shards_command_reports_a_merge_in_text(task_file: Path) -> None:
+    merged, _ = _cli_workers(task_file, "plain", [[1, 2], [3, 4]])
+    result = _merge_cli(merged, "--task", f"{task_file}@plain")
+    assert result.exit_code == 0, result.stderr
+    assert result.stdout == f"Merged 2 shards into {merged}\n  status: success\n"
+
+
+def test_merge_shards_command_builds_the_task_in_its_context(
+    task_file: Path,
+) -> None:
+    model_log, _ = _cli_workers(task_file, "by_model", [[1, 2, 3, 4]])
+    spec = f"{task_file}@by_model"
+    _failed(_merge_cli(model_log, "--task", spec, "--json"), "refused")
+    # without --model and INSPECT_EVAL_MODEL the factory sees the none model
+    assert (task_file.parent / "model").read_text() == "none"
+    _merged(_merge_cli(model_log, "--task", spec, "--model", "mockllm/model", "--json"))
+    assert (task_file.parent / "model").read_text() == "model"
+
+    role_log, _ = _cli_workers(
+        task_file, "by_role", [[1, 2, 3, 4]], model_roles={"grader": "mockllm/model"}
+    )
+    spec = f"{task_file}@by_role"
+    _failed(_merge_cli(role_log, "--task", spec, "--json"), "refused")
+    _merged(
+        _merge_cli(
+            role_log, "--task", spec, "--model-role", "grader=mockllm/model", "--json"
+        )
+    )
+
+    arg_log, _ = _cli_workers(
+        task_file, "by_arg", [[1, 2, 3, 4]], task_args={"kind": "includes"}
+    )
+    spec = f"{task_file}@by_arg"
+    _failed(_merge_cli(arg_log, "--task", spec, "--json"), "refused")
+    _merged(_merge_cli(arg_log, "--task", spec, "-T", "kind=includes", "--json"))
+
+
+def test_merge_shards_command_reads_the_shared_options_environment(
+    task_file: Path,
+) -> None:
+    merged, _ = _cli_workers(
+        task_file, "by_arg", [[1, 2, 3, 4]], task_args={"kind": "includes"}, epochs=2
+    )
+    spec = f"{task_file}@by_arg"
+    _failed(_merge_cli(merged, "--task", spec, "--json"), "refused")
+    for env in (
+        {"INSPECT_EVAL_TASK_ARGS": "kind=includes", "INSPECT_EVAL_EPOCHS": "2"},
+        {"INSPECT_LOG_MERGE_SHARDS_T": "kind=includes", "INSPECT_EVAL_EPOCHS": "2"},
+        # --log-dir from the environment is ignored, not refused
+        {
+            "INSPECT_EVAL_TASK_ARGS": "kind=includes",
+            "INSPECT_EVAL_EPOCHS": "2",
+            "INSPECT_LOG_DIR": "elsewhere",
+            "INSPECT_LOG_MERGE_SHARDS_LOG_DIR": "elsewhere",
+        },
+    ):
+        _merged(_merge_cli(merged, "--task", spec, "--json", env=env))
+
+    model_log, _ = _cli_workers(task_file, "by_model", [[1, 2, 3, 4]])
+    spec = f"{task_file}@by_model"
+    fallback = {"INSPECT_LOG_MERGE_SHARDS_MODEL": "mockllm/model"}
+    _merged(_merge_cli(model_log, "--task", spec, "--json", env=fallback))
+    # the named variable wins over the automatic one
+    both = {
+        "INSPECT_EVAL_MODEL": "mockllm/model",
+        "INSPECT_LOG_MERGE_SHARDS_MODEL": "unknown/model",
+    }
+    _merged(_merge_cli(model_log, "--task", spec, "--json", env=both))
+
+
+def test_merge_shards_command_takes_no_task_or_selection_from_the_environment(
+    task_file: Path,
+) -> None:
+    merged, _ = _cli_workers(task_file, "plain", [[1, 2]])
+    spec = f"{task_file}@plain"
+    missing = _merge_cli(
+        merged, env={"INSPECT_LOG_MERGE_SHARDS_TASK": spec, "INSPECT_EVAL_TASK": spec}
+    )
+    assert missing.exit_code == 2 and "--task" in missing.stderr
+    for env in (
+        {"INSPECT_EVAL_SAMPLE_ID": "1,2"},
+        {"INSPECT_LOG_MERGE_SHARDS_SAMPLE_ID": "1,2"},
+        {"INSPECT_LOG_MERGE_SHARDS_SAMPLE_COUNT": "2"},
+        {"INSPECT_LOG_MERGE_SHARDS_ALLOW_INCOMPLETE": "1"},
+    ):
+        error = _failed(
+            _merge_cli(merged, "--task", spec, "--json", env=env), "incomplete"
+        )
+        assert error["incomplete"]["missing"] is None
+    text = _merge_cli(
+        merged,
+        "--task",
+        spec,
+        "--sample-id",
+        "1,2",
+        env={"INSPECT_LOG_MERGE_SHARDS_JSON": "1"},
+    )
+    assert text.exit_code == 0 and text.stdout.startswith("Merged 1 shards")
+
+
+def test_merge_shards_command_binds_the_model_base_url_as_inspect_eval_does(
+    task_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._cli.main import inspect as inspect_cli
+    from inspect_ai.model import get_model
+
+    monkeypatch.setenv("INSPECT_EVAL_MODEL_BASE_URL", "http://inspect.example")
+    monkeypatch.setenv("INSPECT_EVAL_SET_MODEL_BASE_URL", "http://eval-set.example")
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://openai.example")
+    root = click.Context(inspect_cli, info_name="inspect", auto_envvar_prefix="INSPECT")
+    for name, expected in (
+        ("eval", "http://inspect.example"),
+        ("eval-set", "http://eval-set.example"),
+    ):
+        command = inspect_cli.commands[name]
+        ctx = click.Context(command, info_name=name, parent=root)
+        [param] = [p for p in command.params if p.name == "model_base_url"]
+        assert param.value_from_envvar(ctx) == expected
+
+    base_urls: list[str | None] = []
+
+    async def capture(*args: Any, **kwargs: Any) -> ShardMergeResult:
+        base_urls.append(get_model().api.base_url)
+        raise RuntimeError("stop")
+
+    monkeypatch.setattr("inspect_ai.log.merge_eval_log_shards_async", capture)
+    merged, _ = _cli_paths(task_file.parent, "plain")
+    result = _merge_cli(
+        merged,
+        "--task",
+        f"{task_file}@plain",
+        "--model",
+        "openai/gpt-4o",
+        "--json",
+        env={
+            "INSPECT_EVAL_MODEL_BASE_URL": "http://inspect.example",
+            "OPENAI_API_KEY": "dummy",
+        },
+    )
+    _failed(result, "internal")
+    assert base_urls == ["http://inspect.example"]
+
+
+def test_merge_shards_command_refuses_run_configs_and_model_specs(
+    task_file: Path,
+) -> None:
+    merged, _ = _cli_workers(task_file, "plain", [[1, 2, 3, 4]])
+    spec = f"{task_file}@plain"
+    for env in (
+        {"INSPECT_EVAL_RUN_CONFIG": "run.yaml"},
+        {"INSPECT_EVAL_MODEL_SPEC": "{model: mockllm/model}"},
+    ):
+        error = _failed(
+            _merge_cli(merged, "--task", spec, "--json", env=env), "invalid_arguments"
+        )
+        assert next(iter(env)) in error["message"]
+        assert not _imported(task_file)
+    _merged(
+        _merge_cli(
+            merged,
+            "--task",
+            spec,
+            "--model",
+            "mockllm/model",
+            "--json",
+            env={"INSPECT_EVAL_MODEL_SPEC": "{model: mockllm/model}"},
+        )
+    )
+    for option in ("--model-spec", "--run-config", "--generate-config"):
+        result = _merge_cli(merged, "--task", spec, option, "x")
+        assert result.exit_code == 2 and "No such option" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "epochs,flags",
+    [
+        (Epochs(2), ["--epochs", "2"]),
+        (Epochs(2, "max"), ["--epochs", "2", "--epochs-reducer", "max"]),
+        (Epochs(2, []), ["--epochs", "2", "--no-epochs-reducer"]),
+    ],
+)
+def test_merge_shards_command_applies_the_epochs_options(
+    task_file: Path, epochs: Epochs, flags: list[str]
+) -> None:
+    merged, _ = _cli_workers(task_file, "reduced", [[1, 2], [3, 4]], epochs=epochs)
+    native = eval(
+        f"{task_file}@reduced",
+        model="mockllm/model",
+        log_dir=str(task_file.parent / "native"),
+        display="none",
+        epochs=epochs,
+    )[0]
+    spec = f"{task_file}@reduced"
+    others = [
+        ["--epochs", "2"],
+        ["--epochs", "2", "--epochs-reducer", "max"],
+        ["--epochs", "2", "--no-epochs-reducer"],
+    ]
+    for other in others:
+        if other != flags:
+            error = _failed(
+                _merge_cli(merged, "--task", spec, *other, "--json"), "refused"
+            )
+            assert "reducer" in error["message"]
+    _merged(_merge_cli(merged, "--task", spec, *flags, "--json"))
+    header = read_eval_log(merged, header_only=True)
+    assert header.results is not None and native.results is not None
+    assert header.results.scores == native.results.scores
+
+
+def test_merge_shards_command_translates_an_empty_run_config_reducer(
+    task_file: Path,
+) -> None:
+    from inspect_ai._cli.eval import parse_run_config
+
+    config = task_file.parent / "run.yaml"
+    config.write_text("eval_config:\n  epochs: 2\n  epochs_reducer: []\n")
+    epochs = parse_run_config(str(config))["epochs"]
+    merged, _ = _cli_workers(task_file, "reduced", [[1, 2, 3, 4]], epochs=epochs)
+    spec = f"{task_file}@reduced"
+    # an empty reducer name is not how to say "none"
+    for value in ("", "[]"):
+        error = _failed(
+            _merge_cli(
+                merged,
+                "--task",
+                spec,
+                "--epochs",
+                "2",
+                "--epochs-reducer",
+                value,
+                "--json",
+            ),
+            "task",
+        )
+        assert error["exception"] == "inspect_ai.RegistryNameNotFound"
+    _merged(
+        _merge_cli(
+            merged, "--task", spec, "--epochs", "2", "--no-epochs-reducer", "--json"
+        )
+    )
+
+
+def test_merge_shards_command_selections(task_file: Path) -> None:
+    merged, _ = _cli_workers(task_file, "plain", [[1, 2]])
+    spec = f"{task_file}@plain"
+    for args in (
+        ["--sample-id", "1,2", "--sample-count", "2"],
+        ["--sample-count", "0"],
+        ["--sample-id", "1,,2"],
+        ["--sample-id", ""],
+    ):
+        _failed(
+            _merge_cli(merged, "--task", spec, *args, "--json"), "invalid_arguments"
+        )
+        assert not _imported(task_file)
+
+    error = _failed(
+        _merge_cli(merged, "--task", spec, "--sample-id", "1,2,3", "--json"),
+        "incomplete",
+    )
+    assert error["exception"] == "inspect_ai.ShardSetIncomplete"
+    assert "--allow-incomplete" in error["message"]
+    assert error["incomplete"] == {
+        "status": "started",
+        "missing": ["3"],
+        "running": [],
+        "failed": [],
+    }
+    assert not os.path.exists(merged)
+    outside = _failed(
+        _merge_cli(merged, "--task", spec, "--sample-id", "1*", "--json"),
+        "outside_selection",
+    )
+    assert outside["outside"] == ["1", "2"]
+
+    started = _merged(
+        _merge_cli(
+            merged,
+            "--task",
+            spec,
+            "--sample-id",
+            "1,2,3",
+            "--allow-incomplete",
+            "--json",
+        )
+    )
+    assert started["status"] == "started" and started["written"]
+    assert (
+        _merged(_merge_cli(merged, "--task", spec, "--sample-id", "1,2", "--json"))[
+            "status"
+        ]
+        == "success"
+    )
+    assert (
+        _merged(_merge_cli(merged, "--task", spec, "--sample-count", "2", "--json"))[
+            "status"
+        ]
+        == "success"
+    )
+
+
+@pytest.mark.parametrize(
+    "args,message",
+    [
+        (["--task", "t.py"], "several tasks (plain, by_model,"),
+        (["--task", "empty.py"], "No task found"),
+        (["--task", "missing.py"], "No task found"),
+        (["--task", "broken.py@broken"], "factory failed"),
+        (["--task", "t.py@plain", "--model", "mockllm/a,mockllm/b"], "one model"),
+        (["--task", "t.py@plain", "--model", "openai/gpt-4o"], "OpenAI"),
+        (["--task", "t.py@plain", "--task-config", "missing.yaml"], "missing.yaml"),
+    ],
+)
+def test_merge_shards_command_task_errors(
+    task_file: Path, monkeypatch: pytest.MonkeyPatch, args: list[str], message: str
+) -> None:
+    merged, _ = _cli_workers(task_file, "plain", [[1, 2, 3, 4]])
+    before = _files(str(task_file.parent / "logs"))
+    monkeypatch.chdir(task_file.parent)
+    error = _failed(
+        _merge_cli(merged, *args, "--json", env={"OPENAI_API_KEY": None}), "task"
+    )
+    assert message in error["message"]
+    assert _files(str(task_file.parent / "logs")) == before
+
+
+def test_merge_shards_command_merge_errors(task_file: Path) -> None:
+    merged, _ = _cli_workers(task_file, "plain", [[1, 2, 3, 4]])
+    spec = f"{task_file}@plain"
+
+    recovered = merged.replace(".eval", "-recovered.eval")
+    _failed(_merge_cli(recovered, "--task", spec, "--json"), "invalid_arguments")
+    assert not _imported(task_file)
+    error = _failed(
+        _merge_cli(merged, "--task", spec, "--log-dir", "logs", "--json"),
+        "invalid_arguments",
+    )
+    assert "LOG" in error["message"]
+
+    lock = Path(merged.replace(".eval", ".merge.lock"))
+    lock.write_text('{"pid": 1, "host": "elsewhere"}')
+    error = _failed(_merge_cli(merged, "--task", spec, "--json"), "conflict")
+    assert "elsewhere" in error["message"]
+    lock.unlink()
+
+    nothing, _ = _cli_paths(task_file.parent / "none", "plain")
+    Path(nothing).parent.mkdir(parents=True)
+    error = _failed(_merge_cli(nothing, "--task", spec, "--json"), "not_found")
+    assert error["message"].startswith("Neither")
+
+
+def test_merge_shards_command_reports_an_attempt_removed_while_merging(
+    task_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import shutil
+
+    from inspect_ai.log._shards import _api
+
+    merged, shards = _cli_workers(task_file, "plain", [[1, 2, 3, 4]])
+    [first] = Path(shards, "0").glob("*.eval")
+    replacement = eval(
+        f"{task_file}@plain",
+        model="mockllm/model",
+        log_dir=f"{shards}/0",
+        sample_id=[1, 2, 3, 4],
+        display="none",
+    )[0]
+    staged = task_file.parent / "staged.eval"
+    shutil.move(local_path(replacement.location), staged)
+    read_attempt = _api._read_attempt
+
+    async def removed_first(fs: Any, shard: ShardDir) -> Any:
+        # a retry cleanup removes the listed attempt once its replacement is written
+        shutil.move(staged, local_path(replacement.location))
+        first.unlink()
+        return await read_attempt(fs, shard)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(_api, "_read_attempt", removed_first)
+        error = _failed(
+            _merge_cli(merged, "--task", f"{task_file}@plain", "--json"), "not_found"
+        )
+    assert "removed before it was read" in error["message"]
+    assert not os.path.exists(merged)
+    output = _merged(_merge_cli(merged, "--task", f"{task_file}@plain", "--json"))
+    assert output["written"]
+    ledger = read_eval_log(merged, header_only=True).eval.shards
+    assert ledger is not None
+    assert ledger.ledger[0].log.endswith(Path(replacement.location).name)
+
+
+def test_merge_shards_command_reports_a_failing_metric_with_its_traceback(
+    task_file: Path,
+) -> None:
+    merged, _ = _cli_workers(task_file, "noisy", [[1, 2, 3, 4]])
+    result = _merge_cli(
+        merged,
+        "--task",
+        f"{task_file}@noisy",
+        "--json",
+        env={"SHARD_METRIC_RAISES": "1"},
+    )
+    error = _failed(result, "internal")
+    assert error["message"] == "metric failed"
+    assert "Traceback" in result.stderr
+
+
+@pytest.mark.parametrize("cause", ["platform_init", "hook"])
+def test_merge_shards_command_setup_errors(
+    task_file: Path, monkeypatch: pytest.MonkeyPatch, cause: str
+) -> None:
+    from inspect_ai._util import platform
+    from inspect_ai.hooks import _legacy
+
+    merged, _ = _cli_workers(task_file, "plain", [[1, 2, 3, 4]])
+    if cause == "platform_init":
+
+        def failing_init(hooks: bool = True) -> None:
+            print("setup output")
+            raise RuntimeError("setup failed")
+
+        monkeypatch.setattr(platform, "platform_init", failing_init)
+    else:
+        monkeypatch.setattr(_legacy, "_override_api_key", None)
+        monkeypatch.setenv("INSPECT_API_KEY_OVERRIDE", "no_such_module.override")
+    result = _merge_cli(merged, "--task", f"{task_file}@plain", "--json")
+    error = _failed(result, "setup")
+    if cause == "platform_init":
+        assert error["message"] == "setup failed"
+        assert "setup output" in result.stderr
+    else:
+        assert "INSPECT_API_KEY_OVERRIDE" in error["message"]
+    assert not _imported(task_file)
+
+
+def test_merge_shards_command_json_owns_stdout(task_file: Path) -> None:
+    import subprocess
+    import sys
+
+    merged, _ = _cli_workers(task_file, "noisy", [[1, 2, 3, 4]])
+    hooks = task_file.parent / "hooks"
+    hooks.mkdir()
+    (hooks / "banner_hook.py").write_text(
+        "def override(var, value):\n    return None\n"
+    )
+    env = {k: v for k, v in os.environ.items() if k not in _CLI_ENV_CLEARED}
+    # a hook makes platform_init() print its startup banner
+    env["INSPECT_API_KEY_OVERRIDE"] = "banner_hook.override"
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(hooks), *filter(None, [env.get("PYTHONPATH")])]
+    )
+
+    def command(*args: str) -> "subprocess.CompletedProcess[str]":
+        # a real process, so the subprocess the factory runs writes to fd 1
+        return subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from inspect_ai._cli.main import main; main()",
+                "log",
+                "merge-shards",
+                merged,
+                "--task",
+                f"{task_file}@noisy",
+                *args,
+            ],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=120,
+        )
+
+    result = command("--json")
+    assert result.returncode == 0, result.stderr
+    assert len(result.stdout.splitlines()) == 1, result.stdout
+    assert json.loads(result.stdout)["written"]
+    for output in (
+        "banner_hook.override",
+        "factory output",
+        "subprocess output",
+        "metric warning",
+    ):
+        assert output in result.stderr
+
+    # without --json the banner is on stdout
+    result = command()
+    assert result.returncode == 0, result.stderr
+    assert "banner_hook.override" in result.stdout
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_merge_shards_command_interrupted_before_publication(
+    task_file: Path, monkeypatch: pytest.MonkeyPatch, backend: str
+) -> None:
+    import _thread
+
+    from inspect_ai.log._shards import _api
+
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    merged, shards = _cli_workers(task_file, "plain", [[1, 2], [3, 4]])
+    _merged(_merge_cli(merged, "--task", f"{task_file}@plain", "--json"))
+    # newer attempts of both shards, so the next merge reads them concurrently
+    for k, ids in enumerate([[1, 2], [3, 4]]):
+        eval(
+            f"{task_file}@plain",
+            model="mockllm/model",
+            log_dir=f"{shards}/{k}",
+            sample_id=ids,
+            display="none",
+        )
+    before = Path(merged).read_bytes()
+    read_attempt = _api._read_attempt
+    sent: list[bool] = []
+
+    async def interrupted(fs: Any, shard: ShardDir) -> Any:
+        # Ctrl-C lands while the attempts are read
+        if not sent:
+            sent.append(True)
+            _thread.interrupt_main()
+        await anyio.sleep(0)
+        return await read_attempt(fs, shard)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(_api, "_read_attempt", interrupted)
+        result = _merge_cli(merged, "--task", f"{task_file}@plain", "--json")
+    assert sent
+    assert result.exit_code == 1 and result.stdout == ""
+    assert result.stderr.strip() == "Aborted!"
+    assert Path(merged).read_bytes() == before
+    assert not os.path.exists(merged.replace(".eval", ".merge.lock"))
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_merge_shards_command_interrupted_during_publication(
+    task_file: Path, monkeypatch: pytest.MonkeyPatch, backend: str
+) -> None:
+    import _thread
+
+    from inspect_ai.log._shards import _publish
+
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    merged, _ = _cli_workers(task_file, "plain", [[1, 2], [3, 4]])
+    replace = _publish._replace_local
+
+    def interrupted(path: str, source: Any) -> None:
+        # Ctrl-C lands while the owned publication worker runs
+        _thread.interrupt_main()
+        replace(path, source)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(_publish, "_replace_local", interrupted)
+        result = _merge_cli(merged, "--task", f"{task_file}@plain", "--json")
+    assert result.exit_code == 1 and result.stdout == ""
+    assert result.stderr.strip() == "Aborted!"
+    assert not os.path.exists(merged.replace(".eval", ".merge.lock"))
+    again = _merged(_merge_cli(merged, "--task", f"{task_file}@plain", "--json"))
+    assert again["written"] is False
+
+
+def test_merge_shards_command_on_s3(task_file: Path, s3_root: str) -> None:
+    stem = f"s3://test-bucket/{s3_root}/2026-10-16T10-00-00-00-00_plain_{RUN_ID}"
+    for k, ids in enumerate([[1, 2], [3, 4]]):
+        eval(
+            f"{task_file}@plain",
+            model="mockllm/model",
+            log_dir=f"{stem}.shards/{k}",
+            sample_id=ids,
+            display="none",
+        )
+    output = _merged(
+        _merge_cli(f"{stem}.eval", "--task", f"{task_file}@plain", "--json")
+    )
+    assert output["location"] == f"{stem}.eval" and output["status"] == "success"
+
+
+def test_merge_shards_command_exits_only_through_its_failure_report() -> None:
+    import inspect_ai._cli.log_merge_shards as module
+
+    source = Path(module.__file__).read_text().splitlines()
+    report = [i for i, line in enumerate(source) if "def _merge_failures" in line]
+    assert len(report) == 1
+    end = next(
+        i
+        for i in range(report[0] + 1, len(source))
+        if source[i].startswith(("def ", "@", "class "))
+    )
+    offenders = [
+        f"{lineno + 1}: {line.strip()}"
+        for lineno, line in enumerate(source)
+        if not report[0] <= lineno < end
+        and re.search(
+            r"raise .*(Exit|ClickException|SystemExit|UsageError|Abort)\b", line
+        )
+    ]
+    assert not offenders
 
 
 # Streaming recomputation: the merge parses each sample member as it streams

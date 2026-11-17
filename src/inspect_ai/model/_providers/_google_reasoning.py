@@ -8,7 +8,7 @@ frontier.
 
 import re
 from collections import Counter
-from typing import Literal
+from typing import Literal, NamedTuple
 
 from pydantic import JsonValue
 
@@ -184,6 +184,9 @@ GEMINI_FUNCTION_CALL_ID_KEY = "gemini_function_call_id"
 GEMINI_COMPUTER_ACTION_KEY = "gemini_computer_action"
 """The `ContentReasoning.internal` key naming the Gemini computer action its call was sent as."""
 
+GEMINI_COMPUTER_ARGS_KEY = "gemini_computer_args"
+"""The `ContentReasoning.internal` key holding the arguments its Gemini computer call was sent with."""
+
 GEMINI_FUNCTION_KEY = "gemini_function"
 """The `ContentReasoning.internal` key naming the function a reasoning anchor's call was parsed as."""
 
@@ -310,7 +313,19 @@ def _anchor_internal(anchor: Content) -> dict[str, JsonValue]:
     return anchor.internal
 
 
-def gemini_computer_actions(message: ChatMessageAssistant) -> dict[str, str]:
+class GeminiComputerCall(NamedTuple):
+    """The Gemini computer action a call was sent as."""
+
+    action: str
+    """The action's name."""
+
+    args: dict[str, JsonValue] | None
+    """The arguments it was sent with; None for an anchor recorded without them."""
+
+
+def gemini_computer_calls(
+    message: ChatMessageAssistant,
+) -> dict[str, GeminiComputerCall]:
     """The Gemini computer action each of the message's calls was sent as, by call id.
 
     From the calls' reasoning anchors, so it follows a call whose id changes
@@ -319,18 +334,31 @@ def gemini_computer_actions(message: ChatMessageAssistant) -> dict[str, str]:
     if isinstance(message.content, str):
         return {}
     shared = gemini_shared_call_ids(message)
-    actions: dict[str, str] = {}
+    calls: dict[str, GeminiComputerCall] = {}
     for part in message.content:
         if isinstance(part, ContentReasoning) and isinstance(part.internal, dict):
             call_id = part.internal.get(GEMINI_FUNCTION_CALL_ID_KEY)
             action = part.internal.get(GEMINI_COMPUTER_ACTION_KEY)
+            args = part.internal.get(GEMINI_COMPUTER_ARGS_KEY)
             if (
                 isinstance(call_id, str)
                 and isinstance(action, str)
                 and call_id not in shared
             ):
-                actions[call_id] = action
-    return actions
+                calls[call_id] = GeminiComputerCall(
+                    action, args if isinstance(args, dict) else None
+                )
+    return calls
+
+
+def gemini_computer_actions(message: ChatMessageAssistant) -> dict[str, str]:
+    """The Gemini computer action each of the message's calls was sent as, by call id.
+
+    See `gemini_computer_calls`.
+    """
+    return {
+        call_id: call.action for call_id, call in gemini_computer_calls(message).items()
+    }
 
 
 def gemini_shared_call_ids(message: ChatMessageAssistant) -> set[str]:

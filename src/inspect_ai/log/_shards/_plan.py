@@ -600,10 +600,13 @@ def build_header(
     which the ids minted at the first merge and the merged-log edits are
     carried. `invalidated` is whether any merged sample is invalidated.
     """
+    typed = {str(s.id): s.id for s in summaries}
     if selection.form == "ids":
-        sample_ids: list[str | int] = list(selection.ids or [])
+        # held ids take the merged sample's type; unheld ones stay as given
+        sample_ids: list[str | int] = [
+            typed.get(str(id), id) for id in selection.ids or []
+        ]
     else:
-        typed = {str(s.id): s.id for s in summaries}
         sample_ids = [typed[id] for id in sorted(typed)]
     eval_set_ids = {entry.eval_set_id for entry in ledger}
     if merged is not None:

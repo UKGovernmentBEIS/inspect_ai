@@ -31,7 +31,14 @@ Whoever launches the workers must:
 
 ## Merging
 
-When the workers are done, merge the shards into `<name>.eval` from Python, passing the `Task` they ran:
+When the workers are done, merge the shards into `<name>.eval` with `inspect log merge-shards`, passing the task and the task options the workers were given, without each worker's `--sample-id`, `--limit` and `--log-dir`:
+
+``` bash
+inspect log merge-shards logs/2026-10-16T10-00-00-00-00_mytask_RLGk3vGh7Az.eval \
+  --task mytask.py -T difficulty=hard
+```
+
+Or from Python, passing the `Task` they ran:
 
 ``` python
 from inspect_ai.log import merge_eval_log_shards
@@ -42,7 +49,7 @@ merge_eval_log_shards(
 )
 ```
 
-A shell launcher runs this as a short Python step once its workers exit. You can also pass the `.shards` directory. The log can be a local path, a `file://` URI or an `s3://` URL; other storage is refused. A local path does not expand `~`. A relative path whose first part holds a colon (`run:1.eval`) is refused too, as are `file:/...` and `local:/...`; write `./run:1.eval` or a `file://` URI instead.
+You can also pass the `.shards` directory. The log can be a local path, a `file://` URI or an `s3://` URL; other storage is refused. A local path does not expand `~`. A relative path whose first part holds a colon (`run:1.eval`) is refused too, as are `file:/...` and `local:/...`; write `./run:1.eval` or a `file://` URI instead.
 
 Build the task as the workers built it: the same task arguments, and the same model and model roles if the task reads them when it is built. The merge computes the merged log's results and epoch reductions with that task's scorers, metrics and epoch reducer, over all the merged samples, as an unsharded run computes them. The metrics and epoch reducer run with your own active model and model roles: the merge builds no model from the shard logs, so code in them that calls `get_model()` needs an active model or `INSPECT_EVAL_MODEL`. The merge refuses a task whose name, scorer names, metric names, number of epochs or epoch reducer names differ from what the shards recorded, but it does not compare their options. For shards run with `--epochs N`, keep the task's epoch reducer as the workers did:
 
@@ -72,6 +79,47 @@ A score that a solver sets (in `state.scores`) rather than a scorer the task dec
 Merged metrics see samples, scores and metadata exactly as the log stores them, as JSON: sample metadata, `Score.value`, `Score.answer`, `Score.explanation`, `Score.metadata` and every other recorded field. A Python type the log does not keep (a tuple, a datetime, an enum, a set, ...) is seen in its stored form, so a tuple is a list and a datetime is a string, and a metric that depends on such types can differ from a live run. Return score values and metadata that keep their meaning in the log (lists for sequences), normalize sample metadata, and re-run shards that used other types. The merge does not detect this.
 
 The merge computes metrics over the samples in sample ID order (IDs sorted as text), then epoch, and its results equal those of an unsharded run of the same samples in that order. A metric whose results depend on sample order can differ from a particular unsharded run, just as it differs between runs with `shuffle=True`.
+
+### The merge command
+
+`inspect log merge-shards LOG --task TASK` builds the task as `inspect eval` builds it and merges with it. It takes these options of `inspect eval`, which mean what they mean there and read the same environment variables: `-T`, `--task-config`, `--model`, `--model-base-url`, `-M`, `--model-config`, `--model-role`, `--epochs`, `--epochs-reducer` and `--no-epochs-reducer`. `--task` takes the forms `inspect eval` takes (`mytask.py`, `mytask.py@name`, a registered name or a directory) and must name one task. Other options of `inspect eval` are refused, including the generation options: the task is built with the default generate config.
+
+Pass the model options (`--model`, `--model-base-url`, `-M`, `--model-config` and `--model-role`) when the task factory, its metrics or its epoch reducer uses that model context. Passing the workers' values is the safe default. A model given here is created as `inspect eval` creates it, so it needs its provider's credentials. Without `--model` the task is built with the `none` model active.
+
+The selection options are the Python function's: `--sample-id` takes exact sample ids, comma separated (not patterns, and no `task:` prefix), and `--sample-count` a number of samples. `--allow-incomplete` writes a `started` or `error` log for an incomplete set. These options, `--task` and `--json` are read only from the command line.
+
+A run launched with `--model-spec` or `--run-config` merges with the equivalent options, taken from the spec or run config the launcher gave its workers:
+
+-   From a model spec, its `model`, `base_url` and model args as `--model`, `--model-base-url` and `-M`.
+-   From a run config, its `task` and task args, `model` with its args and base URL, `model_roles`, and the `epochs` and `epochs_reducer` of its `eval_config`, as `--task`, `-T`, `--model`, `-M`, `--model-base-url`, `--model-role`, `--epochs` and `--epochs-reducer`. Pass `epochs_reducer: []` as `--epochs N --no-epochs-reducer`: an empty `--epochs-reducer` names no reducer and is refused. An `epochs_reducer` without `epochs` is not used.
+
+The command refuses `INSPECT_EVAL_RUN_CONFIG`, and `INSPECT_EVAL_MODEL_SPEC` unless `--model`, `--model-base-url`, `--model-config` or `-M` is given, since they would change the task. Do not use `inspect log export-config` of a shard log to rebuild these options: it records the model and roles after the task applied its own.
+
+The command prints where it merged, or `No changes since the last merge` when nothing changed, and the merged log's status. It exits 0 when the merged log is written or unchanged, including an incomplete log written with `--allow-incomplete`, and 1 on any failure. Invalid usage (an unknown option, a missing `--task`) exits 2.
+
+With `--json` it prints one JSON object on stdout and sends everything else, including the task's own output, to stderr:
+
+``` json
+{"location": "logs/<name>.eval", "status": "success", "written": true,
+ "task": "mytask", "task_id": "RLGk3vGh7Az", "eval_id": "...", "shards": 3}
+```
+
+On failure the object is an error, `{"error": {"kind": ..., "exception": ..., "message": ...}}`, whose `kind` is one of:
+
+| `kind` | Meaning |
+|---|---|
+| `setup` | Setup failed before the task was built: an `--env` value that cannot be parsed, a debugger that cannot listen, or a hook that fails to load. |
+| `invalid_arguments` | The log location or selection is invalid, `--log-dir` was given, or `INSPECT_EVAL_RUN_CONFIG` or `INSPECT_EVAL_MODEL_SPEC` is set. The task was not built. |
+| `task` | The task could not be built: a task or config file is missing, the factory raised, a model has no credentials, or the spec names several tasks or models. |
+| `not_found` | Neither the merged log nor any shard exists, or a shard log the merge listed was removed before it was read, as a worker's retry does with an older attempt. In the second case run the merge again once the workers have exited. |
+| `incomplete` | The set is incomplete. `incomplete` holds the `status` the log would have, the `missing` sample ids (an array for an effective ID selection, including one retained from an earlier merge; `null` otherwise), and the `running` and `failed` shards. |
+| `outside_selection` | The shards hold samples outside the selection, listed in `outside` (`null` with `--sample-count`). |
+| `refused` | The shards cannot be merged, or the task differs from the one they ran. |
+| `conflict` | Another merge holds the lock or published first. Run the command again once it has finished. A lock left by a merge that crashed stays until you delete it, as described above. |
+| `storage_error` | Reading or writing the logs failed. |
+| `internal` | Anything else, such as a metric that raises. Its traceback is on stderr. |
+
+On Ctrl-C, the command prints no merge report or JSON error envelope; Click prints `Aborted!` to stderr and it exits 1. If it was interrupted while publishing, the merged log may already be written: run it again, which reports `No changes` if so.
 
 ## Limitations
 

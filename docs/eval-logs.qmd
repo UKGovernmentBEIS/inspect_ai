@@ -525,6 +525,63 @@ Some things to keep in mind:
 
 -   The log must have finished. To exclude a sample of a running eval, cancel it with `inspect ctl sample cancel --action cancel`, then exclude it once the log is written.
 
+### Zeroing Samples
+
+To count samples of a finished log as failures, zero them. What a failure is depends on the task's scorers (`I` for `match()`, `0` for a numeric scorer, a failed test in a sandbox), so zeroing takes two steps.
+
+First, run the samples again with the `empty_attempt()` solver, which does nothing. `Task.setup` still runs, so the sample's environment is prepared, and the task's scorers then score the untouched state:
+
+``` bash
+$ inspect eval my_task.py --solver inspect_ai/empty_attempt \
+    --sample-id sample-3,sample-7 --log-dir logs/empty
+```
+
+Then copy those verdicts into the log with `zero_samples()`. Each score of the empty-attempt sample replaces the score of the same name, with the reason `"zeroed"`, and the earlier score stays in the score history. Metrics are then recomputed:
+
+``` python
+from inspect_ai.log import (
+    read_eval_log, write_eval_log, zero_samples, ProvenanceData
+)
+
+log = read_eval_log("logs/my_eval.eval")
+empty = read_eval_log("logs/empty/my_empty_attempt.eval")
+
+result = zero_samples(
+    log,
+    empty,
+    ["sample-3", ("sample-7", 2)],  # every epoch of sample-3, epoch 2 of sample-7
+    ProvenanceData(author="alice", reason="the agent was given the answer"),
+)
+
+write_eval_log(log)
+```
+
+Or from the command line, which rewrites the log in place:
+
+``` bash
+$ inspect log zero logs/my_eval.eval --from logs/empty/my_empty_attempt.eval \
+    --sample sample-3 --reason "the agent was given the answer"
+```
+
+When running the empty attempt:
+
+-   Write its log to its own log directory. An eval set's log directory is also where it looks for logs to reuse.
+
+-   Pass the settings the original run had (model, task arguments, sandbox). The verdict reflects the task and settings of the empty-attempt run; `zero_samples()` compares only the task name and scorer names of the two logs.
+
+-   `--sample-id` selects samples by pattern and may include a task prefix. Samples it selects that you do not zero are ignored; a sample you zero that it did not run is refused.
+
+-   The run uses the task's epochs (or `--epochs`), and every epoch you zero must be in its log.
+
+A zero must count in the metrics, so `zero_samples()` refuses, and edits nothing, when:
+
+-   The sample id is an integer. Inspect numbers samples without ids by position, so an integer id need not name the same sample in another run.
+-   The empty attempt errored, hit a limit, or holds no score.
+-   A verdict is a dict or list, is unscored (`NaN`, for example when a grader failed), or cites messages or events of the empty attempt's transcript.
+-   The sample holds a score the empty attempt does not produce (from a scorer that returned nothing, a solver, or `inspect score --action append`).
+
+Exclude such samples instead. As with exclusion, zeroing does not change the sample's transcript, output or error, so `inspect eval-retry` still re-runs a zeroed errored sample, and rescoring with `inspect score` scores the original transcript, not the empty attempt. `inspect score --action overwrite` replaces the sample's scores, so apply the zero again afterwards.
+
 ### Tags & Metadata Editing
 
 You can also edit the tags and metadata associated with a log after evaluation. This is useful for workflows like QA review, categorisation, and filtering—for example, tagging a log as `"needs_qa"` at eval time, then updating it to `"qa_passed"` after review.
@@ -693,6 +750,7 @@ We've shown a number of Python functions that let you work with eval logs from c
 | `inspect log convert`        | Convert between log file formats.                  |
 | `inspect log export-config`  | Export a run config YAML from a log file.          |
 | `inspect log exclude`        | [Exclude samples](#excluding-samples) from a log's metrics. |
+| `inspect log zero`           | [Zero samples](#zeroing-samples) of a log.         |
 | `inspect log schema`         | Print JSON schema for log files.                   |
 
 ### Listing Logs
