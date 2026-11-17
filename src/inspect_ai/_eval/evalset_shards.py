@@ -19,12 +19,12 @@ from rich.markup import escape
 from inspect_ai._util._async import run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.error import PrerequisiteError, WriteConflictError
-from inspect_ai._util.file import local_path
 from inspect_ai._util.log_layout import (
     eval_log_for_shards_dir,
     log_basename,
     merged_log_task_id,
 )
+from inspect_ai._util.path import native_path
 from inspect_ai.log import (
     EvalLog,
     ShardSelectionError,
@@ -200,7 +200,7 @@ def merge_shard_sets(
             async with limiter:
                 with _shard_set_refusal(shard_set.shards_dir):
                     result = await merge_eval_log_shards_async(
-                        shard_set.merged,
+                        native_path(shard_set.merged),
                         task,
                         sample_ids=ids,
                         allow_incomplete=True,
@@ -222,7 +222,9 @@ async def _identify_shard_set(
     """Find the task of a shard set from one of its headers.
 
     Uses the merged log's header when the merged log is listed, else reads
-    that of the first shard's current attempt. Any attempt would do: the
+    that of the first shard's current attempt. Listed local names are
+    `file://` plus the native path, not percent-encoded, so the shard set is
+    listed by its native path. Any attempt would do: the
     merge refuses shards whose identifiers differ.
 
     Raises:
@@ -235,7 +237,7 @@ async def _identify_shard_set(
         header = merged_log.header
         task_id = header.eval.task_id
     else:
-        listing = await list_shard_set(fs, shards_dir)
+        listing = await list_shard_set(fs, native_path(shards_dir))
         attempt = next(
             (shard.current for shard in listing.shards if shard.current is not None),
             None,
@@ -376,5 +378,5 @@ def _shard_set_refusal(shards_dir: str) -> Iterator[None]:
 
 
 def _display(location: str) -> str:
-    """A location for a message: a local path for a `file://` URI."""
-    return escape(local_path(location) if location.startswith("file://") else location)
+    """A listed location for a message: a local path for a `file://` URI."""
+    return escape(native_path(location))

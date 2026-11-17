@@ -5041,6 +5041,34 @@ def test_eval_set_merges_a_complete_shard_set_and_runs_nothing(
     assert len(_log_names(tmp_path)) == 3
 
 
+def test_eval_set_merges_shards_under_a_path_with_a_space(
+    tmp_path: Path, shard_runs: list[int | str]
+) -> None:
+    log_dir = tmp_path / "my logs"
+    _shard(log_dir, "0", [1, 2, 3])
+
+    success, [log] = _sharded_eval_set(log_dir)
+
+    assert success and sorted(shard_runs) == [4, 5, 6]
+    assert log.eval.shards is None
+    merged = read_eval_log(str(_merged_log(log_dir)), header_only=True)
+    assert merged.eval.shards is not None
+
+
+def test_eval_set_reads_shards_under_a_literal_percent_sequence(
+    tmp_path: Path, shard_runs: list[int | str], caplog: pytest.LogCaptureFixture
+) -> None:
+    # identification lists the shards and reads an attempt's header; the
+    # shards' task is not in the eval set, so nothing is merged there
+    _shard(tmp_path / "literal%20dir", "0", [1, 2, 3])
+
+    with caplog.at_level(logging.WARNING):
+        success, [log] = _sharded_eval_set(tmp_path, tasks=unsharded_task())
+
+    assert success and log.eval.task == "unsharded_task"
+    assert any("Not merging" in r.getMessage() for r in caplog.records)
+
+
 def test_eval_set_resumes_an_incomplete_shard_set_unsharded(
     tmp_path: Path, shard_runs: list[int | str], monkeypatch: pytest.MonkeyPatch
 ) -> None:

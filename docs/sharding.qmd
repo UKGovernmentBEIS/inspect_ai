@@ -68,7 +68,7 @@ Only one merge of a log can write at a time. A merge of a local log holds a lock
 
 A shard log that holds samples cancelled by `inspect ctl task drain` or `inspect ctl task cancel` is refused, before writing anything, because those samples still need to run. Run that shard again, then merge.
 
-The merge does not delete the shards. Once you have checked the merged log, delete the `.shards` directory yourself, for example with `rm -r logs/<name>.shards` or `aws s3 rm --recursive s3://<bucket>/logs/<name>.shards/`. Later merges then return the merged log as it is. When a later unsharded run of the task supersedes a merged log, the merged log and its `.shards` directory stay until you remove them.
+The merge does not delete the shards. Once you have checked the merged log, delete the `.shards` directory yourself, for example with `rm -r logs/<name>.shards` or `aws s3 rm --recursive s3://<bucket>/logs/<name>.shards/`. Later merges then return the merged log as it is. When a later unsharded run of the task supersedes a merged log, the `.shards` directory stays until you remove it. An eval set's retry cleanup removes the merged log itself unless its status is `started` (see [Eval sets](#eval-sets)).
 
 The merge computes metrics as a fresh, unsharded run does. A scorer's metrics see each sample's metadata from the dataset, as the sample's `sample_init` event records it, not metadata a solver changed. A sample logged without its events (its record could not be serialized) is refused.
 

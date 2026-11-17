@@ -1641,7 +1641,11 @@ Ransom, 2026-11-17). Once an unsharded retry is newer, a non-`started`
 merged log is removed like any older attempt. A `started` merged log is
 kept by the `owned_run_ids` rule, since the merge mints its `run_id`.
 Retry cleanup never removes a companion; the user removes it ("Removing
-shards"), and until then the startup merge skips it (step 7).
+shards"), and until then the startup merge skips it (step 7). A merged log
+kept beside its retry (with `retry_cleanup=False`) competes by mtime like
+any attempt: editing its tags or metadata makes it the newest, so the next `eval_set()` continues from it and, with cleanup
+on, removes the retry, whatever the retry's status (decisions: Ransom,
+2026-11-17).
 
 ### Scale items
 
