@@ -271,10 +271,15 @@ excluding or zeroing a sample again applies the edits again and appends to
 the history. An operator layer that re-applies its rulings on every pass and
 wants no repeat entries checks each target first, across its whole score
 map: it skips the target only when the target holds at least one score and
-every score it holds has the disposition's `reason` (`"excluded"` for an
-exclusion, `"zeroed"` for a zero). Any other target still needs the
-disposition: a sample with no score, or one where `inspect score --action
-append` has added a counted score beside an excluded one.
+every score it holds carries the disposition. For an exclusion that means
+`reason == "excluded"` and a float `NaN` value at the root, both public
+`Score` fields; for a zero it means `reason == "zeroed"` alone, since zero
+refuses `NaN` verdicts and a value test adds nothing. Because `edit_score()`
+keeps the reason unless the edit sets one, a score edited back to a counted
+value still reads `"excluded"`, and the value test makes replay exclude it
+again. Any other target still needs the disposition: a sample with no
+score, or one where `inspect score --action append` has added a counted
+score beside an excluded one.
 
 ### Edits and recomputation
 
@@ -394,7 +399,9 @@ the CLI.
 - 2026-11-17: exclusion has no "already excluded" no-op, the same as zero;
   there is no `DispositionResult`, both functions return `None`, and the
   CLI has no `--json` option and prints one summary line instead of a line
-  per target (see Not yet built).
+  per target (see Not yet built). An operator's replay check for exclusion
+  tests the reason and a root `NaN` value; the check for zero tests the
+  reason alone.
 
 ## Alternatives considered
 
