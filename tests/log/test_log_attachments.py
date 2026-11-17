@@ -76,14 +76,16 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model import get_model
+from inspect_ai.model._model import ModelAPI, get_model
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+from inspect_ai.model._registry import modelapi
 from inspect_ai.scorer import Score, Scorer, Target, match, mean, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
 from inspect_ai.tool import Tool, tool
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 
@@ -1633,9 +1635,46 @@ def test_summary_input_keeps_literal_reference_text(
             assert input_texts(condensed_sample_summary(sample).input) == texts
 
 
+_GRADER_PROMPT = "Grade the answer against the target, in full detail please. " * 3
+_GRADER_REQUEST_LITERAL = "tc://grader-request-text"
+
+
+class _FailedRequestAPI(ModelAPI):
+    """Answers as providers answer a request they could not run (e.g. too long): an empty output with the call marked as an error."""
+
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> tuple[ModelOutput, ModelCall]:
+        call = set_active_model_event_call(
+            {
+                "messages": [
+                    {"role": "user", "content": _GRADER_PROMPT},
+                    {"role": "user", "content": _GRADER_REQUEST_LITERAL},
+                ]
+            }
+        )
+        call.set_error({"error": "The request is too long."})
+        return (
+            ModelOutput.from_content(self.model_name, "", stop_reason="model_length"),
+            call,
+        )
+
+
+@modelapi(name="failedrequest")
+def _failed_request_api() -> type[ModelAPI]:
+    return _FailedRequestAPI
+
+
 @scorer(metrics=[mean()])
 def _literal_grader(literal: str) -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
+        # scoring keeps the call of a request the provider could not run
+        failed = get_model("failedrequest/model", memoize=False)
+        await failed.generate("Grade the answer.")
         grader = get_model(
             "mockllm/model",
             custom_outputs=[ModelOutput.from_content("mockllm/model", literal)],
@@ -1647,18 +1686,34 @@ def _literal_grader(literal: str) -> Scorer:
     return score
 
 
+def _assert_failed_grader_call(model_events: list[ModelEvent]) -> None:
+    """The grader's failed call kept its request, pooled and literal text alike."""
+    failed = model_events[-2]
+    assert failed.call is not None
+    assert failed.call.error is True
+    assert failed.call.request["messages"] == [
+        {"role": "user", "content": _GRADER_PROMPT},
+        {"role": "user", "content": _GRADER_REQUEST_LITERAL},
+    ]
+
+
 @pytest.mark.parametrize("log_format", ["eval", "json"])
 @pytest.mark.parametrize("action", ["append", "overwrite"])
+@pytest.mark.parametrize("read", [False, "core"])
 def test_rescoring_keeps_literal_reference_text(
     tmp_path: str,
     log_format: Literal["eval", "json"],
     action: Literal["append", "overwrite"],
+    read: Literal[False, "core"],
 ) -> None:
     literal = f"attachment://{_LITERAL_KEY}"
     log_file = _run_literal_eval(str(tmp_path), log_format, literal)
 
     scored = score(
-        read_eval_log(log_file), _literal_grader(literal), action=action, display="none"
+        read_eval_log(log_file, resolve_attachments=read),
+        _literal_grader(literal),
+        action=action,
+        display="none",
     )
     rescored = os.path.join(tmp_path, f"rescored.{log_format}")
     write_eval_log(scored, rescored)
@@ -1667,11 +1722,12 @@ def test_rescoring_keeps_literal_reference_text(
     assert reread.samples
     sample = reread.samples[0]
     model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
-    assert len(model_events) == 3
+    assert len(model_events) == 4
     assert model_events[0].input[0].text == _LITERAL_SYSTEM_PROMPT
     grader_event = model_events[-1]
     assert grader_event.input[0].text == "Grade the answer."
     assert grader_event.output.message.text == literal
+    _assert_failed_grader_call(model_events)
     assert sample.messages[-1].text == literal
 
 
@@ -1703,10 +1759,11 @@ def test_rescoring_fully_read_log_keeps_literal_reference_text(
     assert sample.messages[-1].text == reply
     assert sample.output.completion == reply
     model_events = [e for e in sample.events if isinstance(e, ModelEvent)]
-    assert len(model_events) == 3
+    assert len(model_events) == 4
     assert model_events[1].input[0].text == _LITERAL_SYSTEM_PROMPT
     assert model_events[1].output.message.text == reply
     assert model_events[-1].output.message.text == grader_text
+    _assert_failed_grader_call(model_events)
 
 
 @pytest.mark.parametrize("to", ["eval", "json"])
