@@ -366,14 +366,19 @@ captured them:
   that does not decrypt. Egress verification lists only snapshots,
   which does not load the index, so such a file is accepted. From then
   on every host-side restic command that loads the index fails for that
-  repository: the listing of the committed snapshot that resume checks
-  before restoring, so none of the sandbox's earlier checkpoints can be
-  restored, and the changed-files listing of each later capture, so its
-  later checkpoints fail too. Recovery is deleting the file from
-  `restic/sandboxes/<name>/index/` in the sample dir the retry copies
-  from. `restic check` against that repository, with the password in
-  `restic/restic-config.json`, names the file; `restic repair index`
-  removes it and rebuilds the index from the pack files.
+  repository, starting with the changed-files listing of each capture,
+  so the sandbox's later checkpoints fail. With a local checkpoints
+  location the repository is the destination itself, so the listing of
+  the committed snapshot that resume checks before restoring fails too,
+  and none of the sandbox's earlier checkpoints can be restored.
+  Recovery is deleting the file from `restic/sandboxes/<name>/index/`
+  in the sample dir the retry copies from. `restic check` against that
+  repository, with the password in `restic/restic-config.json`, names
+  the file; `restic repair index` removes it and rebuilds the index
+  from the pack files. With an S3 location the file reaches only the
+  host-local staging copy: the failing capture stops before anything
+  is uploaded, so the earlier checkpoints at the destination stay
+  intact, and resume clears staging and reloads them from there.
 - The sandbox initializes its own repository, and the host accepts its
   `config` and `keys/*` on the first egress, so the repository format
   and key files are sandbox-authored. The sandbox already receives the
