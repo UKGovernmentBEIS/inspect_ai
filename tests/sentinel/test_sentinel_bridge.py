@@ -1925,6 +1925,34 @@ def test_a_result_steps_digest_covers_or_names_every_field_of_the_step() -> None
     )
 
 
+def test_a_result_steps_digest_tells_apart_generations_that_returned_different_messages() -> (
+    None
+):
+    """Two generations with the same input, tools and tool choice give different steps when they returned different messages (`assistant_message`)."""
+    from inspect_ai.agent._bridge._sentinel import Produced
+
+    input: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    def produced(call: ToolCall) -> Produced:
+        output = calls_output(call)
+        output.message.id = "reply"
+        event = ModelEvent(
+            model="mockllm/model",
+            input=input,
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=output,
+        )
+        return Produced(event, agent_span_id=None)
+
+    assert produced(READ).digest == produced(READ).digest
+    assert (
+        produced(READ).digest
+        != produced(replace(READ, arguments={"path": "other.txt"})).digest
+    )
+
+
 def test_a_step_that_cannot_be_serialized_is_never_exempt() -> None:
     """A step with a value its digest can't serialize gets a digest no other step has: its result is checked every time it is reported."""
     from inspect_ai.agent._bridge._sentinel import (

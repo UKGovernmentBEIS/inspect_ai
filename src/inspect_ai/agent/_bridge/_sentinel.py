@@ -107,6 +107,7 @@ STEP_DIGEST_FIELDS = frozenset(
         "input",
         "tools",
         "tool_choice",
+        "assistant_message",
     }
 )
 STEP_DIGEST_EXCLUDED = {
@@ -126,7 +127,7 @@ class Produced:
     """The generation that produced a bridged call, and the agent span it ran in."""
 
     event: "ModelEvent"
-    """What the model was sent (`input`, `tools`, `tool_choice`)."""
+    """What the model was sent (`input`, `tools`, `tool_choice`) and returned (`assistant_message`)."""
 
     agent_span_id: str | None
     """The agent span current during the generation: the call's conversation."""
@@ -136,7 +137,7 @@ class Produced:
 
     @cached_property
     def digest(self) -> str:
-        """The digest of what a step reads of the generation (`input`, `tools`, `tool_choice`).
+        """The digest of what a step reads of the generation (`input`, `tools`, `tool_choice`, `assistant_message`).
 
         Computed once, so the steps of every result of its calls cost nothing
         in the length of its input.
@@ -145,6 +146,7 @@ class Produced:
             _serialized(self.event.input),
             _serialized(self.event.tools),
             _serialized(self.event.tool_choice),
+            _serialized(self.event.output.message),
         )
 
 
@@ -975,8 +977,8 @@ class _Steps:
     check builds them: the conversation, the assistant message's text and
     id, the call, its view (as its viewer renders it, rejecting a viewer
     error where the check does; the check is given that view), the
-    generation's input, tools and tool choice (`Produced.digest`), and the
-    result. The result is all of its fields but its `id`, which the bridge
+    generation's input, tools, tool choice and message (`Produced.digest`),
+    and the result. The result is all of its fields but its `id`, which the bridge
     gives each parsed message afresh. The fields left out are those of
     `STEP_DIGEST_EXCLUDED`. A value that can't be encoded gives a digest no
     other step has. For a check with no proposal's context the digest covers
