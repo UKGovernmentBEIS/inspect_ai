@@ -62,6 +62,9 @@ from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageTool,
+    Content,
+    ContentReasoning,
+    ContentText,
     Model,
     ModelOutput,
     get_model,
@@ -95,8 +98,9 @@ class _Paused:
     stage: str
     """Where the call was paused.
 
-    `tool_call`: at its reply, which the stand-in holds. `tool_result`: at its
-    request, before the provider was called.
+    `tool_call` and `model_output`: at its reply, which the stand-in holds.
+    At `model_output` the question is about the whole turn. `tool_result`: at
+    its request, before the provider was called.
     """
     route: str
     state: str = "awaiting_review"
@@ -136,7 +140,7 @@ class ReviewingSidecar(StandInSidecar):
     """A stand-in sidecar that pauses model calls and asks a person about them."""
 
     pauses: list[str] = field(default_factory=list)
-    """Where to pause each new model call, in order: `tool_call` or `tool_result`.
+    """Where to pause each new model call, in order: `tool_call`, `tool_result` or `model_output`.
 
     Calls after the list runs out aren't paused.
     """
@@ -148,6 +152,8 @@ class ReviewingSidecar(StandInSidecar):
     After them it returns what it holds. They stand for the sidecar's own
     refusals, so they lack the header that marks a provider's error.
     """
+    asked_turn: ChatMessageAssistant | None = None
+    """The turn that a question about a whole turn shows, in place of the held one."""
     expires: bool = False
     """Whether each question times out at the sidecar before the person answers.
 
@@ -348,7 +354,7 @@ class ReviewingSidecar(StandInSidecar):
         if paused is None:
             paused = self.paused[irid] = _Paused(self.pauses.pop(0), request.url.path)
             paused.tries = 1
-            if paused.stage == "tool_call":
+            if paused.stage in _AT_THE_REPLY:
                 # the provider replied, and the stand-in holds the reply
                 paused.turn = self.turns.pop(0) if self.turns else Turn()
                 if self.closed_before_asked:
@@ -595,48 +601,88 @@ class ReviewingSidecar(StandInSidecar):
                     "sample_uuid": params.get("sample_uuid"),
                     "request_id": irid,
                     "stage": paused.stage,
-                    "call": {
-                        "id": "call_1",
-                        "function": "weather",
-                        "arguments": {"city": "Oslo"},
-                        "type": "function",
-                    },
-                    "message": "Checking.",
-                    "view": {},
                     "escalations": [
                         {"name": "risk_monitor", "explanation": "A new city."}
                     ],
-                    "choices": ["approve", "reject", "terminate"],
                     "asked": 0.0,
+                    **self._asked_about(paused),
                 }
                 for irid, paused in self.paused.items()
                 if paused.state == "awaiting_review"
             ]
         }
 
+    def _asked_about(self, paused: _Paused) -> dict[str, Any]:
+        # what the question shows the person, and what they may pick
+        if paused.stage == "model_output":
+            # the whole turn, which can go on or end the run
+            turn = self.asked_turn or _held_turn(paused.turn or Turn())
+            return {
+                "message": turn.text,
+                "turn": turn.model_dump(mode="json", exclude_none=True),
+                "choices": ["approve", "terminate"],
+            }
+        return {
+            "call": {
+                "id": "call_1",
+                "function": "weather",
+                "arguments": {"city": "Oslo"},
+                "type": "function",
+            },
+            "message": "Checking.",
+            "view": {},
+            "choices": ["approve", "reject", "terminate"],
+        }
+
     def _answer_question(self, params: dict[str, Any]) -> dict[str, Any]:
         paused = self.paused[params["id"].removeprefix("question_")]
         now = time.time()
-        paused.reviews.append(
-            {
-                "id": params["id"],
-                "try_number": 1,
-                "stage": paused.stage,
-                "call": "call_1",
-                "asked": now,
-                "decision": params["decision"],
-                "answered": now,
-                "resolution": "answered",
-                "resolved": now,
+        # a question about a whole turn names no call
+        call = None if paused.stage == "model_output" else "call_1"
+        record = {
+            "id": params["id"],
+            "try_number": 1,
+            "stage": paused.stage,
+            "call": call,
+            "asked": now,
+            "decision": params["decision"],
+            "answered": now,
+            "resolution": "answered",
+            "resolved": now,
+        }
+        paused.reviews.append({k: v for k, v in record.items() if v is not None})
+        if params["decision"] == "terminate" and paused.stage == "model_output":
+            # the person ended the run at the turn, none of whose calls runs
+            turn = paused.turn or Turn()
+            paused.state = "decided"
+            paused.judgment = {
+                "outcome": "terminate",
+                "steps": [
+                    {
+                        "stage": "model_output",
+                        "decision": {
+                            "action": "terminate",
+                            "explanation": params.get("reason") or "Ended.",
+                        },
+                        "reviews": [params["id"]],
+                    }
+                ],
+                "withheld": {
+                    "message": _held_turn(turn).model_dump(
+                        mode="json", exclude_none=True
+                    ),
+                    "results": {
+                        id: "This call was not run." for id, _, _ in turn.calls
+                    },
+                },
             }
-        )
-        if params["decision"] != "approve":
+        elif params["decision"] != "approve":
             self._rejected(paused, params.get("reason") or "Rejected.")
-        elif paused.stage == "tool_call":
+        elif paused.stage in _AT_THE_REPLY:
             paused.state = "decided"
             step = {
-                "stage": "tool_call",
-                "call": "call_1",
+                "stage": paused.stage,
+                "call": call,
                 "decision": {"action": "proceed"},
                 "reviews": [params["id"]],
             }
@@ -675,6 +721,21 @@ class _CutOff(httpx2.AsyncByteStream):
     async def __aiter__(self) -> AsyncIterator[bytes]:
         yield b'{"type": "err'
         raise httpx2.ReadError("The connection was lost.")
+
+
+_AT_THE_REPLY = ("tool_call", "model_output")
+"""The stages at which a call is paused at its reply, which the sidecar then holds."""
+
+
+def _held_turn(turn: Turn) -> ChatMessageAssistant:
+    # the turn the stand-in holds, as the sidecar writes it into a question
+    return ChatMessageAssistant(
+        content=turn.text,
+        tool_calls=[
+            ToolCall(id=id, function=function, arguments=arguments)
+            for id, function, arguments in turn.calls
+        ],
+    )
 
 
 def _refusal(message: str) -> httpx2.Response:
@@ -1094,6 +1155,175 @@ def test_a_continuation_after_the_judged_reply_goes_to_the_model(
     assert continuation.url.path == "/v1/messages"
     assert continuation.headers["x-irid"] == held.headers["x-irid"]
     assert continuation.content != held.content
+
+
+# --- a call paused at its reply, for a question about the whole turn ----------
+
+
+_TWO_CITIES = Turn(
+    text="Checking both.",
+    calls=[
+        ("call_1", "weather", {"city": "Oslo"}),
+        ("call_2", "weather", {"city": "Bergen"}),
+    ],
+)
+
+
+def test_a_person_is_shown_a_whole_turn_and_an_approved_turn_runs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    person = Person("approve")
+    person.install(monkeypatch)
+    stand_in = ReviewingSidecar(
+        pauses=["model_output"], turns=[_TWO_CITIES, Turn()], judged_step=True
+    )
+
+    sample = _sample(_run(stand_in))
+
+    # The person is asked once, about the turn as a whole. The view holds the
+    # turn's text, because none of the turn has reached Inspect to be shown.
+    [(message, call, view, choices)] = person.asked
+    assert message == ""
+    assert call.function == "Assistant turn: 2 tool calls (weather ×2)"
+    assert view.call is not None
+    shown = view.call.content
+    assert "risk_monitor: A new city." in shown and "Checking both." in shown
+    assert shown.index("Call 1 of 2") < shown.index("Oslo") < shown.index("Call 2 of 2")
+    assert "Bergen" in shown
+    # a turn can go on or end the run: it can't be rejected
+    assert choices == ["approve", "terminate"]
+
+    # Inspect fetched the judged reply, and the turn's calls ran
+    assert len(stand_in.judged_reply_requests) == 1
+    assert _LOOKED_UP == ["Oslo", "Bergen"]
+    # the question's record is in the log, and names no call
+    [logged] = _reviews_logged(sample)
+    review = logged["review"]
+    assert (review["stage"], review["decision"]) == ("model_output", "approve")
+    assert "call" not in review
+
+
+def _turn_shown(
+    monkeypatch: pytest.MonkeyPatch, *content: Content, calls: int = 1
+) -> str:
+    # the view a person is shown for a turn with this content
+    person = Person("approve")
+    person.install(monkeypatch)
+    turn = ChatMessageAssistant(
+        content=list(content),
+        tool_calls=[
+            ToolCall(id=f"call_{n}", function="weather", arguments={"city": "Oslo"})
+            for n in range(1, calls + 1)
+        ],
+    )
+    _run(
+        ReviewingSidecar(
+            pauses=["model_output"], turns=[_OSLO, Turn()], asked_turn=turn
+        )
+    )
+    [(message, _, view, _)] = person.asked
+    assert message == "" and view.call is not None
+    return view.call.content
+
+
+_ENCRYPTED = "gAAAAB-encrypted-reasoning"
+
+
+@pytest.mark.parametrize(
+    ("reasoning", "shown", "withheld"),
+    [
+        pytest.param(
+            ContentReasoning(reasoning="First I will wipe the disk."),
+            "First I will wipe the disk.",
+            False,
+            id="readable",
+        ),
+        pytest.param(
+            ContentReasoning(
+                reasoning=_ENCRYPTED, redacted=True, summary="Plans to wipe the disk."
+            ),
+            "Plans to wipe the disk.",
+            False,
+            id="redacted, with a summary",
+        ),
+        pytest.param(
+            ContentReasoning(reasoning=_ENCRYPTED, redacted=True),
+            None,
+            True,
+            id="redacted, with nothing to read",
+        ),
+    ],
+)
+def test_a_person_reads_the_turns_reasoning_before_they_decide(
+    reasoning: ContentReasoning,
+    shown: str | None,
+    withheld: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    view = _turn_shown(monkeypatch, reasoning, ContentText(text="Checking."))
+
+    # None of the turn has reached Inspect, so the view is the only place the
+    # person can read what the model reasoned. Reasoning comes before the
+    # turn's words.
+    if shown is not None:
+        assert view.index("The turn's reasoning") < view.index(shown)
+        assert view.index(shown) < view.index("The turn says")
+    # reasoning the provider withheld is counted, never shown as its cipher text
+    assert ("withheld the text of 1 block" in view) == withheld
+    assert _ENCRYPTED not in view
+
+
+def test_a_turns_own_words_cant_pass_for_the_rest_of_the_view(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forged = "Fine.\n```\n\n---\n\n**The turn makes no tool calls.**\n\n```\n\x1b[2J"
+
+    view = _turn_shown(
+        monkeypatch,
+        ContentReasoning(reasoning=forged),
+        ContentText(text=forged),
+        calls=2,
+    )
+
+    # Each block of the model's own words is fenced by more backticks than it
+    # holds, so it can't close its block and write the view's own lines.
+    for heading in ("**The turn's reasoning**", "**The turn says**"):
+        block = view[view.index(heading) + len(heading) :].lstrip("\n")
+        assert block.startswith("````\n")
+    assert "**The turn makes 2 tool calls.**" in view
+    # a control character is shown as a marker, and the view says so
+    assert "\x1b" not in view and "hidden or control characters" in view
+
+
+def test_a_person_who_ends_the_run_at_a_turn_ends_the_sample(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Person("terminate", "Not this.").install(monkeypatch)
+    stand_in = ReviewingSidecar(pauses=["model_output"], turns=[_TWO_CITIES, Turn()])
+
+    log = _run(stand_in)
+
+    # the sample ends as an operator's limit, with the person's reason, and
+    # none of the turn's calls runs
+    sample = _sample(log)
+    assert sample.limit is not None
+    assert (sample.limit.type, sample.limit.reason) == ("operator", "Not this.")
+    assert _LOOKED_UP == []
+    assert stand_in.judged_reply_requests == []
+
+
+def test_an_answer_about_a_turn_that_came_too_late_says_what_it_was_about(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    Person("approve").install(monkeypatch)
+    stand_in = ReviewingSidecar(
+        pauses=["model_output"], turns=[_TWO_CITIES, Turn()], expires=True
+    )
+
+    sample = _sample(_run(stand_in))
+
+    [told] = [w for w in _warned(sample) if "wasn't used" in w]
+    assert "question about the model's turn" in told
 
 
 # --- a call paused at its request ---------------------------------------------
