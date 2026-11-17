@@ -356,10 +356,15 @@ does not already have.
 
 A failed generation is returned to the scaffold as an error response in the
 API's own format. A token, cost, message or turn limit reached in a bridged
-generation is returned the same way; the first limit reached is recorded,
-later requests get its error without another provider call, and the bridge
-raises it once the agent unwinds, so the scope that set the limit handles it
-as it would for a native agent. A termination (an approver's `terminate`,
+generation is returned the same way, and the bridge records it. The first
+limit reached stays recorded unless a limit reached later encloses it (an
+ancestor in the same limit tree, or one of the sample's own limits while the
+recorded one is an inner agent's), which replaces it; this keeps a sample
+budget reached by an overlapping request from being lost behind an inner
+limit a caller catches. Later requests get the recorded limit's error
+without another provider call. The bridge does not stop the scaffold when
+it records a limit: it raises the recorded limit once the agent unwinds, so
+the scope that set it handles it as it would for a native agent. A termination (an approver's `terminate`,
 three consecutive rejections, a filter) ends the sample. A refusal under
 `fail_on_refusal`, an error in a `response_filter`, and an unexpected error
 in a bridged host tool fail the sample through the bridge's failure monitor,
@@ -374,8 +379,9 @@ calls in each model response, in `bridge_generate()`, before the response is
 handed to the agent. A rejected call is not edited out: the call and a
 synthetic result are replayed to the model, which generates again, so the
 agent sees only the replacement. Three consecutive rejections terminate the
-sample. A multi-choice response is reduced to its primary choice, since only
-that choice is reviewed and granted. An active sentinel's tool-call check runs
+sample. A multi-choice response whose alternate choices carry tool calls is
+reduced to its primary choice, with a warning, since only that choice is
+reviewed and granted; alternates with text only are passed through. An active sentinel's tool-call check runs
 at the same point, after approval. The user contract is
 [Bridged Agents](../docs/approval.qmd#bridged-agents) and
 [Tool Approval](../docs/agent-bridge.qmd#tool-approval).
@@ -454,10 +460,13 @@ tools. The user contract is
   client's request and carry no requested name.
 - **`ToolEvent` for `call_tool`.** Every `call_tool` request is one
   `ToolEvent` in the native layout, executed, denied or rejected. An
-  execution that consumed a grant takes the id of the call as handed to the
-  agent and is placed in the span of the proposing `ModelEvent`;
-  `metadata["bridge"]` records the server and tool, the name the model used,
-  the proposing call and whether a grant was `consumed`, `denied` or
+  execution that consumed a grant is placed in the span of the proposing
+  `ModelEvent`; the first execution of a proposal takes the id of the call as
+  handed to the agent, and any further one (a call granted for several
+  bridged tools sharing a description) gets a fresh id. Denied and rejected
+  requests get fresh ids too. `metadata["bridge"]` records the server and
+  tool, the name the model used, the model's id for the proposing call
+  (`proposal_id`) and whether a grant was `consumed`, `denied` or
   `exempt`. See [bridge-host-tool-events.md](bridge-host-tool-events.md) and
   [Transcript](../docs/agent-bridge.qmd#transcript).
 - **Message ids.** A request carries no Inspect message ids, so the bridge
@@ -471,11 +480,15 @@ tools. The user contract is
   id); the call is then handed to the agent under a fresh id, and the
   `ModelEvent` keeps the model's (`_fresh_call_ids` in
   `ai/agent/_bridge/util.py`).
-- **Agent state.** `bridge.state` is built from the traffic: the bridge picks
-  the agent's main conversation thread out of the requests it sees, so a
-  side call (a title generation, a path check) or a sub-agent's thread does
-  not displace it, and adopts that thread's messages and the latest output
-  (`AgentBridge._track_state`). Like the history in each request, it is the
+- **Agent state.** `bridge.state` is built from the traffic: the bridge
+  picks the agent's main conversation thread out of the requests it sees, by
+  heuristics, and adopts that thread's messages and the latest output
+  (`AgentBridge._track_state`). A call that extends the tracked thread always
+  updates it; a one-off side call (a title generation, a path check) does not
+  displace it, but a sub-agent loop that keeps running can take tracking over
+  for a while, and the main thread reclaims it when it continues. So
+  `bridge.state` can hold a sub-agent's conversation at the moment it is
+  read. Like the history in each request, it is the
   agent's account of the conversation.
 
 ## Principals
@@ -551,8 +564,11 @@ model calls.
    `ApprovalEvent`. The record does not claim what the agent then did with a
    response. *(Boundary C)*
 6. **Limits bind.** Token, cost, message and turn limits apply to bridged
-   generations as to native ones, and a limit reached ends the agent's run
-   in the scope that set it. *(Boundary C)*
+   generations as to native ones. Once a limit is reached the host makes no
+   further generation for the bridge, and the recorded limit is raised in the
+   scope that set it once the agent unwinds. The bridge does not stop the
+   scaffold itself: it keeps running until it exits, getting only error
+   replies from the host. *(Boundary C)*
 7. **Not a browser service.** The proxy sends no cross-origin headers,
    answers no preflight, and accepts only JSON object bodies, so a web page
    rendered in the sandbox cannot drive it.
@@ -593,9 +609,15 @@ scope:
   environment. Code in the sandbox can read them.
 - **The agent's own permission prompts and sandboxing,** which agents
   usually run with turned off.
-- **The sandbox itself.** Escape from the sandbox, and the isolation level
-  of its provider, are the sandbox provider's concern (see the
+- **The sandbox's own isolation.** Escape through the container runtime,
+  kernel or host, weaknesses in Docker itself, escapes that depend on an
+  unpatched Docker Engine, runtime or host, and the isolation level a
+  provider supplies are the sandbox provider's and the operator's concern
+  (see the
   [sandbox trust model's out-of-scope list](sandbox-trust-model.md#out-of-scope)).
+  An escape from a Docker sandbox to the host, or from one sandbox to
+  another, that Inspect causes is in scope under `SECURITY.md`, and the
+  bridge is one of the channels that must not provide one.
 
 ## Sandbox identity scopes and the peer check
 
@@ -665,7 +687,7 @@ The sandbox trust model's boundaries apply to the bridge as follows:
 - **Boundary C** (mediation) is weak by construction for the agent's own
   tools, as that document says of Pattern 2; guarantees 5 and 6 above are
   what the bridge supplies instead: a true record of what the host did, and
-  limits that bind.
+  limits that stop further generations and reach the scope that set them.
 - **Boundary A** (in-sandbox privilege) touches the bridge through the
   proxy's identity and its queue's owner, both the tools user. Where
   Boundary A is present, the agent cannot read or write the queue; where it
