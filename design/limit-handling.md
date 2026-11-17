@@ -397,7 +397,7 @@ class _Node:
     parent: Self | None  # nearest ancestor of the same kind (unchanged)
     _outer: _Node | None  # nearest ancestor of any kind in the chain
     _in_chain: bool  # set when pushed; never cleared
-    _raised_at: float | None  # the node's effective limit when its check last raised
+    _raised_at: float | None  # the greatest effective limit at which its check raised
     _scoring_restore: bool  # set by a scoring-only restore; cleared by record() or a raise
 
 
@@ -469,15 +469,24 @@ def check_limits(raise_for_equal: bool = False, at_exit: bool = False) -> None:
 
 - `_Node._check_marked(raise_for_equal)` calls
   `_check_self(raise_for_equal)`; if that raises a `LimitExceededError`, it
-  sets `self._raised_at = self.limit` (the effective limit, a live override
-  included) and clears `self._scoring_restore` before re-raising. Every check path goes through it:
+  sets `self._raised_at` to the greater of its current value and
+  `self.limit` (the effective limit, a live override included) and clears `self._scoring_restore` before re-raising. Every check path goes through it:
   `check_limits()` and the per-kind `check()` methods. inspect_swarm's
   `_check_self()` overrides therefore set the mark too.
 - `_Node._refused_at_budget() -> bool` is `self._raised_at is not None and
   self._raised_at == self.limit`: the node raised under the budget in force
   now. It reads the effective limit, so any way the budget changes (a
   `limit` setter, a live override set or cleared through
-  `set_sample_limit_override()`) is covered without hooking the change. A
+  `set_sample_limit_override()`) is covered without hooking the change.
+  Keeping the greatest refused budget, not the last, is what makes this
+  hold across an intervening lower budget: `TaskState`'s `token_limit` and
+  `cost_limit` setters check the node with `>`
+  (`src/inspect_ai/solver/_task_state.py:358-370`, `:392`), so a node
+  refused at 10, lowered to 5 (which raises there) and restored to 10 must
+  still count its refusal at 10. Usage never decreases (token metering is
+  non-decreasing, cost and turns only add), so a refusal at a budget above
+  the current one already means usage exceeds it, and the greatest refused
+  budget is the only one equality can depend on. A
   node whose limit is `None` is never reached by count, so the mark does not
   matter for it (an inspect_swarm lever raises on its own state).
 - The top-level generation records, then checks, once. The inner generation
@@ -898,7 +907,8 @@ it is reached (`== limit`) and was refused at that same budget
   budget becomes 20 (by the setter, by setting an override, or by clearing an
   override back to a launch budget of 20) and that ends at exactly 20 without
   a refusal at 20 does not raise; one refused at 20 does. A budget changed
-  back to 10 after a refusal at 10 counts that refusal again.
+  back to 10 after a refusal at 10 counts that refusal again, also when a
+  check at a lower budget (5) raised in between.
 
 The `_raised_at` mark is per node and survives the cancellation that loses
 the error itself; a change of the node's effective budget makes it not
@@ -1669,7 +1679,7 @@ documented. Behaviour changes:
   is retuned (`state.token_limit`, `state.cost_limit`, a node's `limit`, or
   a live `inspect ctl` override of the sample's token limit, set or
   cleared), the exit check judges it by the budget then in force; an
-  earlier refusal at another budget does not make it count at equality.
+  earlier refusal at a lower budget does not make it count at equality.
 - **Plain `with` blocks keep no exit check.** As today, a limit reached in
   a plain `with token_limit()` block whose error a handler inside the block
   swallowed is lost if no further call under the block follows; deliberate
@@ -1849,7 +1859,10 @@ under trio with `--runtrio`.
   - retuned limits: a `run()` token limit that raised at 10, retuned to 20
     through its `limit` setter, that ends at exactly 20 without a refusal at
     20 returns `(state, None)`; the same limit refused at 20 returns its
-    error;
+    error; a sample whose token limit, and separately cost limit, is refused
+    at 10, lowered through `state.token_limit` (or `state.cost_limit`) to 5,
+    where the setter's check raises and is caught, and restored to 10, ends
+    at exactly 10 recorded as limited;
   - plain blocks (pinned): inside `with token_limit(n)`, a ReAct agent
     whose forced-compaction fallback swallows the block's limit and then
     returns ends the block normally; a further call made inside the block
@@ -1869,8 +1882,11 @@ under trio with `--runtrio`.
   through `set_sample_limit_override()` after the refusal and when an
   override of 10 is cleared back to a launch budget of 20; in each case a
   call refused at 20 (fresh refusal at the new threshold) records the
-  sample as limited by its token limit; and an override set back to 10
-  after a refusal at 10 records it as limited at exactly 10.
+  sample as limited by its token limit; an override set back to 10
+  after a refusal at 10 records it as limited at exactly 10; and an
+  override of 5 set after a refusal at 10, raised at the next check and
+  then cleared back to a launch budget of 10 records it as limited at
+  exactly 10.
 - `tests/checkpoint/test_sample_runtime.py`: the payload is unchanged
   (no new keys); after a dump and normal restore of a token root that
   refused a call at exactly its budget, the next call is refused before
