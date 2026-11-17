@@ -404,7 +404,7 @@ The implementation removes:
 - `test_exclude_samples_unchanged` becomes a re-apply test: after `a` is
   excluded, the mixed call `exclude_samples(log, ["a", "b"], ...)` grows
   `a`'s score history and its sample's `ScoreEditEvent` count by one each
-  (and gives `b` its first), and its check that a value edit followed by an
+  (and excludes `b` for the first time), and its check that a value edit followed by an
   exclusion leaves the score excluded stays;
 - a new empty-selector test beside it calls `exclude_samples(log, [], ...)`
   on a log whose scorer names a metric the registry cannot build and
