@@ -103,6 +103,7 @@ from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.review._policy import ReviewPolicy, ReviewPolicyConfig
 from inspect_ai.scorer._reducer import reducer_log_name
 from inspect_ai.solver._chain import chain, is_solver_sequence
+from inspect_ai.solver._empty import empty_attempt
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
 from inspect_ai.util._checkpoint import CheckpointConfig
@@ -554,6 +555,7 @@ def eval_set(
         | list[ResolvedTask | PreviousTask],
         eval_set_tasks: list[str],
         selection_mode: bool = False,
+        solver_override: Solver | None = None,
     ) -> list[EvalLog]:
         # run evals
         results = eval(
@@ -568,7 +570,7 @@ def eval_set(
             sandbox_cleanup=sandbox_cleanup,
             sandbox_prebuilt=sandbox_prebuilt,
             checkpoint=checkpoint,
-            solver=solver,
+            solver=solver if solver_override is None else solver_override,
             scanner=scanner,
             tags=tags,
             metadata=metadata,
@@ -939,6 +941,10 @@ def eval_set(
                     worker_tasks,
                     resolved_task_names(resolved),
                     selection_mode=True,
+                    # after matching, which used the definition's solver
+                    solver_override=empty_attempt()
+                    if selection.empty_attempt
+                    else None,
                 ),
                 log_dir,
             )

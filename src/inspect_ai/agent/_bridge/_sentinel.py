@@ -49,7 +49,11 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
-from inspect_ai.agent._bridge.types import AgentBridge, BridgedToolId
+from inspect_ai.agent._bridge.types import (
+    AgentBridge,
+    BridgedToolId,
+    target_execution_id,
+)
 from inspect_ai.model._call_tools import (
     decisive_sentinel_exception,
     repeated_call_ids,
@@ -212,7 +216,10 @@ class _Handed(NamedTuple):
     it was handed with (`_exact_key`): each is a handout of its own."""
 
     execution_id: str | None
-    """The call's latest handout, or None for a call only in a rejected turn."""
+    """The id of the call's latest handout, which its approvals, steps and host
+    `ToolEvent`s record in their `execution_id` with the bridged tool each
+    judged or ran (`target_execution_id`), or None for a call only in a
+    rejected turn."""
 
     ambiguous: bool = False
     """Whether the call was handed out more than once, in any requests: a
@@ -286,6 +293,11 @@ class _Result(NamedTuple):
     views: tuple[ToolCallView | None, ...]
     """Each check's call's view, as its digest was taken of it; None where its
     viewer failed and the check rejects that."""
+
+    execution_id: str | None = None
+    """The handout whose result this is (`_Handed.execution_id`), or None
+    where the bridge can't tell: an id handed out more than once or shared
+    by calls of one response, or one it never handed out."""
 
 
 class _Claim(NamedTuple):
@@ -521,12 +533,15 @@ class _Handouts:
         handed: Sequence[ToolCall],
         checks: Sequence[SentinelCheck] | None,
         resolved: Sequence[Sequence[HandedTarget]] | None = None,
+        execution_ids: Sequence[str] | None = None,
     ) -> None:
         """Record a response's calls as handed over, each a new execution.
 
         `proposed` are the calls as the model proposed them, `handed` as
         approval gave them, and `checks` their `tool_result` checks, in order
-        (None without an active sentinel). `resolved` are the targets each
+        (None without an active sentinel). `execution_ids` are the ids the
+        calls' approvals and `tool_call` steps were recorded under, one for
+        each, in order (fresh ones without them). `resolved` are the targets each
         handed call resolved to (`handed_targets`), which a response handed
         over while the sample's sentinel is not active has no checks to give
         (None when the sample has no sentinel). Each handout's targets are
@@ -569,7 +584,7 @@ class _Handouts:
                 handed[last].function,
                 None if shared else _exact_key(proposed[last]),
                 tuple(handouts),
-                uuid(),
+                execution_ids[last] if execution_ids is not None else uuid(),
                 ambiguous,
                 tuple(forms),
                 tuple(targets.records),
@@ -736,6 +751,9 @@ class _Handouts:
             checks.checks,
             tuple(_parts_digest(part, result) for part in checks.parts),
             checks.views,
+            handed.execution_id
+            if handed is not None and not handed.ambiguous
+            else None,
         )
 
     def _checks(
@@ -817,6 +835,9 @@ class _Handouts:
                     result.message,
                     reject_on_viewer_error=len(result.checks) > 1,
                     view=result.views[index],
+                    execution_id=target_execution_id(
+                        result.execution_id, result.checks[index].target
+                    ),
                 )
             except Exception as ex:
                 self.failed.setdefault(digest, ex)
@@ -1493,7 +1514,9 @@ async def sentinel_tool_call(
     call: ToolCall,
     viewer: ToolCallViewer | None,
     producer: Produced | None,
+    execution_id: str | None = None,
 ) -> "Decision | None":
+    """Run the `tool_call` stage for a bridged call, recording its steps under the call's handout (`execution_id`)."""
     from inspect_ai._sentinel._dispatch import sentinel_before_tool_call
 
     with producer.scope() if producer is not None else nullcontext():
@@ -1508,6 +1531,7 @@ async def sentinel_tool_call(
                 history=None,
                 producer=producer.event if producer is not None else None,
                 bridge=True,
+                execution_id=execution_id,
             ),
         )
 
@@ -1555,6 +1579,7 @@ async def _tool_result(
     result: ChatMessageTool,
     reject_on_viewer_error: bool = False,
     view: ToolCallView | None = None,
+    execution_id: str | None = None,
 ) -> None:
     from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
 
@@ -1580,6 +1605,7 @@ async def _tool_result(
                     bridge=True,
                     # a copy, as the call's
                     view=deepcopy(view),
+                    execution_id=execution_id,
                 ),
             )
         except ToolCallViewError as ex:
