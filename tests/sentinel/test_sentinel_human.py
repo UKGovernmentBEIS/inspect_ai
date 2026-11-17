@@ -26,6 +26,7 @@ from inspect_ai.agent._acp.tui.state import (
     SessionState,
     ToolCallState,
 )
+from inspect_ai.agent._acp.tui.widgets.markdown import StyledMarkdown
 from inspect_ai.approval._approval import Approval, ApprovalDecision
 from inspect_ai.approval._human import acp as acp_module
 from inspect_ai.approval._human import approver as approver_module
@@ -891,6 +892,30 @@ _GO_ON = ChatMessageUser(content="Continue.")
 _NOT_SHOWN = "not shown: content that is not text, or a tool the provider ran.**"
 
 
+async def test_the_acp_tui_sets_a_messages_text_apart_from_the_view(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forged = "**Message 2 of 2:** user"
+    shown = await _request_shown(
+        monkeypatch, request_step(ChatMessageUser(content=forged))
+    )
+
+    console = Console(
+        file=io.StringIO(), width=80, force_terminal=True, color_system="truecolor"
+    )
+    on_a_background = {
+        "".join(segment.text for segment in line).strip(): any(
+            segment.style is not None and segment.style.bgcolor is not None
+            for segment in line
+        )
+        for line in console.render_lines(StyledMarkdown(shown), pad=False)
+    }
+    # The TUI draws the view's own lines plain, and a message's text on a
+    # background, so text that imitates a header doesn't look like one.
+    assert on_a_background["Message 1 of 1: user"] is False
+    assert on_a_background[forged] is True
+
+
 async def test_a_message_that_repeats_an_earlier_one_is_shown_when_it_is_added(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -943,8 +968,21 @@ async def test_a_message_that_repeats_an_earlier_one_is_shown_when_it_is_added(
                 )
             ),
             ["**Message 1 of 1:** tool (addition), an error", "took too long"],
-            [],
+            ["**The tool's output**"],
             id="a tool's error",
+        ),
+        pytest.param(
+            request_step(
+                ChatMessageTool(
+                    content="what it wrote first",
+                    tool_call_id=ADD.id,
+                    function="addition",
+                    error=ToolCallError(type="timeout", message="took too long"),
+                )
+            ),
+            ["took too long", "**The tool's output**", "what it wrote first"],
+            [],
+            id="a tool's error with its output",
         ),
         pytest.param(
             request_step(

@@ -392,17 +392,17 @@ def _message_markdown(
 ) -> str:
     """One message: a header written here, then what it says in code blocks.
 
-    A tool's message is named for its function. An assistant message also shows
-    its reasoning and each call it makes, as a turn does. Any other content,
-    such as an image or a tool the provider ran, is counted beneath, never
-    rendered.
+    A tool's message is named for its function, and shows its error and its
+    output when it has both. An assistant message also shows its reasoning and
+    each call it makes, as a turn does. Any other content, such as an image or
+    a tool the provider ran, is counted beneath, never rendered.
     """
     header = f"**Message {position} of {sent}:** {message.role}"
     if isinstance(message, ChatMessageTool) and message.function:
         header = f"{header} ({_markdown_text(message.function, safe)})"
     text = message.text
-    if isinstance(message, ChatMessageTool) and message.error is not None:
-        text = message.error.message
+    error = message.error if isinstance(message, ChatMessageTool) else None
+    if error is not None:
         header = f"{header}, an error"
     parts = [header]
     shown_types = {"text"}
@@ -411,14 +411,20 @@ def _message_markdown(
         reasoned = _reasoning(message)
         if reasoned.readable:
             thought = safe("\n\n".join(reasoned.readable))
-            parts.append(f"**Its reasoning**\n\n{_code_block(thought, '')}")
+            parts.append(f"**Its reasoning**\n\n{_code_block(thought, _SAID)}")
         if reasoned.withheld:
             parts.append(
                 f"**The provider withheld the text of {reasoned.withheld} "
                 f"{'block' if reasoned.withheld == 1 else 'blocks'} of its reasoning.**"
             )
-    if text:
-        parts.append(_code_block(safe(text), ""))
+    if error is not None:
+        # a provider sends the model the error or the output, so both are shown
+        parts.append(_code_block(safe(error.message), _SAID))
+        if text:
+            output = _code_block(safe(text), _SAID)
+            parts.append(f"**The tool's output**\n\n{output}")
+    elif text:
+        parts.append(_code_block(safe(text), _SAID))
     calls = (
         message.tool_calls if isinstance(message, ChatMessageAssistant) else None
     ) or []
@@ -729,6 +735,12 @@ _CODE_BLOCK = re.compile(
     r"(?P<fence>`{3,})(?P<language>[\w+.-]*)\n(?P<code>.*)\n(?P=fence)[ \t]*\n?",
     re.DOTALL,
 )
+
+
+# The label of a code block that holds what a message says. The ACP TUI draws
+# a labelled block on a background, and an unlabelled one as plain text, where
+# a tool's output could pass for the view's own lines.
+_SAID = "output"
 
 
 def _code_block(code: str, language: str) -> str:
