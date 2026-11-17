@@ -315,3 +315,9 @@
     Regression verdict from two eval logs — reads a baseline and a candidate Inspect JSON log (epochs as rounds) and returns PASS, BLOCK or INCONCLUSIVE from a rule file fixed before the runs, with an exact sequential test. The error bound is stated only under its conditions; a rule written after the logs exist is labelled descriptive.
   author: "[Ajay Surya Senthilrajan](https://github.com/ajaysurya1221)"
   categories: ["Analysis"]
+
+- name: "[Context.dev Web Search](https://github.com/mrmps/inspect-context-dev)"
+  description: |
+    Web search with query-relevant passages and source citations for Inspect evaluations.
+  author: "[Mike](https://github.com/mrmps)"
+  categories: ["Tooling"]
