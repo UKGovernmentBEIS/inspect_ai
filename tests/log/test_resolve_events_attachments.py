@@ -23,12 +23,13 @@ from inspect_ai.log._recorders.buffer.transcript_history_provider import (
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.model._chat_message import (
     ChatMessage,
+    ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
-from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
 
 
 def _model_event(
@@ -107,6 +108,30 @@ def test_resolve_events_attachments_core_vs_full_model_call() -> None:
     )
     assert isinstance(full, ModelEvent) and full.call is not None
     assert "BIG CALL" in full.call.model_dump_json()
+
+
+def test_resolve_events_attachments_resolves_derived_completion() -> None:
+    # logs before 0.3.123 store no completion, so the validator derives it
+    # from the condensed message text
+    output = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(content=f"{ATTACHMENT_PROTOCOL}h1")
+            )
+        ],
+    )
+    assert output.completion == f"{ATTACHMENT_PROTOCOL}h1"
+    event = _model_event([ChatMessageUser(content="hi")]).model_copy(
+        update={"output": output}
+    )
+    events: list[Event] = [event]
+
+    [resolved] = resolve_events_attachments(events, {"h1": "REPLY"})
+
+    assert isinstance(resolved, ModelEvent)
+    assert resolved.output.message.text == "REPLY"
+    assert resolved.output.completion == "REPLY"
 
 
 def test_resolve_events_attachments_false_is_noop() -> None:
