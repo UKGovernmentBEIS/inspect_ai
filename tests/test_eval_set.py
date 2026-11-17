@@ -54,7 +54,7 @@ from inspect_ai._eval.evalset import (
 )
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.resolved import ResolvedTask
-from inspect_ai._eval.task.task import task_with
+from inspect_ai._eval.task.task import PreviousTask, task_with
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, filesystem, local_path, size_in_mb
@@ -1011,9 +1011,11 @@ def test_eval_set_previous_task_keeps_resolved_sandbox(
             recover_crashed=False,
         )[0]
     else:
-        previous_task = _resumed_task(
+        resumed_task = _resumed_task(
             resolved, task_identifier(header, None), log_info.name
         )
+        assert isinstance(resumed_task, PreviousTask)
+        previous_task = resumed_task
 
     resumed = resolve_tasks(
         previous_task,

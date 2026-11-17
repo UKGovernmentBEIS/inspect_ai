@@ -62,10 +62,12 @@ outside the process. That is a property of the transport rather than a
 judgement about the field.
 
 Fields the rule admits but selection mode has already decided are excluded
-with their reason recorded in `NOT_OVERRIDABLE`: `fail_on_error` is forced
-`False` for a worker, task retry is disabled, and the eval-set orchestration
-arguments (`retry_*`, `bundle_*`, `log_dir_allow_dirty`, `embed_viewer`) never
-reach a worker at all.
+with their reason recorded in `NOT_OVERRIDABLE`: `fail_on_error`, task retry
+(`retry_attempts`, `retry_immediate`) and crashed-log recovery
+(`incomplete_action`, `incomplete_max`) follow the selection's `completion`
+policy, and the other eval-set orchestration arguments (`retry_wait`,
+`retry_connections`, `retry_cleanup`, `bundle_*`, `log_dir_allow_dirty`,
+`embed_viewer`) never reach a worker at all.
 
 ## Versioning
 
@@ -446,17 +448,17 @@ NOT_OVERRIDABLE: dict[str, str] = {
     "cost_limit": "part of task identity",
     "eval_set_id": "carried by the selection document itself",
     "scanner": "carried by the selection document's own `scanners` field, with merge (not override) semantics",
-    "fail_on_error": "forced to False for a worker, so the runner adjudicates",
-    "continue_on_fail": "moot once fail_on_error is False",
+    "fail_on_error": "decided by the selection's `completion`: forced to False, or the definition's",
+    "continue_on_fail": "decided by the selection's `completion`: moot, or the definition's",
     "acp_server": "forced on for a worker, which is detached and cannot prompt",
     "ctl_server": "demoted to eval-set's own on/off, which owns the keep-alive park",
-    "retry_attempts": "eval-set retry orchestration, which a worker never performs",
+    "retry_attempts": "decided by the selection's `completion`: unused, or the definition's",
     "retry_wait": "eval-set retry orchestration, which a worker never performs",
     "retry_connections": "eval-set retry orchestration, which a worker never performs",
     "retry_cleanup": "eval-set retry orchestration, which a worker never performs",
-    "retry_immediate": "eval-set retry orchestration, which a worker never performs",
-    "incomplete_action": "eval-set recovery orchestration, which a worker never performs",
-    "incomplete_max": "eval-set recovery orchestration, which a worker never performs",
+    "retry_immediate": "decided by the selection's `completion`: unused, or the definition's",
+    "incomplete_action": "decided by the selection's `completion`: the default disposition, or the definition's",
+    "incomplete_max": "decided by the selection's `completion`: the default disposition, or the definition's",
     "bundle_dir": "eval-set bundling, which a worker skips",
     "bundle_overwrite": "eval-set bundling, which a worker skips",
     "embed_viewer": "eval-set bundling, which a worker skips",

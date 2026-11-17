@@ -3,9 +3,10 @@
 When the `INSPECT_EVAL_SET_CAPTURE` environment variable names a file path,
 `eval_set()` resolves its tasks (tasks × models), writes an `EvalSetCapture`
 manifest describing every resolved task to that path, and exits the process
-without running anything (and without touching `log_dir`). This gives external
-runners a static enumeration of an eval set while preserving the side effects
-of executing the definition that produced the `eval_set()` call.
+without running anything (and without writing to `log_dir`, which it only
+reads to report each task's completion state). This gives external runners a
+static enumeration of an eval set while preserving the side effects of
+executing the definition that produced the `eval_set()` call.
 
 This module is deliberately not part of the public API: the models here are a
 versioned wire format (see `EVAL_SET_CAPTURE_VERSION`) consumed by external
@@ -16,7 +17,7 @@ Schema changes require a version bump and corresponding golden-test updates
 
 import hashlib
 import os
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import TYPE_CHECKING, Any, Iterable, Mapping, NamedTuple
 
 from pydantic import BaseModel
 from pydantic_core import to_json
@@ -37,7 +38,7 @@ if TYPE_CHECKING:
 
 INSPECT_EVAL_SET_CAPTURE = "INSPECT_EVAL_SET_CAPTURE"
 
-EVAL_SET_CAPTURE_VERSION = 3
+EVAL_SET_CAPTURE_VERSION = 4
 
 
 def eval_set_capture_requested() -> str | None:
@@ -103,6 +104,27 @@ class EvalSetCaptureTask(BaseModel):
 
     epochs: int
     """Effective number of epochs."""
+
+    log: str | None = None
+    """Location of this task's log in the log directory: the log an unsharded `eval_set` reuses when `complete` is `True`, or resumes from when it is `False`. Added in version 4.
+
+    The location is as the log directory's listing names it, which for a local directory is a `file://` URI.
+    """
+
+    complete: bool | None = None
+    """Inspect's completion verdict on the task's logs, as an unsharded `eval_set` over the same log directory reaches it. Added in version 4.
+
+    `True` means it would not rerun the task, `False` means it would resume the task from `log`, and `None` means there is no log it would use (none at all, or under a `limit` only logs of another `sample_shuffle`), so it would run the task fresh.
+
+    When a task has logs from separate runs, the verdict is on the one log `eval_set` chooses among them. A crashed (`started`) log is incomplete whatever the definition's `incomplete_action`, because recovering it writes a log, which capture never does; a `completion="definition"` selection that resumes the task from it applies the disposition, as `eval_set` would.
+    """
+
+
+class TaskLogVerdict(NamedTuple):
+    """A task's log and Inspect's completion verdict on it (see `EvalSetCaptureTask.log` and `EvalSetCaptureTask.complete`)."""
+
+    location: str
+    complete: bool
 
 
 class EvalSetCaptureScan(BaseModel):
@@ -255,6 +277,7 @@ def build_eval_set_capture(
     options: dict[str, Any],
     overrides: "EvalSetOverrides | None" = None,
     scan: "EvalSetCaptureScan | None" = None,
+    task_logs: Mapping[str, TaskLogVerdict],
 ) -> EvalSetCapture:
     """Build a capture manifest for a set of resolved tasks.
 
@@ -268,6 +291,7 @@ def build_eval_set_capture(
         options: Informational `eval_set()` options as the definition passed them.
         overrides: Operational overrides in force, or `None`.
         scan: Serialized scanner configuration, or `None` when the definition declares no scanners.
+        task_logs: Each task's log and completion verdict by task identifier, for tasks that have a log.
 
     Returns:
         Capture manifest for the eval set.
@@ -288,6 +312,8 @@ def build_eval_set_capture(
         epoch_count = resolve_task_epochs(task.task, eval_epochs).epochs
 
         args_full = getattr(task.task, TASK_ALL_PARAMS_ATTR, None)
+        identifier = task_identifier(task, eval_set_args)
+        task_log = task_logs.get(identifier)
 
         capture_tasks.append(
             EvalSetCaptureTask(
@@ -312,11 +338,13 @@ def build_eval_set_capture(
                     else None
                 ),
                 sequence=task.sequence,
-                identifier=task_identifier(task, eval_set_args),
+                identifier=identifier,
                 samples=samples_selected(
                     task.task.dataset, limit, sample_id, task.task.name, task_names
                 ),
                 epochs=epoch_count,
+                log=task_log.location if task_log else None,
+                complete=task_log.complete if task_log else None,
             )
         )
 
