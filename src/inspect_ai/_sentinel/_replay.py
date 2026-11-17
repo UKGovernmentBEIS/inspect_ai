@@ -98,7 +98,7 @@ def steps_from_events(
 
     Inspect logs record origins on every model call or on none. If a transcript mixes calls with and without origins, recorded calls retain their recorded classification and calls without origins are inferred; continuity across that mixed sequence is not guaranteed.
 
-    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later; older or unknown versions omit them and warn once when a selected human approver appears. A `tool_call` step whose call an approver changed has no `view.context`: the `ApprovalEvent` view describes the call the approver was shown, and live renders the changed call's context again, which the log does not record. A log is refused where the call an approval approved (its modified call, else the call it records) is not the call its `ToolEvent` records, unless a recorded sentinel modify changed the call again to the one the `ToolEvent` records. Inspect before 0.3.277 wrote such logs, including for a call an approver changed in place and approved without a modified call, and they are refused whatever version the header records, since a retried eval keeps its completed samples under a newer header. This includes an approved call whose tool records other arguments than it was given, such as `memory()` resolving a path: the log does not show which implementation ran. Replay such a transcript from its messages instead. Where such a call has no recorded step and its `ToolEvent` has a parsing or approval error, it may have been refused before it ran or raised the error after running, so replay skips its tool steps with a warning naming the call instead of refusing the log.
+    In logs without origins, recorded sentinel checks and human decisions are used only when their step id pairs with a model call's exact id. Inferred turns may differ from those seen by a sentinel that ran before origins were recorded; reproducing that sentinel's live steps is outside this replay contract. For a run without a sentinel, human decisions are reconstructed from `ApprovalEvent`s only when the log records inspect_ai 0.3.277 or later; older or unknown versions omit them and warn once when a selected human approver appears. A `tool_call` step whose call an approver changed has no `view.context`: the `ApprovalEvent` view describes the call the approver was shown, and live renders the changed call's context again, which the log does not record. A log is refused where the call an approval approved (its modified call, else the call it records) is not the call its `ToolEvent` records, unless a recorded sentinel modify changed the call again to the one the `ToolEvent` records. Inspect before 0.3.277 wrote such logs, including for a call an approver changed in place and approved without a modified call, and they are refused whatever version the header records, since a retried eval keeps its completed samples under a newer header. This includes an approved call whose tool records other arguments than it was given, such as `memory()` resolving a path: the log does not show which implementation ran. Replay such a transcript from its messages instead. Where such a call has no recorded step and its `ToolEvent` has a parsing or approval error, it may have been refused before it ran or raised the error after running, so replay skips its tool steps with a warning naming the call instead of refusing the log. Where one model response proposes several calls under one id (Mistral names calls whose ids the model omitted `"null"`), each execution is paired with the call of its function and, where several share it, the arguments its approval, else its `ToolEvent`, records; where that names no single call (a tool that rewrites its arguments, or a sentinel modify the execution has no approval for), replay skips the execution's tool steps with a warning naming the call.
 
     The tool steps of an agent bridge's calls are not rebuilt, recorded or not: a call the bridged scaffold ran itself leaves no `ToolEvent`, and for a call a sandbox bridge ran on the host (`ToolEvent.metadata["bridge"]`) the log records neither which model call produced it (the bridge can hand over a response filter's output, or one of several generations under one call id) nor its result as the bridge's service delivered it (the error text a scaffold received, for one). Replay skips these steps until the log records which message made each call, and logs a warning naming the calls. A `human()` decision at a skipped step, and a person's approval of a host call, still reach the later steps of the conversation, as live. A bridge's tool checks are recorded in spans named `sentinel_bridge`, so a native call under an id a bridge also checked keeps its own checks. A native call's producer is the latest model call that proposed its id (in the call's own conversation, where model calls in several conversations proposed it), a bridge's generation included (a native loop in a bridge request filter generates under the bridge's routing), so a native call run under an id a bridge generation proposed before it is given that generation; bridge-issued ids are reserved against the history, so this needs a prefilled native call or a provider or filter reusing an id.
 
@@ -651,6 +651,9 @@ class _Driver:
         # event indexes of ToolEvents whose tool steps are skipped
         # (_check_modified_approval); a call id can recur across turns
         self.unverified_calls: set[int] = set()
+        # event indexes of ToolEvents whose call replay cannot tell among the
+        # calls their response proposed under the id (_attribute)
+        self.unattributed_calls: set[int] = set()
         # span id -> the region holding it
         self._regions: dict[str | None, _Region] = {}
         self._span_begins: dict[str, SpanBeginEvent] | None = None
@@ -848,7 +851,21 @@ class _Driver:
                     )
         for entry in calls:
             self._take_checks(entry)
+            self._attribute(entry)
             self._check_modified_approval(entry)
+        if self.unattributed_calls:
+            logging.getLogger(__name__).warning(
+                "Skipped the tool steps of call(s) %s: the model response proposed "
+                "several calls under each id, and the log cannot show which of "
+                "them each execution ran.",
+                ", ".join(
+                    dict.fromkeys(
+                        repr(entry.event.id)
+                        for entry in calls
+                        if entry.index in self.unattributed_calls
+                    )
+                ),
+            )
         if self.unverified_calls:
             logging.getLogger(__name__).warning(
                 "Skipped the tool steps of call(s) %s: each ended in a parsing or "
@@ -1107,6 +1124,48 @@ class _Driver:
             call.after_span = self._tool_span_of(
                 ("tool_result", event.id), end, ending=event.failed is True
             )
+
+    def _attribute(self, call: _Call) -> None:
+        """Take a native execution's call from among the calls its response proposed under its id.
+
+        A provider can name several calls of one response by one id (Mistral's
+        `"null"` for omitted ids), and the proposal found by id is any of them.
+        The call taken has the execution's function and, where several do, the
+        arguments its approval recorded, which are the call before an approver
+        or a sentinel changed it, else its `ToolEvent`'s, unless a sentinel's
+        modify replaced those. Equal calls are interchangeable. Where none or
+        several distinct calls match (a tool that rewrites its arguments, a
+        modify without an approval), the execution's steps are skipped
+        (`unattributed_calls`) rather than built from another call. A log
+        written before `execution_id` is read as before.
+        """
+        event = call.event
+        if (
+            event.execution_id is None
+            or _bridged(event)
+            or call.assistant is None
+            or call.proposal is None
+        ):
+            return
+        candidates = [c for c in call.assistant.tool_calls or [] if c.id == event.id]
+        if len(candidates) <= 1:
+            return
+        approval = call.approval
+        arguments = (
+            approval.call.arguments
+            if approval is not None
+            else event.arguments
+            if self._sentinel_modify(call.before_span, event) is None
+            else None
+        )
+        found = _proposed_call(candidates, event.function, arguments)
+        if found is not None:
+            call.proposal = found
+            return
+        call.proposal = None
+        self.unattributed_calls.add(call.index)
+        self._settle_at_end(call.before_span)
+        self._settle_at_end(call.after_span)
 
     def _tool_call(self, call: _Call) -> None:
         event = call.event
@@ -1900,6 +1959,18 @@ def _check_span_tree(events: Sequence[Event]) -> None:
             on_path.add(current)
             current = parents[current]
         done.update(path)
+
+
+def _proposed_call(
+    candidates: Sequence[ToolCall], function: str, arguments: dict[str, Any] | None
+) -> ToolCall | None:
+    """The one call among `candidates` of `function` with `arguments`, if they name one; equal calls are one call, and without `arguments` only equal calls name one."""
+    named = [c for c in candidates if c.function == function]
+    if named and any(c != named[0] for c in named) and arguments is not None:
+        named = [c for c in named if json_equal(c.arguments, arguments)]
+    if named and all(c == named[0] for c in named):
+        return named[0]
+    return None
 
 
 def _bridged(event: ToolEvent) -> bool:
