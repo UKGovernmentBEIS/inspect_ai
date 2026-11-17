@@ -246,6 +246,7 @@ proxy started from the injected tools (`ai/agent/_bridge/sandbox/bridge.py:171`)
 and a sandbox service; [model-proxy-lifecycle.md](model-proxy-lifecycle.md)
 traces that lifecycle. A sandbox service is an inbound channel from the sandbox
 to the host, which Pattern 1's tool path does not have.
+[agent-bridge-trust-model.md](agent-bridge-trust-model.md) describes the bridge's components, data flow and trust boundary.
 
 ### Where tool calls execute
 
