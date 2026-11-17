@@ -398,8 +398,9 @@ the sample it sent still runs and its result is dropped.
      final log, or `None`;
   2. the channel is closed, by any cause (`close()`, `result()`, `async
      with` exit, `cancel()` before the task ends, the end of the creator's
-     attempt, or a drain, `score` or `error` cancel, while sent samples
-     still run): `RuntimeError` ("the handle is closed, by its holder or an
+     attempt, or an operator `abort`, `drain`, `score` or `error` cancel,
+     while sent samples still run or the attempt's abort unwinds):
+     `RuntimeError` ("the handle is closed, by its holder or an
      operator drain or cancel: send no more samples").
 
   So a handle kept from a finished creator, or one whose task an operator
@@ -582,9 +583,11 @@ class PortRequest:
 - **Closing.** `channel.close()` sets `closed` and rings `pushed` in one
   synchronous step, so a feeder parked in `next_samples()` wakes and returns
   `None`; a second call does nothing. Every cause uses it: `close()`,
-  `result()`, `async with` exit, `cancel()`, a drain, `score` or `error` cancel (the attempt's
-  `TaskCancel.apply`, which `start_attempt` creates with the attempt's
-  cancel scope, calls `channel.close()`; [task-dispatch.md](task-dispatch.md#phases-and-cancelling)),
+  `result()`, `async with` exit, `cancel()`, an `abort`, `drain`, `score`
+  or `error` cancel (the attempt's `TaskCancel.apply`, which
+  `start_attempt` creates with the attempt's cancel scope, calls
+  `channel.close()` for every action, `abort` included, before it cancels
+  the scope; [task-dispatch.md](task-dispatch.md#phases-and-cancelling)),
   the end of the creator's attempt (`run_one` sets
   `ended` and closes the attempt's channels in the synchronous step in which
   it publishes a retry or ends the record, its exception exit included, for
@@ -597,10 +600,17 @@ class PortRequest:
   first. `RunQueue.cancel` closes the channel when it sets the flag, and so
   can an explicit `close()` or the creator's attempt ending before the
   dispatcher's next pass, so the exception covers every close. A creator that forgets to
-  close cannot keep a rollout task open past its own attempt. Samples
-  already buffered or running when a drain, `score` or `error` cancel
-  closes it follow the directive's existing rules and settle through
-  `sample_complete` or `sample_abandoned`.
+  close cannot keep a rollout task open past its own attempt. So
+  `cancel()` of a fed task in its attempt closes the channel in the same
+  synchronous call, whichever route `RunQueue.cancel` takes (`cancel_task`
+  for a registered record, the stored `TaskCancel` for one that has not
+  registered; both reach `request("abort")` and `apply`): a send between
+  that `cancel()` and the task's end raises `RuntimeError` at once rather
+  than waiting through the abort's log write and `task_complete` for
+  `TaskEndedError`. Samples already buffered or running when a drain,
+  `score` or `error` cancel closes it follow the directive's existing rules
+  and settle through `sample_complete` or `sample_abandoned`; an abort
+  cancels them with the attempt, as today.
 - **Retries.** A task fed through a handle is never retried automatically
   (decision: Ransom, 2026-11-10). When its attempt fails for any reason, a
   sent sample's sandbox setup included, the task ends with its error log,
@@ -939,6 +949,13 @@ test touched), with mockllm models; every test that waits is bounded with
     subclass; after the creator's attempt ends while a sent sample still
     runs, the same; after a drain while a sample is still running, the
     same, and after that sample settles and the task ends,
+    `TaskEndedError`; between `cancel()` of a running fed task and its end,
+    `RuntimeError` that is neither subclass, from an `enqueue_sample()`
+    called right after `cancel()` with no await between (so the abort
+    cannot have ended the task, which the test asserts by the record not
+    being `ended`), both for a registered attempt whose sent sample is
+    running (the solver sets an `anyio.Event` the test awaits first) and
+    for one picked but not yet registered, and once the task has ended,
     `TaskEndedError`; after `cancel()` once the task has ended,
     `TaskEndedError`;
   - a fed task built as
@@ -1104,7 +1121,8 @@ that guarantee.
   uncounted start step; channels closed with the creator's attempt; no
   retry, and `can_retry=False` on the `TaskCancel` that `start_attempt`
   creates, for fed tasks; `channel.close()` from the
-  attempt's `TaskCancel.apply` that `start_attempt` creates), `_eval/task/task.py` (`resolve_dataset_or_source`
+  attempt's `TaskCancel.apply` that `start_attempt` creates, for every
+  action, `abort` included), `_eval/task/task.py` (`resolve_dataset_or_source`
   naming a `HandleChannel`'s dataset and refusing the reserved name for any
   other), `_eval/eval.py` (`_resolve_enqueued_tasks` resolving a fed task
   for its creator's model; the `eval_resolve_tasks` refusal;
@@ -1144,9 +1162,12 @@ and is the only task `result()` waits on (narrowing "wait for the task to
 end" on any handle); and (2026-11-16) a fed task's log is marked by the
 reserved dataset name `samples_from_handle`, which `eval_retry()` and the
 eval set's result read (the 2026-11-04 decision's refusal and counting
-from the log, without the schema field dropped then), and a drain, `score`
-or `error` cancel closes the channel, with no separate stopped state
-(narrowing the 2026-11-12 send error order to ended, then closed); and
+from the log, without the schema field dropped then), and every cancel
+through the attempt's `TaskCancel` (`abort`, `drain`, `score` or `error`)
+closes the channel in its `apply` (`abort` added 2026-11-17, so `cancel()`
+of a running fed task closes it at once), with no separate stopped
+state (narrowing the 2026-11-12 send error order to ended, then closed);
+and
 (2026-11-17) a fed task's
 `task_identifier()` is built from its task id
 (`…#samples_from_handle/{model}/{task_id}`, with no settings hashed;

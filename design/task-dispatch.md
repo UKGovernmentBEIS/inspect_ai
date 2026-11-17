@@ -712,7 +712,9 @@ queued row and by a handle's `cancel()`, is synchronous:
 
 **Aborting an attempt that has not registered.** `start_attempt` creates
 the attempt's cancel scope and its `TaskCancel`, whose `apply` cancels that
-scope (today both are created in `_run_task`), in the synchronous step that
+scope (today both are created in `_run_task`; for a task fed through a
+handle it first closes the task's sample channel, for every action,
+[task-handles.md](task-handles.md)), in the synchronous step that
 moves the record into `attempt`, and stores them on the record; `run_one`
 passes them to `_run_task`, which enters the scope around `task_run` as
 today. Every
