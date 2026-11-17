@@ -53,9 +53,9 @@ def bash_allowlist(
     Arguments are not checked, so allow only commands safe with any arguments.
 
     Args:
-        allowed_commands (List[str]): List of allowed bash commands.
-        allow_sudo (bool, optional): Whether to allow sudo commands. Defaults to False.
-        command_specific_rules (Optional[Dict[str, List[str]]], optional): Allowed subcommands (first arguments) for specific commands. Defaults to None.
+        allowed_commands (list[str]): List of allowed bash commands.
+        allow_sudo (bool): Whether to allow sudo commands. Defaults to False.
+        command_specific_rules (dict[str, list[str]] | None): Allowed subcommands (first arguments) for specific commands. Defaults to None.
 
     Returns:
         Approver: A function that approves or rejects bash commands based on the allowed list and rules.
@@ -92,7 +92,7 @@ def bash_allowlist(
         tokens = command.split()
 
         if tokens[:1] == ["sudo"]:
-            if not allow_sudo:
+            if allow_sudo is not True:
                 return Approval(decision="reject", explanation="sudo is not allowed")
             tokens = tokens[1:]
 
@@ -129,7 +129,7 @@ def python_allowlist(
 
     Only simple code is ever approved: `import` of allowed modules, calls to
     allowed functions and to functions of allowed modules, variables, literals,
-    operators, `if` and `for`. Everything else is escalated. Arguments are not
+    operators, `if` and `for`. Other valid code is escalated. Arguments are not
     checked, so allow only functions and modules that are safe however used.
 
     Args:
@@ -201,7 +201,7 @@ def python_allowlist(
                 explanation="Expected the code as a single string argument.",
             )
 
-        # as well as bad syntax: null bytes (ValueError) and nesting too deep to parse
+        # besides bad syntax: lone surrogates (ValueError) and nesting too deep to parse
         try:
             reason = review(args[0])
         except (SyntaxError, ValueError, RecursionError, MemoryError) as e:

@@ -1,6 +1,7 @@
 import importlib.util
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import pytest
 from test_helpers.utils import run_example, skip_if_github_action
@@ -34,46 +35,68 @@ def approval_example() -> ModuleType:
 
 
 @pytest.mark.parametrize(
-    ("arguments", "decision"),
+    ("options", "arguments", "decision"),
     [
-        ({"command": "ls -la /tmp"}, "approve"),
-        ({"command": "ls\ntouch x"}, "reject"),
-        ({"command": "ls; touch x"}, "reject"),
-        ({"command": 'echo "hi"'}, "reject"),
-        ({"command": "FOO=bar ls"}, "escalate"),
-        ({"command": "rm -rf x"}, "escalate"),
-        ({"other": "ls", "command": "rm -rf x"}, "escalate"),
+        ({}, {"command": "ls -la /tmp"}, "approve"),
+        ({}, {"command": "ls\ntouch x"}, "reject"),
+        ({}, {"command": "ls; touch x"}, "reject"),
+        ({}, {"command": 'echo "hi"'}, "reject"),
+        ({}, {"command": "FOO=bar ls"}, "escalate"),
+        ({}, {"command": "rm -rf x"}, "escalate"),
+        ({}, {"other": "ls", "command": "rm -rf x"}, "escalate"),
+        ({}, {"command": ["ls"]}, "escalate"),
+        ({}, {}, "escalate"),
+        ({}, {"command": "git status"}, "approve"),
+        ({}, {"command": "git push"}, "escalate"),
+        ({}, {"command": "git"}, "escalate"),
+        ({}, {"command": "sudo ls"}, "reject"),
+        ({"allow_sudo": True}, {"command": "sudo ls"}, "approve"),
+        ({"allow_sudo": True}, {"command": "sudo git"}, "escalate"),
+        ({"allow_sudo": "false"}, {"command": "sudo ls"}, "reject"),
     ],
 )
 async def test_approval_example_bash_allowlist(
-    approval_example: ModuleType, arguments: dict[str, str], decision: str
+    approval_example: ModuleType,
+    options: dict[str, Any],
+    arguments: dict[str, Any],
+    decision: str,
 ) -> None:
-    approve = approval_example.bash_allowlist(allowed_commands=["ls", "echo", "cat"])
+    approve = approval_example.bash_allowlist(
+        allowed_commands=["ls", "echo", "cat", "git"],
+        command_specific_rules={"git": ["status"]},
+        **options,
+    )
     call = ToolCall(id="1", function="bash", arguments=arguments)
     approval = await approve("", call, ToolCallView(), [])
     assert approval.decision == decision
 
 
 @pytest.mark.parametrize(
-    ("code", "decision"),
+    ("arguments", "decision"),
     [
-        ("import math\nresult = math.factorial(5)\nprint(result)", "approve"),
-        ("import shutil\nshutil.rmtree('x')", "escalate"),
-        ("print(print.__self__)", "escalate"),
-        ("x = eval\nprint(x)", "escalate"),
-        ("print = 1", "escalate"),
-        ("from math import sqrt", "escalate"),
-        ("# coding: utf-7\nprint(1)", "escalate"),
-        ("print(", "reject"),
+        ({"code": "import math\nresult = math.factorial(5)\nprint(result)"}, "approve"),
+        ({"code": "import shutil\nshutil.rmtree('x')"}, "escalate"),
+        ({"code": "print(print.__self__)"}, "escalate"),
+        ({"code": "x = eval\nprint(x)"}, "escalate"),
+        ({"code": "print = 1"}, "escalate"),
+        ({"code": "from math import sqrt"}, "escalate"),
+        ({"code": "import math as m"}, "escalate"),
+        ({"code": "# coding: utf-7\nprint(1)"}, "escalate"),
+        ({"code": ["print(1)"]}, "escalate"),
+        ({}, "escalate"),
+        ({"code": "print("}, "reject"),
     ],
 )
 async def test_approval_example_python_allowlist(
-    approval_example: ModuleType, code: str, decision: str
+    approval_example: ModuleType, arguments: dict[str, Any], decision: str
 ) -> None:
     approve = approval_example.python_allowlist(
-        allowed_functions=["print"], allowed_modules=["math"]
+        allowed_functions=["print"],
+        allowed_modules=["math"],
+        disallowed_builtins=["eval"],
+        sensitive_modules=["os"],
     )
-    call = ToolCall(id="1", function="python", arguments={"code": code})
+    call = ToolCall(id="1", function="python", arguments=arguments)
     approval = await approve("", call, ToolCallView(), [])
     assert approval.decision == decision
 
