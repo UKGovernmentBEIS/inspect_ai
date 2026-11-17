@@ -4651,8 +4651,9 @@ UNMATCHED_MODIFY = (
 
 UNRECORDED_CHECK = (
     "Skipped the tool steps of call(s) {}: a sentinel modified each under a call "
-    "id other calls share, and without an approval replay can rely on, the log "
-    "cannot show the call the sentinel was shown."
+    "id other calls share, and no approval that replay can rely on records the call "
+    "as its tool validated it, so the log cannot show the call the sentinel was "
+    "shown."
 )
 
 
@@ -13790,6 +13791,215 @@ def test_a_modified_call_whose_checked_arguments_the_log_lacks_is_skipped_under_
                 # which the log cannot tell from the checked call
                 assert isinstance(rebuilt.step, BeforeToolCall)
                 assert rebuilt.step.call.arguments == case.proposed
+                assert_step_equals_live(
+                    (stage, rebuilt.id),
+                    rebuilt,
+                    step,
+                    differences=["tool_call.call", "tool_call.view"],
+                )
+                continue
+            assert_step_equals_live((stage, rebuilt.id), rebuilt, step)
+
+
+@approver
+def r7_modifies_the_proposal(
+    proposed: dict[str, Any], modified: dict[str, Any]
+) -> Approver:
+    """Modify the call proposed with exactly the arguments `proposed` to `modified`, and approve the rest."""
+
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        if repr(call.arguments) == repr(proposed):
+            return Approval(
+                decision="modify",
+                modified=replace(call, arguments=modified),
+                explanation="moved",
+            )
+        return Approval(decision="approve")
+
+    return approve
+
+
+class ApproverModifiedCase(NamedTuple):
+    """A `memory()` call an approver modifies to a path its tool resolves.
+
+    A modify the tool's validation would fill a Pydantic default into is
+    refused live, so a tool's canonical arguments are what can change it.
+    """
+
+    tool: Callable[[], Tool]
+    proposed: dict[str, Any]
+    approved: dict[str, Any]
+    checked: dict[str, Any]
+    modified: dict[str, Any]
+    other: dict[str, Any]
+
+
+def approver_modified_case(variant: str) -> ApproverModifiedCase:
+    from inspect_ai.tool import memory
+
+    command = "view" if variant == "readonly_view" else variant
+    extras: dict[str, dict[str, Any]] = {
+        "create": {"file_text": "x"},
+        "str_replace": {"old_str": "text", "new_str": "y"},
+        "insert": {"insert_line": 0, "insert_text": "y"},
+    }
+    extra = extras.get(command, {})
+    seeded = {f"/memories/{name}": "text" for name in ("a", "b", "c", "p")}
+
+    def tool() -> Tool:
+        if command == "create":
+            return memory()
+        return memory(initial_data=seeded, readonly=variant == "readonly_view")
+
+    def arguments(name: str) -> dict[str, Any]:
+        path = f"/memories/{name}"
+        if command == "rename":
+            target = f"/memories/{name.rsplit('/', 1)[-1]}2"
+            return {"command": command, "old_path": path, "new_path": target}
+        return {"command": command, "path": path, **extra}
+
+    return ApproverModifiedCase(
+        tool,
+        proposed=arguments("p"),
+        approved=arguments("sub/../a"),
+        checked=arguments("a"),
+        modified=arguments("c"),
+        other=arguments("b"),
+    )
+
+
+@pytest.mark.parametrize(
+    "variant",
+    [
+        "view",
+        "readonly_view",
+        "create",
+        "str_replace",
+        "insert",
+        "delete",
+        "rename",
+    ],
+)
+@pytest.mark.parametrize("shape", ["other_function", "repeated_id", "unique_id"])
+@pytest.mark.parametrize("sentinel_modifies", [True, False])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_an_approver_modified_call_a_sentinel_modified_is_skipped_under_a_shared_id(
+    variant: str,
+    shape: str,
+    sentinel_modifies: bool,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # after Ransom's review 5940838848: the approval records the approver's
+    # modify before its tool validated it (memory() resolves
+    # /memories/sub/../a), and a sentinel modify then replaces the validated
+    # call in the ToolEvent, so the log does not record the call the sentinel
+    # checked; under a shared or repeated id (refused by the merge base)
+    # replay rebuilt the check from the approval's modify. The control has no
+    # sentinel modify, and an approver modify the tool does not rewrite (one
+    # it rewrites is refused: `_check_modified_approval`).
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    case = approver_modified_case(variant)
+    approved = case.approved if sentinel_modifies else case.checked
+
+    def proposed(id: str, arguments: dict[str, Any]) -> ToolCall:
+        return ToolCall(id=id, function="memory", arguments=arguments)
+
+    responses = {
+        "other_function": [
+            r7_tool_calls(
+                proposed("null", case.proposed),
+                ToolCall(id="null", function="read_path", arguments={"path": "b"}),
+            )
+        ],
+        "repeated_id": [
+            r7_tool_calls(proposed("r", case.proposed)),
+            r7_tool_calls(proposed("r", case.other)),
+        ],
+        "unique_id": [
+            r7_tool_calls(proposed("u1", case.proposed), proposed("u2", case.other))
+        ],
+    }[shape]
+    moved_id = {"other_function": "null", "repeated_id": "r", "unique_id": "u1"}[shape]
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="Remember")],
+            solver=[use_tools(case.tool(), read_path()), generate()],
+            sentinel=[
+                r7_probe(seen, copies=True),
+                *(
+                    [r7_modifies_the_checked_call(case.checked, case.modified)]
+                    if sentinel_modifies
+                    else []
+                ),
+            ],
+            approval=[
+                ApprovalPolicy(r7_modifies_the_proposal(case.proposed, approved), "*")
+            ],
+        ),
+        model=outputs(*responses, done()),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert all(e.error is None for e in runs), [e.error for e in runs]
+    [approval] = [
+        e
+        for e in events
+        if isinstance(e, ApprovalEvent)
+        and e.modified is not None
+        and e.modified.function == "memory"
+    ]
+    assert approval.decision == "modify" and approval.modified is not None
+    assert approval.modified.arguments == approved
+    moved = approval.execution_id
+    [moved_run] = [e for e in runs if e.execution_id == moved]
+    assert moved_run.id == moved_id
+    modifies = [
+        e for e in events if isinstance(e, SentinelEvent) and e.action == "modify"
+    ]
+    assert [e.execution_id for e in modifies] == ([moved] if sentinel_modifies else [])
+    assert moved_run.arguments == (case.modified if sentinel_modifies else case.checked)
+    # live checked the approver's call as its tool validated it
+    checked = seen_at(events, seen, "tool_call", moved).call.arguments
+    assert repr(checked) == repr(case.checked)
+    assert (checked != approved) == sentinel_modifies
+
+    skipped = sentinel_modifies and shape != "unique_id"
+    live = [
+        (e.stage, seen[e.explanation or ""], e.execution_id)
+        for e in events
+        if isinstance(e, SentinelEvent)
+        and e.path == "r7_probe"
+        and not (
+            skipped
+            and e.execution_id == moved
+            and e.stage in ("tool_call", "tool_result")
+        )
+    ]
+    # a log written before execution ids skips the call alike
+    for recorded in [events, without_execution_ids(events)] if skipped else [events]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            replay = replay_events(log, recorded)
+        assert [s.stage for s in replay] == [stage for stage, _, _ in live]
+        if skipped:
+            assert replay_warnings(caplog) == [UNRECORDED_CHECK.format(repr(moved_id))]
+        else:
+            assert replay_warnings(caplog) == []
+        for (stage, step, execution), rebuilt in zip(live, replay):
+            if sentinel_modifies and stage == "tool_call" and execution == moved:
+                # under a unique id, as on main: rebuilt from the approval's
+                # modify, which the log cannot tell from the checked call
+                assert isinstance(rebuilt.step, BeforeToolCall)
+                assert rebuilt.step.call.arguments == approved
                 assert_step_equals_live(
                     (stage, rebuilt.id),
                     rebuilt,
