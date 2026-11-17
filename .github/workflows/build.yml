@@ -432,7 +432,10 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           PATHS_FILE="src/inspect_ai/tool/_sandbox_tools_utils/injectable_paths.txt"
-          mapfile -t PATHSPECS < <(sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; /^(#|$)/d' "$PATHS_FILE")
+          PATHSPECS=()
+          while IFS= read -r pathspec; do
+            PATHSPECS+=("$pathspec")
+          done < <(sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; /^(#|$)/d' "$PATHS_FILE")
           if git diff --quiet "origin/${BASE_REF}...HEAD" -- "${PATHSPECS[@]}"; then
             echo "injectable_src=false" >> "$GITHUB_OUTPUT"
           else
