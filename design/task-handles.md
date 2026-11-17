@@ -889,6 +889,12 @@ test touched), with mockllm models; every test that waits is bounded with
     `error` set and the search continues; with the searcher raising after a
     send, the `except` cancels the rollout task and the searcher's error
     propagates;
+  - a faceted selection worker, with pruning enabled, whose selected creator
+    constructs the unselected `rollout_task()` in its solver, adds it and
+    gets a sent sample's `EvalSample` back: the factory body runs, the task
+    is fed through its handle, and the worker's own task list is still
+    pruned at resolution (the existing definition-time pruning tests
+    pass);
   - `result()` on the handle of an ordinary added task raises
     `RuntimeError` with the message above and leaves the task queued or
     running, while `cancel()` and `close()` on that handle work; `cancel()`
@@ -1048,7 +1054,12 @@ test touched), with mockllm models; every test that waits is bounded with
 ## Implementation plan
 
 One PR, after step 3 of
-[task-dispatch.md](task-dispatch.md#implementation-plan).
+[task-dispatch.md](task-dispatch.md#implementation-plan). Its selection-mode
+support also needs runtime pruning to leave tasks constructed by attempt
+code unpruned
+([task-dispatch.md](task-dispatch.md#interactions-with-related-changes));
+the selection-mode tests below run with pruning enabled and fail without
+that guarantee.
 
 - `_eval/task/enqueue.py` (`TaskHandle`, the errors, `TaskAttempt` and
   `_attempt`, `result()` refusing a handle whose task is
