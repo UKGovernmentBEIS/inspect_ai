@@ -1068,10 +1068,11 @@ def test_hf_generation_config_override_survives_generate(source, tmp_path) -> No
     """
     import json
 
-    import torch
     from transformers import GenerationConfig, GPT2Config, GPT2LMHeadModel
 
     from inspect_ai.model._providers.hf import resolve_generation_config
+
+    torch = pytest.importorskip("torch")
 
     # repetition_penalty here is a legacy generation parameter in config.json
     config = GPT2Config.from_dict(
