@@ -1100,3 +1100,31 @@ def test_hf_generation_config_override_survives_generate(source, tmp_path) -> No
     )
 
     assert model.generation_config.repetition_penalty != 1.5
+
+
+@skip_if_no_transformers
+@skip_if_no_accelerate
+def test_hf_generation_config_object_passes_to_from_pretrained(monkeypatch) -> None:
+    """A GenerationConfig object is still forwarded to from_pretrained()."""
+    from transformers import GenerationConfig
+
+    from inspect_ai.model._providers.hf import HuggingFaceAPI
+
+    supplied = GenerationConfig(repetition_penalty=1.3)
+    model_kwargs: dict[str, Any] = {}
+
+    def fake_model_from_pretrained(*args: Any, **kwargs: Any) -> Any:
+        model_kwargs.update(kwargs)
+        return SimpleNamespace(generation_config=kwargs["generation_config"])
+
+    _patch_hf_loaders(monkeypatch, _repo_generation_config())
+    monkeypatch.setattr(
+        "transformers.AutoModelForCausalLM.from_pretrained", fake_model_from_pretrained
+    )
+
+    api = HuggingFaceAPI(model_name="org/model", generation_config=supplied)
+
+    assert model_kwargs["generation_config"] is supplied
+    recorded = api.repo_config.model_dump()["generation_config"]
+    assert recorded["source"] == "object"
+    assert recorded["values"]["repetition_penalty"] == 1.3

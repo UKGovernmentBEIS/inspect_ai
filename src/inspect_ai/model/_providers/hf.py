@@ -94,7 +94,7 @@ class HFGenerationConfigInfo(BaseModel):
     """Generation config the model applies before Inspect's `GenerateConfig`."""
 
     source: str
-    """Value of the `generation_config` model arg: `auto`, `default`, or a path or Hub id."""
+    """Value of the `generation_config` model arg: `auto`, `default`, a path or Hub id, or `object` for a `transformers.GenerationConfig`."""
 
     values: dict[str, Any]
     """Fields that differ from the `transformers` defaults."""
@@ -163,10 +163,17 @@ class HuggingFaceAPI(ModelAPI):
         generation_config = collect_model_arg("generation_config")
         if generation_config is None:
             generation_config = "auto"
-        if not isinstance(generation_config, str):
+        if isinstance(generation_config, str):
+            self.generation_config_source = generation_config
+        elif isinstance(generation_config, GenerationConfig):
+            # from_pretrained() uses it in place of the repository's config
+            model_args["generation_config"] = generation_config
+            self.generation_config_source = "object"
+        else:
             raise ValueError(
-                "generation_config must be 'auto', 'default', or a path or "
-                "Hugging Face Hub id to load a generation config from"
+                "generation_config must be 'auto', 'default', a path or "
+                "Hugging Face Hub id to load a generation config from, or a "
+                "transformers.GenerationConfig"
             )
 
         # select the transformers auto-class used to load the model. Some
@@ -244,13 +251,12 @@ class HuggingFaceAPI(ModelAPI):
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = "left"
 
-        if generation_config != "auto":
+        if isinstance(generation_config, str) and generation_config != "auto":
             self.model.generation_config = resolve_generation_config(
                 generation_config,
                 self.model.generation_config,
                 token=hub_token(self.api_key),
             )
-        self.generation_config_source = generation_config
 
     @override
     def close(self) -> None:
