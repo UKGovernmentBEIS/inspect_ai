@@ -92,8 +92,9 @@ measurement-instrument groups:
     "zeroed",  # scored as an empty attempt
 ```
 
-`score_is_excluded(score)` is true when `score.reason == "excluded"` and the
-value is a float `NaN` at the root. A score with the reason `"excluded"` that
+`score_is_excluded(score)`, an internal helper that no package exports, is
+true when `score.reason == "excluded"` and the value is a float `NaN` at the
+root. A score with the reason `"excluded"` that
 a later edit gave a counted value is therefore not excluded.
 
 ## Epoch reduction
@@ -155,23 +156,23 @@ def exclude_samples(
     log: EvalLog,
     samples: Sequence[SampleSelector],
     provenance: ProvenanceData,
-) -> list[tuple[int | str, int]]: ...
+) -> None: ...
 
 def zero_samples(
     log: EvalLog,
     empty: EvalLog,
     samples: Sequence[SampleSelector],
     provenance: ProvenanceData,
-) -> list[tuple[int | str, int]]: ...
+) -> None: ...
 ```
 
-All three are exported from `inspect_ai.log`. Each function returns the
-`(id, epoch)` of every sample it edited, which is every target, in target
-order. Both are synchronous, edit `log` in place and leave writing to the
-caller. Neither takes a task or a `trust_log` option. Every refusal is
+All three are exported from `inspect_ai.log`. Both functions return
+`None`, as `edit_score()` does: every target is edited, so the caller reads
+the outcome from the log. Both are synchronous, edit `log` in place and
+leave writing to the caller. Neither takes a task or a `trust_log` option. Every refusal is
 raised before the first edit, so a refused call leaves the log as it was.
 
-The return type, excluding an already excluded sample again, and
+Returning `None`, excluding an already excluded sample again, and
 recomputing after an empty selector sequence are not yet built; see
 [Not yet built](#not-yet-built).
 
@@ -190,8 +191,7 @@ Both functions first check, each failure a `ValueError`:
 
 The targets are the matched samples in selector order, without repeats. An
 empty selector sequence is accepted and selects no target; the call then
-edits nothing and returns `[]`, but still resolves and recomputes the metrics
-as below. (The CLI cannot pass one: `--sample` is required.)
+edits nothing, but still resolves and recomputes the metrics as below. (The CLI cannot pass one: `--sample` is required.)
 
 ### Exclude
 
@@ -269,8 +269,8 @@ added.
 Neither function checks whether a target already carries its disposition:
 excluding or zeroing a sample again applies the edits again and appends to
 the history. An operator layer that re-applies its rulings on every pass and
-wants no repeat entries checks first, with `score_is_excluded()` for an
-exclusion or the current score's `reason` for a zero.
+wants no repeat entries checks the current score's `reason` first:
+`"excluded"` for an exclusion, `"zeroed"` for a zero.
 
 ### Edits and recomputation
 
@@ -304,9 +304,9 @@ edited and must not be written, as with `edit_score()`.
 
 ```
 inspect log exclude LOG_FILE --sample ID [--sample ID ...] [--epoch N]
-                    --reason TEXT [--author NAME] [--json]
+                    --reason TEXT [--author NAME]
 inspect log zero    LOG_FILE --from EMPTY_LOG --sample ID [--sample ID ...] [--epoch N]
-                    --reason TEXT [--author NAME] [--json]
+                    --reason TEXT [--author NAME]
 ```
 
 - Neither loads a task or runs an eval, so neither takes task, model or eval
@@ -318,52 +318,58 @@ inspect log zero    LOG_FILE --from EMPTY_LOG --sample ID [--sample ID ...] [--e
   [`_cli/util.py`](../src/inspect_ai/_cli/util.py), shared with
   `inspect ctl`: the git identity, else the OS user name.
 - The command reads the log (and for zero, first the empty-attempt log)
-  whole, applies the function, and writes the log back in place with `write_eval_log(log, LOG_FILE,
-  if_match_etag=log.etag)`, so a concurrent rewrite of an S3 log fails with
+  whole, applies the function, and writes the log back in place with
+  `write_eval_log(log, LOG_FILE, if_match_etag=log.etag)`, so a concurrent rewrite of an S3 log fails with
   `WriteConflictError`. A `ValueError`, `LookupError` or
   `WriteConflictError` is reported as a command error.
-- Output: one line per target (`excluded <id> (epoch <n>)` or `zeroed ...`)
-  and the log's headline metric after recomputation
-  (`<score>/<metric>: <value>`). `--json` prints
-  `{"log": ..., "applied": [[id, epoch], ...]}` instead. The unconditional
-  write and this output are not yet built; see
-  [Not yet built](#not-yet-built).
+- Output, after the write: one summary line (`excluded 3 samples`,
+  `zeroed 1 sample`, counting targets as `(id, epoch)` pairs), then the
+  log's headline metric after recomputation (`<score>/<metric>: <value>`).
+  There is no `--json` option. The unconditional write and this output are
+  not yet built; see [Not yet built](#not-yet-built).
 
 ## Not yet built
 
 The code on `main` differs from this document in one respect, which a
 follow-up implementation changes (decision: Ransom, 2026-11-17). Today
 `exclude_samples()` leaves a target whose held scores are all excluded
-unedited and reports it as unchanged, both functions return a
+unedited and reports it as unchanged; both functions return a
 `DispositionResult` NamedTuple (`applied`, and `unchanged`, which is always
-empty for zero), and the CLI prints `unchanged` lines, has an `"unchanged"`
-key in `--json`, and writes the log only when something was applied.
+empty for zero); and the CLI prints one `excluded`/`zeroed`/`unchanged`
+line per target, has a `--json` option printing the log path with the
+`applied` and `unchanged` lists, and writes the log only when something was
+applied.
 
 The implementation removes:
 
 - in [`log/_disposition.py`](../src/inspect_ai/log/_disposition.py): the
   `DispositionResult` NamedTuple, the "all scores already excluded" branch
   of `exclude_samples()`, and the `if not edits: return` path in
-  `_apply_edits()`; both functions return the list of edited `(id, epoch)`
-  pairs. An empty selector sequence is still accepted and returns `[]`, but
+  `_apply_edits()`, and the "Returns" sections of both docstrings; both
+  functions return `None`. An empty selector sequence is still accepted, but
   now resolves and recomputes the metrics, so a metric or reducer the
   registry cannot build raises `LookupError` even though no sample is
   edited (today the call returns without resolving);
 - the `DispositionResult` export from
   [`log/__init__.py`](../src/inspect_ai/log/__init__.py) and its entry in
   `docs/reference/inspect_ai.log.qmd`;
-- in `_run_disposition()` in [`_cli/log.py`](../src/inspect_ai/_cli/log.py):
-  the `if result.applied:` write guard, the `unchanged` lines and the
-  `"unchanged"` JSON key;
-- tests: `test_exclude_samples_unchanged` and the `result.unchanged == []`
-  asserts in `tests/scorer/test_score_editing.py` and
-  `tests/log/test_zero_samples.py`, and the `unchanged` cases in
+- in [`_cli/log.py`](../src/inspect_ai/_cli/log.py): the `--json` option
+  blocks of the `exclude` and `zero` commands, and in `_run_disposition()`
+  the `if result.applied:` write guard, the JSON branch and the per-target
+  print loop, replaced by the one summary line;
+- tests: `test_exclude_samples_unchanged`, the `result.unchanged == []` and
+  `result.applied` asserts in `tests/scorer/test_score_editing.py` and
+  `tests/log/test_zero_samples.py` (the selector-expansion test checks the
+  log directly instead), and the `unchanged` and `--json` cases in
   `tests/_cli/test_log_disposition.py`;
-- docs: the `result.unchanged` sentence in `docs/eval-logs.qmd`.
+- docs: in `docs/eval-logs.qmd`, the `result.applied` / `result.unchanged`
+  sentence, the "`--json` prints the result as JSON" sentence, and the
+  `result = ` assignments in the two examples.
 
-The change must ship before the next release, while `DispositionResult` is
-unreleased: removing it after a release is a breaking change to
-`inspect_ai.log`.
+All of it must ship before the next release, while `DispositionResult`,
+the return values and the commands' `--json` option are unreleased:
+changing them after a release is a breaking change to `inspect_ai.log` and
+the CLI.
 
 ## Decisions
 
@@ -376,9 +382,10 @@ unreleased: removing it after a release is a breaking change to
 - 2026-11-11: the operator runs the empty attempt as an ordinary eval with
   the entry point they ran the task with; Inspect's disposition code does
   not run it, and zero is a log-to-log edit like exclusion.
-- 2026-11-17: exclusion has no "already excluded" no-op, the same as zero,
-  and both functions return the list of edited `(id, epoch)` pairs instead
-  of a `DispositionResult` (see Not yet built).
+- 2026-11-17: exclusion has no "already excluded" no-op, the same as zero;
+  there is no `DispositionResult`, both functions return `None`, and the
+  CLI has no `--json` option and prints one summary line instead of a line
+  per target (see Not yet built).
 
 ## Alternatives considered
 
