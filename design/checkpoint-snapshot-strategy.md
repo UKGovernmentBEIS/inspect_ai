@@ -355,9 +355,10 @@ replacement of existing restic repository files, and tie resume to a
 recorded snapshot when one exists. They do not establish that a snapshot
 faithfully captures the sandbox or that its contents are recent or truthful.
 
-The restic strategy accepts two residual risks. Both affect only the
-availability of the sandbox's own checkpoints, whose contents that
-sandbox already controlled when it captured them:
+The restic strategy accepts two residual risks. Each is a way for a
+sandbox to make restores of its own checkpoints fail; the contents of
+those checkpoints were already under that sandbox's control when it
+captured them:
 
 - Egress never replaces a repository file the host has accepted, but
   the sandbox can still add new files that are correctly
@@ -378,7 +379,13 @@ sandbox already controlled when it captured them:
   and key files are sandbox-authored. The sandbox already receives the
   repository password, so authoring the key gives it no access it
   lacks; a format or key the host's restic cannot use is one more way
-  to make restores fail.
+  to make restores fail. This residual does not cover host resource
+  use: restic derives a key from each key file's own KDF parameters
+  before it can reject the file, so opening the repository on the host
+  (first-egress verification, and every later host-side command) does
+  key-derivation work the sandbox chooses, which neither the transfer
+  byte cap nor any other limit bounds and which shares host CPU and
+  memory with other samples.
 
 File-list agreement, newly received snapshot ids, and expected tags enforce
 transfer protocol consistency. A compromised sandbox can satisfy these
