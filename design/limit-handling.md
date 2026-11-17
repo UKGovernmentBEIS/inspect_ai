@@ -1624,19 +1624,24 @@ documented. Behaviour changes:
   recovery, `CompactionAuto`'s native-to-summary fallback) are unchanged:
   one that catches the error and calls again makes one more call that no
   limit counts.
-- **OpenAI mid-stream safety blocks fail under a cost limit.** With
-  streaming, OpenAI delivers a safeguard or content-filter block as an
-  error event after the stream has started, and
-  `openai_handle_stream_error()` (`src/inspect_ai/model/_openai.py:1715-1737`)
-  converts it into a `content_filter` output with no usage. Inference had
-  started, so it is not a rejection output, and under a cost limit the call
-  now fails with `UnmeteredCallError`, which fails the sample unless
-  something catches it; today the agent receives the `content_filter`
-  output and can continue. Cyber evals, which meet OpenAI's safety blocks
-  often, run with a cost limit and streaming will see such samples end in
-  an error instead of a refusal turn. Without a cost limit, or without
-  streaming (where the block arrives as a 400 rejection, exempt), nothing
-  changes.
+- **OpenAI safety blocks delivered after inference fail under a cost
+  limit.** OpenAI can deliver a safeguard or content-filter block (such as
+  `cyber_policy` or `content_policy_violation`) after inference started:
+  as an error event in a stream, or, on the Responses API, as a terminal
+  `model_response.error` on an ordinary, background-polled or batch
+  response, which the provider raises as `OpenAIResponseError`
+  (`src/inspect_ai/model/_providers/openai_responses.py:254-282`).
+  `openai_handle_stream_error()` (`src/inspect_ai/model/_openai.py:1715-1737`,
+  called at `openai_responses.py:321-329`) converts both into a
+  `content_filter` output with no usage. That is not the `APIStatusError`
+  path that labels rejection outputs, so under a cost limit the call now
+  fails with `UnmeteredCallError`, which fails the sample unless something
+  catches it; today the agent receives the `content_filter` output and can
+  continue. Cyber evals, which meet OpenAI's safety blocks often, run with
+  a cost limit will see such samples end in an error instead of a refusal
+  turn, with or without streaming. Only a block that arrives as an HTTP
+  status error (a 400 before any output) is a labelled rejection and stays
+  exempt. Without a cost limit nothing changes.
 - **Grok streams keep their last reported usage.** A Grok stream whose last
   chunks carry no usage now reports the last usage it received, where today
   it ends at zero.
@@ -1768,7 +1773,11 @@ under trio with `--runtrio`.
     `content_policy_violation` (`content_filter`); the same rejection
     delivered mid-stream through `openai_handle_stream_error()` fails with
     `UnmeteredCallError` under the cost limit and returns the
-    `content_filter` output without one; a
+    `content_filter` output without one; the same two outcomes, with
+    streaming disabled, for a Responses API terminal
+    `model_response.error` (`content_policy_violation` and `cyber_policy`)
+    on an ordinary response, a background response after one poll, and a
+    batch result; a
     provider stub returning a `model_length` output with no usage and no
     rejection flag fails; one rejection case per classified converter
     (implementation plan);
