@@ -11290,6 +11290,13 @@ var base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{
 	return false;
 }
 /**
+* True for Enter or Space on a `<button>`: the keypress the browser turns into
+* the button's click. Container key handlers (a grid's row activation) skip it
+* so the button still gets pressed.
+*/ function isButtonActivation(e) {
+	return (e.key === "Enter" || e.key === " ") && e.target instanceof HTMLButtonElement;
+}
+/**
 * Whether an element is attached and rendered. Where `checkVisibility` is
 * unavailable (jsdom, Safari before 17.4) an attached element counts as shown.
 */ var isElementShown = (el) => el.isConnected && el.checkVisibility?.() !== false;
@@ -11472,6 +11479,8 @@ var base64Pattern = /^(?:[A-Za-z0-9+/]{4})*?(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{
 */ function valueAsString(value) {
 	return value !== null && typeof value === "object" ? JSON.stringify(value) : String(value);
 }
+// ../../packages/util/src/function.ts
+/** Returns its argument unchanged. */ var identity$2 = (value) => value;
 // ../../packages/util/src/git.ts
 /**
 * Builds a GitHub commit URL from a repository origin and commit hash.
@@ -13432,7 +13441,7 @@ var isRetryableHttpStatus = (status) => status === 408 || status === 429 || stat
 /**
 * Creates a debounced version of a function that delays invoking the function
 * until after `wait` milliseconds have passed since the last time it was invoked.
-*/ function debounce$3(func, wait, options = {}) {
+*/ function debounce$2(func, wait, options = {}) {
 	let timeout = null;
 	let args = null;
 	let result;
@@ -18282,8 +18291,340 @@ var PulsingDots = (t0) => {
 	} else t1 = $[6];
 	return t1;
 };
+// ../../packages/react/src/hooks/useAnchoredPopover.ts
+/**
+* Shows a popover element in the top layer, anchored to `anchor` through the
+* CSS anchor name `anchorName`. Attach the returned ref to the `[popover]`
+* element; `shown` turns true once it is showing. `trigger` is the control
+* that opened it: keyboard focus moves from it into the popover, and returns
+* to it.
+*
+* Render the popover's content only once `shown` is true. A popover that
+* isn't showing is `display: none`, so content mounted with it couldn't take
+* focus (`autoFocus`) or measure itself. The ref runs during the commit, and
+* React re-renders synchronously before paint, so the content still appears
+* in the first painted frame.
+*
+* The anchor name is added to (and later removed from) the anchor's inline
+* `anchor-name` list, so two popovers can share one anchor. On teardown,
+* focus inside the popover returns to the trigger: removing a popover from
+* the DOM would otherwise drop focus to `<body>`.
+*
+* `forwardRef` also receives the popover element. Pass a stable ref (a
+* `useRef` object or a state setter): a new identity re-shows the popover.
+*/ function useAnchoredPopover(anchor, trigger, anchorName, forwardRef) {
+	const $ = (0, import_compiler_runtime.c)(8);
+	const [shown, setShown] = (0, import_react.useState)(false);
+	let t0;
+	if ($[0] !== anchor || $[1] !== anchorName || $[2] !== forwardRef || $[3] !== trigger) {
+		t0 = (popover) => {
+			if (!popover) return;
+			const removeAnchorName = addAnchorName(anchor, anchorName);
+			popover.showPopover({ source: trigger });
+			setRef(forwardRef, popover);
+			setShown(true);
+			return () => {
+				setRef(forwardRef, null);
+				const hadFocus = popover.contains(document.activeElement);
+				popover.hidePopover();
+				removeAnchorName();
+				if (hadFocus) trigger.focus({ preventScroll: true });
+			};
+		};
+		$[0] = anchor;
+		$[1] = anchorName;
+		$[2] = forwardRef;
+		$[3] = trigger;
+		$[4] = t0;
+	} else t0 = $[4];
+	const ref = t0;
+	let t1;
+	if ($[5] !== ref || $[6] !== shown) {
+		t1 = {
+			ref,
+			shown
+		};
+		$[5] = ref;
+		$[6] = shown;
+		$[7] = t1;
+	} else t1 = $[7];
+	return t1;
+}
+var setRef = (ref, value) => {
+	if (typeof ref === "function") ref(value);
+	else if (ref) ref.current = value;
+};
+var addAnchorName = (el, name) => {
+	const names = (value) => value.split(",").map((n) => n.trim()).filter((n) => n !== "" && n !== "none");
+	el.style.setProperty("anchor-name", [...names(el.style.getPropertyValue("anchor-name")), name].join(", "));
+	return () => {
+		const rest = names(el.style.getPropertyValue("anchor-name")).filter((n) => n !== name);
+		if (rest.length > 0) el.style.setProperty("anchor-name", rest.join(", "));
+		else el.style.removeProperty("anchor-name");
+	};
+};
+var AnchoredPopover_module_default = {
+	popover: "_popover_1hgm1_4",
+	arrow: "_arrow_1hgm1_48",
+	up: "_up_1hgm1_65",
+	down: "_down_1hgm1_66",
+	left: "_left_1hgm1_70",
+	right: "_right_1hgm1_71"
+};
+// ../../packages/react/src/components/AnchoredPopover.tsx
+var POSITION_AREA = {
+	auto: "bottom",
+	top: "top",
+	"top-start": "top span-right",
+	"top-end": "top span-left",
+	bottom: "bottom",
+	"bottom-start": "bottom span-right",
+	"bottom-end": "bottom span-left",
+	left: "left",
+	"left-start": "left span-bottom",
+	"left-end": "left span-top",
+	right: "right",
+	"right-start": "right span-bottom",
+	"right-end": "right span-top"
+};
+var OFFSET_MARGIN = {
+	top: "marginBottom",
+	bottom: "marginTop",
+	left: "marginRight",
+	right: "marginLeft"
+};
+var sideOf = (placement) => {
+	const side = placement.split("-")[0];
+	return side === "top" || side === "left" || side === "right" ? side : "bottom";
+};
+/**
+* Whether an `auto` popover (a menu or panel, not a hover card) is open
+* within `root`. Escape belongs to it: handlers for Escape elsewhere in the
+* page should leave it alone so the browser closes just the popover.
+*/ var hasOpenPopover = (root = document) => root.querySelector("[popover=\"auto\"]:popover-open") !== null;
+/**
+* A floating panel in the browser's top layer, positioned with CSS anchor
+* positioning: it stays attached to `anchor` through scrolling and resizing,
+* flips to the opposite side when it doesn't fit, and is never clipped by an
+* ancestor's overflow or stacking order.
+*
+* It renders in place rather than through a portal, so it stays inside an
+* enclosing modal `<dialog>`'s subtree and remains interactive there.
+*/ var AnchoredPopover = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(6);
+	let open;
+	let props;
+	if ($[0] !== t0) {
+		({open, ...props} = t0);
+		$[0] = t0;
+		$[1] = open;
+		$[2] = props;
+	} else {
+		open = $[1];
+		props = $[2];
+	}
+	if (!open || !props.anchor) return null;
+	const t1 = props.trigger ?? props.anchor;
+	let t2;
+	if ($[3] !== props || $[4] !== t1) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(OpenPopover, {
+			...props,
+			anchor: props.anchor,
+			trigger: t1
+		});
+		$[3] = props;
+		$[4] = t1;
+		$[5] = t2;
+	} else t2 = $[5];
+	return t2;
+};
+var OpenPopover = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(46);
+	let anchor;
+	let children;
+	let className;
+	let forwardRef;
+	let onClose;
+	let rest;
+	let style;
+	let t1;
+	let t2;
+	let t3;
+	let t4;
+	let trigger;
+	if ($[0] !== t0) {
+		({onClose, anchor, trigger, mode: t1, placement: t2, offset: t3, arrow: t4, ref: forwardRef, className, style, children, ...rest} = t0);
+		$[0] = t0;
+		$[1] = anchor;
+		$[2] = children;
+		$[3] = className;
+		$[4] = forwardRef;
+		$[5] = onClose;
+		$[6] = rest;
+		$[7] = style;
+		$[8] = t1;
+		$[9] = t2;
+		$[10] = t3;
+		$[11] = t4;
+		$[12] = trigger;
+	} else {
+		anchor = $[1];
+		children = $[2];
+		className = $[3];
+		forwardRef = $[4];
+		onClose = $[5];
+		rest = $[6];
+		style = $[7];
+		t1 = $[8];
+		t2 = $[9];
+		t3 = $[10];
+		t4 = $[11];
+		trigger = $[12];
+	}
+	const mode = t1 === void 0 ? "auto" : t1;
+	const placement = t2 === void 0 ? "bottom" : t2;
+	const offset = t3 === void 0 ? 8 : t3;
+	const arrow = t4 === void 0 ? false : t4;
+	const restoreFocusOnClose = (0, import_react.useRef)(false);
+	const t5 = (0, import_react.useId)();
+	let t6;
+	if ($[13] !== t5) {
+		let t7;
+		if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
+			t7 = /[^\w-]/g;
+			$[15] = t7;
+		} else t7 = $[15];
+		t6 = t5.replace(t7, "");
+		$[13] = t5;
+		$[14] = t6;
+	} else t6 = $[14];
+	const uid = t6;
+	const anchorName = `--popover-anchor-${uid}`;
+	const selfName = `--popover-${uid}`;
+	const { ref, shown } = useAnchoredPopover(anchor, trigger, anchorName, forwardRef);
+	let t7;
+	if ($[16] !== placement) {
+		t7 = sideOf(placement);
+		$[16] = placement;
+		$[17] = t7;
+	} else t7 = $[17];
+	const side = t7;
+	let t8;
+	if ($[18] === Symbol.for("react.memo_cache_sentinel")) {
+		t8 = (e) => {
+			if (e.target !== e.currentTarget) return;
+			if (e.newState === "closed") restoreFocusOnClose.current = e.currentTarget.contains(document.activeElement);
+		};
+		$[18] = t8;
+	} else t8 = $[18];
+	const handleBeforeToggle = t8;
+	let t9;
+	if ($[19] !== onClose || $[20] !== trigger) {
+		t9 = (e_0) => {
+			if (e_0.target !== e_0.currentTarget || e_0.newState !== "closed") return;
+			if (restoreFocusOnClose.current) trigger.focus({ preventScroll: true });
+			onClose();
+		};
+		$[19] = onClose;
+		$[20] = trigger;
+		$[21] = t9;
+	} else t9 = $[21];
+	const handleToggle = t9;
+	let t10;
+	if ($[22] !== className) {
+		t10 = clsx(AnchoredPopover_module_default.popover, className);
+		$[22] = className;
+		$[23] = t10;
+	} else t10 = $[23];
+	const t11 = POSITION_AREA[placement];
+	const t12 = OFFSET_MARGIN[side];
+	let t13;
+	if ($[24] !== anchorName || $[25] !== offset || $[26] !== selfName || $[27] !== style || $[28] !== t11 || $[29] !== t12) {
+		t13 = {
+			positionAnchor: anchorName,
+			anchorName: selfName,
+			positionArea: t11,
+			[t12]: offset,
+			...style
+		};
+		$[24] = anchorName;
+		$[25] = offset;
+		$[26] = selfName;
+		$[27] = style;
+		$[28] = t11;
+		$[29] = t12;
+		$[30] = t13;
+	} else t13 = $[30];
+	const t14 = shown && children;
+	let t15;
+	if ($[31] !== anchorName || $[32] !== arrow || $[33] !== selfName || $[34] !== shown || $[35] !== side) {
+		t15 = shown && arrow && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Arrows, {
+			vertical: side === "top" || side === "bottom",
+			anchorName,
+			selfName
+		});
+		$[31] = anchorName;
+		$[32] = arrow;
+		$[33] = selfName;
+		$[34] = shown;
+		$[35] = side;
+		$[36] = t15;
+	} else t15 = $[36];
+	let t16;
+	if ($[37] !== handleToggle || $[38] !== mode || $[39] !== ref || $[40] !== rest || $[41] !== t10 || $[42] !== t13 || $[43] !== t14 || $[44] !== t15) {
+		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			title: "",
+			...rest,
+			ref,
+			popover: mode,
+			className: t10,
+			style: t13,
+			onBeforeToggle: handleBeforeToggle,
+			onToggle: handleToggle,
+			children: [t14, t15]
+		});
+		$[37] = handleToggle;
+		$[38] = mode;
+		$[39] = ref;
+		$[40] = rest;
+		$[41] = t10;
+		$[42] = t13;
+		$[43] = t14;
+		$[44] = t15;
+		$[45] = t16;
+	} else t16 = $[45];
+	return t16;
+};
+/**
+* One arrow per side of the anchor on the placement axis. Each fills the gap
+* between the anchor and the popover only when the popover is on its side;
+* otherwise its insets cross and it collapses to nothing. That keeps the
+* arrow correct when position-try flips the popover, without an anchored
+* container query (unsupported in Firefox and Safari).
+*/ var Arrows = ({ vertical, anchorName: a, selfName: p }) => {
+	const along = vertical ? { left: `clamp(anchor(${p} left) + 4px, anchor(${a} center) - 8px, anchor(${p} right) - 20px)` } : { top: `clamp(anchor(${p} top) + 4px, anchor(${a} center) - 8px, anchor(${p} bottom) - 20px)` };
+	return (vertical ? [[AnchoredPopover_module_default.up, {
+		top: `anchor(${a} bottom)`,
+		bottom: `calc(anchor(${p} top) - 1px)`
+	}], [AnchoredPopover_module_default.down, {
+		top: `calc(anchor(${p} bottom) - 1px)`,
+		bottom: `anchor(${a} top)`
+	}]] : [[AnchoredPopover_module_default.left, {
+		left: `anchor(${a} right)`,
+		right: `calc(anchor(${p} left) - 1px)`
+	}], [AnchoredPopover_module_default.right, {
+		left: `calc(anchor(${p} right) - 1px)`,
+		right: `anchor(${a} left)`
+	}]]).map(([direction, inset]) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+		"aria-hidden": "true",
+		className: clsx(AnchoredPopover_module_default.arrow, direction),
+		style: {
+			...inset,
+			...along
+		}
+	}, direction));
+};
 // ../../packages/react/src/hooks/useEventListener.ts
-var import_react_dom = /* @__PURE__ */ __toESM(require_react_dom(), 1);
 function useEventListener(target, type, listener, options) {
 	const $ = (0, import_compiler_runtime.c)(10);
 	const listenerRef = useLatestRef(listener);
@@ -18331,17 +18672,18 @@ function useEventListener(target, type, listener, options) {
 	(0, import_react.useEffect)(t1, t2);
 }
 var AutocompleteInput_module_default = {
-	container: "_container_uf0p9_1",
-	input: "_input_uf0p9_6",
-	inputWithToggle: "_inputWithToggle_uf0p9_22",
-	toggleButton: "_toggleButton_uf0p9_26",
-	suggestionsList: "_suggestionsList_uf0p9_51",
-	suggestionItem: "_suggestionItem_uf0p9_64",
-	highlighted: "_highlighted_uf0p9_74"
+	container: "_container_1uv9y_1",
+	input: "_input_1uv9y_6",
+	inputWithToggle: "_inputWithToggle_1uv9y_22",
+	toggleButton: "_toggleButton_1uv9y_26",
+	suggestionsPopover: "_suggestionsPopover_1uv9y_51",
+	suggestionsList: "_suggestionsList_1uv9y_55",
+	suggestionItem: "_suggestionItem_1uv9y_67",
+	highlighted: "_highlighted_1uv9y_77"
 };
 // ../../packages/react/src/components/AutocompleteInput.tsx
 var AutocompleteInput = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(74);
+	const $ = (0, import_compiler_runtime.c)(84);
 	const { id, value, onChange, onCommit, onCancel, disabled, suggestions, placeholder: t1, ariaLabel, maxSuggestions: t2, charactersBeforeSuggesting: t3, maxSuggestionWidth: t4, autoFocus, className, allowBrowse: t5, required: t6 } = t0;
 	const placeholder = t1 === void 0 ? "Filter" : t1;
 	const maxSuggestions = t2 === void 0 ? 10 : t2;
@@ -18353,16 +18695,15 @@ var AutocompleteInput = (t0) => {
 	const [isOpen, setIsOpen] = (0, import_react.useState)(false);
 	const [highlightedIndex, setHighlightedIndex] = (0, import_react.useState)(-1);
 	const [isBrowseMode, setIsBrowseMode] = (0, import_react.useState)(false);
-	const [dropdownPosition, setDropdownPosition] = (0, import_react.useState)(null);
 	const listRef = (0, import_react.useRef)(null);
-	const containerRef = (0, import_react.useRef)(null);
+	const [container, setContainer] = (0, import_react.useState)(null);
 	const hasTypedRef = (0, import_react.useRef)(false);
 	let t7;
 	bb0: {
 		if (isBrowseMode) {
 			let t8;
 			if ($[0] !== suggestions) {
-				t8 = suggestions.filter(_temp$116);
+				t8 = suggestions.filter(_temp$117);
 				$[0] = suggestions;
 				$[1] = t8;
 			} else t8 = $[1];
@@ -18396,21 +18737,22 @@ var AutocompleteInput = (t0) => {
 	}
 	const filteredSuggestions = t7;
 	const showDropdown = isOpen && filteredSuggestions.length > 0;
+	const [prevSuggestions, setPrevSuggestions] = (0, import_react.useState)(filteredSuggestions);
+	if (prevSuggestions !== filteredSuggestions) {
+		setPrevSuggestions(filteredSuggestions);
+		setHighlightedIndex(-1);
+	}
 	let t8;
 	let t9;
-	if ($[7] !== showDropdown) {
+	if ($[7] !== autoFocus) {
 		t8 = () => {
-			if (showDropdown && containerRef.current) {
-				const rect = containerRef.current.getBoundingClientRect();
-				setDropdownPosition({
-					top: rect.bottom + 2,
-					left: rect.left,
-					width: rect.width
-				});
+			if (autoFocus && inputRef.current) {
+				inputRef.current.select();
+				inputRef.current.scrollLeft = 0;
 			}
 		};
-		t9 = [showDropdown];
-		$[7] = showDropdown;
+		t9 = [autoFocus];
+		$[7] = autoFocus;
 		$[8] = t8;
 		$[9] = t9;
 	} else {
@@ -18418,62 +18760,40 @@ var AutocompleteInput = (t0) => {
 		t9 = $[9];
 	}
 	(0, import_react.useEffect)(t8, t9);
-	const [prevSuggestions, setPrevSuggestions] = (0, import_react.useState)(filteredSuggestions);
-	if (prevSuggestions !== filteredSuggestions) {
-		setPrevSuggestions(filteredSuggestions);
-		setHighlightedIndex(-1);
-	}
 	let t10;
-	let t11;
-	if ($[10] !== autoFocus) {
+	if ($[10] !== filteredSuggestions.length) {
 		t10 = () => {
-			if (autoFocus && inputRef.current) {
-				inputRef.current.select();
-				inputRef.current.scrollLeft = 0;
-			}
-		};
-		t11 = [autoFocus];
-		$[10] = autoFocus;
-		$[11] = t10;
-		$[12] = t11;
-	} else {
-		t10 = $[11];
-		t11 = $[12];
-	}
-	(0, import_react.useEffect)(t10, t11);
-	let t12;
-	if ($[13] !== filteredSuggestions.length) {
-		t12 = () => {
 			if (hasTypedRef.current && filteredSuggestions.length > 0) setIsOpen(true);
 		};
-		$[13] = filteredSuggestions.length;
-		$[14] = t12;
-	} else t12 = $[14];
-	const handleFocus = t12;
-	let t13;
-	if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
-		t13 = (e) => {
+		$[10] = filteredSuggestions.length;
+		$[11] = t10;
+	} else t10 = $[11];
+	const handleFocus = t10;
+	let t11;
+	if ($[12] !== container) {
+		t11 = (e) => {
 			const target = e.target instanceof Node ? e.target : null;
-			if (containerRef.current && !containerRef.current.contains(target)) setIsOpen(false);
+			if (container && !container.contains(target)) setIsOpen(false);
 		};
-		$[15] = t13;
-	} else t13 = $[15];
-	useEventListener(typeof document === "undefined" ? null : document, "mousedown", t13);
-	let t14;
-	if ($[16] !== onChange) {
-		t14 = (e_0) => {
+		$[12] = container;
+		$[13] = t11;
+	} else t11 = $[13];
+	useEventListener(isOpen ? document : null, "mousedown", t11);
+	let t12;
+	if ($[14] !== onChange) {
+		t12 = (e_0) => {
 			hasTypedRef.current = true;
 			setIsBrowseMode(false);
 			onChange(e_0.target.value);
 			setIsOpen(true);
 		};
-		$[16] = onChange;
-		$[17] = t14;
-	} else t14 = $[17];
-	const handleInputChange = t14;
-	let t15;
-	if ($[18] !== isBrowseMode || $[19] !== isOpen) {
-		t15 = () => {
+		$[14] = onChange;
+		$[15] = t12;
+	} else t12 = $[15];
+	const handleInputChange = t12;
+	let t13;
+	if ($[16] !== isBrowseMode || $[17] !== isOpen) {
+		t13 = () => {
 			if (isOpen && isBrowseMode) {
 				setIsOpen(false);
 				setIsBrowseMode(false);
@@ -18483,37 +18803,39 @@ var AutocompleteInput = (t0) => {
 			}
 			inputRef.current?.focus();
 		};
-		$[18] = isBrowseMode;
-		$[19] = isOpen;
-		$[20] = t15;
-	} else t15 = $[20];
-	const handleToggleBrowse = t15;
-	let t16;
-	if ($[21] !== onChange) {
-		t16 = (suggestion) => {
+		$[16] = isBrowseMode;
+		$[17] = isOpen;
+		$[18] = t13;
+	} else t13 = $[18];
+	const handleToggleBrowse = t13;
+	let t14;
+	if ($[19] !== onChange) {
+		t14 = (suggestion) => {
 			onChange(String(suggestion ?? ""));
 			setIsOpen(false);
 			setIsBrowseMode(false);
 			inputRef.current?.focus();
 		};
-		$[21] = onChange;
-		$[22] = t16;
-	} else t16 = $[22];
-	const selectSuggestion = t16;
-	let t17;
-	if ($[23] !== filteredSuggestions || $[24] !== highlightedIndex || $[25] !== onCancel || $[26] !== onCommit || $[27] !== selectSuggestion || $[28] !== showDropdown || $[29] !== suggestions) {
-		t17 = (e_1) => {
+		$[19] = onChange;
+		$[20] = t14;
+	} else t14 = $[20];
+	const selectSuggestion = t14;
+	let t15;
+	if ($[21] !== filteredSuggestions || $[22] !== highlightedIndex || $[23] !== onCancel || $[24] !== onCommit || $[25] !== selectSuggestion || $[26] !== showDropdown || $[27] !== suggestions) {
+		t15 = (e_1) => {
 			if (!showDropdown) {
 				if (e_1.key === "Escape") {
-					e_1.preventDefault();
-					e_1.stopPropagation();
-					onCancel?.();
+					if (onCancel) {
+						e_1.preventDefault();
+						e_1.stopPropagation();
+						onCancel();
+					}
 				} else if (e_1.key === "Enter") {
 					e_1.preventDefault();
 					e_1.stopPropagation();
 					onCommit?.();
 				} else if (e_1.key === "ArrowDown" || e_1.key === "ArrowUp") {
-					const hasOptions = suggestions.some(_temp2$64);
+					const hasOptions = suggestions.some(_temp2$67);
 					if (filteredSuggestions.length > 0 || hasOptions) {
 						e_1.preventDefault();
 						e_1.stopPropagation();
@@ -18523,78 +18845,78 @@ var AutocompleteInput = (t0) => {
 				}
 				return;
 			}
-			bb147: switch (e_1.key) {
+			bb138: switch (e_1.key) {
 				case "ArrowDown":
 					e_1.preventDefault();
 					e_1.stopPropagation();
 					setHighlightedIndex((prev_0) => Math.min(prev_0 + 1, filteredSuggestions.length - 1));
-					break bb147;
+					break bb138;
 				case "ArrowUp":
 					e_1.preventDefault();
 					e_1.stopPropagation();
-					setHighlightedIndex(_temp3$44);
-					break bb147;
+					setHighlightedIndex(_temp3$45);
+					break bb138;
 				case "Tab":
 					if (highlightedIndex >= 0 && filteredSuggestions[highlightedIndex] !== void 0) {
 						e_1.preventDefault();
 						selectSuggestion(filteredSuggestions[highlightedIndex]);
 					}
-					break bb147;
+					break bb138;
 				case "Enter":
 					e_1.preventDefault();
 					e_1.stopPropagation();
 					if (highlightedIndex >= 0 && filteredSuggestions[highlightedIndex] !== void 0) selectSuggestion(filteredSuggestions[highlightedIndex]);
 					onCommit?.();
-					break bb147;
+					break bb138;
 				case "Escape":
 					e_1.preventDefault();
 					e_1.stopPropagation();
 					setIsOpen(false);
 			}
 		};
-		$[23] = filteredSuggestions;
-		$[24] = highlightedIndex;
-		$[25] = onCancel;
-		$[26] = onCommit;
-		$[27] = selectSuggestion;
-		$[28] = showDropdown;
-		$[29] = suggestions;
-		$[30] = t17;
-	} else t17 = $[30];
-	const handleKeyDown = t17;
-	let t18;
-	let t19;
-	if ($[31] !== highlightedIndex || $[32] !== showDropdown) {
-		t18 = () => {
+		$[21] = filteredSuggestions;
+		$[22] = highlightedIndex;
+		$[23] = onCancel;
+		$[24] = onCommit;
+		$[25] = selectSuggestion;
+		$[26] = showDropdown;
+		$[27] = suggestions;
+		$[28] = t15;
+	} else t15 = $[28];
+	const handleKeyDown = t15;
+	let t16;
+	let t17;
+	if ($[29] !== highlightedIndex || $[30] !== showDropdown) {
+		t16 = () => {
 			if (listRef.current && showDropdown && highlightedIndex >= 0) listRef.current.children.item(highlightedIndex)?.scrollIntoView({ block: "nearest" });
 		};
-		t19 = [highlightedIndex, showDropdown];
-		$[31] = highlightedIndex;
-		$[32] = showDropdown;
-		$[33] = t18;
-		$[34] = t19;
+		t17 = [highlightedIndex, showDropdown];
+		$[29] = highlightedIndex;
+		$[30] = showDropdown;
+		$[31] = t16;
+		$[32] = t17;
 	} else {
-		t18 = $[33];
-		t19 = $[34];
+		t16 = $[31];
+		t17 = $[32];
 	}
-	(0, import_react.useEffect)(t18, t19);
-	const t20 = allowBrowse && AutocompleteInput_module_default.inputWithToggle;
-	let t21;
-	if ($[35] !== className || $[36] !== t20) {
-		t21 = clsx(AutocompleteInput_module_default.input, t20, className);
-		$[35] = className;
-		$[36] = t20;
-		$[37] = t21;
-	} else t21 = $[37];
-	const t22 = showDropdown ? `${id}-listbox` : void 0;
-	const t23 = showDropdown && highlightedIndex >= 0 ? `${id}-option-${highlightedIndex}` : void 0;
-	let t24;
-	if ($[38] !== ariaLabel || $[39] !== autoFocus || $[40] !== disabled || $[41] !== handleFocus || $[42] !== handleInputChange || $[43] !== handleKeyDown || $[44] !== id || $[45] !== placeholder || $[46] !== required || $[47] !== showDropdown || $[48] !== t21 || $[49] !== t22 || $[50] !== t23 || $[51] !== value) {
-		t24 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
+	(0, import_react.useEffect)(t16, t17);
+	const t18 = allowBrowse && AutocompleteInput_module_default.inputWithToggle;
+	let t19;
+	if ($[33] !== className || $[34] !== t18) {
+		t19 = clsx(AutocompleteInput_module_default.input, t18, className);
+		$[33] = className;
+		$[34] = t18;
+		$[35] = t19;
+	} else t19 = $[35];
+	const t20 = showDropdown ? `${id}-listbox` : void 0;
+	const t21 = showDropdown && highlightedIndex >= 0 ? `${id}-option-${highlightedIndex}` : void 0;
+	let t22;
+	if ($[36] !== ariaLabel || $[37] !== autoFocus || $[38] !== disabled || $[39] !== handleFocus || $[40] !== handleInputChange || $[41] !== handleKeyDown || $[42] !== id || $[43] !== placeholder || $[44] !== required || $[45] !== showDropdown || $[46] !== t19 || $[47] !== t20 || $[48] !== t21 || $[49] !== value) {
+		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
 			id,
 			ref: inputRef,
 			type: "text",
-			className: t21,
+			className: t19,
 			value,
 			required,
 			onChange: handleInputChange,
@@ -18608,29 +18930,29 @@ var AutocompleteInput = (t0) => {
 			role: "combobox",
 			"aria-expanded": showDropdown,
 			"aria-autocomplete": "list",
-			"aria-controls": t22,
-			"aria-activedescendant": t23,
+			"aria-controls": t20,
+			"aria-activedescendant": t21,
 			autoFocus
 		});
-		$[38] = ariaLabel;
-		$[39] = autoFocus;
-		$[40] = disabled;
-		$[41] = handleFocus;
-		$[42] = handleInputChange;
-		$[43] = handleKeyDown;
-		$[44] = id;
-		$[45] = placeholder;
-		$[46] = required;
-		$[47] = showDropdown;
+		$[36] = ariaLabel;
+		$[37] = autoFocus;
+		$[38] = disabled;
+		$[39] = handleFocus;
+		$[40] = handleInputChange;
+		$[41] = handleKeyDown;
+		$[42] = id;
+		$[43] = placeholder;
+		$[44] = required;
+		$[45] = showDropdown;
+		$[46] = t19;
+		$[47] = t20;
 		$[48] = t21;
-		$[49] = t22;
-		$[50] = t23;
-		$[51] = value;
-		$[52] = t24;
-	} else t24 = $[52];
-	let t25;
-	if ($[53] !== allowBrowse || $[54] !== disabled || $[55] !== handleToggleBrowse || $[56] !== id || $[57] !== isBrowseMode || $[58] !== isOpen || $[59] !== showDropdown || $[60] !== suggestions) {
-		t25 = allowBrowse && suggestions.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+		$[49] = value;
+		$[50] = t22;
+	} else t22 = $[50];
+	let t23;
+	if ($[51] !== allowBrowse || $[52] !== disabled || $[53] !== handleToggleBrowse || $[54] !== id || $[55] !== isBrowseMode || $[56] !== isOpen || $[57] !== showDropdown || $[58] !== suggestions) {
+		t23 = allowBrowse && suggestions.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
 			className: AutocompleteInput_module_default.toggleButton,
 			onClick: handleToggleBrowse,
@@ -18641,78 +18963,113 @@ var AutocompleteInput = (t0) => {
 			"aria-controls": showDropdown ? `${id}-listbox` : void 0,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: isOpen && isBrowseMode ? "chevronUp" : "chevronDown" })
 		});
-		$[53] = allowBrowse;
-		$[54] = disabled;
-		$[55] = handleToggleBrowse;
-		$[56] = id;
-		$[57] = isBrowseMode;
-		$[58] = isOpen;
-		$[59] = showDropdown;
-		$[60] = suggestions;
-		$[61] = t25;
-	} else t25 = $[61];
-	let t26;
-	if ($[62] !== dropdownPosition || $[63] !== filteredSuggestions || $[64] !== highlightedIndex || $[65] !== id || $[66] !== maxSuggestionWidth || $[67] !== selectSuggestion || $[68] !== showDropdown) {
-		t26 = showDropdown && dropdownPosition && /*#__PURE__*/ (0, import_react_dom.createPortal)(/*#__PURE__*/ (0, import_jsx_runtime.jsx)("ul", {
-			id: `${id}-listbox`,
-			ref: listRef,
-			className: AutocompleteInput_module_default.suggestionsList,
-			role: "listbox",
-			style: {
-				position: "fixed",
-				top: dropdownPosition.top,
-				left: dropdownPosition.left,
-				minWidth: dropdownPosition.width,
-				maxWidth: maxSuggestionWidth
-			},
-			children: filteredSuggestions.map((suggestion_0, index) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
+		$[51] = allowBrowse;
+		$[52] = disabled;
+		$[53] = handleToggleBrowse;
+		$[54] = id;
+		$[55] = isBrowseMode;
+		$[56] = isOpen;
+		$[57] = showDropdown;
+		$[58] = suggestions;
+		$[59] = t23;
+	} else t23 = $[59];
+	let t24;
+	if ($[60] === Symbol.for("react.memo_cache_sentinel")) {
+		t24 = () => setIsOpen(false);
+		$[60] = t24;
+	} else t24 = $[60];
+	let t25;
+	if ($[61] !== maxSuggestionWidth) {
+		t25 = { maxWidth: maxSuggestionWidth };
+		$[61] = maxSuggestionWidth;
+		$[62] = t25;
+	} else t25 = $[62];
+	const t26 = `${id}-listbox`;
+	let t27;
+	if ($[63] !== filteredSuggestions || $[64] !== highlightedIndex || $[65] !== id || $[66] !== selectSuggestion) {
+		let t28;
+		if ($[68] !== highlightedIndex || $[69] !== id || $[70] !== selectSuggestion) {
+			t28 = (suggestion_0, index) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 				id: `${id}-option-${index}`,
 				className: clsx(AutocompleteInput_module_default.suggestionItem, index === highlightedIndex && AutocompleteInput_module_default.highlighted),
 				role: "option",
 				"aria-selected": index === highlightedIndex,
 				onMouseDown: (e_2) => {
 					e_2.preventDefault();
-					e_2.stopPropagation();
 					selectSuggestion(suggestion_0);
 				},
 				onMouseEnter: () => setHighlightedIndex(index),
 				children: String(suggestion_0 ?? "(null)")
-			}, String(suggestion_0)))
-		}), document.body);
-		$[62] = dropdownPosition;
+			}, String(suggestion_0));
+			$[68] = highlightedIndex;
+			$[69] = id;
+			$[70] = selectSuggestion;
+			$[71] = t28;
+		} else t28 = $[71];
+		t27 = filteredSuggestions.map(t28);
 		$[63] = filteredSuggestions;
 		$[64] = highlightedIndex;
 		$[65] = id;
-		$[66] = maxSuggestionWidth;
-		$[67] = selectSuggestion;
-		$[68] = showDropdown;
-		$[69] = t26;
-	} else t26 = $[69];
-	let t27;
-	if ($[70] !== t24 || $[71] !== t25 || $[72] !== t26) {
-		t27 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			ref: containerRef,
-			className: AutocompleteInput_module_default.container,
-			children: [
-				t24,
-				t25,
-				t26
-			]
+		$[66] = selectSuggestion;
+		$[67] = t27;
+	} else t27 = $[67];
+	let t28;
+	if ($[72] !== t26 || $[73] !== t27) {
+		t28 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("ul", {
+			id: t26,
+			ref: listRef,
+			className: AutocompleteInput_module_default.suggestionsList,
+			role: "listbox",
+			children: t27
 		});
-		$[70] = t24;
-		$[71] = t25;
 		$[72] = t26;
 		$[73] = t27;
-	} else t27 = $[73];
-	return t27;
+		$[74] = t28;
+	} else t28 = $[74];
+	let t29;
+	if ($[75] !== container || $[76] !== showDropdown || $[77] !== t25 || $[78] !== t28) {
+		t29 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AnchoredPopover, {
+			open: showDropdown,
+			onClose: t24,
+			anchor: container,
+			mode: "manual",
+			placement: "bottom-start",
+			offset: 2,
+			className: AutocompleteInput_module_default.suggestionsPopover,
+			style: t25,
+			children: t28
+		});
+		$[75] = container;
+		$[76] = showDropdown;
+		$[77] = t25;
+		$[78] = t28;
+		$[79] = t29;
+	} else t29 = $[79];
+	let t30;
+	if ($[80] !== t22 || $[81] !== t23 || $[82] !== t29) {
+		t30 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			ref: setContainer,
+			className: AutocompleteInput_module_default.container,
+			children: [
+				t22,
+				t23,
+				t29
+			]
+		});
+		$[80] = t22;
+		$[81] = t23;
+		$[82] = t29;
+		$[83] = t30;
+	} else t30 = $[83];
+	return t30;
 };
-function _temp$116(s) {
+function _temp$117(s) {
 	return s !== null;
 }
-function _temp2$64(s_1) {
+function _temp2$67(s_1) {
 	return s_1 !== null;
 }
-function _temp3$44(prev) {
+function _temp3$45(prev) {
 	return Math.max(prev - 1, -1);
 }
 // ../../packages/react/src/hooks/onDemandModule.ts
@@ -18757,7 +19114,7 @@ var onDemandModule = (importer) => {
 			let cancelled = false;
 			module.load().then((loaded) => {
 				if (!cancelled) setValue(() => loaded);
-			}).catch(_temp$115);
+			}).catch(_temp$116);
 			return () => {
 				cancelled = true;
 			};
@@ -18779,7 +19136,7 @@ var onDemandModule = (importer) => {
 	(0, import_react.useEffect)(t2, t3);
 	return value;
 };
-function _temp$115(error) {
+function _temp$116(error) {
 	console.error("Unable to load module", error);
 }
 var ContentTrust_module_default = {
@@ -18922,20 +19279,22 @@ var ContentTrustProvider = (t0) => {
 * runs so they can't reorder surrounding UI text. Apply to the container
 * (a `pre`, `div` or `span`) that renders untrusted text directly.
 */ var untrustedTextClassName = ContentTrust_module_default.untrustedText;
+var trustedPlainText = {
+	trusted: true,
+	present: identity$2,
+	className: void 0
+};
+var untrustedPlainText = {
+	trusted: false,
+	present: untrustedText,
+	className: untrustedTextClassName
+};
 /**
 * How a caller-rendered container shows log-derived plain text, decided as
 * `ContentText` decides: as-is with every permission, otherwise with hidden
 * characters revealed and the container's bidi runs isolated.
 */ var usePlainText = () => {
-	return useHasAllContentPermissions() ? {
-		trusted: true,
-		present: _temp$114,
-		className: void 0
-	} : {
-		trusted: false,
-		present: untrustedText,
-		className: untrustedTextClassName
-	};
+	return useHasAllContentPermissions() ? trustedPlainText : untrustedPlainText;
 };
 var UntrustedText = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(4);
@@ -19024,9 +19383,6 @@ var UntrustedText = (t0) => {
 	} else t2 = $[4];
 	return t2;
 };
-function _temp$114(text) {
-	return text;
-}
 // ../../packages/react/src/components/AnsiDisplay.tsx
 var richRenderer = onDemandModule(() => __vitePreload(() => import("./AnsiDisplayRich.js"), __vite__mapDeps([0,1,2,3,4,5]), import.meta.url));
 var ANSIDisplay = (props) => {
@@ -19236,13 +19592,12 @@ var AppErrorBoundary = class extends import_react.Component {
 	}
 };
 var Card_module_default = {
-	headerContainer: "_headerContainer_19525_1",
-	headerModern: "_headerModern_19525_17",
-	headerIcon: "_headerIcon_19525_24",
-	headerIconEmpty: "_headerIconEmpty_19525_24",
-	body: "_body_19525_28",
-	card: "_card_19525_33",
-	noPadding: "_noPadding_19525_40"
+	headerContainer: "_headerContainer_14ygm_1",
+	headerModern: "_headerModern_14ygm_17",
+	headerIcon: "_headerIcon_14ygm_24",
+	headerIconEmpty: "_headerIconEmpty_14ygm_24",
+	body: "_body_14ygm_28",
+	card: "_card_14ygm_33"
 };
 // ../../packages/react/src/components/Card.tsx
 var CardHeader = (t0) => {
@@ -19289,30 +19644,28 @@ var CardHeader = (t0) => {
 	return t6;
 };
 var CardBody = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(7);
-	const { id, children, className, padded: t1 } = t0;
-	const t2 = !(t1 === void 0 ? true : t1) ? Card_module_default.noPadding : void 0;
-	let t3;
-	if ($[0] !== className || $[1] !== t2) {
-		t3 = clsx(Card_module_default.body, className, t2);
+	const $ = (0, import_compiler_runtime.c)(6);
+	const { id, children, className } = t0;
+	let t1;
+	if ($[0] !== className) {
+		t1 = clsx(Card_module_default.body, className);
 		$[0] = className;
-		$[1] = t2;
-		$[2] = t3;
-	} else t3 = $[2];
-	const t4 = id || "";
-	let t5;
-	if ($[3] !== children || $[4] !== t3 || $[5] !== t4) {
-		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t3,
-			id: t4,
+		$[1] = t1;
+	} else t1 = $[1];
+	const t2 = id || "";
+	let t3;
+	if ($[2] !== children || $[3] !== t1 || $[4] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t1,
+			id: t2,
 			children
 		});
-		$[3] = children;
-		$[4] = t3;
-		$[5] = t4;
-		$[6] = t5;
-	} else t5 = $[6];
-	return t5;
+		$[2] = children;
+		$[3] = t1;
+		$[4] = t2;
+		$[5] = t3;
+	} else t3 = $[5];
+	return t3;
 };
 var Card$1 = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(6);
@@ -19382,7 +19735,7 @@ var Card$1 = (t0) => {
 				setCopied(true);
 				window.clearTimeout(timer.current);
 				timer.current = window.setTimeout(() => setCopied(false), confirmMs);
-			}).catch(_temp$113);
+			}).catch(_temp$115);
 		};
 		$[1] = confirmMs;
 		$[2] = t2;
@@ -19400,7 +19753,7 @@ var Card$1 = (t0) => {
 	} else t3 = $[5];
 	return t3;
 }
-function _temp$113(error) {
+function _temp$115(error) {
 	console.error("Failed to copy:", error);
 }
 var CopyButton_module_default = { copyButton: "_copyButton_1goi8_1" };
@@ -30824,30 +31177,76 @@ o$7({
 	react: import_react.default,
 	displayName: "VscodeTreeItem"
 });
+// ../../packages/react/src/hooks/useShowModal.ts
+var import_react_dom = /* @__PURE__ */ __toESM(require_react_dom(), 1);
+/**
+* Opens a `<dialog>` as a modal (`showModal()`) once it mounts, and closes it
+* before it unmounts so the browser returns focus to whatever had it before.
+* Attach the returned ref to the dialog; `dialog` is the element once it is
+* open.
+*
+* Render the dialog's content only once `dialog` is set. A closed dialog is
+* `display: none`, so content mounted with it couldn't take focus
+* (`autoFocus`). The ref runs during the commit and React re-renders
+* synchronously before paint, so the content still appears in the first
+* painted frame.
+*
+* Once open, the element marked `data-autofocus` takes focus on the next
+* frame: web components (vscode-elements) render their inner input
+* asynchronously after they mount, so focusing them any earlier is a no-op.
+*/ function useShowModal() {
+	const $ = (0, import_compiler_runtime.c)(3);
+	const [open, setOpen] = (0, import_react.useState)(null);
+	let t0;
+	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+		t0 = (dialog) => {
+			if (!dialog) return;
+			dialog.showModal();
+			setOpen(dialog);
+			const frame = requestAnimationFrame(() => {
+				dialog.querySelector("[data-autofocus]")?.focus();
+			});
+			return () => {
+				cancelAnimationFrame(frame);
+				if (dialog.open) dialog.close();
+			};
+		};
+		$[0] = t0;
+	} else t0 = $[0];
+	const ref = t0;
+	let t1;
+	if ($[1] !== open) {
+		t1 = {
+			ref,
+			dialog: open
+		};
+		$[1] = open;
+		$[2] = t1;
+	} else t1 = $[2];
+	return t1;
+}
 var Modal_module_default = {
-	backdrop: "_backdrop_1hn8l_1",
-	modal: "_modal_1hn8l_15",
-	header: "_header_1hn8l_28",
-	title: "_title_1hn8l_37",
-	closeButton: "_closeButton_1hn8l_44",
-	body: "_body_1hn8l_60",
-	overflowAuto: "_overflowAuto_1hn8l_66",
-	overflowHidden: "_overflowHidden_1hn8l_70",
-	overflowScroll: "_overflowScroll_1hn8l_74",
-	overflowVisible: "_overflowVisible_1hn8l_78",
-	noPadding: "_noPadding_1hn8l_82",
-	footer: "_footer_1hn8l_86"
+	dialog: "_dialog_1rkph_3",
+	backdrop: "_backdrop_1rkph_2",
+	modal: "_modal_1rkph_1",
+	header: "_header_1rkph_44",
+	title: "_title_1rkph_53",
+	closeButton: "_closeButton_1rkph_60",
+	body: "_body_1rkph_76",
+	overflowAuto: "_overflowAuto_1rkph_82",
+	overflowHidden: "_overflowHidden_1rkph_86",
+	overflowScroll: "_overflowScroll_1rkph_90",
+	overflowVisible: "_overflowVisible_1rkph_94",
+	noPadding: "_noPadding_1rkph_98",
+	footer: "_footer_1rkph_102"
 };
 // ../../packages/react/src/components/Modal.tsx
-var TABBABLE_SELECTOR = "a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex=\"-1\"])";
-var tabbableElements = (container) => Array.from(container.querySelectorAll(TABBABLE_SELECTOR)).filter((el) => el.getAttribute("aria-hidden") !== "true");
 var TEXT_INPUT_SELECTOR = "input:not([type=\"button\"]):not([type=\"checkbox\"]):not([type=\"color\"]):not([type=\"file\"]):not([type=\"image\"]):not([type=\"radio\"]):not([type=\"range\"]):not([type=\"reset\"]):not([type=\"submit\"]),textarea,vscode-textfield";
-var shouldSubmitOnEnter = (event, modal) => {
-	if (event.defaultPrevented || !modal) return false;
+var shouldSubmitOnEnter = (event, dialog) => {
+	if (event.defaultPrevented) return false;
 	const target = event.target;
-	if (!(target instanceof Element)) return true;
-	if (!modal.contains(target)) return false;
-	if (target === modal) return true;
+	if (!(target instanceof Element) || !dialog.contains(target)) return false;
+	if (target === dialog) return true;
 	return target.matches(TEXT_INPUT_SELECTOR);
 };
 var OVERFLOW_CLASS = {
@@ -30856,197 +31255,207 @@ var OVERFLOW_CLASS = {
 	scroll: Modal_module_default.overflowScroll,
 	visible: Modal_module_default.overflowVisible
 };
-var Modal = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(42);
-	const { show, onHide, onSubmit, title, children, footer, className, id, width, overflow: t1, padded: t2, bodyClassName } = t0;
+/**
+* A modal `<dialog>`. The browser makes the rest of the page inert, keeps
+* focus inside, routes Escape to any popover open inside it first, and
+* returns focus on close. Every close path reports through `onHide`.
+*
+* Portaled to `<body>`, so the owner's styles and `:hover` don't reach it.
+* Popovers declared in its children still render inside the dialog, which
+* keeps them interactive. Don't declare a Modal inside popover content:
+* `showModal()` closes that popover, which would unmount the Modal.
+*/ var Modal = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(6);
+	let props;
+	let show;
+	if ($[0] !== t0) {
+		({show, ...props} = t0);
+		$[0] = t0;
+		$[1] = props;
+		$[2] = show;
+	} else {
+		props = $[1];
+		show = $[2];
+	}
+	let t1;
+	if ($[3] !== props || $[4] !== show) {
+		t1 = show ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(OpenModal, { ...props }) : null;
+		$[3] = props;
+		$[4] = show;
+		$[5] = t1;
+	} else t1 = $[5];
+	return t1;
+};
+var OpenModal = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(43);
+	const { onHide, onSubmit, title, children, footer, className, id, width, overflow: t1, padded: t2, bodyClassName } = t0;
 	const overflow = t1 === void 0 ? "auto" : t1;
 	const padded = t2 === void 0 ? true : t2;
-	const modalRef = (0, import_react.useRef)(null);
 	const fallbackTitleId = (0, import_react.useId)();
-	let t3;
-	if ($[0] !== onHide || $[1] !== onSubmit || $[2] !== show) {
-		t3 = (e) => {
-			if (!show) return;
-			if (e.key === "Escape") onHide();
-			else if (e.key === "Enter" && onSubmit) {
-				if (!shouldSubmitOnEnter(e, modalRef.current)) return;
-				e.preventDefault();
-				onSubmit();
-			} else if (e.key === "Tab" && modalRef.current) {
-				const tabbables = tabbableElements(modalRef.current);
-				const first = tabbables[0];
-				const last = tabbables[tabbables.length - 1];
-				if (!first || !last) return;
-				const active = document.activeElement;
-				if (e.shiftKey && active === first) {
-					e.preventDefault();
-					last.focus();
-				} else if (!e.shiftKey && active === last) {
-					e.preventDefault();
-					first.focus();
-				}
-			}
-		};
-		$[0] = onHide;
-		$[1] = onSubmit;
-		$[2] = show;
-		$[3] = t3;
-	} else t3 = $[3];
-	useEventListener(typeof document === "undefined" ? null : document, "keydown", t3);
-	let t4;
-	let t5;
-	if ($[4] !== show) {
-		t4 = () => {
-			if (!show || !modalRef.current) return;
-			const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-			const modal = modalRef.current;
-			const timer = window.setTimeout(() => {
-				const autofocusEl = modal.querySelector("[autofocus], [data-autofocus]");
-				if (autofocusEl) autofocusEl.focus();
-				else (tabbableElements(modal)[0] ?? modal).focus();
-			}, 0);
-			return () => {
-				window.clearTimeout(timer);
-				previouslyFocused?.focus();
-			};
-		};
-		t5 = [show];
-		$[4] = show;
-		$[5] = t4;
-		$[6] = t5;
-	} else {
-		t4 = $[5];
-		t5 = $[6];
-	}
-	(0, import_react.useEffect)(t4, t5);
-	if (!show) return null;
 	const titleId = id ? `${id}-title` : fallbackTitleId;
-	let t6;
-	if ($[7] !== onHide) {
-		t6 = (e_0) => {
-			if (e_0.target === e_0.currentTarget) onHide();
+	const { ref, dialog } = useShowModal();
+	const escapeForPopover = (0, import_react.useRef)(false);
+	let t3;
+	if ($[0] !== dialog) {
+		t3 = (e) => {
+			escapeForPopover.current = e.key === "Escape" && !!dialog && hasOpenPopover(dialog);
 		};
-		$[7] = onHide;
-		$[8] = t6;
-	} else t6 = $[8];
+		$[0] = dialog;
+		$[1] = t3;
+	} else t3 = $[1];
+	let t4;
+	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
+		t4 = { capture: true };
+		$[2] = t4;
+	} else t4 = $[2];
+	useEventListener(dialog ? document : null, "keydown", t3, t4);
+	let t5;
+	if ($[3] !== dialog || $[4] !== onSubmit) {
+		t5 = (e_0) => {
+			if (e_0.key !== "Enter" || !onSubmit || !dialog) return;
+			if (!shouldSubmitOnEnter(e_0, dialog)) return;
+			e_0.preventDefault();
+			onSubmit();
+		};
+		$[3] = dialog;
+		$[4] = onSubmit;
+		$[5] = t5;
+	} else t5 = $[5];
+	useEventListener(dialog ? document : null, "keydown", t5);
+	let t6;
 	let t7;
-	if ($[9] !== className) {
-		t7 = clsx(Modal_module_default.modal, className);
-		$[9] = className;
-		$[10] = t7;
-	} else t7 = $[10];
 	let t8;
-	if ($[11] !== width) {
-		t8 = width ? { maxWidth: width } : void 0;
-		$[11] = width;
-		$[12] = t8;
-	} else t8 = $[12];
+	if ($[6] !== onHide) {
+		t6 = (e_1) => {
+			if (e_1.target !== e_1.currentTarget) return;
+			e_1.preventDefault();
+			if (escapeForPopover.current) {
+				escapeForPopover.current = false;
+				return;
+			}
+			onHide();
+		};
+		t7 = (e_2) => {
+			const closed = e_2.currentTarget;
+			if (e_2.target !== closed || closed.open) return;
+			closed.showModal();
+			onHide();
+		};
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: Modal_module_default.backdrop,
+			role: "presentation",
+			onClick: onHide
+		});
+		$[6] = onHide;
+		$[7] = t6;
+		$[8] = t7;
+		$[9] = t8;
+	} else {
+		t6 = $[7];
+		t7 = $[8];
+		t8 = $[9];
+	}
 	let t9;
-	if ($[13] !== title || $[14] !== titleId) {
-		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("h3", {
+	if ($[10] !== className) {
+		t9 = clsx(Modal_module_default.modal, className);
+		$[10] = className;
+		$[11] = t9;
+	} else t9 = $[11];
+	let t10;
+	if ($[12] !== width) {
+		t10 = width ? { maxWidth: width } : void 0;
+		$[12] = width;
+		$[13] = t10;
+	} else t10 = $[13];
+	let t11;
+	if ($[14] !== title || $[15] !== titleId) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("h3", {
 			id: titleId,
 			className: Modal_module_default.title,
 			children: title
 		});
-		$[13] = title;
-		$[14] = titleId;
-		$[15] = t9;
-	} else t9 = $[15];
-	let t10;
-	if ($[16] === Symbol.for("react.memo_cache_sentinel")) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "close" });
-		$[16] = t10;
-	} else t10 = $[16];
-	let t11;
-	if ($[17] !== onHide) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+		$[14] = title;
+		$[15] = titleId;
+		$[16] = t11;
+	} else t11 = $[16];
+	let t12;
+	if ($[17] === Symbol.for("react.memo_cache_sentinel")) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "close" });
+		$[17] = t12;
+	} else t12 = $[17];
+	let t13;
+	if ($[18] !== onHide) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
 			className: Modal_module_default.closeButton,
 			onClick: onHide,
 			"aria-label": "Close",
-			children: t10
+			children: t12
 		});
-		$[17] = onHide;
-		$[18] = t11;
-	} else t11 = $[18];
-	let t12;
-	if ($[19] !== t11 || $[20] !== t9) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[18] = onHide;
+		$[19] = t13;
+	} else t13 = $[19];
+	let t14;
+	if ($[20] !== t11 || $[21] !== t13) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: Modal_module_default.header,
-			children: [t9, t11]
+			children: [t11, t13]
 		});
-		$[19] = t11;
-		$[20] = t9;
-		$[21] = t12;
-	} else t12 = $[21];
-	const t13 = OVERFLOW_CLASS[overflow];
-	const t14 = !padded && Modal_module_default.noPadding;
+		$[20] = t11;
+		$[21] = t13;
+		$[22] = t14;
+	} else t14 = $[22];
 	let t15;
-	if ($[22] !== bodyClassName || $[23] !== t13 || $[24] !== t14) {
-		t15 = clsx(Modal_module_default.body, t13, t14, bodyClassName);
-		$[22] = bodyClassName;
-		$[23] = t13;
-		$[24] = t14;
-		$[25] = t15;
-	} else t15 = $[25];
-	let t16;
-	if ($[26] !== children || $[27] !== t15) {
-		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t15,
+	if ($[23] !== bodyClassName || $[24] !== children || $[25] !== dialog || $[26] !== footer || $[27] !== overflow || $[28] !== padded) {
+		t15 = dialog && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: clsx(Modal_module_default.body, OVERFLOW_CLASS[overflow], !padded && Modal_module_default.noPadding, bodyClassName),
 			children
-		});
-		$[26] = children;
-		$[27] = t15;
-		$[28] = t16;
-	} else t16 = $[28];
-	let t17;
-	if ($[29] !== footer) {
-		t17 = footer && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		}), footer && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: Modal_module_default.footer,
 			children: footer
+		})] });
+		$[23] = bodyClassName;
+		$[24] = children;
+		$[25] = dialog;
+		$[26] = footer;
+		$[27] = overflow;
+		$[28] = padded;
+		$[29] = t15;
+	} else t15 = $[29];
+	let t16;
+	if ($[30] !== t10 || $[31] !== t14 || $[32] !== t15 || $[33] !== t9) {
+		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t9,
+			style: t10,
+			children: [t14, t15]
 		});
-		$[29] = footer;
-		$[30] = t17;
-	} else t17 = $[30];
-	let t18;
-	if ($[31] !== id || $[32] !== t12 || $[33] !== t16 || $[34] !== t17 || $[35] !== t7 || $[36] !== t8 || $[37] !== titleId) {
-		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			ref: modalRef,
+		$[30] = t10;
+		$[31] = t14;
+		$[32] = t15;
+		$[33] = t9;
+		$[34] = t16;
+	} else t16 = $[34];
+	let t17;
+	if ($[35] !== id || $[36] !== ref || $[37] !== t16 || $[38] !== t6 || $[39] !== t7 || $[40] !== t8 || $[41] !== titleId) {
+		t17 = /*#__PURE__*/ (0, import_react_dom.createPortal)(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("dialog", {
+			ref,
 			id,
-			role: "dialog",
-			"aria-modal": "true",
 			"aria-labelledby": titleId,
-			tabIndex: -1,
-			className: t7,
-			style: t8,
-			children: [
-				t12,
-				t16,
-				t17
-			]
-		});
-		$[31] = id;
-		$[32] = t12;
-		$[33] = t16;
-		$[34] = t17;
-		$[35] = t7;
-		$[36] = t8;
-		$[37] = titleId;
-		$[38] = t18;
-	} else t18 = $[38];
-	let t19;
-	if ($[39] !== t18 || $[40] !== t6) {
-		t19 = /*#__PURE__*/ (0, import_react_dom.createPortal)(/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: Modal_module_default.backdrop,
-			role: "presentation",
-			onClick: t6,
-			children: t18
+			className: Modal_module_default.dialog,
+			onCancel: t6,
+			onClose: t7,
+			children: [t8, t16]
 		}), document.body);
-		$[39] = t18;
-		$[40] = t6;
-		$[41] = t19;
-	} else t19 = $[41];
-	return t19;
+		$[35] = id;
+		$[36] = ref;
+		$[37] = t16;
+		$[38] = t6;
+		$[39] = t7;
+		$[40] = t8;
+		$[41] = titleId;
+		$[42] = t17;
+	} else t17 = $[42];
+	return t17;
 };
 // ../../packages/react/src/components/EmptyPanel.tsx
 var EmptyPanel = (t0) => {
@@ -31067,117 +31476,95 @@ var EmptyPanel = (t0) => {
 	return t1;
 };
 // ../../packages/react/src/components/ExtendedFindContext.tsx
+/** Wraps a computation so repeated calls with the same arguments (every
+*  re-collect while the band is open) reuse the last result. */ function cacheLastCall(compute) {
+	let last = null;
+	return (...args) => {
+		if (!last || last.args.length !== args.length || last.args.some((arg, i) => !Object.is(arg, args[i]))) last = {
+			args,
+			value: compute(...args)
+		};
+		return last.value;
+	};
+}
 var ExtendedFindContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 var ExtendedFindProvider = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(10);
+	const $ = (0, import_compiler_runtime.c)(9);
 	const { children } = t0;
 	let t1;
 	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
 		t1 = /* @__PURE__ */ new Map();
 		$[0] = t1;
 	} else t1 = $[0];
-	const virtualLists = (0, import_react.useRef)(t1);
+	const sources = (0, import_react.useRef)(t1);
 	let t2;
 	if ($[1] === Symbol.for("react.memo_cache_sentinel")) {
-		t2 = /* @__PURE__ */ new Map();
+		t2 = /* @__PURE__ */ new Set();
 		$[1] = t2;
 	} else t2 = $[1];
-	const matchCounters = (0, import_react.useRef)(t2);
-	const matchCountersVersion = (0, import_react.useRef)(0);
+	const listeners = (0, import_react.useRef)(t2);
 	let t3;
 	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
-		t3 = async (term, direction) => {
-			for (const [, searchFn] of virtualLists.current) if (await new Promise((resolve) => {
-				let callbackFired = false;
-				const onContentReady = () => {
-					if (!callbackFired) {
-						callbackFired = true;
-						resolve(true);
-					}
-				};
-				searchFn(term, direction, onContentReady).then((found) => {
-					if (!found && !callbackFired) {
-						callbackFired = true;
-						resolve(false);
-					}
-				}).catch(() => {
-					if (!callbackFired) {
-						callbackFired = true;
-						resolve(false);
-					}
-				});
-			})) return true;
-			return false;
+		t3 = () => {
+			for (const listener of listeners.current) listener();
 		};
 		$[2] = t3;
 	} else t3 = $[2];
-	const extendedFindTerm = t3;
+	const notify = t3;
 	let t4;
 	if ($[3] === Symbol.for("react.memo_cache_sentinel")) {
-		t4 = (id, searchFn_0) => {
-			virtualLists.current.set(id, searchFn_0);
+		t4 = (id, source) => {
+			sources.current.set(id, source);
+			notify();
 			return () => {
-				virtualLists.current.delete(id);
+				sources.current.delete(id);
+				notify();
 			};
 		};
 		$[3] = t4;
 	} else t4 = $[3];
-	const registerVirtualList = t4;
+	const registerFindSource = t4;
 	let t5;
 	if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
-		t5 = (term_0) => {
-			let total = 0;
-			for (const [, countFn] of matchCounters.current) total = total + countFn(term_0);
-			return total;
-		};
+		t5 = () => sources.current;
 		$[4] = t5;
 	} else t5 = $[4];
-	const countAllMatches = t5;
+	const getFindSources = t5;
 	let t6;
 	if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
-		t6 = (id_0, countFn_0) => {
-			matchCounters.current.set(id_0, countFn_0);
-			matchCountersVersion.current = matchCountersVersion.current + 1;
+		t6 = (listener_0) => {
+			listeners.current.add(listener_0);
 			return () => {
-				matchCounters.current.delete(id_0);
-				matchCountersVersion.current = matchCountersVersion.current + 1;
+				listeners.current.delete(listener_0);
 			};
 		};
 		$[5] = t6;
 	} else t6 = $[5];
-	const registerMatchCounter = t6;
+	const subscribeFindSources = t6;
 	let t7;
 	if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
-		t7 = () => matchCountersVersion.current;
+		t7 = {
+			registerFindSource,
+			getFindSources,
+			subscribeFindSources
+		};
 		$[6] = t7;
 	} else t7 = $[6];
-	const getMatchCountersVersion = t7;
+	const contextValue = t7;
 	let t8;
-	if ($[7] === Symbol.for("react.memo_cache_sentinel")) {
-		t8 = {
-			extendedFindTerm,
-			registerVirtualList,
-			countAllMatches,
-			registerMatchCounter,
-			getMatchCountersVersion
-		};
-		$[7] = t8;
-	} else t8 = $[7];
-	const contextValue = t8;
-	let t9;
-	if ($[8] !== children) {
-		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExtendedFindContext.Provider, {
+	if ($[7] !== children) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExtendedFindContext.Provider, {
 			value: contextValue,
 			children
 		});
-		$[8] = children;
-		$[9] = t9;
-	} else t9 = $[9];
-	return t9;
+		$[7] = children;
+		$[8] = t8;
+	} else t8 = $[8];
+	return t8;
 };
 var useExtendedFind = () => {
 	const context = useExtendedFindOptional();
-	if (!context) throw new Error("useSearch must be used within a SearchProvider");
+	if (!context) throw new Error("useExtendedFind must be used within an ExtendedFindProvider");
 	return context;
 };
 /** Null outside an ExtendedFindProvider, for components (e.g. VirtualList)
@@ -31215,13 +31602,13 @@ var usePrismHighlight = (containerRef, contentLength) => {
 					if (!cancelled) highlightCodeBlocks(container, highlightElement);
 				});
 				observer = new MutationObserver((mutations) => {
-					if (mutations.some(_temp2$63)) highlightCodeBlocks(container, highlightElement);
+					if (mutations.some(_temp2$66)) highlightCodeBlocks(container, highlightElement);
 				});
 				observer.observe(container, {
 					childList: true,
 					subtree: true
 				});
-			}).catch(_temp3$43);
+			}).catch(_temp3$44);
 			return () => {
 				cancelled = true;
 				observer?.disconnect();
@@ -31243,15 +31630,15 @@ var usePrismHighlight = (containerRef, contentLength) => {
 	}
 	(0, import_react.useLayoutEffect)(t0, t1);
 };
-function _temp$112(node) {
+function _temp$114(node) {
 	if (node instanceof Element) return node.querySelector("pre code") || node.matches("pre code");
 	return false;
 }
-function _temp2$63(mutation) {
-	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$112);
+function _temp2$66(mutation) {
+	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$114);
 	return false;
 }
-function _temp3$43(error) {
+function _temp3$44(error) {
 	console.error("Unable to load syntax highlighting", error);
 }
 var JsonPanel_module_default = {
@@ -31617,7 +32004,7 @@ var RichMarkdownDiv = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 				(0, import_react.startTransition)(() => {
 					setRenderedHtml(applyPostProcess(sanitizedResult));
 				});
-			}).catch(_temp$111);
+			}).catch(_temp$113);
 			return () => {
 				cancel();
 			};
@@ -31733,7 +32120,7 @@ var MarkdownRenderQueue = class {
 	}
 };
 var renderQueue = new MarkdownRenderQueue(10);
-function _temp$111(error) {
+function _temp$113(error) {
 	console.error("Markdown rendering error:", error);
 }
 var NoContentsPanel_module_default = {
@@ -31800,1826 +32187,225 @@ var NoContentsPanel = (t0) => {
 	} else t6 = $[12];
 	return t6;
 };
-// ../../node_modules/.pnpm/react-popper@2.3.0_@popperjs+core@2.11.8_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/react-popper/lib/esm/utils.js
+// ../../packages/react/src/hooks/usePointerRest.ts
 /**
-* Simple ponyfill for Object.fromEntries
-*/
-var fromEntries = function fromEntries(entries) {
-	return entries.reduce(function(acc, _ref) {
-		var key = _ref[0];
-		acc[key] = _ref[1];
-		return acc;
-	}, {});
-};
+* Calls `onRest` once the pointer has stayed still over `target` for
+* `delayMs`. The timer starts as soon as `target` is set (the caller usually
+* sets it from a mouseenter, with the pointer already over it), restarts on
+* every move and stops when the pointer leaves.
+*/ function usePointerRest(target, delayMs, onRest) {
+	const $ = (0, import_compiler_runtime.c)(5);
+	const onRestRef = useLatestRef(onRest);
+	let t0;
+	let t1;
+	if ($[0] !== delayMs || $[1] !== onRestRef || $[2] !== target) {
+		t0 = () => {
+			if (!target) return;
+			let timer;
+			const restart = () => {
+				window.clearTimeout(timer);
+				timer = window.setTimeout(() => onRestRef.current(), delayMs);
+			};
+			const stop = () => window.clearTimeout(timer);
+			restart();
+			target.addEventListener("mousemove", restart);
+			target.addEventListener("mouseleave", stop);
+			return () => {
+				stop();
+				target.removeEventListener("mousemove", restart);
+				target.removeEventListener("mouseleave", stop);
+			};
+		};
+		t1 = [
+			target,
+			delayMs,
+			onRestRef
+		];
+		$[0] = delayMs;
+		$[1] = onRestRef;
+		$[2] = target;
+		$[3] = t0;
+		$[4] = t1;
+	} else {
+		t0 = $[3];
+		t1 = $[4];
+	}
+	(0, import_react.useEffect)(t0, t1);
+}
+// ../../packages/react/src/hooks/useTimeout.ts
 /**
-* Small wrapper around `useLayoutEffect` to get rid of the warning on SSR envs
-*/
-var useIsomorphicLayoutEffect$2 = typeof window !== "undefined" && window.document && window.document.createElement ? import_react.useLayoutEffect : import_react.useEffect;
-var bottom = "bottom";
-var right$4 = "right";
-var left$4 = "left";
-var auto = "auto";
-var basePlacements = [
-	"top",
-	bottom,
-	right$4,
-	left$4
-];
-var start = "start";
-var clippingParents = "clippingParents";
-var viewport = "viewport";
-var popper = "popper";
-var reference$1 = "reference";
-var variationPlacements = /*#__PURE__*/ basePlacements.reduce(function(acc, placement) {
-	return acc.concat([placement + "-" + start, placement + "-end"]);
-}, []);
-var placements = /*#__PURE__*/ [].concat(basePlacements, [auto]).reduce(function(acc, placement) {
-	return acc.concat([
-		placement,
-		placement + "-" + start,
-		placement + "-end"
-	]);
-}, []);
-var modifierPhases = [
-	"beforeRead",
-	"read",
-	"afterRead",
-	"beforeMain",
-	"main",
-	"afterMain",
-	"beforeWrite",
-	"write",
-	"afterWrite"
-];
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getNodeName.js
-function getNodeName(element) {
-	return element ? (element.nodeName || "").toLowerCase() : null;
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getWindow.js
-function getWindow(node) {
-	if (node == null) return window;
-	if (node.toString() !== "[object Window]") {
-		var ownerDocument = node.ownerDocument;
-		return ownerDocument ? ownerDocument.defaultView || window : window;
-	}
-	return node;
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/instanceOf.js
-function isElement(node) {
-	return node instanceof getWindow(node).Element || node instanceof Element;
-}
-function isHTMLElement(node) {
-	return node instanceof getWindow(node).HTMLElement || node instanceof HTMLElement;
-}
-function isShadowRoot(node) {
-	if (typeof ShadowRoot === "undefined") return false;
-	return node instanceof getWindow(node).ShadowRoot || node instanceof ShadowRoot;
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/applyStyles.js
-function applyStyles(_ref) {
-	var state = _ref.state;
-	Object.keys(state.elements).forEach(function(name) {
-		var style = state.styles[name] || {};
-		var attributes = state.attributes[name] || {};
-		var element = state.elements[name];
-		if (!isHTMLElement(element) || !getNodeName(element)) return;
-		Object.assign(element.style, style);
-		Object.keys(attributes).forEach(function(name) {
-			var value = attributes[name];
-			if (value === false) element.removeAttribute(name);
-			else element.setAttribute(name, value === true ? "" : value);
-		});
-	});
-}
-function effect$3(_ref2) {
-	var state = _ref2.state;
-	var initialStyles = {
-		popper: {
-			position: state.options.strategy,
-			left: "0",
-			top: "0",
-			margin: "0"
-		},
-		arrow: { position: "absolute" },
-		reference: {}
-	};
-	Object.assign(state.elements.popper.style, initialStyles.popper);
-	state.styles = initialStyles;
-	if (state.elements.arrow) Object.assign(state.elements.arrow.style, initialStyles.arrow);
-	return function() {
-		Object.keys(state.elements).forEach(function(name) {
-			var element = state.elements[name];
-			var attributes = state.attributes[name] || {};
-			var style = Object.keys(state.styles.hasOwnProperty(name) ? state.styles[name] : initialStyles[name]).reduce(function(style, property) {
-				style[property] = "";
-				return style;
-			}, {});
-			if (!isHTMLElement(element) || !getNodeName(element)) return;
-			Object.assign(element.style, style);
-			Object.keys(attributes).forEach(function(attribute) {
-				element.removeAttribute(attribute);
-			});
-		});
-	};
-}
-var applyStyles_default = {
-	name: "applyStyles",
-	enabled: true,
-	phase: "write",
-	fn: applyStyles,
-	effect: effect$3,
-	requires: ["computeStyles"]
-};
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getBasePlacement.js
-function getBasePlacement(placement) {
-	return placement.split("-")[0];
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/math.js
-var max$1 = Math.max;
-var min = Math.min;
-var round = Math.round;
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/userAgent.js
-function getUAString() {
-	var uaData = navigator.userAgentData;
-	if (uaData != null && uaData.brands && Array.isArray(uaData.brands)) return uaData.brands.map(function(item) {
-		return item.brand + "/" + item.version;
-	}).join(" ");
-	return navigator.userAgent;
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/isLayoutViewport.js
-function isLayoutViewport() {
-	return !/^((?!chrome|android).)*safari/i.test(getUAString());
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getBoundingClientRect.js
-function getBoundingClientRect(element, includeScale, isFixedStrategy) {
-	if (includeScale === void 0) includeScale = false;
-	if (isFixedStrategy === void 0) isFixedStrategy = false;
-	var clientRect = element.getBoundingClientRect();
-	var scaleX = 1;
-	var scaleY = 1;
-	if (includeScale && isHTMLElement(element)) {
-		scaleX = element.offsetWidth > 0 ? round(clientRect.width) / element.offsetWidth || 1 : 1;
-		scaleY = element.offsetHeight > 0 ? round(clientRect.height) / element.offsetHeight || 1 : 1;
-	}
-	var visualViewport = (isElement(element) ? getWindow(element) : window).visualViewport;
-	var addVisualOffsets = !isLayoutViewport() && isFixedStrategy;
-	var x = (clientRect.left + (addVisualOffsets && visualViewport ? visualViewport.offsetLeft : 0)) / scaleX;
-	var y = (clientRect.top + (addVisualOffsets && visualViewport ? visualViewport.offsetTop : 0)) / scaleY;
-	var width = clientRect.width / scaleX;
-	var height = clientRect.height / scaleY;
-	return {
-		width,
-		height,
-		top: y,
-		right: x + width,
-		bottom: y + height,
-		left: x,
-		x,
-		y
-	};
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getLayoutRect.js
-function getLayoutRect(element) {
-	var clientRect = getBoundingClientRect(element);
-	var width = element.offsetWidth;
-	var height = element.offsetHeight;
-	if (Math.abs(clientRect.width - width) <= 1) width = clientRect.width;
-	if (Math.abs(clientRect.height - height) <= 1) height = clientRect.height;
-	return {
-		x: element.offsetLeft,
-		y: element.offsetTop,
-		width,
-		height
-	};
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/contains.js
-function contains$1(parent, child) {
-	var rootNode = child.getRootNode && child.getRootNode();
-	if (parent.contains(child)) return true;
-	else if (rootNode && isShadowRoot(rootNode)) {
-		var next = child;
-		do {
-			if (next && parent.isSameNode(next)) return true;
-			next = next.parentNode || next.host;
-		} while (next);
-	}
-	return false;
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getComputedStyle.js
-function getComputedStyle$1(element) {
-	return getWindow(element).getComputedStyle(element);
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/isTableElement.js
-function isTableElement(element) {
-	return [
-		"table",
-		"td",
-		"th"
-	].indexOf(getNodeName(element)) >= 0;
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getDocumentElement.js
-function getDocumentElement(element) {
-	return ((isElement(element) ? element.ownerDocument : element.document) || window.document).documentElement;
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getParentNode.js
-function getParentNode(element) {
-	if (getNodeName(element) === "html") return element;
-	return element.assignedSlot || element.parentNode || (isShadowRoot(element) ? element.host : null) || getDocumentElement(element);
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getOffsetParent.js
-function getTrueOffsetParent(element) {
-	if (!isHTMLElement(element) || getComputedStyle$1(element).position === "fixed") return null;
-	return element.offsetParent;
-}
-function getContainingBlock(element) {
-	var isFirefox = /firefox/i.test(getUAString());
-	if (/Trident/i.test(getUAString()) && isHTMLElement(element)) {
-		if (getComputedStyle$1(element).position === "fixed") return null;
-	}
-	var currentNode = getParentNode(element);
-	if (isShadowRoot(currentNode)) currentNode = currentNode.host;
-	while (isHTMLElement(currentNode) && ["html", "body"].indexOf(getNodeName(currentNode)) < 0) {
-		var css = getComputedStyle$1(currentNode);
-		if (css.transform !== "none" || css.perspective !== "none" || css.contain === "paint" || ["transform", "perspective"].indexOf(css.willChange) !== -1 || isFirefox && css.willChange === "filter" || isFirefox && css.filter && css.filter !== "none") return currentNode;
-		else currentNode = currentNode.parentNode;
-	}
-	return null;
-}
-function getOffsetParent(element) {
-	var window = getWindow(element);
-	var offsetParent = getTrueOffsetParent(element);
-	while (offsetParent && isTableElement(offsetParent) && getComputedStyle$1(offsetParent).position === "static") offsetParent = getTrueOffsetParent(offsetParent);
-	if (offsetParent && (getNodeName(offsetParent) === "html" || getNodeName(offsetParent) === "body" && getComputedStyle$1(offsetParent).position === "static")) return window;
-	return offsetParent || getContainingBlock(element) || window;
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getMainAxisFromPlacement.js
-function getMainAxisFromPlacement(placement) {
-	return ["top", "bottom"].indexOf(placement) >= 0 ? "x" : "y";
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/within.js
-function within(min$2, value, max) {
-	return max$1(min$2, min(value, max));
-}
-function withinMaxClamp(min, value, max) {
-	var v = within(min, value, max);
-	return v > max ? max : v;
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getFreshSideObject.js
-function getFreshSideObject() {
-	return {
-		top: 0,
-		right: 0,
-		bottom: 0,
-		left: 0
-	};
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/mergePaddingObject.js
-function mergePaddingObject(paddingObject) {
-	return Object.assign({}, getFreshSideObject(), paddingObject);
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/expandToHashMap.js
-function expandToHashMap(value, keys) {
-	return keys.reduce(function(hashMap, key) {
-		hashMap[key] = value;
-		return hashMap;
-	}, {});
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/arrow.js
-var toPaddingObject = function toPaddingObject(padding, state) {
-	padding = typeof padding === "function" ? padding(Object.assign({}, state.rects, { placement: state.placement })) : padding;
-	return mergePaddingObject(typeof padding !== "number" ? padding : expandToHashMap(padding, basePlacements));
-};
-function arrow(_ref) {
-	var _state$modifiersData$;
-	var state = _ref.state, name = _ref.name, options = _ref.options;
-	var arrowElement = state.elements.arrow;
-	var popperOffsets = state.modifiersData.popperOffsets;
-	var basePlacement = getBasePlacement(state.placement);
-	var axis = getMainAxisFromPlacement(basePlacement);
-	var len = ["left", "right"].indexOf(basePlacement) >= 0 ? "height" : "width";
-	if (!arrowElement || !popperOffsets) return;
-	var paddingObject = toPaddingObject(options.padding, state);
-	var arrowRect = getLayoutRect(arrowElement);
-	var minProp = axis === "y" ? "top" : left$4;
-	var maxProp = axis === "y" ? bottom : right$4;
-	var endDiff = state.rects.reference[len] + state.rects.reference[axis] - popperOffsets[axis] - state.rects.popper[len];
-	var startDiff = popperOffsets[axis] - state.rects.reference[axis];
-	var arrowOffsetParent = getOffsetParent(arrowElement);
-	var clientSize = arrowOffsetParent ? axis === "y" ? arrowOffsetParent.clientHeight || 0 : arrowOffsetParent.clientWidth || 0 : 0;
-	var centerToReference = endDiff / 2 - startDiff / 2;
-	var min = paddingObject[minProp];
-	var max = clientSize - arrowRect[len] - paddingObject[maxProp];
-	var center = clientSize / 2 - arrowRect[len] / 2 + centerToReference;
-	var offset = within(min, center, max);
-	var axisProp = axis;
-	state.modifiersData[name] = (_state$modifiersData$ = {}, _state$modifiersData$[axisProp] = offset, _state$modifiersData$.centerOffset = offset - center, _state$modifiersData$);
-}
-function effect$2(_ref2) {
-	var state = _ref2.state;
-	var _options$element = _ref2.options.element, arrowElement = _options$element === void 0 ? "[data-popper-arrow]" : _options$element;
-	if (arrowElement == null) return;
-	if (typeof arrowElement === "string") {
-		arrowElement = state.elements.popper.querySelector(arrowElement);
-		if (!arrowElement) return;
-	}
-	if (!contains$1(state.elements.popper, arrowElement)) return;
-	state.elements.arrow = arrowElement;
-}
-var arrow_default = {
-	name: "arrow",
-	enabled: true,
-	phase: "main",
-	fn: arrow,
-	effect: effect$2,
-	requires: ["popperOffsets"],
-	requiresIfExists: ["preventOverflow"]
-};
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getVariation.js
-function getVariation(placement) {
-	return placement.split("-")[1];
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/computeStyles.js
-var unsetSides = {
-	top: "auto",
-	right: "auto",
-	bottom: "auto",
-	left: "auto"
-};
-function roundOffsetsByDPR(_ref, win) {
-	var x = _ref.x, y = _ref.y;
-	var dpr = win.devicePixelRatio || 1;
-	return {
-		x: round(x * dpr) / dpr || 0,
-		y: round(y * dpr) / dpr || 0
-	};
-}
-function mapToStyles(_ref2) {
-	var _Object$assign2;
-	var popper = _ref2.popper, popperRect = _ref2.popperRect, placement = _ref2.placement, variation = _ref2.variation, offsets = _ref2.offsets, position = _ref2.position, gpuAcceleration = _ref2.gpuAcceleration, adaptive = _ref2.adaptive, roundOffsets = _ref2.roundOffsets, isFixed = _ref2.isFixed;
-	var _offsets$x = offsets.x, x = _offsets$x === void 0 ? 0 : _offsets$x, _offsets$y = offsets.y, y = _offsets$y === void 0 ? 0 : _offsets$y;
-	var _ref3 = typeof roundOffsets === "function" ? roundOffsets({
-		x,
-		y
-	}) : {
-		x,
-		y
-	};
-	x = _ref3.x;
-	y = _ref3.y;
-	var hasX = offsets.hasOwnProperty("x");
-	var hasY = offsets.hasOwnProperty("y");
-	var sideX = left$4;
-	var sideY = "top";
-	var win = window;
-	if (adaptive) {
-		var offsetParent = getOffsetParent(popper);
-		var heightProp = "clientHeight";
-		var widthProp = "clientWidth";
-		if (offsetParent === getWindow(popper)) {
-			offsetParent = getDocumentElement(popper);
-			if (getComputedStyle$1(offsetParent).position !== "static" && position === "absolute") {
-				heightProp = "scrollHeight";
-				widthProp = "scrollWidth";
-			}
-		}
-		offsetParent = offsetParent;
-		if (placement === "top" || (placement === "left" || placement === "right") && variation === "end") {
-			sideY = bottom;
-			var offsetY = isFixed && offsetParent === win && win.visualViewport ? win.visualViewport.height : offsetParent[heightProp];
-			y -= offsetY - popperRect.height;
-			y *= gpuAcceleration ? 1 : -1;
-		}
-		if (placement === "left" || (placement === "top" || placement === "bottom") && variation === "end") {
-			sideX = right$4;
-			var offsetX = isFixed && offsetParent === win && win.visualViewport ? win.visualViewport.width : offsetParent[widthProp];
-			x -= offsetX - popperRect.width;
-			x *= gpuAcceleration ? 1 : -1;
-		}
-	}
-	var commonStyles = Object.assign({ position }, adaptive && unsetSides);
-	var _ref4 = roundOffsets === true ? roundOffsetsByDPR({
-		x,
-		y
-	}, getWindow(popper)) : {
-		x,
-		y
-	};
-	x = _ref4.x;
-	y = _ref4.y;
-	if (gpuAcceleration) {
-		var _Object$assign;
-		return Object.assign({}, commonStyles, (_Object$assign = {}, _Object$assign[sideY] = hasY ? "0" : "", _Object$assign[sideX] = hasX ? "0" : "", _Object$assign.transform = (win.devicePixelRatio || 1) <= 1 ? "translate(" + x + "px, " + y + "px)" : "translate3d(" + x + "px, " + y + "px, 0)", _Object$assign));
-	}
-	return Object.assign({}, commonStyles, (_Object$assign2 = {}, _Object$assign2[sideY] = hasY ? y + "px" : "", _Object$assign2[sideX] = hasX ? x + "px" : "", _Object$assign2.transform = "", _Object$assign2));
-}
-function computeStyles(_ref5) {
-	var state = _ref5.state, options = _ref5.options;
-	var _options$gpuAccelerat = options.gpuAcceleration, gpuAcceleration = _options$gpuAccelerat === void 0 ? true : _options$gpuAccelerat, _options$adaptive = options.adaptive, adaptive = _options$adaptive === void 0 ? true : _options$adaptive, _options$roundOffsets = options.roundOffsets, roundOffsets = _options$roundOffsets === void 0 ? true : _options$roundOffsets;
-	var commonStyles = {
-		placement: getBasePlacement(state.placement),
-		variation: getVariation(state.placement),
-		popper: state.elements.popper,
-		popperRect: state.rects.popper,
-		gpuAcceleration,
-		isFixed: state.options.strategy === "fixed"
-	};
-	if (state.modifiersData.popperOffsets != null) state.styles.popper = Object.assign({}, state.styles.popper, mapToStyles(Object.assign({}, commonStyles, {
-		offsets: state.modifiersData.popperOffsets,
-		position: state.options.strategy,
-		adaptive,
-		roundOffsets
-	})));
-	if (state.modifiersData.arrow != null) state.styles.arrow = Object.assign({}, state.styles.arrow, mapToStyles(Object.assign({}, commonStyles, {
-		offsets: state.modifiersData.arrow,
-		position: "absolute",
-		adaptive: false,
-		roundOffsets
-	})));
-	state.attributes.popper = Object.assign({}, state.attributes.popper, { "data-popper-placement": state.placement });
-}
-var computeStyles_default = {
-	name: "computeStyles",
-	enabled: true,
-	phase: "beforeWrite",
-	fn: computeStyles,
-	data: {}
-};
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/eventListeners.js
-var passive = { passive: true };
-function effect$1(_ref) {
-	var state = _ref.state, instance = _ref.instance, options = _ref.options;
-	var _options$scroll = options.scroll, scroll = _options$scroll === void 0 ? true : _options$scroll, _options$resize = options.resize, resize = _options$resize === void 0 ? true : _options$resize;
-	var window = getWindow(state.elements.popper);
-	var scrollParents = [].concat(state.scrollParents.reference, state.scrollParents.popper);
-	if (scroll) scrollParents.forEach(function(scrollParent) {
-		scrollParent.addEventListener("scroll", instance.update, passive);
-	});
-	if (resize) window.addEventListener("resize", instance.update, passive);
-	return function() {
-		if (scroll) scrollParents.forEach(function(scrollParent) {
-			scrollParent.removeEventListener("scroll", instance.update, passive);
-		});
-		if (resize) window.removeEventListener("resize", instance.update, passive);
-	};
-}
-var eventListeners_default = {
-	name: "eventListeners",
-	enabled: true,
-	phase: "write",
-	fn: function fn() {},
-	effect: effect$1,
-	data: {}
-};
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getOppositePlacement.js
-var hash$1 = {
-	left: "right",
-	right: "left",
-	bottom: "top",
-	top: "bottom"
-};
-function getOppositePlacement(placement) {
-	return placement.replace(/left|right|bottom|top/g, function(matched) {
-		return hash$1[matched];
-	});
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getOppositeVariationPlacement.js
-var hash = {
-	start: "end",
-	end: "start"
-};
-function getOppositeVariationPlacement(placement) {
-	return placement.replace(/start|end/g, function(matched) {
-		return hash[matched];
-	});
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getWindowScroll.js
-function getWindowScroll(node) {
-	var win = getWindow(node);
-	return {
-		scrollLeft: win.pageXOffset,
-		scrollTop: win.pageYOffset
-	};
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getWindowScrollBarX.js
-function getWindowScrollBarX(element) {
-	return getBoundingClientRect(getDocumentElement(element)).left + getWindowScroll(element).scrollLeft;
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getViewportRect.js
-function getViewportRect(element, strategy) {
-	var win = getWindow(element);
-	var html = getDocumentElement(element);
-	var visualViewport = win.visualViewport;
-	var width = html.clientWidth;
-	var height = html.clientHeight;
-	var x = 0;
-	var y = 0;
-	if (visualViewport) {
-		width = visualViewport.width;
-		height = visualViewport.height;
-		var layoutViewport = isLayoutViewport();
-		if (layoutViewport || !layoutViewport && strategy === "fixed") {
-			x = visualViewport.offsetLeft;
-			y = visualViewport.offsetTop;
-		}
-	}
-	return {
-		width,
-		height,
-		x: x + getWindowScrollBarX(element),
-		y
-	};
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getDocumentRect.js
-function getDocumentRect(element) {
-	var _element$ownerDocumen;
-	var html = getDocumentElement(element);
-	var winScroll = getWindowScroll(element);
-	var body = (_element$ownerDocumen = element.ownerDocument) == null ? void 0 : _element$ownerDocumen.body;
-	var width = max$1(html.scrollWidth, html.clientWidth, body ? body.scrollWidth : 0, body ? body.clientWidth : 0);
-	var height = max$1(html.scrollHeight, html.clientHeight, body ? body.scrollHeight : 0, body ? body.clientHeight : 0);
-	var x = -winScroll.scrollLeft + getWindowScrollBarX(element);
-	var y = -winScroll.scrollTop;
-	if (getComputedStyle$1(body || html).direction === "rtl") x += max$1(html.clientWidth, body ? body.clientWidth : 0) - width;
-	return {
-		width,
-		height,
-		x,
-		y
-	};
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/isScrollParent.js
-function isScrollParent(element) {
-	var _getComputedStyle = getComputedStyle$1(element), overflow = _getComputedStyle.overflow, overflowX = _getComputedStyle.overflowX, overflowY = _getComputedStyle.overflowY;
-	return /auto|scroll|overlay|hidden/.test(overflow + overflowY + overflowX);
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getScrollParent.js
-function getScrollParent(node) {
-	if ([
-		"html",
-		"body",
-		"#document"
-	].indexOf(getNodeName(node)) >= 0) return node.ownerDocument.body;
-	if (isHTMLElement(node) && isScrollParent(node)) return node;
-	return getScrollParent(getParentNode(node));
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/listScrollParents.js
-function listScrollParents(element, list) {
-	var _element$ownerDocumen;
-	if (list === void 0) list = [];
-	var scrollParent = getScrollParent(element);
-	var isBody = scrollParent === ((_element$ownerDocumen = element.ownerDocument) == null ? void 0 : _element$ownerDocumen.body);
-	var win = getWindow(scrollParent);
-	var target = isBody ? [win].concat(win.visualViewport || [], isScrollParent(scrollParent) ? scrollParent : []) : scrollParent;
-	var updatedList = list.concat(target);
-	return isBody ? updatedList : updatedList.concat(listScrollParents(getParentNode(target)));
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/rectToClientRect.js
-function rectToClientRect(rect) {
-	return Object.assign({}, rect, {
-		left: rect.x,
-		top: rect.y,
-		right: rect.x + rect.width,
-		bottom: rect.y + rect.height
-	});
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getClippingRect.js
-function getInnerBoundingClientRect(element, strategy) {
-	var rect = getBoundingClientRect(element, false, strategy === "fixed");
-	rect.top = rect.top + element.clientTop;
-	rect.left = rect.left + element.clientLeft;
-	rect.bottom = rect.top + element.clientHeight;
-	rect.right = rect.left + element.clientWidth;
-	rect.width = element.clientWidth;
-	rect.height = element.clientHeight;
-	rect.x = rect.left;
-	rect.y = rect.top;
-	return rect;
-}
-function getClientRectFromMixedType(element, clippingParent, strategy) {
-	return clippingParent === "viewport" ? rectToClientRect(getViewportRect(element, strategy)) : isElement(clippingParent) ? getInnerBoundingClientRect(clippingParent, strategy) : rectToClientRect(getDocumentRect(getDocumentElement(element)));
-}
-function getClippingParents(element) {
-	var clippingParents = listScrollParents(getParentNode(element));
-	var clipperElement = ["absolute", "fixed"].indexOf(getComputedStyle$1(element).position) >= 0 && isHTMLElement(element) ? getOffsetParent(element) : element;
-	if (!isElement(clipperElement)) return [];
-	return clippingParents.filter(function(clippingParent) {
-		return isElement(clippingParent) && contains$1(clippingParent, clipperElement) && getNodeName(clippingParent) !== "body";
-	});
-}
-function getClippingRect(element, boundary, rootBoundary, strategy) {
-	var mainClippingParents = boundary === "clippingParents" ? getClippingParents(element) : [].concat(boundary);
-	var clippingParents = [].concat(mainClippingParents, [rootBoundary]);
-	var firstClippingParent = clippingParents[0];
-	var clippingRect = clippingParents.reduce(function(accRect, clippingParent) {
-		var rect = getClientRectFromMixedType(element, clippingParent, strategy);
-		accRect.top = max$1(rect.top, accRect.top);
-		accRect.right = min(rect.right, accRect.right);
-		accRect.bottom = min(rect.bottom, accRect.bottom);
-		accRect.left = max$1(rect.left, accRect.left);
-		return accRect;
-	}, getClientRectFromMixedType(element, firstClippingParent, strategy));
-	clippingRect.width = clippingRect.right - clippingRect.left;
-	clippingRect.height = clippingRect.bottom - clippingRect.top;
-	clippingRect.x = clippingRect.left;
-	clippingRect.y = clippingRect.top;
-	return clippingRect;
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/computeOffsets.js
-function computeOffsets(_ref) {
-	var reference = _ref.reference, element = _ref.element, placement = _ref.placement;
-	var basePlacement = placement ? getBasePlacement(placement) : null;
-	var variation = placement ? getVariation(placement) : null;
-	var commonX = reference.x + reference.width / 2 - element.width / 2;
-	var commonY = reference.y + reference.height / 2 - element.height / 2;
-	var offsets;
-	switch (basePlacement) {
-		case "top":
-			offsets = {
-				x: commonX,
-				y: reference.y - element.height
-			};
-			break;
-		case bottom:
-			offsets = {
-				x: commonX,
-				y: reference.y + reference.height
-			};
-			break;
-		case right$4:
-			offsets = {
-				x: reference.x + reference.width,
-				y: commonY
-			};
-			break;
-		case left$4:
-			offsets = {
-				x: reference.x - element.width,
-				y: commonY
-			};
-			break;
-		default: offsets = {
-			x: reference.x,
-			y: reference.y
+* Declarative `setTimeout`: calls the latest `callback` once, `delayMs`
+* milliseconds after mount. Pass `null` to cancel. Changing `delayMs`
+* restarts the timer.
+*/ function useTimeout(callback, delayMs) {
+	const $ = (0, import_compiler_runtime.c)(4);
+	const callbackRef = useLatestRef(callback);
+	let t0;
+	let t1;
+	if ($[0] !== callbackRef || $[1] !== delayMs) {
+		t0 = () => {
+			if (delayMs === null) return;
+			const id = window.setTimeout(() => callbackRef.current(), delayMs);
+			return () => window.clearTimeout(id);
 		};
+		t1 = [delayMs, callbackRef];
+		$[0] = callbackRef;
+		$[1] = delayMs;
+		$[2] = t0;
+		$[3] = t1;
+	} else {
+		t0 = $[2];
+		t1 = $[3];
 	}
-	var mainAxis = basePlacement ? getMainAxisFromPlacement(basePlacement) : null;
-	if (mainAxis != null) {
-		var len = mainAxis === "y" ? "height" : "width";
-		switch (variation) {
-			case start:
-				offsets[mainAxis] = offsets[mainAxis] - (reference[len] / 2 - element[len] / 2);
-				break;
-			case "end": offsets[mainAxis] = offsets[mainAxis] + (reference[len] / 2 - element[len] / 2);
-		}
-	}
-	return offsets;
+	(0, import_react.useEffect)(t0, t1);
 }
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/detectOverflow.js
-function detectOverflow(state, options) {
-	if (options === void 0) options = {};
-	var _options = options, _options$placement = _options.placement, placement = _options$placement === void 0 ? state.placement : _options$placement, _options$strategy = _options.strategy, strategy = _options$strategy === void 0 ? state.strategy : _options$strategy, _options$boundary = _options.boundary, boundary = _options$boundary === void 0 ? clippingParents : _options$boundary, _options$rootBoundary = _options.rootBoundary, rootBoundary = _options$rootBoundary === void 0 ? viewport : _options$rootBoundary, _options$elementConte = _options.elementContext, elementContext = _options$elementConte === void 0 ? popper : _options$elementConte, _options$altBoundary = _options.altBoundary, altBoundary = _options$altBoundary === void 0 ? false : _options$altBoundary, _options$padding = _options.padding, padding = _options$padding === void 0 ? 0 : _options$padding;
-	var paddingObject = mergePaddingObject(typeof padding !== "number" ? padding : expandToHashMap(padding, basePlacements));
-	var altContext = elementContext === "popper" ? reference$1 : popper;
-	var popperRect = state.rects.popper;
-	var element = state.elements[altBoundary ? altContext : elementContext];
-	var clippingClientRect = getClippingRect(isElement(element) ? element : element.contextElement || getDocumentElement(state.elements.popper), boundary, rootBoundary, strategy);
-	var referenceClientRect = getBoundingClientRect(state.elements.reference);
-	var popperOffsets = computeOffsets({
-		reference: referenceClientRect,
-		element: popperRect,
-		strategy: "absolute",
-		placement
-	});
-	var popperClientRect = rectToClientRect(Object.assign({}, popperRect, popperOffsets));
-	var elementClientRect = elementContext === "popper" ? popperClientRect : referenceClientRect;
-	var overflowOffsets = {
-		top: clippingClientRect.top - elementClientRect.top + paddingObject.top,
-		bottom: elementClientRect.bottom - clippingClientRect.bottom + paddingObject.bottom,
-		left: clippingClientRect.left - elementClientRect.left + paddingObject.left,
-		right: elementClientRect.right - clippingClientRect.right + paddingObject.right
-	};
-	var offsetData = state.modifiersData.offset;
-	if (elementContext === "popper" && offsetData) {
-		var offset = offsetData[placement];
-		Object.keys(overflowOffsets).forEach(function(key) {
-			var multiply = ["right", "bottom"].indexOf(key) >= 0 ? 1 : -1;
-			var axis = ["top", "bottom"].indexOf(key) >= 0 ? "y" : "x";
-			overflowOffsets[key] += offset[axis] * multiply;
-		});
-	}
-	return overflowOffsets;
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/computeAutoPlacement.js
-function computeAutoPlacement(state, options) {
-	if (options === void 0) options = {};
-	var _options = options, placement = _options.placement, boundary = _options.boundary, rootBoundary = _options.rootBoundary, padding = _options.padding, flipVariations = _options.flipVariations, _options$allowedAutoP = _options.allowedAutoPlacements, allowedAutoPlacements = _options$allowedAutoP === void 0 ? placements : _options$allowedAutoP;
-	var variation = getVariation(placement);
-	var placements$1 = variation ? flipVariations ? variationPlacements : variationPlacements.filter(function(placement) {
-		return getVariation(placement) === variation;
-	}) : basePlacements;
-	var allowedPlacements = placements$1.filter(function(placement) {
-		return allowedAutoPlacements.indexOf(placement) >= 0;
-	});
-	if (allowedPlacements.length === 0) allowedPlacements = placements$1;
-	var overflows = allowedPlacements.reduce(function(acc, placement) {
-		acc[placement] = detectOverflow(state, {
-			placement,
-			boundary,
-			rootBoundary,
-			padding
-		})[getBasePlacement(placement)];
-		return acc;
-	}, {});
-	return Object.keys(overflows).sort(function(a, b) {
-		return overflows[a] - overflows[b];
-	});
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/flip.js
-function getExpandedFallbackPlacements(placement) {
-	if (getBasePlacement(placement) === "auto") return [];
-	var oppositePlacement = getOppositePlacement(placement);
-	return [
-		getOppositeVariationPlacement(placement),
-		oppositePlacement,
-		getOppositeVariationPlacement(oppositePlacement)
-	];
-}
-function flip(_ref) {
-	var state = _ref.state, options = _ref.options, name = _ref.name;
-	if (state.modifiersData[name]._skip) return;
-	var _options$mainAxis = options.mainAxis, checkMainAxis = _options$mainAxis === void 0 ? true : _options$mainAxis, _options$altAxis = options.altAxis, checkAltAxis = _options$altAxis === void 0 ? true : _options$altAxis, specifiedFallbackPlacements = options.fallbackPlacements, padding = options.padding, boundary = options.boundary, rootBoundary = options.rootBoundary, altBoundary = options.altBoundary, _options$flipVariatio = options.flipVariations, flipVariations = _options$flipVariatio === void 0 ? true : _options$flipVariatio, allowedAutoPlacements = options.allowedAutoPlacements;
-	var preferredPlacement = state.options.placement;
-	var isBasePlacement = getBasePlacement(preferredPlacement) === preferredPlacement;
-	var fallbackPlacements = specifiedFallbackPlacements || (isBasePlacement || !flipVariations ? [getOppositePlacement(preferredPlacement)] : getExpandedFallbackPlacements(preferredPlacement));
-	var placements = [preferredPlacement].concat(fallbackPlacements).reduce(function(acc, placement) {
-		return acc.concat(getBasePlacement(placement) === "auto" ? computeAutoPlacement(state, {
-			placement,
-			boundary,
-			rootBoundary,
-			padding,
-			flipVariations,
-			allowedAutoPlacements
-		}) : placement);
-	}, []);
-	var referenceRect = state.rects.reference;
-	var popperRect = state.rects.popper;
-	var checksMap = /* @__PURE__ */ new Map();
-	var makeFallbackChecks = true;
-	var firstFittingPlacement = placements[0];
-	for (var i = 0; i < placements.length; i++) {
-		var placement = placements[i];
-		var _basePlacement = getBasePlacement(placement);
-		var isStartVariation = getVariation(placement) === start;
-		var isVertical = ["top", bottom].indexOf(_basePlacement) >= 0;
-		var len = isVertical ? "width" : "height";
-		var overflow = detectOverflow(state, {
-			placement,
-			boundary,
-			rootBoundary,
-			altBoundary,
-			padding
-		});
-		var mainVariationSide = isVertical ? isStartVariation ? right$4 : left$4 : isStartVariation ? bottom : "top";
-		if (referenceRect[len] > popperRect[len]) mainVariationSide = getOppositePlacement(mainVariationSide);
-		var altVariationSide = getOppositePlacement(mainVariationSide);
-		var checks = [];
-		if (checkMainAxis) checks.push(overflow[_basePlacement] <= 0);
-		if (checkAltAxis) checks.push(overflow[mainVariationSide] <= 0, overflow[altVariationSide] <= 0);
-		if (checks.every(function(check) {
-			return check;
-		})) {
-			firstFittingPlacement = placement;
-			makeFallbackChecks = false;
-			break;
-		}
-		checksMap.set(placement, checks);
-	}
-	if (makeFallbackChecks) {
-		var numberOfChecks = flipVariations ? 3 : 1;
-		var _loop = function _loop(_i) {
-			var fittingPlacement = placements.find(function(placement) {
-				var checks = checksMap.get(placement);
-				if (checks) return checks.slice(0, _i).every(function(check) {
-					return check;
-				});
-			});
-			if (fittingPlacement) {
-				firstFittingPlacement = fittingPlacement;
-				return "break";
-			}
-		};
-		for (var _i = numberOfChecks; _i > 0; _i--) if (_loop(_i) === "break") break;
-	}
-	if (state.placement !== firstFittingPlacement) {
-		state.modifiersData[name]._skip = true;
-		state.placement = firstFittingPlacement;
-		state.reset = true;
-	}
-}
-var flip_default = {
-	name: "flip",
-	enabled: true,
-	phase: "main",
-	fn: flip,
-	requiresIfExists: ["offset"],
-	data: { _skip: false }
-};
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/hide.js
-function getSideOffsets(overflow, rect, preventedOffsets) {
-	if (preventedOffsets === void 0) preventedOffsets = {
-		x: 0,
-		y: 0
-	};
-	return {
-		top: overflow.top - rect.height - preventedOffsets.y,
-		right: overflow.right - rect.width + preventedOffsets.x,
-		bottom: overflow.bottom - rect.height + preventedOffsets.y,
-		left: overflow.left - rect.width - preventedOffsets.x
-	};
-}
-function isAnySideFullyClipped(overflow) {
-	return [
-		"top",
-		right$4,
-		bottom,
-		left$4
-	].some(function(side) {
-		return overflow[side] >= 0;
-	});
-}
-function hide(_ref) {
-	var state = _ref.state, name = _ref.name;
-	var referenceRect = state.rects.reference;
-	var popperRect = state.rects.popper;
-	var preventedOffsets = state.modifiersData.preventOverflow;
-	var referenceOverflow = detectOverflow(state, { elementContext: "reference" });
-	var popperAltOverflow = detectOverflow(state, { altBoundary: true });
-	var referenceClippingOffsets = getSideOffsets(referenceOverflow, referenceRect);
-	var popperEscapeOffsets = getSideOffsets(popperAltOverflow, popperRect, preventedOffsets);
-	var isReferenceHidden = isAnySideFullyClipped(referenceClippingOffsets);
-	var hasPopperEscaped = isAnySideFullyClipped(popperEscapeOffsets);
-	state.modifiersData[name] = {
-		referenceClippingOffsets,
-		popperEscapeOffsets,
-		isReferenceHidden,
-		hasPopperEscaped
-	};
-	state.attributes.popper = Object.assign({}, state.attributes.popper, {
-		"data-popper-reference-hidden": isReferenceHidden,
-		"data-popper-escaped": hasPopperEscaped
-	});
-}
-var hide_default = {
-	name: "hide",
-	enabled: true,
-	phase: "main",
-	requiresIfExists: ["preventOverflow"],
-	fn: hide
-};
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/offset.js
-function distanceAndSkiddingToXY(placement, rects, offset) {
-	var basePlacement = getBasePlacement(placement);
-	var invertDistance = ["left", "top"].indexOf(basePlacement) >= 0 ? -1 : 1;
-	var _ref = typeof offset === "function" ? offset(Object.assign({}, rects, { placement })) : offset, skidding = _ref[0], distance = _ref[1];
-	skidding = skidding || 0;
-	distance = (distance || 0) * invertDistance;
-	return ["left", "right"].indexOf(basePlacement) >= 0 ? {
-		x: distance,
-		y: skidding
-	} : {
-		x: skidding,
-		y: distance
-	};
-}
-function offset(_ref2) {
-	var state = _ref2.state, options = _ref2.options, name = _ref2.name;
-	var _options$offset = options.offset, offset = _options$offset === void 0 ? [0, 0] : _options$offset;
-	var data = placements.reduce(function(acc, placement) {
-		acc[placement] = distanceAndSkiddingToXY(placement, state.rects, offset);
-		return acc;
-	}, {});
-	var _data$state$placement = data[state.placement], x = _data$state$placement.x, y = _data$state$placement.y;
-	if (state.modifiersData.popperOffsets != null) {
-		state.modifiersData.popperOffsets.x += x;
-		state.modifiersData.popperOffsets.y += y;
-	}
-	state.modifiersData[name] = data;
-}
-var offset_default = {
-	name: "offset",
-	enabled: true,
-	phase: "main",
-	requires: ["popperOffsets"],
-	fn: offset
-};
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/popperOffsets.js
-function popperOffsets(_ref) {
-	var state = _ref.state, name = _ref.name;
-	state.modifiersData[name] = computeOffsets({
-		reference: state.rects.reference,
-		element: state.rects.popper,
-		strategy: "absolute",
-		placement: state.placement
-	});
-}
-var popperOffsets_default = {
-	name: "popperOffsets",
-	enabled: true,
-	phase: "read",
-	fn: popperOffsets,
-	data: {}
-};
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/getAltAxis.js
-function getAltAxis(axis) {
-	return axis === "x" ? "y" : "x";
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/modifiers/preventOverflow.js
-function preventOverflow(_ref) {
-	var state = _ref.state, options = _ref.options, name = _ref.name;
-	var _options$mainAxis = options.mainAxis, checkMainAxis = _options$mainAxis === void 0 ? true : _options$mainAxis, _options$altAxis = options.altAxis, checkAltAxis = _options$altAxis === void 0 ? false : _options$altAxis, boundary = options.boundary, rootBoundary = options.rootBoundary, altBoundary = options.altBoundary, padding = options.padding, _options$tether = options.tether, tether = _options$tether === void 0 ? true : _options$tether, _options$tetherOffset = options.tetherOffset, tetherOffset = _options$tetherOffset === void 0 ? 0 : _options$tetherOffset;
-	var overflow = detectOverflow(state, {
-		boundary,
-		rootBoundary,
-		padding,
-		altBoundary
-	});
-	var basePlacement = getBasePlacement(state.placement);
-	var variation = getVariation(state.placement);
-	var isBasePlacement = !variation;
-	var mainAxis = getMainAxisFromPlacement(basePlacement);
-	var altAxis = getAltAxis(mainAxis);
-	var popperOffsets = state.modifiersData.popperOffsets;
-	var referenceRect = state.rects.reference;
-	var popperRect = state.rects.popper;
-	var tetherOffsetValue = typeof tetherOffset === "function" ? tetherOffset(Object.assign({}, state.rects, { placement: state.placement })) : tetherOffset;
-	var normalizedTetherOffsetValue = typeof tetherOffsetValue === "number" ? {
-		mainAxis: tetherOffsetValue,
-		altAxis: tetherOffsetValue
-	} : Object.assign({
-		mainAxis: 0,
-		altAxis: 0
-	}, tetherOffsetValue);
-	var offsetModifierState = state.modifiersData.offset ? state.modifiersData.offset[state.placement] : null;
-	var data = {
-		x: 0,
-		y: 0
-	};
-	if (!popperOffsets) return;
-	if (checkMainAxis) {
-		var _offsetModifierState$;
-		var mainSide = mainAxis === "y" ? "top" : left$4;
-		var altSide = mainAxis === "y" ? bottom : right$4;
-		var len = mainAxis === "y" ? "height" : "width";
-		var offset = popperOffsets[mainAxis];
-		var min$1 = offset + overflow[mainSide];
-		var max = offset - overflow[altSide];
-		var additive = tether ? -popperRect[len] / 2 : 0;
-		var minLen = variation === "start" ? referenceRect[len] : popperRect[len];
-		var maxLen = variation === "start" ? -popperRect[len] : -referenceRect[len];
-		var arrowElement = state.elements.arrow;
-		var arrowRect = tether && arrowElement ? getLayoutRect(arrowElement) : {
-			width: 0,
-			height: 0
-		};
-		var arrowPaddingObject = state.modifiersData["arrow#persistent"] ? state.modifiersData["arrow#persistent"].padding : getFreshSideObject();
-		var arrowPaddingMin = arrowPaddingObject[mainSide];
-		var arrowPaddingMax = arrowPaddingObject[altSide];
-		var arrowLen = within(0, referenceRect[len], arrowRect[len]);
-		var minOffset = isBasePlacement ? referenceRect[len] / 2 - additive - arrowLen - arrowPaddingMin - normalizedTetherOffsetValue.mainAxis : minLen - arrowLen - arrowPaddingMin - normalizedTetherOffsetValue.mainAxis;
-		var maxOffset = isBasePlacement ? -referenceRect[len] / 2 + additive + arrowLen + arrowPaddingMax + normalizedTetherOffsetValue.mainAxis : maxLen + arrowLen + arrowPaddingMax + normalizedTetherOffsetValue.mainAxis;
-		var arrowOffsetParent = state.elements.arrow && getOffsetParent(state.elements.arrow);
-		var clientOffset = arrowOffsetParent ? mainAxis === "y" ? arrowOffsetParent.clientTop || 0 : arrowOffsetParent.clientLeft || 0 : 0;
-		var offsetModifierValue = (_offsetModifierState$ = offsetModifierState == null ? void 0 : offsetModifierState[mainAxis]) != null ? _offsetModifierState$ : 0;
-		var tetherMin = offset + minOffset - offsetModifierValue - clientOffset;
-		var tetherMax = offset + maxOffset - offsetModifierValue;
-		var preventedOffset = within(tether ? min(min$1, tetherMin) : min$1, offset, tether ? max$1(max, tetherMax) : max);
-		popperOffsets[mainAxis] = preventedOffset;
-		data[mainAxis] = preventedOffset - offset;
-	}
-	if (checkAltAxis) {
-		var _offsetModifierState$2;
-		var _mainSide = mainAxis === "x" ? "top" : left$4;
-		var _altSide = mainAxis === "x" ? bottom : right$4;
-		var _offset = popperOffsets[altAxis];
-		var _len = altAxis === "y" ? "height" : "width";
-		var _min = _offset + overflow[_mainSide];
-		var _max = _offset - overflow[_altSide];
-		var isOriginSide = ["top", left$4].indexOf(basePlacement) !== -1;
-		var _offsetModifierValue = (_offsetModifierState$2 = offsetModifierState == null ? void 0 : offsetModifierState[altAxis]) != null ? _offsetModifierState$2 : 0;
-		var _tetherMin = isOriginSide ? _min : _offset - referenceRect[_len] - popperRect[_len] - _offsetModifierValue + normalizedTetherOffsetValue.altAxis;
-		var _tetherMax = isOriginSide ? _offset + referenceRect[_len] + popperRect[_len] - _offsetModifierValue - normalizedTetherOffsetValue.altAxis : _max;
-		var _preventedOffset = tether && isOriginSide ? withinMaxClamp(_tetherMin, _offset, _tetherMax) : within(tether ? _tetherMin : _min, _offset, tether ? _tetherMax : _max);
-		popperOffsets[altAxis] = _preventedOffset;
-		data[altAxis] = _preventedOffset - _offset;
-	}
-	state.modifiersData[name] = data;
-}
-var preventOverflow_default = {
-	name: "preventOverflow",
-	enabled: true,
-	phase: "main",
-	fn: preventOverflow,
-	requiresIfExists: ["offset"]
-};
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getHTMLElementScroll.js
-function getHTMLElementScroll(element) {
-	return {
-		scrollLeft: element.scrollLeft,
-		scrollTop: element.scrollTop
-	};
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getNodeScroll.js
-function getNodeScroll(node) {
-	if (node === getWindow(node) || !isHTMLElement(node)) return getWindowScroll(node);
-	else return getHTMLElementScroll(node);
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/dom-utils/getCompositeRect.js
-function isElementScaled(element) {
-	var rect = element.getBoundingClientRect();
-	var scaleX = round(rect.width) / element.offsetWidth || 1;
-	var scaleY = round(rect.height) / element.offsetHeight || 1;
-	return scaleX !== 1 || scaleY !== 1;
-}
-function getCompositeRect(elementOrVirtualElement, offsetParent, isFixed) {
-	if (isFixed === void 0) isFixed = false;
-	var isOffsetParentAnElement = isHTMLElement(offsetParent);
-	var offsetParentIsScaled = isHTMLElement(offsetParent) && isElementScaled(offsetParent);
-	var documentElement = getDocumentElement(offsetParent);
-	var rect = getBoundingClientRect(elementOrVirtualElement, offsetParentIsScaled, isFixed);
-	var scroll = {
-		scrollLeft: 0,
-		scrollTop: 0
-	};
-	var offsets = {
-		x: 0,
-		y: 0
-	};
-	if (isOffsetParentAnElement || !isOffsetParentAnElement && !isFixed) {
-		if (getNodeName(offsetParent) !== "body" || isScrollParent(documentElement)) scroll = getNodeScroll(offsetParent);
-		if (isHTMLElement(offsetParent)) {
-			offsets = getBoundingClientRect(offsetParent, true);
-			offsets.x += offsetParent.clientLeft;
-			offsets.y += offsetParent.clientTop;
-		} else if (documentElement) offsets.x = getWindowScrollBarX(documentElement);
-	}
-	return {
-		x: rect.left + scroll.scrollLeft - offsets.x,
-		y: rect.top + scroll.scrollTop - offsets.y,
-		width: rect.width,
-		height: rect.height
-	};
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/orderModifiers.js
-function order(modifiers) {
-	var map = /* @__PURE__ */ new Map();
-	var visited = /* @__PURE__ */ new Set();
-	var result = [];
-	modifiers.forEach(function(modifier) {
-		map.set(modifier.name, modifier);
-	});
-	function sort(modifier) {
-		visited.add(modifier.name);
-		[].concat(modifier.requires || [], modifier.requiresIfExists || []).forEach(function(dep) {
-			if (!visited.has(dep)) {
-				var depModifier = map.get(dep);
-				if (depModifier) sort(depModifier);
-			}
-		});
-		result.push(modifier);
-	}
-	modifiers.forEach(function(modifier) {
-		if (!visited.has(modifier.name)) sort(modifier);
-	});
-	return result;
-}
-function orderModifiers(modifiers) {
-	var orderedModifiers = order(modifiers);
-	return modifierPhases.reduce(function(acc, phase) {
-		return acc.concat(orderedModifiers.filter(function(modifier) {
-			return modifier.phase === phase;
-		}));
-	}, []);
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/debounce.js
-function debounce$2(fn) {
-	var pending;
-	return function() {
-		if (!pending) pending = new Promise(function(resolve) {
-			Promise.resolve().then(function() {
-				pending = void 0;
-				resolve(fn());
-			});
-		});
-		return pending;
-	};
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/utils/mergeByName.js
-function mergeByName(modifiers) {
-	var merged = modifiers.reduce(function(merged, current) {
-		var existing = merged[current.name];
-		merged[current.name] = existing ? Object.assign({}, existing, current, {
-			options: Object.assign({}, existing.options, current.options),
-			data: Object.assign({}, existing.data, current.data)
-		}) : current;
-		return merged;
-	}, {});
-	return Object.keys(merged).map(function(key) {
-		return merged[key];
-	});
-}
-// ../../node_modules/.pnpm/@popperjs+core@2.11.8/node_modules/@popperjs/core/lib/createPopper.js
-var DEFAULT_OPTIONS = {
-	placement: "bottom",
-	modifiers: [],
-	strategy: "absolute"
-};
-function areValidElements() {
-	for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) args[_key] = arguments[_key];
-	return !args.some(function(element) {
-		return !(element && typeof element.getBoundingClientRect === "function");
-	});
-}
-function popperGenerator(generatorOptions) {
-	if (generatorOptions === void 0) generatorOptions = {};
-	var _generatorOptions = generatorOptions, _generatorOptions$def = _generatorOptions.defaultModifiers, defaultModifiers = _generatorOptions$def === void 0 ? [] : _generatorOptions$def, _generatorOptions$def2 = _generatorOptions.defaultOptions, defaultOptions = _generatorOptions$def2 === void 0 ? DEFAULT_OPTIONS : _generatorOptions$def2;
-	return function createPopper(reference, popper, options) {
-		if (options === void 0) options = defaultOptions;
-		var state = {
-			placement: "bottom",
-			orderedModifiers: [],
-			options: Object.assign({}, DEFAULT_OPTIONS, defaultOptions),
-			modifiersData: {},
-			elements: {
-				reference,
-				popper
-			},
-			attributes: {},
-			styles: {}
-		};
-		var effectCleanupFns = [];
-		var isDestroyed = false;
-		var instance = {
-			state,
-			setOptions: function setOptions(setOptionsAction) {
-				var options = typeof setOptionsAction === "function" ? setOptionsAction(state.options) : setOptionsAction;
-				cleanupModifierEffects();
-				state.options = Object.assign({}, defaultOptions, state.options, options);
-				state.scrollParents = {
-					reference: isElement(reference) ? listScrollParents(reference) : reference.contextElement ? listScrollParents(reference.contextElement) : [],
-					popper: listScrollParents(popper)
-				};
-				var orderedModifiers = orderModifiers(mergeByName([].concat(defaultModifiers, state.options.modifiers)));
-				state.orderedModifiers = orderedModifiers.filter(function(m) {
-					return m.enabled;
-				});
-				runModifierEffects();
-				return instance.update();
-			},
-			forceUpdate: function forceUpdate() {
-				if (isDestroyed) return;
-				var _state$elements = state.elements, reference = _state$elements.reference, popper = _state$elements.popper;
-				if (!areValidElements(reference, popper)) return;
-				state.rects = {
-					reference: getCompositeRect(reference, getOffsetParent(popper), state.options.strategy === "fixed"),
-					popper: getLayoutRect(popper)
-				};
-				state.reset = false;
-				state.placement = state.options.placement;
-				state.orderedModifiers.forEach(function(modifier) {
-					return state.modifiersData[modifier.name] = Object.assign({}, modifier.data);
-				});
-				for (var index = 0; index < state.orderedModifiers.length; index++) {
-					if (state.reset === true) {
-						state.reset = false;
-						index = -1;
-						continue;
-					}
-					var _state$orderedModifie = state.orderedModifiers[index], fn = _state$orderedModifie.fn, _state$orderedModifie2 = _state$orderedModifie.options, _options = _state$orderedModifie2 === void 0 ? {} : _state$orderedModifie2, name = _state$orderedModifie.name;
-					if (typeof fn === "function") state = fn({
-						state,
-						options: _options,
-						name,
-						instance
-					}) || state;
-				}
-			},
-			update: debounce$2(function() {
-				return new Promise(function(resolve) {
-					instance.forceUpdate();
-					resolve(state);
-				});
-			}),
-			destroy: function destroy() {
-				cleanupModifierEffects();
-				isDestroyed = true;
-			}
-		};
-		if (!areValidElements(reference, popper)) return instance;
-		instance.setOptions(options).then(function(state) {
-			if (!isDestroyed && options.onFirstUpdate) options.onFirstUpdate(state);
-		});
-		function runModifierEffects() {
-			state.orderedModifiers.forEach(function(_ref) {
-				var name = _ref.name, _ref$options = _ref.options, options = _ref$options === void 0 ? {} : _ref$options, effect = _ref.effect;
-				if (typeof effect === "function") {
-					var cleanupFn = effect({
-						state,
-						name,
-						instance,
-						options
-					});
-					effectCleanupFns.push(cleanupFn || function noopFn() {});
-				}
-			});
-		}
-		function cleanupModifierEffects() {
-			effectCleanupFns.forEach(function(fn) {
-				return fn();
-			});
-			effectCleanupFns = [];
-		}
-		return instance;
-	};
-}
-var createPopper = /*#__PURE__*/ popperGenerator({ defaultModifiers: [
-	eventListeners_default,
-	popperOffsets_default,
-	computeStyles_default,
-	applyStyles_default,
-	offset_default,
-	flip_default,
-	preventOverflow_default,
-	arrow_default,
-	hide_default
-] });
-// ../../node_modules/.pnpm/react-popper@2.3.0_@popperjs+core@2.11.8_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/react-popper/lib/esm/usePopper.js
-var import_react_fast_compare = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((exports, module) => {
-	var hasElementType = typeof Element !== "undefined";
-	var hasMap = typeof Map === "function";
-	var hasSet = typeof Set === "function";
-	var hasArrayBuffer = typeof ArrayBuffer === "function" && !!ArrayBuffer.isView;
-	function equal(a, b) {
-		if (a === b) return true;
-		if (a && b && typeof a == "object" && typeof b == "object") {
-			if (a.constructor !== b.constructor) return false;
-			var length, i, keys;
-			if (Array.isArray(a)) {
-				length = a.length;
-				if (length != b.length) return false;
-				for (i = length; i-- !== 0;) if (!equal(a[i], b[i])) return false;
-				return true;
-			}
-			var it;
-			if (hasMap && a instanceof Map && b instanceof Map) {
-				if (a.size !== b.size) return false;
-				it = a.entries();
-				while (!(i = it.next()).done) if (!b.has(i.value[0])) return false;
-				it = a.entries();
-				while (!(i = it.next()).done) if (!equal(i.value[1], b.get(i.value[0]))) return false;
-				return true;
-			}
-			if (hasSet && a instanceof Set && b instanceof Set) {
-				if (a.size !== b.size) return false;
-				it = a.entries();
-				while (!(i = it.next()).done) if (!b.has(i.value[0])) return false;
-				return true;
-			}
-			if (hasArrayBuffer && ArrayBuffer.isView(a) && ArrayBuffer.isView(b)) {
-				length = a.length;
-				if (length != b.length) return false;
-				for (i = length; i-- !== 0;) if (a[i] !== b[i]) return false;
-				return true;
-			}
-			if (a.constructor === RegExp) return a.source === b.source && a.flags === b.flags;
-			if (a.valueOf !== Object.prototype.valueOf && typeof a.valueOf === "function" && typeof b.valueOf === "function") return a.valueOf() === b.valueOf();
-			if (a.toString !== Object.prototype.toString && typeof a.toString === "function" && typeof b.toString === "function") return a.toString() === b.toString();
-			keys = Object.keys(a);
-			length = keys.length;
-			if (length !== Object.keys(b).length) return false;
-			for (i = length; i-- !== 0;) if (!Object.prototype.hasOwnProperty.call(b, keys[i])) return false;
-			if (hasElementType && a instanceof Element) return false;
-			for (i = length; i-- !== 0;) {
-				if ((keys[i] === "_owner" || keys[i] === "__v" || keys[i] === "__o") && a.$$typeof) continue;
-				if (!equal(a[keys[i]], b[keys[i]])) return false;
-			}
-			return true;
-		}
-		return a !== a && b !== b;
-	}
-	module.exports = function isEqual(a, b) {
-		try {
-			return equal(a, b);
-		} catch (error) {
-			if ((error.message || "").match(/stack|recursion/i)) {
-				console.warn("react-fast-compare cannot handle circular refs");
-				return false;
-			}
-			throw error;
-		}
-	};
-})))());
-var EMPTY_MODIFIERS = [];
-var usePopper = function usePopper(referenceElement, popperElement, options) {
-	if (options === void 0) options = {};
-	var prevOptions = import_react.useRef(null);
-	var optionsWithDefaults = {
-		onFirstUpdate: options.onFirstUpdate,
-		placement: options.placement || "bottom",
-		strategy: options.strategy || "absolute",
-		modifiers: options.modifiers || EMPTY_MODIFIERS
-	};
-	var _React$useState = import_react.useState({
-		styles: {
-			popper: {
-				position: optionsWithDefaults.strategy,
-				left: "0",
-				top: "0"
-			},
-			arrow: { position: "absolute" }
-		},
-		attributes: {}
-	}), state = _React$useState[0], setState = _React$useState[1];
-	var updateStateModifier = import_react.useMemo(function() {
-		return {
-			name: "updateState",
-			enabled: true,
-			phase: "write",
-			fn: function fn(_ref) {
-				var state = _ref.state;
-				var elements = Object.keys(state.elements);
-				import_react_dom.flushSync(function() {
-					setState({
-						styles: fromEntries(elements.map(function(element) {
-							return [element, state.styles[element] || {}];
-						})),
-						attributes: fromEntries(elements.map(function(element) {
-							return [element, state.attributes[element]];
-						}))
-					});
-				});
-			},
-			requires: ["computeStyles"]
-		};
-	}, []);
-	var popperOptions = import_react.useMemo(function() {
-		var newOptions = {
-			onFirstUpdate: optionsWithDefaults.onFirstUpdate,
-			placement: optionsWithDefaults.placement,
-			strategy: optionsWithDefaults.strategy,
-			modifiers: [].concat(optionsWithDefaults.modifiers, [updateStateModifier, {
-				name: "applyStyles",
-				enabled: false
-			}])
-		};
-		if ((0, import_react_fast_compare.default)(prevOptions.current, newOptions)) return prevOptions.current || newOptions;
-		else {
-			prevOptions.current = newOptions;
-			return newOptions;
-		}
-	}, [
-		optionsWithDefaults.onFirstUpdate,
-		optionsWithDefaults.placement,
-		optionsWithDefaults.strategy,
-		optionsWithDefaults.modifiers,
-		updateStateModifier
-	]);
-	var popperInstanceRef = import_react.useRef();
-	useIsomorphicLayoutEffect$2(function() {
-		if (popperInstanceRef.current) popperInstanceRef.current.setOptions(popperOptions);
-	}, [popperOptions]);
-	useIsomorphicLayoutEffect$2(function() {
-		if (referenceElement == null || popperElement == null) return;
-		var popperInstance = (options.createPopper || createPopper)(referenceElement, popperElement, popperOptions);
-		popperInstanceRef.current = popperInstance;
-		return function() {
-			popperInstance.destroy();
-			popperInstanceRef.current = null;
-		};
-	}, [
-		referenceElement,
-		popperElement,
-		options.createPopper
-	]);
-	return {
-		state: popperInstanceRef.current ? popperInstanceRef.current.state : null,
-		styles: state.styles,
-		attributes: state.attributes,
-		update: popperInstanceRef.current ? popperInstanceRef.current.update : null,
-		forceUpdate: popperInstanceRef.current ? popperInstanceRef.current.forceUpdate : null
-	};
-};
 // ../../packages/react/src/components/PopOver.tsx
+var HOVER_LEAVE_GRACE_MS = 300;
+var panelStyle = {
+	backgroundColor: "var(--bs-body-bg)",
+	padding: "12px",
+	borderRadius: "var(--bs-border-radius)",
+	boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+	border: "solid 1px var(--bs-border-color)",
+	overflowY: "hidden"
+};
 /**
-* A controlled Popper component for displaying content relative to a reference element
-*/ var PopOver = ({ id, isOpen, setIsOpen, positionEl, children, placement = "bottom", showArrow = true, offset = [0, 8], className = "", arrowClassName = "", usePortal = true, hoverDelay = 250, closeOnMouseLeave = true, styles = {} }) => {
-	const popperRef = (0, import_react.useRef)(null);
-	const arrowRef = (0, import_react.useRef)(null);
-	const [portalContainer, setPortalContainer] = (0, import_react.useState)(null);
-	const [shouldShowPopover, setShouldShowPopover] = (0, import_react.useState)(false);
-	const hoverTimerRef = (0, import_react.useRef)(null);
-	const isMouseMovingRef = (0, import_react.useRef)(false);
-	const isOverPopoverRef = (0, import_react.useRef)(false);
-	const dismissalTimerRef = (0, import_react.useRef)(null);
-	const setIsOpenRef = (0, import_react.useRef)(setIsOpen);
-	setIsOpenRef.current = setIsOpen;
-	(0, import_react.useEffect)(() => {
-		const handleMouseMove = () => {
-			isMouseMovingRef.current = true;
-			if (hoverTimerRef.current !== null) window.clearTimeout(hoverTimerRef.current);
-			hoverTimerRef.current = window.setTimeout(() => {
-				if (isOpen) {
-					isMouseMovingRef.current = false;
-					setShouldShowPopover(true);
-				}
-			}, hoverDelay);
-		};
-		const handleMouseLeave = () => {
-			if (hoverTimerRef.current !== null) window.clearTimeout(hoverTimerRef.current);
-			isMouseMovingRef.current = false;
-			if (dismissalTimerRef.current !== null) window.clearTimeout(dismissalTimerRef.current);
-			dismissalTimerRef.current = window.setTimeout(() => {
-				if (!isOverPopoverRef.current) {
-					setShouldShowPopover(false);
-					setIsOpenRef.current(false);
-				}
-			}, 300);
-		};
-		const handleMouseDown = (event) => {
-			const target = event.target instanceof Node ? event.target : null;
-			if (popperRef.current && !popperRef.current.contains(target)) {
-				if (hoverTimerRef.current !== null) window.clearTimeout(hoverTimerRef.current);
-				setShouldShowPopover(false);
-				setIsOpenRef.current(false);
-			}
-		};
-		if (!isOpen || hoverDelay <= 0) {
-			setShouldShowPopover(isOpen);
-			let mouseDownInsidePopover = false;
-			let mouseDownOnTrigger = false;
-			const captureListener = (event) => {
-				const target = event.target instanceof Node ? event.target : null;
-				mouseDownInsidePopover = popperRef.current?.contains(target) ?? false;
-				mouseDownOnTrigger = positionEl?.contains(target) ?? false;
-			};
-			const bubbleListener = () => {
-				if (!popperRef.current) return;
-				if (mouseDownInsidePopover || mouseDownOnTrigger) return;
-				setIsOpenRef.current(false);
-			};
-			document.addEventListener("mousedown", captureListener, true);
-			document.addEventListener("mousedown", bubbleListener);
-			return () => {
-				document.removeEventListener("mousedown", captureListener, true);
-				document.removeEventListener("mousedown", bubbleListener);
-			};
-		}
-		if (positionEl) {
-			positionEl.addEventListener("mousemove", handleMouseMove);
-			positionEl.addEventListener("mouseleave", handleMouseLeave);
-			document.addEventListener("mousedown", handleMouseDown);
-			handleMouseMove();
-		} else setShouldShowPopover(false);
-		return () => {
-			if (positionEl) {
-				positionEl.removeEventListener("mousemove", handleMouseMove);
-				positionEl.removeEventListener("mouseleave", handleMouseLeave);
-			}
-			document.removeEventListener("mousedown", handleMouseDown);
-			if (hoverTimerRef.current !== null) {
-				window.clearTimeout(hoverTimerRef.current);
-				hoverTimerRef.current = null;
-			}
-			if (dismissalTimerRef.current !== null) {
-				window.clearTimeout(dismissalTimerRef.current);
-				dismissalTimerRef.current = null;
-			}
-		};
-	}, [
-		isOpen,
-		positionEl,
-		hoverDelay
-	]);
-	(0, import_react.useEffect)(() => {
-		if (usePortal && isOpen && shouldShowPopover) {
-			let container = document.getElementById(id);
-			if (!container) {
-				container = document.createElement("div");
-				container.id = id;
-				container.style.position = "absolute";
-				container.style.top = "0";
-				container.style.left = "0";
-				container.style.zIndex = "9999";
-				container.style.width = "0";
-				container.style.height = "0";
-				container.style.overflow = "visible";
-				document.body.appendChild(container);
-			}
-			setPortalContainer(container);
-			return () => {
-				if (document.body.contains(container)) {
-					document.body.removeChild(container);
-					setPortalContainer(null);
-				}
-			};
-		}
-	}, [
-		usePortal,
-		isOpen,
-		shouldShowPopover,
-		id
-	]);
-	const maxSizeModifier = import_react.useMemo(() => ({
-		name: "maxSize",
-		enabled: true,
-		phase: "main",
-		requiresIfExists: [
-			"offset",
-			"preventOverflow",
-			"flip"
-		],
-		options: { padding: 8 },
-		fn({ state, name, options }) {
-			const padding = typeof options.padding === "number" ? options.padding : 8;
-			state.modifiersData[name] = {
-				width: Math.max(0, window.innerWidth - 2 * padding),
-				height: Math.max(0, window.innerHeight - 2 * padding)
-			};
-		}
-	}), []);
-	const applyMaxSizeModifier = import_react.useMemo(() => ({
-		name: "applyMaxSize",
-		enabled: true,
-		phase: "beforeWrite",
-		requires: ["maxSize"],
-		fn({ state }) {
-			const data = state.modifiersData["maxSize"];
-			if (!isRecord(data) || typeof data["width"] !== "number" || typeof data["height"] !== "number") return;
-			state.styles.popper = {
-				...state.styles.popper,
-				maxWidth: `${data["width"]}px`,
-				maxHeight: `${data["height"]}px`
-			};
-		}
-	}), []);
-	const modifiers = [
-		{
-			name: "offset",
-			options: { offset }
-		},
-		{
-			name: "preventOverflow",
-			options: { padding: 8 }
-		},
-		{
-			name: "arrow",
-			enabled: showArrow,
-			options: {
-				element: arrowRef.current,
-				padding: 5
-			}
-		},
-		{
-			name: "computeStyles",
-			options: {
-				gpuAcceleration: false,
-				adaptive: true
-			}
-		},
-		{
-			name: "flip",
-			options: { fallbackPlacements: [
-				"top",
-				"right",
-				"bottom",
-				"left"
-			] }
-		},
-		maxSizeModifier,
-		applyMaxSizeModifier
-	];
-	const { styles: popperStyles, attributes, state, update, forceUpdate } = usePopper(positionEl, popperRef.current, {
-		placement,
-		strategy: "fixed",
-		modifiers
-	});
+* A controlled floating panel positioned against `positionEl`.
+*/ var PopOver = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(31);
+	const { id, isOpen, setIsOpen, positionEl, triggerEl, children, placement: t1, showArrow: t2, offset: t3, className: t4, hoverDelay: t5, closeOnMouseLeave: t6, styles: t7 } = t0;
+	const placement = t1 === void 0 ? "bottom" : t1;
+	const showArrow = t2 === void 0 ? true : t2;
+	const offset = t3 === void 0 ? 8 : t3;
+	const className = t4 === void 0 ? "" : t4;
+	const hoverDelay = t5 === void 0 ? 250 : t5;
+	const closeOnMouseLeave = t6 === void 0 ? true : t6;
+	let t8;
+	if ($[0] !== t7) {
+		t8 = t7 === void 0 ? {} : t7;
+		$[0] = t7;
+		$[1] = t8;
+	} else t8 = $[1];
+	const styles = t8;
+	const hover = hoverDelay > 0;
+	const [hoverShown, setHoverShown] = (0, import_react.useState)(false);
+	const [leaving, setLeaving] = (0, import_react.useState)(false);
+	const [popover, setPopover] = (0, import_react.useState)(null);
 	const [prevIsOpen, setPrevIsOpen] = (0, import_react.useState)(isOpen);
-	const [openBaselineState, setOpenBaselineState] = (0, import_react.useState)(state);
 	if (prevIsOpen !== isOpen) {
 		setPrevIsOpen(isOpen);
-		if (isOpen) setOpenBaselineState(state);
+		if (!isOpen) {
+			setHoverShown(false);
+			setLeaving(false);
+		}
 	}
-	const positionedThisOpen = isOpen && state !== null && state !== openBaselineState;
-	(0, import_react.useEffect)(() => {
-		if (update && isOpen && shouldShowPopover) {
-			const timer = setTimeout(() => {
-				update();
-			}, 10);
-			return () => clearTimeout(timer);
-		}
-	}, [
-		update,
-		isOpen,
-		shouldShowPopover,
-		showArrow,
-		arrowRef.current
-	]);
-	const didPrePosition = (0, import_react.useRef)(false);
-	(0, import_react.useLayoutEffect)(() => {
-		if (!isOpen || !shouldShowPopover) {
-			didPrePosition.current = false;
-			return;
-		}
-		if (forceUpdate && state && !didPrePosition.current) {
-			didPrePosition.current = true;
-			forceUpdate();
-		}
-	}, [
-		isOpen,
-		shouldShowPopover,
-		forceUpdate,
-		state
-	]);
-	(0, import_react.useEffect)(() => {
-		if (!popperRef.current || !isOpen || !shouldShowPopover || !state?.placement) return;
-		const popperEl = popperRef.current;
-		const handlePopoverMouseEnter = () => {
-			isOverPopoverRef.current = true;
-			if (dismissalTimerRef.current !== null) {
-				window.clearTimeout(dismissalTimerRef.current);
-				dismissalTimerRef.current = null;
-			}
-			if (hoverTimerRef.current !== null) window.clearTimeout(hoverTimerRef.current);
-			setShouldShowPopover(true);
+	let t9;
+	if ($[2] !== setIsOpen) {
+		t9 = () => {
+			setHoverShown(false);
+			setLeaving(false);
+			setIsOpen(false);
 		};
-		const handlePopoverMouseLeave = (e) => {
-			if (e.relatedTarget instanceof Node && popperEl.contains(e.relatedTarget)) return;
-			if (!closeOnMouseLeave) return;
-			isOverPopoverRef.current = false;
-			setShouldShowPopover(false);
-			setIsOpenRef.current(false);
+		$[2] = setIsOpen;
+		$[3] = t9;
+	} else t9 = $[3];
+	const close = t9;
+	const hoverTarget = hover && isOpen ? positionEl : null;
+	let t10;
+	if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
+		t10 = () => setHoverShown(true);
+		$[4] = t10;
+	} else t10 = $[4];
+	usePointerRest(hoverShown ? null : hoverTarget, hoverDelay, t10);
+	let t11;
+	if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
+		t11 = () => setLeaving(true);
+		$[5] = t11;
+	} else t11 = $[5];
+	useEventListener(hoverTarget, "mouseleave", t11);
+	let t12;
+	if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
+		t12 = () => setLeaving(false);
+		$[6] = t12;
+	} else t12 = $[6];
+	useEventListener(hoverTarget, "mouseenter", t12);
+	useTimeout(close, leaving ? HOVER_LEAVE_GRACE_MS : null);
+	let t13;
+	if ($[7] === Symbol.for("react.memo_cache_sentinel")) {
+		t13 = () => setLeaving(false);
+		$[7] = t13;
+	} else t13 = $[7];
+	useEventListener(popover, "mouseenter", t13);
+	let t14;
+	if ($[8] !== close || $[9] !== closeOnMouseLeave) {
+		t14 = () => {
+			if (closeOnMouseLeave) close();
 		};
-		popperEl.addEventListener("mouseenter", handlePopoverMouseEnter, true);
-		popperEl.addEventListener("mouseleave", handlePopoverMouseLeave, true);
-		return () => {
-			popperEl.removeEventListener("mouseenter", handlePopoverMouseEnter, true);
-			popperEl.removeEventListener("mouseleave", handlePopoverMouseLeave, true);
+		$[8] = close;
+		$[9] = closeOnMouseLeave;
+		$[10] = t14;
+	} else t14 = $[10];
+	useEventListener(popover, "mouseleave", t14);
+	let t15;
+	if ($[11] !== close || $[12] !== popover) {
+		t15 = (e) => {
+			if (e.target instanceof Node && popover?.contains(e.target)) return;
+			close();
 		};
-	}, [
-		isOpen,
-		shouldShowPopover,
-		state?.placement,
-		closeOnMouseLeave
-	]);
-	const actualPlacement = state?.placement || placement;
-	const defaultPopperStyles = {
-		backgroundColor: "var(--bs-body-bg)",
-		padding: "12px",
-		borderRadius: "var(--bs-border-radius)",
-		boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
-		border: "solid 1px var(--bs-border-color)",
-		zIndex: 1200,
-		position: "relative",
-		opacity: state?.placement ? 1 : 0,
-		transition: "opacity 0.1s",
-		maxWidth: "80%",
-		maxHeight: "80%",
-		overflowY: "hidden"
-	};
-	if (!isOpen || hoverDelay > 0 && !shouldShowPopover) return null;
-	const popperReady = positionedThisOpen;
-	const currentPopperStyle = popperStyles.popper ?? {};
-	const currentArrowStyle = popperStyles.arrow ?? {};
-	const positionedStyle = popperReady ? {
-		...currentPopperStyle,
-		opacity: 1,
-		visibility: "visible"
-	} : {
-		...currentPopperStyle,
-		visibility: "hidden",
-		opacity: 0,
-		position: "fixed",
-		top: "-9999px",
-		left: "-9999px"
-	};
-	const popperContent = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-		ref: popperRef,
-		style: {
-			...defaultPopperStyles,
-			...positionedStyle,
+		$[11] = close;
+		$[12] = popover;
+		$[13] = t15;
+	} else t15 = $[13];
+	useEventListener(hover && hoverShown ? document : null, "mousedown", t15);
+	const visible = isOpen && (!hover || hoverShown);
+	const t16 = hover ? "manual" : "auto";
+	let t17;
+	if ($[14] !== className) {
+		t17 = clsx(className);
+		$[14] = className;
+		$[15] = t17;
+	} else t17 = $[15];
+	let t18;
+	if ($[16] !== styles) {
+		t18 = {
+			...panelStyle,
 			...styles
-		},
-		className: clsx(className),
-		...attributes.popper,
-		children: [children, showArrow && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			ref: arrowRef,
-			style: {
-				position: "absolute",
-				visibility: "hidden"
-			},
-			"data-placement": actualPlacement
-		}), /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: clsx("popper-arrow-container", arrowClassName),
-			style: {
-				...currentArrowStyle,
-				position: "absolute",
-				zIndex: 1,
-				...actualPlacement.startsWith("top") && {
-					bottom: "-8px",
-					width: "16px",
-					height: "8px"
-				},
-				...actualPlacement.startsWith("bottom") && {
-					top: "-8px",
-					width: "16px",
-					height: "8px"
-				},
-				...actualPlacement.startsWith("left") && {
-					right: "-8px",
-					width: "8px",
-					height: "16px"
-				},
-				...actualPlacement.startsWith("right") && {
-					left: "-8px",
-					width: "8px",
-					height: "16px"
-				},
-				overflow: "hidden"
-			},
-			children: [
-				actualPlacement.startsWith("top") && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { style: {
-					position: "absolute",
-					width: 0,
-					height: 0,
-					borderStyle: "solid",
-					borderWidth: "8px 8px 0 8px",
-					borderColor: "#eee transparent transparent transparent",
-					top: "0px",
-					left: "0px"
-				} }),
-				actualPlacement.startsWith("bottom") && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { style: {
-					position: "absolute",
-					width: 0,
-					height: 0,
-					borderStyle: "solid",
-					borderWidth: "0 8px 8px 8px",
-					borderColor: "transparent transparent #eee transparent",
-					top: "0px",
-					left: "0px"
-				} }),
-				actualPlacement.startsWith("left") && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { style: {
-					position: "absolute",
-					width: 0,
-					height: 0,
-					borderStyle: "solid",
-					borderWidth: "8px 0 8px 8px",
-					borderColor: "transparent transparent transparent #eee",
-					top: "0px",
-					left: "0px"
-				} }),
-				actualPlacement.startsWith("right") && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { style: {
-					position: "absolute",
-					width: 0,
-					height: 0,
-					borderStyle: "solid",
-					borderWidth: "8px 8px 8px 0",
-					borderColor: "transparent #eee transparent transparent",
-					top: "0px",
-					left: "0px"
-				} }),
-				/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { style: {
-					position: "absolute",
-					width: 0,
-					height: 0,
-					borderStyle: "solid",
-					backgroundColor: "transparent",
-					left: "0px",
-					zIndex: 1,
-					...actualPlacement.startsWith("top") && {
-						borderWidth: "7px 7px 0 7px",
-						borderColor: "white transparent transparent transparent",
-						top: "0px"
-					},
-					...actualPlacement.startsWith("bottom") && {
-						borderWidth: "0 7px 7px 7px",
-						borderColor: "transparent transparent white transparent",
-						top: "1px"
-					},
-					...actualPlacement.startsWith("left") && {
-						borderWidth: "7px 0 7px 7px",
-						borderColor: "transparent transparent transparent white",
-						left: "0px"
-					},
-					...actualPlacement.startsWith("right") && {
-						borderWidth: "7px 7px 7px 0",
-						borderColor: "transparent white transparent transparent",
-						left: "1px"
-					}
-				} })
-			]
-		})] })]
-	});
-	if (usePortal && portalContainer) return /*#__PURE__*/ (0, import_react_dom.createPortal)(popperContent, portalContainer);
-	return popperContent;
+		};
+		$[16] = styles;
+		$[17] = t18;
+	} else t18 = $[17];
+	let t19;
+	if ($[18] !== children || $[19] !== close || $[20] !== id || $[21] !== offset || $[22] !== placement || $[23] !== positionEl || $[24] !== showArrow || $[25] !== t16 || $[26] !== t17 || $[27] !== t18 || $[28] !== triggerEl || $[29] !== visible) {
+		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AnchoredPopover, {
+			open: visible,
+			onClose: close,
+			anchor: positionEl,
+			trigger: triggerEl,
+			mode: t16,
+			placement,
+			offset,
+			arrow: showArrow,
+			id,
+			className: t17,
+			style: t18,
+			ref: setPopover,
+			children
+		});
+		$[18] = children;
+		$[19] = close;
+		$[20] = id;
+		$[21] = offset;
+		$[22] = placement;
+		$[23] = positionEl;
+		$[24] = showArrow;
+		$[25] = t16;
+		$[26] = t17;
+		$[27] = t18;
+		$[28] = triggerEl;
+		$[29] = visible;
+		$[30] = t19;
+	} else t19 = $[30];
+	return t19;
 };
 // ../../packages/react/src/components/prepareSearchTerm.ts
 /**
@@ -33629,17 +32415,362 @@ var usePopper = function usePopper(referenceElement, popperElement, options) {
 * counter checks all variants.
 */ function prepareSearchTerm(term) {
 	const lower = term.toLowerCase();
-	if (!term.includes("\"") && !term.includes(":")) return { simple: lower };
+	if (!/["\\:]/.test(term)) return { simple: lower };
 	return {
 		simple: lower,
 		unquoted: lower.replace(/"/g, ""),
-		jsonEscaped: lower.replace(/"/g, "\\\"")
+		jsonEscaped: JSON.stringify(lower).slice(1, -1)
 	};
+}
+/** The non-empty variants of `prepareSearchTerm`, for data-side matching. */ function searchVariants(term) {
+	const { simple, unquoted, jsonEscaped } = prepareSearchTerm(term);
+	return [
+		simple,
+		unquoted,
+		jsonEscaped
+	].filter((variant) => !!variant);
+}
+/**
+* Find every occurrence of any `variants` substring in `lowered`, deduped by
+* range so a JSON-quoted form `"foo"` matched by both `simple` and `unquoted`
+* counts as one occurrence (the longer variant wins).
+*/ function findVariantPositions(lowered, variants) {
+	const hits = [];
+	for (const v of variants) {
+		if (!v) continue;
+		let from = 0;
+		let p;
+		while ((p = lowered.indexOf(v, from)) !== -1) {
+			hits.push({
+				pos: p,
+				len: v.length
+			});
+			from = p + v.length;
+		}
+	}
+	hits.sort((a, b) => a.pos - b.pos || b.len - a.len);
+	const out = [];
+	let endOfLast = -1;
+	for (const h of hits) if (h.pos >= endOfLast) {
+		out.push(h.pos);
+		endOfLast = h.pos + h.len;
+	}
+	return out;
+}
+// ../../packages/react/src/components/scrollableParent.ts
+/**
+* The nearest ancestor, `element` included, that scrolls vertically and has
+* content to scroll.
+*/ var findScrollableParent = (element) => {
+	let current = element instanceof HTMLElement ? element : element.parentElement;
+	while (current && current !== document.body) {
+		const { overflowY } = getComputedStyle(current);
+		if ((overflowY === "auto" || overflowY === "scroll") && current.scrollHeight > current.clientHeight) return current;
+		current = current.parentElement;
+	}
+	return null;
+};
+// ../../packages/react/src/hooks/useChildScrollAnchoring.ts
+/**
+* Keeps on-screen content still when children of `containerRef` that start
+* above the scroll viewport change height, by scrolling the nearest scrolling
+* ancestor by the same amount: what follows such a child stays put. That
+* includes a child straddling the viewport's top edge, because Safari renders
+* a content-visibility chunk only once it reaches the viewport, so a chunk
+* can grow from its estimated height while partly on screen. Children whose
+* height is an estimate until they first render (content-visibility: auto)
+* need it, or scrolling up through them jumps.
+*
+* It leaves alone what something else already compensates: a scroller the
+* browser anchors natively (VirtualList opts its rows out with
+* `overflow-anchor: none`), and a VirtualList row entirely above the
+* viewport, which the virtualizer scrolls for itself.
+*
+* `childrenKey` must change whenever the container's set of children does.
+*/ var useChildScrollAnchoring = (containerRef, childrenKey) => {
+	const $ = (0, import_compiler_runtime.c)(5);
+	let t0;
+	if ($[0] !== containerRef) {
+		t0 = () => {
+			const container = containerRef.current;
+			if (!container) return;
+			const heights = /* @__PURE__ */ new Map();
+			let owed = 0;
+			let frame = 0;
+			const settle = (scroller, attempts) => {
+				const before = scroller.scrollTop;
+				scroller.scrollTop = before + owed;
+				owed = owed - (scroller.scrollTop - before);
+				if (Math.abs(owed) >= 1 && attempts > 0) frame = requestAnimationFrame(() => settle(scroller, attempts - 1));
+				else owed = 0;
+			};
+			const observer = new ResizeObserver((entries) => {
+				const changes = [];
+				for (const entry of entries) {
+					const height = blockSize(entry);
+					const previous = heights.get(entry.target);
+					heights.set(entry.target, height);
+					if (previous !== void 0 && height !== previous) changes.push({
+						target: entry.target,
+						delta: height - previous
+					});
+				}
+				if (changes.length === 0) return;
+				const scroller_0 = findScrollableParent(container);
+				if (!scroller_0 || anchoredNatively(container, scroller_0)) return;
+				const viewportTop = scroller_0.getBoundingClientRect().top;
+				const grown = changes.reduce(_temp$112, 0);
+				const row = container.closest("[data-index]");
+				if (row && row.getBoundingClientRect().bottom - grown <= viewportTop) return;
+				changes.sort(_temp2$65);
+				let grownAbove = 0;
+				let compensation = 0;
+				for (const { target, delta } of changes) {
+					if (target.getBoundingClientRect().top - grownAbove < viewportTop) compensation = compensation + delta;
+					grownAbove = grownAbove + delta;
+				}
+				if (compensation !== 0) {
+					cancelAnimationFrame(frame);
+					owed = owed + compensation;
+					settle(scroller_0, kSettleFrames);
+				}
+			});
+			for (const child of container.children) observer.observe(child);
+			return () => {
+				observer.disconnect();
+				cancelAnimationFrame(frame);
+			};
+		};
+		$[0] = containerRef;
+		$[1] = t0;
+	} else t0 = $[1];
+	let t1;
+	if ($[2] !== childrenKey || $[3] !== containerRef) {
+		t1 = [containerRef, childrenKey];
+		$[2] = childrenKey;
+		$[3] = containerRef;
+		$[4] = t1;
+	} else t1 = $[4];
+	(0, import_react.useEffect)(t0, t1);
+};
+var kSettleFrames = 10;
+var blockSize = (entry) => entry.borderBoxSize[0]?.blockSize ?? entry.contentRect.height;
+var anchoredNatively = (container, scroller) => {
+	if (typeof CSS === "undefined" || !CSS.supports("overflow-anchor", "auto")) return false;
+	for (let el = container; el; el = el.parentElement) {
+		if (getComputedStyle(el).overflowAnchor === "none") return false;
+		if (el === scroller) return true;
+	}
+	return true;
+};
+function _temp$112(sum, change) {
+	return sum + change.delta;
+}
+function _temp2$65(a, b) {
+	return a.target.getBoundingClientRect().top - b.target.getBoundingClientRect().top;
+}
+// ../../packages/react/src/hooks/useResizeObserver.ts
+var useResizeObserver = (callback, ref) => {
+	const $ = (0, import_compiler_runtime.c)(6);
+	const ownRef = (0, import_react.useRef)(null);
+	const elementRef = ref ?? ownRef;
+	const observerRef = (0, import_react.useRef)(null);
+	let t0;
+	if ($[0] !== callback || $[1] !== elementRef.current) {
+		t0 = () => {
+			const element = elementRef.current;
+			if (!element) return;
+			observerRef.current = new ResizeObserver((entries) => {
+				if (entries[0]) callback(entries[0]);
+			});
+			observerRef.current.observe(element);
+			return () => {
+				if (observerRef.current) observerRef.current.disconnect();
+			};
+		};
+		$[0] = callback;
+		$[1] = elementRef.current;
+		$[2] = t0;
+	} else t0 = $[2];
+	let t1;
+	if ($[3] !== callback || $[4] !== elementRef) {
+		t1 = [callback, elementRef];
+		$[3] = callback;
+		$[4] = elementRef;
+		$[5] = t1;
+	} else t1 = $[5];
+	(0, import_react.useEffect)(t0, t1);
+	return elementRef;
+};
+var ChunkedText_module_default = {
+	chunks: "_chunks_12hw5_3",
+	chunk: "_chunk_12hw5_3"
+};
+/** Target length of each chunk of a longer text. */ var kChunkSize$1 = 5e4;
+var kSoftBreakWindow = 2e3;
+/**
+* Splits text into chunks of about `size` characters whose concatenation is
+* exactly the input. Chunks end just after a newline when there is one, so a
+* chunk boundary falls between lines; a chunk without any newline ends after
+* the last whitespace or comma near its target end, or at the target itself.
+*/ var splitTextChunks = (text, size = kChunkSize$1) => {
+	const chunks = [];
+	let start = 0;
+	while (start < text.length) {
+		let end = Math.min(start + size, text.length);
+		if (end < text.length) {
+			const newline = lastNewline(text, start, end);
+			if (newline >= start) end = newline + 1;
+			else end = softBreak(text, Math.max(start, end - kSoftBreakWindow), end);
+			if (end - start > 1 && isHighSurrogate(text.charCodeAt(end - 1))) end--;
+		}
+		const chunk = text.slice(start, end);
+		chunks.push({
+			text: chunk,
+			lines: countLines(chunk)
+		});
+		start = end;
+	}
+	return chunks;
+};
+var lastNewline = (text, start, end) => {
+	for (let i = end - 1; i >= start; i--) if (text.charCodeAt(i) === 10) return i;
+	return -1;
+};
+var isHighSurrogate = (code) => code >= 55296 && code <= 56319;
+var softBreak = (text, from, to) => {
+	for (let i = to - 1; i > from; i--) {
+		const code = text.charCodeAt(i);
+		if (code === 32 || code === 9 || code === 44) return i + 1;
+	}
+	return to;
+};
+/** Lines in `text`: its newlines, plus a trailing partial line. */ var countLines = (text) => {
+	let lines = 0;
+	let index = text.indexOf("\n");
+	while (index !== -1) {
+		lines++;
+		index = text.indexOf("\n", index + 1);
+	}
+	return text.endsWith("\n") ? lines : lines + 1;
+};
+/** How many of `text`'s lines have each length. */ var lineLengths = (text) => {
+	const lengths = /* @__PURE__ */ new Map();
+	for (let start = 0; start <= text.length;) {
+		const newline = text.indexOf("\n", start);
+		const end = newline === -1 ? text.length : newline;
+		lengths.set(end - start, (lengths.get(end - start) ?? 0) + 1);
+		start = end + 1;
+	}
+	return lengths;
+};
+/** Rows the lines take when each wraps every `charsPerLine` characters. */ var wrappedRows = (lengths, charsPerLine) => {
+	let rows = 0;
+	for (const [length, count] of lengths) rows += count * Math.max(1, Math.ceil(length / charsPerLine));
+	return rows;
+};
+// ../../packages/react/src/components/ChunkedText.tsx
+/**
+* Renders text for a `white-space: pre`/`pre-wrap` container. Text longer
+* than `kChunkThreshold` is split at line ends into blocks the browser skips
+* laying out and painting while they are off screen, so resizing or scrolling
+* a multi-megabyte text costs about as much as the part on screen. The text
+* stays in the DOM, so find-in-page and selection still reach all of it.
+*/ var ChunkedText = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(2);
+	const { text } = t0;
+	let t1;
+	if ($[0] !== text) {
+		t1 = text.length <= 1e5 ? text : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TextChunks, { text });
+		$[0] = text;
+		$[1] = t1;
+	} else t1 = $[1];
+	return t1;
+};
+/**
+* Measures how tall `text` lays out in a `pre-wrap` element of a monospace
+* font: a row per line, plus a row per element width's worth of characters a
+* line wraps onto. Wrapping at spaces can take a few more rows than that.
+* Counting is done once per text, so measuring again (at a new width) is
+* cheap.
+*/ var measureTextHeight = (text) => {
+	const lengths = lineLengths(text);
+	return (element) => wrappedRows(lengths, measureCharsPerLine(element, element.clientWidth)) * lineHeight(element);
+};
+var lineHeight = (element) => {
+	const probe = document.createElement("span");
+	probe.style.cssText = "display: block; height: 1lh; visibility: hidden";
+	element.appendChild(probe);
+	const height = probe.getBoundingClientRect().height;
+	probe.remove();
+	return height;
+};
+var TextChunks = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(5);
+	const { text } = t0;
+	const ref = useResizeObserver(_temp$111);
+	useChildScrollAnchoring(ref, text);
+	let t1;
+	if ($[0] !== text) {
+		t1 = splitTextChunks(text).map(_temp2$64);
+		$[0] = text;
+		$[1] = t1;
+	} else t1 = $[1];
+	let t2;
+	if ($[2] !== ref || $[3] !== t1) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			ref,
+			className: ChunkedText_module_default.chunks,
+			onCopy: copySelectedSource,
+			"data-chunk-container": true,
+			children: t1
+		});
+		$[2] = ref;
+		$[3] = t1;
+		$[4] = t2;
+	} else t2 = $[4];
+	return t2;
+};
+var kCharsPerLine = "--chunk-chars-per-line";
+var chunkSize = (chars, lines) => {
+	return {
+		"--chunk-chars": chars,
+		"--chunk-lines": lines
+	};
+};
+var copySelectedSource = (event) => {
+	const selection = getSelection();
+	if (!selection || selection.rangeCount !== 1) return;
+	const range = selection.getRangeAt(0);
+	const container = event.currentTarget;
+	if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) return;
+	event.clipboardData.setData("text/plain", range.toString());
+	event.preventDefault();
+};
+var measureContext;
+var kDefaultCharsPerLine = 100;
+var measureCharsPerLine = (element, width) => {
+	measureContext ??= document.createElement("canvas").getContext("2d");
+	if (!measureContext) return kDefaultCharsPerLine;
+	const style = getComputedStyle(element);
+	measureContext.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+	const charWidth = measureContext.measureText("0".repeat(100)).width / 100;
+	return charWidth > 0 ? Math.max(1, Math.floor(width / charWidth)) : kDefaultCharsPerLine;
+};
+function _temp$111(entry) {
+	if (entry.target instanceof HTMLElement && entry.contentRect.width > 0 && entry.target.style.getPropertyValue(kCharsPerLine) === "") entry.target.style.setProperty(kCharsPerLine, String(measureCharsPerLine(entry.target, entry.contentRect.width)));
+}
+function _temp2$64(chunk, index) {
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+		className: ChunkedText_module_default.chunk,
+		style: chunkSize(chunk.text.length, chunk.lines),
+		children: chunk.text
+	}, index);
 }
 var Preformatted_module_default = { content: "_content_13ihw_1" };
 // ../../packages/react/src/components/Preformatted.tsx
 var Preformatted = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
-	const $ = (0, import_compiler_runtime.c)(7);
+	const $ = (0, import_compiler_runtime.c)(9);
 	const { text, style, className } = t0;
 	let t1;
 	if ($[0] !== className) {
@@ -33648,20 +32779,26 @@ var Preformatted = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 		$[1] = t1;
 	} else t1 = $[1];
 	let t2;
-	if ($[2] !== ref || $[3] !== style || $[4] !== t1 || $[5] !== text) {
-		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
+	if ($[2] !== text) {
+		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChunkedText, { text });
+		$[2] = text;
+		$[3] = t2;
+	} else t2 = $[3];
+	let t3;
+	if ($[4] !== ref || $[5] !== style || $[6] !== t1 || $[7] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
 			ref,
 			className: t1,
 			style,
-			children: text
+			children: t2
 		});
-		$[2] = ref;
-		$[3] = style;
-		$[4] = t1;
-		$[5] = text;
-		$[6] = t2;
-	} else t2 = $[6];
-	return t2;
+		$[4] = ref;
+		$[5] = style;
+		$[6] = t1;
+		$[7] = t2;
+		$[8] = t3;
+	} else t3 = $[8];
+	return t3;
 });
 Preformatted.displayName = "Preformatted";
 var ProgressBar_module_default = {
@@ -41596,36 +40733,6 @@ function useViewTransitionState(to, { relative } = {}) {
 	let nextPath = stripBasename(vtContext.nextLocation.pathname, basename) || vtContext.nextLocation.pathname;
 	return matchPath(path.pathname, nextPath) != null || matchPath(path.pathname, currentPath) != null;
 }
-// ../../packages/react/src/hooks/useResizeObserver.ts
-var useResizeObserver = (callback) => {
-	const $ = (0, import_compiler_runtime.c)(3);
-	const elementRef = (0, import_react.useRef)(null);
-	const observerRef = (0, import_react.useRef)(null);
-	let t0;
-	let t1;
-	if ($[0] !== callback) {
-		t0 = () => {
-			const element = elementRef.current;
-			if (!element) return;
-			observerRef.current = new ResizeObserver((entries) => {
-				if (entries[0]) callback(entries[0]);
-			});
-			observerRef.current.observe(element);
-			return () => {
-				if (observerRef.current) observerRef.current.disconnect();
-			};
-		};
-		t1 = [callback];
-		$[0] = callback;
-		$[1] = t0;
-		$[2] = t1;
-	} else {
-		t0 = $[1];
-		t1 = $[2];
-	}
-	(0, import_react.useEffect)(t0, t1);
-	return elementRef;
-};
 // ../../packages/react/src/hooks/usePreviousValue.ts
 /**
 * Custom hook that tracks the previous value of a given input.
@@ -41786,7 +40893,7 @@ function useStatefulScrollPosition(elementRef, elementKey, t0, t1) {
 	const storePosition = t4;
 	let t5;
 	if ($[6] !== delay || $[7] !== storePosition) {
-		t5 = debounce$3(storePosition, delay);
+		t5 = debounce$2(storePosition, delay);
 		$[6] = delay;
 		$[7] = storePosition;
 		$[8] = t5;
@@ -42298,7 +41405,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 					replaceMeasurementItems(testElement, [
 						firstSegment.text,
 						"...",
-						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$62),
+						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$63),
 						lastSegment.text
 					]);
 					if (testElement.scrollWidth <= containerWidth) {
@@ -42339,7 +41446,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 function _temp$110(segment) {
 	return segment.text;
 }
-function _temp2$62(segment_0) {
+function _temp2$63(segment_0) {
 	return segment_0.text;
 }
 // ../../packages/react/src/hooks/useChromeNavOwnership.ts
@@ -42475,7 +41582,8 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 * Shift/Alt) — Alt+Arrow is the browser's Back/Forward, and the other chords
 * belong to the browser/OS. A direction only fires (and only then calls
 * `preventDefault`) when it is available and its callback is wired; otherwise
-* the key falls through to the browser untouched.
+* the key falls through to the browser untouched. It also stands down while
+* a modal `<dialog>` is open: the page behind it is inert.
 *
 * This is the keyboard binding only — Enter/Space activation of focused
 * controls and all rendering stay with the consumer.
@@ -42487,7 +41595,7 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 	if ($[0] !== canNext || $[1] !== canPrev || $[2] !== onNext || $[3] !== onPrev) {
 		t1 = () => {
 			const handleKeyDown = (e) => {
-				if (isEditableTarget(deepActiveElement()) || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+				if (document.querySelector("dialog[open]") || isEditableTarget(deepActiveElement()) || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
 				if (e.key === "ArrowLeft") {
 					if (canPrev && onPrev) {
 						e.preventDefault();
@@ -42644,33 +41752,6 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 	} else t0 = $[0];
 	(0, import_react.useEffect)(effect, t0);
 }
-// ../../packages/react/src/hooks/useTimeout.ts
-/**
-* Declarative `setTimeout`: calls the latest `callback` once, `delayMs`
-* milliseconds after mount. Pass `null` to cancel. Changing `delayMs`
-* restarts the timer.
-*/ function useTimeout(callback, delayMs) {
-	const $ = (0, import_compiler_runtime.c)(4);
-	const callbackRef = useLatestRef(callback);
-	let t0;
-	let t1;
-	if ($[0] !== callbackRef || $[1] !== delayMs) {
-		t0 = () => {
-			if (delayMs === null) return;
-			const id = window.setTimeout(() => callbackRef.current(), delayMs);
-			return () => window.clearTimeout(id);
-		};
-		t1 = [delayMs, callbackRef];
-		$[0] = callbackRef;
-		$[1] = delayMs;
-		$[2] = t0;
-		$[3] = t1;
-	} else {
-		t0 = $[2];
-		t1 = $[3];
-	}
-	(0, import_react.useEffect)(t0, t1);
-}
 // ../../packages/react/src/hooks/useAnimationFrameLoop.ts
 /**
 * Calls the latest `callback` once per animation frame while `active`, with
@@ -42739,6 +41820,84 @@ var SCROLL_RELEASE_KEYS = /* @__PURE__ */ new Set([
 	(0, import_react.useEffect)(t0, t1);
 	return space;
 };
+// ../../packages/react/src/hooks/useStableValue.ts
+/**
+* Keep the previous reference when a newly computed value is content-equal.
+*
+* `useMemo` can only key on dependency identity, so a memo that derives
+* from a frequently-replaced store object (e.g. `logDetails` during a
+* directory sync) returns a fresh reference on every flush even when its
+* content is unchanged — cascading identity churn into everything keyed
+* on it. This hook cuts that cascade at the source: callers compute the
+* candidate value as usual and equality decides whether downstream
+* consumers see a new reference.
+*
+* `isEqual` is only consulted when the identity actually changed.
+*/ function useStableValue(value, isEqual) {
+	"use no memo";
+	const ref = (0, import_react.useRef)(value);
+	if (ref.current !== value && !isEqual(ref.current, value)) ref.current = value;
+	return ref.current;
+}
+// ../../packages/react/src/hooks/useScrollNearEnd.ts
+/** Calls `onNearEnd` when `el` is within `threshold` px of its bottom. */ function checkNearEnd(el, threshold, onNearEnd) {
+	if (!el) return;
+	const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+	if (distance < threshold) onNearEnd(distance);
+}
+/**
+* Calls `onNearEnd` when the scroll element comes within `threshold` px of
+* its bottom, for loading the next page of an infinite list.
+*/ function useScrollNearEnd(ref, t0) {
+	const $ = (0, import_compiler_runtime.c)(17);
+	const { enabled, threshold, contentKey, onNearEnd } = t0;
+	const onNearEndRef = useLatestRef(onNearEnd);
+	let t1;
+	if ($[0] !== enabled || $[1] !== onNearEndRef || $[2] !== ref || $[3] !== threshold) {
+		t1 = () => {
+			if (enabled) checkNearEnd(ref.current, threshold, onNearEndRef.current);
+		};
+		$[0] = enabled;
+		$[1] = onNearEndRef;
+		$[2] = ref;
+		$[3] = threshold;
+		$[4] = t1;
+	} else t1 = $[4];
+	let t2;
+	if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
+		t2 = { passive: true };
+		$[5] = t2;
+	} else t2 = $[5];
+	useEventListener(ref, "scroll", t1, t2);
+	let t3;
+	if ($[6] !== enabled || $[7] !== onNearEndRef || $[8] !== ref || $[9] !== threshold) {
+		t3 = () => {
+			if (enabled) checkNearEnd(ref.current, threshold, onNearEndRef.current);
+		};
+		$[6] = enabled;
+		$[7] = onNearEndRef;
+		$[8] = ref;
+		$[9] = threshold;
+		$[10] = t3;
+	} else t3 = $[10];
+	let t4;
+	if ($[11] !== contentKey || $[12] !== enabled || $[13] !== onNearEndRef || $[14] !== ref || $[15] !== threshold) {
+		t4 = [
+			ref,
+			onNearEndRef,
+			enabled,
+			threshold,
+			contentKey
+		];
+		$[11] = contentKey;
+		$[12] = enabled;
+		$[13] = onNearEndRef;
+		$[14] = ref;
+		$[15] = threshold;
+		$[16] = t4;
+	} else t4 = $[16];
+	(0, import_react.useEffect)(t3, t4);
+}
 var SourceCodePanel_module_default = {
 	sourcePanel: "_sourcePanel_bat6y_1",
 	simple: "_simple_bat6y_6",
@@ -43051,22 +42210,21 @@ var TextInput = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 });
 TextInput.displayName = "TextInput";
 var ToolDropdownButton_module_default = {
-	toolButton: "_toolButton_1nbeo_1",
-	bodyColor: "_bodyColor_1nbeo_5",
-	chevron: "_chevron_1nbeo_17",
-	backdrop: "_backdrop_1nbeo_31",
-	dropdownMenu: "_dropdownMenu_1nbeo_41",
-	dropdownItem: "_dropdownItem_1nbeo_52",
-	dropdownItemSelected: "_dropdownItemSelected_1nbeo_73",
-	dropdownHeading: "_dropdownHeading_1nbeo_78",
-	dropdownDivider: "_dropdownDivider_1nbeo_87",
-	dropdownFooter: "_dropdownFooter_1nbeo_92",
-	noMargin: "_noMargin_1nbeo_103",
-	collapsibleLabel: "_collapsibleLabel_1nbeo_107"
+	toolButton: "_toolButton_l4xu9_1",
+	bodyColor: "_bodyColor_l4xu9_6",
+	chevron: "_chevron_l4xu9_14",
+	dropdownMenu: "_dropdownMenu_l4xu9_28",
+	dropdownItem: "_dropdownItem_l4xu9_37",
+	dropdownItemSelected: "_dropdownItemSelected_l4xu9_58",
+	dropdownHeading: "_dropdownHeading_l4xu9_63",
+	dropdownDivider: "_dropdownDivider_l4xu9_72",
+	dropdownFooter: "_dropdownFooter_l4xu9_77",
+	noMargin: "_noMargin_l4xu9_88",
+	collapsibleLabel: "_collapsibleLabel_l4xu9_92"
 };
 // ../../packages/react/src/components/ToolDropdownButton.tsx
 var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
-	const $ = (0, import_compiler_runtime.c)(60);
+	const $ = (0, import_compiler_runtime.c)(58);
 	let className;
 	let collapseLabel;
 	let dropdownClassName;
@@ -43110,231 +42268,180 @@ var ToolDropdownButton = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) =>
 	}
 	const dropdownAlign = t1 === void 0 ? "left" : t1;
 	const [isOpen, setIsOpen] = (0, import_react.useState)(false);
-	const buttonRef = (0, import_react.useRef)(null);
-	const [menuPosition, setMenuPosition] = (0, import_react.useState)(null);
+	const [button, setButton] = (0, import_react.useState)(null);
 	let t2;
 	if ($[13] !== ref) {
 		t2 = (el) => {
-			buttonRef.current = el;
+			setButton(el);
 			if (typeof ref === "function") ref(el);
-			else if (ref && "current" in ref) ref.current = el;
+			else if (ref) ref.current = el;
 		};
 		$[13] = ref;
 		$[14] = t2;
 	} else t2 = $[14];
 	const setRef = t2;
 	let t3;
-	if ($[15] !== dropdownAlign) {
-		t3 = () => {
-			const btn = buttonRef.current;
-			if (!btn) return;
-			const rect = btn.getBoundingClientRect();
-			const top = rect.bottom;
-			const minWidth = rect.width;
-			if (dropdownAlign === "right") setMenuPosition({
-				top,
-				right: window.innerWidth - rect.right,
-				minWidth
-			});
-			else setMenuPosition({
-				top,
-				left: rect.left,
-				minWidth
-			});
-		};
-		$[15] = dropdownAlign;
-		$[16] = t3;
-	} else t3 = $[16];
-	const computePosition = t3;
-	let t4;
-	let t5;
-	if ($[17] !== computePosition || $[18] !== isOpen) {
-		t4 = () => {
-			if (!isOpen) return;
-			computePosition();
-		};
-		t5 = [isOpen, computePosition];
-		$[17] = computePosition;
-		$[18] = isOpen;
-		$[19] = t4;
-		$[20] = t5;
-	} else {
-		t4 = $[19];
-		t5 = $[20];
-	}
-	(0, import_react.useLayoutEffect)(t4, t5);
-	const repositionTarget = isOpen ? window : null;
-	let t6;
-	if ($[21] !== computePosition) {
-		t6 = () => computePosition();
-		$[21] = computePosition;
-		$[22] = t6;
-	} else t6 = $[22];
-	useEventListener(repositionTarget, "resize", t6);
-	let t7;
-	if ($[23] !== computePosition) {
-		t7 = () => computePosition();
-		$[23] = computePosition;
-		$[24] = t7;
-	} else t7 = $[24];
-	let t8;
-	if ($[25] === Symbol.for("react.memo_cache_sentinel")) {
-		t8 = { capture: true };
-		$[25] = t8;
-	} else t8 = $[25];
-	useEventListener(repositionTarget, "scroll", t7, t8);
-	const menuRef = (0, import_react.useRef)(null);
-	let t10;
-	let t9;
-	if ($[26] === Symbol.for("react.memo_cache_sentinel")) {
-		t9 = (e) => {
-			if (e.key !== "Escape") return;
-			e.stopPropagation();
-			const refocus = menuRef.current?.contains(document.activeElement) ?? false;
-			setIsOpen(false);
-			if (refocus) buttonRef.current?.focus();
-		};
-		t10 = { capture: true };
-		$[26] = t10;
-		$[27] = t9;
-	} else {
-		t10 = $[26];
-		t9 = $[27];
-	}
-	useEventListener(isOpen ? document : null, "keydown", t9, t10);
-	let t11;
-	if ($[28] === Symbol.for("react.memo_cache_sentinel")) {
-		t11 = (fn) => {
+	if ($[15] === Symbol.for("react.memo_cache_sentinel")) {
+		t3 = (fn) => {
 			fn();
 			setIsOpen(false);
 		};
-		$[28] = t11;
-	} else t11 = $[28];
-	const handleItemClick = t11;
-	const t12 = subtle ? ToolDropdownButton_module_default.bodyColor : void 0;
-	let t13;
-	if ($[29] !== className || $[30] !== t12) {
-		t13 = clsx("btn", "btn-tools", ToolDropdownButton_module_default.toolButton, t12, className);
-		$[29] = className;
-		$[30] = t12;
-		$[31] = t13;
-	} else t13 = $[31];
-	let t14;
-	if ($[32] !== isOpen) {
-		t14 = () => setIsOpen(!isOpen);
-		$[32] = isOpen;
-		$[33] = t14;
-	} else t14 = $[33];
-	const t15 = title ?? (collapseLabel && typeof label === "string" ? label : void 0);
-	let t16;
-	if ($[34] !== collapseLabel || $[35] !== icon) {
-		t16 = icon && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
+		$[15] = t3;
+	} else t3 = $[15];
+	const handleItemClick = t3;
+	const t4 = subtle ? ToolDropdownButton_module_default.bodyColor : void 0;
+	let t5;
+	if ($[16] !== className || $[17] !== t4) {
+		t5 = clsx("btn", "btn-tools", ToolDropdownButton_module_default.toolButton, t4, className);
+		$[16] = className;
+		$[17] = t4;
+		$[18] = t5;
+	} else t5 = $[18];
+	let t6;
+	if ($[19] !== isOpen) {
+		t6 = () => setIsOpen(!isOpen);
+		$[19] = isOpen;
+		$[20] = t6;
+	} else t6 = $[20];
+	const t7 = title ?? (collapseLabel && typeof label === "string" ? label : void 0);
+	let t8;
+	if ($[21] !== collapseLabel || $[22] !== icon) {
+		t8 = icon && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
 			name: icon,
 			className: collapseLabel ? ToolDropdownButton_module_default.noMargin : void 0
 		});
-		$[34] = collapseLabel;
-		$[35] = icon;
-		$[36] = t16;
-	} else t16 = $[36];
-	let t17;
-	if ($[37] !== collapseLabel || $[38] !== label) {
-		t17 = collapseLabel ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+		$[21] = collapseLabel;
+		$[22] = icon;
+		$[23] = t8;
+	} else t8 = $[23];
+	let t9;
+	if ($[24] !== collapseLabel || $[25] !== label) {
+		t9 = collapseLabel ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: ToolDropdownButton_module_default.collapsibleLabel,
 			children: label
 		}) : label;
-		$[37] = collapseLabel;
-		$[38] = label;
-		$[39] = t17;
-	} else t17 = $[39];
-	let t18;
-	if ($[40] === Symbol.for("react.memo_cache_sentinel")) {
-		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
+		$[24] = collapseLabel;
+		$[25] = label;
+		$[26] = t9;
+	} else t9 = $[26];
+	let t10;
+	if ($[27] === Symbol.for("react.memo_cache_sentinel")) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
 			name: "chevronDown",
 			className: ToolDropdownButton_module_default.chevron
 		});
-		$[40] = t18;
-	} else t18 = $[40];
-	let t19;
-	if ($[41] !== isOpen || $[42] !== rest || $[43] !== setRef || $[44] !== t13 || $[45] !== t14 || $[46] !== t15 || $[47] !== t16 || $[48] !== t17) {
-		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+		$[27] = t10;
+	} else t10 = $[27];
+	let t11;
+	if ($[28] !== isOpen || $[29] !== rest || $[30] !== setRef || $[31] !== t5 || $[32] !== t6 || $[33] !== t7 || $[34] !== t8 || $[35] !== t9) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 			ref: setRef,
 			type: "button",
-			className: t13,
-			onClick: t14,
-			"aria-haspopup": "menu",
+			className: t5,
+			onClick: t6,
 			"aria-expanded": isOpen,
-			title: t15,
+			title: t7,
 			...rest,
 			children: [
-				t16,
-				t17,
-				t18
+				t8,
+				t9,
+				t10
 			]
 		});
-		$[41] = isOpen;
-		$[42] = rest;
-		$[43] = setRef;
-		$[44] = t13;
-		$[45] = t14;
-		$[46] = t15;
-		$[47] = t16;
-		$[48] = t17;
-		$[49] = t19;
-	} else t19 = $[49];
-	let t20;
-	if ($[50] !== dropdownClassName || $[51] !== footer || $[52] !== heading || $[53] !== isOpen || $[54] !== items || $[55] !== menuPosition) {
-		t20 = isOpen && menuPosition && /*#__PURE__*/ (0, import_react_dom.createPortal)(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: ToolDropdownButton_module_default.backdrop,
-			role: "presentation",
-			onClick: () => setIsOpen(false)
-		}), /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			ref: menuRef,
-			className: clsx(ToolDropdownButton_module_default.dropdownMenu, dropdownClassName),
-			style: {
-				top: menuPosition.top,
-				left: menuPosition.left,
-				right: menuPosition.right,
-				minWidth: menuPosition.minWidth
-			},
+		$[28] = isOpen;
+		$[29] = rest;
+		$[30] = setRef;
+		$[31] = t5;
+		$[32] = t6;
+		$[33] = t7;
+		$[34] = t8;
+		$[35] = t9;
+		$[36] = t11;
+	} else t11 = $[36];
+	let t12;
+	if ($[37] === Symbol.for("react.memo_cache_sentinel")) {
+		t12 = () => setIsOpen(false);
+		$[37] = t12;
+	} else t12 = $[37];
+	const t13 = dropdownAlign === "right" ? "bottom-end" : "bottom-start";
+	let t14;
+	if ($[38] !== dropdownClassName) {
+		t14 = clsx(ToolDropdownButton_module_default.dropdownMenu, dropdownClassName);
+		$[38] = dropdownClassName;
+		$[39] = t14;
+	} else t14 = $[39];
+	let t15;
+	if ($[40] !== heading) {
+		t15 = heading ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: ToolDropdownButton_module_default.dropdownHeading,
+			children: heading
+		}) : null;
+		$[40] = heading;
+		$[41] = t15;
+	} else t15 = $[41];
+	let t16;
+	if ($[42] !== items) {
+		let t17;
+		if ($[44] === Symbol.for("react.memo_cache_sentinel")) {
+			t17 = (item) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+				type: "button",
+				className: clsx(ToolDropdownButton_module_default.dropdownItem, item.selected && ToolDropdownButton_module_default.dropdownItemSelected),
+				"aria-current": item.selected ? "true" : void 0,
+				onClick: () => handleItemClick(item.onClick),
+				children: item.label
+			}, item.key);
+			$[44] = t17;
+		} else t17 = $[44];
+		t16 = menuItems(items).map(t17);
+		$[42] = items;
+		$[43] = t16;
+	} else t16 = $[43];
+	let t17;
+	if ($[45] !== footer) {
+		t17 = footer ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: ToolDropdownButton_module_default.dropdownDivider,
+			role: "separator"
+		}), /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			className: clsx(ToolDropdownButton_module_default.dropdownItem, ToolDropdownButton_module_default.dropdownFooter),
+			onClick: () => handleItemClick(footer.onClick),
+			children: [footer.icon ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: footer.icon }) : null, footer.label]
+		})] }) : null;
+		$[45] = footer;
+		$[46] = t17;
+	} else t17 = $[46];
+	let t18;
+	if ($[47] !== button || $[48] !== isOpen || $[49] !== t13 || $[50] !== t14 || $[51] !== t15 || $[52] !== t16 || $[53] !== t17) {
+		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(AnchoredPopover, {
+			open: isOpen,
+			onClose: t12,
+			anchor: button,
+			placement: t13,
+			offset: 0,
+			className: t14,
 			children: [
-				heading ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-					className: ToolDropdownButton_module_default.dropdownHeading,
-					children: heading
-				}) : null,
-				menuItems(items).map((item) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-					type: "button",
-					className: clsx(ToolDropdownButton_module_default.dropdownItem, item.selected && ToolDropdownButton_module_default.dropdownItemSelected),
-					"aria-current": item.selected ? "true" : void 0,
-					onClick: () => handleItemClick(item.onClick),
-					children: item.label
-				}, item.key)),
-				footer ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-					className: ToolDropdownButton_module_default.dropdownDivider,
-					role: "separator"
-				}), /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
-					type: "button",
-					className: clsx(ToolDropdownButton_module_default.dropdownItem, ToolDropdownButton_module_default.dropdownFooter),
-					onClick: () => handleItemClick(footer.onClick),
-					children: [footer.icon ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: footer.icon }) : null, footer.label]
-				})] }) : null
+				t15,
+				t16,
+				t17
 			]
-		})] }), document.body);
-		$[50] = dropdownClassName;
-		$[51] = footer;
-		$[52] = heading;
-		$[53] = isOpen;
-		$[54] = items;
-		$[55] = menuPosition;
-		$[56] = t20;
-	} else t20 = $[56];
-	let t21;
-	if ($[57] !== t19 || $[58] !== t20) {
-		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t19, t20] });
+		});
+		$[47] = button;
+		$[48] = isOpen;
+		$[49] = t13;
+		$[50] = t14;
+		$[51] = t15;
+		$[52] = t16;
+		$[53] = t17;
+		$[54] = t18;
+	} else t18 = $[54];
+	let t19;
+	if ($[55] !== t11 || $[56] !== t18) {
+		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t11, t18] });
+		$[55] = t11;
+		$[56] = t18;
 		$[57] = t19;
-		$[58] = t20;
-		$[59] = t21;
-	} else t21 = $[59];
-	return t21;
+	} else t19 = $[57];
+	return t19;
 });
 ToolDropdownButton.displayName = "ToolDropdownButton";
 var menuItems = (items) => Array.isArray(items) ? items : Object.entries(items).map(([label, onClick]) => ({
@@ -43343,10 +42450,10 @@ var menuItems = (items) => Array.isArray(items) ? items : Object.entries(items).
 	onClick
 }));
 var NavPills_module_default = {
-	visible: "_visible_tm52u_1",
-	hidden: "_hidden_tm52u_5",
-	pills: "_pills_tm52u_9",
-	pill: "_pill_tm52u_9"
+	visible: "_visible_pzj67_1",
+	hidden: "_hidden_pzj67_5",
+	pills: "_pills_pzj67_9",
+	pill: "_pill_pzj67_9"
 };
 // ../../packages/react/src/components/NavPills.tsx
 var NavPills = (t0) => {
@@ -43477,18 +42584,17 @@ var NavPill = (t0) => {
 	return t5;
 };
 var TabSet_module_default = {
-	tabs: "_tabs_mmxoy_1",
-	tabContents: "_tabContents_mmxoy_5",
-	scrollable: "_scrollable_mmxoy_13",
-	tab: "_tab_mmxoy_1",
-	linkTab: "_linkTab_mmxoy_35",
-	tabItem: "_tabItem_mmxoy_39",
-	pillSmallContainer: "_pillSmallContainer_mmxoy_43",
-	pillSmall: "_pillSmall_mmxoy_43",
-	tabIcon: "_tabIcon_mmxoy_51",
-	tabSpacer: "_tabSpacer_mmxoy_55",
-	tabTools: "_tabTools_mmxoy_61",
-	tabStyle: "_tabStyle_mmxoy_75"
+	tabs: "_tabs_ipzqa_1",
+	tabContents: "_tabContents_ipzqa_5",
+	scrollable: "_scrollable_ipzqa_13",
+	tab: "_tab_ipzqa_1",
+	linkTab: "_linkTab_ipzqa_35",
+	tabItem: "_tabItem_ipzqa_39",
+	pillSmallContainer: "_pillSmallContainer_ipzqa_43",
+	tabIcon: "_tabIcon_ipzqa_47",
+	tabSpacer: "_tabSpacer_ipzqa_51",
+	tabTools: "_tabTools_ipzqa_57",
+	tabStyle: "_tabStyle_ipzqa_71"
 };
 // ../../packages/react/src/components/TabSet.tsx
 var TabSet = (t0) => {
@@ -43648,7 +42754,7 @@ var Tab = (t0) => {
 	const href = t4;
 	let t5;
 	if ($[7] !== className || $[8] !== href || $[9] !== isActive || $[10] !== tab.props.icon || $[11] !== tab.props.onSelected || $[12] !== tab.props.title || $[13] !== tabContentsId || $[14] !== tabId || $[15] !== type) {
-		const tabClassName = clsx("nav-link", className, isActive && "active", type === "pills-small" ? TabSet_module_default.pillSmall : type === "pills" ? void 0 : TabSet_module_default.tab, type === "pills-small" ? "text-size-smallest" : "text-size-small", "text-style-label");
+		const tabClassName = clsx("nav-link", className, isActive && "active", type === "tabs" && TabSet_module_default.tab, type === "pills-small" ? "text-size-smallest" : "text-size-small", "text-style-label");
 		let t6;
 		if ($[17] !== tab.props.icon) {
 			t6 = tab.props.icon && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
@@ -43720,7 +42826,7 @@ var TabPanels = (t0) => {
 	const t2 = `${id}-content`;
 	let t3;
 	if ($[2] !== tabs) {
-		t3 = tabs.map(_temp2$61);
+		t3 = tabs.map(_temp2$62);
 		$[2] = tabs;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -43818,24 +42924,24 @@ function _temp$109(e) {
 		e.currentTarget.click();
 	}
 }
-function _temp2$61(tab, index) {
+function _temp2$62(tab, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
 		...tab.props,
 		index
 	}, tab.props.id);
 }
 var ExpandablePanel_module_default = {
-	outer: "_outer_6cugq_1",
-	expandablePanel: "_expandablePanel_6cugq_17",
-	expandableBordered: "_expandableBordered_6cugq_21",
-	expandableTruncated: "_expandableTruncated_6cugq_38",
-	moreToggle: "_moreToggle_6cugq_42",
-	bordered: "_bordered_6cugq_52",
-	moreToggleButton: "_moreToggleButton_6cugq_59",
-	inlineToggleHolder: "_inlineToggleHolder_6cugq_70",
-	inlineToggleSticky: "_inlineToggleSticky_6cugq_87",
-	blockLeft: "_blockLeft_6cugq_93",
-	collapsedContent: "_collapsedContent_6cugq_108"
+	outer: "_outer_1qksy_1",
+	expandablePanel: "_expandablePanel_1qksy_17",
+	expandableBordered: "_expandableBordered_1qksy_21",
+	expandableTruncated: "_expandableTruncated_1qksy_38",
+	moreToggle: "_moreToggle_1qksy_42",
+	bordered: "_bordered_1qksy_52",
+	moreToggleButton: "_moreToggleButton_1qksy_56",
+	inlineToggleHolder: "_inlineToggleHolder_1qksy_67",
+	inlineToggleSticky: "_inlineToggleSticky_1qksy_84",
+	blockLeft: "_blockLeft_1qksy_90",
+	collapsedContent: "_collapsedContent_1qksy_105"
 };
 // ../../packages/react/src/components/FindTargetContext.tsx
 var FindTargetContext = /*#__PURE__*/ (0, import_react.createContext)(null);
@@ -43843,8 +42949,7 @@ var FindTargetContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 *  any other UI that should react to find navigation. */ var useFindTarget = () => {
 	return (0, import_react.useContext)(FindTargetContext)?.target ?? null;
 };
-/** Returns the setter. Consumers: the search source (sets on match) and
-*  FindBand (clears on close / empty term). */ var useFindTargetSetter = () => {
+/** Returns the setter. Consumer: FindBand (sets the term, clears on close). */ var useFindTargetSetter = () => {
 	const $ = (0, import_compiler_runtime.c)(2);
 	const ctx = (0, import_react.useContext)(FindTargetContext);
 	let t0;
@@ -43894,7 +42999,8 @@ var PanelNestingContext = /*#__PURE__*/ (0, import_react.createContext)({
 * Whether the active find term, in any of the variants the search counter
 * matches, is in the element's text: a panel uses it to show content it
 * otherwise hides. The element's text may be hidden but must be mounted.
-*/ var useContainsFindTarget = (contentRef) => {
+*/ var collapseWhitespace = (text) => text.replace(/\s+/g, " ");
+var useContainsFindTarget = (contentRef) => {
 	const $ = (0, import_compiler_runtime.c)(5);
 	const findTarget = useFindTarget();
 	let t0;
@@ -43916,8 +43022,8 @@ var PanelNestingContext = /*#__PURE__*/ (0, import_react.createContext)({
 				setContainsFindTarget(false);
 				return;
 			}
-			const text = root.textContent.toLowerCase();
-			const { simple, unquoted, jsonEscaped } = prepareSearchTerm(findTarget.term);
+			const text = collapseWhitespace(root.textContent.toLowerCase());
+			const { simple, unquoted, jsonEscaped } = prepareSearchTerm(collapseWhitespace(findTarget.term));
 			setContainsFindTarget([
 				simple,
 				unquoted,
@@ -44233,24 +43339,23 @@ var MoreToggle = (t0) => {
 };
 ExpandablePanel.displayName = "ExpandablePanel";
 var LightboxCarousel_module_default = {
-	carouselThumbs: "_carouselThumbs_1dfia_1",
-	carouselThumb: "_carouselThumb_1dfia_1",
-	carouselPlayIcon: "_carouselPlayIcon_1dfia_18",
-	lightboxOverlay: "_lightboxOverlay_1dfia_22",
-	lightboxContent: "_lightboxContent_1dfia_35",
-	open: "_open_1dfia_35",
-	closed: "_closed_1dfia_41",
-	lightboxButtonCloseWrapper: "_lightboxButtonCloseWrapper_1dfia_47",
-	lightboxButtonClose: "_lightboxButtonClose_1dfia_47",
-	lightboxPreviewButton: "_lightboxPreviewButton_1dfia_65",
-	next: "_next_1dfia_78",
-	prev: "_prev_1dfia_82"
+	carouselThumbs: "_carouselThumbs_osoon_1",
+	carouselThumb: "_carouselThumb_osoon_1",
+	carouselPlayIcon: "_carouselPlayIcon_osoon_18",
+	lightbox: "_lightbox_osoon_23",
+	lightboxButtonClose: "_lightboxButtonClose_osoon_52",
+	lightboxPreviewButton: "_lightboxPreviewButton_osoon_66",
+	next: "_next_osoon_78",
+	prev: "_prev_osoon_82",
+	lightboxContent: "_lightboxContent_osoon_86"
 };
 // ../../packages/react/src/components/LightboxCarousel.tsx
 /**
-* LightboxCarousel component provides a carousel with lightbox functionality.
+* Thumbnails that open their slides full screen in a modal `<dialog>`.
+* Escape and the close button close it; the arrow keys and the side buttons
+* step between slides.
 */ var LightboxCarousel = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(46);
+	const $ = (0, import_compiler_runtime.c)(22);
 	const { id, slides } = t0;
 	let t1;
 	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
@@ -44265,189 +43370,184 @@ var LightboxCarousel_module_default = {
 	} else t2 = $[1];
 	const [currentIndex, setCurrentIndex] = useProperty(id, "currentIndex", t2);
 	let t3;
-	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
-		t3 = { defaultValue: false };
-		$[2] = t3;
-	} else t3 = $[2];
-	const [showOverlay, setShowOverlay] = useProperty(id, "showOverlay", t3);
 	let t4;
-	if ($[3] !== setCurrentIndex || $[4] !== setIsOpen || $[5] !== setShowOverlay) {
-		t4 = (index) => {
-			setCurrentIndex(index);
-			setShowOverlay(true);
-			setTimeout(() => setIsOpen(true), 10);
-		};
-		$[3] = setCurrentIndex;
-		$[4] = setIsOpen;
-		$[5] = setShowOverlay;
-		$[6] = t4;
-	} else t4 = $[6];
-	const openLightbox = t4;
-	let t5;
-	if ($[7] !== setIsOpen) {
-		t5 = () => {
-			setIsOpen(false);
-		};
-		$[7] = setIsOpen;
-		$[8] = t5;
-	} else t5 = $[8];
-	const closeLightbox = t5;
-	let t6;
-	if ($[9] !== setShowOverlay) {
-		t6 = () => setShowOverlay(false);
-		$[9] = setShowOverlay;
-		$[10] = t6;
-	} else t6 = $[10];
-	useTimeout(t6, !isOpen && showOverlay ? 300 : null);
-	let t7;
-	if ($[11] !== currentIndex || $[12] !== setCurrentIndex || $[13] !== slides.length) {
-		t7 = () => {
-			setCurrentIndex((currentIndex + 1) % slides.length);
-		};
-		$[11] = currentIndex;
-		$[12] = setCurrentIndex;
-		$[13] = slides.length;
-		$[14] = t7;
-	} else t7 = $[14];
-	const showNext = t7;
-	let t8;
-	if ($[15] !== currentIndex || $[16] !== setCurrentIndex || $[17] !== slides.length) {
-		t8 = () => {
-			setCurrentIndex((currentIndex - 1 + slides.length) % slides.length);
-		};
-		$[15] = currentIndex;
-		$[16] = setCurrentIndex;
-		$[17] = slides.length;
-		$[18] = t8;
-	} else t8 = $[18];
-	const showPrev = t8;
-	let t9;
-	if ($[19] !== closeLightbox || $[20] !== showNext || $[21] !== showPrev) {
-		t9 = (e) => {
-			if (e.key === "Escape") closeLightbox();
-			else if (e.key === "ArrowRight") showNext();
-			else if (e.key === "ArrowLeft") showPrev();
-			e.preventDefault();
-			e.stopPropagation();
-		};
-		$[19] = closeLightbox;
-		$[20] = showNext;
-		$[21] = showPrev;
-		$[22] = t9;
-	} else t9 = $[22];
-	let t10;
-	if ($[23] === Symbol.for("react.memo_cache_sentinel")) {
-		t10 = { capture: true };
-		$[23] = t10;
-	} else t10 = $[23];
-	useEventListener(isOpen ? window : null, "keyup", t9, t10);
-	let t11;
-	if ($[24] !== openLightbox) {
-		t11 = (e_0) => {
-			const index_0 = Number(e_0.currentTarget.dataset.index);
-			openLightbox(index_0);
-		};
-		$[24] = openLightbox;
-		$[25] = t11;
-	} else t11 = $[25];
-	const handleThumbClick = t11;
-	let t12;
-	let t13;
-	if ($[26] === Symbol.for("react.memo_cache_sentinel")) {
-		t12 = clsx("lightbox-carousel-container");
-		t13 = clsx(LightboxCarousel_module_default.carouselThumbs);
-		$[26] = t12;
-		$[27] = t13;
+	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
+		t3 = clsx("lightbox-carousel-container");
+		t4 = clsx(LightboxCarousel_module_default.carouselThumbs);
+		$[2] = t3;
+		$[3] = t4;
 	} else {
-		t12 = $[26];
-		t13 = $[27];
+		t3 = $[2];
+		t4 = $[3];
 	}
-	let t14;
-	if ($[28] !== handleThumbClick || $[29] !== slides) {
-		let t15;
-		if ($[31] !== handleThumbClick) {
-			t15 = (slide, index_1) => /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+	let t5;
+	if ($[4] !== setCurrentIndex || $[5] !== setIsOpen || $[6] !== slides) {
+		let t6;
+		if ($[8] !== setCurrentIndex || $[9] !== setIsOpen) {
+			t6 = (slide, index) => /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 				type: "button",
-				"data-index": index_1,
 				className: clsx(LightboxCarousel_module_default.carouselThumb),
-				onClick: handleThumbClick,
+				onClick: () => {
+					setCurrentIndex(index);
+					setIsOpen(true);
+				},
 				children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: slide.label }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
 					name: "play",
 					className: LightboxCarousel_module_default.carouselPlayIcon
 				}) })]
-			}, index_1);
-			$[31] = handleThumbClick;
-			$[32] = t15;
-		} else t15 = $[32];
-		t14 = slides.map(t15);
-		$[28] = handleThumbClick;
-		$[29] = slides;
-		$[30] = t14;
-	} else t14 = $[30];
-	let t15;
-	if ($[33] !== t14) {
-		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t13,
-			children: t14
+			}, index);
+			$[8] = setCurrentIndex;
+			$[9] = setIsOpen;
+			$[10] = t6;
+		} else t6 = $[10];
+		t5 = slides.map(t6);
+		$[4] = setCurrentIndex;
+		$[5] = setIsOpen;
+		$[6] = slides;
+		$[7] = t5;
+	} else t5 = $[7];
+	let t6;
+	if ($[11] !== t5) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t4,
+			children: t5
 		});
-		$[33] = t14;
-		$[34] = t15;
-	} else t15 = $[34];
-	let t16;
-	if ($[35] !== closeLightbox || $[36] !== currentIndex || $[37] !== isOpen || $[38] !== showNext || $[39] !== showOverlay || $[40] !== showPrev || $[41] !== slides) {
-		t16 = showOverlay && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: clsx(LightboxCarousel_module_default.lightboxOverlay, isOpen ? LightboxCarousel_module_default.open : LightboxCarousel_module_default.closed),
+		$[11] = t5;
+		$[12] = t6;
+	} else t6 = $[12];
+	let t7;
+	if ($[13] !== currentIndex || $[14] !== isOpen || $[15] !== setCurrentIndex || $[16] !== setIsOpen || $[17] !== slides) {
+		t7 = isOpen && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Lightbox, {
+			slides,
+			index: currentIndex,
+			onIndexChange: setCurrentIndex,
+			onClose: () => setIsOpen(false)
+		});
+		$[13] = currentIndex;
+		$[14] = isOpen;
+		$[15] = setCurrentIndex;
+		$[16] = setIsOpen;
+		$[17] = slides;
+		$[18] = t7;
+	} else t7 = $[18];
+	let t8;
+	if ($[19] !== t6 || $[20] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t3,
+			children: [t6, t7]
+		});
+		$[19] = t6;
+		$[20] = t7;
+		$[21] = t8;
+	} else t8 = $[21];
+	return t8;
+};
+var Lightbox = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(27);
+	const { slides, index, onIndexChange, onClose } = t0;
+	const { ref, dialog } = useShowModal();
+	let t1;
+	if ($[0] !== index || $[1] !== onIndexChange || $[2] !== slides.length) {
+		t1 = (delta) => onIndexChange((index + delta + slides.length) % slides.length);
+		$[0] = index;
+		$[1] = onIndexChange;
+		$[2] = slides.length;
+		$[3] = t1;
+	} else t1 = $[3];
+	const step = t1;
+	const t2 = slides[index]?.label;
+	let t3;
+	if ($[4] !== onClose || $[5] !== step) {
+		t3 = (e) => {
+			if (e.key === "Escape") {
+				e.preventDefault();
+				onClose();
+			} else if (e.key === "ArrowRight") step(1);
+			else if (e.key === "ArrowLeft") step(-1);
+		};
+		$[4] = onClose;
+		$[5] = step;
+		$[6] = t3;
+	} else t3 = $[6];
+	let t4;
+	if ($[7] !== onClose) {
+		t4 = (e_0) => {
+			if (!e_0.currentTarget.open) onClose();
+		};
+		$[7] = onClose;
+		$[8] = t4;
+	} else t4 = $[8];
+	let t5;
+	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "close" });
+		$[9] = t5;
+	} else t5 = $[9];
+	let t6;
+	if ($[10] !== onClose) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: LightboxCarousel_module_default.lightboxButtonClose,
+			onClick: onClose,
+			"aria-label": "Close",
+			children: t5
+		});
+		$[10] = onClose;
+		$[11] = t6;
+	} else t6 = $[11];
+	let t7;
+	if ($[12] !== slides.length || $[13] !== step) {
+		t7 = slides.length > 1 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: clsx(LightboxCarousel_module_default.lightboxPreviewButton, LightboxCarousel_module_default.prev),
+			onClick: () => step(-1),
+			"aria-label": "Previous",
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "previous" })
+		}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: clsx(LightboxCarousel_module_default.lightboxPreviewButton, LightboxCarousel_module_default.next),
+			onClick: () => step(1),
+			"aria-label": "Next",
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "next" })
+		})] });
+		$[12] = slides.length;
+		$[13] = step;
+		$[14] = t7;
+	} else t7 = $[14];
+	let t8;
+	if ($[15] !== dialog || $[16] !== index || $[17] !== slides) {
+		t8 = dialog && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: LightboxCarousel_module_default.lightboxContent,
+			children: slides[index]?.render()
+		}, index);
+		$[15] = dialog;
+		$[16] = index;
+		$[17] = slides;
+		$[18] = t8;
+	} else t8 = $[18];
+	let t9;
+	if ($[19] !== ref || $[20] !== t2 || $[21] !== t3 || $[22] !== t4 || $[23] !== t6 || $[24] !== t7 || $[25] !== t8) {
+		t9 = /*#__PURE__*/ (0, import_react_dom.createPortal)(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("dialog", {
+			ref,
+			"aria-label": t2,
+			className: LightboxCarousel_module_default.lightbox,
+			onKeyDown: t3,
+			onClose: t4,
 			children: [
-				/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-					className: clsx(LightboxCarousel_module_default.lightboxButtonCloseWrapper),
-					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: LightboxCarousel_module_default.lightboxButtonClose,
-						onClick: closeLightbox,
-						"aria-label": "Close",
-						children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "close" })
-					})
-				}),
-				slides.length > 1 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-					type: "button",
-					className: clsx(LightboxCarousel_module_default.lightboxPreviewButton, LightboxCarousel_module_default.prev),
-					onClick: showPrev,
-					"aria-label": "Previous",
-					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "previous" })
-				}) : "",
-				slides.length > 1 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-					type: "button",
-					className: clsx(LightboxCarousel_module_default.lightboxPreviewButton, LightboxCarousel_module_default.next),
-					onClick: showNext,
-					"aria-label": "Next",
-					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "next" })
-				}) : "",
-				/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-					className: clsx(LightboxCarousel_module_default.lightboxContent, isOpen ? LightboxCarousel_module_default.open : LightboxCarousel_module_default.closed),
-					children: slides[currentIndex]?.render()
-				}, `carousel-slide-${currentIndex}`)
+				t6,
+				t7,
+				t8
 			]
-		});
-		$[35] = closeLightbox;
-		$[36] = currentIndex;
-		$[37] = isOpen;
-		$[38] = showNext;
-		$[39] = showOverlay;
-		$[40] = showPrev;
-		$[41] = slides;
-		$[42] = t16;
-	} else t16 = $[42];
-	let t17;
-	if ($[43] !== t15 || $[44] !== t16) {
-		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t12,
-			children: [t15, t16]
-		});
-		$[43] = t15;
-		$[44] = t16;
-		$[45] = t17;
-	} else t17 = $[45];
-	return t17;
+		}), document.body);
+		$[19] = ref;
+		$[20] = t2;
+		$[21] = t3;
+		$[22] = t4;
+		$[23] = t6;
+		$[24] = t7;
+		$[25] = t8;
+		$[26] = t9;
+	} else t9 = $[26];
+	return t9;
 };
 var HumanBaselineView_module_default = {
 	asciinemaPlayerStatus: "_asciinemaPlayerStatus_1doob_1",
@@ -44644,130 +43744,92 @@ var useComponentNavigation = () => {
 	if (!navigation) throw new Error("useComponentNavigation must be used within a ComponentNavigationProvider");
 	return navigation;
 };
-// ../../packages/react/src/components/findBandDom.ts
-/**
-* Finds the nearest scrollable ancestor with enough overflow to benefit from
-* programmatic scrolling.
-*/ function findScrollableParent(element, options) {
-	const minBuffer = options?.minScrollBuffer ?? 100;
-	let current = element instanceof HTMLElement ? element : element?.parentElement;
-	while (current && current !== document.body) {
-		const style = getComputedStyle(current);
-		if ((style.overflowY === "auto" || style.overflowY === "scroll") && current.scrollHeight > current.clientHeight + minBuffer) return current;
-		current = current.parentElement;
-	}
-	return null;
-}
-/**
-* Centers the selected text range rather than its containing element, which
-* keeps matches in large elements such as code blocks correctly positioned.
-*/ function scrollRangeToCenter(range, options) {
-	const { behavior = "auto", fallbackToScrollIntoView = true } = options ?? {};
-	const rects = range.getClientRects();
-	if (rects.length === 0) return;
-	const selectionRect = rects[0];
-	if (selectionRect === void 0) return;
-	const scrollableParent = findScrollableParent(range.startContainer.parentElement);
-	if (scrollableParent) {
-		const parentRect = scrollableParent.getBoundingClientRect();
-		const targetScrollTop = selectionRect.top - parentRect.top + scrollableParent.scrollTop - scrollableParent.clientHeight / 2;
-		scrollableParent.scrollTo({
-			top: Math.max(0, targetScrollTop),
-			behavior
-		});
-	} else if (fallbackToScrollIntoView) range.startContainer.parentElement?.scrollIntoView({
-		behavior,
-		block: "center"
-	});
-}
 var FindBandUI_module_default = {
-	findBand: "_findBand_oh7be_1",
-	matchCount: "_matchCount_oh7be_30",
-	noResults: "_noResults_oh7be_40",
-	next: "_next_oh7be_48",
-	prev: "_prev_oh7be_49",
-	close: "_close_oh7be_55"
+	findBand: "_findBand_8a368_1",
+	matchCount: "_matchCount_8a368_30",
+	noResults: "_noResults_8a368_40",
+	next: "_next_8a368_45",
+	prev: "_prev_8a368_46",
+	close: "_close_8a368_52"
 };
 // ../../packages/react/src/components/FindBandUI.tsx
 var FindBandUI = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(37);
-	const { onClose, onNext, onPrevious, onKeyDown, onChange, onBeforeInput, value, matchCount, matchIndex, noResults: t1, disableNav, inputRef: externalRef } = t0;
+	const { onClose, onNext, onPrevious, onKeyDown, onChange, value, matchCount, matchIndex, noResults: t1, disableNav, inputRef: externalRef, ref } = t0;
 	const noResults = t1 === void 0 ? false : t1;
 	const internalRef = (0, import_react.useRef)(null);
 	const inputRef = externalRef ?? internalRef;
 	let inputProps;
-	if ($[0] !== onBeforeInput || $[1] !== onChange || $[2] !== onKeyDown || $[3] !== value) {
+	if ($[0] !== onChange || $[1] !== onKeyDown || $[2] !== value) {
 		inputProps = {
 			type: "text",
 			placeholder: "Find",
 			onKeyDown,
-			onBeforeInput,
 			onChange
 		};
 		if (value !== void 0) inputProps.value = value;
-		$[0] = onBeforeInput;
-		$[1] = onChange;
-		$[2] = onKeyDown;
-		$[3] = value;
-		$[4] = inputProps;
-	} else inputProps = $[4];
+		$[0] = onChange;
+		$[1] = onKeyDown;
+		$[2] = value;
+		$[3] = inputProps;
+	} else inputProps = $[3];
 	const hasCount = matchCount !== void 0 && matchIndex !== void 0;
 	const showStatus = noResults || hasCount && matchCount > 0;
 	const statusText = !noResults && hasCount && matchCount > 0 ? `${matchIndex + 1} of ${matchCount}` : "No results";
 	let t2;
-	if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
 		t2 = clsx(FindBandUI_module_default.findBand, "findBand");
-		$[5] = t2;
-	} else t2 = $[5];
+		$[4] = t2;
+	} else t2 = $[4];
 	let t3;
-	if ($[6] !== inputProps || $[7] !== inputRef) {
+	if ($[5] !== inputProps || $[6] !== inputRef) {
 		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
 			ref: inputRef,
 			...inputProps
 		});
-		$[6] = inputProps;
-		$[7] = inputRef;
-		$[8] = t3;
-	} else t3 = $[8];
+		$[5] = inputProps;
+		$[6] = inputRef;
+		$[7] = t3;
+	} else t3 = $[7];
 	const t4 = noResults && FindBandUI_module_default.noResults;
 	let t5;
-	if ($[9] !== t4) {
+	if ($[8] !== t4) {
 		t5 = clsx(FindBandUI_module_default.matchCount, t4);
-		$[9] = t4;
-		$[10] = t5;
-	} else t5 = $[10];
+		$[8] = t4;
+		$[9] = t5;
+	} else t5 = $[9];
 	const t6 = showStatus ? "visible" : "hidden";
 	let t7;
-	if ($[11] !== t6) {
+	if ($[10] !== t6) {
 		t7 = { visibility: t6 };
-		$[11] = t6;
-		$[12] = t7;
-	} else t7 = $[12];
+		$[10] = t6;
+		$[11] = t7;
+	} else t7 = $[11];
 	let t8;
-	if ($[13] !== statusText || $[14] !== t5 || $[15] !== t7) {
+	if ($[12] !== statusText || $[13] !== t5 || $[14] !== t7) {
 		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			"data-testid": "find-band-match-count",
 			className: t5,
 			style: t7,
 			children: statusText
 		});
-		$[13] = statusText;
-		$[14] = t5;
-		$[15] = t7;
-		$[16] = t8;
-	} else t8 = $[16];
+		$[12] = statusText;
+		$[13] = t5;
+		$[14] = t7;
+		$[15] = t8;
+	} else t8 = $[15];
 	let t9;
-	if ($[17] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[16] === Symbol.for("react.memo_cache_sentinel")) {
 		t9 = clsx("btn", FindBandUI_module_default.prev);
-		$[17] = t9;
-	} else t9 = $[17];
+		$[16] = t9;
+	} else t9 = $[16];
 	let t10;
-	if ($[18] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[17] === Symbol.for("react.memo_cache_sentinel")) {
 		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "arrowUp" });
-		$[18] = t10;
-	} else t10 = $[18];
+		$[17] = t10;
+	} else t10 = $[17];
 	let t11;
-	if ($[19] !== disableNav || $[20] !== onPrevious) {
+	if ($[18] !== disableNav || $[19] !== onPrevious) {
 		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
 			title: "Previous match",
@@ -44777,22 +43839,22 @@ var FindBandUI = (t0) => {
 			disabled: disableNav,
 			children: t10
 		});
-		$[19] = disableNav;
-		$[20] = onPrevious;
-		$[21] = t11;
-	} else t11 = $[21];
+		$[18] = disableNav;
+		$[19] = onPrevious;
+		$[20] = t11;
+	} else t11 = $[20];
 	let t12;
-	if ($[22] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[21] === Symbol.for("react.memo_cache_sentinel")) {
 		t12 = clsx("btn", FindBandUI_module_default.next);
-		$[22] = t12;
-	} else t12 = $[22];
+		$[21] = t12;
+	} else t12 = $[21];
 	let t13;
-	if ($[23] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[22] === Symbol.for("react.memo_cache_sentinel")) {
 		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "arrowDown" });
-		$[23] = t13;
-	} else t13 = $[23];
+		$[22] = t13;
+	} else t13 = $[22];
 	let t14;
-	if ($[24] !== disableNav || $[25] !== onNext) {
+	if ($[23] !== disableNav || $[24] !== onNext) {
 		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
 			title: "Next match",
@@ -44802,22 +43864,22 @@ var FindBandUI = (t0) => {
 			disabled: disableNav,
 			children: t13
 		});
-		$[24] = disableNav;
-		$[25] = onNext;
-		$[26] = t14;
-	} else t14 = $[26];
+		$[23] = disableNav;
+		$[24] = onNext;
+		$[25] = t14;
+	} else t14 = $[25];
 	let t15;
-	if ($[27] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[26] === Symbol.for("react.memo_cache_sentinel")) {
 		t15 = clsx("btn", FindBandUI_module_default.close);
-		$[27] = t15;
-	} else t15 = $[27];
+		$[26] = t15;
+	} else t15 = $[26];
 	let t16;
-	if ($[28] === Symbol.for("react.memo_cache_sentinel")) {
+	if ($[27] === Symbol.for("react.memo_cache_sentinel")) {
 		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "close" });
-		$[28] = t16;
-	} else t16 = $[28];
+		$[27] = t16;
+	} else t16 = $[27];
 	let t17;
-	if ($[29] !== onClose) {
+	if ($[28] !== onClose) {
 		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
 			title: "Close",
@@ -44825,12 +43887,13 @@ var FindBandUI = (t0) => {
 			onClick: onClose,
 			children: t16
 		});
-		$[29] = onClose;
-		$[30] = t17;
-	} else t17 = $[30];
+		$[28] = onClose;
+		$[29] = t17;
+	} else t17 = $[29];
 	let t18;
-	if ($[31] !== t11 || $[32] !== t14 || $[33] !== t17 || $[34] !== t3 || $[35] !== t8) {
+	if ($[30] !== ref || $[31] !== t11 || $[32] !== t14 || $[33] !== t17 || $[34] !== t3 || $[35] !== t8) {
 		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			ref,
 			"data-unsearchable": "true",
 			className: t2,
 			children: [
@@ -44841,6 +43904,7 @@ var FindBandUI = (t0) => {
 				t17
 			]
 		});
+		$[30] = ref;
 		$[31] = t11;
 		$[32] = t14;
 		$[33] = t17;
@@ -44850,6 +43914,668 @@ var FindBandUI = (t0) => {
 	} else t18 = $[36];
 	return t18;
 };
+// ../../packages/react/src/components/findBandDom.ts
+var scrollable = (overflow) => overflow === "auto" || overflow === "scroll" || overflow === "hidden";
+/** Ancestors with something to scroll, innermost first. */ function scrollAncestors(node) {
+	const scrollers = [];
+	for (let el = node.parentElement; el && el !== document.body && el !== document.documentElement; el = el.parentElement) {
+		const { overflowX, overflowY } = getComputedStyle(el);
+		const y = scrollable(overflowY) && el.scrollHeight > el.clientHeight;
+		const x = scrollable(overflowX) && el.scrollWidth > el.clientWidth;
+		if (x || y) scrollers.push({
+			el,
+			x,
+			y
+		});
+	}
+	return scrollers;
+}
+/** The vertical band of the window through which a range can be seen: the
+*  overlap of its vertical scroll ancestors' boxes and the window. */ function viewBand(range) {
+	let top = 0;
+	let bottom = window.innerHeight;
+	for (const { el, y } of scrollAncestors(range.startContainer)) {
+		if (!y) continue;
+		const box = el.getBoundingClientRect();
+		top = Math.max(top, box.top);
+		bottom = Math.min(bottom, box.bottom);
+	}
+	return {
+		top,
+		bottom
+	};
+}
+function isRangeAboveView(range) {
+	return range.getBoundingClientRect().bottom <= viewBand(range).top;
+}
+/** Opens any closed `<details>` around a range, so its text shows. */ function openDetailsAround(range) {
+	for (let el = range.startContainer.parentElement; el; el = el.parentElement) if (el instanceof HTMLDetailsElement && !el.open) el.open = true;
+}
+/**
+* Brings a range into view, centring it in each scroll ancestor that clips
+* it (on either axis), innermost first, and then in the window, as the
+* browser's own find does. A range already in view doesn't move anything.
+*/ function scrollRangeIntoView(range) {
+	for (const { el, x, y } of scrollAncestors(range.startContainer)) {
+		const rect = range.getBoundingClientRect();
+		const box = el.getBoundingClientRect();
+		const options = {};
+		if (y && (rect.top < box.top || rect.bottom > box.bottom)) options.top = el.scrollTop + rect.top - box.top - (box.height - rect.height) / 2;
+		if (x && (rect.left < box.left || rect.right > box.right)) options.left = el.scrollLeft + rect.left - box.left - (box.width - rect.width) / 2;
+		if (options.top !== void 0 || options.left !== void 0) el.scrollTo(options);
+	}
+	const rect = range.getBoundingClientRect();
+	const options = {};
+	if (rect.top < 0 || rect.bottom > window.innerHeight) options.top = rect.top - (window.innerHeight - rect.height) / 2;
+	if (rect.left < 0 || rect.right > window.innerWidth) options.left = rect.left - (window.innerWidth - rect.width) / 2;
+	if (options.top !== void 0 || options.left !== void 0) window.scrollBy(options);
+}
+// ../../packages/react/src/components/findHighlights.ts
+var FIND_MATCH_HIGHLIGHT = "find-match";
+var FIND_CURRENT_HIGHLIGHT = "find-current";
+/**
+* Paints every match, and the current one in its own colour. The current
+* range is left out of the match set so the two highlights never overlap.
+* Each Highlight is built before it is registered: Firefox re-processes a
+* registered Highlight on every add.
+*/ function paintFindHighlights(matches, current) {
+	setHighlight(FIND_MATCH_HIGHLIGHT, matches.filter((range) => range !== current));
+	setHighlight(FIND_CURRENT_HIGHLIGHT, current ? [current] : []);
+}
+function clearFindHighlights() {
+	if (!supported()) return;
+	CSS.highlights.delete(FIND_MATCH_HIGHLIGHT);
+	CSS.highlights.delete(FIND_CURRENT_HIGHLIGHT);
+}
+var supported = () => typeof CSS !== "undefined" && "highlights" in CSS;
+function setHighlight(name, ranges) {
+	if (!supported()) return;
+	if (ranges.length === 0) CSS.highlights.delete(name);
+	else {
+		const highlight = new Highlight();
+		for (const range of ranges) highlight.add(range);
+		CSS.highlights.set(name, highlight);
+	}
+}
+// ../../packages/react/src/components/findMatches.ts
+var SKIPPED_TAGS = /* @__PURE__ */ new Set([
+	"SCRIPT",
+	"STYLE",
+	"NOSCRIPT",
+	"TEMPLATE",
+	"TEXTAREA",
+	"SELECT"
+]);
+var escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+var isInlineDisplay = (display) => display === "inline" || display === "contents";
+var collapseFor = (whiteSpace) => whiteSpace === "normal" || whiteSpace === "nowrap" ? "all" : whiteSpace === "pre-line" ? "spaces" : "none";
+var isCollapsible = (char, collapse) => collapse === "all" ? char === " " || char === "	" || char === "\n" || char === "\r" || char === "\f" : collapse === "spaces" && (char === " " || char === "	");
+/**
+* Every case-insensitive occurrence of `term` in the page text under `root`,
+* in document order. Skips text a reader can't find: `data-unsearchable`
+* subtrees, `user-select: none` (role labels, gutters), hidden elements and
+* non-text elements. Matches may cross element boundaries within one block
+* of text (syntax-highlight tokens, markdown emphasis), but never span two
+* blocks or a `<br>`. Whitespace matches as it renders: a run of spaces or a
+* line break in normal text reads as one space, as in the browser's find.
+*/ function findTextMatches(root, term) {
+	if (!term) return [];
+	const pattern = new RegExp(escapeRegExp(term), "giu");
+	const doc = root.ownerDocument;
+	const view = doc.defaultView;
+	if (!view) return [];
+	const displays = /* @__PURE__ */ new Map();
+	const visible = /* @__PURE__ */ new Map();
+	const styleOf = (el) => view.getComputedStyle(el);
+	const isVisible = (el) => {
+		let result = visible.get(el);
+		if (result === void 0) {
+			result = styleOf(el).visibility === "visible";
+			visible.set(el, result);
+		}
+		return result;
+	};
+	const displayOf = (el) => {
+		let display = displays.get(el);
+		if (display === void 0) {
+			display = styleOf(el).display;
+			displays.set(el, display);
+		}
+		return display;
+	};
+	const blockOf = (el) => {
+		let current = el;
+		while (current && current !== root && isInlineDisplay(displayOf(current))) current = current.parentElement;
+		return current;
+	};
+	const walker = doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, { acceptNode: (node) => {
+		if (!(node instanceof Element)) return NodeFilter.FILTER_ACCEPT;
+		if (SKIPPED_TAGS.has(node.tagName)) return NodeFilter.FILTER_REJECT;
+		if (node.hasAttribute("data-unsearchable")) return NodeFilter.FILTER_REJECT;
+		const style = styleOf(node);
+		displays.set(node, style.display);
+		visible.set(node, style.visibility === "visible");
+		if (style.display === "none" || style.userSelect === "none" || style.getPropertyValue("-webkit-user-select") === "none") return NodeFilter.FILTER_REJECT;
+		return NodeFilter.FILTER_ACCEPT;
+	} });
+	const matches = [];
+	const collapses = /* @__PURE__ */ new Map();
+	const collapseOf = (el) => {
+		if (!el) return "all";
+		let collapse = collapses.get(el);
+		if (collapse === void 0) {
+			collapse = collapseFor(styleOf(el).whiteSpace);
+			collapses.set(el, collapse);
+		}
+		return collapse;
+	};
+	const flush = (run) => {
+		if (!run) return;
+		for (const match of run.chars.join("").matchAll(pattern)) {
+			const start = run.rawOffsets[match.index];
+			const end = run.rawOffsets[match.index + match[0].length - 1] + 1;
+			const range = doc.createRange();
+			const [startNode, startOffset] = locate(run, start, false);
+			const [endNode, endOffset] = locate(run, end, true);
+			range.setStart(startNode, startOffset);
+			range.setEnd(endNode, endOffset);
+			matches.push(range);
+		}
+	};
+	let run = null;
+	let runBlock = null;
+	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+		if (node instanceof Element) {
+			if (node.tagName === "BR" || !isInlineDisplay(displayOf(node))) {
+				flush(run);
+				run = null;
+			}
+			continue;
+		}
+		if (!(node instanceof Text) || node.data.length === 0) continue;
+		const parent = node.parentElement;
+		if (parent && !isVisible(parent)) continue;
+		const block = blockOf(parent);
+		if (run && block !== runBlock) {
+			flush(run);
+			run = null;
+		}
+		if (!run) {
+			run = {
+				chars: [],
+				rawOffsets: [],
+				nodes: [],
+				starts: [],
+				rawLength: 0,
+				lastWasSpace: false
+			};
+			runBlock = block;
+		}
+		appendText$1(run, node, collapseOf(parent));
+	}
+	flush(run);
+	return matches;
+}
+function appendText$1(run, node, collapse) {
+	run.starts.push(run.rawLength);
+	run.nodes.push(node);
+	const data = node.data;
+	for (let i = 0; i < data.length; i++) {
+		const char = data[i];
+		if (isCollapsible(char, collapse)) {
+			if (run.lastWasSpace) continue;
+			run.chars.push(" ");
+			run.lastWasSpace = true;
+		} else {
+			run.chars.push(char);
+			run.lastWasSpace = false;
+		}
+		run.rawOffsets.push(run.rawLength + i);
+	}
+	run.rawLength += data.length;
+}
+/**
+* The text node and offset for a raw position in a run. An end position on a
+* node boundary resolves to the end of the earlier node, so a range never
+* reaches into a node it doesn't cover.
+*/ function locate(run, position, isEnd) {
+	let low = 0;
+	let high = run.starts.length - 1;
+	while (low < high) {
+		const mid = Math.ceil((low + high) / 2);
+		const start = run.starts[mid];
+		if (isEnd ? start < position : start <= position) low = mid;
+		else high = mid - 1;
+	}
+	return [run.nodes[low], position - run.starts[low]];
+}
+// ../../packages/react/src/components/findModel.ts
+/**
+* Orders every match: page matches in document order, each list's items
+* spliced in at its position. A rendered item counts its DOM matches, so the
+* count agrees with what's highlighted; an item that isn't rendered counts
+* its data matches.
+*/ function buildEntries(pageRanges, sources) {
+	const ordered = [...sources].sort((a, b) => a.position - b.position);
+	const entries = [];
+	let next = 0;
+	const pushPage = (until) => {
+		for (; next < until; next++) entries.push({
+			source: null,
+			item: next,
+			count: 1,
+			ranges: [pageRanges[next]]
+		});
+	};
+	for (const source of ordered) {
+		pushPage(source.position);
+		for (const entry of sourceEntries(source)) entries.push(entry);
+	}
+	pushPage(pageRanges.length);
+	return entries;
+}
+function sourceEntries(source) {
+	const counts = /* @__PURE__ */ new Map();
+	for (const { item, count } of source.dataCounts) counts.set(item, count);
+	for (const item of source.rendered.keys()) counts.set(item, 0);
+	const entries = [];
+	for (const item of [...counts.keys()].sort((a, b) => a - b)) {
+		const ranges = source.rendered.get(item);
+		if (ranges) entries.push({
+			source: source.id,
+			item,
+			count: ranges.length,
+			ranges
+		});
+		else if (!source.renderedItems.has(item)) entries.push({
+			source: source.id,
+			item,
+			count: counts.get(item),
+			ranges: null
+		});
+	}
+	return entries;
+}
+function totalMatches(entries) {
+	let total = 0;
+	for (const entry of entries) total += entry.count;
+	return total;
+}
+/** The 0-based ordinal of a key, or null when its entry is gone. An
+*  occurrence past the entry's count clamps to its last match. */ function ordinalOf(entries, key) {
+	let ordinal = 0;
+	for (const entry of entries) {
+		if (entry.source === key.source && entry.item === key.item) return ordinal + Math.min(key.occurrence, entry.count - 1);
+		ordinal += entry.count;
+	}
+	return null;
+}
+/** The key at an ordinal, wrapping at both ends. Null when nothing matches. */ function keyAt(entries, ordinal) {
+	const total = totalMatches(entries);
+	if (total === 0) return null;
+	let remaining = (ordinal % total + total) % total;
+	for (const entry of entries) {
+		if (remaining < entry.count) return {
+			source: entry.source,
+			item: entry.item,
+			occurrence: remaining
+		};
+		remaining -= entry.count;
+	}
+	return null;
+}
+/** The rendered range for a key, if its item is rendered. */ function rangeOf(entries, key) {
+	const entry = entries.find((e) => e.source === key.source && e.item === key.item);
+	if (!entry?.ranges || entry.ranges.length === 0) return null;
+	return entry.ranges[Math.min(key.occurrence, entry.ranges.length - 1)];
+}
+// ../../packages/react/src/components/findSession.ts
+var QUIET_MS = 150;
+var REVEAL_SETTLE_MS = 1e3;
+var MAX_SKIPS = 10;
+var USER_SCROLL_EVENTS = [
+	"wheel",
+	"touchmove",
+	"pointerdown",
+	"keydown"
+];
+var SCROLL_KEYS = /* @__PURE__ */ new Set([
+	"PageUp",
+	"PageDown",
+	"Home",
+	"End",
+	"ArrowUp",
+	"ArrowDown",
+	" "
+]);
+/**
+* Find state for one open find band: the matches for the current term, the
+* current match, and the highlights. Lives outside React because it reacts
+* to DOM mutations and list reveals, not renders.
+*/ var FindSession = class {
+	options;
+	term = "";
+	entries = [];
+	current = null;
+	scrollPending = false;
+	revealing = null;
+	lastMutation = 0;
+	navigation = 0;
+	awaitingMatch = false;
+	lastRendered = /* @__PURE__ */ new Map();
+	anchors = /* @__PURE__ */ new Map();
+	abortReveal = null;
+	settleTimer = null;
+	frame = null;
+	observer = null;
+	constructor(options) {
+		this.options = options;
+		for (const type of USER_SCROLL_EVENTS) document.addEventListener(type, this.onUserInput, {
+			capture: true,
+			passive: true
+		});
+	}
+	get searchTerm() {
+		return this.term;
+	}
+	/** Searches a new term, landing on the first match from the viewport
+	*  down, or the one before it when searching backward. */ setTerm(term, direction = "forward") {
+		if (term === this.term) return;
+		const previous = this.currentRange();
+		this.term = term;
+		this.current = null;
+		this.awaitingMatch = false;
+		this.cancelNavigation();
+		this.observe(term !== "");
+		this.rebuild();
+		this.awaitingMatch = term !== "";
+		this.selectFrom(previous?.startContainer.isConnected ? previous : null, direction);
+	}
+	step(direction) {
+		const total = totalMatches(this.entries);
+		if (total === 0) return;
+		const ordinal = this.current ? this.current.ordinal + (direction === "forward" ? 1 : -1) : direction === "forward" ? 0 : total - 1;
+		this.navigate(ordinal, direction, 0);
+	}
+	/** Re-collects matches, e.g. after a list's data changed. */ refresh() {
+		this.scheduleRebuild();
+	}
+	dispose() {
+		for (const type of USER_SCROLL_EVENTS) document.removeEventListener(type, this.onUserInput, { capture: true });
+		this.cancelNavigation();
+		this.observe(false);
+		if (this.frame !== null) cancelAnimationFrame(this.frame);
+		clearFindHighlights();
+	}
+	observe(on) {
+		if (!on) {
+			this.observer?.disconnect();
+			this.observer = null;
+			return;
+		}
+		if (this.observer) return;
+		this.observer = new MutationObserver((records) => {
+			const band = this.options.band();
+			if (band && records.every((r) => band.contains(r.target))) return;
+			this.lastMutation = performance.now();
+			this.scheduleRebuild();
+		});
+		this.observer.observe(this.options.root, {
+			childList: true,
+			subtree: true,
+			characterData: true,
+			attributes: true,
+			attributeFilter: [
+				"class",
+				"hidden",
+				"open"
+			]
+		});
+	}
+	scheduleRebuild() {
+		if (this.frame !== null) return;
+		this.frame = requestAnimationFrame(() => {
+			this.frame = null;
+			this.rebuild();
+		});
+	}
+	/** Re-collects the matches from the page and the sources, then publishes. */ rebuild() {
+		const previous = this.currentRange();
+		this.entries = this.term ? this.collect(this.term) : [];
+		if (this.current?.key.source === null && previous) this.current.key = reanchorPageMatch(this.entries, this.current.key, previous);
+		if (this.awaitingMatch && totalMatches(this.entries) > 0) {
+			this.selectFrom(null, "forward");
+			return;
+		}
+		this.publish();
+	}
+	/** Resolves the current match against the collected matches, paints the
+	*  highlights, scrolls if a navigation is waiting, and reports status. */ publish() {
+		const total = totalMatches(this.entries);
+		if (this.current && this.revealing?.toLast) {
+			const { key } = this.current;
+			const entry = this.entries.find((e) => e.source === key.source && e.item === key.item);
+			if (entry?.ranges) this.current.key = {
+				...key,
+				occurrence: entry.ranges.length - 1
+			};
+		}
+		if (this.current) {
+			const ordinal = ordinalOf(this.entries, this.current.key);
+			if (ordinal !== null) this.current.ordinal = ordinal;
+			else if (!this.revealing) {
+				const key = keyAt(this.entries, Math.min(this.current.ordinal, total - 1));
+				this.current = key ? {
+					key,
+					ordinal: ordinalOf(this.entries, key)
+				} : null;
+				if (!this.current && this.term) this.awaitingMatch = true;
+			}
+		}
+		const range = this.currentRange();
+		const listScrolling = this.revealing?.inFlight === true;
+		if (range && this.revealing && !listScrolling) {
+			this.revealing = null;
+			this.clearSettleTimer();
+		}
+		paintFindHighlights(this.allRanges(), range);
+		if (range && this.scrollPending && !listScrolling) {
+			this.scrollPending = false;
+			openDetailsAround(range);
+			this.scrollAfterLayout(this.navigation);
+		}
+		this.options.onStatus({
+			term: this.term,
+			total,
+			ordinal: this.current?.ordinal ?? null
+		});
+	}
+	collect(term) {
+		const ranges = findTextMatches(this.options.root, term);
+		const sources = [...this.options.sources()].map(([id, source]) => ({
+			id,
+			source,
+			anchor: source.anchor()
+		})).filter((s) => s.anchor !== null);
+		const rendered = new Map(sources.map((s) => [s.id, /* @__PURE__ */ new Map()]));
+		const pageRanges = [];
+		for (const range of ranges) {
+			const owner = ownerOf(sources, range.startContainer);
+			if (owner) {
+				const items = rendered.get(owner.id);
+				const list = items.get(owner.item);
+				if (list) list.push(range);
+				else items.set(owner.item, [range]);
+			} else pageRanges.push(range);
+		}
+		this.lastRendered.clear();
+		this.anchors = new Map(sources.map((s) => [s.id, s.anchor]));
+		return buildEntries(pageRanges, sources.map(({ id, source, anchor }) => {
+			const renderedItems = source.renderedItems();
+			if (renderedItems.size > 0) this.lastRendered.set(id, Math.max(...renderedItems));
+			return {
+				id,
+				position: pageMatchesBefore(pageRanges, anchor),
+				dataCounts: source.countByItem(term),
+				rendered: rendered.get(id),
+				renderedItems
+			};
+		}));
+	}
+	/** Lands on the first match at or after `from`, or else the first one not
+	*  above the viewport, so typing doesn't jump the page back to the top.
+	*  Searching backward lands on the match before that one. */ selectFrom(from, direction) {
+		const ordinal = this.firstFrom(from);
+		this.navigate(direction === "forward" ? ordinal : ordinal - 1, direction, 0);
+	}
+	firstFrom(from) {
+		let ordinal = 0;
+		for (const entry of this.entries) {
+			if (entry.ranges) {
+				const index = entry.ranges.findIndex((range) => from ? range.compareBoundaryPoints(Range.START_TO_START, from) >= 0 : !isRangeAboveView(range));
+				if (index !== -1) return ordinal + index;
+			} else if (entry.source !== null && entry.item > (this.lastRendered.get(entry.source) ?? Infinity) && !(from && this.isAfterList(from, entry.source))) return ordinal;
+			ordinal += entry.count;
+		}
+		return 0;
+	}
+	/** Whether a range sits in the page after a list, outside it. */ isAfterList(range, source) {
+		const anchor = this.anchors.get(source);
+		if (!anchor || anchor.contains(range.startContainer)) return false;
+		return (anchor.compareDocumentPosition(range.startContainer) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+	}
+	navigate(ordinal, direction, skips) {
+		const key = keyAt(this.entries, ordinal);
+		if (!key) return;
+		this.awaitingMatch = false;
+		this.cancelNavigation();
+		const navigation = this.navigation;
+		this.current = {
+			key,
+			ordinal: ordinalOf(this.entries, key)
+		};
+		this.scrollPending = true;
+		const source = key.source === null ? void 0 : this.options.sources().get(key.source);
+		if (rangeOf(this.entries, key) || !source) {
+			this.publish();
+			return;
+		}
+		const entry = this.entries.find((e) => e.source === key.source && e.item === key.item);
+		this.revealing = {
+			direction,
+			skips,
+			inFlight: true,
+			toLast: direction === "backward" && key.occurrence === (entry?.count ?? 0) - 1
+		};
+		this.publish();
+		const settle = (rendered) => {
+			if (navigation !== this.navigation || !this.revealing) return;
+			this.revealing.inFlight = false;
+			this.rebuild();
+			if (this.currentRange()) return;
+			if (!rendered) {
+				this.skipUnrevealed(navigation);
+				return;
+			}
+			const started = performance.now();
+			const check = () => {
+				this.settleTimer = null;
+				if (navigation !== this.navigation || !this.revealing) return;
+				const now = performance.now();
+				if (now - this.lastMutation < QUIET_MS && now - started < REVEAL_SETTLE_MS) {
+					this.settleTimer = window.setTimeout(check, QUIET_MS);
+					return;
+				}
+				this.rebuild();
+				this.skipUnrevealed(navigation);
+			};
+			this.settleTimer = window.setTimeout(check, QUIET_MS);
+		};
+		this.abortReveal = new AbortController();
+		source.reveal(key.item, direction, this.abortReveal.signal).then(settle, () => {
+			if (navigation === this.navigation) this.stopNavigating();
+		});
+	}
+	onUserInput = (event) => {
+		if (!this.revealing && !this.scrollPending) return;
+		if (event instanceof KeyboardEvent && !SCROLL_KEYS.has(event.key)) return;
+		const band = this.options.band();
+		if (band && event.target instanceof Node && band.contains(event.target)) return;
+		this.stopNavigating();
+	};
+	stopNavigating() {
+		this.cancelNavigation();
+		this.publish();
+	}
+	skipUnrevealed(navigation) {
+		const revealing = this.revealing;
+		if (!revealing || !this.current || navigation !== this.navigation) return;
+		this.revealing = null;
+		if (revealing.skips >= MAX_SKIPS) {
+			this.scrollPending = false;
+			return;
+		}
+		const { key } = this.current;
+		const start = ordinalOf(this.entries, {
+			...key,
+			occurrence: 0
+		});
+		const count = this.entries.find((e) => e.source === key.source && e.item === key.item)?.count ?? 0;
+		const from = start ?? this.current.ordinal - key.occurrence;
+		const ordinal = revealing.direction === "forward" ? from + count : from - 1;
+		this.navigate(ordinal, revealing.direction, revealing.skips + 1);
+	}
+	scrollAfterLayout(navigation) {
+		requestAnimationFrame(() => requestAnimationFrame(() => {
+			if (navigation !== this.navigation) return;
+			const range = this.currentRange();
+			if (range) scrollRangeIntoView(range);
+		}));
+	}
+	cancelNavigation() {
+		this.navigation++;
+		this.abortReveal?.abort();
+		this.abortReveal = null;
+		this.revealing = null;
+		this.scrollPending = false;
+		this.clearSettleTimer();
+	}
+	clearSettleTimer() {
+		if (this.settleTimer !== null) {
+			window.clearTimeout(this.settleTimer);
+			this.settleTimer = null;
+		}
+	}
+	currentRange() {
+		return this.current ? rangeOf(this.entries, this.current.key) : null;
+	}
+	allRanges() {
+		return this.entries.flatMap((entry) => entry.ranges ?? []);
+	}
+};
+function reanchorPageMatch(entries, key, previous) {
+	if (!previous.startContainer.isConnected) return key;
+	const entry = entries.find((e) => e.source === null && e.ranges?.[0]?.startContainer === previous.startContainer && e.ranges[0].startOffset === previous.startOffset);
+	return entry ? {
+		...key,
+		item: entry.item
+	} : key;
+}
+function ownerOf(sources, node) {
+	for (const { id, source } of sources) {
+		const item = source.itemOf(node);
+		if (item !== null) return {
+			id,
+			item
+		};
+	}
+	return null;
+}
+function pageMatchesBefore(pageRanges, anchor) {
+	const after = Node.DOCUMENT_POSITION_FOLLOWING | Node.DOCUMENT_POSITION_CONTAINED_BY;
+	const index = pageRanges.findIndex((range) => (anchor.compareDocumentPosition(range.startContainer) & after) !== 0);
+	return index === -1 ? pageRanges.length : index;
+}
 // ../../packages/react/src/components/findShortcuts.ts
 function isFindShortcut(e) {
 	return (e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "f";
@@ -44858,370 +44584,184 @@ function isFindNextShortcut(e) {
 	return (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "g";
 }
 // ../../packages/react/src/components/FindBand.tsx
-var findConfig = {
-	caseSensitive: false,
-	wrapAround: false,
-	wholeWord: false,
-	searchInFrames: false,
-	showDialog: false
-};
-var FindBand = ({ onClose, debounceMs = 100 }) => {
+var FindBand = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(29);
+	const { onClose, debounceMs: t1 } = t0;
+	const debounceMs = t1 === void 0 ? 100 : t1;
 	const searchBoxRef = (0, import_react.useRef)(null);
-	const { extendedFindTerm, countAllMatches, getMatchCountersVersion } = useExtendedFind();
+	const bandRef = (0, import_react.useRef)(null);
+	const { getFindSources, subscribeFindSources } = useExtendedFind();
 	const setFindTarget = useFindTargetSetter();
-	const lastFoundItem = (0, import_react.useRef)(null);
-	const currentSearchTerm = (0, import_react.useRef)("");
-	const needsCursorRestoreRef = (0, import_react.useRef)(false);
-	const scrollTimeoutRef = (0, import_react.useRef)(null);
-	const searchIdRef = (0, import_react.useRef)(0);
-	const cachedCount = (0, import_react.useRef)({
-		term: "",
-		version: -1,
-		count: 0
-	});
-	const lastNoResult = (0, import_react.useRef)(null);
-	const [matchCount, setMatchCount] = (0, import_react.useState)(null);
-	const [currentMatchIndex, setCurrentMatchIndex] = (0, import_react.useState)(0);
-	const [noResults, setNoResults] = (0, import_react.useState)(false);
-	const search = (0, import_react.useCallback)(async (back = false, skipKnownMiss = false) => {
-		const thisSearchId = ++searchIdRef.current;
-		const searchTerm = searchBoxRef.current?.value ?? "";
-		if (!searchTerm) {
-			setMatchCount(null);
-			setCurrentMatchIndex(0);
-			setNoResults(false);
-			setFindTarget(null);
-			return;
-		}
-		const countersVersion = getMatchCountersVersion();
-		if (skipKnownMiss && lastNoResult.current && lastNoResult.current.version === countersVersion && searchTerm.startsWith(lastNoResult.current.term)) {
-			setMatchCount(null);
-			setNoResults(true);
-			return;
-		}
-		const termChanged = currentSearchTerm.current !== searchTerm;
-		if (termChanged) {
-			lastFoundItem.current = null;
-			currentSearchTerm.current = searchTerm;
-			setCurrentMatchIndex(0);
-		}
-		let total;
-		if (cachedCount.current.term === searchTerm && cachedCount.current.version === countersVersion) total = cachedCount.current.count;
-		else {
-			total = countAllMatches(searchTerm);
-			cachedCount.current = {
-				term: searchTerm,
-				version: countersVersion,
-				count: total
+	const sessionRef = (0, import_react.useRef)(null);
+	const [status, setStatus] = (0, import_react.useState)(null);
+	let t2;
+	if ($[0] !== getFindSources || $[1] !== setFindTarget || $[2] !== subscribeFindSources) {
+		t2 = () => {
+			const session = new FindSession({
+				root: document.body,
+				sources: getFindSources,
+				band: () => bandRef.current,
+				onStatus: setStatus
+			});
+			sessionRef.current = session;
+			const unsubscribe = subscribeFindSources(() => session.refresh());
+			const focusTimeout = window.setTimeout(() => {
+				searchBoxRef.current?.focus();
+				searchBoxRef.current?.select();
+			}, 10);
+			return () => {
+				window.clearTimeout(focusTimeout);
+				unsubscribe();
+				session.dispose();
+				sessionRef.current = null;
+				setFindTarget(null);
 			};
-		}
-		setMatchCount(total > 0 ? total : null);
-		const focusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-		const selection = window.getSelection();
-		let savedRange = null;
-		if (selection && selection.rangeCount > 0) savedRange = selection.getRangeAt(0).cloneRange();
-		const savedScrollParent = savedRange ? findScrollableParent(savedRange.startContainer.parentElement) : null;
-		const savedScrollTop = savedScrollParent?.scrollTop ?? 0;
-		const result = await findExtendedInDOM(searchTerm, back, lastFoundItem.current, extendedFindTerm);
-		if (searchIdRef.current !== thisSearchId) return;
-		setNoResults(!result);
-		lastNoResult.current = result ? null : {
-			term: searchTerm,
-			version: countersVersion
 		};
-		if (!result && savedRange) {
-			const sel = window.getSelection();
-			if (sel) {
-				sel.removeAllRanges();
-				sel.addRange(savedRange);
-			}
-			if (savedScrollParent) savedScrollParent.scrollTop = savedScrollTop;
-		}
-		if (result) {
-			const selection = window.getSelection();
-			if (selection && selection.rangeCount > 0) {
-				const range = selection.getRangeAt(0);
-				const parentElement = rangeParentElement(range);
-				const isNewMatch = !isLastFoundItem(range, lastFoundItem.current);
-				lastFoundItem.current = {
-					text: range.toString(),
-					offset: range.startOffset,
-					parentElement
-				};
-				if (termChanged) setFindTarget({
-					term: searchTerm,
-					eventId: ""
-				});
-				if (isNewMatch) setCurrentMatchIndex((prev) => {
-					if (back) return prev <= 1 ? total : prev - 1;
-					else return prev >= total ? 1 : prev + 1;
-				});
-				if (scrollTimeoutRef.current !== null) window.clearTimeout(scrollTimeoutRef.current);
-				scrollTimeoutRef.current = window.setTimeout(() => {
-					scrollRangeToCenter(range);
-				}, 100);
-			}
-		}
-		focusedElement?.focus();
-	}, [
-		setFindTarget,
-		extendedFindTerm,
-		countAllMatches,
-		getMatchCountersVersion
-	]);
-	const handleSearch = (0, import_react.useCallback)((back) => {
-		search(back).catch((error) => {
-			console.error("Find failed:", error);
-		});
-	}, [search]);
-	useMountEffect(() => {
-		const focusTimeout = window.setTimeout(() => {
-			searchBoxRef.current?.focus();
-			searchBoxRef.current?.select();
-		}, 10);
-		return () => {
-			if (scrollTimeoutRef.current !== null) window.clearTimeout(scrollTimeoutRef.current);
-			window.clearTimeout(focusTimeout);
-			setFindTarget(null);
+		$[0] = getFindSources;
+		$[1] = setFindTarget;
+		$[2] = subscribeFindSources;
+		$[3] = t2;
+	} else t2 = $[3];
+	useMountEffect(t2);
+	let t3;
+	if ($[4] !== setFindTarget) {
+		t3 = (t4) => {
+			const direction = t4 === void 0 ? "forward" : t4;
+			const session_0 = sessionRef.current;
+			const value = searchBoxRef.current?.value ?? "";
+			if (!session_0 || value === session_0.searchTerm) return false;
+			setFindTarget(value ? { term: value } : null);
+			session_0.setTerm(value, direction);
+			return true;
 		};
-	});
-	const handleKeyDown = (0, import_react.useCallback)((e) => {
-		if (e.key === "Escape") onClose();
-		else if (e.key === "Enter") handleSearch(e.shiftKey);
-		else if (isFindNextShortcut(e)) {
-			e.preventDefault();
-			handleSearch(e.shiftKey);
-		} else if (isFindShortcut(e)) {
-			searchBoxRef.current?.focus();
-			searchBoxRef.current?.select();
-		}
-	}, [onClose, handleSearch]);
-	const findPrevious = (0, import_react.useCallback)(() => {
-		handleSearch(true);
-	}, [handleSearch]);
-	const findNext = (0, import_react.useCallback)(() => {
-		handleSearch(false);
-	}, [handleSearch]);
-	const restoreCursor = (0, import_react.useCallback)(() => {
-		if (!needsCursorRestoreRef.current) return;
-		needsCursorRestoreRef.current = false;
-		const input = searchBoxRef.current;
-		if (input) {
-			const len = input.value.length;
-			input.setSelectionRange(len, len);
-		}
-	}, []);
-	const handleInputChange = useDebouncedCallback((0, import_react.useCallback)(async () => {
-		if (!searchBoxRef.current) return;
-		await search(false, true);
-		needsCursorRestoreRef.current = true;
-	}, [search]), debounceMs);
-	const restoreCursorIfNeeded = (0, import_react.useCallback)(() => {
-		const input = searchBoxRef.current;
-		if (!input) return;
-		if (input.selectionStart === 0 && input.selectionEnd === 0 && input.value.length > 0) restoreCursor();
-		else needsCursorRestoreRef.current = false;
-	}, [restoreCursor]);
-	const handleBeforeInput = (0, import_react.useCallback)(() => {
-		restoreCursorIfNeeded();
-	}, [restoreCursorIfNeeded]);
-	useEventListener(document, "keydown", (e) => {
-		if (e.key === "F3") {
-			e.preventDefault();
-			handleSearch(e.shiftKey);
-			return;
-		}
-		if (isFindShortcut(e)) {
-			e.preventDefault();
-			e.stopPropagation();
-			searchBoxRef.current?.focus();
-			searchBoxRef.current?.select();
-			return;
-		}
-		if (isFindNextShortcut(e)) {
-			e.preventDefault();
-			e.stopPropagation();
-			handleSearch(e.shiftKey);
-			return;
-		}
-		if (e.ctrlKey || e.metaKey || e.altKey) return;
-		if (e.key.length !== 1 && e.key !== "Backspace" && e.key !== "Delete") return;
-		const input = searchBoxRef.current;
-		if (!input) return;
-		if (document.activeElement !== input) {
-			if (isEditableTarget(deepActiveElement())) return;
-			restoreCursor();
+		$[4] = setFindTarget;
+		$[5] = t3;
+	} else t3 = $[5];
+	const applyTerm = t3;
+	let t4;
+	if ($[6] !== applyTerm) {
+		t4 = (direction_0) => {
+			if (!applyTerm(direction_0)) sessionRef.current?.step(direction_0);
+		};
+		$[6] = applyTerm;
+		$[7] = t4;
+	} else t4 = $[7];
+	const search = t4;
+	let t5;
+	if ($[8] !== applyTerm) {
+		t5 = () => {
+			applyTerm();
+		};
+		$[8] = applyTerm;
+		$[9] = t5;
+	} else t5 = $[9];
+	const handleInputChange = useDebouncedCallback(t5, debounceMs);
+	let t6;
+	if ($[10] === Symbol.for("react.memo_cache_sentinel")) {
+		t6 = () => {
+			const input = searchBoxRef.current;
+			if (!input) return;
 			input.focus();
-		} else restoreCursorIfNeeded();
-	}, { capture: true });
-	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FindBandUI, {
-		inputRef: searchBoxRef,
-		onClose,
-		onNext: findNext,
-		onPrevious: findPrevious,
-		onKeyDown: handleKeyDown,
-		onBeforeInput: handleBeforeInput,
-		onChange: handleInputChange,
-		noResults,
-		matchCount: matchCount ?? void 0,
-		matchIndex: matchCount !== null && matchCount > 0 ? currentMatchIndex - 1 : void 0
-	});
-};
-function windowFind(searchTerm, back) {
-	return window.find?.(searchTerm, findConfig.caseSensitive, back, findConfig.wrapAround, findConfig.wholeWord, findConfig.searchInFrames, findConfig.showDialog) ?? false;
-}
-function positionSelectionForWrap(back) {
-	if (!back) return;
-	const sel = window.getSelection();
-	if (sel) {
-		const range = document.createRange();
-		range.selectNodeContents(document.body);
-		range.collapse(false);
-		sel.removeAllRanges();
-		sel.addRange(range);
-	}
-}
-async function findExtendedInDOM(searchTerm, back, lastFoundItem, extendedFindTerm) {
-	let result = false;
-	let hasTriedExtendedSearch = false;
-	let extendedSearchSucceeded = false;
-	const maxAttempts = 25;
-	for (let attempts = 0; attempts < maxAttempts; attempts++) {
-		result = windowFind(searchTerm, back);
-		if (result) {
-			const selection = window.getSelection();
-			if (selection && selection.rangeCount > 0) {
-				const range = selection.getRangeAt(0);
-				const isUnsearchable = inUnsearchableElement(range);
-				const isSameAsLast = isLastFoundItem(range, lastFoundItem);
-				if (!isUnsearchable && !isSameAsLast) break;
-				if (isSameAsLast) {
-					if (!hasTriedExtendedSearch) {
-						hasTriedExtendedSearch = true;
-						window.getSelection()?.removeAllRanges();
-						if (await extendedFindTerm(searchTerm, back ? "backward" : "forward")) {
-							extendedSearchSucceeded = true;
-							await waitForTextInDOM(searchTerm);
-							continue;
-						}
-					}
-					if (extendedSearchSucceeded) {
-						const sel = window.getSelection();
-						if (sel?.rangeCount) sel.getRangeAt(0).collapse(!back);
-					} else {
-						window.getSelection()?.removeAllRanges();
-						positionSelectionForWrap(back);
-					}
-					result = windowFind(searchTerm, back);
-					if (result) {
-						const sel = window.getSelection();
-						if (sel && sel.rangeCount > 0) {
-							if (inUnsearchableElement(sel.getRangeAt(0))) continue;
-						}
-					}
-					break;
-				}
-			}
-		} else if (!hasTriedExtendedSearch) {
-			hasTriedExtendedSearch = true;
-			window.getSelection()?.removeAllRanges();
-			if (await extendedFindTerm(searchTerm, back ? "backward" : "forward")) {
-				extendedSearchSucceeded = true;
-				await waitForTextInDOM(searchTerm);
-				continue;
-			}
-			positionSelectionForWrap(back);
-			result = windowFind(searchTerm, back);
-			if (result) {
-				const sel = window.getSelection();
-				if (sel && sel.rangeCount > 0) {
-					if (inUnsearchableElement(sel.getRangeAt(0))) continue;
-				}
-			}
-			break;
-		} else break;
-	}
-	if (result) {
-		const sel = window.getSelection();
-		if (sel?.rangeCount && inUnsearchableElement(sel.getRangeAt(0))) {
-			sel.removeAllRanges();
-			result = false;
-		}
-	}
-	return result;
-}
-/**
-* The nearest element to a range's start. Null only for a detached range —
-* commonAncestorContainer is often a text node, hence the walk up.
-*/ function rangeParentElement(range) {
-	const ancestor = range.commonAncestorContainer;
-	return range.startContainer.parentElement ?? (ancestor instanceof Element ? ancestor : ancestor.parentElement);
-}
-function isLastFoundItem(range, lastFoundItem) {
-	if (!lastFoundItem) return false;
-	const currentText = range.toString();
-	const currentOffset = range.startOffset;
-	const currentParentElement = rangeParentElement(range);
-	return currentText === lastFoundItem.text && currentOffset === lastFoundItem.offset && currentParentElement === lastFoundItem.parentElement;
-}
-function inUnsearchableElement(range) {
-	let element = selectionParentElement(range);
-	let isUnsearchable = false;
-	while (element) {
-		if (element.hasAttribute("data-unsearchable") || getComputedStyle(element).userSelect === "none") {
-			isUnsearchable = true;
-			break;
-		}
-		element = element.parentElement;
-	}
-	return isUnsearchable;
-}
-function selectionParentElement(range) {
-	let element;
-	if (range.startContainer instanceof Element) element = range.startContainer;
-	else element = range.startContainer.parentElement;
-	if (!element && range.commonAncestorContainer instanceof Element) element = range.commonAncestorContainer;
-	else if (!element && range.commonAncestorContainer.parentElement) element = range.commonAncestorContainer.parentElement;
-	return element;
-}
-/**
-* Polls until the search term appears in a searchable (non-unsearchable) DOM
-* text node. After the virtual list scrolls an item into view, the
-* onContentReady callback may fire before the content is actually rendered,
-* especially for large scroll distances. This ensures we wait for the text
-* to be present before calling window.find().
-*/ function waitForTextInDOM(searchTerm, timeoutMs = 2e3) {
-	const lowerTerm = searchTerm.toLowerCase();
-	const isTextInSearchableDOM = () => {
-		const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, { acceptNode: (node) => {
-			let el = node.parentElement;
-			while (el) {
-				if (el.hasAttribute("data-unsearchable")) return NodeFilter.FILTER_REJECT;
-				el = el.parentElement;
-			}
-			return NodeFilter.FILTER_ACCEPT;
-		} });
-		while (walker.nextNode()) if (walker.currentNode.textContent?.toLowerCase().includes(lowerTerm)) return true;
-		return false;
-	};
-	return new Promise((resolve) => {
-		const interval = 50;
-		let elapsed = 0;
-		const check = () => {
-			if (isTextInSearchableDOM()) {
-				resolve(true);
-				return;
-			}
-			elapsed += interval;
-			if (elapsed >= timeoutMs) {
-				resolve(false);
-				return;
-			}
-			setTimeout(check, interval);
+			input.select();
 		};
-		check();
-	});
-}
+		$[10] = t6;
+	} else t6 = $[10];
+	const focusInput = t6;
+	let t7;
+	if ($[11] !== onClose || $[12] !== search) {
+		t7 = (e) => {
+			if (e.key === "Escape") onClose();
+			else if (e.key === "Enter") search(e.shiftKey ? "backward" : "forward");
+			else if (isFindNextShortcut(e)) {
+				e.preventDefault();
+				search(e.shiftKey ? "backward" : "forward");
+			} else if (isFindShortcut(e)) focusInput();
+		};
+		$[11] = onClose;
+		$[12] = search;
+		$[13] = t7;
+	} else t7 = $[13];
+	const handleKeyDown = t7;
+	let t8;
+	if ($[14] !== search) {
+		t8 = (e_0) => {
+			if (e_0.key === "F3") {
+				e_0.preventDefault();
+				search(e_0.shiftKey ? "backward" : "forward");
+				return;
+			}
+			if (isFindShortcut(e_0)) {
+				e_0.preventDefault();
+				e_0.stopPropagation();
+				focusInput();
+				return;
+			}
+			if (isFindNextShortcut(e_0)) {
+				e_0.preventDefault();
+				e_0.stopPropagation();
+				search(e_0.shiftKey ? "backward" : "forward");
+				return;
+			}
+			if (e_0.ctrlKey || e_0.metaKey || e_0.altKey) return;
+			if (e_0.key.length !== 1 && e_0.key !== "Backspace" && e_0.key !== "Delete") return;
+			const input_0 = searchBoxRef.current;
+			if (!input_0 || document.activeElement === input_0) return;
+			if (isEditableTarget(deepActiveElement())) return;
+			const end = input_0.value.length;
+			input_0.setSelectionRange(end, end);
+			input_0.focus();
+		};
+		$[14] = search;
+		$[15] = t8;
+	} else t8 = $[15];
+	let t9;
+	if ($[16] === Symbol.for("react.memo_cache_sentinel")) {
+		t9 = { capture: true };
+		$[16] = t9;
+	} else t9 = $[16];
+	useEventListener(document, "keydown", t8, t9);
+	const total = status?.total ?? 0;
+	let t10;
+	let t11;
+	if ($[17] !== search) {
+		t10 = () => search("forward");
+		t11 = () => search("backward");
+		$[17] = search;
+		$[18] = t10;
+		$[19] = t11;
+	} else {
+		t10 = $[18];
+		t11 = $[19];
+	}
+	const t12 = status !== null && status.term !== "" && total === 0;
+	const t13 = total > 0 ? total : void 0;
+	const t14 = total > 0 ? status?.ordinal ?? void 0 : void 0;
+	let t15;
+	if ($[20] !== handleInputChange || $[21] !== handleKeyDown || $[22] !== onClose || $[23] !== t10 || $[24] !== t11 || $[25] !== t12 || $[26] !== t13 || $[27] !== t14) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FindBandUI, {
+			ref: bandRef,
+			inputRef: searchBoxRef,
+			onClose,
+			onNext: t10,
+			onPrevious: t11,
+			onKeyDown: handleKeyDown,
+			onChange: handleInputChange,
+			noResults: t12,
+			matchCount: t13,
+			matchIndex: t14
+		});
+		$[20] = handleInputChange;
+		$[21] = handleKeyDown;
+		$[22] = onClose;
+		$[23] = t10;
+		$[24] = t11;
+		$[25] = t12;
+		$[26] = t13;
+		$[27] = t14;
+		$[28] = t15;
+	} else t15 = $[28];
+	return t15;
+};
 // ../../packages/react/src/components/useFindBandShortcut.ts
 /**
 * Global Ctrl/Cmd+F shortcut companion to `FindBand`: opens the band
@@ -50638,7 +50178,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 			Promise.resolve().then(() => navigator.clipboard.writeText(toClipboardJson(value))).then(() => {
 				setCopied(true);
 				setTimeout(() => setCopied(false), COPIED_FEEDBACK_MS);
-			}).catch(_temp2$60);
+			}).catch(_temp2$61);
 		};
 		$[6] = value;
 		$[7] = t5;
@@ -50736,7 +50276,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 					className: TreeNode_module_default.empty,
 					children: "empty"
 				}),
-				entries.slice(0, limit).map(_temp3$42),
+				entries.slice(0, limit).map(_temp3$43),
 				entries.length > limit && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 					type: "button",
 					className: TreeNode_module_default.showMore,
@@ -50770,10 +50310,10 @@ TreeNode$1.displayName = "TreeNode";
 function _temp$106(e) {
 	return !e;
 }
-function _temp2$60(error) {
+function _temp2$61(error) {
 	console.error("Failed to copy:", error);
 }
-function _temp3$42(entry) {
+function _temp3$43(entry) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TreeNode$1, {
 		name: entry.key,
 		value: entry.value
@@ -58890,7 +58430,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 	const result = useAsyncDataFromQuery(t4);
 	let t5;
 	if ($[14] !== enabled || $[15] !== result) {
-		t5 = enabled ? map(result, _temp2$59) : data(void 0);
+		t5 = enabled ? map(result, _temp2$60) : data(void 0);
 		$[14] = enabled;
 		$[15] = result;
 		$[16] = t5;
@@ -58906,7 +58446,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 	const pending = usePendingSamples(logDir, logFile);
 	let t0;
 	if ($[0] !== pending) {
-		t0 = map(pending, _temp3$41);
+		t0 = map(pending, _temp3$42);
 		$[0] = pending;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -58920,10 +58460,10 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 function _temp$104(query) {
 	return query.state.status === "error" ? false : pendingSamplesIntervalMs(query.state.data);
 }
-function _temp2$59(data) {
+function _temp2$60(data) {
 	return data ?? void 0;
 }
-function _temp3$41(data) {
+function _temp3$42(data) {
 	return data?.metrics;
 }
 // src/log_data/chunked/format.ts
@@ -60557,7 +60097,7 @@ var mergeSampleSummaries = (logSamples, pendingSamples) => {
 		t3 = rows.data?.some((row_0) => row_0.logFile !== logKey) ? loading$2 : map(compose({
 			rows,
 			pending
-		}), _temp2$58);
+		}), _temp2$59);
 		$[8] = logKey;
 		$[9] = pending;
 		$[10] = rows;
@@ -60572,7 +60112,7 @@ var mergeSampleSummaries = (logSamples, pendingSamples) => {
 function _temp$103(row) {
 	return row.summary;
 }
-function _temp2$58(settled) {
+function _temp2$59(settled) {
 	return mergeSampleSummaries(settled.rows.map(_temp$103), settled.pending?.samples ?? []);
 }
 // src/log_data/runningSampleQuery.ts
@@ -61834,56 +61374,325 @@ var DisplayModeContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 	const trusted = useHasAllContentPermissions();
 	return useDisplayMode() === "rendered" && trusted;
 };
-var cappedText_module_default = { notice: "_notice_mpxkz_1" };
-// ../../packages/inspect-components/src/content/cappedText.tsx
-var MAX_INLINE_CHARS = 25e4;
-/**
-* Caps very large text so a single huge DOM node never enters the layout/paint
-* path. Returns a (possibly truncated) string and a static notice describing
-* how much was hidden. Intentionally offers no expand affordance — revealing
-* the full content would reintroduce the performance cliff.
-*/ var cappedText = (full) => {
-	if (full.length <= MAX_INLINE_CHARS) return {
-		text: full,
-		truncated: false,
-		notice: null
-	};
-	const text = full.slice(0, MAX_INLINE_CHARS);
-	const hidden = full.length - text.length;
-	return {
-		text,
-		truncated: true,
-		notice: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: cappedText_module_default.notice,
-			children: `Output truncated — ${formatSize(hidden)} hidden`
-		})
-	};
+var cappedText_module_default = {
+	notice: "_notice_1t32x_1",
+	toggle: "_toggle_1t32x_8"
 };
-var formatSize = (n) => {
-	if (n >= 1e6) return `${(n / 1e6).toFixed(1)} MB`;
-	if (n >= 1e3) return `${Math.round(n / 1e3)} KB`;
-	return `${n} chars`;
+// ../../packages/inspect-components/src/content/cappedText.tsx
+var kMaxInlineChars = 25e4;
+/**
+* Renders text up to `kMaxInlineChars` characters as usual. Past that, renders
+* the head with a notice offering the whole text as plain text, and remembers
+* the reader's choice for that text.
+*/ var CappedText = (props) => {
+	const $ = (0, import_compiler_runtime.c)(2);
+	let t0;
+	if ($[0] !== props) {
+		t0 = props.text.length > 25e4 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LongText, { ...props }) : props.render(props.text);
+		$[0] = props;
+		$[1] = t0;
+	} else t0 = $[1];
+	return t0;
+};
+var LongText = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(35);
+	const { text, render, renderPlain, toPlainText: t1 } = t0;
+	const toPlainText = t1 === void 0 ? identity$2 : t1;
+	let t2;
+	if ($[0] !== text) {
+		t2 = textKey(text);
+		$[0] = text;
+		$[1] = t2;
+	} else t2 = $[1];
+	const [headOnly, setHeadOnly] = useCollapsedState(t2, true, "capped-text");
+	let t3;
+	if ($[2] !== text) {
+		t3 = textKey(text);
+		$[2] = text;
+		$[3] = t3;
+	} else t3 = $[3];
+	let t4;
+	if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
+		t4 = { defaultValue: false };
+		$[4] = t4;
+	} else t4 = $[4];
+	const [tooTall, setTooTall] = useProperty("capped-text-too-tall", t3, t4);
+	const plain = usePlainText();
+	const fullRef = (0, import_react.useRef)(null);
+	const noticeRef = (0, import_react.useRef)(null);
+	const measured = (0, import_react.useRef)(null);
+	const head = text.slice(0, kMaxInlineChars);
+	let t5;
+	if ($[5] !== headOnly || $[6] !== plain || $[7] !== text || $[8] !== toPlainText) {
+		t5 = headOnly ? null : plain.present(toPlainText(text));
+		$[5] = headOnly;
+		$[6] = plain;
+		$[7] = text;
+		$[8] = toPlainText;
+		$[9] = t5;
+	} else t5 = $[9];
+	const shown = t5;
+	let t6;
+	if ($[10] !== text) {
+		t6 = (view, shown_0) => {
+			const container = textContainer(view);
+			if (measured.current?.text !== text || measured.current.shownLength !== shown_0.length) measured.current = {
+				text,
+				shownLength: shown_0.length,
+				measure: measureTextHeight(shown_0),
+				layout: "",
+				height: 0
+			};
+			const layout = layoutKey(container);
+			if (measured.current.layout !== layout) {
+				measured.current.layout = layout;
+				measured.current.height = measured.current.measure(container);
+			}
+			return contentTop(view) + measured.current.height <= maxTextBottom();
+		};
+		$[10] = text;
+		$[11] = t6;
+	} else t6 = $[11];
+	const fits = t6;
+	let t7;
+	if ($[12] !== setHeadOnly || $[13] !== setTooTall) {
+		t7 = () => {
+			(0, import_react_dom.flushSync)(() => {
+				setTooTall(true);
+				setHeadOnly(true);
+			});
+		};
+		$[12] = setHeadOnly;
+		$[13] = setTooTall;
+		$[14] = t7;
+	} else t7 = $[14];
+	const giveUp = t7;
+	let t8;
+	if ($[15] !== fits || $[16] !== giveUp || $[17] !== shown) {
+		t8 = (view_0) => {
+			if (shown === null || fits(view_0, shown)) return true;
+			giveUp();
+			return false;
+		};
+		$[15] = fits;
+		$[16] = giveUp;
+		$[17] = shown;
+		$[18] = t8;
+	} else t8 = $[18];
+	const check = t8;
+	const latestCheck = useLatestRef(check);
+	const toggle = () => {
+		const notice = noticeRef.current;
+		const scroller = notice && findScrollableParent(notice);
+		const top = notice?.getBoundingClientRect().top;
+		(0, import_react_dom.flushSync)(() => {
+			setTooTall(false);
+			setHeadOnly(!headOnly);
+		});
+		if (headOnly) {
+			const view_1 = fullRef.current;
+			if (measured.current) measured.current.layout = "";
+			if (view_1 && !latestCheck.current(view_1)) return;
+			recheckFullTexts();
+		}
+		if (scroller && top !== void 0) {
+			const hiddenStart = plain.present(toPlainText(head)).length;
+			keepInPlace(scroller, headOnly ? () => fullRef.current && offsetTop(fullRef.current, hiddenStart) : () => noticeRef.current?.getBoundingClientRect().top, top);
+		}
+	};
+	const t9 = shown === null ? render(head) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FullText, {
+		ref: fullRef,
+		check,
+		children: renderPlain(shown)
+	});
+	let t10;
+	if ($[19] !== head || $[20] !== headOnly || $[21] !== text.length || $[22] !== tooTall) {
+		t10 = headOnly ? `Output truncated — ${hidden$3(text.length - head.length)}.${tooTall ? " Too long to show in full." : ""}` : "Showing all as plain text.";
+		$[19] = head;
+		$[20] = headOnly;
+		$[21] = text.length;
+		$[22] = tooTall;
+		$[23] = t10;
+	} else t10 = $[23];
+	const t11 = !headOnly;
+	const t12 = headOnly ? "Show all" : "Truncate";
+	let t13;
+	if ($[24] !== t11 || $[25] !== t12 || $[26] !== toggle) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: cappedText_module_default.toggle,
+			"aria-expanded": t11,
+			onClick: toggle,
+			children: t12
+		});
+		$[24] = t11;
+		$[25] = t12;
+		$[26] = toggle;
+		$[27] = t13;
+	} else t13 = $[27];
+	let t14;
+	if ($[28] !== noticeRef || $[29] !== t10 || $[30] !== t13) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			ref: noticeRef,
+			className: cappedText_module_default.notice,
+			children: [
+				t10,
+				" ",
+				t13
+			]
+		});
+		$[28] = noticeRef;
+		$[29] = t10;
+		$[30] = t13;
+		$[31] = t14;
+	} else t14 = $[31];
+	let t15;
+	if ($[32] !== t14 || $[33] !== t9) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t9, t14] });
+		$[32] = t14;
+		$[33] = t9;
+		$[34] = t15;
+	} else t15 = $[34];
+	return t15;
+};
+var textContainer = (view) => view.querySelector("[data-chunk-container]") ?? view;
+var layoutKey = (container) => `${container.clientWidth} ${getComputedStyle(container).fontSize}`;
+var contentTop = (element) => {
+	const scroller = findScrollableParent(element);
+	return scroller ? element.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop : element.getBoundingClientRect().top + window.scrollY;
+};
+var maxBottom;
+var maxTextBottom = () => {
+	if (maxBottom === void 0) {
+		const probe = document.createElement("div");
+		probe.style.cssText = "position: absolute; visibility: hidden; height: 30000000px";
+		document.body.appendChild(probe);
+		maxBottom = probe.getBoundingClientRect().height >= 3e7 ? 28e6 : 15e6;
+		probe.remove();
+	}
+	return maxBottom;
+};
+var FullText = ({ ref, check, children }) => {
+	const watching = (0, import_react.useRef)(false);
+	const watch = (view) => {
+		if (watching.current || !check(view)) return;
+		watching.current = true;
+		let top = contentTop(view);
+		let still = 0;
+		let frames = 0;
+		const step = () => {
+			const now = contentTop(view);
+			still = now === top ? still + 1 : 0;
+			top = now;
+			frames++;
+			if (view.isConnected && check(view) && still < kSettledFrames && frames < kMaxWatchFrames) requestAnimationFrame(step);
+			else watching.current = false;
+		};
+		requestAnimationFrame(step);
+	};
+	useResizeObserver((entry) => {
+		if (entry.target instanceof HTMLElement) watch(entry.target);
+	}, ref);
+	const latestWatch = useLatestRef(watch);
+	useMountEffect(() => {
+		const recheck = () => {
+			if (ref.current) latestWatch.current(ref.current);
+		};
+		fullTextRechecks.add(recheck);
+		return () => {
+			fullTextRechecks.delete(recheck);
+		};
+	});
+	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		ref,
+		children
+	});
+};
+var kSettledFrames = 3;
+var kMaxWatchFrames = 60;
+var fullTextRechecks = /* @__PURE__ */ new Set();
+var recheckFullTexts = () => {
+	for (const recheck of fullTextRechecks) recheck();
+};
+var hidden$3 = (n) => `${n.toLocaleString(navigator.language, {
+	notation: "compact",
+	maximumFractionDigits: 1
+})} ${n === 1 ? "character" : "characters"} hidden`;
+var textKey = (text) => {
+	let hash = 2166136261;
+	for (const part of [text.slice(0, 1e3), text.slice(-1e3)]) for (let i = 0; i < part.length; i++) hash = Math.imul(hash ^ part.charCodeAt(i), 16777619);
+	return `${text.length}-${(hash >>> 0).toString(16)}`;
+};
+var keepInPlace = (scroller, locate, top) => {
+	const offset = top - scroller.getBoundingClientRect().top;
+	const readerScrolls = new AbortController();
+	for (const type of [
+		"wheel",
+		"touchmove",
+		"keydown",
+		"pointerdown"
+	]) scroller.addEventListener(type, () => readerScrolls.abort(), { signal: readerScrolls.signal });
+	let frames = 0;
+	let settled = 0;
+	const step = () => {
+		const now = readerScrolls.signal.aborted ? void 0 : locate();
+		if (now === null || now === void 0) {
+			readerScrolls.abort();
+			return;
+		}
+		const delta = now - scroller.getBoundingClientRect().top - offset;
+		if (Math.abs(delta) >= 1) {
+			scroller.scrollTop += delta;
+			settled = 0;
+		} else settled++;
+		frames++;
+		if (settled < 2 && frames < kPlaceFrames) requestAnimationFrame(step);
+		else readerScrolls.abort();
+	};
+	step();
+};
+var kPlaceFrames = 30;
+var offsetTop = (root, offset) => {
+	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+	let start = 0;
+	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+		if (!(node instanceof Text)) continue;
+		if (offset < start + node.length) {
+			const range = document.createRange();
+			range.setStart(node, offset - start);
+			range.setEnd(node, offset - start + 1);
+			const top = range.getBoundingClientRect().top;
+			const chunk = node.parentElement?.getBoundingClientRect();
+			if (chunk && (top < chunk.top || top > chunk.bottom)) return chunk.top + (offset - start) / node.length * chunk.height;
+			return top;
+		}
+		start += node.length;
+	}
 };
 // ../../packages/inspect-components/src/content/RenderedText.tsx
 var RenderedText = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
-	const $ = (0, import_compiler_runtime.c)(19);
+	const $ = (0, import_compiler_runtime.c)(24);
 	const { markdown, references, style, className, forceRender, renderer, options, truncateAt } = t0;
 	const displayMode = useDisplayMode();
 	const plain = usePlainText();
-	let notice;
 	let t1;
-	if ($[0] !== className || $[1] !== displayMode || $[2] !== forceRender || $[3] !== markdown || $[4] !== options || $[5] !== plain || $[6] !== ref || $[7] !== references || $[8] !== renderer || $[9] !== style || $[10] !== truncateAt) {
-		let t2;
-		if ($[13] !== markdown || $[14] !== truncateAt) {
-			t2 = truncateAt === void 0 ? markdown : truncationWindow(markdown, truncateAt);
-			$[13] = markdown;
-			$[14] = truncateAt;
-			$[15] = t2;
-		} else t2 = $[15];
-		const { text, notice: t3 } = cappedText(t2);
-		notice = t3;
-		const plainText = truncateAt === void 0 ? text : simpleMarkdownTruncate(text, truncateAt);
-		t1 = plain.trusted && (forceRender || displayMode === "rendered") ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDivWithReferences, {
+	if ($[0] !== className || $[1] !== plain.className || $[2] !== ref || $[3] !== style) {
+		t1 = (shown) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Preformatted, {
+			ref,
+			text: shown,
+			style,
+			className: clsx(className, plain.className)
+		});
+		$[0] = className;
+		$[1] = plain.className;
+		$[2] = ref;
+		$[3] = style;
+		$[4] = t1;
+	} else t1 = $[4];
+	const renderPlain = t1;
+	let t2;
+	if ($[5] !== className || $[6] !== displayMode || $[7] !== forceRender || $[8] !== options || $[9] !== plain || $[10] !== ref || $[11] !== references || $[12] !== renderPlain || $[13] !== renderer || $[14] !== style || $[15] !== truncateAt) {
+		t2 = (text) => plain.trusted && (forceRender || displayMode === "rendered") ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDivWithReferences, {
 			ref,
 			markdown: text,
 			references,
@@ -61892,39 +61701,41 @@ var RenderedText = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 			className,
 			renderer,
 			truncateAt
-		}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Preformatted, {
-			ref,
-			text: plain.present(plainText),
-			style,
-			className: clsx(className, plain.className)
+		}) : renderPlain(plain.present(truncateAt === void 0 ? text : simpleMarkdownTruncate(text, truncateAt)));
+		$[5] = className;
+		$[6] = displayMode;
+		$[7] = forceRender;
+		$[8] = options;
+		$[9] = plain;
+		$[10] = ref;
+		$[11] = references;
+		$[12] = renderPlain;
+		$[13] = renderer;
+		$[14] = style;
+		$[15] = truncateAt;
+		$[16] = t2;
+	} else t2 = $[16];
+	const renderText = t2;
+	let t3;
+	if ($[17] !== markdown || $[18] !== truncateAt) {
+		t3 = truncateAt === void 0 ? markdown : truncationWindow(markdown, truncateAt);
+		$[17] = markdown;
+		$[18] = truncateAt;
+		$[19] = t3;
+	} else t3 = $[19];
+	let t4;
+	if ($[20] !== renderPlain || $[21] !== renderText || $[22] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CappedText, {
+			text: t3,
+			render: renderText,
+			renderPlain
 		});
-		$[0] = className;
-		$[1] = displayMode;
-		$[2] = forceRender;
-		$[3] = markdown;
-		$[4] = options;
-		$[5] = plain;
-		$[6] = ref;
-		$[7] = references;
-		$[8] = renderer;
-		$[9] = style;
-		$[10] = truncateAt;
-		$[11] = notice;
-		$[12] = t1;
-	} else {
-		notice = $[11];
-		t1 = $[12];
-	}
-	const body = t1;
-	if (notice === null) return body;
-	let t2;
-	if ($[16] !== body || $[17] !== notice) {
-		t2 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [body, notice] });
-		$[16] = body;
-		$[17] = notice;
-		$[18] = t2;
-	} else t2 = $[18];
-	return t2;
+		$[20] = renderPlain;
+		$[21] = renderText;
+		$[22] = t3;
+		$[23] = t4;
+	} else t4 = $[23];
+	return t4;
 });
 RenderedText.displayName = "RenderedText";
 var MediaReference_module_default = { reference: "_reference_7p4hu_1" };
@@ -63778,24 +63589,27 @@ function PaddingChunks(t0) {
 	} else t1 = $[2];
 	return t1;
 }
-var countMatchesInTexts = (lowerTextsByItem, lowerTerm) => {
-	if (lowerTerm.length === 0) return 0;
-	let total = 0;
-	for (const texts of lowerTextsByItem) for (const lowerText of texts) {
-		let pos = 0;
-		while ((pos = lowerText.indexOf(lowerTerm, pos)) !== -1) {
-			total++;
-			pos += lowerTerm.length;
-		}
-	}
-	return total;
+var countMatchesByItem = (lowerTextsByItem, term) => {
+	if (term.length === 0) return [];
+	const variants = searchVariants(term);
+	const counts = [];
+	lowerTextsByItem.forEach((texts, item) => {
+		let count = 0;
+		for (const lowerText of texts) count += findVariantPositions(lowerText, variants).length;
+		if (count > 0) counts.push({
+			item,
+			count
+		});
+	});
+	return counts;
 };
-function VirtualList({ persistenceKey, persistScroll = true, ref, id, className, scrollRef: externalScroll, data, renderRow, estimatedItemHeight = DEFAULT_ITEM_HEIGHT_PX, overscan, useFlushSync, embedded = false, resetScrollOnMount: resetScrollOnMountProp, live, navOwned, followRequested, showProgress, initialIndex, initialScrollOffset, scrollPaddingStart, components, smoothScroll = true, itemSearchText, findScope = "local", scrollToTopOnFinish = false, onVisibleRangeChange }) {
+function VirtualList({ persistenceKey, persistScroll = true, ref, id, className, scrollRef: externalScroll, data, renderRow, estimatedItemHeight = DEFAULT_ITEM_HEIGHT_PX, overscan, useFlushSync, embedded = false, resetScrollOnMount: resetScrollOnMountProp, live, navOwned, followRequested, showProgress, initialIndex, initialScrollOffset, scrollPaddingStart, components, smoothScroll = true, itemSearchText, scrollToTopOnFinish = false, onVisibleRangeChange }) {
 	const resetScrollOnMount = resetScrollOnMountProp ?? !embedded;
 	const externalScrollRef = externalScroll instanceof HTMLElement ? null : externalScroll ?? null;
 	const externalScrollEl = externalScroll instanceof HTMLElement ? externalScroll : null;
 	const internalScrollRef = (0, import_react.useRef)(null);
 	const wrapperRef = (0, import_react.useRef)(null);
+	const bandRef = (0, import_react.useRef)(null);
 	const [scrollParent, setScrollParent] = (0, import_react.useState)(null);
 	const [scrollMargin, setScrollMargin] = (0, import_react.useState)(0);
 	const measureScrollMargin = (0, import_react.useCallback)(() => {
@@ -63990,28 +63804,48 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 	const lastAutoScrollTopRef = (0, import_react.useRef)(null);
 	const settleFrameRef = (0, import_react.useRef)(0);
 	const releaseFrameRef = (0, import_react.useRef)(0);
-	const settleScrollToIndex = (0, import_react.useCallback)((index, align, onDone) => {
+	const settleAbandonRef = (0, import_react.useRef)(null);
+	const abandonSettle = (0, import_react.useCallback)(() => {
+		cancelAnimationFrame(settleFrameRef.current);
+		const abandon = settleAbandonRef.current;
+		settleAbandonRef.current = null;
+		abandon?.();
+	}, []);
+	const settleScrollToIndex = (0, import_react.useCallback)((index, align, onDone, onAbandon) => {
+		abandonSettle();
 		const jump = () => virtualizer.scrollToIndex(index, {
 			align,
 			behavior: "auto"
 		});
 		isAutoScrollingRef.current = true;
 		cancelAnimationFrame(releaseFrameRef.current);
-		const finish = () => {
+		const release = () => {
 			const elNow = getScrollElement();
 			if (elNow) lastAutoScrollTopRef.current = elNow.scrollTop;
 			releaseFrameRef.current = requestAnimationFrame(() => {
 				isAutoScrollingRef.current = false;
 			});
+		};
+		const abandon_0 = () => onAbandon?.();
+		const finish = () => {
+			if (settleAbandonRef.current === abandon_0) settleAbandonRef.current = null;
+			release();
 			onDone?.();
+		};
+		const cancel = () => {
+			if (settleAbandonRef.current !== abandon_0) return;
+			cancelAnimationFrame(settleFrameRef.current);
+			settleAbandonRef.current = null;
+			release();
+			abandon_0();
 		};
 		jump();
 		const el_2 = getScrollElement();
 		if (!el_2) {
 			finish();
-			return;
+			return cancel;
 		}
-		cancelAnimationFrame(settleFrameRef.current);
+		settleAbandonRef.current = abandon_0;
 		let frames = 0;
 		let stable = 0;
 		let lastTop = el_2.scrollTop;
@@ -64028,16 +63862,21 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 			else finish();
 		};
 		settleFrameRef.current = requestAnimationFrame(settle);
-	}, [virtualizer, getScrollElement]);
+		return cancel;
+	}, [
+		virtualizer,
+		getScrollElement,
+		abandonSettle
+	]);
 	useUnmount(() => {
-		cancelAnimationFrame(settleFrameRef.current);
+		abandonSettle();
 		cancelAnimationFrame(releaseFrameRef.current);
 	});
 	const lastInitialKeyRef = (0, import_react.useRef)(null);
 	const settleRestoreScroll = (0, import_react.useCallback)((getTargetSpacerTop) => {
+		abandonSettle();
 		isAutoScrollingRef.current = true;
 		cancelAnimationFrame(releaseFrameRef.current);
-		cancelAnimationFrame(settleFrameRef.current);
 		const el_3 = getScrollElement();
 		const keyAtStart = lastInitialKeyRef.current;
 		const finish_0 = () => {
@@ -64068,7 +63907,7 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 			else finish_0();
 		};
 		settleFrameRef.current = requestAnimationFrame(settle_0);
-	}, [getScrollElement]);
+	}, [getScrollElement, abandonSettle]);
 	const lastInitialIndexRef = (0, import_react.useRef)(void 0);
 	const hasResetTopRef = (0, import_react.useRef)(false);
 	(0, import_react.useEffect)(() => {
@@ -64089,7 +63928,7 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 		let releaseFrame_0 = 0;
 		const frame_0 = requestAnimationFrame(() => {
 			isAutoScrollingRef.current = true;
-			const release = () => {
+			const release_0 = () => {
 				lastAutoScrollTopRef.current = el_4.scrollTop;
 				releaseFrame_0 = requestAnimationFrame(() => {
 					isAutoScrollingRef.current = false;
@@ -64100,10 +63939,10 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 				settleScrollToIndex(initialIndex, "start");
 			} else if (followOutput && live) {
 				hasInitialScrolledRef.current = true;
-				release();
+				release_0();
 			} else if (snapshot) {
 				hasInitialScrolledRef.current = true;
-				if (!userScrolledRef.current) {
+				if (!userScrolledRef.current && settleAbandonRef.current === null) {
 					const clampToMax = snapshot.totalCount !== data.length;
 					settleRestoreScroll(() => {
 						const target = toSpacerScroll(snapshot.scrollOffset);
@@ -64111,12 +63950,12 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 						const maxSpacerTop = Math.max(0, toSpacerScroll(virtualizer.getTotalSize()) + scrollMargin - el_4.clientHeight);
 						return Math.min(target, maxSpacerTop);
 					});
-				} else release();
+				} else release_0();
 			} else if (!userScrolledRef.current && !hasResetTopRef.current && resetScrollOnMount) {
 				el_4.scrollTop = 0;
 				hasResetTopRef.current = true;
-				release();
-			} else release();
+				release_0();
+			} else release_0();
 		});
 		return () => {
 			cancelAnimationFrame(frame_0);
@@ -64181,17 +64020,11 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 	const items = virtualizer.getVirtualItems();
 	const startIndex = items[0]?.index ?? 0;
 	const endIndex = items[items.length - 1]?.index ?? 0;
-	const visibleRangeRef = (0, import_react.useRef)({
-		startIndex: 0,
-		endIndex: 0
-	});
 	(0, import_react.useEffect)(() => {
-		const range = {
+		onVisibleRangeChange?.({
 			startIndex,
 			endIndex
-		};
-		visibleRangeRef.current = range;
-		onVisibleRangeChange?.(range);
+		});
 	}, [
 		startIndex,
 		endIndex,
@@ -64200,15 +64033,13 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 	(0, import_react.useImperativeHandle)(ref, () => ({
 		scrollToIndex(opts) {
 			const behavior = scale > SMOOTH_SCROLL_MAX_S ? "auto" : opts.behavior ?? (smoothScroll ? "smooth" : "auto");
-			if (behavior === "auto") {
-				settleScrollToIndex(opts.index, opts.align, opts.onDone);
-				return;
-			}
+			if (behavior === "auto") return settleScrollToIndex(opts.index, opts.align, opts.onDone, opts.onAbandon);
 			virtualizer.scrollToIndex(opts.index, {
 				align: opts.align,
 				behavior
 			});
 			opts.onDone?.();
+			return () => {};
 		},
 		scrollTo(opts_0) {
 			const el_7 = getScrollElement();
@@ -64245,67 +64076,48 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 		data.length
 	]);
 	const extendedFind = useExtendedFindOptional();
-	const findContext = findScope === "none" ? null : extendedFind;
-	const searchInData = (0, import_react.useCallback)((term, direction, onContentReady) => {
-		if (!term || data.length === 0) return Promise.resolve(false);
-		const isForward = direction === "forward";
-		const len = data.length;
-		const range_0 = visibleRangeRef.current;
-		const current = isForward ? range_0.endIndex : range_0.startIndex;
-		const getText = itemSearchText ?? ((item) => JSON.stringify(item));
-		const prepared = prepareSearchTerm(term);
-		for (let offset = 1; offset < len; offset++) {
-			const i = isForward ? (current + offset) % len : (current - offset + len) % len;
-			const item_0 = data[i];
-			if (item_0 === void 0) continue;
-			const texts = getText(item_0);
-			if ((Array.isArray(texts) ? texts : [texts]).some((text) => {
-				const lower = text.toLowerCase();
-				if (lower.includes(prepared.simple)) return true;
-				if (prepared.unquoted && lower.includes(prepared.unquoted)) return true;
-				if (prepared.jsonEscaped && lower.includes(prepared.jsonEscaped)) return true;
-				return false;
-			})) {
-				settleScrollToIndex(i, "center");
-				setTimeout(onContentReady, 200);
-				return Promise.resolve(true);
-			}
-		}
-		return Promise.resolve(false);
-	}, [
-		data,
-		itemSearchText,
-		settleScrollToIndex
-	]);
+	const findContext = itemSearchText ? extendedFind : null;
 	const precomputedSearchTexts = (0, import_react.useMemo)(() => {
-		if (!findContext) return [];
-		const getText_0 = itemSearchText ?? ((item_1) => JSON.stringify(item_1));
-		return data.map((item_2) => {
-			const texts_0 = getText_0(item_2);
-			return (Array.isArray(texts_0) ? texts_0 : [texts_0]).map((t) => t.toLowerCase());
+		if (!findContext || !itemSearchText) return [];
+		return data.map((item) => {
+			const texts = itemSearchText(item);
+			return (Array.isArray(texts) ? texts : [texts]).map((t) => t.toLowerCase());
 		});
 	}, [
 		data,
 		itemSearchText,
 		findContext
 	]);
-	const countMatchesInData = (0, import_react.useCallback)((term_0) => {
-		if (!term_0 || precomputedSearchTexts.length === 0) return 0;
-		return countMatchesInTexts(precomputedSearchTexts, term_0.toLowerCase());
-	}, [precomputedSearchTexts]);
+	const findSource = (0, import_react.useMemo)(() => {
+		const renderedItems = () => new Set(virtualizer.getVirtualItems().map((item_0) => item_0.index));
+		return {
+			anchor: () => wrapperRef.current,
+			countByItem: cacheLastCall((term) => countMatchesByItem(precomputedSearchTexts, term)),
+			itemOf: (node) => {
+				const band = bandRef.current;
+				if (!band) return null;
+				let el_11 = node instanceof Element ? node : node.parentElement;
+				while (el_11 && el_11.parentElement !== band) el_11 = el_11.parentElement;
+				return el_11 instanceof HTMLElement ? Number(el_11.dataset.index) : null;
+			},
+			renderedItems,
+			reveal: (item_1, _direction, signal) => new Promise((resolve, reject) => {
+				const cancel_0 = settleScrollToIndex(item_1, "center", () => resolve(renderedItems().has(item_1)), () => reject(/* @__PURE__ */ new Error("Another scroll took over the reveal")));
+				signal.addEventListener("abort", cancel_0, { once: true });
+			})
+		};
+	}, [
+		precomputedSearchTexts,
+		virtualizer,
+		settleScrollToIndex
+	]);
 	(0, import_react.useEffect)(() => {
 		if (!findContext) return;
-		const u1 = findContext.registerVirtualList(persistenceKey, searchInData);
-		const u2 = findContext.registerMatchCounter(persistenceKey, countMatchesInData);
-		return () => {
-			u1();
-			u2();
-		};
+		return findContext.registerFindSource(persistenceKey, findSource);
 	}, [
 		findContext,
 		persistenceKey,
-		searchInData,
-		countMatchesInData
+		findSource
 	]);
 	const ItemSlot = components?.Item;
 	const FooterSlot = components?.Footer;
@@ -64318,11 +64130,11 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 	const bottomPaddingSpacer = (lastItem ? Math.max(0, virtualizer.getTotalSize() + scrollMargin - (lastItem.start + lastItem.size)) : virtualizer.getTotalSize()) / scale;
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 		id,
-		ref: (el_11) => {
-			wrapperRef.current = el_11;
+		ref: (el_12) => {
+			wrapperRef.current = el_12;
 			if (!ownsScroll) return;
-			internalScrollRef.current = el_11;
-			setScrollParent((prev_1) => prev_1 === el_11 ? prev_1 : el_11);
+			internalScrollRef.current = el_12;
+			setScrollParent((prev_1) => prev_1 === el_12 ? prev_1 : el_12);
 		},
 		className: clsx(VirtualList_module_default.scroller, className),
 		style: ownsScroll ? {
@@ -64336,15 +64148,16 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 				prefix: "top"
 			}),
 			/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+				ref: bandRef,
 				style: {
 					position: "relative",
 					height: renderedBandHeight
 				},
 				children: items.map((vItem) => {
-					const item_3 = data[vItem.index];
-					if (item_3 === void 0) return null;
+					const item_2 = data[vItem.index];
+					if (item_2 === void 0) return null;
 					const top = vItem.start - bandStart;
-					const child = renderRow(vItem.index, item_3);
+					const child = renderRow(vItem.index, item_2);
 					if (ItemSlot) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 						ref: virtualizer.measureElement,
 						"data-index": vItem.index,
@@ -64614,7 +64427,7 @@ var isNonEmptyObject = (v) => isRecord(v) && Object.keys(v).length > 0;
 	const baseId = id ?? "metadata-grid";
 	const allEntries = entryRecords(entries);
 	const scalars = allEntries.filter(_temp$101);
-	const groups = allEntries.filter(_temp2$57);
+	const groups = allEntries.filter(_temp2$58);
 	const [expanded, setExpanded] = (0, import_react.useState)(false);
 	const isCollapsible = maxRows != null && scalars.length > maxRows;
 	const visibleScalars = isCollapsible && !expanded ? scalars.slice(0, maxRows) : scalars;
@@ -64677,7 +64490,7 @@ var isNonEmptyObject = (v) => isRecord(v) && Object.keys(v).length > 0;
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 			type: "button",
 			className: clsx(MetaDataGrid_module_default.toggleButton, "text-size-smallest"),
-			onClick: () => setExpanded(_temp3$40),
+			onClick: () => setExpanded(_temp3$41),
 			children: [expanded ? "less" : `${scalars.length - visibleScalars.length} more`, "..."]
 		})
 	});
@@ -64743,10 +64556,10 @@ var entryRecords = (entries) => {
 function _temp$101(e) {
 	return !isNonEmptyObject(e.value) || isHtmlEscape(e.value);
 }
-function _temp2$57(e_0) {
+function _temp2$58(e_0) {
 	return isNonEmptyObject(e_0.value) && !isHtmlEscape(e_0.value);
 }
-function _temp3$40(prev) {
+function _temp3$41(prev) {
 	return !prev;
 }
 var RenderedContent_module_default = {
@@ -65239,7 +65052,7 @@ var kRecordTreeKey = "record-tree-key";
 			estimatedItemHeight: 50,
 			overscan: 10,
 			embedded: true,
-			findScope: "none",
+			itemSearchText: null,
 			className: t12
 		});
 		$[37] = id;
@@ -66697,10 +66510,10 @@ function _temp$96(result, index) {
 	}) }, index);
 }
 var ToolOutput_module_default = {
-	toolImage: "_toolImage_1cvly_1",
-	output: "_output_1cvly_6",
-	textOutput: "_textOutput_1cvly_10",
-	textCode: "_textCode_1cvly_19"
+	toolImage: "_toolImage_13oj2_1",
+	output: "_output_13oj2_6",
+	textOutput: "_textOutput_13oj2_10",
+	textCode: "_textCode_13oj2_21"
 };
 // ../../packages/inspect-components/src/chat/tools/ToolOutput.tsx
 /**
@@ -66769,7 +66582,7 @@ var ToolOutput_module_default = {
 /**
 * Renders the ToolTextOutput component.
 */ var ToolTextOutput = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(27);
+	const $ = (0, import_compiler_runtime.c)(23);
 	const { text } = t0;
 	const displayMode = useDisplayMode();
 	const plain = usePlainText();
@@ -66794,89 +66607,66 @@ var ToolOutput_module_default = {
 			return t2;
 		}
 	}
-	let notice;
 	let t1;
-	let t2;
-	let t3;
-	let t4;
-	if ($[4] !== displayMode || $[5] !== plain || $[6] !== text) {
-		t4 = Symbol.for("react.early_return_sentinel");
-		bb0: {
-			const { text: capped, notice: t5 } = cappedText(text);
-			notice = t5;
-			if (displayMode === "rendered" && isAnsiOutput(capped)) {
-				let t6;
-				if ($[12] === Symbol.for("react.memo_cache_sentinel")) {
-					t6 = { fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)" };
-					$[12] = t6;
-				} else t6 = $[12];
-				let t7;
-				if ($[13] !== text) {
-					t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ANSIDisplay, {
-						output: text,
-						style: t6
-					});
-					$[13] = text;
-					$[14] = t7;
-				} else t7 = $[14];
-				t4 = t7;
-				break bb0;
-			}
-			if ($[15] !== plain.className) {
-				t3 = clsx(ToolOutput_module_default.textOutput, "tool-output", plain.className);
-				$[15] = plain.className;
-				$[16] = t3;
-			} else t3 = $[16];
-			if ($[17] === Symbol.for("react.memo_cache_sentinel")) {
-				t1 = clsx("sourceCode", ToolOutput_module_default.textCode);
-				$[17] = t1;
-			} else t1 = $[17];
-			t2 = !plain.trusted ? plain.present(capped) : displayMode === "raw" ? capped : capped.trim();
-		}
+	if ($[4] !== displayMode || $[5] !== text) {
+		t1 = displayMode === "rendered" && isAnsiOutput(text.slice(0, 25e4));
 		$[4] = displayMode;
-		$[5] = plain;
-		$[6] = text;
-		$[7] = notice;
-		$[8] = t1;
-		$[9] = t2;
-		$[10] = t3;
-		$[11] = t4;
-	} else {
-		notice = $[7];
-		t1 = $[8];
-		t2 = $[9];
-		t3 = $[10];
-		t4 = $[11];
-	}
-	if (t4 !== Symbol.for("react.early_return_sentinel")) return t4;
+		$[5] = text;
+		$[6] = t1;
+	} else t1 = $[6];
+	const ansi = t1;
+	const trim = plain.trusted && displayMode !== "raw";
+	let t2;
+	if ($[7] !== plain.className) {
+		t2 = (shown) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
+			className: clsx(ToolOutput_module_default.textOutput, "tool-output", plain.className),
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("code", {
+				className: clsx("sourceCode", ToolOutput_module_default.textCode),
+				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChunkedText, { text: shown })
+			})
+		});
+		$[7] = plain.className;
+		$[8] = t2;
+	} else t2 = $[8];
+	const renderPlain = t2;
+	let t3;
+	if ($[9] !== displayMode || $[10] !== plain.trusted || $[11] !== trim) {
+		t3 = (all) => {
+			const shown_0 = displayMode === "rendered" && plain.trusted ? stripAnsi(all) : all;
+			return trim ? shown_0.trimStart() : shown_0;
+		};
+		$[9] = displayMode;
+		$[10] = plain.trusted;
+		$[11] = trim;
+		$[12] = t3;
+	} else t3 = $[12];
+	let t4;
+	if ($[13] !== ansi || $[14] !== plain || $[15] !== renderPlain || $[16] !== trim) {
+		t4 = (shown_1) => ansi ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ANSIDisplay, {
+			output: shown_1,
+			style: { fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)" }
+		}) : renderPlain(trim ? shown_1.trim() : plain.present(shown_1));
+		$[13] = ansi;
+		$[14] = plain;
+		$[15] = renderPlain;
+		$[16] = trim;
+		$[17] = t4;
+	} else t4 = $[17];
 	let t5;
-	if ($[18] !== t1 || $[19] !== t2) {
-		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("code", {
-			className: t1,
-			children: t2
+	if ($[18] !== renderPlain || $[19] !== t3 || $[20] !== t4 || $[21] !== text) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CappedText, {
+			text,
+			toPlainText: t3,
+			render: t4,
+			renderPlain
 		});
-		$[18] = t1;
-		$[19] = t2;
-		$[20] = t5;
-	} else t5 = $[20];
-	let t6;
-	if ($[21] !== t3 || $[22] !== t5) {
-		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
-			className: t3,
-			children: t5
-		});
-		$[21] = t3;
+		$[18] = renderPlain;
+		$[19] = t3;
+		$[20] = t4;
+		$[21] = text;
 		$[22] = t5;
-		$[23] = t6;
-	} else t6 = $[23];
-	let t7;
-	if ($[24] !== notice || $[25] !== t6) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t6, notice] });
-		$[24] = notice;
-		$[25] = t6;
-		$[26] = t7;
-	} else t7 = $[26];
-	return t7;
+	} else t5 = $[22];
+	return t5;
 };
 // ../../packages/inspect-components/src/chat/MessageContent.tsx
 /**
@@ -67407,7 +67197,7 @@ var ToolSearchView_module_default = {
 	const { namespaces } = t0;
 	let t1;
 	if ($[0] !== namespaces) {
-		t1 = namespaces.map(_temp2$56);
+		t1 = namespaces.map(_temp2$57);
 		$[0] = namespaces;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -67437,7 +67227,7 @@ function _temp$94(tool, toolIdx) {
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("code", { children: tool.signature })
 	}, `tool-${toolIdx}`);
 }
-function _temp2$56(namespace, nsIdx) {
+function _temp2$57(namespace, nsIdx) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 		className: ToolSearchView_module_default.namespace,
 		children: [namespace.name ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
@@ -67803,7 +67593,7 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 	const { contents } = t0;
 	let t1;
 	if ($[0] !== contents) {
-		t1 = contents.flatMap(_temp2$55).map(_temp3$39);
+		t1 = contents.flatMap(_temp2$56).map(_temp3$40);
 		$[0] = contents;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -67836,10 +67626,10 @@ function _temp$93(c) {
 		return false;
 	} else return true;
 }
-function _temp2$55(c) {
+function _temp2$56(c) {
 	return c.type === "tool" ? c.content : [c];
 }
-function _temp3$39(item, i) {
+function _temp3$40(item, i) {
 	if (item.type === "text" && item.text) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: item.text }, `md-${i}`);
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContent, { contents: [item] }, `content-${i}`);
 }
@@ -69363,7 +69153,7 @@ var kLoadMoreMarginRows = 20;
 	useListKeyboardNavigation(t5);
 	let t6;
 	if ($[8] !== rows) {
-		t6 = () => rows.map(_temp$89).filter(_temp2$54);
+		t6 = () => rows.map(_temp$89).filter(_temp2$55);
 		$[8] = rows;
 		$[9] = t6;
 	} else t6 = $[9];
@@ -69460,7 +69250,7 @@ var kLoadMoreMarginRows = 20;
 		$[33] = t11;
 	} else t11 = $[33];
 	const renderRow = t11;
-	const rowSearchText = _temp3$38;
+	const rowSearchText = _temp3$39;
 	if (rows.length === 0) {
 		if (backfilling) {
 			let t12;
@@ -69539,10 +69329,10 @@ var kLoadMoreMarginRows = 20;
 function _temp$89(row) {
 	return row.resolved.message.id;
 }
-function _temp2$54(rowId) {
+function _temp2$55(rowId) {
 	return typeof rowId === "string";
 }
-function _temp3$38(item_0) {
+function _temp3$39(item_0) {
 	return messageSearchText(item_0.resolved);
 }
 // src/log_data/messageRows.ts
@@ -69986,7 +69776,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	const pages = data?.pages;
 	let t7;
 	if ($[14] !== pages) {
-		t7 = pages?.flatMap(_temp2$53);
+		t7 = pages?.flatMap(_temp2$54);
 		$[14] = pages;
 		$[15] = t7;
 	} else t7 = $[15];
@@ -69994,7 +69784,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	let t8;
 	if ($[16] !== fetchNextPage || $[17] !== hasNextPage || $[18] !== isFetchingNextPage) {
 		t8 = () => {
-			if (hasNextPage && !isFetchingNextPage) fetchNextPage({ cancelRefetch: false }).catch(_temp3$37);
+			if (hasNextPage && !isFetchingNextPage) fetchNextPage({ cancelRefetch: false }).catch(_temp3$38);
 		};
 		$[16] = fetchNextPage;
 		$[17] = hasNextPage;
@@ -70097,10 +69887,10 @@ var kLoadingFeed = unpagedFeed(loading$2);
 function _temp$88(last) {
 	return last.nextCursor?.offset;
 }
-function _temp2$53(page) {
+function _temp2$54(page) {
 	return page.rows;
 }
-function _temp3$37() {}
+function _temp3$38() {}
 // src/log_data/sampleMessages.ts
 var kNoRows$1 = [];
 /**
@@ -70221,25 +70011,6 @@ var kNoRows$1 = [];
 	}
 	return t1;
 };
-// src/app/shared/useStableValue.ts
-/**
-* Keep the previous reference when a newly computed value is content-equal.
-*
-* `useMemo` can only key on dependency identity, so a memo that derives
-* from a frequently-replaced store object (e.g. `logDetails` during a
-* directory sync) returns a fresh reference on every flush even when its
-* content is unchanged — cascading identity churn into everything keyed
-* on it. This hook cuts that cascade at the source: callers compute the
-* candidate value as usual and equality decides whether downstream
-* consumers see a new reference.
-*
-* `isEqual` is only consulted when the identity actually changed.
-*/ function useStableValue(value, isEqual) {
-	"use no memo";
-	const ref = (0, import_react.useRef)(value);
-	if (ref.current !== value && !isEqual(ref.current, value)) ref.current = value;
-	return ref.current;
-}
 // src/log_data/scoreSchema.ts
 /**
 * Build a stable, unique column key for a (scorer, metric) pair. The reducer
@@ -72206,35 +71977,35 @@ var createSampleSlice = (set, _get, _store) => {
 	};
 };
 var SearchPanel_module_default = {
-	container: "_container_1sdtt_1",
-	body: "_body_1sdtt_8",
-	searchArea: "_searchArea_1sdtt_15",
-	inputShell: "_inputShell_1sdtt_23",
-	controlsRow: "_controlsRow_1sdtt_33",
-	topRow: "_topRow_1sdtt_40",
-	typeToggle: "_typeToggle_1sdtt_47",
-	topActions: "_topActions_1sdtt_52",
-	textarea: "_textarea_1sdtt_58",
-	modeRow: "_modeRow_1sdtt_65",
-	modeControls: "_modeControls_1sdtt_71",
-	modeToggle: "_modeToggle_1sdtt_77",
-	modeToggleActive: "_modeToggleActive_1sdtt_100",
-	modelPill: "_modelPill_1sdtt_105",
-	modelInputShell: "_modelInputShell_1sdtt_123",
-	modelInput: "_modelInput_1sdtt_123",
-	iconAction: "_iconAction_1sdtt_144",
-	iconActionActive: "_iconActionActive_1sdtt_166",
-	runButton: "_runButton_1sdtt_171",
-	results: "_results_1sdtt_192",
-	sectionHeader: "_sectionHeader_1sdtt_202",
-	resultCard: "_resultCard_1sdtt_214",
-	matchCount: "_matchCount_1sdtt_222",
-	recentList: "_recentList_1sdtt_228",
-	recentItem: "_recentItem_1sdtt_234",
-	recentEmpty: "_recentEmpty_1sdtt_249",
-	emptyState: "_emptyState_1sdtt_256",
-	searchingText: "_searchingText_1sdtt_267",
-	searchingElapsed: "_searchingElapsed_1sdtt_271"
+	container: "_container_15vhv_1",
+	body: "_body_15vhv_8",
+	searchArea: "_searchArea_15vhv_15",
+	inputShell: "_inputShell_15vhv_23",
+	controlsRow: "_controlsRow_15vhv_33",
+	topRow: "_topRow_15vhv_40",
+	typeToggle: "_typeToggle_15vhv_47",
+	topActions: "_topActions_15vhv_52",
+	textarea: "_textarea_15vhv_58",
+	modeRow: "_modeRow_15vhv_65",
+	modeControls: "_modeControls_15vhv_71",
+	modeToggle: "_modeToggle_15vhv_77",
+	modeToggleActive: "_modeToggleActive_15vhv_100",
+	modelPill: "_modelPill_15vhv_105",
+	modelInputShell: "_modelInputShell_15vhv_123",
+	modelInput: "_modelInput_15vhv_123",
+	iconAction: "_iconAction_15vhv_144",
+	iconActionActive: "_iconActionActive_15vhv_166",
+	runButton: "_runButton_15vhv_171",
+	results: "_results_15vhv_192",
+	sectionHeader: "_sectionHeader_15vhv_202",
+	resultCard: "_resultCard_15vhv_213",
+	matchCount: "_matchCount_15vhv_221",
+	recentList: "_recentList_15vhv_226",
+	recentItem: "_recentItem_15vhv_232",
+	recentEmpty: "_recentEmpty_15vhv_247",
+	emptyState: "_emptyState_15vhv_253",
+	searchingText: "_searchingText_15vhv_263",
+	searchingElapsed: "_searchingElapsed_15vhv_267"
 };
 // ../../packages/inspect-components/src/transcript-search/searchPanelState.ts
 var createInitialSearchPanelState = () => ({
@@ -72676,6 +72447,7 @@ var SearchPanel = ({ scope, api, stateController, navigation, defaultModel, mode
 	]);
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 		className: SearchPanel_module_default.container,
+		"data-unsearchable": true,
 		children: [
 			/*#__PURE__*/ (0, import_jsx_runtime.jsx)(SidebarHeader, {
 				icon: "search",
@@ -72816,7 +72588,7 @@ var SearchPanel = ({ scope, api, stateController, navigation, defaultModel, mode
 				setIsOpen: setIsRecentOpen,
 				positionEl: recentButtonRef.current,
 				placement: "bottom-end",
-				offset: [0, 2],
+				offset: 2,
 				hoverDelay: -1,
 				closeOnMouseLeave: false,
 				showArrow: false,
@@ -73335,7 +73107,7 @@ var initializeStore = (capabilities, storage) => {
 		getItem: (name) => {
 			return storage ? storage.getItem(name) : null;
 		},
-		setItem: debounce$3((name, value) => {
+		setItem: debounce$2((name, value) => {
 			if (storage) storage.setItem(name, value);
 		}, 1e3),
 		removeItem: (name) => {
@@ -75226,7 +74998,7 @@ var kDefaultScorePanelSort = {
 */ var useScorePanelView = () => {
 	const $ = (0, import_compiler_runtime.c)(5);
 	const stored = useStore(_temp$85);
-	const setPropertyValue = useStore(_temp2$52);
+	const setPropertyValue = useStore(_temp2$53);
 	let t0;
 	if ($[0] !== setPropertyValue) {
 		t0 = (view) => {
@@ -75256,7 +75028,7 @@ var kDefaultScorePanelSort = {
 * value; callers resolve their own default via `resolveScorePanelSort`.
 */ var useScorePanelSort = () => {
 	const $ = (0, import_compiler_runtime.c)(5);
-	const stored = useStore(_temp3$36);
+	const stored = useStore(_temp3$37);
 	const setPropertyValue = useStore(_temp4$30);
 	let t0;
 	if ($[0] !== setPropertyValue) {
@@ -75751,10 +75523,10 @@ function _temp$85(state) {
 	const value = state.app.propertyBags[kScorePanelViewBag]?.[kScorePanelViewKey];
 	return isScoreView(value) ? value : void 0;
 }
-function _temp2$52(state_0) {
+function _temp2$53(state_0) {
 	return state_0.appActions.setPropertyValue;
 }
-function _temp3$36(state) {
+function _temp3$37(state) {
 	const value = state.app.propertyBags[kScorePanelSortBag]?.[kScorePanelSortKey];
 	return isScorePanelSortState(value) ? value : void 0;
 }
@@ -76097,7 +75869,7 @@ var ThemeToggle_module_default = {
 * Header control: clicking opens the full theme menu. Purely presentational —
 * the host owns persistence.
 */ var ThemeToggle = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(52);
+	const $ = (0, import_compiler_runtime.c)(51);
 	const { value, isDark, onChange, className, hideModeSwitch } = t0;
 	const id = (0, import_react.useId)();
 	const [buttonEl, setButtonEl] = (0, import_react.useState)(null);
@@ -76180,49 +75952,44 @@ var ThemeToggle_module_default = {
 	} else t9 = $[18];
 	let t10;
 	if ($[19] === Symbol.for("react.memo_cache_sentinel")) {
-		t10 = [0, 1];
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: "Theme" });
 		$[19] = t10;
 	} else t10 = $[19];
 	let t11;
-	if ($[20] === Symbol.for("react.memo_cache_sentinel")) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: "Theme" });
-		$[20] = t11;
-	} else t11 = $[20];
-	let t12;
-	if ($[21] !== onChange) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+	if ($[20] !== onChange) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: ThemeToggle_module_default.headerRow,
-			children: [t11, /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			children: [t10, /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 				type: "button",
 				className: ThemeToggle_module_default.resetButton,
 				onClick: () => onChange("readable-system"),
 				children: "Reset"
 			})]
 		});
-		$[21] = onChange;
-		$[22] = t12;
-	} else t12 = $[22];
+		$[20] = onChange;
+		$[21] = t11;
+	} else t11 = $[21];
+	let t12;
 	let t13;
-	let t14;
-	if ($[23] === Symbol.for("react.memo_cache_sentinel")) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("legend", {
+	if ($[22] === Symbol.for("react.memo_cache_sentinel")) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("legend", {
 			className: ThemeToggle_module_default.srOnly,
 			children: "Theme mode"
 		});
-		t14 = [
+		t13 = [
 			"system",
 			"light",
 			"dark"
 		];
+		$[22] = t12;
 		$[23] = t13;
-		$[24] = t14;
 	} else {
+		t12 = $[22];
 		t13 = $[23];
-		t14 = $[24];
 	}
-	let t15;
-	if ($[25] !== base || $[26] !== id || $[27] !== setPreference) {
-		t15 = t14.map((themeMode) => /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("label", {
+	let t14;
+	if ($[24] !== base || $[25] !== id || $[26] !== setPreference) {
+		t14 = t13.map((themeMode) => /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("label", {
 			className: ThemeToggle_module_default.option,
 			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
 				type: "radio",
@@ -76232,58 +75999,58 @@ var ThemeToggle_module_default = {
 				onChange: () => setPreference(themeMode)
 			}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: themeMode.charAt(0).toUpperCase() + themeMode.slice(1) })]
 		}, themeMode));
-		$[25] = base;
-		$[26] = id;
-		$[27] = setPreference;
-		$[28] = t15;
-	} else t15 = $[28];
-	let t16;
-	if ($[29] !== hideModeSwitch || $[30] !== t15) {
-		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("fieldset", {
+		$[24] = base;
+		$[25] = id;
+		$[26] = setPreference;
+		$[27] = t14;
+	} else t14 = $[27];
+	let t15;
+	if ($[28] !== hideModeSwitch || $[29] !== t14) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("fieldset", {
 			className: ThemeToggle_module_default.group,
 			hidden: hideModeSwitch,
-			children: [t13, t15]
+			children: [t12, t14]
 		});
-		$[29] = hideModeSwitch;
+		$[28] = hideModeSwitch;
+		$[29] = t14;
 		$[30] = t15;
-		$[31] = t16;
-	} else t16 = $[31];
+	} else t15 = $[30];
+	let t16;
+	if ($[31] !== base || $[32] !== eventColors || $[33] !== setPreference) {
+		t16 = () => setPreference(base, !eventColors);
+		$[31] = base;
+		$[32] = eventColors;
+		$[33] = setPreference;
+		$[34] = t16;
+	} else t16 = $[34];
 	let t17;
-	if ($[32] !== base || $[33] !== eventColors || $[34] !== setPreference) {
-		t17 = () => setPreference(base, !eventColors);
-		$[32] = base;
-		$[33] = eventColors;
-		$[34] = setPreference;
-		$[35] = t17;
-	} else t17 = $[35];
-	let t18;
-	if ($[36] !== eventColors || $[37] !== t17) {
-		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
+	if ($[35] !== eventColors || $[36] !== t16) {
+		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
 			type: "checkbox",
 			checked: eventColors,
-			onChange: t17
+			onChange: t16
 		});
-		$[36] = eventColors;
+		$[35] = eventColors;
+		$[36] = t16;
 		$[37] = t17;
+	} else t17 = $[37];
+	let t18;
+	if ($[38] === Symbol.for("react.memo_cache_sentinel")) {
+		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: "Event Colors" });
 		$[38] = t18;
 	} else t18 = $[38];
 	let t19;
-	if ($[39] === Symbol.for("react.memo_cache_sentinel")) {
-		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: "Event Colors" });
-		$[39] = t19;
-	} else t19 = $[39];
-	let t20;
-	if ($[40] !== t18) {
-		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("label", {
+	if ($[39] !== t17) {
+		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("label", {
 			className: ThemeToggle_module_default.option,
-			children: [t18, t19]
+			children: [t17, t18]
 		});
-		$[40] = t18;
-		$[41] = t20;
-	} else t20 = $[41];
-	let t21;
-	if ($[42] !== buttonEl || $[43] !== open || $[44] !== t12 || $[45] !== t16 || $[46] !== t20) {
-		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(PopOver, {
+		$[39] = t17;
+		$[40] = t19;
+	} else t19 = $[40];
+	let t20;
+	if ($[41] !== buttonEl || $[42] !== open || $[43] !== t11 || $[44] !== t15 || $[45] !== t19) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(PopOver, {
 			id: "theme-toggle-popover",
 			isOpen: open,
 			setIsOpen: setOpen,
@@ -76292,34 +76059,34 @@ var ThemeToggle_module_default = {
 			showArrow: false,
 			hoverDelay: -1,
 			closeOnMouseLeave: false,
-			offset: t10,
+			offset: 1,
 			className: ThemeToggle_module_default.menu,
 			children: [
-				t12,
-				t16,
-				t20
+				t11,
+				t15,
+				t19
 			]
 		});
-		$[42] = buttonEl;
-		$[43] = open;
-		$[44] = t12;
-		$[45] = t16;
+		$[41] = buttonEl;
+		$[42] = open;
+		$[43] = t11;
+		$[44] = t15;
+		$[45] = t19;
 		$[46] = t20;
-		$[47] = t21;
-	} else t21 = $[47];
-	let t22;
-	if ($[48] !== t21 || $[49] !== t5 || $[50] !== t9) {
-		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+	} else t20 = $[46];
+	let t21;
+	if ($[47] !== t20 || $[48] !== t5 || $[49] !== t9) {
+		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t5,
 			"data-testid": "theme-toggle",
-			children: [t9, t21]
+			children: [t9, t20]
 		});
-		$[48] = t21;
-		$[49] = t5;
-		$[50] = t9;
-		$[51] = t22;
-	} else t22 = $[51];
-	return t22;
+		$[47] = t20;
+		$[48] = t5;
+		$[49] = t9;
+		$[50] = t21;
+	} else t21 = $[50];
+	return t21;
 };
 // ../../packages/theme/src/bootstrap.ts
 /**
@@ -76466,7 +76233,7 @@ var ViewerOptionsPopover_module_default = {
 };
 // src/app/log-list/ViewerOptionsPopover.tsx
 var ViewerOptionsPopover = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(58);
+	const $ = (0, import_compiler_runtime.c)(57);
 	const { showing, positionEl, setShowing, error } = t0;
 	const [isClearing, setIsClearing] = (0, import_react.useState)(false);
 	const [clearMessage, setClearMessage] = (0, import_react.useState)(null);
@@ -76505,17 +76272,12 @@ var ViewerOptionsPopover = (t0) => {
 	const handleClearDatabase = t2;
 	let t3;
 	if ($[3] === Symbol.for("react.memo_cache_sentinel")) {
-		t3 = [-10, 5];
+		t3 = clsx(ViewerOptionsPopover_module_default.container, "text-size-smaller");
 		$[3] = t3;
 	} else t3 = $[3];
 	let t4;
-	if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
-		t4 = clsx(ViewerOptionsPopover_module_default.container, "text-size-smaller");
-		$[4] = t4;
-	} else t4 = $[4];
-	let t5;
-	if ($[5] !== error || $[6] !== lastSyncedTime) {
-		t5 = error && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+	if ($[4] !== error || $[5] !== lastSyncedTime) {
+		t4 = error && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
 			/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 				className: clsx("text-style-label", "text-style-secondary", ViewerOptionsPopover_module_default.fullWidth),
 				children: "Background Sync"
@@ -76537,272 +76299,272 @@ var ViewerOptionsPopover = (t0) => {
 			}),
 			/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { className: clsx(ViewerOptionsPopover_module_default.spacer) })
 		] });
-		$[5] = error;
-		$[6] = lastSyncedTime;
-		$[7] = t5;
-	} else t5 = $[7];
+		$[4] = error;
+		$[5] = lastSyncedTime;
+		$[6] = t4;
+	} else t4 = $[6];
+	let t5;
 	let t6;
-	let t7;
-	if ($[8] === Symbol.for("react.memo_cache_sentinel")) {
-		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[7] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx("text-style-label", "text-style-secondary", ViewerOptionsPopover_module_default.fullWidth),
 			children: "Log Directory"
 		});
-		t7 = clsx(ViewerOptionsPopover_module_default.fullWidth, ViewerOptionsPopover_module_default.fullWidthPadded);
+		t6 = clsx(ViewerOptionsPopover_module_default.fullWidth, ViewerOptionsPopover_module_default.fullWidthPadded);
+		$[7] = t5;
 		$[8] = t6;
-		$[9] = t7;
 	} else {
+		t5 = $[7];
 		t6 = $[8];
-		t7 = $[9];
 	}
-	let t8;
-	if ($[10] !== logDir) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t7,
+	let t7;
+	if ($[9] !== logDir) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t6,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 				className: ViewerOptionsPopover_module_default.logDir,
 				children: logDir
 			})
 		});
-		$[10] = logDir;
-		$[11] = t8;
-	} else t8 = $[11];
+		$[9] = logDir;
+		$[10] = t7;
+	} else t7 = $[10];
 	let t10;
-	let t11;
+	let t8;
 	let t9;
-	if ($[12] === Symbol.for("react.memo_cache_sentinel")) {
-		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { className: clsx(ViewerOptionsPopover_module_default.spacer) });
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[11] === Symbol.for("react.memo_cache_sentinel")) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { className: clsx(ViewerOptionsPopover_module_default.spacer) });
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx("text-style-label", "text-style-secondary"),
 			children: "Inspect Version"
 		});
-		t11 = clsx();
-		$[12] = t10;
-		$[13] = t11;
-		$[14] = t9;
+		t10 = clsx();
+		$[11] = t10;
+		$[12] = t8;
+		$[13] = t9;
 	} else {
-		t10 = $[12];
-		t11 = $[13];
-		t9 = $[14];
+		t10 = $[11];
+		t8 = $[12];
+		t9 = $[13];
 	}
-	let t12;
-	if ($[15] !== appConfig.inspect_version) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t11,
+	let t11;
+	if ($[14] !== appConfig.inspect_version) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t10,
 			children: appConfig.inspect_version
 		});
-		$[15] = appConfig.inspect_version;
-		$[16] = t12;
-	} else t12 = $[16];
-	let t13;
-	if ($[17] !== appConfig.scout_version) {
-		t13 = appConfig.scout_version && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[14] = appConfig.inspect_version;
+		$[15] = t11;
+	} else t11 = $[15];
+	let t12;
+	if ($[16] !== appConfig.scout_version) {
+		t12 = appConfig.scout_version && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx("text-style-label", "text-style-secondary"),
 			children: "Scout Version"
 		}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx(),
 			children: appConfig.scout_version
 		})] });
-		$[17] = appConfig.scout_version;
-		$[18] = t13;
-	} else t13 = $[18];
+		$[16] = appConfig.scout_version;
+		$[17] = t12;
+	} else t12 = $[17];
+	let t13;
 	let t14;
 	let t15;
 	let t16;
 	let t17;
-	let t18;
-	if ($[19] === Symbol.for("react.memo_cache_sentinel")) {
-		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[18] === Symbol.for("react.memo_cache_sentinel")) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx("text-style-label", "text-style-secondary"),
 			children: "Schema"
 		});
-		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx(),
 			children: DB_VERSION
 		});
-		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { className: clsx(ViewerOptionsPopover_module_default.spacer) });
-		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { className: clsx(ViewerOptionsPopover_module_default.spacer) });
+		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx("text-style-label", "text-style-secondary"),
 			children: "Logs"
 		});
-		t18 = clsx();
+		t17 = clsx();
+		$[18] = t13;
 		$[19] = t14;
 		$[20] = t15;
 		$[21] = t16;
 		$[22] = t17;
-		$[23] = t18;
 	} else {
+		t13 = $[18];
 		t14 = $[19];
 		t15 = $[20];
 		t16 = $[21];
 		t17 = $[22];
-		t18 = $[23];
 	}
-	const t19 = dbStats.logCount || 0;
-	let t20;
-	if ($[24] !== t19) {
-		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t18,
-			children: t19
+	const t18 = dbStats.logCount || 0;
+	let t19;
+	if ($[23] !== t18) {
+		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t17,
+			children: t18
 		});
+		$[23] = t18;
 		$[24] = t19;
-		$[25] = t20;
-	} else t20 = $[25];
+	} else t19 = $[24];
+	let t20;
 	let t21;
-	let t22;
-	if ($[26] === Symbol.for("react.memo_cache_sentinel")) {
-		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[25] === Symbol.for("react.memo_cache_sentinel")) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx("text-style-label", "text-style-secondary"),
 			children: "Log Previews"
 		});
-		t22 = clsx();
+		t21 = clsx();
+		$[25] = t20;
 		$[26] = t21;
-		$[27] = t22;
 	} else {
+		t20 = $[25];
 		t21 = $[26];
-		t22 = $[27];
 	}
-	const t23 = dbStats.previewCount || 0;
-	let t24;
-	if ($[28] !== t23) {
-		t24 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t22,
-			children: t23
+	const t22 = dbStats.previewCount || 0;
+	let t23;
+	if ($[27] !== t22) {
+		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t21,
+			children: t22
 		});
+		$[27] = t22;
 		$[28] = t23;
-		$[29] = t24;
-	} else t24 = $[29];
+	} else t23 = $[28];
+	let t24;
 	let t25;
-	let t26;
-	if ($[30] === Symbol.for("react.memo_cache_sentinel")) {
-		t25 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[29] === Symbol.for("react.memo_cache_sentinel")) {
+		t24 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx("text-style-label", "text-style-secondary"),
 			children: "Log Details"
 		});
-		t26 = clsx();
+		t25 = clsx();
+		$[29] = t24;
 		$[30] = t25;
-		$[31] = t26;
 	} else {
+		t24 = $[29];
 		t25 = $[30];
-		t26 = $[31];
 	}
-	const t27 = dbStats.detailsCount || 0;
-	let t28;
-	if ($[32] !== t27) {
-		t28 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t26,
-			children: t27
+	const t26 = dbStats.detailsCount || 0;
+	let t27;
+	if ($[31] !== t26) {
+		t27 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t25,
+			children: t26
 		});
+		$[31] = t26;
 		$[32] = t27;
-		$[33] = t28;
-	} else t28 = $[33];
+	} else t27 = $[32];
+	let t28;
 	let t29;
 	let t30;
-	let t31;
-	if ($[34] === Symbol.for("react.memo_cache_sentinel")) {
-		t29 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { className: clsx(ViewerOptionsPopover_module_default.spacer) });
-		t30 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[33] === Symbol.for("react.memo_cache_sentinel")) {
+		t28 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { className: clsx(ViewerOptionsPopover_module_default.spacer) });
+		t29 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx("text-style-label", "text-style-secondary"),
 			children: "Tools"
 		});
-		t31 = clsx();
+		t30 = clsx();
+		$[33] = t28;
 		$[34] = t29;
 		$[35] = t30;
-		$[36] = t31;
 	} else {
+		t28 = $[33];
 		t29 = $[34];
 		t30 = $[35];
-		t31 = $[36];
 	}
-	let t32;
-	if ($[37] === Symbol.for("react.memo_cache_sentinel")) {
-		t32 = clsx("btn", "btn-tools", "text-size-smallest", ViewerOptionsPopover_module_default.clearButton);
-		$[37] = t32;
-	} else t32 = $[37];
-	const t33 = isClearing ? "Clearing..." : "Clear Local Database";
-	let t34;
-	if ($[38] !== isClearing || $[39] !== t33) {
-		t34 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t31,
+	let t31;
+	if ($[36] === Symbol.for("react.memo_cache_sentinel")) {
+		t31 = clsx("btn", "btn-tools", "text-size-smallest", ViewerOptionsPopover_module_default.clearButton);
+		$[36] = t31;
+	} else t31 = $[36];
+	const t32 = isClearing ? "Clearing..." : "Clear Local Database";
+	let t33;
+	if ($[37] !== isClearing || $[38] !== t32) {
+		t33 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t30,
 			children: [" ", /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 				type: "button",
 				onClick: handleClearDatabase,
 				disabled: isClearing,
-				className: t32,
-				children: t33
+				className: t31,
+				children: t32
 			})]
 		});
-		$[38] = isClearing;
+		$[37] = isClearing;
+		$[38] = t32;
 		$[39] = t33;
-		$[40] = t34;
-	} else t34 = $[40];
-	let t35;
-	if ($[41] !== clearMessage) {
-		t35 = clearMessage && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	} else t33 = $[39];
+	let t34;
+	if ($[40] !== clearMessage) {
+		t34 = clearMessage && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx(ViewerOptionsPopover_module_default.fullWidth, ViewerOptionsPopover_module_default.message, clearMessage.includes("success") ? ViewerOptionsPopover_module_default.messageSuccess : ViewerOptionsPopover_module_default.messageError),
 			children: clearMessage
 		});
-		$[41] = clearMessage;
-		$[42] = t35;
-	} else t35 = $[42];
-	let t36;
-	if ($[43] !== t12 || $[44] !== t13 || $[45] !== t20 || $[46] !== t24 || $[47] !== t28 || $[48] !== t34 || $[49] !== t35 || $[50] !== t5 || $[51] !== t8) {
-		t36 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t4,
+		$[40] = clearMessage;
+		$[41] = t34;
+	} else t34 = $[41];
+	let t35;
+	if ($[42] !== t11 || $[43] !== t12 || $[44] !== t19 || $[45] !== t23 || $[46] !== t27 || $[47] !== t33 || $[48] !== t34 || $[49] !== t4 || $[50] !== t7) {
+		t35 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t3,
 			children: [
+				t4,
 				t5,
-				t6,
+				t7,
 				t8,
 				t9,
-				t10,
+				t11,
 				t12,
 				t13,
 				t14,
 				t15,
 				t16,
-				t17,
+				t19,
 				t20,
-				t21,
+				t23,
 				t24,
-				t25,
+				t27,
 				t28,
 				t29,
-				t30,
-				t34,
-				t35
+				t33,
+				t34
 			]
 		});
+		$[42] = t11;
 		$[43] = t12;
-		$[44] = t13;
-		$[45] = t20;
-		$[46] = t24;
-		$[47] = t28;
+		$[44] = t19;
+		$[45] = t23;
+		$[46] = t27;
+		$[47] = t33;
 		$[48] = t34;
-		$[49] = t35;
-		$[50] = t5;
-		$[51] = t8;
-		$[52] = t36;
-	} else t36 = $[52];
-	let t37;
-	if ($[53] !== positionEl || $[54] !== setShowing || $[55] !== showing || $[56] !== t36) {
-		t37 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PopOver, {
+		$[49] = t4;
+		$[50] = t7;
+		$[51] = t35;
+	} else t35 = $[51];
+	let t36;
+	if ($[52] !== positionEl || $[53] !== setShowing || $[54] !== showing || $[55] !== t35) {
+		t36 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PopOver, {
 			id: "viewer-options-filter-popover",
 			positionEl,
 			isOpen: showing,
 			setIsOpen: setShowing,
 			placement: "auto",
 			hoverDelay: -1,
-			offset: t3,
+			offset: 5,
 			showArrow: false,
-			children: t36
+			children: t35
 		});
-		$[53] = positionEl;
-		$[54] = setShowing;
-		$[55] = showing;
+		$[52] = positionEl;
+		$[53] = setShowing;
+		$[54] = showing;
+		$[55] = t35;
 		$[56] = t36;
-		$[57] = t37;
-	} else t37 = $[57];
-	return t37;
+	} else t36 = $[56];
+	return t36;
 };
 var Navbar_module_default = {
 	header: "_header_1u3sd_1",
@@ -77053,10 +76815,10 @@ var ApplicationNavbar = (t0) => {
 	const loadingProp = t1 === void 0 ? false : t1;
 	const [optionsEl, setOptionsEl] = (0, import_react.useState)(null);
 	const themePreference = useUserSettings(_temp$82);
-	const setThemePreference = useUserSettings(_temp2$51);
+	const setThemePreference = useUserSettings(_temp2$52);
 	const isDark = useResolvedIsDark(themePreference);
 	const loading = useSelectedLogLoading() || loadingProp;
-	const isShowing = useStore(_temp3$35);
+	const isShowing = useStore(_temp3$36);
 	const setShowing = useStore(_temp4$29);
 	let t2;
 	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
@@ -77149,10 +76911,10 @@ var ApplicationNavbar = (t0) => {
 function _temp$82(s) {
 	return s.themePreference;
 }
-function _temp2$51(s_0) {
+function _temp2$52(s_0) {
 	return s_0.setThemePreference;
 }
-function _temp3$35(state) {
+function _temp3$36(state) {
 	return state.app.dialogs.options;
 }
 function _temp4$29(state_0) {
@@ -77371,24 +77133,24 @@ function _temp$81(evalSet) {
 	return col.colId || col.field || col.headerName || "?";
 };
 var ColumnSelectorPopover_module_default = {
-	checkboxWrapper: "_checkboxWrapper_cdanu_1",
-	label: "_label_cdanu_5",
-	checkbox: "_checkbox_cdanu_1",
-	filterIcon: "_filterIcon_cdanu_16",
-	scrollableContainer: "_scrollableContainer_cdanu_21",
-	section: "_section_cdanu_33",
-	headerRow: "_headerRow_cdanu_37",
-	scoresHeadingGroup: "_scoresHeadingGroup_cdanu_47",
-	scoresViewModeControl: "_scoresViewModeControl_cdanu_53",
-	buttonContainer: "_buttonContainer_cdanu_57",
-	button: "_button_cdanu_57",
-	columnsLayout: "_columnsLayout_cdanu_76"
+	checkboxWrapper: "_checkboxWrapper_93mzp_1",
+	label: "_label_93mzp_5",
+	checkbox: "_checkbox_93mzp_1",
+	filterIcon: "_filterIcon_93mzp_16",
+	scrollableContainer: "_scrollableContainer_93mzp_21",
+	section: "_section_93mzp_32",
+	headerRow: "_headerRow_93mzp_36",
+	scoresHeadingGroup: "_scoresHeadingGroup_93mzp_46",
+	scoresViewModeControl: "_scoresViewModeControl_93mzp_52",
+	buttonContainer: "_buttonContainer_93mzp_56",
+	button: "_button_93mzp_56",
+	columnsLayout: "_columnsLayout_93mzp_75"
 };
 // src/app/shared/ColumnSelectorPopover.tsx
 var isColumnScoresViewMode = (value) => value === "by-metric" || value === "per-scorer";
 var isScoreField = (field) => field.startsWith("score_") || field.startsWith("metric_");
 var ColumnSelectorPopover = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(89);
+	const $ = (0, import_compiler_runtime.c)(88);
 	const { showing, setShowing, columns, onVisibilityChange, positionEl, filteredFields: t1, scoresHeading: t2, splitScores: t3, visibility, groupableScores: t4, scoresViewMode: t5, onScoresViewModeChange, onResetToDefault } = t0;
 	let t6;
 	if ($[0] !== t1) {
@@ -77463,7 +77225,7 @@ var ColumnSelectorPopover = (t0) => {
 		} else t10 = $[14];
 		let t11;
 		if ($[15] !== columns) {
-			t11 = columns.filter(_temp2$50);
+			t11 = columns.filter(_temp2$51);
 			$[15] = columns;
 			$[16] = t11;
 		} else t11 = $[16];
@@ -77485,7 +77247,7 @@ var ColumnSelectorPopover = (t0) => {
 		t10 = () => {
 			onVisibilityChange({
 				...currentVisibility,
-				...Object.fromEntries(columnGroups.base.map(_temp3$34))
+				...Object.fromEntries(columnGroups.base.map(_temp3$35))
 			});
 		};
 		$[20] = columnGroups.base;
@@ -77570,134 +77332,130 @@ var ColumnSelectorPopover = (t0) => {
 	const renderColumnCheckbox = t14;
 	let t15;
 	let t16;
-	let t17;
 	if ($[40] === Symbol.for("react.memo_cache_sentinel")) {
-		t15 = [0, 1];
-		t16 = clsx(ColumnSelectorPopover_module_default.scrollableContainer, "text-size-small");
-		t17 = clsx(ColumnSelectorPopover_module_default.section);
+		t15 = clsx(ColumnSelectorPopover_module_default.scrollableContainer, "text-size-small");
+		t16 = clsx(ColumnSelectorPopover_module_default.section);
 		$[40] = t15;
 		$[41] = t16;
-		$[42] = t17;
 	} else {
 		t15 = $[40];
 		t16 = $[41];
-		t17 = $[42];
 	}
+	let t17;
+	if ($[42] !== splitScores) {
+		t17 = splitScores ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: "Base" }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: "Columns" });
+		$[42] = splitScores;
+		$[43] = t17;
+	} else t17 = $[43];
 	let t18;
-	if ($[43] !== splitScores) {
-		t18 = splitScores ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: "Base" }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: "Columns" });
-		$[43] = splitScores;
+	if ($[44] === Symbol.for("react.memo_cache_sentinel")) {
+		t18 = clsx(ColumnSelectorPopover_module_default.buttonContainer, "text-size-small");
 		$[44] = t18;
 	} else t18 = $[44];
 	let t19;
 	if ($[45] === Symbol.for("react.memo_cache_sentinel")) {
-		t19 = clsx(ColumnSelectorPopover_module_default.buttonContainer, "text-size-small");
+		t19 = clsx(ColumnSelectorPopover_module_default.button, "text-size-small");
 		$[45] = t19;
 	} else t19 = $[45];
 	let t20;
-	if ($[46] === Symbol.for("react.memo_cache_sentinel")) {
-		t20 = clsx(ColumnSelectorPopover_module_default.button, "text-size-small");
-		$[46] = t20;
-	} else t20 = $[46];
-	let t21;
-	if ($[47] !== handleSelectAllBase) {
-		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+	if ($[46] !== handleSelectAllBase) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
-			className: t20,
+			className: t19,
 			onClick: handleSelectAllBase,
 			children: "All"
 		});
-		$[47] = handleSelectAllBase;
+		$[46] = handleSelectAllBase;
+		$[47] = t20;
+	} else t20 = $[47];
+	let t21;
+	if ($[48] === Symbol.for("react.memo_cache_sentinel")) {
+		t21 = clsx(ColumnSelectorPopover_module_default.button);
 		$[48] = t21;
 	} else t21 = $[48];
 	let t22;
-	if ($[49] === Symbol.for("react.memo_cache_sentinel")) {
-		t22 = clsx(ColumnSelectorPopover_module_default.button);
-		$[49] = t22;
-	} else t22 = $[49];
-	let t23;
-	if ($[50] !== handleDeselectAllBase) {
-		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+	if ($[49] !== handleDeselectAllBase) {
+		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
-			className: t22,
+			className: t21,
 			onClick: handleDeselectAllBase,
 			children: "None"
 		});
-		$[50] = handleDeselectAllBase;
-		$[51] = t23;
-	} else t23 = $[51];
-	let t24;
-	if ($[52] !== onResetToDefault) {
-		t24 = onResetToDefault && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: ["|", /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+		$[49] = handleDeselectAllBase;
+		$[50] = t22;
+	} else t22 = $[50];
+	let t23;
+	if ($[51] !== onResetToDefault) {
+		t23 = onResetToDefault && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: ["|", /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
 			className: clsx(ColumnSelectorPopover_module_default.button),
 			onClick: onResetToDefault,
 			children: "Default"
 		})] });
-		$[52] = onResetToDefault;
-		$[53] = t24;
-	} else t24 = $[53];
-	let t25;
-	if ($[54] !== t21 || $[55] !== t23 || $[56] !== t24) {
-		t25 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t19,
+		$[51] = onResetToDefault;
+		$[52] = t23;
+	} else t23 = $[52];
+	let t24;
+	if ($[53] !== t20 || $[54] !== t22 || $[55] !== t23) {
+		t24 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t18,
 			children: [
-				t21,
+				t20,
 				"|",
-				t23,
-				t24
+				t22,
+				t23
 			]
 		});
-		$[54] = t21;
+		$[53] = t20;
+		$[54] = t22;
 		$[55] = t23;
 		$[56] = t24;
-		$[57] = t25;
-	} else t25 = $[57];
-	let t26;
-	if ($[58] !== t18 || $[59] !== t25) {
-		t26 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+	} else t24 = $[56];
+	let t25;
+	if ($[57] !== t17 || $[58] !== t24) {
+		t25 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: ColumnSelectorPopover_module_default.headerRow,
-			children: [t18, t25]
+			children: [t17, t24]
 		});
-		$[58] = t18;
+		$[57] = t17;
+		$[58] = t24;
 		$[59] = t25;
-		$[60] = t26;
-	} else t26 = $[60];
+	} else t25 = $[59];
+	let t26;
+	if ($[60] !== columnGroups.base || $[61] !== renderColumnCheckbox) {
+		let t27;
+		if ($[63] !== renderColumnCheckbox) {
+			t27 = (col_7) => renderColumnCheckbox(col_7);
+			$[63] = renderColumnCheckbox;
+			$[64] = t27;
+		} else t27 = $[64];
+		t26 = columnGroups.base.map(t27);
+		$[60] = columnGroups.base;
+		$[61] = renderColumnCheckbox;
+		$[62] = t26;
+	} else t26 = $[62];
 	let t27;
-	if ($[61] !== columnGroups.base || $[62] !== renderColumnCheckbox) {
-		let t28;
-		if ($[64] !== renderColumnCheckbox) {
-			t28 = (col_7) => renderColumnCheckbox(col_7);
-			$[64] = renderColumnCheckbox;
-			$[65] = t28;
-		} else t28 = $[65];
-		t27 = columnGroups.base.map(t28);
-		$[61] = columnGroups.base;
-		$[62] = renderColumnCheckbox;
-		$[63] = t27;
-	} else t27 = $[63];
-	let t28;
-	if ($[66] !== t27) {
-		t28 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[65] !== t26) {
+		t27 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: ColumnSelectorPopover_module_default.columnsLayout,
-			children: t27
+			children: t26
 		});
+		$[65] = t26;
 		$[66] = t27;
-		$[67] = t28;
-	} else t28 = $[67];
-	let t29;
-	if ($[68] !== t26 || $[69] !== t28) {
-		t29 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t17,
-			children: [t26, t28]
+	} else t27 = $[66];
+	let t28;
+	if ($[67] !== t25 || $[68] !== t27) {
+		t28 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t16,
+			children: [t25, t27]
 		});
-		$[68] = t26;
+		$[67] = t25;
+		$[68] = t27;
 		$[69] = t28;
-		$[70] = t29;
-	} else t29 = $[70];
-	let t30;
-	if ($[71] !== columnGroups.scores || $[72] !== groupableScores || $[73] !== handleDeselectAllScores || $[74] !== handleSelectAllScores || $[75] !== onScoresViewModeChange || $[76] !== renderColumnCheckbox || $[77] !== scoresHeading || $[78] !== scoresViewMode || $[79] !== splitScores) {
-		t30 = splitScores && columnGroups.scores.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+	} else t28 = $[69];
+	let t29;
+	if ($[70] !== columnGroups.scores || $[71] !== groupableScores || $[72] !== handleDeselectAllScores || $[73] !== handleSelectAllScores || $[74] !== onScoresViewModeChange || $[75] !== renderColumnCheckbox || $[76] !== scoresHeading || $[77] !== scoresViewMode || $[78] !== splitScores) {
+		t29 = splitScores && columnGroups.scores.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: ColumnSelectorPopover_module_default.headerRow,
 			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: ColumnSelectorPopover_module_default.scoresHeadingGroup,
@@ -77738,30 +77496,30 @@ var ColumnSelectorPopover = (t0) => {
 			className: ColumnSelectorPopover_module_default.columnsLayout,
 			children: columnGroups.scores.map((col_8) => renderColumnCheckbox(col_8))
 		})] });
-		$[71] = columnGroups.scores;
-		$[72] = groupableScores;
-		$[73] = handleDeselectAllScores;
-		$[74] = handleSelectAllScores;
-		$[75] = onScoresViewModeChange;
-		$[76] = renderColumnCheckbox;
-		$[77] = scoresHeading;
-		$[78] = scoresViewMode;
-		$[79] = splitScores;
-		$[80] = t30;
-	} else t30 = $[80];
-	let t31;
-	if ($[81] !== t29 || $[82] !== t30) {
-		t31 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t16,
-			children: [t29, t30]
+		$[70] = columnGroups.scores;
+		$[71] = groupableScores;
+		$[72] = handleDeselectAllScores;
+		$[73] = handleSelectAllScores;
+		$[74] = onScoresViewModeChange;
+		$[75] = renderColumnCheckbox;
+		$[76] = scoresHeading;
+		$[77] = scoresViewMode;
+		$[78] = splitScores;
+		$[79] = t29;
+	} else t29 = $[79];
+	let t30;
+	if ($[80] !== t28 || $[81] !== t29) {
+		t30 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t15,
+			children: [t28, t29]
 		});
+		$[80] = t28;
 		$[81] = t29;
 		$[82] = t30;
-		$[83] = t31;
-	} else t31 = $[83];
-	let t32;
-	if ($[84] !== positionEl || $[85] !== setShowing || $[86] !== showing || $[87] !== t31) {
-		t32 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PopOver, {
+	} else t30 = $[82];
+	let t31;
+	if ($[83] !== positionEl || $[84] !== setShowing || $[85] !== showing || $[86] !== t30) {
+		t31 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PopOver, {
 			id: "column-selector-popover",
 			isOpen: showing,
 			setIsOpen: setShowing,
@@ -77770,24 +77528,24 @@ var ColumnSelectorPopover = (t0) => {
 			showArrow: false,
 			hoverDelay: -1,
 			closeOnMouseLeave: false,
-			offset: t15,
-			children: t31
+			offset: 1,
+			children: t30
 		});
-		$[84] = positionEl;
-		$[85] = setShowing;
-		$[86] = showing;
+		$[83] = positionEl;
+		$[84] = setShowing;
+		$[85] = showing;
+		$[86] = t30;
 		$[87] = t31;
-		$[88] = t32;
-	} else t32 = $[88];
-	return t32;
+	} else t31 = $[87];
+	return t31;
 };
 function _temp$80(col_0) {
 	return !isScoreField(getFieldKey(col_0));
 }
-function _temp2$50(col_1) {
+function _temp2$51(col_1) {
 	return isScoreField(getFieldKey(col_1));
 }
-function _temp3$34(col_2) {
+function _temp3$35(col_2) {
 	return [getFieldKey(col_2), true];
 }
 function _temp4$28(col_3) {
@@ -84053,14 +83811,14 @@ var ColumnFilterControl_module_default = {
 	filterPopover: "_filterPopover_uh0qk_8"
 };
 var ColumnFilterEditor_module_default = {
-	filterContent: "_filterContent_19h4j_1",
-	filterRow: "_filterRow_19h4j_7",
-	filterSelect: "_filterSelect_19h4j_13",
-	filterInput: "_filterInput_19h4j_14",
-	filterButton: "_filterButton_19h4j_30",
-	rangeLabel: "_rangeLabel_19h4j_35",
-	joinRow: "_joinRow_19h4j_41",
-	joinOption: "_joinOption_19h4j_46"
+	filterContent: "_filterContent_9ejoy_1",
+	filterRow: "_filterRow_9ejoy_7",
+	filterSelect: "_filterSelect_9ejoy_13",
+	filterInput: "_filterInput_9ejoy_14",
+	filterButton: "_filterButton_9ejoy_30",
+	rangeLabel: "_rangeLabel_9ejoy_35",
+	joinRow: "_joinRow_9ejoy_41",
+	joinOption: "_joinOption_9ejoy_46"
 };
 var DurationInput_module_default = {
 	durationInputWrapper: "_durationInputWrapper_tdbd6_1",
@@ -85158,59 +84916,144 @@ function useColumnFilterPopover(t0) {
 	return t4;
 }
 // ../../packages/inspect-components/src/columnFilter/ColumnFilterControl.tsx
-var ColumnFilterControl = ({ columnId, filterType, spec, onChange, operators, suggestions = [], onOpenChange, anchorEl, placement = "bottom-end" }) => {
-	const buttonRef = (0, import_react.useRef)(null);
-	const popover = useColumnFilterPopover({
-		columnId,
-		filterType,
-		spec,
-		onChange,
-		operators
-	});
-	const { isOpen, setIsOpen, operatorOptions, commitAndClose, cancelAndClose } = popover;
-	const handlePopoverOpenChange = (0, import_react.useCallback)((nextOpen) => {
-		setIsOpen(nextOpen);
-		onOpenChange?.(nextOpen ? columnId : null);
-	}, [
-		setIsOpen,
-		onOpenChange,
-		columnId
-	]);
-	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-		className: ColumnFilterControl_module_default.headerActions,
-		children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ColumnFilterButton, {
-			ref: buttonRef,
+var ColumnFilterControl = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(41);
+	const { columnId, filterType, spec, onChange, operators, suggestions: t1, onOpenChange, anchorEl, placement: t2 } = t0;
+	let t3;
+	if ($[0] !== t1) {
+		t3 = t1 === void 0 ? [] : t1;
+		$[0] = t1;
+		$[1] = t3;
+	} else t3 = $[1];
+	const suggestions = t3;
+	const placement = t2 === void 0 ? "bottom-end" : t2;
+	const [button, setButton] = (0, import_react.useState)(null);
+	let t4;
+	if ($[2] !== columnId || $[3] !== filterType || $[4] !== onChange || $[5] !== operators || $[6] !== spec) {
+		t4 = {
 			columnId,
-			isActive: !!spec,
-			onClick: (event) => {
-				event.stopPropagation();
-				handlePopoverOpenChange(!isOpen);
-			}
-		}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PopOver, {
-			id: `column-filter-${columnId}`,
+			filterType,
+			spec,
+			onChange,
+			operators
+		};
+		$[2] = columnId;
+		$[3] = filterType;
+		$[4] = onChange;
+		$[5] = operators;
+		$[6] = spec;
+		$[7] = t4;
+	} else t4 = $[7];
+	const popover = useColumnFilterPopover(t4);
+	const { isOpen, setIsOpen, operatorOptions, commitAndClose, cancelAndClose } = popover;
+	let t5;
+	if ($[8] !== columnId || $[9] !== onOpenChange || $[10] !== setIsOpen) {
+		t5 = (nextOpen) => {
+			setIsOpen(nextOpen);
+			onOpenChange?.(nextOpen ? columnId : null);
+		};
+		$[8] = columnId;
+		$[9] = onOpenChange;
+		$[10] = setIsOpen;
+		$[11] = t5;
+	} else t5 = $[11];
+	const handlePopoverOpenChange = t5;
+	const t6 = !!spec;
+	let t7;
+	if ($[12] !== handlePopoverOpenChange || $[13] !== isOpen) {
+		t7 = (event) => {
+			event.stopPropagation();
+			handlePopoverOpenChange(!isOpen);
+		};
+		$[12] = handlePopoverOpenChange;
+		$[13] = isOpen;
+		$[14] = t7;
+	} else t7 = $[14];
+	let t8;
+	if ($[15] !== columnId || $[16] !== t6 || $[17] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ColumnFilterButton, {
+			ref: setButton,
+			columnId,
+			isActive: t6,
+			onClick: t7
+		});
+		$[15] = columnId;
+		$[16] = t6;
+		$[17] = t7;
+		$[18] = t8;
+	} else t8 = $[18];
+	const t9 = `column-filter-${columnId}`;
+	const t10 = anchorEl !== void 0 ? anchorEl : button;
+	let t11;
+	if ($[19] === Symbol.for("react.memo_cache_sentinel")) {
+		t11 = {
+			padding: "0.4rem",
+			backgroundColor: "var(--bs-light)"
+		};
+		$[19] = t11;
+	} else t11 = $[19];
+	let t12;
+	if ($[20] !== popover) {
+		t12 = editorConditionProps(popover);
+		$[20] = popover;
+		$[21] = t12;
+	} else t12 = $[21];
+	let t13;
+	if ($[22] !== cancelAndClose || $[23] !== columnId || $[24] !== commitAndClose || $[25] !== filterType || $[26] !== operatorOptions || $[27] !== suggestions || $[28] !== t12) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ColumnFilterEditor, {
+			columnId,
+			filterType,
+			operatorOptions,
+			...t12,
+			onCommit: commitAndClose,
+			onCancel: cancelAndClose,
+			suggestions
+		});
+		$[22] = cancelAndClose;
+		$[23] = columnId;
+		$[24] = commitAndClose;
+		$[25] = filterType;
+		$[26] = operatorOptions;
+		$[27] = suggestions;
+		$[28] = t12;
+		$[29] = t13;
+	} else t13 = $[29];
+	let t14;
+	if ($[30] !== button || $[31] !== handlePopoverOpenChange || $[32] !== isOpen || $[33] !== placement || $[34] !== t10 || $[35] !== t13 || $[36] !== t9) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PopOver, {
+			id: t9,
 			isOpen,
 			setIsOpen: handlePopoverOpenChange,
-			positionEl: anchorEl !== void 0 ? anchorEl : buttonRef.current,
+			positionEl: t10,
+			triggerEl: button,
 			placement,
 			showArrow: true,
 			hoverDelay: -1,
 			className: ColumnFilterControl_module_default.filterPopover,
 			closeOnMouseLeave: false,
-			styles: {
-				padding: "0.4rem",
-				backgroundColor: "var(--bs-light)"
-			},
-			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ColumnFilterEditor, {
-				columnId,
-				filterType,
-				operatorOptions,
-				...editorConditionProps(popover),
-				onCommit: commitAndClose,
-				onCancel: cancelAndClose,
-				suggestions
-			})
-		})]
-	});
+			styles: t11,
+			children: t13
+		});
+		$[30] = button;
+		$[31] = handlePopoverOpenChange;
+		$[32] = isOpen;
+		$[33] = placement;
+		$[34] = t10;
+		$[35] = t13;
+		$[36] = t9;
+		$[37] = t14;
+	} else t14 = $[37];
+	let t15;
+	if ($[38] !== t14 || $[39] !== t8) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: ColumnFilterControl_module_default.headerActions,
+			children: [t8, t14]
+		});
+		$[38] = t14;
+		$[39] = t8;
+		$[40] = t15;
+	} else t15 = $[40];
+	return t15;
 };
 // ../../packages/inspect-components/src/columnFilter/combineFilters.ts
 /**
@@ -85231,10 +85074,13 @@ var ColumnFilterControl = ({ columnId, filterType, spec, onChange, operators, su
 * double-click auto-size: only rendered rows are measured.
 */ function computeAutoSizeWidth({ cellWidths, headerWidth, minSize, maxSize }) {
 	const widestCell = cellWidths.reduce((max, w) => Math.max(max, w + 18), 0);
-	const fit = Math.ceil(Math.max(widestCell, headerWidth + 40));
-	return Math.min(Math.max(fit, minSize ?? 20), maxSize ?? Infinity);
+	return clampColumnWidth(Math.ceil(Math.max(widestCell, headerWidth + 40)), minSize, maxSize);
 }
-// src/app/shared/data-grid/columnFit.ts
+/** A column width bounded by the column's min/max (TanStack's default
+*  minimum is 20px). */ function clampColumnWidth(width, minSize, maxSize) {
+	return Math.min(Math.max(width, minSize ?? 20), maxSize ?? Infinity);
+}
+// ../../packages/inspect-components/src/dataGrid/columnFit.ts
 /**
 * Pure fit-to-width layout for DataGrid columns, kept free of React/DOM so
 * the distribution rules are unit-testable (same split as columnReorder.ts).
@@ -85331,7 +85177,7 @@ var clampWidth = (w, c) => Math.min(Math.max(w, baseWidth(c)), hi(c));
 		}
 	}
 }
-// src/app/shared/data-grid/columnReorder.ts
+// ../../packages/inspect-components/src/dataGrid/columnReorder.ts
 /**
 * Pure helpers for drag-to-reorder columns, kept free of React/DOM so the
 * splice logic is unit-testable (same split as keyboardNav.ts).
@@ -85366,49 +85212,50 @@ var clampWidth = (w, c) => Math.min(Math.max(w, baseWidth(c)), hi(c));
 	return order.indexOf(draggedId) < order.indexOf(targetId) ? "right" : "left";
 }
 var DataGrid_module_default = {
-	container: "_container_1k6n1_1",
-	srStatus: "_srStatus_1k6n1_11",
-	headerContent: "_headerContent_1k6n1_27",
-	rotatedLabel: "_rotatedLabel_1k6n1_28",
-	table: "_table_1k6n1_38",
-	thead: "_thead_1k6n1_43",
-	headerRow: "_headerRow_1k6n1_51",
-	headerCell: "_headerCell_1k6n1_59",
-	headerCellSortable: "_headerCellSortable_1k6n1_102",
-	sortIcon: "_sortIcon_1k6n1_106",
-	sortIndicator: "_sortIndicator_1k6n1_111",
-	sortOrder: "_sortOrder_1k6n1_119",
-	headerFilter: "_headerFilter_1k6n1_125",
-	headerFilterActive: "_headerFilterActive_1k6n1_134",
-	headerText: "_headerText_1k6n1_138",
-	headerCellCenter: "_headerCellCenter_1k6n1_144",
-	headerCellTall: "_headerCellTall_1k6n1_151",
-	headerCellRotated: "_headerCellRotated_1k6n1_175",
-	rotatedText: "_rotatedText_1k6n1_232",
-	rotatedFilter: "_rotatedFilter_1k6n1_243",
-	rotatedLabelFiltered: "_rotatedLabelFiltered_1k6n1_252",
-	rotatedFilterAnchor: "_rotatedFilterAnchor_1k6n1_259",
-	theadDragging: "_theadDragging_1k6n1_275",
-	headerCellDragSource: "_headerCellDragSource_1k6n1_283",
-	dragGhost: "_dragGhost_1k6n1_289",
-	headerCellDropLeft: "_headerCellDropLeft_1k6n1_307",
-	headerCellDropRight: "_headerCellDropRight_1k6n1_308",
-	tbody: "_tbody_1k6n1_326",
-	row: "_row_1k6n1_331",
-	rowSelected: "_rowSelected_1k6n1_351",
-	cell: "_cell_1k6n1_355",
-	cellCenter: "_cellCenter_1k6n1_385",
-	multiline: "_multiline_1k6n1_393",
-	headerCellPinned: "_headerCellPinned_1k6n1_402",
-	cellPinned: "_cellPinned_1k6n1_407",
-	afterRotatedGap: "_afterRotatedGap_1k6n1_430",
-	empty: "_empty_1k6n1_442",
-	resizeHandle: "_resizeHandle_1k6n1_455",
-	resizeHandleActive: "_resizeHandleActive_1k6n1_480",
-	resizeHandleTall: "_resizeHandleTall_1k6n1_486",
-	resizeHandleRotated: "_resizeHandleRotated_1k6n1_498"
+	container: "_container_13cu0_1",
+	srStatus: "_srStatus_13cu0_11",
+	headerContent: "_headerContent_13cu0_27",
+	rotatedSortTarget: "_rotatedSortTarget_13cu0_28",
+	table: "_table_13cu0_38",
+	thead: "_thead_13cu0_43",
+	headerRow: "_headerRow_13cu0_51",
+	headerCell: "_headerCell_13cu0_59",
+	headerCellSortable: "_headerCellSortable_13cu0_102",
+	sortIcon: "_sortIcon_13cu0_106",
+	sortIndicator: "_sortIndicator_13cu0_111",
+	sortOrder: "_sortOrder_13cu0_119",
+	headerFilter: "_headerFilter_13cu0_125",
+	headerFilterActive: "_headerFilterActive_13cu0_134",
+	headerText: "_headerText_13cu0_138",
+	headerCellCenter: "_headerCellCenter_13cu0_144",
+	headerCellTall: "_headerCellTall_13cu0_151",
+	headerCellRotated: "_headerCellRotated_13cu0_175",
+	rotatedLabel: "_rotatedLabel_13cu0_200",
+	rotatedText: "_rotatedText_13cu0_243",
+	rotatedFilter: "_rotatedFilter_13cu0_254",
+	rotatedLabelFiltered: "_rotatedLabelFiltered_13cu0_263",
+	rotatedFilterAnchor: "_rotatedFilterAnchor_13cu0_270",
+	theadDragging: "_theadDragging_13cu0_286",
+	headerCellDragSource: "_headerCellDragSource_13cu0_294",
+	dragGhost: "_dragGhost_13cu0_300",
+	headerCellDropLeft: "_headerCellDropLeft_13cu0_318",
+	headerCellDropRight: "_headerCellDropRight_13cu0_319",
+	tbody: "_tbody_13cu0_337",
+	row: "_row_13cu0_342",
+	rowSelected: "_rowSelected_13cu0_362",
+	cell: "_cell_13cu0_366",
+	cellCenter: "_cellCenter_13cu0_396",
+	multiline: "_multiline_13cu0_404",
+	headerCellPinned: "_headerCellPinned_13cu0_413",
+	cellPinned: "_cellPinned_13cu0_418",
+	afterRotatedGap: "_afterRotatedGap_13cu0_441",
+	empty: "_empty_13cu0_453",
+	resizeHandle: "_resizeHandle_13cu0_466",
+	resizeHandleActive: "_resizeHandleActive_13cu0_491",
+	resizeHandleTall: "_resizeHandleTall_13cu0_516",
+	resizeHandleRotated: "_resizeHandleRotated_13cu0_528"
 };
-// src/app/shared/data-grid/keyboardNav.ts
+// ../../packages/inspect-components/src/dataGrid/keyboardNav.ts
 /**
 * Resolve the destination row index for a navigation key press, matching the
 * prior AG-grid keyboard behavior (`gridKeyboardNavigation.ts`): arrows move by
@@ -85436,7 +85283,7 @@ var DataGrid_module_default = {
 		default: return null;
 	}
 }
-// src/app/shared/data-grid/tableFeatures.ts
+// ../../packages/inspect-components/src/dataGrid/tableFeatures.ts
 var dataGridFeatures = tableFeatures({
 	columnOrderingFeature,
 	columnPinningFeature,
@@ -85445,7 +85292,7 @@ var dataGridFeatures = tableFeatures({
 	columnVisibilityFeature,
 	rowSortingFeature
 });
-// src/app/shared/data-grid/DataGrid.tsx
+// ../../packages/inspect-components/src/dataGrid/DataGrid.tsx
 var kRowHeight$1 = 30;
 var kPageJump = 10;
 var kHeaderHeight$1 = 25;
@@ -85466,6 +85313,40 @@ var kRotatedHeaderHeight = 115;
 		e.stopPropagation();
 		header.column.getToggleSortingHandler()?.(e);
 	};
+}
+/** Width change per ArrowLeft/ArrowRight on a focused resize handle. */ var kResizeStep = 10;
+/** Keys the grid container acts on (row activation and navigation). A focused
+*  handle keeps them, so they don't open or move the row selection. */ var kGridKeys = /* @__PURE__ */ new Set([
+	"Enter",
+	" ",
+	"ArrowUp",
+	"ArrowDown",
+	"Home",
+	"End",
+	"PageUp",
+	"PageDown"
+]);
+/** Keyboard control for a focused resize handle: ArrowLeft/ArrowRight step
+*  the width, Enter auto-sizes like a double-click, and the grid's other row
+*  keys stop here (see kGridKeys). With Alt, Ctrl or Cmd held, arrows are left
+*  to the browser (Alt/Cmd+Left is Back) and Enter does nothing. */ function makeResizeKeyDownHandler(stepBy, autoSize) {
+	return (e) => {
+		const modified = e.altKey || e.ctrlKey || e.metaKey;
+		if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+			if (modified) return;
+			e.preventDefault();
+			e.stopPropagation();
+			stepBy(e.key === "ArrowRight" ? kResizeStep : -10);
+		} else if (kGridKeys.has(e.key)) {
+			e.preventDefault();
+			e.stopPropagation();
+			if (e.key === "Enter" && !modified) autoSize();
+		}
+	};
+}
+/** aria-valuemax for a resize handle. TanStack fills an unset `maxSize` with
+*  Number.MAX_SAFE_INTEGER, which is no bound worth announcing. */ function ariaMaxSize(maxSize) {
+	return maxSize === Number.MAX_SAFE_INTEGER ? void 0 : maxSize;
 }
 /** Mouse-down handler for a column's resize divider. It cancels the press's
 *  default action: once the resize moves the divider off the press point,
@@ -85539,6 +85420,7 @@ function buildColumnLayout(columns, afterRotatedIds) {
 	return {
 		columns,
 		byId: new Map(columns.map((column) => [column.id, {
+			size: column.getSize(),
 			width: column.getSize() + (afterRotatedIds.has(column.id) ? kAfterRotatedGap : 0),
 			pinnedLeft: column.getIsPinned() === "start" ? column.getStart("start") : void 0
 		}]))
@@ -85548,12 +85430,12 @@ function isSameColumnLayout(a, b) {
 	if (a.columns !== b.columns) return false;
 	for (const [id, layout] of a.byId) {
 		const other = b.byId.get(id);
-		if (other?.width !== layout.width || other.pinnedLeft !== layout.pinnedLeft) return false;
+		if (other?.size !== layout.size || other.width !== layout.width || other.pinnedLeft !== layout.pinnedLeft) return false;
 	}
 	return true;
 }
 /**
-* Inspect-local DataGrid: a minimal TanStack Table wrapper with row
+* DataGrid: a minimal TanStack Table wrapper with row
 * virtualization, controlled column visibility, fit-to-width column sizing
 * (flex weights or proportional scaling — see columnFit.ts; horizontal
 * scroll when minimums overflow), and single-row selection +
@@ -85561,7 +85443,7 @@ function isSameColumnLayout(a, b) {
 *
 * Sorting, filtering, keyboard navigation, column resizing (drag +
 * double-click auto-size), pinning, reordering, and find are wired up.
-*/ function DataGrid({ data, columns, getRowId, columnVisibility, sorting, onSortingChange, columnSizing, onColumnSizingChange, columnOrder, onColumnOrderChange, columnFilters, onColumnFilterChange, hideColumnFilters, selectedRowId, onSelectedRowChange, scrollRef, onRowActivate, getRowHref: getRowHrefProp, rowHeight = kRowHeight$1, headerHeight = kHeaderHeight$1, multiline = false, loading = false, emptyMessage = "No matching items", className, autoFocus = false, ariaLabel }) {
+*/ function DataGrid({ data, columns, getRowId, columnVisibility, sorting, onSortingChange, columnSizing, onColumnSizingChange, columnOrder, onColumnOrderChange, columnFilters, onColumnFilterChange, hideColumnFilters, filterSuggestions, onFilterOpenChange, onScrollNearEnd, hasMore = false, fetchThreshold = 500, selectedRowId, onSelectedRowChange, scrollRef, onRowActivate, getRowHref: getRowHrefProp, rowHeight = kRowHeight$1, headerHeight = kHeaderHeight$1, multiline = false, loading = false, emptyMessage = "No matching items", className, autoFocus = false, ariaLabel }) {
 	const containerRef = (0, import_react.useRef)(null);
 	const getRowHref = isVscode() ? void 0 : getRowHrefProp;
 	const setContainerRef = (0, import_react.useCallback)((el) => {
@@ -85730,6 +85612,14 @@ function isSameColumnLayout(a, b) {
 			[column.id]: width
 		}));
 	}, [handleColumnSizingChange]);
+	const resizeColumnBy = (0, import_react.useCallback)((column_0, delta) => {
+		const def_0 = column_0.columnDef;
+		const width_0 = clampColumnWidth(column_0.getSize() + delta, def_0.minSize, def_0.maxSize);
+		handleColumnSizingChange((old_0) => ({
+			...old_0,
+			[column_0.id]: width_0
+		}));
+	}, [handleColumnSizingChange]);
 	const table = useTable({
 		features: dataGridFeatures,
 		data,
@@ -85778,6 +85668,12 @@ function isSameColumnLayout(a, b) {
 	}, [tableStore]);
 	const { rows } = table.getRowModel();
 	const totalWidth = table.getTotalSize();
+	useScrollNearEnd(containerRef, {
+		enabled: hasMore && onScrollNearEnd !== void 0,
+		threshold: fetchThreshold,
+		contentKey: rows.length,
+		onNearEnd: (distance) => onScrollNearEnd?.(distance)
+	});
 	const visibleColumns = table.getVisibleLeafColumns();
 	const multiSorted = table.store.state.sorting.length > 1;
 	const columnLayout = useStableValue(buildColumnLayout(visibleColumns, afterRotatedIds_0), isSameColumnLayout);
@@ -85822,6 +85718,7 @@ function isSameColumnLayout(a, b) {
 	const handleKeyDown = (0, import_react.useCallback)((e_5) => {
 		const active = document.activeElement;
 		if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.tagName === "SELECT")) return;
+		if (isButtonActivation(e_5)) return;
 		const rowCount = rows.length;
 		if (rowCount === 0) return;
 		const currentIndex = selectedId ? rows.findIndex((r_0) => r_0.id === selectedId) : -1;
@@ -85844,6 +85741,7 @@ function isSameColumnLayout(a, b) {
 		});
 		if (target === null) return;
 		e_5.preventDefault();
+		e_5.currentTarget.focus({ preventScroll: true });
 		if (target === currentIndex) return;
 		const targetRow = rows[target];
 		if (!targetRow) return;
@@ -85910,12 +85808,15 @@ function isSameColumnLayout(a, b) {
 							if (columnDef.meta?.rotateHeader) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RotatedHeaderCell, {
 								header,
 								width: columnLayout.byId.get(header.column.id)?.width,
+								size: columnLayout.byId.get(header.column.id)?.size,
 								sorted,
 								sortOrder,
 								ariaColIndex: colIndex + 1,
 								filterSpec,
 								onColumnFilterChange,
 								hideColumnFilters,
+								filterSuggestions,
+								onFilterOpenChange,
 								isDragSource,
 								dropSide,
 								onHeaderDragStart: handleHeaderDragStart,
@@ -85923,11 +85824,13 @@ function isSameColumnLayout(a, b) {
 								onHeaderDragOver: handleHeaderDragOver,
 								onHeaderDragLeave: handleHeaderDragLeave,
 								onHeaderDrop: handleHeaderDrop,
-								onAutoSize: () => autoSizeColumn(header.column)
+								onAutoSize: () => autoSizeColumn(header.column),
+								onResizeBy: (delta_0) => resizeColumnBy(header.column, delta_0)
 							}, header.id);
 							const align = columnDef.meta?.align;
 							const filterType = columnDef.meta?.filterType;
 							const pinned = header.column.getIsPinned() === "start";
+							const headerSize = columnLayout.byId.get(header.column.id)?.size;
 							const sortCaret = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SortIndicator, {
 								sorted,
 								sortOrder
@@ -85939,6 +85842,8 @@ function isSameColumnLayout(a, b) {
 								operators: columnDef.meta.operators,
 								spec: filterSpec,
 								placement: "bottom-start",
+								suggestions: filterSuggestions,
+								onOpenChange: onFilterOpenChange,
 								onChange: (spec) => onColumnFilterChange?.(header.column.id, filterType, spec)
 							}) : null;
 							return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -85986,6 +85891,12 @@ function isSameColumnLayout(a, b) {
 										role: "separator",
 										"aria-orientation": "vertical",
 										"aria-label": `Resize ${header.column.id}`,
+										tabIndex: 0,
+										"aria-valuenow": headerSize,
+										"aria-valuetext": headerSize === void 0 ? void 0 : `${headerSize} pixels`,
+										"aria-valuemin": columnDef.minSize,
+										"aria-valuemax": ariaMaxSize(columnDef.maxSize),
+										onKeyDown: makeResizeKeyDownHandler((delta_1) => resizeColumnBy(header.column, delta_1), () => autoSizeColumn(header.column)),
 										className: clsx(DataGrid_module_default.resizeHandle, anyRotated_0 && DataGrid_module_default.resizeHandleTall, header.column.getIsResizing() && DataGrid_module_default.resizeHandleActive),
 										onClick: (e_10) => e_10.stopPropagation(),
 										onMouseDown: startColumnResize(header),
@@ -86168,8 +86079,8 @@ function GridRowInner(t0) {
 * non-rotated element at the cell's bottom so it opens below the header
 * (under the column) instead of over the headers next to the funnel.
 */ function RotatedHeaderCell(t0) {
-	const $ = (0, import_compiler_runtime.c)(63);
-	const { header, width, sorted, sortOrder, ariaColIndex, filterSpec, onColumnFilterChange, hideColumnFilters, isDragSource, dropSide, onHeaderDragStart, onHeaderDragEnd, onHeaderDragOver, onHeaderDragLeave, onHeaderDrop, onAutoSize } = t0;
+	const $ = (0, import_compiler_runtime.c)(71);
+	const { header, width, sorted, sortOrder, ariaColIndex, filterSpec, onColumnFilterChange, hideColumnFilters, filterSuggestions, onFilterOpenChange, isDragSource, dropSide, onHeaderDragStart, onHeaderDragEnd, onHeaderDragOver, onHeaderDragLeave, onHeaderDrop, onAutoSize, size, onResizeBy } = t0;
 	const [anchorEl, setAnchorEl] = (0, import_react.useState)(null);
 	const columnDef = header.column.columnDef;
 	const filterType = columnDef.meta?.filterType;
@@ -86269,11 +86180,30 @@ function GridRowInner(t0) {
 		$[30] = t17;
 	} else t17 = $[30];
 	let t18;
-	if ($[31] !== anchorEl || $[32] !== columnDef.meta || $[33] !== filterSpec || $[34] !== filterType || $[35] !== header.column.id || $[36] !== hideColumnFilters || $[37] !== onColumnFilterChange) {
-		t18 = columnDef.meta?.filterable && filterType && !hideColumnFilters && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+	if ($[31] !== onHeaderDragEnd || $[32] !== t12 || $[33] !== t13 || $[34] !== t14 || $[35] !== t15 || $[36] !== t16 || $[37] !== t17) {
+		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: DataGrid_module_default.rotatedSortTarget,
+			title: t12,
+			...t13,
+			draggable: true,
+			onDragStart: t14,
+			onDragEnd: onHeaderDragEnd,
+			onClick: t15,
+			children: [t16, t17]
+		});
+		$[31] = onHeaderDragEnd;
+		$[32] = t12;
+		$[33] = t13;
+		$[34] = t14;
+		$[35] = t15;
+		$[36] = t16;
+		$[37] = t17;
+		$[38] = t18;
+	} else t18 = $[38];
+	let t19;
+	if ($[39] !== anchorEl || $[40] !== columnDef.meta || $[41] !== filterSpec || $[42] !== filterSuggestions || $[43] !== filterType || $[44] !== header.column.id || $[45] !== hideColumnFilters || $[46] !== onColumnFilterChange || $[47] !== onFilterOpenChange) {
+		t19 = columnDef.meta?.filterable && filterType && !hideColumnFilters && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: DataGrid_module_default.rotatedFilter,
-			role: "presentation",
-			onClick: _temp$78,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ColumnFilterControl, {
 				columnId: header.column.id,
 				filterType,
@@ -86281,72 +86211,70 @@ function GridRowInner(t0) {
 				spec: filterSpec,
 				anchorEl,
 				placement: "bottom-start",
+				suggestions: filterSuggestions,
+				onOpenChange: onFilterOpenChange,
 				onChange: (spec) => onColumnFilterChange?.(header.column.id, filterType, spec)
 			})
 		});
-		$[31] = anchorEl;
-		$[32] = columnDef.meta;
-		$[33] = filterSpec;
-		$[34] = filterType;
-		$[35] = header.column.id;
-		$[36] = hideColumnFilters;
-		$[37] = onColumnFilterChange;
-		$[38] = t18;
-	} else t18 = $[38];
-	let t19;
-	if ($[39] !== onHeaderDragEnd || $[40] !== t11 || $[41] !== t12 || $[42] !== t13 || $[43] !== t14 || $[44] !== t15 || $[45] !== t16 || $[46] !== t17 || $[47] !== t18) {
-		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t11,
-			title: t12,
-			...t13,
-			draggable: true,
-			onDragStart: t14,
-			onDragEnd: onHeaderDragEnd,
-			onClick: t15,
-			children: [
-				t16,
-				t17,
-				t18
-			]
-		});
-		$[39] = onHeaderDragEnd;
-		$[40] = t11;
-		$[41] = t12;
-		$[42] = t13;
-		$[43] = t14;
-		$[44] = t15;
-		$[45] = t16;
-		$[46] = t17;
-		$[47] = t18;
+		$[39] = anchorEl;
+		$[40] = columnDef.meta;
+		$[41] = filterSpec;
+		$[42] = filterSuggestions;
+		$[43] = filterType;
+		$[44] = header.column.id;
+		$[45] = hideColumnFilters;
+		$[46] = onColumnFilterChange;
+		$[47] = onFilterOpenChange;
 		$[48] = t19;
 	} else t19 = $[48];
 	let t20;
-	if ($[49] === Symbol.for("react.memo_cache_sentinel")) {
-		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+	if ($[49] !== t11 || $[50] !== t18 || $[51] !== t19) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t11,
+			children: [t18, t19]
+		});
+		$[49] = t11;
+		$[50] = t18;
+		$[51] = t19;
+		$[52] = t20;
+	} else t20 = $[52];
+	let t21;
+	if ($[53] === Symbol.for("react.memo_cache_sentinel")) {
+		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			ref: setAnchorEl,
 			className: DataGrid_module_default.rotatedFilterAnchor,
 			"aria-hidden": "true"
 		});
-		$[49] = t20;
-	} else t20 = $[49];
-	let t21;
-	if ($[50] !== header || $[51] !== onAutoSize) {
-		t21 = header.column.getCanResize() && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[53] = t21;
+	} else t21 = $[53];
+	let t22;
+	if ($[54] !== columnDef.maxSize || $[55] !== columnDef.minSize || $[56] !== header || $[57] !== onAutoSize || $[58] !== onResizeBy || $[59] !== size) {
+		t22 = header.column.getCanResize() && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			role: "separator",
 			"aria-orientation": "vertical",
 			"aria-label": `Resize ${header.column.id}`,
+			tabIndex: 0,
+			"aria-valuenow": size,
+			"aria-valuetext": size === void 0 ? void 0 : `${size} pixels`,
+			"aria-valuemin": columnDef.minSize,
+			"aria-valuemax": ariaMaxSize(columnDef.maxSize),
+			onKeyDown: makeResizeKeyDownHandler(onResizeBy, onAutoSize),
 			className: clsx(DataGrid_module_default.resizeHandle, DataGrid_module_default.resizeHandleRotated, header.column.getIsResizing() && DataGrid_module_default.resizeHandleActive),
 			onMouseDown: startColumnResize(header),
 			onTouchStart: header.getResizeHandler(),
 			onDoubleClick: onAutoSize
 		});
-		$[50] = header;
-		$[51] = onAutoSize;
-		$[52] = t21;
-	} else t21 = $[52];
-	let t22;
-	if ($[53] !== ariaColIndex || $[54] !== onHeaderDragLeave || $[55] !== t19 || $[56] !== t21 || $[57] !== t5 || $[58] !== t6 || $[59] !== t7 || $[60] !== t8 || $[61] !== t9) {
-		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[54] = columnDef.maxSize;
+		$[55] = columnDef.minSize;
+		$[56] = header;
+		$[57] = onAutoSize;
+		$[58] = onResizeBy;
+		$[59] = size;
+		$[60] = t22;
+	} else t22 = $[60];
+	let t23;
+	if ($[61] !== ariaColIndex || $[62] !== onHeaderDragLeave || $[63] !== t20 || $[64] !== t22 || $[65] !== t5 || $[66] !== t6 || $[67] !== t7 || $[68] !== t8 || $[69] !== t9) {
+		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t5,
 			style: t6,
 			role: "columnheader",
@@ -86356,28 +86284,25 @@ function GridRowInner(t0) {
 			onDragLeave: onHeaderDragLeave,
 			onDrop: t9,
 			children: [
-				t19,
 				t20,
-				t21
+				t21,
+				t22
 			]
 		});
-		$[53] = ariaColIndex;
-		$[54] = onHeaderDragLeave;
-		$[55] = t19;
-		$[56] = t21;
-		$[57] = t5;
-		$[58] = t6;
-		$[59] = t7;
-		$[60] = t8;
-		$[61] = t9;
-		$[62] = t22;
-	} else t22 = $[62];
-	return t22;
+		$[61] = ariaColIndex;
+		$[62] = onHeaderDragLeave;
+		$[63] = t20;
+		$[64] = t22;
+		$[65] = t5;
+		$[66] = t6;
+		$[67] = t7;
+		$[68] = t8;
+		$[69] = t9;
+		$[70] = t23;
+	} else t23 = $[70];
+	return t23;
 }
-function _temp$78(e_2) {
-	return e_2.stopPropagation();
-}
-// src/app/shared/data-grid/findMatches.ts
+// ../../packages/inspect-components/src/dataGrid/findMatches.ts
 /** Objects/arrays are skipped rather than stringified ("[object Object]"
 *  must never be searchable text). */ function primitiveText(value) {
 	switch (typeof value) {
@@ -86836,7 +86761,7 @@ var defaultCompare = (a, b) => {
 }
 // src/app/log-list/grid/LogListGrid.tsx
 var LogListGrid = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(109);
+	const $ = (0, import_compiler_runtime.c)(108);
 	const { rows, totalRowCount, sorting, columnFilters, filter, orderBy, currentPath, scopeKey, mode: t1, busy, listing } = t0;
 	const mode = t1 === void 0 ? "logs" : t1;
 	const { gridStateByScope, patchGridState } = useLogsListing();
@@ -86951,7 +86876,7 @@ var LogListGrid = (t0) => {
 	const searchColumns = t10;
 	let t11;
 	if ($[26] !== searchColumns) {
-		t11 = searchColumns.map(_temp$77);
+		t11 = searchColumns.map(_temp$78);
 		$[26] = searchColumns;
 		$[27] = t11;
 	} else t11 = $[27];
@@ -86963,7 +86888,7 @@ var LogListGrid = (t0) => {
 		$[29] = t12;
 	} else t12 = $[29];
 	const rowText = t12;
-	const getRowId = _temp2$49;
+	const getRowId = _temp2$50;
 	let t13;
 	if ($[30] !== accessorsKey || $[31] !== filter || $[32] !== findTerm || $[33] !== getComparator || $[34] !== getFilterType || $[35] !== getValue || $[36] !== listing || $[37] !== orderBy || $[38] !== rowText || $[39] !== searchKey || $[40] !== showFind) {
 		t13 = {
@@ -86997,7 +86922,7 @@ var LogListGrid = (t0) => {
 	const { reset: resetMatches } = fileMatches;
 	let t14;
 	if ($[42] !== rows || $[43] !== searchColumns || $[44] !== showFind) {
-		t14 = showFind ? buildSearchIndex(rows.filter(_temp3$33), searchColumns, _temp4$27) : void 0;
+		t14 = showFind ? buildSearchIndex(rows.filter(_temp3$34), searchColumns, _temp4$27) : void 0;
 		$[42] = rows;
 		$[43] = searchColumns;
 		$[44] = showFind;
@@ -87100,64 +87025,58 @@ var LogListGrid = (t0) => {
 	}
 	(0, import_react.useEffect)(t19, t20);
 	let t21;
-	let t22;
 	if ($[68] !== persistSelectedId) {
-		t21 = () => () => {
+		t21 = () => {
 			const id_1 = openBandMatchIdRef.current;
 			if (id_1 !== void 0) persistSelectedId(id_1);
 		};
-		t22 = [persistSelectedId];
 		$[68] = persistSelectedId;
 		$[69] = t21;
-		$[70] = t22;
-	} else {
-		t21 = $[69];
-		t22 = $[70];
-	}
-	(0, import_react.useEffect)(t21, t22);
-	let t23;
-	if ($[71] !== activeMatchIndex || $[72] !== closeFind || $[73] !== goToMatch) {
-		t23 = (e) => {
+	} else t21 = $[69];
+	useUnmount(t21);
+	let t22;
+	if ($[70] !== activeMatchIndex || $[71] !== closeFind || $[72] !== goToMatch) {
+		t22 = (e) => {
 			if (e.key === "Escape") closeFind();
 			else if (e.key === "Enter") {
 				e.preventDefault();
 				goToMatch(activeMatchIndex + (e.shiftKey ? -1 : 1));
 			}
 		};
-		$[71] = activeMatchIndex;
-		$[72] = closeFind;
-		$[73] = goToMatch;
-		$[74] = t23;
-	} else t23 = $[74];
-	const handleFindInputKeyDown = t23;
-	let t24;
-	if ($[75] === Symbol.for("react.memo_cache_sentinel")) {
-		t24 = () => {
+		$[70] = activeMatchIndex;
+		$[71] = closeFind;
+		$[72] = goToMatch;
+		$[73] = t22;
+	} else t22 = $[73];
+	const handleFindInputKeyDown = t22;
+	let t23;
+	if ($[74] === Symbol.for("react.memo_cache_sentinel")) {
+		t23 = () => {
 			setShowFind(true);
 			setTimeout(() => findInputRef.current?.focus(), 100);
 		};
-		$[75] = t24;
-	} else t24 = $[75];
-	const openFind = t24;
-	let t25;
-	if ($[76] !== closeFind || $[77] !== showFind) {
-		t25 = {
+		$[74] = t23;
+	} else t23 = $[74];
+	const openFind = t23;
+	let t24;
+	if ($[75] !== closeFind || $[76] !== showFind) {
+		t24 = {
 			onClose: closeFind,
 			isOpen: showFind
 		};
-		$[76] = closeFind;
-		$[77] = showFind;
+		$[75] = closeFind;
+		$[76] = showFind;
+		$[77] = t24;
+	} else t24 = $[77];
+	useFindBandShortcut(openFind, t24);
+	let t25;
+	if ($[78] === Symbol.for("react.memo_cache_sentinel")) {
+		t25 = clsx(gridCells_module_default$1.gridWrapper);
 		$[78] = t25;
 	} else t25 = $[78];
-	useFindBandShortcut(openFind, t25);
 	let t26;
-	if ($[79] === Symbol.for("react.memo_cache_sentinel")) {
-		t26 = clsx(gridCells_module_default$1.gridWrapper);
-		$[79] = t26;
-	} else t26 = $[79];
-	let t27;
-	if ($[80] !== activeMatchIndex || $[81] !== closeFind || $[82] !== fileMatches.settled || $[83] !== findTerm || $[84] !== goToMatch || $[85] !== handleFindInputKeyDown || $[86] !== matchIds.length || $[87] !== showFind) {
-		t27 = showFind && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FindBandUI, {
+	if ($[79] !== activeMatchIndex || $[80] !== closeFind || $[81] !== fileMatches.settled || $[82] !== findTerm || $[83] !== goToMatch || $[84] !== handleFindInputKeyDown || $[85] !== matchIds.length || $[86] !== showFind) {
+		t26 = showFind && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(FindBandUI, {
 			inputRef: findInputRef,
 			value: findTerm,
 			onChange: handleFindTermChange,
@@ -87170,27 +87089,27 @@ var LogListGrid = (t0) => {
 			matchCount: findTerm ? matchIds.length : void 0,
 			matchIndex: findTerm ? activeMatchIndex : void 0
 		});
-		$[80] = activeMatchIndex;
-		$[81] = closeFind;
-		$[82] = fileMatches.settled;
-		$[83] = findTerm;
-		$[84] = goToMatch;
-		$[85] = handleFindInputKeyDown;
-		$[86] = matchIds.length;
-		$[87] = showFind;
+		$[79] = activeMatchIndex;
+		$[80] = closeFind;
+		$[81] = fileMatches.settled;
+		$[82] = findTerm;
+		$[83] = goToMatch;
+		$[84] = handleFindInputKeyDown;
+		$[85] = matchIds.length;
+		$[86] = showFind;
+		$[87] = t26;
+	} else t26 = $[87];
+	let t27;
+	if ($[88] === Symbol.for("react.memo_cache_sentinel")) {
+		t27 = clsx(gridCells_module_default$1.gridContainer);
 		$[88] = t27;
 	} else t27 = $[88];
-	let t28;
-	if ($[89] === Symbol.for("react.memo_cache_sentinel")) {
-		t28 = clsx(gridCells_module_default$1.gridContainer);
-		$[89] = t28;
-	} else t28 = $[89];
-	const t29 = activeMatchId ?? persistedSelectedId;
-	const t30 = totalRowCount === 0 && busy;
-	let t31;
-	if ($[90] !== columnFilters || $[91] !== columnOrder || $[92] !== columnSizing || $[93] !== columns || $[94] !== handleColumnFilterChange || $[95] !== handleColumnOrderChange || $[96] !== handleColumnSizingChange || $[97] !== handleRowActivate || $[98] !== handleSelectedRowChange || $[99] !== handleSortingChange || $[100] !== rows || $[101] !== sorting || $[102] !== t29 || $[103] !== t30 || $[104] !== visibility) {
-		t31 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t28,
+	const t28 = activeMatchId ?? persistedSelectedId;
+	const t29 = totalRowCount === 0 && busy;
+	let t30;
+	if ($[89] !== columnFilters || $[90] !== columnOrder || $[91] !== columnSizing || $[92] !== columns || $[93] !== handleColumnFilterChange || $[94] !== handleColumnOrderChange || $[95] !== handleColumnSizingChange || $[96] !== handleRowActivate || $[97] !== handleSelectedRowChange || $[98] !== handleSortingChange || $[99] !== rows || $[100] !== sorting || $[101] !== t28 || $[102] !== t29 || $[103] !== visibility) {
+		t30 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t27,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(DataGrid, {
 				data: rows,
 				columns,
@@ -87204,51 +87123,51 @@ var LogListGrid = (t0) => {
 				columnOrder,
 				onColumnOrderChange: handleColumnOrderChange,
 				getRowId: _temp6$6,
-				selectedRowId: t29,
+				selectedRowId: t28,
 				onSelectedRowChange: handleSelectedRowChange,
 				onRowActivate: handleRowActivate,
 				getRowHref: _temp7$5,
 				autoFocus: true,
 				ariaLabel: "Evaluation logs",
-				loading: t30
+				loading: t29
 			})
 		});
-		$[90] = columnFilters;
-		$[91] = columnOrder;
-		$[92] = columnSizing;
-		$[93] = columns;
-		$[94] = handleColumnFilterChange;
-		$[95] = handleColumnOrderChange;
-		$[96] = handleColumnSizingChange;
-		$[97] = handleRowActivate;
-		$[98] = handleSelectedRowChange;
-		$[99] = handleSortingChange;
-		$[100] = rows;
-		$[101] = sorting;
+		$[89] = columnFilters;
+		$[90] = columnOrder;
+		$[91] = columnSizing;
+		$[92] = columns;
+		$[93] = handleColumnFilterChange;
+		$[94] = handleColumnOrderChange;
+		$[95] = handleColumnSizingChange;
+		$[96] = handleRowActivate;
+		$[97] = handleSelectedRowChange;
+		$[98] = handleSortingChange;
+		$[99] = rows;
+		$[100] = sorting;
+		$[101] = t28;
 		$[102] = t29;
-		$[103] = t30;
-		$[104] = visibility;
-		$[105] = t31;
-	} else t31 = $[105];
-	let t32;
-	if ($[106] !== t27 || $[107] !== t31) {
-		t32 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t26,
-			children: [t27, t31]
+		$[103] = visibility;
+		$[104] = t30;
+	} else t30 = $[104];
+	let t31;
+	if ($[105] !== t26 || $[106] !== t30) {
+		t31 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t25,
+			children: [t26, t30]
 		});
-		$[106] = t27;
+		$[105] = t26;
+		$[106] = t30;
 		$[107] = t31;
-		$[108] = t32;
-	} else t32 = $[108];
-	return t32;
+	} else t31 = $[107];
+	return t31;
 };
-function _temp$77(col_0) {
+function _temp$78(col_0) {
 	return col_0.id ?? "";
 }
-function _temp2$49(row_2) {
+function _temp2$50(row_2) {
 	return row_2.id;
 }
-function _temp3$33(row_3) {
+function _temp3$34(row_3) {
 	return row_3.type !== "file";
 }
 function _temp4$27(row_4) {
@@ -87368,7 +87287,7 @@ var kNoRows = [];
 	const $ = (0, import_compiler_runtime.c)(45);
 	const { overlayItems, scopeKey, getValue, getComparator, getFilterType, accessorsKey, listing } = t0;
 	const { gridStateByScope } = useLogsListing();
-	const overlayData = useKeyedMemo(overlayItems, _temp$76, _temp2$48, _temp3$32);
+	const overlayData = useKeyedMemo(overlayItems, _temp$77, _temp2$49, _temp3$33);
 	let t1;
 	if ($[0] !== overlayData) {
 		const folders = [];
@@ -87507,10 +87426,10 @@ var kNoRows = [];
 	} else t12 = $[44];
 	return t12;
 };
-function _temp$76(item) {
+function _temp$77(item) {
 	return item.id;
 }
-function _temp2$48(item_0) {
+function _temp2$49(item_0) {
 	return [
 		item_0.id,
 		item_0.type,
@@ -87521,7 +87440,7 @@ function _temp2$48(item_0) {
 		item_0.type === "pending-task" ? item_0.model : void 0
 	];
 }
-function _temp3$32(item_1) {
+function _temp3$33(item_1) {
 	return buildLogListRow(item_1);
 }
 var LogListFooter_module_default = {
@@ -87681,8 +87600,8 @@ var LogsPanel = (t0) => {
 	const mode = t1 === void 0 ? "logs" : t1;
 	const [showColumnSelector, setShowColumnSelector] = (0, import_react.useState)(false);
 	const [columnButtonEl, setColumnButtonEl] = (0, import_react.useState)(null);
-	const showRetriedLogs = useUserSettings(_temp$75);
-	const setShowRetriedLogs = useUserSettings(_temp2$47);
+	const showRetriedLogs = useUserSettings(_temp$76);
+	const setShowRetriedLogs = useUserSettings(_temp2$48);
 	const logDir = useLogDir();
 	const { gridStateByScope, patchGridState } = useLogsListing();
 	const { logPath } = useLogRouteParams();
@@ -87856,7 +87775,7 @@ var LogsPanel = (t0) => {
 	const totalRowCount = (overview?.fileCount ?? 0) + logItems.length;
 	const listBusy = busy || listData.pending || overviewQuery.loading;
 	const error = sync.error ?? overviewQuery.error ?? listData.error;
-	const currentColumnVisibility = useStore(_temp3$31);
+	const currentColumnVisibility = useStore(_temp3$32);
 	let t18;
 	if ($[50] !== listData.columnFilters) {
 		t18 = Object.keys(listData.columnFilters ?? {});
@@ -88141,13 +88060,13 @@ var appendPendingItems = (evalSet, tasksWithLogFiles, items) => {
 	items.push(...pendingTasks);
 	return items;
 };
-function _temp$75(state) {
+function _temp$76(state) {
 	return state.showRetriedLogs;
 }
-function _temp2$47(state_0) {
+function _temp2$48(state_0) {
 	return state_0.setShowRetriedLogs;
 }
-function _temp3$31(state_1) {
+function _temp3$32(state_1) {
 	return state_1.logs.listing.columnVisibility;
 }
 function _temp4$26(item_0) {
@@ -88558,10 +88477,18 @@ var kConversationSpanTypes$1 = /* @__PURE__ */ new Set([
 };
 /**
 * The id of the execution a tool-stage sentinel event or an approval judged,
-* which is that execution's `ToolEvent.id`: the `execution_id` a bridge
-* records when it handed the call over under an id other than the model's
-* (inspect_ai#6370), else the model's id.
+* which `runIdOf` names its runs by: its `execution_id`, else the model's id.
 */ var executionIdOf = (event) => event.execution_id ?? (event.event === "sentinel" ? event.step_id : event.call.id);
+/**
+* The id a check's or approval's `execution_id` names a run by. A ToolEvent
+* that records `execution_id` (inspect_ai#6370) is named by it: a native
+* run's own, or the handout of a bridged call, which every run of that
+* handout shares. Before that field, `execution_id` was the ToolEvent's own
+* id, which a bridge recorded when it handed a call over under a new one. A
+* minted id never equals a call id, so the two meanings never meet: a run
+* that records none (an older log, or a host run that matched two handouts'
+* grants) is named only by its id.
+*/ var runIdOf = (tool) => tool.execution_id ?? tool.id;
 /** Whether a ToolEvent records a call that failed or never ran. */ var toolFailed = (event) => event.error != null || event.failed === true;
 /** An approval decision that kept its call from running. */ var approvalStopped = (approval) => approval.decision !== "approve" && approval.decision !== "modify";
 /** A `tool_call` step that kept its call from running. */ var stopsCall = (step) => !!step.effective && step.verdict !== "proceed" && step.verdict !== "modify";
@@ -88662,7 +88589,7 @@ var sameCall = (a, b) => a.function === b.function && sameJson(a.arguments, b.ar
 * reviewed a call the run is not.
 */ var approvedProposal = ({ tool, approvals }) => {
 	if (!tool) return void 0;
-	return agreedCall(approvals.filter((approval) => approval.execution_id === tool.id && approval.call.function === tool.function).map((approval) => approval.call));
+	return agreedCall(approvals.filter((approval) => approval.execution_id === runIdOf(tool) && approval.call.function === tool.function).map((approval) => approval.call));
 };
 /**
 * The call a run ran as proposed, from what its conversation's outputs
@@ -88940,13 +88867,18 @@ var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
 /** Keys the tools a step may judge: by id, scope, conversation and whether a bridge ran them on the host. */ var runKey = (id, scope, conversation, bridge) => `${id}\u0000${scope}\u0000${conversation}\u0000${bridge ? "host" : "native"}`;
 /**
 * The ToolEvent a tool-stage step judged, among those in the step's scope
-* and conversation whose id is the step's execution id, skipping tools that
-* already host a step of the same stage. A bridge's check judges only a call
-* the bridge ran on the host, and a native check only a native call, though
-* they share ids (a call the bridged agent inherited, for example).
+* and conversation, skipping tools that already host a step of the same
+* stage. A bridge's check judges only a call the bridge ran on the host, and
+* a native check only a native call, though they share ids (a call the
+* bridged agent inherited, for example).
 *
-* A step that records its `execution_id` names its tool: the one such tool,
-* or none. Otherwise the step's id is the model's:
+* A step that records its `execution_id` names its runs (`runIdOf`,
+* `toolsByExecution`). One handout of a bridged call runs once per bridged
+* tool it denotes, and the bridge checks it once per tool, so a step takes
+* the first such run no step of its stage holds yet. A step whose
+* `execution_id` is a ToolEvent's own id (a log from before ToolEvents
+* recorded it) names the one such tool, or none. Otherwise the step's id is
+* the model's, and it judged a run under that id (`toolsById`):
 * - A bridge hands over only a call nothing stopped, and records no
 *   `execution_id` for an attempt it never handed over, so a bridge step
 *   with none judged the one run under the model's id, in any recording
@@ -88958,16 +88890,19 @@ var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
 *   native steps pair in order: a `tool_call` step judges the first such
 *   tool recorded after it (none when no such tool follows), a
 *   `tool_result` step the last one before it.
-*/ var hostTool = (toolsByRun, step, { order, scope }, conversation, claimed, bridge, discarded) => {
+*/ var hostTool = ({ toolsById, toolsByExecution }, step, { order, scope }, conversation, claimed, bridge, discarded) => {
 	const unclaimed = (t) => !claimed.has(`${step.stage}\u0000${t.node.id}`);
-	const candidates = toolsByRun.get(runKey(step.executionId ?? step.stepId, scope, conversation, bridge)) ?? [];
-	const sole = () => {
+	const sole = (candidates) => {
 		const [only, other] = candidates;
 		return only && !other && unclaimed(only) ? only : void 0;
 	};
-	if (step.executionId !== void 0) return sole();
+	if (step.executionId !== void 0) {
+		const runs = toolsByExecution.get(runKey(step.executionId, scope, conversation, bridge)) ?? [];
+		return runs[0]?.node.event.execution_id != null ? runs.find(unclaimed) : sole(runs);
+	}
+	const candidates = toolsById.get(runKey(step.stepId, scope, conversation, bridge)) ?? [];
 	const stopped = step.stage === "tool_call" && stopsCall(step);
-	if (bridge) return stopped || discarded ? void 0 : sole();
+	if (bridge) return stopped || discarded ? void 0 : sole(candidates);
 	const open = candidates.filter((t) => unclaimed(t) && (!stopped || toolFailed(t.node.event)));
 	const after = open.find((t) => t.order > order);
 	if (step.stage === "tool_call") return after;
@@ -88985,7 +88920,7 @@ var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
 }
 /**
 * Pairs tool-stage steps to their ToolEvent (`executionIdOf` ==
-* `ToolEvent.id`, see `hostTool`), so the
+* `runIdOf`, see `hostTool`), so the
 * tool panel renders them inline. Each sentinel span holds one step; events
 * outside a span group by conversation, stage and execution id. Steps with no tool render
 * as one row at their span or first event. A tool shows the call it ran as
@@ -89079,12 +89014,19 @@ var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
 	const hiddenSentinelIds = /* @__PURE__ */ new Set();
 	const sentinelScrollRedirects = /* @__PURE__ */ new Map();
 	const claimed = /* @__PURE__ */ new Set();
-	const toolsByRun = /* @__PURE__ */ new Map();
-	for (const entry of tools) {
-		const key = runKey(entry.node.event.id, entry.scope, entry.conversation, isBridgeTool(entry.node.event));
-		const runs = toolsByRun.get(key);
+	const toolIndex = {
+		toolsById: /* @__PURE__ */ new Map(),
+		toolsByExecution: /* @__PURE__ */ new Map()
+	};
+	const index = (byKey, id, entry) => {
+		const key = runKey(id, entry.scope, entry.conversation, isBridgeTool(entry.node.event));
+		const runs = byKey.get(key);
 		if (runs) runs.push(entry);
-		else toolsByRun.set(key, [entry]);
+		else byKey.set(key, [entry]);
+	};
+	for (const entry of tools) {
+		index(toolIndex.toolsById, entry.node.event.id, entry);
+		index(toolIndex.toolsByExecution, runIdOf(entry.node.event), entry);
 	}
 	const built = [...steps.values()].sort((a, b) => a.order - b.order).map((events) => {
 		const step = buildSentinelStep(events.nodes, events.span?.modelCalls);
@@ -89102,7 +89044,7 @@ var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
 	});
 	for (const { events, step, bridge, conversation, output } of built) {
 		const { nodes, span } = events;
-		const tool = kToolStages.has(step.stage) ? hostTool(toolsByRun, step, events, conversation, claimed, bridge, outputs.discarded(output)) : void 0;
+		const tool = kToolStages.has(step.stage) ? hostTool(toolIndex, step, events, conversation, claimed, bridge, outputs.discarded(output)) : void 0;
 		const hostId = tool?.node.id ?? span?.node.id ?? nodes[0].id;
 		if (tool) {
 			claimed.add(`${step.stage}\u0000${tool.node.id}`);
@@ -89121,14 +89063,14 @@ var kToolStages = /* @__PURE__ */ new Set(["tool_call", "tool_result"]);
 	const runsById = /* @__PURE__ */ new Map();
 	for (const { node, conversation, proposals: key } of tools) {
 		if (key === void 0) continue;
-		const runKey = `${conversation}\u0000${node.event.id}`;
+		const runKey = `${conversation}\u0000${runIdOf(node.event)}`;
 		runsById.set(runKey, (runsById.get(runKey) ?? 0) + 1);
 	}
 	for (const { node, order: at, conversation, proposals: key } of tools) {
 		const paired = toolSentinels.get(node.id);
 		if (key === void 0 || !paired) continue;
 		const tool = node.event;
-		const runKey = `${conversation}\u0000${tool.id}`;
+		const runKey = `${conversation}\u0000${runIdOf(tool)}`;
 		const found = findProposal((isBridgeTool(tool) ? proposals : nativeProposals).get(key), {
 			tool,
 			approvals: runsById.get(runKey) === 1 ? approvals.get(runKey) ?? [] : [],
@@ -89314,8 +89256,24 @@ var fmtClock = (iso, showDate = false) => {
 	}
 };
 // ../../packages/inspect-components/src/usage/tokenTotals.ts
+var inputAll = (usage) => (usage.input_tokens ?? 0) + (usage.input_tokens_cache_read ?? 0) + (usage.input_tokens_cache_write ?? 0);
+/** Output tokens excluding reasoning, so a composition that shows reasoning
+*  as its own category counts it once. Providers include reasoning in
+*  output_tokens; older Grok and Gemini logs reported it separately, which
+*  shows as input + output + reasoning adding up to the recorded total. Logs
+*  from before inspect_ai split cached reads out of input_tokens (Feb 2026)
+*  count the cache inside input, so both input sums are checked. An aggregate
+*  mixing both shapes, or a total with tokens outside every category (Gemini
+*  tool-use prompts), can't be told apart and is treated as inclusive. */ var visibleOutputTokens = (usage) => {
+	const output = usage.output_tokens ?? 0;
+	const reasoning = usage.reasoning_tokens ?? 0;
+	if (reasoning <= 0) return output;
+	const total = usage.total_tokens ?? 0;
+	const separateFrom = (input) => total > 0 && input + output + reasoning === total;
+	return separateFrom(inputAll(usage)) || separateFrom(usage.input_tokens ?? 0) ? output : Math.max(output - reasoning, 0);
+};
 /** Sum of the individual token categories — the fallback when a record
-*  carries no total. */ var compositionTotal = (usage) => (usage.input_tokens ?? 0) + (usage.input_tokens_cache_read ?? 0) + (usage.input_tokens_cache_write ?? 0) + (usage.output_tokens ?? 0) + (usage.reasoning_tokens ?? 0);
+*  carries no total. */ var compositionTotal = (usage) => inputAll(usage) + visibleOutputTokens(usage) + (usage.reasoning_tokens ?? 0);
 /** One total for every token surface (Usage tab, Activity tab): prefer the
 *  recorded total_tokens — providers disagree on composition (OpenAI's
 *  input_tokens already includes cached reads, so summing categories
@@ -89607,7 +89565,8 @@ var approvalsStopped = (slot) => slot.approvals.some(approvalStopped);
 *  in sync: a run under its `proposalIdOf` names the call proposed under it
 *  only when nothing could be confused (`findProposal`); an approval or
 *  step that records its `execution_id` judges the execution under that id
-*  and nothing else; otherwise a `tool_call` step judges the next tool with
+*  (`runIdOf`) and nothing else, each run of one handout in turn;
+*  otherwise a `tool_call` step judges the next tool with
 *  its id, a `tool_result` step one that ran before it; an agent bridge's
 *  check judges only a call the bridge ran on the host, and a native check
 *  never does; a bridge's check with no host run in the chain it took
@@ -89657,12 +89616,32 @@ var approvalsStopped = (slot) => slot.approvals.some(approvalStopped);
 		slot.execution ??= id;
 		return slot;
 	};
-	/** Slots of runs under an id other than the model's, by that id. */ const executions = /* @__PURE__ */ new Map();
+	/** Slots of runs under an id other than the model's, by that id: one per
+	*  run, as a bridged call's handout runs once per bridged tool it denotes. */ const executions = /* @__PURE__ */ new Map();
 	/** The slot of the run under `id`, which is not the model's id in
 	*  `chain`: the one an earlier event naming it took, else a new one. */ const executionSlot = (spanId, scope, id, chain, stage, skip) => {
 		const key = chainKey(spanId, `${scope}\u0000${id}`);
-		let slot = executions.get(key);
-		if (!slot) executions.set(key, slot = takeRun(chain, stage, id, skip));
+		const slots = executions.get(key);
+		if (slots) return slots[0];
+		const slot = takeRun(chain, stage, id, skip);
+		executions.set(key, [slot]);
+		return slot;
+	};
+	/** The slot of a ToolEvent that records `execution_id`: the execution's
+	*  until a run fills it, then one of its own for each further run. */ const executionRun = (spanId, scope, id, chain, stage, tool) => {
+		const filled = (s) => s.tool !== void 0;
+		const slots = executions.get(chainKey(spanId, `${scope}\u0000${id}`));
+		if (!slots) return executionSlot(spanId, scope, id, chain, stage, filled);
+		const open = slots.find((s) => !filled(s));
+		if (open) return open;
+		const slot = takeRun(chain, stage, id, filled);
+		for (const other of slots) {
+			if (other.tool?.function === tool.function) continue;
+			const own = (approval) => approval.call.function === tool.function;
+			slot.approvals.push(...other.approvals.filter(own));
+			other.approvals = other.approvals.filter((approval) => !own(approval));
+		}
+		slots.push(slot);
 		return slot;
 	};
 	/** By chain key, the host runs whose bridge recorded the model's id as
@@ -89730,7 +89709,7 @@ var approvalsStopped = (slot) => slot.approvals.some(approvalStopped);
 		const chain = chainFor(event.span_id, scope, proposalId);
 		const stage = isBridgeTool(event) ? "hostTools" : "tools";
 		const filled = (s) => s.tool !== void 0;
-		const slot = proposalId !== event.id ? executionSlot(event.span_id, scope, event.id, chain, stage, filled) : takeRun(chain, stage, event.id, filled);
+		const slot = event.execution_id != null ? executionRun(event.span_id, scope, event.execution_id, chain, stage, event) : proposalId !== event.id ? executionSlot(event.span_id, scope, event.id, chain, stage, filled) : takeRun(chain, stage, event.id, filled);
 		slot.tool = event;
 		slot.order = index;
 		if (recordedProposalId(event) === event.id) {
@@ -89754,7 +89733,8 @@ var approvalsStopped = (slot) => slot.approvals.some(approvalStopped);
 			});
 		} else if (step.stage === "tool_call") {
 			const chain = chainFor(event.span_id, scope, step.stepId);
-			holdNativeCall(step, takeRun(chain, "checks", step.stepId, (slot) => slot.stopped === true || ranOnHost(slot)), index);
+			const skip = (slot) => slot.stopped === true || ranOnHost(slot);
+			holdNativeCall(step, step.executionId !== void 0 ? executionSlot(event.span_id, scope, step.executionId, chain, "checks", skip) : takeRun(chain, "checks", step.stepId, skip), index);
 			nativeCalls.push({
 				step,
 				chain,
@@ -89762,7 +89742,8 @@ var approvalsStopped = (slot) => slot.approvals.some(approvalStopped);
 			});
 		} else if (step.stage === "tool_result") {
 			const chain = chainFor(event.span_id, scope, step.stepId);
-			slotOfStep.set(step, takeRun(chain, "results", step.stepId, (slot) => didNotRun(slot) || ranOnHost(slot)));
+			const skip = (slot) => didNotRun(slot) || ranOnHost(slot);
+			slotOfStep.set(step, step.executionId !== void 0 ? executionSlot(event.span_id, scope, step.executionId, chain, "results", skip) : takeRun(chain, "results", step.stepId, skip));
 		} else {
 			const producer = latestModel.get(conversationOf(event.span_id));
 			if (producer) producerOfStep.set(step, producer);
@@ -89814,8 +89795,7 @@ var approvalsStopped = (slot) => slot.approvals.some(approvalStopped);
 			unpairedBridgeChecks.push(check);
 			continue;
 		}
-		const named = execution === void 0 ? void 0 : executions.get(execution);
-		const slot = execution === void 0 ? chain.slots.find((s) => openTo(s, step.stepId) && judges(step, s)) : named && judges(step, named) ? named : void 0;
+		const slot = execution === void 0 ? chain.slots.find((s) => openTo(s, step.stepId) && judges(step, s)) : executions.get(execution)?.find((s) => judges(step, s));
 		if (slot) pairBridgeCheck(step, slot, order);
 		else unpairedBridgeChecks.push(check);
 	}
@@ -89829,7 +89809,7 @@ var approvalsStopped = (slot) => slot.approvals.some(approvalStopped);
 			continue;
 		}
 		const ownCall = (s) => !s.tool && s.bridged === true && !taken.has(s);
-		const proposal = step.stage !== "tool_call" ? void 0 : named ? ownCall(named) ? named : void 0 : chain.slots.find((s) => openTo(s, step.stepId) && ownCall(s));
+		const proposal = step.stage !== "tool_call" ? void 0 : named ? named.find(ownCall) : chain.slots.find((s) => openTo(s, step.stepId) && ownCall(s));
 		if (proposal) {
 			taken.add(proposal);
 			place(proposal, order);
@@ -90975,7 +90955,7 @@ var Grid = (t0) => {
 	const { rows } = t0;
 	let t1;
 	if ($[0] !== rows) {
-		t1 = rows.slice(0, 4).map(_temp$74);
+		t1 = rows.slice(0, 4).map(_temp$75);
 		$[0] = rows;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -91370,7 +91350,7 @@ var BurstBody = (t0) => {
 			$[20] = t10;
 		} else t10 = $[20];
 		members = row.spans.filter(t10);
-		const firstUuid = members.find(_temp2$46)?.uuid;
+		const firstUuid = members.find(_temp2$47)?.uuid;
 		T0 = Card;
 		let t11;
 		if ($[21] !== burst.label) {
@@ -91536,7 +91516,7 @@ var ContextPointBody = (t0) => {
 		const rows = [];
 		const collapsed = parallel !== void 0 && !turnsMode;
 		const first = parallel?.[0];
-		const values = parallel?.map(_temp3$30) ?? [];
+		const values = parallel?.map(_temp3$31) ?? [];
 		if (point.delta !== void 0) {
 			let t2;
 			if ($[7] !== point.delta) {
@@ -92256,7 +92236,7 @@ var CurveBody = (t0) => {
 	} else t3 = $[43];
 	return t3;
 };
-function _temp$74(row) {
+function _temp$75(row) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ActivityTooltip_module_default.key,
 		children: row.key
@@ -92265,10 +92245,10 @@ function _temp$74(row) {
 		children: row.value
 	})] }, row.key);
 }
-function _temp2$46(m) {
+function _temp2$47(m) {
 	return m.uuid !== void 0;
 }
-function _temp3$30(p) {
+function _temp3$31(p) {
 	return p.value;
 }
 function _temp4$25(m) {
@@ -94033,7 +94013,7 @@ var categoryValue = (usage, key) => {
 		case "input": return usage.input_tokens ?? 0;
 		case "cacheRead": return usage.input_tokens_cache_read ?? 0;
 		case "cacheWrite": return usage.input_tokens_cache_write ?? 0;
-		case "output": return usage.output_tokens ?? 0;
+		case "output": return visibleOutputTokens(usage);
 		case "reasoning": return usage.reasoning_tokens ?? 0;
 	}
 };
@@ -94097,7 +94077,7 @@ var ModelTokenTable = (t0) => {
 				const composeSum = usage ? compositionTotal(usage) : 0;
 				const total = usage ? usageTotal(usage) : 0;
 				const cacheRate = usage && total > 0 ? Math.round((usage.input_tokens_cache_read ?? 0) / total * 100) : 0;
-				const outputRate = usage && total > 0 ? Math.round((usage.output_tokens ?? 0) / total * 100) : 0;
+				const outputRate = usage && total > 0 ? Math.round((visibleOutputTokens(usage) + (usage.reasoning_tokens ?? 0)) / total * 100) : 0;
 				return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(import_react.Fragment, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("tr", {
 					className: ModelTokenTable_module_default.modelRow,
 					children: [
@@ -94123,8 +94103,8 @@ var ModelTokenTable = (t0) => {
 								(() => {
 									const cfg = model_configs?.[modelId];
 									const args = model_args?.[modelId];
-									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$73) : [];
-									const argEntries = args ? Object.entries(args).filter(_temp2$45) : [];
+									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$74) : [];
+									const argEntries = args ? Object.entries(args).filter(_temp2$46) : [];
 									if (cfgEntries.length === 0 && argEntries.length === 0) return null;
 									const renderSection = _temp4$24;
 									return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -94238,15 +94218,15 @@ var ModelTokenTable = (t0) => {
 	} else t11 = $[37];
 	return t11;
 };
-function _temp$73(t0) {
+function _temp$74(t0) {
 	const [, v] = t0;
 	return v != null;
 }
-function _temp2$45(t0) {
+function _temp2$46(t0) {
 	const [, v_0] = t0;
 	return v_0 != null;
 }
-function _temp3$29(t0) {
+function _temp3$30(t0) {
 	const [k_0, v_1] = t0;
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("dt", {
 		className: ModelTokenTable_module_default.configKey,
@@ -94262,7 +94242,7 @@ function _temp4$24(label, entries) {
 		children: label
 	}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("dl", {
 		className: ModelTokenTable_module_default.configTable,
-		children: entries.map(_temp3$29)
+		children: entries.map(_temp3$30)
 	})] });
 }
 var ModelUsagePanel_module_default = {
@@ -94313,7 +94293,7 @@ var buildCategories = (usage) => {
 		input: usage.input_tokens ?? 0,
 		cacheRead: usage.input_tokens_cache_read ?? 0,
 		cacheWrite: usage.input_tokens_cache_write ?? 0,
-		output: usage.output_tokens ?? 0,
+		output: visibleOutputTokens(usage),
 		reasoning: usage.reasoning_tokens ?? 0
 	};
 	return CAT_ORDER.filter((k) => vals[k] > 0).map((k) => ({
@@ -94414,10 +94394,10 @@ var ModelUsagePanel = (t0) => {
 	let t7;
 	if ($[0] !== className || $[1] !== timing || $[2] !== usage) {
 		const categories = buildCategories(usage);
-		const composeTotal = categories.reduce(_temp$72, 0);
+		const composeTotal = categories.reduce(_temp$73, 0);
 		const total = usage.total_tokens || composeTotal;
 		const inputAll = (usage.input_tokens ?? 0) + (usage.input_tokens_cache_read ?? 0) + (usage.input_tokens_cache_write ?? 0);
-		const denom = inputAll + ((usage.output_tokens ?? 0) + (usage.reasoning_tokens ?? 0)) || total || 1;
+		const denom = inputAll + (visibleOutputTokens(usage) + (usage.reasoning_tokens ?? 0)) || total || 1;
 		const inputPct = Math.round(inputAll / denom * 100);
 		const outputPct = Math.max(0, 100 - inputPct);
 		hasTiming = !!timing;
@@ -94491,7 +94471,7 @@ var ModelUsagePanel = (t0) => {
 			}, c_0.key))
 		});
 		t1 = ModelUsagePanel_module_default.breakdown;
-		t2 = categories.map(_temp2$44);
+		t2 = categories.map(_temp2$45);
 		$[0] = className;
 		$[1] = timing;
 		$[2] = usage;
@@ -94602,10 +94582,10 @@ var ModelUsagePanel = (t0) => {
 	} else t11 = $[40];
 	return t11;
 };
-function _temp$72(a, c) {
+function _temp$73(a, c) {
 	return a + c.value;
 }
-function _temp2$44(c_1) {
+function _temp2$45(c_1) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [
 		/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { className: clsx(ModelUsagePanel_module_default.swatch, c_1.swatchClass) }),
 		/*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: formatNumber(c_1.value) }),
@@ -95263,7 +95243,7 @@ var ProvenanceGrid = (t0) => {
 	} else t4 = $[3];
 	let t5;
 	if ($[4] !== changes) {
-		t5 = changes.map(_temp$71);
+		t5 = changes.map(_temp$72);
 		$[4] = changes;
 		$[5] = t5;
 	} else t5 = $[5];
@@ -95310,7 +95290,7 @@ var ProvenanceGrid = (t0) => {
 	} else t9 = $[17];
 	return t9;
 };
-function _temp$71(change) {
+function _temp$72(change) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [
 		change.name,
 		" ",
@@ -95471,7 +95451,7 @@ var ConnectionLogModal = (t0) => {
 			$[3] = retunes;
 			$[4] = t2;
 		} else t2 = $[4];
-		t1 = [...events.map(_temp$70), ...t2.map(_temp2$43)].sort(_temp3$28);
+		t1 = [...events.map(_temp$71), ...t2.map(_temp2$44)].sort(_temp3$29);
 		$[0] = events;
 		$[1] = retunes;
 		$[2] = t1;
@@ -95610,21 +95590,21 @@ var ConnectionLogModal = (t0) => {
 	} else t12 = $[35];
 	return t12;
 };
-function _temp$70(event) {
+function _temp$71(event) {
 	return {
 		kind: "controller",
 		time: event.timestamp,
 		event
 	};
 }
-function _temp2$43(retune) {
+function _temp2$44(retune) {
 	return {
 		kind: "config",
 		time: retune.timestamp,
 		retune
 	};
 }
-function _temp3$28(a, b) {
+function _temp3$29(a, b) {
 	return a.time - b.time || (a.kind === b.kind ? 0 : a.kind === "config" ? -1 : 1);
 }
 function _temp4$23(role, i) {
@@ -95823,7 +95803,7 @@ var ConnectionsView_module_default = {
 									children: model_0
 								}), roles.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 									className: ConnectionsView_module_default.roles,
-									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$69)]
+									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$70)]
 								})]
 							}),
 							/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -95980,7 +95960,7 @@ var kBaselineY = 60;
 					y1: y(seg.value),
 					y2: y(seg.value)
 				}, `cap-${i}`)),
-				data.events.filter(_temp2$42).map((e_1, i_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("line", {
+				data.events.filter(_temp2$43).map((e_1, i_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("line", {
 					className: ConnectionsView_module_default.rateLimitLine,
 					x1: x(e_1.timestamp),
 					x2: x(e_1.timestamp),
@@ -96101,13 +96081,13 @@ var kBaselineY = 60;
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$69(role) {
+function _temp$70(role) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ConnectionsView_module_default.roleChip,
 		children: role
 	}, role);
 }
-function _temp2$42(e_0) {
+function _temp2$43(e_0) {
 	return e_0.reason === "rate_limit";
 }
 var UsagePanel_module_default = {
@@ -96359,7 +96339,7 @@ var kPillClass$1 = {
 	score: ActivityHistoryList_module_default.washScore
 };
 var ActivityHistoryList = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(59);
+	const $ = (0, import_compiler_runtime.c)(62);
 	const { rows, scrollRef, persistenceKey, selectedCategories, onToggleCategory, search, onSearchChange, timeDescending, onToggleTimeSort, selectedKey, onSelectKey, washKeys, onHoverRow, onOpenEvent } = t0;
 	let counts;
 	if ($[0] !== rows) {
@@ -96381,54 +96361,61 @@ var ActivityHistoryList = (t0) => {
 	} else t1 = $[6];
 	const ordered = t1;
 	let t2;
-	if ($[7] !== onHoverRow || $[8] !== onOpenEvent || $[9] !== onSelectKey || $[10] !== ordered.length || $[11] !== selectedKey || $[12] !== washKeys) {
-		t2 = (index, row_1) => {
-			const selected = selectedKey === row_1.key;
-			const washed = !selected && washKeys.includes(row_1.key);
+	if ($[7] !== onOpenEvent) {
+		t2 = (row_1) => activityRowSearchText(row_1, onOpenEvent !== void 0);
+		$[7] = onOpenEvent;
+		$[8] = t2;
+	} else t2 = $[8];
+	const itemSearchText = t2;
+	let t3;
+	if ($[9] !== onHoverRow || $[10] !== onOpenEvent || $[11] !== onSelectKey || $[12] !== ordered.length || $[13] !== selectedKey || $[14] !== washKeys) {
+		t3 = (index, row_2) => {
+			const selected = selectedKey === row_2.key;
+			const washed = !selected && washKeys.includes(row_2.key);
 			return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-				className: clsx(ActivityHistoryList_module_default.row, index === ordered.length - 1 && ActivityHistoryList_module_default.rowLast, selected && ActivityHistoryList_module_default.rowSelected, washed && ActivityHistoryList_module_default.rowWash, washed && kWashClass[row_1.category]),
+				className: clsx(ActivityHistoryList_module_default.row, index === ordered.length - 1 && ActivityHistoryList_module_default.rowLast, selected && ActivityHistoryList_module_default.rowSelected, washed && ActivityHistoryList_module_default.rowWash, washed && kWashClass[row_2.category]),
 				role: "button",
 				tabIndex: 0,
-				onClick: () => onSelectKey(selected ? null : row_1.key),
+				onClick: () => onSelectKey(selected ? null : row_2.key),
 				onKeyDown: (event) => {
 					if (event.key === "Enter" || event.key === " ") {
 						event.preventDefault();
-						onSelectKey(selected ? null : row_1.key);
+						onSelectKey(selected ? null : row_2.key);
 					}
 				},
-				onMouseEnter: () => onHoverRow(row_1.key),
+				onMouseEnter: () => onHoverRow(row_2.key),
 				onMouseLeave: () => onHoverRow(null),
 				children: [
 					/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 						className: ActivityHistoryList_module_default.time,
-						children: fmtDayClock(row_1.time)
+						children: fmtDayClock(row_2.time)
 					}),
 					/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 						className: ActivityHistoryList_module_default.kindCell,
 						children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-							className: clsx(ActivityHistoryList_module_default.kindPill, kPillClass$1[row_1.category]),
-							children: rowKind(row_1)
+							className: clsx(ActivityHistoryList_module_default.kindPill, kPillClass$1[row_2.category]),
+							children: rowKind(row_2)
 						})
 					}),
 					/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 						className: ActivityHistoryList_module_default.event,
 						children: [
-							row_1.lead,
-							row_1.mono !== void 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [" ", /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+							row_2.lead,
+							row_2.mono !== void 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [" ", /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 								className: ActivityHistoryList_module_default.mono,
-								children: row_1.mono
+								children: row_2.mono
 							})] }),
-							row_1.tail !== void 0 && ` ${row_1.tail}`,
-							row_1.detail !== void 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+							row_2.tail !== void 0 && ` ${row_2.tail}`,
+							row_2.detail !== void 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 								className: ActivityHistoryList_module_default.muted,
-								children: [" · ", row_1.detail]
+								children: [" · ", row_2.detail]
 							}),
-							row_1.uuid !== void 0 && onOpenEvent && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [" ", /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+							row_2.uuid !== void 0 && onOpenEvent && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [" ", /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 								type: "button",
 								className: ActivityHistoryList_module_default.openEvent,
 								onClick: (event_0) => {
 									event_0.stopPropagation();
-									onOpenEvent(row_1.uuid, event_0);
+									onOpenEvent(row_2.uuid, event_0);
 								},
 								children: "open in transcript →"
 							})] })
@@ -96436,70 +96423,70 @@ var ActivityHistoryList = (t0) => {
 					}),
 					/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 						className: ActivityHistoryList_module_default.by,
-						children: [row_1.by, row_1.byRole !== void 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+						children: [row_2.by, row_2.byRole !== void 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 							className: ActivityHistoryList_module_default.muted,
-							children: [" ", row_1.byRole]
+							children: [" ", row_2.byRole]
 						})]
 					})
 				]
 			});
 		};
-		$[7] = onHoverRow;
-		$[8] = onOpenEvent;
-		$[9] = onSelectKey;
-		$[10] = ordered.length;
-		$[11] = selectedKey;
-		$[12] = washKeys;
-		$[13] = t2;
-	} else t2 = $[13];
-	const renderRow = t2;
+		$[9] = onHoverRow;
+		$[10] = onOpenEvent;
+		$[11] = onSelectKey;
+		$[12] = ordered.length;
+		$[13] = selectedKey;
+		$[14] = washKeys;
+		$[15] = t3;
+	} else t3 = $[15];
+	const renderRow = t3;
 	const allSelected = selectedCategories.size === 0;
-	let t3;
-	if ($[14] === Symbol.for("react.memo_cache_sentinel")) {
-		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+	let t4;
+	if ($[16] === Symbol.for("react.memo_cache_sentinel")) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: ActivityHistoryList_module_default.caption,
 			children: "History"
 		});
-		$[14] = t3;
-	} else t3 = $[14];
-	const t4 = allSelected && ActivityHistoryList_module_default.pillSelected;
-	let t5;
-	if ($[15] !== t4) {
-		t5 = clsx(ActivityHistoryList_module_default.filterPill, ActivityHistoryList_module_default.pillAll, t4);
-		$[15] = t4;
-		$[16] = t5;
-	} else t5 = $[16];
+		$[16] = t4;
+	} else t4 = $[16];
+	const t5 = allSelected && ActivityHistoryList_module_default.pillSelected;
 	let t6;
-	if ($[17] !== onToggleCategory) {
-		t6 = () => onToggleCategory("all");
-		$[17] = onToggleCategory;
+	if ($[17] !== t5) {
+		t6 = clsx(ActivityHistoryList_module_default.filterPill, ActivityHistoryList_module_default.pillAll, t5);
+		$[17] = t5;
 		$[18] = t6;
 	} else t6 = $[18];
 	let t7;
-	if ($[19] !== rows.length) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-			className: ActivityHistoryList_module_default.pillCount,
-			children: rows.length
-		});
-		$[19] = rows.length;
+	if ($[19] !== onToggleCategory) {
+		t7 = () => onToggleCategory("all");
+		$[19] = onToggleCategory;
 		$[20] = t7;
 	} else t7 = $[20];
 	let t8;
-	if ($[21] !== t5 || $[22] !== t6 || $[23] !== t7) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
-			type: "button",
-			className: t5,
-			onClick: t6,
-			children: ["All ", t7]
+	if ($[21] !== rows.length) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: ActivityHistoryList_module_default.pillCount,
+			children: rows.length
 		});
-		$[21] = t5;
-		$[22] = t6;
-		$[23] = t7;
-		$[24] = t8;
-	} else t8 = $[24];
+		$[21] = rows.length;
+		$[22] = t8;
+	} else t8 = $[22];
 	let t9;
-	if ($[25] !== counts || $[26] !== onToggleCategory || $[27] !== selectedCategories) {
-		t9 = kActivityCategories.map((category) => {
+	if ($[23] !== t6 || $[24] !== t7 || $[25] !== t8) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			className: t6,
+			onClick: t7,
+			children: ["All ", t8]
+		});
+		$[23] = t6;
+		$[24] = t7;
+		$[25] = t8;
+		$[26] = t9;
+	} else t9 = $[26];
+	let t10;
+	if ($[27] !== counts || $[28] !== onToggleCategory || $[29] !== selectedCategories) {
+		t10 = kActivityCategories.map((category) => {
 			const count = counts.get(category) ?? 0;
 			const selected_0 = selectedCategories.has(category);
 			return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
@@ -96517,100 +96504,100 @@ var ActivityHistoryList = (t0) => {
 				]
 			}, category);
 		});
-		$[25] = counts;
-		$[26] = onToggleCategory;
-		$[27] = selectedCategories;
-		$[28] = t9;
-	} else t9 = $[28];
-	let t10;
-	if ($[29] !== onSearchChange) {
-		t10 = (event_1) => onSearchChange(event_1.target.value);
-		$[29] = onSearchChange;
+		$[27] = counts;
+		$[28] = onToggleCategory;
+		$[29] = selectedCategories;
 		$[30] = t10;
 	} else t10 = $[30];
 	let t11;
-	if ($[31] !== search || $[32] !== t10) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
+	if ($[31] !== onSearchChange) {
+		t11 = (event_1) => onSearchChange(event_1.target.value);
+		$[31] = onSearchChange;
+		$[32] = t11;
+	} else t11 = $[32];
+	let t12;
+	if ($[33] !== search || $[34] !== t11) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("input", {
 			type: "text",
 			className: ActivityHistoryList_module_default.search,
 			placeholder: "filter by event or detail",
 			value: search,
-			onChange: t10
+			onChange: t11
 		});
-		$[31] = search;
-		$[32] = t10;
-		$[33] = t11;
-	} else t11 = $[33];
-	let t12;
-	if ($[34] !== t11 || $[35] !== t8 || $[36] !== t9) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[33] = search;
+		$[34] = t11;
+		$[35] = t12;
+	} else t12 = $[35];
+	let t13;
+	if ($[36] !== t10 || $[37] !== t12 || $[38] !== t9) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: ActivityHistoryList_module_default.filterRow,
 			children: [
-				t3,
-				t8,
+				t4,
 				t9,
-				t11
+				t10,
+				t12
 			]
 		});
-		$[34] = t11;
-		$[35] = t8;
-		$[36] = t9;
+		$[36] = t10;
 		$[37] = t12;
-	} else t12 = $[37];
-	const t13 = timeDescending ? "arrowDown" : "arrowUp";
-	let t14;
-	if ($[38] !== t13) {
-		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: t13 });
-		$[38] = t13;
-		$[39] = t14;
-	} else t14 = $[39];
+		$[38] = t9;
+		$[39] = t13;
+	} else t13 = $[39];
+	const t14 = timeDescending ? "arrowDown" : "arrowUp";
 	let t15;
-	if ($[40] !== onToggleTimeSort || $[41] !== t14) {
-		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+	if ($[40] !== t14) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: t14 });
+		$[40] = t14;
+		$[41] = t15;
+	} else t15 = $[41];
+	let t16;
+	if ($[42] !== onToggleTimeSort || $[43] !== t15) {
+		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 			type: "button",
 			className: ActivityHistoryList_module_default.timeSort,
 			onClick: onToggleTimeSort,
-			children: ["Time", t14]
+			children: ["Time", t15]
 		});
-		$[40] = onToggleTimeSort;
-		$[41] = t14;
-		$[42] = t15;
-	} else t15 = $[42];
-	let t16;
+		$[42] = onToggleTimeSort;
+		$[43] = t15;
+		$[44] = t16;
+	} else t16 = $[44];
 	let t17;
 	let t18;
-	if ($[43] === Symbol.for("react.memo_cache_sentinel")) {
-		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: "Kind" });
-		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: "Event" });
-		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+	let t19;
+	if ($[45] === Symbol.for("react.memo_cache_sentinel")) {
+		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: "Kind" });
+		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: "Event" });
+		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: ActivityHistoryList_module_default.byHeader,
 			children: "By"
 		});
-		$[43] = t16;
-		$[44] = t17;
-		$[45] = t18;
+		$[45] = t17;
+		$[46] = t18;
+		$[47] = t19;
 	} else {
-		t16 = $[43];
-		t17 = $[44];
-		t18 = $[45];
+		t17 = $[45];
+		t18 = $[46];
+		t19 = $[47];
 	}
-	let t19;
-	if ($[46] !== t15) {
-		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+	let t20;
+	if ($[48] !== t16) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: ActivityHistoryList_module_default.headerRow,
 			children: [
-				t15,
 				t16,
 				t17,
-				t18
+				t18,
+				t19
 			]
 		});
-		$[46] = t15;
-		$[47] = t19;
-	} else t19 = $[47];
-	let t20;
-	if ($[48] !== ordered || $[49] !== persistenceKey || $[50] !== renderRow || $[51] !== scrollRef) {
-		t20 = ordered.length === 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+		$[48] = t16;
+		$[49] = t20;
+	} else t20 = $[49];
+	let t21;
+	if ($[50] !== itemSearchText || $[51] !== ordered || $[52] !== persistenceKey || $[53] !== renderRow || $[54] !== scrollRef) {
+		t21 = ordered.length === 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: ActivityHistoryList_module_default.empty,
 			children: "No events"
 		}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(VirtualList, {
@@ -96620,35 +96607,51 @@ var ActivityHistoryList = (t0) => {
 			data: ordered,
 			estimatedItemHeight: 33,
 			overscan: 10,
-			renderRow
+			renderRow,
+			itemSearchText
 		});
-		$[48] = ordered;
-		$[49] = persistenceKey;
-		$[50] = renderRow;
-		$[51] = scrollRef;
-		$[52] = t20;
-	} else t20 = $[52];
-	let t21;
-	if ($[53] !== t19 || $[54] !== t20) {
-		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: ActivityHistoryList_module_default.list,
-			children: [t19, t20]
-		});
-		$[53] = t19;
-		$[54] = t20;
+		$[50] = itemSearchText;
+		$[51] = ordered;
+		$[52] = persistenceKey;
+		$[53] = renderRow;
+		$[54] = scrollRef;
 		$[55] = t21;
 	} else t21 = $[55];
 	let t22;
-	if ($[56] !== t12 || $[57] !== t21) {
+	if ($[56] !== t20 || $[57] !== t21) {
 		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: ActivityHistoryList_module_default.container,
-			children: [t12, t21]
+			className: ActivityHistoryList_module_default.list,
+			children: [t20, t21]
 		});
-		$[56] = t12;
+		$[56] = t20;
 		$[57] = t21;
 		$[58] = t22;
 	} else t22 = $[58];
-	return t22;
+	let t23;
+	if ($[59] !== t13 || $[60] !== t22) {
+		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: ActivityHistoryList_module_default.container,
+			children: [t13, t22]
+		});
+		$[59] = t13;
+		$[60] = t22;
+		$[61] = t23;
+	} else t23 = $[61];
+	return t23;
+};
+var activityRowSearchText = (row, canOpenEvent) => {
+	let event = row.lead;
+	if (row.mono !== void 0) event += ` ${row.mono}`;
+	if (row.tail !== void 0) event += ` ${row.tail}`;
+	if (row.detail !== void 0) event += ` · ${row.detail}`;
+	const texts = [
+		fmtDayClock(row.time),
+		rowKind(row),
+		event
+	];
+	if (row.uuid !== void 0 && canOpenEvent) texts.push("open in transcript →");
+	texts.push(row.byRole !== void 0 ? `${row.by} ${row.byRole}` : row.by);
+	return texts;
 };
 var SampleActivityPanel_module_default = {
 	container: "_container_pqeak_1",
@@ -97072,9 +97075,9 @@ var SampleActivityPanelBody = (t0) => {
 	return t24;
 };
 var SelectTool_module_default = {
-	group: "_group_1cexi_1",
-	splitMain: "_splitMain_1cexi_6",
-	splitClear: "_splitClear_1cexi_13"
+	group: "_group_15xqr_1",
+	splitMain: "_splitMain_15xqr_6",
+	splitClear: "_splitClear_15xqr_15"
 };
 // ../../packages/inspect-components/src/selection/SelectTool.tsx
 /**
@@ -97555,7 +97558,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	const { toolDefinitions } = t0;
 	let t1;
 	if ($[0] !== toolDefinitions) {
-		t1 = toolDefinitions.map(_temp$68);
+		t1 = toolDefinitions.map(_temp$69);
 		$[0] = toolDefinitions;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -97599,7 +97602,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	} else t3 = $[5];
 	return t3;
 };
-function _temp$68(toolDefinition, idx) {
+function _temp$69(toolDefinition, idx) {
 	const name = toolDefinition.name;
 	const toolArgs = toolDefinition.parameters?.properties ? Object.keys(toolDefinition.parameters.properties) : [];
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Tool, {
@@ -97879,7 +97882,7 @@ var GoToTurnBar_module_default = {
 			} else if (prefillTurn !== void 0) setValue(String(prefillTurn));
 			openRef.current = true;
 			setOpen(true);
-			setFocusEpoch(_temp$67);
+			setFocusEpoch(_temp$68);
 		};
 		$[0] = t2;
 	} else t2 = $[0];
@@ -98065,17 +98068,16 @@ var GoToTurnBar_module_default = {
 	} else t14 = $[29];
 	return t14;
 });
-function _temp$67(epoch) {
+function _temp$68(epoch) {
 	return epoch + 1;
 }
 var TimelineSelector_module_default = {
-	selectorContainer: "_selectorContainer_djjmp_1",
-	selectorButton: "_selectorButton_djjmp_8",
-	chevron: "_chevron_djjmp_28",
-	backdrop: "_backdrop_djjmp_33",
-	dropdownMenu: "_dropdownMenu_djjmp_42",
-	dropdownItem: "_dropdownItem_djjmp_57",
-	dropdownItemActive: "_dropdownItemActive_djjmp_74"
+	selectorContainer: "_selectorContainer_19i09_1",
+	selectorButton: "_selectorButton_19i09_8",
+	chevron: "_chevron_19i09_28",
+	dropdownMenu: "_dropdownMenu_19i09_33",
+	dropdownItem: "_dropdownItem_19i09_43",
+	dropdownItemActive: "_dropdownItemActive_19i09_60"
 };
 var EventRow_module_default = {
 	title: "_title_9b4ex_1",
@@ -98325,7 +98327,7 @@ var ToolCheckInset_module_default = {
 	} else t6 = $[14];
 	let t7;
 	if ($[15] !== scores) {
-		t7 = scores?.map(_temp$66);
+		t7 = scores?.map(_temp$67);
 		$[15] = scores;
 		$[16] = t7;
 	} else t7 = $[16];
@@ -98524,7 +98526,7 @@ var ToolCheckInset_module_default = {
 	label: ToolCheckInset_module_default.label,
 	mono: ToolCheckInset_module_default.mono
 };
-function _temp$66(score, i) {
+function _temp$67(score, i) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ToolCheckInset_module_default.scores,
 		children: score
@@ -98677,7 +98679,7 @@ var decisionIcon$1 = (decision) => {
 	const [collapsed, setCollapsed] = useCollapsedState(`${chain[0].id}-approval-chain`, true);
 	const event = final.event;
 	const look = decisionLook(event.decision);
-	const escalated = chain.slice(0, -1).some(_temp$65);
+	const escalated = chain.slice(0, -1).some(_temp$66);
 	let t1;
 	if ($[0] !== chain.length || $[1] !== collapsed || $[2] !== setCollapsed) {
 		t1 = chain.length > 1 ? {
@@ -98694,7 +98696,7 @@ var decisionIcon$1 = (decision) => {
 	if ($[4] !== chain || $[5] !== collapsed) {
 		t2 = chain.length > 1 && !collapsed ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: ApprovalEventView_module_default.chain,
-			children: chain.map(_temp2$41)
+			children: chain.map(_temp2$42)
 		}) : null;
 		$[4] = chain;
 		$[5] = collapsed;
@@ -98743,10 +98745,10 @@ var decisionLook = (decision) => {
 		};
 	}
 };
-function _temp$65(n) {
+function _temp$66(n) {
 	return n.event.decision === "escalate";
 }
-function _temp2$41(node, index) {
+function _temp2$42(node, index) {
 	const step = decisionLook(node.event.decision);
 	const explanation = node.event.explanation?.trim();
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [
@@ -98906,151 +98908,93 @@ var EventNavs_module_default = {
 	probeItem: "_probeItem_og902_27"
 };
 var EventNavsPicker_module_default = {
-	trigger: "_trigger_nqyxq_1",
-	label: "_label_nqyxq_21",
-	chevron: "_chevron_nqyxq_27",
-	backdrop: "_backdrop_nqyxq_33",
-	menu: "_menu_nqyxq_43",
-	item: "_item_nqyxq_55",
-	selected: "_selected_nqyxq_76"
+	trigger: "_trigger_5hfcv_1",
+	label: "_label_5hfcv_21",
+	chevron: "_chevron_5hfcv_27",
+	menu: "_menu_5hfcv_33",
+	item: "_item_5hfcv_43",
+	selected: "_selected_5hfcv_64"
 };
 // ../../packages/inspect-components/src/transcript/event/EventNavsPicker.tsx
 /**
 * Compact replacement for {@link EventNavs} when the tab row is too narrow
 * to display all pills inline. Renders the active tab title as a single
-* button that opens a portal-anchored menu of all navs.
+* button that opens an anchored menu of all navs.
 */ var EventNavsPicker = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(29);
 	const { navs, selectedNav, setSelectedNav, labelWidth } = t0;
 	const [open, setOpen] = (0, import_react.useState)(false);
-	const buttonRef = (0, import_react.useRef)(null);
-	const [position, setPosition] = (0, import_react.useState)(null);
+	const [button, setButton] = (0, import_react.useState)(null);
 	let t1;
-	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-		t1 = () => {
-			const rect = buttonRef.current?.getBoundingClientRect();
-			if (!rect) return;
-			setPosition({
-				top: rect.bottom,
-				right: window.innerWidth - rect.right,
-				minWidth: rect.width
-			});
-		};
-		$[0] = t1;
-	} else t1 = $[0];
-	const computePosition = t1;
+	if ($[0] !== navs || $[1] !== selectedNav) {
+		t1 = navs.find((nav) => nav.target === selectedNav) ?? navs[0];
+		$[0] = navs;
+		$[1] = selectedNav;
+		$[2] = t1;
+	} else t1 = $[2];
+	const selected = t1;
 	let t2;
 	let t3;
-	if ($[1] !== open) {
-		t2 = () => {
-			if (open) computePosition();
-		};
-		t3 = [open, computePosition];
-		$[1] = open;
-		$[2] = t2;
-		$[3] = t3;
+	if ($[3] === Symbol.for("react.memo_cache_sentinel")) {
+		t2 = clsx("nav-link", "active", "text-style-label", "text-size-small", EventNavsPicker_module_default.trigger);
+		t3 = () => setOpen(_temp$65);
+		$[3] = t2;
+		$[4] = t3;
 	} else {
-		t2 = $[2];
-		t3 = $[3];
+		t2 = $[3];
+		t3 = $[4];
 	}
-	(0, import_react.useLayoutEffect)(t2, t3);
-	const windowTarget = open && typeof window !== "undefined" ? window : null;
-	useEventListener(windowTarget, "resize", computePosition);
 	let t4;
-	if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
-		t4 = { capture: true };
-		$[4] = t4;
-	} else t4 = $[4];
-	useEventListener(windowTarget, "scroll", computePosition, t4);
-	let t5;
-	if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
-		t5 = (e) => {
-			if (e.key === "Escape") {
-				setOpen(false);
-				buttonRef.current?.focus();
-			}
-		};
-		$[5] = t5;
-	} else t5 = $[5];
-	const handleKeyDown = t5;
+	if ($[5] !== labelWidth) {
+		t4 = labelWidth ? { width: labelWidth } : void 0;
+		$[5] = labelWidth;
+		$[6] = t4;
+	} else t4 = $[6];
+	const t5 = selected?.title ?? "";
 	let t6;
-	if ($[6] !== navs || $[7] !== selectedNav) {
-		t6 = navs.find((nav) => nav.target === selectedNav) ?? navs[0];
-		$[6] = navs;
-		$[7] = selectedNav;
-		$[8] = t6;
-	} else t6 = $[8];
-	const selected = t6;
-	let t7;
-	let t8;
-	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
-		t7 = clsx("nav-link", "active", "text-style-label", "text-size-small", EventNavsPicker_module_default.trigger);
-		t8 = () => setOpen(_temp$64);
-		$[9] = t7;
-		$[10] = t8;
-	} else {
-		t7 = $[9];
-		t8 = $[10];
-	}
-	let t9;
-	if ($[11] !== labelWidth) {
-		t9 = labelWidth ? { width: labelWidth } : void 0;
-		$[11] = labelWidth;
-		$[12] = t9;
-	} else t9 = $[12];
-	const t10 = selected?.title ?? "";
-	let t11;
-	if ($[13] !== t10 || $[14] !== t9) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+	if ($[7] !== t4 || $[8] !== t5) {
+		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: EventNavsPicker_module_default.label,
-			style: t9,
-			children: t10
+			style: t4,
+			children: t5
 		});
-		$[13] = t10;
-		$[14] = t9;
-		$[15] = t11;
-	} else t11 = $[15];
-	let t12;
-	if ($[16] === Symbol.for("react.memo_cache_sentinel")) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
+		$[7] = t4;
+		$[8] = t5;
+		$[9] = t6;
+	} else t6 = $[9];
+	let t7;
+	if ($[10] === Symbol.for("react.memo_cache_sentinel")) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
 			name: "chevronDown",
 			className: EventNavsPicker_module_default.chevron
 		});
-		$[16] = t12;
-	} else t12 = $[16];
-	let t13;
-	if ($[17] !== open || $[18] !== t11) {
-		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
-			ref: buttonRef,
+		$[10] = t7;
+	} else t7 = $[10];
+	let t8;
+	if ($[11] !== open || $[12] !== t6) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+			ref: setButton,
 			type: "button",
 			"aria-haspopup": "listbox",
 			"aria-expanded": open,
-			className: t7,
-			onClick: t8,
-			onKeyDown: handleKeyDown,
-			children: [t11, t12]
+			className: t2,
+			onClick: t3,
+			children: [t6, t7]
 		});
-		$[17] = open;
-		$[18] = t11;
-		$[19] = t13;
-	} else t13 = $[19];
-	let t14;
-	if ($[20] !== navs || $[21] !== open || $[22] !== position || $[23] !== selectedNav || $[24] !== setSelectedNav) {
-		t14 = open && position && /*#__PURE__*/ (0, import_react_dom.createPortal)(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: EventNavsPicker_module_default.backdrop,
-			role: "presentation",
-			onClick: () => setOpen(false)
-		}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			role: "listbox",
-			tabIndex: -1,
-			className: EventNavsPicker_module_default.menu,
-			style: {
-				top: position.top,
-				right: position.right,
-				minWidth: position.minWidth
-			},
-			onKeyDown: handleKeyDown,
-			children: navs.map((nav_0) => {
+		$[11] = open;
+		$[12] = t6;
+		$[13] = t8;
+	} else t8 = $[13];
+	let t9;
+	if ($[14] === Symbol.for("react.memo_cache_sentinel")) {
+		t9 = () => setOpen(false);
+		$[14] = t9;
+	} else t9 = $[14];
+	let t10;
+	if ($[15] !== navs || $[16] !== selectedNav || $[17] !== setSelectedNav) {
+		let t11;
+		if ($[19] !== selectedNav || $[20] !== setSelectedNav) {
+			t11 = (nav_0) => {
 				const isSelected = nav_0.target === selectedNav;
 				return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 					type: "button",
@@ -99063,25 +99007,45 @@ var EventNavsPicker_module_default = {
 					},
 					children: nav_0.title
 				}, nav_0.id);
-			})
-		})] }), document.body);
-		$[20] = navs;
-		$[21] = open;
-		$[22] = position;
-		$[23] = selectedNav;
-		$[24] = setSelectedNav;
-		$[25] = t14;
-	} else t14 = $[25];
-	let t15;
-	if ($[26] !== t13 || $[27] !== t14) {
-		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t13, t14] });
-		$[26] = t13;
-		$[27] = t14;
-		$[28] = t15;
-	} else t15 = $[28];
-	return t15;
+			};
+			$[19] = selectedNav;
+			$[20] = setSelectedNav;
+			$[21] = t11;
+		} else t11 = $[21];
+		t10 = navs.map(t11);
+		$[15] = navs;
+		$[16] = selectedNav;
+		$[17] = setSelectedNav;
+		$[18] = t10;
+	} else t10 = $[18];
+	let t11;
+	if ($[22] !== button || $[23] !== open || $[24] !== t10) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AnchoredPopover, {
+			open,
+			onClose: t9,
+			anchor: button,
+			placement: "bottom-end",
+			offset: 0,
+			role: "listbox",
+			tabIndex: -1,
+			className: EventNavsPicker_module_default.menu,
+			children: t10
+		});
+		$[22] = button;
+		$[23] = open;
+		$[24] = t10;
+		$[25] = t11;
+	} else t11 = $[25];
+	let t12;
+	if ($[26] !== t11 || $[27] !== t8) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [t8, t11] });
+		$[26] = t11;
+		$[27] = t8;
+		$[28] = t12;
+	} else t12 = $[28];
+	return t12;
 };
-function _temp$64(v) {
+function _temp$65(v) {
 	return !v;
 }
 // ../../packages/inspect-components/src/transcript/event/EventNavs.tsx
@@ -99174,7 +99138,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t5 = $[10];
 	let t6;
 	if ($[11] !== navs) {
-		t6 = navs.map(_temp$63);
+		t6 = navs.map(_temp$64);
 		$[11] = navs;
 		$[12] = t6;
 	} else t6 = $[12];
@@ -99203,7 +99167,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t8 = $[18];
 	return t8;
 };
-function _temp$63(nav_1) {
+function _temp$64(nav_1) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: "nav-item",
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
@@ -99874,7 +99838,7 @@ var Snapshot = (t0) => {
 	if ($[7] !== details.additional_files || $[8] !== details.files) {
 		t4 = details.files && details.files.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: CheckpointEventView_module_default.files,
-			children: [details.files.map(_temp$62), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			children: [details.files.map(_temp$63), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: CheckpointEventView_module_default.fileOverflow,
 				children: [
 					"+",
@@ -100029,7 +99993,7 @@ var CheckpointEventView = (t0) => {
 	} else t19 = $[32];
 	return t19;
 };
-function _temp$62(file) {
+function _temp$63(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 		className: CheckpointEventView_module_default.file,
 		children: file
@@ -100269,11 +100233,6 @@ var sanitizeStringify = (v) => {
 	return fields;
 };
 /**
-* Extracts searchable text from an EventNode for find-in-page functionality.
-*/ var eventSearchText = (node) => {
-	return extractEventFields(node.event).map(([, v]) => v);
-};
-/**
 * Converts an array of events to a human-readable text transcript.
 */ var eventsToStr = (events) => {
 	return events.map((event) => {
@@ -100463,7 +100422,7 @@ var kMaxPreviewLength = 200;
 	const t12 = expanded ? details : void 0;
 	const t13 = "button";
 	const t14 = CommunicationEventView_module_default;
-	const t15 = parts.map(_temp$61);
+	const t15 = parts.map(_temp$62);
 	let t16;
 	if ($[17] !== expanded || $[18] !== t14.line || $[19] !== t15 || $[20] !== toggle) {
 		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
@@ -100574,7 +100533,7 @@ var firstLine = (text) => {
 	const line = text.slice(skipBlankPrefix(text)).split(/\r?\n/, 1)[0] ?? "";
 	return line.length > kMaxPreviewLength ? `${line.slice(0, kMaxPreviewLength)}…` : line;
 };
-function _temp$61(part, index) {
+function _temp$62(part, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: part.tone === "refused" ? CommunicationEventView_module_default.refused : part.tone === "secondary" ? "text-style-secondary" : void 0,
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: part.text })
@@ -101103,19 +101062,18 @@ var EventSection_module_default = {
 	return t6;
 };
 var RetryChip_module_default = {
-	wrap: "_wrap_fjhll_1",
-	chip: "_chip_fjhll_6",
-	chipOpen: "_chipOpen_fjhll_25",
-	chipText: "_chipText_fjhll_30",
-	chipIcon: "_chipIcon_fjhll_35",
-	chipChevron: "_chipChevron_fjhll_40",
-	backdrop: "_backdrop_fjhll_45",
-	menu: "_menu_fjhll_51",
-	item: "_item_fjhll_65",
-	itemActive: "_itemActive_fjhll_85",
-	itemNum: "_itemNum_fjhll_89",
-	itemLabel: "_itemLabel_fjhll_104",
-	itemStatus: "_itemStatus_fjhll_112"
+	wrap: "_wrap_1rqf6_1",
+	chip: "_chip_1rqf6_6",
+	chipOpen: "_chipOpen_1rqf6_25",
+	chipText: "_chipText_1rqf6_30",
+	chipIcon: "_chipIcon_1rqf6_35",
+	chipChevron: "_chipChevron_1rqf6_40",
+	menu: "_menu_1rqf6_45",
+	item: "_item_1rqf6_55",
+	itemActive: "_itemActive_1rqf6_75",
+	itemNum: "_itemNum_1rqf6_79",
+	itemLabel: "_itemLabel_1rqf6_94",
+	itemStatus: "_itemStatus_1rqf6_102"
 };
 // ../../packages/inspect-components/src/transcript/event/summarizeModelError.ts
 /**
@@ -101138,116 +101096,111 @@ var RetryChip_module_default = {
 }
 // ../../packages/inspect-components/src/transcript/event/RetryChip.tsx
 var RetryChip = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(32);
+	const $ = (0, import_compiler_runtime.c)(40);
 	const { attempts, selectedKey, onSelect, keyOf } = t0;
 	const [open, setOpen] = (0, import_react.useState)(false);
-	let t1;
-	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-		t1 = (e) => {
-			if (e.key === "Escape") setOpen(false);
-		};
-		$[0] = t1;
-	} else t1 = $[0];
-	useEventListener(open ? window : null, "keydown", t1);
+	const [chip, setChip] = (0, import_react.useState)(null);
 	if (attempts.length <= 1) return null;
 	const priorCount = attempts.length - 1;
-	let t2;
-	if ($[1] !== keyOf || $[2] !== selectedKey) {
-		t2 = (a) => keyOf(a) === selectedKey;
-		$[1] = keyOf;
-		$[2] = selectedKey;
-		$[3] = t2;
-	} else t2 = $[3];
-	const selectedIndex = attempts.findIndex(t2);
+	let t1;
+	if ($[0] !== keyOf || $[1] !== selectedKey) {
+		t1 = (a) => keyOf(a) === selectedKey;
+		$[0] = keyOf;
+		$[1] = selectedKey;
+		$[2] = t1;
+	} else t1 = $[2];
+	const selectedIndex = attempts.findIndex(t1);
 	const isCurrentSelected = selectedIndex === -1 || selectedIndex === attempts.length - 1;
+	let t2;
+	if ($[3] !== attempts || $[4] !== isCurrentSelected || $[5] !== priorCount || $[6] !== selectedIndex) {
+		t2 = isCurrentSelected ? priorCount === 1 ? "1 prior retry" : `${priorCount} prior retries` : `attempt ${selectedIndex + 1} · ${summarizeModelError(attempts[selectedIndex]?.error)}`;
+		$[3] = attempts;
+		$[4] = isCurrentSelected;
+		$[5] = priorCount;
+		$[6] = selectedIndex;
+		$[7] = t2;
+	} else t2 = $[7];
+	const chipText = t2;
 	let t3;
-	if ($[4] !== attempts || $[5] !== isCurrentSelected || $[6] !== priorCount || $[7] !== selectedIndex) {
-		t3 = isCurrentSelected ? priorCount === 1 ? "1 prior retry" : `${priorCount} prior retries` : `attempt ${selectedIndex + 1} · ${summarizeModelError(attempts[selectedIndex]?.error)}`;
-		$[4] = attempts;
-		$[5] = isCurrentSelected;
-		$[6] = priorCount;
-		$[7] = selectedIndex;
-		$[8] = t3;
-	} else t3 = $[8];
-	const chipText = t3;
-	let t4;
-	if ($[9] !== onSelect) {
-		t4 = (key) => {
+	if ($[8] !== onSelect) {
+		t3 = (key) => {
 			setOpen(false);
 			onSelect(key);
 		};
-		$[9] = onSelect;
+		$[8] = onSelect;
+		$[9] = t3;
+	} else t3 = $[9];
+	const handleSelect = t3;
+	const t4 = open && RetryChip_module_default.chipOpen;
+	let t5;
+	if ($[10] !== t4) {
+		t5 = clsx(RetryChip_module_default.chip, t4);
 		$[10] = t4;
-	} else t4 = $[10];
-	const handleSelect = t4;
-	const t5 = open && RetryChip_module_default.chipOpen;
-	let t6;
-	if ($[11] !== t5) {
-		t6 = clsx(RetryChip_module_default.chip, t5);
 		$[11] = t5;
-		$[12] = t6;
-	} else t6 = $[12];
-	const t7 = `${chipText} — click to view`;
+	} else t5 = $[11];
+	const t6 = `${chipText} — click to view`;
+	let t7;
 	let t8;
-	let t9;
-	if ($[13] === Symbol.for("react.memo_cache_sentinel")) {
-		t8 = () => setOpen(_temp$60);
-		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
+	if ($[12] === Symbol.for("react.memo_cache_sentinel")) {
+		t7 = () => setOpen(_temp$61);
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
 			name: "retry",
 			className: RetryChip_module_default.chipIcon
 		});
+		$[12] = t7;
 		$[13] = t8;
-		$[14] = t9;
 	} else {
+		t7 = $[12];
 		t8 = $[13];
-		t9 = $[14];
 	}
-	let t10;
-	if ($[15] !== chipText) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+	let t9;
+	if ($[14] !== chipText) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 			className: RetryChip_module_default.chipText,
 			children: chipText
 		});
-		$[15] = chipText;
-		$[16] = t10;
-	} else t10 = $[16];
-	let t11;
-	if ($[17] === Symbol.for("react.memo_cache_sentinel")) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
+		$[14] = chipText;
+		$[15] = t9;
+	} else t9 = $[15];
+	let t10;
+	if ($[16] === Symbol.for("react.memo_cache_sentinel")) {
+		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
 			name: "chevronDown",
 			className: RetryChip_module_default.chipChevron
 		});
-		$[17] = t11;
-	} else t11 = $[17];
-	let t12;
-	if ($[18] !== open || $[19] !== t10 || $[20] !== t6 || $[21] !== t7) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+		$[16] = t10;
+	} else t10 = $[16];
+	let t11;
+	if ($[17] !== open || $[18] !== t5 || $[19] !== t6 || $[20] !== t9) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+			ref: setChip,
 			type: "button",
-			className: t6,
-			title: t7,
+			className: t5,
+			title: t6,
 			"aria-expanded": open,
-			onClick: t8,
+			onClick: t7,
 			children: [
+				t8,
 				t9,
-				t10,
-				t11
+				t10
 			]
 		});
-		$[18] = open;
-		$[19] = t10;
-		$[20] = t6;
-		$[21] = t7;
+		$[17] = open;
+		$[18] = t5;
+		$[19] = t6;
+		$[20] = t9;
+		$[21] = t11;
+	} else t11 = $[21];
+	let t12;
+	if ($[22] === Symbol.for("react.memo_cache_sentinel")) {
+		t12 = () => setOpen(false);
 		$[22] = t12;
 	} else t12 = $[22];
 	let t13;
-	if ($[23] !== attempts || $[24] !== handleSelect || $[25] !== keyOf || $[26] !== open || $[27] !== selectedKey) {
-		t13 = open && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: RetryChip_module_default.backdrop,
-			role: "presentation",
-			onClick: () => setOpen(false)
-		}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: RetryChip_module_default.menu,
-			children: attempts.map((attempt, idx) => {
+	if ($[23] !== attempts || $[24] !== handleSelect || $[25] !== keyOf || $[26] !== selectedKey) {
+		let t14;
+		if ($[28] !== attempts.length || $[29] !== handleSelect || $[30] !== keyOf || $[31] !== selectedKey) {
+			t14 = (attempt, idx) => {
 				const key_0 = keyOf(attempt);
 				const label = idx === attempts.length - 1 ? `Attempt ${idx + 1} · current` : `Attempt ${idx + 1} · ${summarizeModelError(attempt.error)}`;
 				const duration = formatAttemptDuration(attempt);
@@ -101270,32 +101223,53 @@ var RetryChip = (t0) => {
 						})
 					]
 				}, key_0);
-			})
-		})] });
+			};
+			$[28] = attempts.length;
+			$[29] = handleSelect;
+			$[30] = keyOf;
+			$[31] = selectedKey;
+			$[32] = t14;
+		} else t14 = $[32];
+		t13 = attempts.map(t14);
 		$[23] = attempts;
 		$[24] = handleSelect;
 		$[25] = keyOf;
-		$[26] = open;
-		$[27] = selectedKey;
-		$[28] = t13;
-	} else t13 = $[28];
+		$[26] = selectedKey;
+		$[27] = t13;
+	} else t13 = $[27];
 	let t14;
-	if ($[29] !== t12 || $[30] !== t13) {
-		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
-			className: RetryChip_module_default.wrap,
-			children: [t12, t13]
+	if ($[33] !== chip || $[34] !== open || $[35] !== t13) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AnchoredPopover, {
+			open,
+			onClose: t12,
+			anchor: chip,
+			placement: "bottom-start",
+			offset: 4,
+			className: RetryChip_module_default.menu,
+			children: t13
 		});
-		$[29] = t12;
-		$[30] = t13;
-		$[31] = t14;
-	} else t14 = $[31];
-	return t14;
+		$[33] = chip;
+		$[34] = open;
+		$[35] = t13;
+		$[36] = t14;
+	} else t14 = $[36];
+	let t15;
+	if ($[37] !== t11 || $[38] !== t14) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: RetryChip_module_default.wrap,
+			children: [t11, t14]
+		});
+		$[37] = t11;
+		$[38] = t14;
+		$[39] = t15;
+	} else t15 = $[39];
+	return t15;
 };
 function formatAttemptDuration(event) {
 	const sec = attemptDurationSec(event);
 	return sec != null ? formatTime$1(sec) : null;
 }
-function _temp$60(v) {
+function _temp$61(v) {
 	return !v;
 }
 var StopReasonBadge_module_default = {
@@ -101577,7 +101551,7 @@ var ModelEventView = (t0) => {
 	const callTime = event.output.time;
 	let t4;
 	if ($[6] !== event.output.choices) {
-		t4 = event.output.choices.map(_temp$59);
+		t4 = event.output.choices.map(_temp$60);
 		$[6] = event.output.choices;
 		$[7] = t4;
 	} else t4 = $[7];
@@ -101620,7 +101594,7 @@ var ModelEventView = (t0) => {
 	bb0: {
 		let t9;
 		if ($[15] !== event.pending || $[16] !== isCancelled || $[17] !== outputMessages) {
-			t9 = event.pending || isCancelled ? outputMessages.filter(_temp2$40) : outputMessages;
+			t9 = event.pending || isCancelled ? outputMessages.filter(_temp2$41) : outputMessages;
 			$[15] = event.pending;
 			$[16] = isCancelled;
 			$[17] = outputMessages;
@@ -101665,7 +101639,7 @@ var ModelEventView = (t0) => {
 	const summaryMessages = t8;
 	let t9;
 	if ($[31] !== context?.hasToolEvents || $[32] !== userMessages) {
-		t9 = context?.hasToolEvents !== false && !userMessages.some(_temp3$27);
+		t9 = context?.hasToolEvents !== false && !userMessages.some(_temp3$28);
 		$[31] = context?.hasToolEvents;
 		$[32] = userMessages;
 		$[33] = t9;
@@ -102327,13 +102301,13 @@ var withoutToolCallsIn = (message, toolEventIds) => {
 		tool_calls: toolCalls
 	};
 };
-function _temp$59(choice) {
+function _temp$60(choice) {
 	return choice.message;
 }
-function _temp2$40(m) {
+function _temp2$41(m) {
 	return !isLivePlaceholderMessage(m);
 }
-function _temp3$27(m_2) {
+function _temp3$28(m_2) {
 	return m_2.role === "tool";
 }
 function _temp4$22(requestId, index) {
@@ -102508,7 +102482,7 @@ var SampleInitEventView = (t0) => {
 			const t3 = `event-${eventNode.id}`;
 			let t4;
 			if ($[8] !== event.sample.files) {
-				t4 = Object.keys(event.sample.files).map(_temp$58);
+				t4 = Object.keys(event.sample.files).map(_temp$59);
 				$[8] = event.sample.files;
 				$[9] = t4;
 			} else t4 = $[9];
@@ -102572,7 +102546,7 @@ var SampleInitEventView = (t0) => {
 	} else t4 = $[21];
 	let t5;
 	if ($[22] !== event.sample.choices) {
-		t5 = event.sample.choices ? event.sample.choices.map(_temp2$39) : "";
+		t5 = event.sample.choices ? event.sample.choices.map(_temp2$40) : "";
 		$[22] = event.sample.choices;
 		$[23] = t5;
 	} else t5 = $[23];
@@ -102589,7 +102563,7 @@ var SampleInitEventView = (t0) => {
 	if ($[26] !== event.sample.target) {
 		t7 = event.sample.target ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventSection, {
 			title: "Target",
-			children: toArray(event.sample.target).map(_temp3$26)
+			children: toArray(event.sample.target).map(_temp3$27)
 		}) : void 0;
 		$[26] = event.sample.target;
 		$[27] = t7;
@@ -102647,20 +102621,20 @@ var SampleInitEventView = (t0) => {
 	} else t11 = $[42];
 	return t11;
 };
-function _temp$58(file) {
+function _temp$59(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
 		className: SampleInitEventView_module_default.noMargin,
 		children: file
 	}, `sample-init-file-${file}`);
 }
-function _temp2$39(choice, index) {
+function _temp2$40(choice, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [
 		String.fromCharCode(65 + index),
 		") ",
 		choice
 	] }, "$choice-{choice}");
 }
-function _temp3$26(target) {
+function _temp3$27(target) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 		className: clsx("text-size-base"),
 		children: target
@@ -102670,8 +102644,8 @@ function _temp3$26(target) {
 var SampleLimitEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(12);
 	const { eventNode, className } = t0;
-	const resolve_title = _temp$57;
-	const resolve_icon = _temp2$38;
+	const resolve_title = _temp$58;
+	const resolve_icon = _temp2$39;
 	const baseTitle = resolve_title(eventNode.event.type);
 	let t1;
 	if ($[0] !== baseTitle || $[1] !== eventNode.event.timestamp) {
@@ -102715,7 +102689,7 @@ var SampleLimitEventView = (t0) => {
 	} else t5 = $[11];
 	return t5;
 };
-function _temp$57(type) {
+function _temp$58(type) {
 	switch (type) {
 		case "custom": return "Custom Limit Exceeded";
 		case "time": return "Time Limit Exceeded";
@@ -102727,7 +102701,7 @@ function _temp$57(type) {
 		case "cost": return "Cost Limit Exceeded";
 	}
 }
-function _temp2$38(type_0) {
+function _temp2$39(type_0) {
 	switch (type_0) {
 		case "custom": return "limitCustom";
 		case "time": return "limitTime";
@@ -104039,7 +104013,7 @@ var CheckDetail = (t0) => {
 		} else t7 = $[29];
 		t8 = scores ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: SentinelEventView_module_default.scoreGrid,
-			children: scores.map(_temp$56)
+			children: scores.map(_temp$57)
 		}) : null;
 		$[8] = effectTone;
 		$[9] = event.stage;
@@ -104391,7 +104365,7 @@ var decisionClass = (decision) => {
 		case "proceed": return SentinelEventView_module_default.proceed;
 	}
 };
-function _temp$56(t0) {
+function _temp$57(t0) {
 	const [dimension, value] = t0;
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: SentinelEventView_module_default.scoreName,
@@ -104422,7 +104396,7 @@ function _temp$56(t0) {
 	const text = t2;
 	let t3;
 	if ($[4] !== childNodes) {
-		t3 = childNodes.map(_temp$55);
+		t3 = childNodes.map(_temp$56);
 		$[4] = childNodes;
 		$[5] = t3;
 	} else t3 = $[5];
@@ -104488,7 +104462,7 @@ var summarize = (children) => {
 	if (children.length === 1) return "1 event";
 	else return `${children.length} events`;
 };
-function _temp$55(child) {
+function _temp$56(child) {
 	return child.id;
 }
 // ../../packages/inspect-components/src/transcript/state/StateDiffView.tsx
@@ -104544,7 +104518,7 @@ var DiffChildren = (t0) => {
 	} else t2 = $[1];
 	let t3;
 	if ($[2] !== entry.children) {
-		t3 = entry.children.map(_temp$54);
+		t3 = entry.children.map(_temp$55);
 		$[2] = entry.children;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -104688,7 +104662,7 @@ var DiffValue = (t0) => {
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$54(child) {
+function _temp$55(child) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(DiffRow, { child }, child.id);
 }
 var StateEventView_module_default = {
@@ -104941,7 +104915,7 @@ var SubtaskEventView = (t0) => {
 	} else t4 = $[17];
 	let t5;
 	if ($[18] !== childNodes) {
-		t5 = childNodes.map(_temp$53);
+		t5 = childNodes.map(_temp$54);
 		$[18] = childNodes;
 		$[19] = t5;
 	} else t5 = $[19];
@@ -105054,7 +105028,7 @@ var Rendered = (t0) => {
 	if (Array.isArray(values)) {
 		let t1;
 		if ($[0] !== values) {
-			t1 = values.map(_temp2$37);
+			t1 = values.map(_temp2$38);
 			$[0] = values;
 			$[1] = t1;
 		} else t1 = $[1];
@@ -105090,10 +105064,10 @@ var None = () => {
 	} else t0 = $[0];
 	return t0;
 };
-function _temp$53(child) {
+function _temp$54(child) {
 	return child.id;
 }
-function _temp2$37(val, index) {
+function _temp2$38(val, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Rendered, { values: val }, index);
 }
 var SwarmEventView_module_default = {
@@ -105414,47 +105388,86 @@ function convertServerSpan(server, lookup) {
 	});
 }
 /**
-* Reconstruct `target`'s full event stream by concatenating ancestor prefixes.
+* Rebuild `target` as a standalone Timeline that follows its branch path
+* instead of the sibling branches.
 *
-* For each ancestor, take events up to the `AnchorEvent` matching the next
-* child's `branchedFrom`, strip the `:{span_id}` suffix from span IDs, and
-* concatenate. The result is what a standalone unbranched run of `target`'s
-* lineage would have produced.
-*/ function splice(root, target) {
-	const chain = ancestorChain(root, target);
-	const out = [];
-	for (let i = 0; i < chain.length; i++) {
-		const node = chain[i];
-		let events = node.content.filter((it) => it.type === "event").map((it) => it.event);
-		if (i + 1 < chain.length) {
-			const anchor = chain[i + 1].branchedFrom;
-			if (!anchor) {
-				out.length = 0;
-				continue;
-			}
-			const cut = events.findIndex((e) => e.event === "anchor" && e.anchor_id === anchor);
-			if (cut < 0) throw new Error(`splice: anchor ${anchor} not found in ${node.name} (${node.id})`);
-			events = events.slice(0, cut + 1);
+* The path starts at the span holding `target`'s branch tree, so content
+* outside that span is left out. Each span on the path contributes its
+* content up to the `AnchorEvent` the next span forks from (nothing, for a
+* restart), then `target` contributes all of its content. Child spans are
+* kept whole, with their own branches, and events lose the per-segment
+* `:{span_id}` suffix so span begin/end pairs match across segments. Events
+* are rebuilt with `buildTimeline`, which recovers the structure producers
+* like Petri record as inline span events: the whole result when it is only
+* events, otherwise each run of events between child spans.
+*
+* Returns null when `canSplice` is false.
+*/ function spliceToTimeline(root, target) {
+	const path = branchPath(root, target);
+	if (!path) return null;
+	let content = [];
+	path.forEach((node, i) => {
+		const next = path[i + 1];
+		if (next && !next.branchedFrom) {
+			content = [];
+			return;
 		}
-		const suffix = `:${node.id}`;
-		for (const e of events) out.push(stripSuffix(e, suffix, node.id));
-	}
-	return out;
+		const items = next?.branchedFrom ? node.content.slice(0, forkIndex(node, next.branchedFrom) + 1) : node.content;
+		for (const item of items) content.push(item.type === "event" ? new TimelineEvent(stripSuffix(item.event, `:${node.id}`, node.id)) : item);
+	});
+	const events = content.flatMap((c) => c.type === "event" ? [c.event] : []);
+	if (events.length === content.length) return buildTimeline(events);
+	const host = path[0];
+	return {
+		name: host.name,
+		description: "",
+		root: new TimelineSpan({
+			id: host.id,
+			name: host.name,
+			spanType: host.spanType,
+			content: rebuildEventRuns(content)
+		})
+	};
 }
-/** Splice `target` and rebuild it as a standalone (unbranched) Timeline. */ function spliceToTimeline(root, target) {
-	return buildTimeline(splice(root, target));
-}
-function ancestorChain(root, target) {
-	const path = [];
-	function walk(node) {
-		path.push(node);
-		if (node === target || node.id === target.id) return true;
-		for (const child of node.branches) if (walk(child)) return true;
-		path.pop();
-		return false;
+function rebuildEventRuns(content) {
+	const result = [];
+	let run = [];
+	const flush = () => {
+		if (run.length > 0) result.push(...buildTimeline(run).root.content);
+		run = [];
+	};
+	for (const item of content) if (item.type === "event") run.push(item.event);
+	else {
+		flush();
+		result.push(item);
 	}
-	if (!walk(root)) throw new Error(`TimelineSpan ${target.id} not reachable from root`);
-	return path;
+	flush();
+	return result;
+}
+/**
+* True when `target` is in `root`'s tree and every fork point on its branch
+* path has a matching `AnchorEvent` in the parent's content.
+*/ function canSplice(root, target) {
+	return branchPath(root, target) !== null;
+}
+function forkIndex(node, anchorId) {
+	return node.content.findIndex((it) => it.type === "event" && it.matchesForkPoint(anchorId));
+}
+/**
+* The spans from the one holding `target`'s branch tree (the root, or an
+* agent span nested in it) down to `target`, matching the transcript's
+* branch path. Null when `target` isn't found or a fork point doesn't
+* resolve.
+*/ function branchPath(node, target) {
+	if (node === target || node.id === target.id) return [node];
+	for (const child of [...node.branches, ...node.content]) {
+		if (child.type !== "span") continue;
+		const rest = branchPath(child, target);
+		if (!rest) continue;
+		if (rest[0] !== child || !node.branches.includes(child)) return rest;
+		return !child.branchedFrom || forkIndex(node, child.branchedFrom) >= 0 ? [node, ...rest] : null;
+	}
+	return null;
 }
 function stripSuffix(e, suffix, trajId) {
 	const update = {};
@@ -107039,119 +107052,315 @@ var hasResult = (result) => Array.isArray(result) ? result.length > 0 : result !
 		view: event.view
 	};
 };
-var ToolEventView = ({ eventNode, childNodes, className, context, eventCallbacks }) => {
+var ToolEventView = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(82);
+	const { eventNode, childNodes, className, context, eventCallbacks } = t0;
 	const event = eventNode.event;
-	const approvals = context?.toolApprovals?.get(eventNode.id);
-	const sentinels = context?.toolSentinels?.get(eventNode.id);
-	const finalApproval = approvals?.at(-1)?.event;
-	const ran = ranCall(event, finalApproval);
-	const { name, input, description, functionCall, contentType, title } = resolveToolInput(event.function, ran.arguments);
-	const resolvedView = ran.view ? substituteToolCallContent(ran.view, ran.arguments) : void 0;
-	const before = sentinels?.before;
-	const blocker = blockerOf(finalApproval, before);
-	const didRun = event.error?.type !== "approval" && !(blocker && !hasResult(event.result));
-	const approverReplacement = finalApproval?.decision === "modify" ? finalApproval.modified ?? void 0 : void 0;
-	const judged = approverReplacement ?? sentinels?.proposed;
-	const beforeInsets = approvals || before ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(ToolBlockInset, {
-		region: "input",
-		children: [approvals ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ApprovalInset, { chain: approvals }) : null, before ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelInset, {
-			step: before,
+	let afterInset;
+	let beforeInsets;
+	let contentType;
+	let description;
+	let functionCall;
+	let input;
+	let name;
+	let resolvedView;
+	let t1;
+	let title;
+	if ($[0] !== context || $[1] !== event || $[2] !== eventNode.id) {
+		const approvals = context?.toolApprovals?.get(eventNode.id);
+		const sentinels = context?.toolSentinels?.get(eventNode.id);
+		const finalApproval = approvals?.at(-1)?.event;
+		const ran = ranCall(event, finalApproval);
+		({name, input, description, functionCall, contentType, title} = resolveToolInput(event.function, ran.arguments));
+		resolvedView = ran.view ? substituteToolCallContent(ran.view, ran.arguments) : void 0;
+		const before = sentinels?.before;
+		const blocker = blockerOf(finalApproval, before);
+		const didRun = event.error?.type !== "approval" && !(blocker && !hasResult(event.result));
+		const approverReplacement = finalApproval?.decision === "modify" ? finalApproval.modified ?? void 0 : void 0;
+		const judged = approverReplacement ?? sentinels?.proposed;
+		beforeInsets = approvals || before ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(ToolBlockInset, {
 			region: "input",
-			context,
-			judged,
-			judgedReplaced: !!approverReplacement
-		}) : null]
-	}) : void 0;
-	const afterInset = sentinels?.after ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolBlockInset, {
-		region: "output",
-		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelInset, {
-			step: sentinels.after,
+			children: [approvals ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ApprovalInset, { chain: approvals }) : null, before ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelInset, {
+				step: before,
+				region: "input",
+				context,
+				judged,
+				judgedReplaced: !!approverReplacement
+			}) : null]
+		}) : void 0;
+		afterInset = sentinels?.after ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolBlockInset, {
 			region: "output",
-			context
-		})
-	}) : void 0;
-	const notRun = didRun ? void 0 : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NotRunWell, { message: event.error?.type === "approval" ? event.error.message : blocker?.decision === "reject" ? blocker.message?.trim() || "Tool call not approved." : void 0 });
-	const lastModelNode = (0, import_react.useMemo)(() => {
-		const lastModel = childNodes.findLast((e) => e.event.event === "model");
-		return lastModel ? eventNodeOf(lastModel, "model") : void 0;
-	}, [event.events]);
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SentinelInset, {
+				step: sentinels.after,
+				region: "output",
+				context
+			})
+		}) : void 0;
+		t1 = didRun ? void 0 : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(NotRunWell, { message: event.error?.type === "approval" ? event.error.message : blocker?.decision === "reject" ? blocker.message?.trim() || "Tool call not approved." : void 0 });
+		$[0] = context;
+		$[1] = event;
+		$[2] = eventNode.id;
+		$[3] = afterInset;
+		$[4] = beforeInsets;
+		$[5] = contentType;
+		$[6] = description;
+		$[7] = functionCall;
+		$[8] = input;
+		$[9] = name;
+		$[10] = resolvedView;
+		$[11] = t1;
+		$[12] = title;
+	} else {
+		afterInset = $[3];
+		beforeInsets = $[4];
+		contentType = $[5];
+		description = $[6];
+		functionCall = $[7];
+		input = $[8];
+		name = $[9];
+		resolvedView = $[10];
+		t1 = $[11];
+		title = $[12];
+	}
+	const notRun = t1;
+	let t2;
+	if ($[13] !== childNodes) {
+		const lastModel = childNodes.findLast(_temp$53);
+		t2 = lastModel ? eventNodeOf(lastModel, "model") : void 0;
+		$[13] = childNodes;
+		$[14] = t2;
+	} else t2 = $[14];
+	const lastModelNode = t2;
 	const displayName = resolvedView?.title || title || name;
 	const panelTitle = displayName ? `Tool: ${displayName}` : "Tool";
-	const turnNav = context?.turnInfo ? {
-		turnNumber: context.turnInfo.turnNumber,
-		totalTurns: context.turnInfo.totalTurns,
-		isAnchor: context.turnIsAnchor ?? true
-	} : void 0;
-	const toolLabels = (0, import_react.useMemo)(() => {
+	let t3;
+	if ($[15] !== context) {
+		t3 = context?.turnInfo ? {
+			turnNumber: context.turnInfo.turnNumber,
+			totalTurns: context.turnInfo.totalTurns,
+			isAnchor: context.turnIsAnchor ?? true
+		} : void 0;
+		$[15] = context;
+		$[16] = t3;
+	} else t3 = $[16];
+	const turnNav = t3;
+	context?.messageLabels;
+	context?.toolLabels;
+	let t4;
+	bb0: {
 		const messageLabels = context?.messageLabels;
 		const toolLabelMap = context?.toolLabels;
-		if (!messageLabels) return { show: false };
-		const label = (event.message_id ? getOwn(messageLabels, event.message_id) : void 0) ?? getOwn(toolLabelMap, event.id);
-		return { messageLabels: label ? { [event.id]: label } : {} };
-	}, [
-		context?.messageLabels,
-		context?.toolLabels,
-		event.id,
-		event.message_id
-	]);
-	const maxLabelLength = (0, import_react.useMemo)(() => computeMaxLabelLength(context?.messageLabels), [context?.messageLabels]);
+		if (!messageLabels) {
+			let t5;
+			if ($[17] === Symbol.for("react.memo_cache_sentinel")) {
+				t5 = { show: false };
+				$[17] = t5;
+			} else t5 = $[17];
+			t4 = t5;
+			break bb0;
+		}
+		let t5;
+		if ($[18] !== event.message_id || $[19] !== messageLabels) {
+			t5 = event.message_id ? getOwn(messageLabels, event.message_id) : void 0;
+			$[18] = event.message_id;
+			$[19] = messageLabels;
+			$[20] = t5;
+		} else t5 = $[20];
+		const directLabel = t5;
+		let t6;
+		if ($[21] !== directLabel || $[22] !== event.id || $[23] !== toolLabelMap) {
+			t6 = directLabel ?? getOwn(toolLabelMap, event.id);
+			$[21] = directLabel;
+			$[22] = event.id;
+			$[23] = toolLabelMap;
+			$[24] = t6;
+		} else t6 = $[24];
+		const label = t6;
+		let t7;
+		if ($[25] !== event.id || $[26] !== label) {
+			t7 = { messageLabels: label ? { [event.id]: label } : {} };
+			$[25] = event.id;
+			$[26] = label;
+			$[27] = t7;
+		} else t7 = $[27];
+		t4 = t7;
+	}
+	const toolLabels = t4;
+	let t5;
+	if ($[28] !== context?.messageLabels) {
+		t5 = () => computeMaxLabelLength(context?.messageLabels);
+		$[28] = context?.messageLabels;
+		$[29] = t5;
+	} else t5 = $[29];
+	context?.messageLabels;
+	let t6;
+	if ($[30] !== t5) {
+		t6 = t5();
+		$[30] = t5;
+		$[31] = t6;
+	} else t6 = $[31];
+	const maxLabelLength = t6;
 	const showError = !!event.error && event.error.type !== "approval";
-	const toolCallView = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ClientToolCall, {
-		id: `${eventNode.id}-tool-call`,
-		tool: name,
-		title: displayName,
-		functionCall,
-		input,
-		description,
-		contentType,
-		output: event.result,
-		selfAnnotation: context?.selfAnnotation,
-		inputScreenshot: context?.inputScreenshot,
-		error: showError && event.error ? event.error : void 0,
-		view: resolvedView,
-		afterInput: beforeInsets,
-		afterOutput: afterInset,
-		outputReplacement: notRun
-	});
-	const toolLabel = getOwn(toolLabels.messageLabels, event.id);
-	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventPanel, {
-		eventNodeId: eventNode.id,
-		title: formatTitle(panelTitle, void 0, event.working_time),
-		className,
-		subTitle: event.timestamp ? formatTiming(event.timestamp, event.working_start) : void 0,
-		icon: "solverUseTools",
-		childIds: childNodes.map((child) => child.id),
-		collapseControl: "bottom",
-		turnNav,
-		eventCallbacks,
-		children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+	const t7 = `${eventNode.id}-tool-call`;
+	const t8 = context?.selfAnnotation;
+	const t9 = context?.inputScreenshot;
+	const t10 = showError && event.error ? event.error : void 0;
+	let t11;
+	if ($[32] !== afterInset || $[33] !== beforeInsets || $[34] !== contentType || $[35] !== description || $[36] !== displayName || $[37] !== event.result || $[38] !== functionCall || $[39] !== input || $[40] !== name || $[41] !== notRun || $[42] !== resolvedView || $[43] !== t10 || $[44] !== t7 || $[45] !== t8 || $[46] !== t9) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ClientToolCall, {
+			id: t7,
+			tool: name,
+			title: displayName,
+			functionCall,
+			input,
+			description,
+			contentType,
+			output: event.result,
+			selfAnnotation: t8,
+			inputScreenshot: t9,
+			error: t10,
+			view: resolvedView,
+			afterInput: beforeInsets,
+			afterOutput: afterInset,
+			outputReplacement: notRun
+		});
+		$[32] = afterInset;
+		$[33] = beforeInsets;
+		$[34] = contentType;
+		$[35] = description;
+		$[36] = displayName;
+		$[37] = event.result;
+		$[38] = functionCall;
+		$[39] = input;
+		$[40] = name;
+		$[41] = notRun;
+		$[42] = resolvedView;
+		$[43] = t10;
+		$[44] = t7;
+		$[45] = t8;
+		$[46] = t9;
+		$[47] = t11;
+	} else t11 = $[47];
+	const toolCallView = t11;
+	let t12;
+	if ($[48] !== event.id || $[49] !== toolLabels.messageLabels) {
+		t12 = getOwn(toolLabels.messageLabels, event.id);
+		$[48] = event.id;
+		$[49] = toolLabels.messageLabels;
+		$[50] = t12;
+	} else t12 = $[50];
+	const toolLabel = t12;
+	const t13 = eventNode.id;
+	let t14;
+	if ($[51] !== event.working_time || $[52] !== panelTitle) {
+		t14 = formatTitle(panelTitle, void 0, event.working_time);
+		$[51] = event.working_time;
+		$[52] = panelTitle;
+		$[53] = t14;
+	} else t14 = $[53];
+	let t15;
+	if ($[54] !== event.timestamp || $[55] !== event.working_start) {
+		t15 = event.timestamp ? formatTiming(event.timestamp, event.working_start) : void 0;
+		$[54] = event.timestamp;
+		$[55] = event.working_start;
+		$[56] = t15;
+	} else t15 = $[56];
+	let t16;
+	if ($[57] !== childNodes) {
+		t16 = childNodes.map(_temp2$37);
+		$[57] = childNodes;
+		$[58] = t16;
+	} else t16 = $[58];
+	let t17;
+	if ($[59] !== maxLabelLength || $[60] !== toolCallView || $[61] !== toolLabel || $[62] !== toolLabels.show) {
+		t17 = toolLabels.show === false ? toolCallView : /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: ToolEventView_module_default.labeledToolCall,
+			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+				className: ToolEventView_module_default.labeledToolContent,
+				children: toolCallView
+			}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+				className: ToolEventView_module_default.label,
+				style: { minWidth: `${maxLabelLength}ch` },
+				children: toolLabel ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageLabel, { label: toolLabel }) : null
+			})]
+		});
+		$[59] = maxLabelLength;
+		$[60] = toolCallView;
+		$[61] = toolLabel;
+		$[62] = toolLabels.show;
+		$[63] = t17;
+	} else t17 = $[63];
+	let t18;
+	if ($[64] !== eventNode.id || $[65] !== lastModelNode) {
+		t18 = lastModelNode ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
+			id: `${eventNode.id}-toolcall-chatmessage`,
+			messages: lastModelNode.event.output.choices.map(_temp3$26),
+			tools: { callStyle: "compact" }
+		}) : void 0;
+		$[64] = eventNode.id;
+		$[65] = lastModelNode;
+		$[66] = t18;
+	} else t18 = $[66];
+	let t19;
+	if ($[67] !== event.pending) {
+		t19 = event.pending ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: clsx(ToolEventView_module_default.progress),
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(GeneratingIndicator, { label: "running" })
+		}) : void 0;
+		$[67] = event.pending;
+		$[68] = t19;
+	} else t19 = $[68];
+	let t20;
+	if ($[69] !== t17 || $[70] !== t18 || $[71] !== t19) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			"data-name": "Summary",
 			className: ToolEventView_module_default.summary,
 			children: [
-				toolLabels.show === false ? toolCallView : /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-					className: ToolEventView_module_default.labeledToolCall,
-					children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-						className: ToolEventView_module_default.labeledToolContent,
-						children: toolCallView
-					}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-						className: ToolEventView_module_default.label,
-						style: { minWidth: `${maxLabelLength}ch` },
-						children: toolLabel ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageLabel, { label: toolLabel }) : null
-					})]
-				}),
-				lastModelNode ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ChatView, {
-					id: `${eventNode.id}-toolcall-chatmessage`,
-					messages: lastModelNode.event.output.choices.map((m) => m.message),
-					tools: { callStyle: "compact" }
-				}) : void 0,
-				event.pending ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-					className: clsx(ToolEventView_module_default.progress),
-					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(GeneratingIndicator, { label: "running" })
-				}) : void 0
+				t17,
+				t18,
+				t19
 			]
-		})
-	});
+		});
+		$[69] = t17;
+		$[70] = t18;
+		$[71] = t19;
+		$[72] = t20;
+	} else t20 = $[72];
+	let t21;
+	if ($[73] !== className || $[74] !== eventCallbacks || $[75] !== eventNode.id || $[76] !== t14 || $[77] !== t15 || $[78] !== t16 || $[79] !== t20 || $[80] !== turnNav) {
+		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(EventPanel, {
+			eventNodeId: t13,
+			title: t14,
+			className,
+			subTitle: t15,
+			icon: "solverUseTools",
+			childIds: t16,
+			collapseControl: "bottom",
+			turnNav,
+			eventCallbacks,
+			children: t20
+		});
+		$[73] = className;
+		$[74] = eventCallbacks;
+		$[75] = eventNode.id;
+		$[76] = t14;
+		$[77] = t15;
+		$[78] = t16;
+		$[79] = t20;
+		$[80] = turnNav;
+		$[81] = t21;
+	} else t21 = $[81];
+	return t21;
 };
+function _temp$53(e) {
+	return e.event.event === "model";
+}
+function _temp2$37(child) {
+	return child.id;
+}
+function _temp3$26(m) {
+	return m.message;
+}
 // ../../packages/inspect-components/src/transcript/hasToolEventsAtDepth.ts
 /**
 * For each event node, compute whether a backward scan from that node reaches a
@@ -108108,8 +108317,8 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 /**
 * Renders the Transcript component.
 */ var TranscriptVirtualListComponent = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(70);
-	const { id, listHandle, eventNodes, scrollRef, running, backfilling, scrollToTopOnFinish: t1, initialEventId, navOwned, followRequested, className, turnMap, relativeIndent, disableVirtualization, onNativeFindChanged, onAutoCollapse, renderAgentCard, eventCallbacks, eventNodeContext, selection, visibleRangeRef } = t0;
+	const $ = (0, import_compiler_runtime.c)(69);
+	const { id, listHandle, eventNodes, scrollRef, running, backfilling, scrollToTopOnFinish: t1, initialEventId, navOwned, followRequested, className, turnMap, relativeIndent, disableVirtualization, onNativeFindChanged, onAutoCollapse, renderAgentCard, eventCallbacks, eventNodeContext, selection } = t0;
 	const scrollToTopOnFinish = t1 === void 0 ? true : t1;
 	const useVirtualization = !disableVirtualization;
 	let t2;
@@ -108312,7 +108521,7 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 	} else t15 = $[48];
 	const components = t15;
 	let t16;
-	if ($[49] !== className || $[50] !== components || $[51] !== eventNodes || $[52] !== followRequested || $[53] !== id || $[54] !== initialEventIndex || $[55] !== isBackfilling || $[56] !== listHandle || $[57] !== navOwned || $[58] !== renderRow || $[59] !== running || $[60] !== scrollRef || $[61] !== scrollToTopOnFinish || $[62] !== showFooter || $[63] !== toolsRunning || $[64] !== useVirtualization || $[65] !== visibleRangeRef) {
+	if ($[49] !== className || $[50] !== components || $[51] !== eventNodes || $[52] !== followRequested || $[53] !== id || $[54] !== initialEventIndex || $[55] !== isBackfilling || $[56] !== listHandle || $[57] !== navOwned || $[58] !== renderRow || $[59] !== running || $[60] !== scrollRef || $[61] !== scrollToTopOnFinish || $[62] !== showFooter || $[63] !== toolsRunning || $[64] !== useVirtualization) {
 		t16 = useVirtualization ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(VirtualList, {
 			ref: listHandle,
 			className,
@@ -108327,13 +108536,9 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 			live: running === true,
 			smoothScroll: running === true && !isBackfilling,
 			scrollToTopOnFinish,
-			itemSearchText: eventSearchText,
-			findScope: "none",
+			itemSearchText: null,
 			showProgress: showFooter,
-			components,
-			onVisibleRangeChange: (range) => {
-				if (visibleRangeRef) visibleRangeRef.current = range;
-			}
+			components
 		}) : /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			ref: nonVirtualGridRef,
 			children: [eventNodes.map((node_0, index_0) => {
@@ -108359,21 +108564,20 @@ var kFocusExcludedEvents = /* @__PURE__ */ new Set([
 		$[62] = showFooter;
 		$[63] = toolsRunning;
 		$[64] = useVirtualization;
-		$[65] = visibleRangeRef;
-		$[66] = t16;
-	} else t16 = $[66];
+		$[65] = t16;
+	} else t16 = $[65];
 	const list = t16;
 	const t17 = selection?.onToggle;
 	let t18;
-	if ($[67] !== list || $[68] !== t17) {
+	if ($[66] !== list || $[67] !== t17) {
 		t18 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RowToggleContext.Provider, {
 			value: t17,
 			children: list
 		});
-		$[67] = list;
-		$[68] = t17;
-		$[69] = t18;
-	} else t18 = $[69];
+		$[66] = list;
+		$[67] = t17;
+		$[68] = t18;
+	} else t18 = $[68];
 	return t18;
 };
 var TranscriptVirtualList = /*#__PURE__*/ (0, import_react.memo)(TranscriptVirtualListComponent);
@@ -109083,6 +109287,7 @@ var RenderedEventNode = /*#__PURE__*/ (0, import_react.memo)(RenderedEventNodeIn
 	useEventListener(handleExit ? document : null, "keydown", (e) => {
 		if (!(e.key === "Escape" || e.key === "f" && !e.metaKey && !e.ctrlKey && !e.altKey)) return;
 		if (isEditableTarget(document.activeElement)) return;
+		if (e.key === "Escape" && hasOpenPopover()) return;
 		e.preventDefault();
 		if (laneMenuOpen) {
 			setLaneMenuOpen(false);
@@ -109583,12 +109788,15 @@ var PRIORITY_MODEL_INPUT = 4;
 	return nodes;
 };
 /**
-* Pairs each approval chain to the ToolEvent whose id is its execution id
-* (`executionIdOf`), in the same sentinel span and conversation
+* Pairs each approval chain to the ToolEvent its execution id names
+* (`executionIdOf`, `runIdOf`), in the same sentinel span and conversation
 * (`isConversationNode`): an approver's or monitor's own calls run inside the
 * span that called it, and a delegated or sibling agent's calls in its own
 * conversation, under ids the agent's calls may share. A chain that records
-* its `execution_id` pairs with the one such tool, or none.
+* its `execution_id` pairs with the one such tool, or none. A bridged call's
+* handout can run once per bridged tool it denotes, and is approved once per
+* tool, so among several runs of one handout an approval pairs with the run
+* of the tool it reviewed.
 *
 * Otherwise its id is the model's, which calls on different turns can share.
 * A chain is the escalations up to the decision that ends them, and is
@@ -109609,7 +109817,7 @@ var PRIORITY_MODEL_INPUT = 4;
 *   every ToolEvent of their id go to the last one when it is native.
 */ function pairToolApprovalsByExecution(eventNodes) {
 	const chains = /* @__PURE__ */ new Map();
-	const toolsOf = /* @__PURE__ */ new Map();
+	/** By scope and `runIdOf`, the tools an approval's `execution_id` may name. */ const toolsOf = /* @__PURE__ */ new Map();
 	const lastTool = /* @__PURE__ */ new Map();
 	const waiting = /* @__PURE__ */ new Map();
 	const named = [];
@@ -109660,9 +109868,10 @@ var PRIORITY_MODEL_INPUT = 4;
 					if (chain) chains.set(n.id, chain);
 					waiting.set(key, queue.flat());
 				}
-				const tools = toolsOf.get(key);
-				if (tools) tools.push(n.id);
-				else toolsOf.set(key, [n.id]);
+				const runKey = `${scope}\u0000${runIdOf(n.event)}`;
+				const tools = toolsOf.get(runKey);
+				if (tools) tools.push(tool);
+				else toolsOf.set(runKey, [tool]);
 				lastTool.set(key, tool);
 			} else if (isSentinelSpan(n) && n.event.event === "span_begin" && n.event.name === "sentinel_bridge") {
 				const step = buildSentinelStep(stepNodes(n));
@@ -109684,8 +109893,9 @@ var PRIORITY_MODEL_INPUT = 4;
 		else unpaired.push(...chain);
 	}
 	for (const { node, key } of named) {
-		const [only, other] = toolsOf.get(key) ?? [];
-		if (only && !other) append(only, [node]);
+		const runs = toolsOf.get(key) ?? [];
+		const [only, other] = runs.length > 1 && runs[0]?.event.execution_id != null ? runs.filter((run) => run.event.function === node.event.call.function) : runs;
+		if (only && !other) append(only.id, [node]);
 		else unpaired.push(node);
 	}
 	const discarded = (node) => outputs.discarded(outputOf.get(node.id));
@@ -111394,7 +111604,7 @@ function useTimelinesArray(events, serverTimelines, options) {
 var emptySourceSpans = /* @__PURE__ */ new Map();
 var emptyHighlightedKeys = /* @__PURE__ */ new Map();
 function useTranscriptTimeline(options) {
-	const $ = (0, import_compiler_runtime.c)(101);
+	const $ = (0, import_compiler_runtime.c)(107);
 	const { events: rawEvents, markerConfig: t0, timelineOptions, serverTimelines, timelineProps, activeTimelineProps } = options;
 	const markerConfig = t0 === void 0 ? defaultMarkerConfig : t0;
 	let t1;
@@ -111456,9 +111666,11 @@ function useTranscriptTimeline(options) {
 	let t6;
 	if ($[13] !== baseTimeline.root || $[14] !== timelineProps) {
 		t6 = (branch, label) => {
+			const spliced = spliceToTimeline(baseTimeline.root, branch);
+			if (!spliced) return;
 			setViewStack((s) => [...s, {
 				label,
-				timeline: spliceToTimeline(baseTimeline.root, branch),
+				timeline: spliced,
 				priorSelected: timelineProps?.selected ?? null
 			}]);
 			timelineProps?.onSelect(null);
@@ -111729,49 +111941,73 @@ function useTranscriptTimeline(options) {
 	} else t21 = $[77];
 	const multiTimeline = t21;
 	let t22;
-	if ($[78] !== pushView || $[79] !== state.rows) {
-		t22 = (rowKey_2, label_0) => {
-			const span_0 = state.rows.find((r_2) => r_2.key === rowKey_2)?.spans[0];
-			if (span_0 && "agent" in span_0) pushView(span_0.agent, label_0);
+	if ($[78] !== state.rows) {
+		t22 = (rowKey_2) => {
+			const row_5 = state.rows.find((r_2) => r_2.key === rowKey_2);
+			const span_0 = row_5?.spans[0];
+			return row_5?.branch && span_0 && "agent" in span_0 ? span_0.agent : null;
 		};
-		$[78] = pushView;
-		$[79] = state.rows;
-		$[80] = t22;
-	} else t22 = $[80];
-	const pushViewByRowKey = t22;
+		$[78] = state.rows;
+		$[79] = t22;
+	} else t22 = $[79];
+	const rowBranch = t22;
 	let t23;
-	if ($[81] !== popView || $[82] !== pushView || $[83] !== pushViewByRowKey || $[84] !== viewStack) {
-		t23 = {
+	if ($[80] !== pushView || $[81] !== rowBranch) {
+		t23 = (rowKey_3, label_0) => {
+			const branch_0 = rowBranch(rowKey_3);
+			if (branch_0) pushView(branch_0, label_0);
+		};
+		$[80] = pushView;
+		$[81] = rowBranch;
+		$[82] = t23;
+	} else t23 = $[82];
+	const pushViewByRowKey = t23;
+	let t24;
+	if ($[83] !== baseTimeline.root || $[84] !== rowBranch) {
+		t24 = (rowKey_4) => {
+			const branch_1 = rowBranch(rowKey_4);
+			return branch_1 !== null && canSplice(baseTimeline.root, branch_1);
+		};
+		$[83] = baseTimeline.root;
+		$[84] = rowBranch;
+		$[85] = t24;
+	} else t24 = $[85];
+	const canPushViewByRowKey = t24;
+	let t25;
+	if ($[86] !== canPushViewByRowKey || $[87] !== popView || $[88] !== pushView || $[89] !== pushViewByRowKey || $[90] !== viewStack) {
+		t25 = {
 			stack: viewStack,
 			push: pushView,
 			pushByRowKey: pushViewByRowKey,
+			canPushByRowKey: canPushViewByRowKey,
 			pop: popView
 		};
-		$[81] = popView;
-		$[82] = pushView;
-		$[83] = pushViewByRowKey;
-		$[84] = viewStack;
-		$[85] = t23;
-	} else t23 = $[85];
-	const views = t23;
-	let t24;
-	if ($[86] !== branchScrollTarget || $[87] !== selectedEvents || $[88] !== selectedRowName || $[89] !== sourceSpans) {
-		t24 = {
+		$[86] = canPushViewByRowKey;
+		$[87] = popView;
+		$[88] = pushView;
+		$[89] = pushViewByRowKey;
+		$[90] = viewStack;
+		$[91] = t25;
+	} else t25 = $[91];
+	const views = t25;
+	let t26;
+	if ($[92] !== branchScrollTarget || $[93] !== selectedEvents || $[94] !== selectedRowName || $[95] !== sourceSpans) {
+		t26 = {
 			events: selectedEvents,
 			sourceSpans,
 			branchScrollTarget,
 			rowName: selectedRowName
 		};
-		$[86] = branchScrollTarget;
-		$[87] = selectedEvents;
-		$[88] = selectedRowName;
-		$[89] = sourceSpans;
-		$[90] = t24;
-	} else t24 = $[90];
-	const selection_0 = t24;
-	let t25;
-	if ($[91] !== hasAgentTimeline || $[92] !== hasTimeline || $[93] !== minimap || $[94] !== multiTimeline || $[95] !== selection_0 || $[96] !== state || $[97] !== swimlanes || $[98] !== timeline || $[99] !== views) {
-		t25 = {
+		$[92] = branchScrollTarget;
+		$[93] = selectedEvents;
+		$[94] = selectedRowName;
+		$[95] = sourceSpans;
+		$[96] = t26;
+	} else t26 = $[96];
+	const selection_0 = t26;
+	let t27;
+	if ($[97] !== hasAgentTimeline || $[98] !== hasTimeline || $[99] !== minimap || $[100] !== multiTimeline || $[101] !== selection_0 || $[102] !== state || $[103] !== swimlanes || $[104] !== timeline || $[105] !== views) {
+		t27 = {
 			timeline,
 			state,
 			hasTimeline,
@@ -111782,18 +112018,18 @@ function useTranscriptTimeline(options) {
 			views,
 			selection: selection_0
 		};
-		$[91] = hasAgentTimeline;
-		$[92] = hasTimeline;
-		$[93] = minimap;
-		$[94] = multiTimeline;
-		$[95] = selection_0;
-		$[96] = state;
-		$[97] = swimlanes;
-		$[98] = timeline;
-		$[99] = views;
-		$[100] = t25;
-	} else t25 = $[100];
-	return t25;
+		$[97] = hasAgentTimeline;
+		$[98] = hasTimeline;
+		$[99] = minimap;
+		$[100] = multiTimeline;
+		$[101] = selection_0;
+		$[102] = state;
+		$[103] = swimlanes;
+		$[104] = timeline;
+		$[105] = views;
+		$[106] = t27;
+	} else t27 = $[106];
+	return t27;
 }
 function _temp4$21(row_3) {
 	if (row_3.depth < 1) return false;
@@ -112595,11 +112831,10 @@ var TimelineOptionsPopover = (t0) => {
 };
 // ../../packages/inspect-components/src/transcript/timeline/components/TimelineSelector.tsx
 var TimelineSelector = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(18);
+	const $ = (0, import_compiler_runtime.c)(23);
 	const { timelines, activeIndex, onSelect } = t0;
 	const [isOpen, setIsOpen] = (0, import_react.useState)(false);
-	const containerRef = (0, import_react.useRef)(null);
-	const triggerRef = (0, import_react.useRef)(null);
+	const [trigger, setTrigger] = (0, import_react.useState)(null);
 	let t1;
 	if ($[0] !== onSelect) {
 		t1 = (index) => {
@@ -112610,92 +112845,93 @@ var TimelineSelector = (t0) => {
 		$[1] = t1;
 	} else t1 = $[1];
 	const handleSelect = t1;
-	let t2;
-	let t3;
-	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
-		t2 = (e) => {
-			if (e.key !== "Escape") return;
-			e.stopPropagation();
-			const refocus = containerRef.current?.contains(document.activeElement) ?? false;
-			setIsOpen(false);
-			if (refocus) triggerRef.current?.focus();
-		};
-		t3 = { capture: true };
-		$[2] = t2;
-		$[3] = t3;
-	} else {
-		t2 = $[2];
-		t3 = $[3];
-	}
-	useEventListener(isOpen ? window : null, "keydown", t2, t3);
 	if (timelines.length <= 1) return null;
 	const active = timelines[activeIndex];
 	if (!active) return null;
-	let t4;
-	if ($[4] === Symbol.for("react.memo_cache_sentinel")) {
-		t4 = () => setIsOpen(_temp$49);
-		$[4] = t4;
-	} else t4 = $[4];
-	let t5;
-	if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
-		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
+	let t2;
+	if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
+		t2 = () => setIsOpen(_temp$49);
+		$[2] = t2;
+	} else t2 = $[2];
+	let t3;
+	if ($[3] === Symbol.for("react.memo_cache_sentinel")) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
 			name: "chevronDown",
 			className: TimelineSelector_module_default.chevron
 		});
-		$[5] = t5;
-	} else t5 = $[5];
-	let t6;
-	if ($[6] !== active.description || $[7] !== active.name || $[8] !== isOpen) {
-		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
-			ref: triggerRef,
+		$[3] = t3;
+	} else t3 = $[3];
+	let t4;
+	if ($[4] !== active.description || $[5] !== active.name || $[6] !== isOpen) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+			ref: setTrigger,
 			type: "button",
 			className: TimelineSelector_module_default.selectorButton,
-			onClick: t4,
+			onClick: t2,
 			title: active.description,
 			"aria-haspopup": "listbox",
 			"aria-expanded": isOpen,
-			children: [active.name, t5]
+			children: [active.name, t3]
 		});
-		$[6] = active.description;
-		$[7] = active.name;
-		$[8] = isOpen;
-		$[9] = t6;
-	} else t6 = $[9];
-	let t7;
-	if ($[10] !== activeIndex || $[11] !== handleSelect || $[12] !== isOpen || $[13] !== timelines) {
-		t7 = isOpen && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: TimelineSelector_module_default.backdrop,
-			role: "presentation",
-			onClick: () => setIsOpen(false)
-		}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: TimelineSelector_module_default.dropdownMenu,
-			role: "listbox",
-			children: timelines.map((tl, i) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+		$[4] = active.description;
+		$[5] = active.name;
+		$[6] = isOpen;
+		$[7] = t4;
+	} else t4 = $[7];
+	let t5;
+	if ($[8] === Symbol.for("react.memo_cache_sentinel")) {
+		t5 = () => setIsOpen(false);
+		$[8] = t5;
+	} else t5 = $[8];
+	let t6;
+	if ($[9] !== activeIndex || $[10] !== handleSelect || $[11] !== timelines) {
+		let t7;
+		if ($[13] !== activeIndex || $[14] !== handleSelect) {
+			t7 = (tl, i) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 				type: "button",
 				className: clsx(TimelineSelector_module_default.dropdownItem, i === activeIndex && TimelineSelector_module_default.dropdownItemActive),
 				role: "option",
 				"aria-selected": i === activeIndex,
 				onClick: () => handleSelect(i),
 				children: tl.name
-			}, tl.name))
-		})] });
-		$[10] = activeIndex;
-		$[11] = handleSelect;
-		$[12] = isOpen;
-		$[13] = timelines;
-		$[14] = t7;
-	} else t7 = $[14];
-	let t8;
-	if ($[15] !== t6 || $[16] !== t7) {
-		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			ref: containerRef,
-			className: TimelineSelector_module_default.selectorContainer,
-			children: [t6, t7]
+			}, tl.name);
+			$[13] = activeIndex;
+			$[14] = handleSelect;
+			$[15] = t7;
+		} else t7 = $[15];
+		t6 = timelines.map(t7);
+		$[9] = activeIndex;
+		$[10] = handleSelect;
+		$[11] = timelines;
+		$[12] = t6;
+	} else t6 = $[12];
+	let t7;
+	if ($[16] !== isOpen || $[17] !== t6 || $[18] !== trigger) {
+		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AnchoredPopover, {
+			open: isOpen,
+			onClose: t5,
+			anchor: trigger,
+			placement: "bottom-start",
+			offset: 2,
+			role: "listbox",
+			className: TimelineSelector_module_default.dropdownMenu,
+			children: t6
 		});
-		$[15] = t6;
-		$[16] = t7;
-		$[17] = t8;
-	} else t8 = $[17];
+		$[16] = isOpen;
+		$[17] = t6;
+		$[18] = trigger;
+		$[19] = t7;
+	} else t7 = $[19];
+	let t8;
+	if ($[20] !== t4 || $[21] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: TimelineSelector_module_default.selectorContainer,
+			children: [t4, t7]
+		});
+		$[20] = t4;
+		$[21] = t7;
+		$[22] = t8;
+	} else t8 = $[22];
 	return t8;
 };
 function _temp$49(prev) {
@@ -112779,8 +113015,8 @@ var TimelineSwimLanes_module_default = {
 	return segments;
 }
 var TimelineSwimLanes = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(131);
-	const { layouts, timeline, header, isSticky, onMarkerNavigate, headroomCollapsed: t1, onLayoutShift, regionCounts, defaultCollapsed: defaultCollapsedProp, highlightedKeys, onPunchDown } = t0;
+	const $ = (0, import_compiler_runtime.c)(133);
+	const { layouts, timeline, header, isSticky, onMarkerNavigate, headroomCollapsed: t1, onLayoutShift, regionCounts, defaultCollapsed: defaultCollapsedProp, highlightedKeys, onPunchDown, canPunchDown } = t0;
 	const headroomCollapsed = t1 === void 0 ? false : t1;
 	const { selected, select: onSelect, clearSelection } = timeline;
 	const [collapsed, setCollapsed] = useProperty("timeline", "swimlanesCollapsed");
@@ -112946,6 +113182,7 @@ var TimelineSwimLanes = (t0) => {
 					break bb210;
 				}
 				case "Escape":
+					if (hasOpenPopover(e.currentTarget)) break bb210;
 					e.preventDefault();
 					clearSelection();
 			}
@@ -112969,17 +113206,17 @@ var TimelineSwimLanes = (t0) => {
 	let t19;
 	let t20;
 	let t21;
-	if ($[41] !== breadcrumbs || $[42] !== expandableKeys || $[43] !== handleBranchMarkerClick || $[44] !== handleBranchToggle || $[45] !== handleKeyDown || $[46] !== handleToggleRowCollapse || $[47] !== header || $[48] !== highlightedKeys || $[49] !== isCollapsed || $[50] !== isRowCollapsed || $[51] !== isSticky || $[52] !== onMarkerNavigate || $[53] !== onPunchDown || $[54] !== onSelect || $[55] !== parentRow || $[56] !== parsedSelection?.regionIndex || $[57] !== parsedSelection?.spanIndex || $[58] !== regionCounts || $[59] !== selectedRowKey || $[60] !== timeline || $[61] !== visibleLayouts) {
+	if ($[41] !== breadcrumbs || $[42] !== canPunchDown || $[43] !== expandableKeys || $[44] !== handleBranchMarkerClick || $[45] !== handleBranchToggle || $[46] !== handleKeyDown || $[47] !== handleToggleRowCollapse || $[48] !== header || $[49] !== highlightedKeys || $[50] !== isCollapsed || $[51] !== isRowCollapsed || $[52] !== isSticky || $[53] !== onMarkerNavigate || $[54] !== onPunchDown || $[55] !== onSelect || $[56] !== parentRow || $[57] !== parsedSelection?.regionIndex || $[58] !== parsedSelection?.spanIndex || $[59] !== regionCounts || $[60] !== selectedRowKey || $[61] !== timeline || $[62] !== visibleLayouts) {
 		const childRows = visibleLayouts.slice(1);
 		let t22;
-		if ($[73] !== visibleLayouts) {
+		if ($[74] !== visibleLayouts) {
 			t22 = computeBranchConnectors(visibleLayouts);
-			$[73] = visibleLayouts;
-			$[74] = t22;
-		} else t22 = $[74];
+			$[74] = visibleLayouts;
+			$[75] = t22;
+		} else t22 = $[75];
 		const branchConnectors = t22;
 		let t23;
-		if ($[75] !== branchConnectors || $[76] !== expandableKeys || $[77] !== handleBranchMarkerClick || $[78] !== handleToggleRowCollapse || $[79] !== highlightedKeys || $[80] !== isRowCollapsed || $[81] !== onMarkerNavigate || $[82] !== onPunchDown || $[83] !== onSelect || $[84] !== parsedSelection?.regionIndex || $[85] !== parsedSelection?.spanIndex || $[86] !== regionCounts || $[87] !== selectedRowKey) {
+		if ($[76] !== branchConnectors || $[77] !== canPunchDown || $[78] !== expandableKeys || $[79] !== handleBranchMarkerClick || $[80] !== handleToggleRowCollapse || $[81] !== highlightedKeys || $[82] !== isRowCollapsed || $[83] !== onMarkerNavigate || $[84] !== onPunchDown || $[85] !== onSelect || $[86] !== parsedSelection?.regionIndex || $[87] !== parsedSelection?.spanIndex || $[88] !== regionCounts || $[89] !== selectedRowKey) {
 			t23 = (layout_4, displayName) => {
 				const isRowSelected = selectedRowKey === layout_4.key;
 				const selectedSpanIndex = isRowSelected ? parsedSelection?.spanIndex ?? null : null;
@@ -113002,37 +113239,38 @@ var TimelineSwimLanes = (t0) => {
 					onBranchToggle: () => handleBranchMarkerClick(layout_4.key),
 					onMarkerNavigate,
 					connector: branchConnectors.get(layout_4.key),
-					onPunchDown: layout_4.branch && onPunchDown ? () => onPunchDown(layout_4.key, layout_4.name) : void 0
+					onPunchDown: onPunchDown && canPunchDown?.(layout_4.key) ? () => onPunchDown(layout_4.key, layout_4.name) : void 0
 				}, layout_4.key);
 			};
-			$[75] = branchConnectors;
-			$[76] = expandableKeys;
-			$[77] = handleBranchMarkerClick;
-			$[78] = handleToggleRowCollapse;
-			$[79] = highlightedKeys;
-			$[80] = isRowCollapsed;
-			$[81] = onMarkerNavigate;
-			$[82] = onPunchDown;
-			$[83] = onSelect;
-			$[84] = parsedSelection?.regionIndex;
-			$[85] = parsedSelection?.spanIndex;
-			$[86] = regionCounts;
-			$[87] = selectedRowKey;
-			$[88] = t23;
-		} else t23 = $[88];
+			$[76] = branchConnectors;
+			$[77] = canPunchDown;
+			$[78] = expandableKeys;
+			$[79] = handleBranchMarkerClick;
+			$[80] = handleToggleRowCollapse;
+			$[81] = highlightedKeys;
+			$[82] = isRowCollapsed;
+			$[83] = onMarkerNavigate;
+			$[84] = onPunchDown;
+			$[85] = onSelect;
+			$[86] = parsedSelection?.regionIndex;
+			$[87] = parsedSelection?.spanIndex;
+			$[88] = regionCounts;
+			$[89] = selectedRowKey;
+			$[90] = t23;
+		} else t23 = $[90];
 		const renderRow = t23;
 		const t24 = isSticky && TimelineSwimLanes_module_default.swimlaneSticky;
-		if ($[89] !== t24) {
+		if ($[91] !== t24) {
 			t16 = clsx(TimelineSwimLanes_module_default.swimlane, t24);
-			$[89] = t24;
-			$[90] = t16;
-		} else t16 = $[90];
+			$[91] = t24;
+			$[92] = t16;
+		} else t16 = $[92];
 		t17 = 0;
 		t18 = handleKeyDown;
 		t19 = "grid";
 		t20 = "Timeline swimlane";
 		let t25;
-		if ($[91] !== breadcrumbs || $[92] !== handleBranchToggle || $[93] !== header || $[94] !== onSelect || $[95] !== timeline) {
+		if ($[93] !== breadcrumbs || $[94] !== handleBranchToggle || $[95] !== header || $[96] !== onSelect || $[97] !== timeline) {
 			t25 = header && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(HeaderRow, {
 				...header,
 				node: timeline.node,
@@ -113040,128 +113278,129 @@ var TimelineSwimLanes = (t0) => {
 				onBreadcrumbSelect: onSelect,
 				onToggleBranches: handleBranchToggle
 			});
-			$[91] = breadcrumbs;
-			$[92] = handleBranchToggle;
-			$[93] = header;
-			$[94] = onSelect;
-			$[95] = timeline;
-			$[96] = t25;
-		} else t25 = $[96];
-		if ($[97] !== t25) {
+			$[93] = breadcrumbs;
+			$[94] = handleBranchToggle;
+			$[95] = header;
+			$[96] = onSelect;
+			$[97] = timeline;
+			$[98] = t25;
+		} else t25 = $[98];
+		if ($[99] !== t25) {
 			t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 				className: TimelineSwimLanes_module_default.pinnedSection,
 				children: t25
 			});
-			$[97] = t25;
-			$[98] = t21;
-		} else t21 = $[98];
+			$[99] = t25;
+			$[100] = t21;
+		} else t21 = $[100];
 		const t26 = isCollapsed && TimelineSwimLanes_module_default.collapsibleCollapsed;
-		if ($[99] !== t26) {
+		if ($[101] !== t26) {
 			t15 = clsx(TimelineSwimLanes_module_default.collapsibleSection, t26);
-			$[99] = t26;
-			$[100] = t15;
-		} else t15 = $[100];
+			$[101] = t26;
+			$[102] = t15;
+		} else t15 = $[102];
 		t14 = TimelineSwimLanes_module_default.collapsibleInner;
 		t11 = TimelineSwimLanes_module_default.scrollSection;
-		if ($[101] !== parentRow || $[102] !== renderRow) {
+		if ($[103] !== parentRow || $[104] !== renderRow) {
 			t12 = parentRow && renderRow(parentRow, parentRow.name === "solvers" ? "main" : void 0);
-			$[101] = parentRow;
-			$[102] = renderRow;
-			$[103] = t12;
-		} else t12 = $[103];
-		let t27;
-		if ($[104] !== renderRow) {
-			t27 = (layout_5) => renderRow(layout_5);
+			$[103] = parentRow;
 			$[104] = renderRow;
-			$[105] = t27;
-		} else t27 = $[105];
+			$[105] = t12;
+		} else t12 = $[105];
+		let t27;
+		if ($[106] !== renderRow) {
+			t27 = (layout_5) => renderRow(layout_5);
+			$[106] = renderRow;
+			$[107] = t27;
+		} else t27 = $[107];
 		t13 = childRows.map(t27);
 		$[41] = breadcrumbs;
-		$[42] = expandableKeys;
-		$[43] = handleBranchMarkerClick;
-		$[44] = handleBranchToggle;
-		$[45] = handleKeyDown;
-		$[46] = handleToggleRowCollapse;
-		$[47] = header;
-		$[48] = highlightedKeys;
-		$[49] = isCollapsed;
-		$[50] = isRowCollapsed;
-		$[51] = isSticky;
-		$[52] = onMarkerNavigate;
-		$[53] = onPunchDown;
-		$[54] = onSelect;
-		$[55] = parentRow;
-		$[56] = parsedSelection?.regionIndex;
-		$[57] = parsedSelection?.spanIndex;
-		$[58] = regionCounts;
-		$[59] = selectedRowKey;
-		$[60] = timeline;
-		$[61] = visibleLayouts;
-		$[62] = t11;
-		$[63] = t12;
-		$[64] = t13;
-		$[65] = t14;
-		$[66] = t15;
-		$[67] = t16;
-		$[68] = t17;
-		$[69] = t18;
-		$[70] = t19;
-		$[71] = t20;
-		$[72] = t21;
+		$[42] = canPunchDown;
+		$[43] = expandableKeys;
+		$[44] = handleBranchMarkerClick;
+		$[45] = handleBranchToggle;
+		$[46] = handleKeyDown;
+		$[47] = handleToggleRowCollapse;
+		$[48] = header;
+		$[49] = highlightedKeys;
+		$[50] = isCollapsed;
+		$[51] = isRowCollapsed;
+		$[52] = isSticky;
+		$[53] = onMarkerNavigate;
+		$[54] = onPunchDown;
+		$[55] = onSelect;
+		$[56] = parentRow;
+		$[57] = parsedSelection?.regionIndex;
+		$[58] = parsedSelection?.spanIndex;
+		$[59] = regionCounts;
+		$[60] = selectedRowKey;
+		$[61] = timeline;
+		$[62] = visibleLayouts;
+		$[63] = t11;
+		$[64] = t12;
+		$[65] = t13;
+		$[66] = t14;
+		$[67] = t15;
+		$[68] = t16;
+		$[69] = t17;
+		$[70] = t18;
+		$[71] = t19;
+		$[72] = t20;
+		$[73] = t21;
 	} else {
-		t11 = $[62];
-		t12 = $[63];
-		t13 = $[64];
-		t14 = $[65];
-		t15 = $[66];
-		t16 = $[67];
-		t17 = $[68];
-		t18 = $[69];
-		t19 = $[70];
-		t20 = $[71];
-		t21 = $[72];
+		t11 = $[63];
+		t12 = $[64];
+		t13 = $[65];
+		t14 = $[66];
+		t15 = $[67];
+		t16 = $[68];
+		t17 = $[69];
+		t18 = $[70];
+		t19 = $[71];
+		t20 = $[72];
+		t21 = $[73];
 	}
 	let t22;
-	if ($[106] !== t11 || $[107] !== t12 || $[108] !== t13) {
+	if ($[108] !== t11 || $[109] !== t12 || $[110] !== t13) {
 		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t11,
 			children: [t12, t13]
 		});
-		$[106] = t11;
-		$[107] = t12;
-		$[108] = t13;
-		$[109] = t22;
-	} else t22 = $[109];
+		$[108] = t11;
+		$[109] = t12;
+		$[110] = t13;
+		$[111] = t22;
+	} else t22 = $[111];
 	let t23;
-	if ($[110] !== t14 || $[111] !== t22) {
+	if ($[112] !== t14 || $[113] !== t22) {
 		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: t14,
 			children: t22
 		});
-		$[110] = t14;
-		$[111] = t22;
-		$[112] = t23;
-	} else t23 = $[112];
+		$[112] = t14;
+		$[113] = t22;
+		$[114] = t23;
+	} else t23 = $[114];
 	let t24;
-	if ($[113] !== t15 || $[114] !== t23) {
+	if ($[115] !== t15 || $[116] !== t23) {
 		t24 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: t15,
 			children: t23
 		});
-		$[113] = t15;
-		$[114] = t23;
-		$[115] = t24;
-	} else t24 = $[115];
+		$[115] = t15;
+		$[116] = t23;
+		$[117] = t24;
+	} else t24 = $[117];
 	const t25 = isCollapsed ? "Expand swimlanes" : "Collapse swimlanes";
 	const t26 = isCollapsed ? "chevronDown" : "chevronUp";
 	let t27;
-	if ($[116] !== t26) {
+	if ($[118] !== t26) {
 		t27 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: t26 });
-		$[116] = t26;
-		$[117] = t27;
-	} else t27 = $[117];
+		$[118] = t26;
+		$[119] = t27;
+	} else t27 = $[119];
 	let t28;
-	if ($[118] !== t25 || $[119] !== t27 || $[120] !== toggleCollapsed) {
+	if ($[120] !== t25 || $[121] !== t27 || $[122] !== toggleCollapsed) {
 		t28 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
 			className: TimelineSwimLanes_module_default.collapseToggle,
@@ -113169,13 +113408,13 @@ var TimelineSwimLanes = (t0) => {
 			title: t25,
 			children: t27
 		});
-		$[118] = t25;
-		$[119] = t27;
-		$[120] = toggleCollapsed;
-		$[121] = t28;
-	} else t28 = $[121];
+		$[120] = t25;
+		$[121] = t27;
+		$[122] = toggleCollapsed;
+		$[123] = t28;
+	} else t28 = $[123];
 	let t29;
-	if ($[122] !== t16 || $[123] !== t17 || $[124] !== t18 || $[125] !== t19 || $[126] !== t20 || $[127] !== t21 || $[128] !== t24 || $[129] !== t28) {
+	if ($[124] !== t16 || $[125] !== t17 || $[126] !== t18 || $[127] !== t19 || $[128] !== t20 || $[129] !== t21 || $[130] !== t24 || $[131] !== t28) {
 		t29 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t16,
 			tabIndex: t17,
@@ -113188,16 +113427,16 @@ var TimelineSwimLanes = (t0) => {
 				t28
 			]
 		});
-		$[122] = t16;
-		$[123] = t17;
-		$[124] = t18;
-		$[125] = t19;
-		$[126] = t20;
-		$[127] = t21;
-		$[128] = t24;
-		$[129] = t28;
-		$[130] = t29;
-	} else t29 = $[130];
+		$[124] = t16;
+		$[125] = t17;
+		$[126] = t18;
+		$[127] = t19;
+		$[128] = t20;
+		$[129] = t21;
+		$[130] = t24;
+		$[131] = t28;
+		$[132] = t29;
+	} else t29 = $[132];
 	return t29;
 };
 var kBranchKeyPattern = /\/branch-([^/]*)-(\d+)$/;
@@ -116012,7 +116251,7 @@ var TranscriptOutline = (t0) => {
 			estimatedItemHeight: 50,
 			overscan: 10,
 			embedded: true,
-			findScope: "none",
+			itemSearchText: null,
 			className: t12
 		});
 		$[36] = listData;
@@ -116216,12 +116455,7 @@ function recordRowEvents(agent, rowKey, out) {
 * occurrences left-to-right. Stable across calls with the same inputs.
 */ function findAllMatches(events, term, eventToRow) {
 	if (!term) return [];
-	const prepared = prepareSearchTerm(term);
-	const variants = [
-		prepared.simple,
-		...prepared.unquoted ? [prepared.unquoted] : [],
-		...prepared.jsonEscaped ? [prepared.jsonEscaped] : []
-	];
+	const variants = searchVariants(term);
 	const out = [];
 	for (const event of events) {
 		const uuid = event.uuid;
@@ -116244,384 +116478,101 @@ function recordRowEvents(agent, rowKey, out) {
 	}
 	return out;
 }
-/**
-* Find every occurrence of any `variants` substring in `lowered`, deduped by
-* range so a JSON-quoted form `"foo"` matched by both `simple` and `unquoted`
-* counts as one occurrence (the longer variant wins). Mirrors the variant
-* matching `LiveVirtualList.searchInText` does for the chat counter so the
-* two counters agree on the total.
-*/ function findVariantPositions(lowered, variants) {
-	const hits = [];
-	for (const v of variants) {
-		if (!v) continue;
-		let from = 0;
-		let p;
-		while ((p = lowered.indexOf(v, from)) !== -1) {
-			hits.push({
-				pos: p,
-				len: v.length
-			});
-			from = p + v.length;
-		}
-	}
-	hits.sort((a, b) => a.pos - b.pos || b.len - a.len);
-	const out = [];
-	let endOfLast = -1;
-	for (const h of hits) if (h.pos >= endOfLast) {
-		out.push(h.pos);
-		endOfLast = h.pos + h.len;
-	}
-	return out;
-}
 // ../../packages/inspect-components/src/transcript/search/useTranscriptSearchSource.ts
 var DEFAULT_ID = "transcript-sample";
+var sameEvent = (eventId) => eventId;
 var SETTLE_LIMIT = 90;
 /**
-* Registers a sample-wide search source with ExtendedFindContext.
+* Registers the sample's events as a find source. Its items are the events
+* in sample order, across every swimlane row: counts come from the event
+* data, and revealing an event switches to its row and scrolls to it.
 *
-* - count(term): findAllMatches over the full sample. Cached per term.
-* - searchFn(term, dir): finds the next match across the entire sample,
-*   switches swimlane row if needed, sets the find target (auto-expand),
-*   then delegates to viewNodesRef.scrollToEvent.
-*
-* Preconditions: must be mounted inside an `ExtendedFindProvider`. The
-* `FindTargetProvider` is optional — its setter no-ops when absent.
+* Preconditions: must be mounted inside an `ExtendedFindProvider`.
 */ function useTranscriptSearchSource(options) {
-	const $ = (0, import_compiler_runtime.c)(26);
-	const { events, rows, selected, onSelect, viewNodesRef, onHeadroomResetAnchor, onHeadroomSetHidden, id: t0 } = options;
-	const id = t0 === void 0 ? DEFAULT_ID : t0;
-	const { registerVirtualList, registerMatchCounter } = useExtendedFind();
-	const setFindTarget = useFindTargetSetter();
-	let t1;
-	if ($[0] !== rows) {
-		t1 = buildEventToRowMap(rows);
-		$[0] = rows;
-		$[1] = t1;
-	} else t1 = $[1];
-	const eventToRow = t1;
-	const cacheRef = (0, import_react.useRef)(null);
-	let t2;
-	if ($[2] !== eventToRow || $[3] !== events) {
-		t2 = (term) => {
-			const c = cacheRef.current;
-			if (c && c.events === events && c.eventToRow === eventToRow && c.term === term) return c.matches;
-			const matches = findAllMatches(events, term, eventToRow);
-			cacheRef.current = {
-				events,
-				eventToRow,
-				term,
-				matches
-			};
-			return matches;
-		};
-		$[2] = eventToRow;
-		$[3] = events;
-		$[4] = t2;
-	} else t2 = $[4];
-	const getMatches = t2;
-	const selectedRef = useLatestRef(selected);
-	const lastResolvedRef = (0, import_react.useRef)(null);
-	const invocationIdRef = (0, import_react.useRef)(0);
-	let t3;
-	if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
-		t3 = /* @__PURE__ */ new Set();
-		$[5] = t3;
-	} else t3 = $[5];
-	const pendingTimersRef = (0, import_react.useRef)(t3);
-	let t4;
-	if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
-		t4 = () => {
-			for (const t of pendingTimersRef.current) clearTimeout(t);
-			pendingTimersRef.current.clear();
-		};
-		$[6] = t4;
-	} else t4 = $[6];
-	useUnmount(t4);
-	const activeTermRef = (0, import_react.useRef)("");
-	let t5;
-	if ($[7] !== getMatches) {
-		t5 = () => {
-			const term_0 = activeTermRef.current;
-			if (!term_0) return;
-			const sel = document.getSelection();
-			if (!sel || sel.rangeCount === 0) return;
-			const range = sel.getRangeAt(0);
-			if (range.startContainer !== range.endContainer) return;
-			if (range.endOffset - range.startOffset !== term_0.length) return;
-			if (range.toString().toLowerCase() !== term_0.toLowerCase()) return;
-			const match = matchAtSelection(getMatches(term_0), term_0);
-			if (match) lastResolvedRef.current = {
-				match,
-				term: term_0
-			};
-		};
-		$[7] = getMatches;
-		$[8] = t5;
-	} else t5 = $[8];
-	useEventListener(typeof document === "undefined" ? null : document, "selectionchange", t5);
-	let t6;
-	if ($[9] !== getMatches) {
-		t6 = (term_1) => {
-			activeTermRef.current = term_1;
-			return getMatches(term_1).length;
-		};
-		$[9] = getMatches;
-		$[10] = t6;
-	} else t6 = $[10];
-	const countFn = t6;
-	let t7;
-	if ($[11] !== getMatches || $[12] !== onHeadroomResetAnchor || $[13] !== onHeadroomSetHidden || $[14] !== onSelect || $[15] !== selectedRef || $[16] !== setFindTarget || $[17] !== viewNodesRef) {
-		t7 = async (term_2, direction, onContentReady) => {
-			const myId = invocationIdRef.current = invocationIdRef.current + 1;
-			const isStale = () => myId !== invocationIdRef.current;
-			const matches_1 = getMatches(term_2);
-			if (matches_1.length === 0) return false;
-			activeTermRef.current = term_2;
-			onHeadroomResetAnchor?.(true);
-			onHeadroomSetHidden?.(direction === "forward");
-			let position = resolvePosition(matches_1, lastResolvedRef.current, viewNodesRef.current, selectedRef.current, term_2);
-			const SKIP_LIMIT = Math.min(matches_1.length, 8);
-			let next = null;
-			for (let attempt = 0; attempt < SKIP_LIMIT; attempt++) {
-				next = pickNext(matches_1, position, direction);
-				if (next.rowKey !== selectedRef.current) {
-					onSelect(next.rowKey);
-					const ready = await waitForRow(viewNodesRef, next.eventId);
-					if (isStale()) return false;
-					if (!ready) {
-						position = matches_1.indexOf(next);
-						lastResolvedRef.current = {
-							match: next,
-							term: term_2
-						};
-						continue;
-					}
+	const { events, rows, selected, onSelect, viewNodesRef, onHeadroomResetAnchor, onHeadroomSetHidden, id = DEFAULT_ID } = options;
+	const { registerFindSource } = useExtendedFind();
+	const latest = useLatestRef({
+		selected,
+		onSelect,
+		onHeadroomResetAnchor,
+		onHeadroomSetHidden
+	});
+	const source = (0, import_react.useMemo)(() => {
+		const eventToRow = buildEventToRowMap(rows);
+		const eventIndex = /* @__PURE__ */ new Map();
+		events.forEach((event, index) => {
+			if (event.uuid) eventIndex.set(event.uuid, index);
+		});
+		const root = () => viewNodesRef.current?.getElement() ?? null;
+		const countByItem = cacheLastCall((term, rowEventId) => {
+			const counts = /* @__PURE__ */ new Map();
+			for (const match of findAllMatches(events, term, eventToRow)) {
+				const index = eventIndex.get(rowEventId(match.eventId)) ?? eventIndex.get(match.eventId);
+				counts.set(index, (counts.get(index) ?? 0) + 1);
+			}
+			return [...counts].map(([item, count]) => ({
+				item,
+				count
+			})).sort((a, b) => a.item - b.item);
+		});
+		return {
+			anchor: root,
+			countByItem: (term) => countByItem(term, viewNodesRef.current?.rowEventId ?? sameEvent),
+			itemOf: (node) => {
+				const container = root();
+				if (!container?.contains(node)) return null;
+				let el = node instanceof Element ? node : node.parentElement;
+				for (; el && el !== container; el = el.parentElement) {
+					const index = el.id ? eventIndex.get(el.id) : void 0;
+					if (index !== void 0) return index;
 				}
-				setFindTarget({
-					term: term_2,
-					eventId: next.eventId
+				return null;
+			},
+			renderedItems: () => {
+				const rendered = /* @__PURE__ */ new Set();
+				for (const el of root()?.querySelectorAll("[id]") ?? []) {
+					const index = eventIndex.get(el.id);
+					if (index !== void 0) rendered.add(index);
+				}
+				return rendered;
+			},
+			reveal: async (item, direction, signal) => {
+				const eventId = events[item]?.uuid;
+				const rowKey = eventId ? eventToRow.get(eventId) : void 0;
+				if (!eventId || rowKey === void 0) return false;
+				const { selected, onSelect, onHeadroomResetAnchor, onHeadroomSetHidden } = latest.current;
+				onHeadroomResetAnchor?.(true);
+				onHeadroomSetHidden?.(direction === "forward");
+				if (rowKey !== selected) {
+					onSelect(rowKey);
+					if (!await waitForRow(viewNodesRef, eventId)) return false;
+				}
+				const view = viewNodesRef.current;
+				if (signal.aborted || !view) return false;
+				await new Promise((resolve, reject) => {
+					const cancelScroll = view.scrollToEvent(eventId, {
+						onDone: resolve,
+						onAbandon: () => reject(/* @__PURE__ */ new Error("Another scroll took over"))
+					});
+					signal.addEventListener("abort", cancelScroll, { once: true });
 				});
-				await raf();
-				if (isStale()) return false;
-				await raf();
-				if (isStale()) return false;
-				viewNodesRef.current?.scrollToEvent(next.eventId);
-				const inDom = await waitForEventInDOM(next.eventId);
-				if (isStale()) return false;
-				if (inDom) break;
-				const skippedEventId = next.eventId;
-				let lastSkipIdx = matches_1.indexOf(next);
-				const stride = direction === "forward" ? 1 : -1;
-				for (let idx = lastSkipIdx + stride; idx >= 0 && idx < matches_1.length && matches_1[idx].eventId === skippedEventId; idx = idx + stride) lastSkipIdx = idx;
-				position = lastSkipIdx;
-				lastResolvedRef.current = {
-					match: matches_1[lastSkipIdx],
-					term: term_2
-				};
-				next = null;
+				return waitForEventInDOM(viewNodesRef.current?.rowEventId(eventId) ?? eventId);
 			}
-			if (!next) return false;
-			positionSelectionAroundTerm(next.eventId, term_2, direction);
-			lastResolvedRef.current = {
-				match: next,
-				term: term_2
-			};
-			onContentReady();
-			const reselectId = next.eventId;
-			const timer = window.setTimeout(() => {
-				if (isStale()) return;
-				reselectTermInPanel(reselectId, term_2);
-			}, 300);
-			pendingTimersRef.current.add(timer);
-			return true;
 		};
-		$[11] = getMatches;
-		$[12] = onHeadroomResetAnchor;
-		$[13] = onHeadroomSetHidden;
-		$[14] = onSelect;
-		$[15] = selectedRef;
-		$[16] = setFindTarget;
-		$[17] = viewNodesRef;
-		$[18] = t7;
-	} else t7 = $[18];
-	const searchFn = t7;
-	let t8;
-	let t9;
-	if ($[19] !== countFn || $[20] !== id || $[21] !== registerMatchCounter || $[22] !== registerVirtualList || $[23] !== searchFn) {
-		t8 = () => {
-			const unCount = registerMatchCounter(id, countFn);
-			const unSearch = registerVirtualList(id, searchFn);
-			return () => {
-				unCount();
-				unSearch();
-			};
-		};
-		t9 = [
-			id,
-			registerMatchCounter,
-			registerVirtualList,
-			countFn,
-			searchFn
-		];
-		$[19] = countFn;
-		$[20] = id;
-		$[21] = registerMatchCounter;
-		$[22] = registerVirtualList;
-		$[23] = searchFn;
-		$[24] = t8;
-		$[25] = t9;
-	} else {
-		t8 = $[24];
-		t9 = $[25];
-	}
-	(0, import_react.useEffect)(t8, t9);
-}
-function pickNext(matches, position, dir) {
-	const len = matches.length;
-	if (position < 0) return dir === "forward" ? matches[0] : matches[len - 1];
-	return dir === "forward" ? matches[(position + 1) % len] : matches[(position - 1 + len) % len];
-}
-function resolvePosition(matches, last, view, selected, term) {
-	if (last && last.term === term) {
-		const idx = matches.findIndex((m) => m.eventId === last.match.eventId && m.fieldKey === last.match.fieldKey && m.fieldIndex === last.match.fieldIndex && m.occurrenceIndex === last.match.occurrenceIndex);
-		if (idx !== -1) return idx;
-	}
-	const range = view?.getVisibleRange();
-	const flattened = view?.getFlattenedNodes() ?? [];
-	if (!range || flattened.length === 0) return -1;
-	const visibleIds = new Set(flattened.slice(range.startIndex, range.endIndex + 1).map((n) => n.id));
-	return matches.findIndex((m) => m.rowKey === selected && visibleIds.has(m.eventId));
-}
-/**
-* Find the SampleMatch corresponding to the current document selection, if any.
-*
-* Walks up from the selection's startContainer to find an event-panel element
-* (one whose `id` is in `matches`'s eventId set). Then counts how many
-* occurrences of `term` precede the selection within that event's text — that
-* count is the DOM-order occurrence index, which we map to the n-th match in
-* our array for that event.
-*
-* Returns `null` if there is no selection, no event ancestor, or the count
-* runs past the matches we know about (e.g. selection isn't actually on a
-* `term` instance).
-*/ function matchAtSelection(matches, term) {
-	if (typeof window === "undefined" || !term) return null;
-	const sel = window.getSelection();
-	if (!sel || sel.rangeCount === 0) return null;
-	const range = sel.getRangeAt(0);
-	const eventIds = new Set(matches.map((m) => m.eventId));
-	let el = range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement;
-	while (el && !eventIds.has(el.id)) el = el.parentElement;
-	if (!el) return null;
-	const eventId = el.id;
-	const lowered = term.toLowerCase();
-	const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-	let occurrenceInEvent = 0;
-	let node;
-	while (node = walker.nextNode()) {
-		if (!(node instanceof Text)) continue;
-		const textNode = node;
-		if (textNode === range.startContainer) {
-			const head = textNode.data.slice(0, range.startOffset).toLowerCase();
-			let from = 0;
-			while ((from = head.indexOf(lowered, from)) !== -1) {
-				occurrenceInEvent++;
-				from += lowered.length;
-			}
-			break;
-		}
-		const text = textNode.data.toLowerCase();
-		let from = 0;
-		while ((from = text.indexOf(lowered, from)) !== -1) {
-			occurrenceInEvent++;
-			from += lowered.length;
-		}
-	}
-	let seen = 0;
-	for (const m of matches) {
-		if (m.eventId !== eventId) continue;
-		if (seen === occurrenceInEvent) return m;
-		seen++;
-	}
-	return null;
-}
-/**
-* Walk the DOM under the event element with `eventId` and place a collapsed
-* selection adjacent to the FIRST occurrence of `term` (forward) or the LAST
-* occurrence (backward), so FindBand's subsequent `window.find` advances onto
-* exactly that occurrence.
-*
-* Forward: cursor BEFORE the first match — `window.find` searches forward
-* from the cursor and lands on the term.
-* Backward: cursor AFTER the last match — `window.find` with backward=true
-* searches backward from the cursor and lands on the term. (If we collapsed
-* before instead, backward would skip past it and either find nothing or
-* land in unrelated DOM, which makes findExtendedInDOM return false and the
-* counter fail to update.)
-*
-* If the panel isn't mounted or doesn't render the term as text (e.g. the
-* match was in a JSON-stringified field we don't render), bail silently —
-* FindBand will fall back to its default windowFind behavior.
-*/ function positionSelectionAroundTerm(eventId, term, direction) {
-	const root = document.getElementById(eventId);
-	if (!root) return false;
-	const lowered = term.toLowerCase();
-	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-	let target = null;
-	for (let node; node = walker.nextNode();) {
-		if (!(node instanceof Text)) continue;
-		const textNode = node;
-		const text = textNode.data.toLowerCase();
-		let from = 0;
-		while ((from = text.indexOf(lowered, from)) !== -1) {
-			target = {
-				node: textNode,
-				idx: from
-			};
-			from += lowered.length;
-			if (direction === "forward") break;
-		}
-		if (target && direction === "forward") break;
-	}
-	if (!target) return false;
-	const sel = window.getSelection();
-	if (!sel) return false;
-	const range = document.createRange();
-	range.setStart(target.node, direction === "forward" ? target.idx : target.idx + term.length);
-	range.collapse(true);
-	sel.removeAllRanges();
-	sel.addRange(range);
-	return true;
-}
-/**
-* If the current selection no longer covers `term` inside the panel
-* (because a late settling pass — virtual-list re-render, lazy syntax
-* highlighting, ExpandablePanel auto-expand reflow — detached the text
-* node `window.find` was anchored on), re-anchor the selection to the
-* first occurrence of `term` in the panel. Returns false (no-op) when
-* the existing highlight is intact.
-*/ function reselectTermInPanel(eventId, term) {
-	const root = document.getElementById(eventId);
-	if (!root) return false;
-	const sel = window.getSelection();
-	if (!sel) return false;
-	if (sel.rangeCount > 0 && !sel.getRangeAt(0).collapsed && sel.getRangeAt(0).toString().toLowerCase() === term.toLowerCase() && root.contains(sel.getRangeAt(0).startContainer)) return true;
-	const lowered = term.toLowerCase();
-	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-	for (let node; node = walker.nextNode();) {
-		const idx = (node.textContent ?? "").toLowerCase().indexOf(lowered);
-		if (idx === -1) continue;
-		const range = document.createRange();
-		range.setStart(node, idx);
-		range.setEnd(node, idx + term.length);
-		sel.removeAllRanges();
-		sel.addRange(range);
-		return true;
-	}
-	return false;
+	}, [
+		events,
+		rows,
+		viewNodesRef,
+		latest
+	]);
+	(0, import_react.useEffect)(() => registerFindSource(id, source), [
+		id,
+		registerFindSource,
+		source
+	]);
 }
 function raf() {
-	return new Promise((resolve) => typeof requestAnimationFrame !== "undefined" ? requestAnimationFrame(() => resolve()) : setTimeout(resolve, 0));
+	return new Promise((resolve) => requestAnimationFrame(() => resolve()));
 }
 /**
 * Wait for the freshly-selected row to mount: poll until the target eventId
@@ -116631,7 +116582,8 @@ function raf() {
 	for (let i = 0; i < SETTLE_LIMIT; i++) {
 		const view = viewNodesRef.current;
 		if (!view) return false;
-		if (view.getFlattenedNodes().some((n) => n.id === eventId)) return true;
+		const rowId = view.rowEventId(eventId);
+		if (view.getFlattenedNodes().some((n) => n.id === rowId)) return true;
 		await raf();
 	}
 	return false;
@@ -116639,11 +116591,8 @@ function raf() {
 /**
 * Wait until the event panel is actually rendered to the DOM. After
 * `scrollToEvent` triggers a virtual-list scroll for an off-screen target, the
-* panel takes several frames to mount. Returns false on timeout. The budget
-* is shorter than for row mount because we use this to detect unreachable
-* matches and skip them — too long a wait makes skipping feel laggy.
+* panel takes several frames to mount. Returns false on timeout.
 */ async function waitForEventInDOM(eventId) {
-	if (typeof document === "undefined") return false;
 	const DOM_BUDGET = 30;
 	for (let i = 0; i < DOM_BUDGET; i++) {
 		if (document.getElementById(eventId)) return true;
@@ -116736,7 +116685,7 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 		turnIndexSeededRef.current = true;
 		currentTurnIndexRef.current = anchorIndexForEvent(turnAnchorIds, computedTurnMap, scrollEventId);
 	}
-	const scrollRowToTop = (0, import_react.useCallback)((index, onDone) => {
+	const scrollRowToTop = (0, import_react.useCallback)((index, onDone, onAbandon) => {
 		onProgrammaticScroll?.(true);
 		const rowId = flattenedNodesLatest.current[index]?.id;
 		if (rowId !== void 0) {
@@ -116746,56 +116695,70 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 		const handle = listHandle.current;
 		if (!handle) {
 			onDone?.();
-			return;
+			return () => {};
 		}
-		handle.scrollToIndex({
+		return handle.scrollToIndex({
 			index,
 			align: "start",
 			behavior: "auto",
-			onDone
+			onDone,
+			onAbandon
 		});
 	}, [
 		onProgrammaticScroll,
 		flattenedNodesLatest,
 		turnLookupLatest
 	]);
-	const scrollToEvent = (0, import_react.useCallback)((targetId) => {
+	const scrollToEvent = (0, import_react.useCallback)((targetId, callbacks) => {
 		const eventId = redirectEventId(targetId);
 		onHeadroomSetHidden?.(true);
 		const tryScroll = (idx) => {
-			if (listHandle.current) scrollRowToTop(idx);
-			else {
-				onProgrammaticScroll?.(true);
-				(scrollRef?.current?.querySelector(`[id="${escapeAttr(eventId)}"]`))?.scrollIntoView({
-					block: "start",
-					behavior: "auto"
-				});
-			}
+			if (listHandle.current) return scrollRowToTop(idx, callbacks?.onDone, callbacks?.onAbandon);
+			onProgrammaticScroll?.(true);
+			(scrollRef?.current?.querySelector(`[id="${escapeAttr(eventId)}"]`))?.scrollIntoView({
+				block: "start",
+				behavior: "auto"
+			});
+			callbacks?.onDone?.();
+			return () => {};
 		};
 		const idx = flattenedNodes.findIndex((e) => e.id === eventId);
-		if (idx !== -1) {
-			tryScroll(idx);
-			return;
-		}
+		if (idx !== -1) return tryScroll(idx);
 		const collapsedAncestors = findCollapsedAncestors(eventNodes, eventId, collapsedTranscript ?? defaultCollapsedIds);
 		if (collapsedAncestors.length > 0 && onExpandNodes) {
 			onExpandNodes(collapsedAncestors);
+			let cancelled = false;
+			let started = false;
+			let cancelScroll = () => {};
 			const retryScroll = (attemptsLeft) => {
+				if (cancelled) return;
 				const newIdx = flattenedNodesLatest.current.findIndex((e) => e.id === eventId);
 				if (newIdx !== -1) {
-					tryScroll(newIdx);
+					started = true;
+					cancelScroll = tryScroll(newIdx);
 					return;
 				}
 				if (attemptsLeft > 0) requestAnimationFrame(() => retryScroll(attemptsLeft - 1));
+				else {
+					started = true;
+					callbacks?.onDone?.();
+				}
 			};
 			requestAnimationFrame(() => retryScroll(3));
-			return;
+			return () => {
+				if (cancelled) return;
+				cancelled = true;
+				cancelScroll();
+				if (!started) callbacks?.onAbandon?.();
+			};
 		}
 		onProgrammaticScroll?.(true);
 		(scrollRef?.current?.querySelector(`[id="${escapeAttr(eventId)}"]`))?.scrollIntoView({
 			block: "start",
 			behavior: "auto"
 		});
+		callbacks?.onDone?.();
+		return () => {};
 	}, [
 		redirectEventId,
 		flattenedNodes,
@@ -116809,15 +116772,17 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 		onHeadroomSetHidden,
 		flattenedNodesLatest
 	]);
-	const visibleRangeRef = (0, import_react.useRef)({
-		startIndex: 0,
-		endIndex: 0
-	});
+	const rootRef = (0, import_react.useRef)(null);
 	(0, import_react.useImperativeHandle)(ref, () => ({
 		scrollToEvent,
 		getFlattenedNodes: () => flattenedNodesLatest.current,
-		getVisibleRange: () => visibleRangeRef.current
-	}), [scrollToEvent, flattenedNodesLatest]);
+		getElement: () => rootRef.current,
+		rowEventId: redirectEventId
+	}), [
+		scrollToEvent,
+		flattenedNodesLatest,
+		redirectEventId
+	]);
 	const expandedForTargetRef = (0, import_react.useRef)(null);
 	(0, import_react.useEffect)(() => {
 		if (!scrollEventId || !onExpandNodes) return;
@@ -117107,31 +117072,33 @@ var TranscriptViewNodes = /*#__PURE__*/ (0, import_react.forwardRef)(function Tr
 	}), [offsetTop, scrollRef]);
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(StickyScrollProvider, {
 		value: stickyScroll,
-		children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [turnAnchorIds.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(GoToTurnBar, {
-			ref: goToTurnBarRef,
-			totalTurns,
-			offsetTop,
-			disabled: keyboardNavDisabled,
-			onJump: onGoToTurnJump
-		}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptVirtualList, {
-			id,
-			listHandle,
-			eventNodes: flattenedNodes,
-			scrollRef,
-			running,
-			backfilling,
-			scrollToTopOnFinish,
-			className,
-			initialEventId: scrollEventId,
-			navOwned,
-			followRequested,
-			renderAgentCard,
-			turnMap: computedTurnMap,
-			eventCallbacks,
-			eventNodeContext: mergedEventNodeContext,
-			selection: rowSelection,
-			visibleRangeRef
-		})] })
+		children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			ref: rootRef,
+			children: [turnAnchorIds.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(GoToTurnBar, {
+				ref: goToTurnBarRef,
+				totalTurns,
+				offsetTop,
+				disabled: keyboardNavDisabled,
+				onJump: onGoToTurnJump
+			}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptVirtualList, {
+				id,
+				listHandle,
+				eventNodes: flattenedNodes,
+				scrollRef,
+				running,
+				backfilling,
+				scrollToTopOnFinish,
+				className,
+				initialEventId: scrollEventId,
+				navOwned,
+				followRequested,
+				renderAgentCard,
+				turnMap: computedTurnMap,
+				eventCallbacks,
+				eventNodeContext: mergedEventNodeContext,
+				selection: rowSelection
+			})]
+		})
 	});
 });
 // ../../packages/inspect-components/src/transcript/TranscriptLayout.tsx
@@ -117617,7 +117584,8 @@ var TranscriptLayout = (t0) => {
 					defaultCollapsed: swimlanesDefaultCollapsed,
 					regionCounts,
 					highlightedKeys,
-					onPunchDown: views.pushByRowKey
+					onPunchDown: views.pushByRowKey,
+					canPunchDown: views.canPushByRowKey
 				})
 			})
 		});
@@ -120004,37 +119972,31 @@ function _temp$42(state) {
 }
 // src/app/samples/list/SamplesViewOptionsPopover.tsx
 /** A view's presentation toggles, one checkbox each, under its View button. */ var ViewOptionsPopover = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(12);
+	const $ = (0, import_compiler_runtime.c)(11);
 	const { id, showing, setShowing, positionEl, options } = t0;
 	let t1;
-	let t2;
 	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-		t1 = [0, 1];
-		t2 = clsx(SamplesViewOptionsPopover_module_default.container, "text-size-small");
+		t1 = clsx(SamplesViewOptionsPopover_module_default.container, "text-size-small");
 		$[0] = t1;
-		$[1] = t2;
-	} else {
-		t1 = $[0];
-		t2 = $[1];
-	}
+	} else t1 = $[0];
+	let t2;
+	if ($[1] !== options) {
+		t2 = options.map(_temp$41);
+		$[1] = options;
+		$[2] = t2;
+	} else t2 = $[2];
 	let t3;
-	if ($[2] !== options) {
-		t3 = options.map(_temp$41);
-		$[2] = options;
-		$[3] = t3;
-	} else t3 = $[3];
-	let t4;
-	if ($[4] !== t3) {
-		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-			className: t2,
-			children: t3
+	if ($[3] !== t2) {
+		t3 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: t1,
+			children: t2
 		});
+		$[3] = t2;
 		$[4] = t3;
-		$[5] = t4;
-	} else t4 = $[5];
-	let t5;
-	if ($[6] !== id || $[7] !== positionEl || $[8] !== setShowing || $[9] !== showing || $[10] !== t4) {
-		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PopOver, {
+	} else t3 = $[4];
+	let t4;
+	if ($[5] !== id || $[6] !== positionEl || $[7] !== setShowing || $[8] !== showing || $[9] !== t3) {
+		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PopOver, {
 			id,
 			isOpen: showing,
 			setIsOpen: setShowing,
@@ -120043,17 +120005,17 @@ function _temp$42(state) {
 			showArrow: false,
 			hoverDelay: -1,
 			closeOnMouseLeave: false,
-			offset: t1,
-			children: t4
+			offset: 1,
+			children: t3
 		});
-		$[6] = id;
-		$[7] = positionEl;
-		$[8] = setShowing;
-		$[9] = showing;
+		$[5] = id;
+		$[6] = positionEl;
+		$[7] = setShowing;
+		$[8] = showing;
+		$[9] = t3;
 		$[10] = t4;
-		$[11] = t5;
-	} else t5 = $[11];
-	return t5;
+	} else t4 = $[10];
+	return t4;
 };
 var SamplesViewOptionsPopover = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(27);
@@ -120959,26 +120921,26 @@ var isCanceledError = (type) => {
 	return type === "CancelledError";
 };
 var ScorePanel_module_default = {
-	panel: "_panel_h02oy_1",
-	panelHeader: "_panelHeader_h02oy_9",
-	scoresHeader: "_scoresHeader_h02oy_19",
-	scoresCount: "_scoresCount_h02oy_27",
-	columnLabel: "_columnLabel_h02oy_33",
-	headerControls: "_headerControls_h02oy_41",
-	sortWrapper: "_sortWrapper_h02oy_51",
-	sortButton: "_sortButton_h02oy_58",
-	panelBody: "_panelBody_h02oy_80",
-	bodyGrid: "_bodyGrid_h02oy_84",
-	tight: "_tight_h02oy_88",
-	bodyChips: "_bodyChips_h02oy_92",
-	dense: "_dense_h02oy_107",
-	row: "_row_h02oy_113",
-	rowTight: "_rowTight_h02oy_122",
-	rowName: "_rowName_h02oy_127",
-	chip: "_chip_h02oy_138",
-	chipFail: "_chipFail_h02oy_152",
-	chipWarn: "_chipWarn_h02oy_156",
-	chipName: "_chipName_h02oy_160"
+	panel: "_panel_1052q_1",
+	panelHeader: "_panelHeader_1052q_9",
+	scoresHeader: "_scoresHeader_1052q_19",
+	scoresCount: "_scoresCount_1052q_27",
+	columnLabel: "_columnLabel_1052q_33",
+	headerControls: "_headerControls_1052q_41",
+	sortWrapper: "_sortWrapper_1052q_51",
+	sortButton: "_sortButton_1052q_58",
+	panelBody: "_panelBody_1052q_80",
+	bodyGrid: "_bodyGrid_1052q_84",
+	tight: "_tight_1052q_88",
+	bodyChips: "_bodyChips_1052q_92",
+	dense: "_dense_1052q_107",
+	row: "_row_1052q_113",
+	rowTight: "_rowTight_1052q_122",
+	rowName: "_rowName_1052q_127",
+	chip: "_chip_1052q_138",
+	chipFail: "_chipFail_1052q_152",
+	chipWarn: "_chipWarn_1052q_156",
+	chipName: "_chipName_1052q_160"
 };
 // src/app/samples/header-v2/scoreTone.ts
 /**
@@ -123038,41 +123000,23 @@ var ValueList = (t0) => {
 	return t3;
 };
 var ValueTable = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(26);
+	const $ = (0, import_compiler_runtime.c)(22);
 	const { value, identifier, maxTableSize, interactive, references, style } = t0;
 	let notShown;
 	let t1;
 	let t2;
 	if ($[0] !== identifier || $[1] !== interactive || $[2] !== maxTableSize || $[3] !== references || $[4] !== style || $[5] !== value) {
-		let t3;
-		if ($[9] !== value) {
-			t3 = (a, b) => {
-				const aVal = value[a];
-				const bVal = value[b];
-				if (typeof aVal === "boolean" && typeof bVal === "boolean") return Number(bVal) - Number(aVal);
-				else if (typeof aVal === "number" && typeof bVal === "number") return bVal - aVal;
-				else return 0;
-			};
-			$[9] = value;
-			$[10] = t3;
-		} else t3 = $[10];
-		const keysToDisplay = Object.keys(value).sort(t3).slice(0, maxTableSize);
-		let t4;
-		if ($[11] !== value) {
-			t4 = Object.keys(value);
-			$[11] = value;
-			$[12] = t4;
-		} else t4 = $[12];
-		notShown = t4.length - maxTableSize;
-		const t5 = style === "inline" && Value_module_default.inline;
-		if ($[13] !== t5) {
-			t1 = clsx(Value_module_default.valueTable, t5);
-			$[13] = t5;
-			$[14] = t1;
-		} else t1 = $[14];
-		let t6;
-		if ($[15] !== identifier || $[16] !== interactive || $[17] !== references || $[18] !== value) {
-			t6 = (key, index) => {
+		const { keys: keysToDisplay, notShown: t3 } = tableKeys(value, maxTableSize);
+		notShown = t3;
+		const t4 = style === "inline" && Value_module_default.inline;
+		if ($[9] !== t4) {
+			t1 = clsx(Value_module_default.valueTable, t4);
+			$[9] = t4;
+			$[10] = t1;
+		} else t1 = $[10];
+		let t5;
+		if ($[11] !== identifier || $[12] !== interactive || $[13] !== references || $[14] !== value) {
+			t5 = (key, index) => {
 				const displayValue = renderValue(index, value[key], identifier, references, interactive);
 				return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 					className: clsx(Value_module_default.valueKey, "text-style-label", "text-style-secondary", "text-size-smallest"),
@@ -123082,13 +123026,13 @@ var ValueTable = (t0) => {
 					children: displayValue
 				})] }, `value-table-row-${key}`);
 			};
-			$[15] = identifier;
-			$[16] = interactive;
-			$[17] = references;
-			$[18] = value;
-			$[19] = t6;
-		} else t6 = $[19];
-		t2 = keysToDisplay.map(t6);
+			$[11] = identifier;
+			$[12] = interactive;
+			$[13] = references;
+			$[14] = value;
+			$[15] = t5;
+		} else t5 = $[15];
+		t2 = keysToDisplay.map(t5);
 		$[0] = identifier;
 		$[1] = interactive;
 		$[2] = maxTableSize;
@@ -123104,33 +123048,54 @@ var ValueTable = (t0) => {
 		t2 = $[8];
 	}
 	let t3;
-	if ($[20] !== notShown) {
+	if ($[16] !== notShown) {
 		t3 = notShown > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: clsx(Value_module_default.valueKey, "text-style-label", "text-style-secondary", "text-size-smallest"),
 			children: [notShown, " more…"]
 		}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { className: clsx(Value_module_default.valueValue) })] }, "value-table-row-more");
-		$[20] = notShown;
-		$[21] = t3;
-	} else t3 = $[21];
+		$[16] = notShown;
+		$[17] = t3;
+	} else t3 = $[17];
 	let t4;
-	if ($[22] !== t1 || $[23] !== t2 || $[24] !== t3) {
+	if ($[18] !== t1 || $[19] !== t2 || $[20] !== t3) {
 		t4 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t1,
 			children: [t2, t3]
 		});
-		$[22] = t1;
-		$[23] = t2;
-		$[24] = t3;
-		$[25] = t4;
-	} else t4 = $[25];
+		$[18] = t1;
+		$[19] = t2;
+		$[20] = t3;
+		$[21] = t4;
+	} else t4 = $[21];
 	return t4;
+};
+var tableKeys = (value, maxTableSize) => {
+	const sortedKeys = Object.keys(value).sort((a, b) => {
+		const aVal = value[a];
+		const bVal = value[b];
+		if (typeof aVal === "boolean" && typeof bVal === "boolean") return Number(bVal) - Number(aVal);
+		else if (typeof aVal === "number" && typeof bVal === "number") return bVal - aVal;
+		else return 0;
+	});
+	return {
+		keys: sortedKeys.slice(0, maxTableSize),
+		notShown: sortedKeys.length - maxTableSize
+	};
+};
+var cellText = (val) => {
+	if (typeof val === "string") return val;
+	else if (typeof val === "number") return formatPrettyDecimal(val);
+	else if (typeof val === "boolean") return String(val);
+	else if (val === null) return "null";
+	else if (Array.isArray(val)) return printArray(val, 35);
+	else if (isRecord(val)) return printObject(val, 35);
+	else return "Unknown value type";
 };
 var renderValue = (index, val, identifier, references, interactive) => {
 	if (typeof val === "string") return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDivWithReferences, {
 		markdown: val,
 		references
 	});
-	else if (typeof val === "number") return formatPrettyDecimal(val);
 	else if (typeof val === "boolean") return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 		className: clsx(Value_module_default.boolean, val ? Value_module_default.true : Value_module_default.false),
 		children: String(val)
@@ -123139,12 +123104,11 @@ var renderValue = (index, val, identifier, references, interactive) => {
 		className: clsx(Value_module_default.value),
 		children: "null"
 	});
-	else if (Array.isArray(val)) return printArray(val, 35);
-	else if (isRecord(val)) return !interactive ? printObject(val, 35) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
+	else if (interactive && isRecord(val)) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
 		id: `value-record-${identifier ?? "na"}-${index}`,
 		record: val
 	});
-	else return "Unknown value type";
+	else return cellText(val);
 };
 // ../../packages/scout-components/src/scanner-result-detail/ScannerResultDetailView.tsx
 var kCollapseScope = "scanner-result-sections";
@@ -126512,7 +126476,7 @@ var SharedTerminals = (t0) => {
 	const onKey = (e) => {
 		if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
 		if (e.key === "Escape") {
-			if (fill && !isEditable(e.target)) {
+			if (fill && !isEditable(e.target) && !hasOpenPopover()) {
 				e.preventDefault();
 				fill.onExit();
 			}
@@ -127654,8 +127618,8 @@ function _temp3$17(s_0) {
 	};
 };
 var SearchScoutUnavailable_module_default = {
-	container: "_container_15sk8_1",
-	body: "_body_15sk8_8"
+	container: "_container_ylhg8_1",
+	body: "_body_ylhg8_8"
 };
 // src/app/samples/transcript/search/SearchScoutUnavailable.tsx
 var SCOUT_DOCS_URL = "https://meridianlabs-ai.github.io/inspect_scout/";
@@ -129253,40 +129217,31 @@ var metadataViewsForSample = (id, scrollRef, sample) => {
 		if (sample.invalidation.timestamp) invalidationRecord["Timestamp"] = formatTimestamp(sample.invalidation.timestamp);
 		if (sample.invalidation.reason) invalidationRecord["Reason"] = sample.invalidation.reason;
 		if (Object.keys(sample.invalidation.metadata).length > 0) invalidationRecord["Metadata"] = sample.invalidation.metadata;
-		sampleMetadatas.push(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card$1, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Invalidation" }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, {
-			padded: false,
-			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
-				id: `task-sample-invalidation-${id}`,
-				record: invalidationRecord,
-				className: clsx("tab-pane", SampleDisplay_module_default.noTop),
-				scrollRef,
-				copyButton: true
-			})
-		})] }, `sample-invalidation-${id}`));
-	}
-	if (Object.keys(sample.metadata).length > 0) sampleMetadatas.push(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card$1, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Metadata" }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, {
-		padded: false,
-		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
-			id: `task-sample-metadata-${id}`,
-			record: sample.metadata,
+		sampleMetadatas.push(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card$1, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Invalidation" }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
+			id: `task-sample-invalidation-${id}`,
+			record: invalidationRecord,
 			className: clsx("tab-pane", SampleDisplay_module_default.noTop),
 			scrollRef,
 			copyButton: true
-		})
-	})] }, `sample-metadata-${id}`));
+		}) })] }, `sample-invalidation-${id}`));
+	}
+	if (Object.keys(sample.metadata).length > 0) sampleMetadatas.push(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card$1, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Metadata" }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
+		id: `task-sample-metadata-${id}`,
+		record: sample.metadata,
+		className: clsx("tab-pane", SampleDisplay_module_default.noTop),
+		scrollRef,
+		copyButton: true
+	}) })] }, `sample-metadata-${id}`));
 	const castKeys = new Set(storeCasts(sample.store).map((cast) => cast.key));
 	const storeRecord = Object.fromEntries(Object.entries(sample.store).filter(([key]) => !castKeys.has(key)));
-	if (Object.keys(storeRecord).length > 0) sampleMetadatas.push(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card$1, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Store" }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, {
-		padded: false,
-		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
-			id: `task-sample-store-${id}`,
-			record: storeRecord,
-			className: clsx("tab-pane", SampleDisplay_module_default.noTop),
-			scrollRef,
-			processStore: true,
-			copyButton: true
-		})
-	})] }, `sample-store-${id}`));
+	if (Object.keys(storeRecord).length > 0) sampleMetadatas.push(/*#__PURE__*/ (0, import_jsx_runtime.jsxs)(Card$1, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardHeader, { label: "Store" }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(CardBody, { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecordTree, {
+		id: `task-sample-store-${id}`,
+		record: storeRecord,
+		className: clsx("tab-pane", SampleDisplay_module_default.noTop),
+		scrollRef,
+		processStore: true,
+		copyButton: true
+	}) })] }, `sample-store-${id}`));
 	return sampleMetadatas;
 };
 var isRunning = (sampleSummary, runningSampleData, status) => {
@@ -129860,12 +129815,12 @@ var ErrorTab = (t0) => {
 	return t4;
 };
 var MessageBand_module_default = {
-	messageBand: "_messageBand_1qdgc_1",
-	hidden: "_hidden_1qdgc_11",
-	info: "_info_1qdgc_15",
-	warning: "_warning_1qdgc_19",
-	error: "_error_1qdgc_24",
-	messageBandBtn: "_messageBandBtn_1qdgc_29"
+	messageBand: "_messageBand_jvhhc_1",
+	hidden: "_hidden_jvhhc_11",
+	info: "_info_jvhhc_15",
+	warning: "_warning_jvhhc_19",
+	error: "_error_jvhhc_24",
+	messageBandBtn: "_messageBandBtn_jvhhc_29"
 };
 // src/components/MessageBand.tsx
 var typeStyles = {
@@ -132435,7 +132390,7 @@ The default maximum length of a `TreeBuffer` node.
 */
 var DefaultBufferLength = 1024;
 var nextPropID = 0;
-var Range$1 = class {
+var Range$2 = class {
 	constructor(from, to) {
 		this.from = from;
 		this.to = to;
@@ -133916,7 +133871,7 @@ var Parser$1 = class {
 	*/
 	startParse(input, fragments, ranges) {
 		if (typeof input == "string") input = new StringInput(input);
-		ranges = !ranges ? [new Range$1(0, input.length)] : ranges.length ? ranges.map((r) => new Range$1(r.from, r.to)) : [new Range$1(0, 0)];
+		ranges = !ranges ? [new Range$2(0, input.length)] : ranges.length ? ranges.map((r) => new Range$2(r.from, r.to)) : [new Range$2(0, 0)];
 		return this.createParse(input, fragments || [], ranges);
 	}
 	/**
@@ -136688,7 +136643,7 @@ var RangeValue = class {
 	Create a [range](https://codemirror.net/6/docs/ref/#state.Range) with this value.
 	*/
 	range(from, to = from) {
-		return Range.create(from, to, this);
+		return Range$1.create(from, to, this);
 	}
 };
 RangeValue.prototype.startSide = RangeValue.prototype.endSide = 0;
@@ -136700,7 +136655,7 @@ function cmpVal(a, b) {
 /**
 A range associates a value with a range of positions.
 */
-var Range = class Range {
+var Range$1 = class Range$1 {
 	constructor(from, to, value) {
 		this.from = from;
 		this.to = to;
@@ -136710,7 +136665,7 @@ var Range = class Range {
 	@internal
 	*/
 	static create(from, to, value) {
-		return new Range(from, to, value);
+		return new Range$1(from, to, value);
 	}
 };
 function cmpRange(a, b) {
@@ -136849,7 +136804,7 @@ var RangeSet = class RangeSet {
 		} else if (cur.rangeIndex == 1 && cur.chunkIndex < this.chunk.length && (i == add.length || this.chunkEnd(cur.chunkIndex) < add[i].from) && (!filter || filterFrom > this.chunkEnd(cur.chunkIndex) || filterTo < this.chunkPos[cur.chunkIndex]) && builder.addChunk(this.chunkPos[cur.chunkIndex], this.chunk[cur.chunkIndex])) cur.nextChunk();
 		else {
 			if (!filter || filterFrom > cur.to || filterTo < cur.from || filter(cur.from, cur.to, cur.value)) {
-				if (!builder.addInner(cur.from, cur.to, cur.value, false)) spill.push(Range.create(cur.from, cur.to, cur.value));
+				if (!builder.addInner(cur.from, cur.to, cur.value, false)) spill.push(Range$1.create(cur.from, cur.to, cur.value));
 			}
 			cur.next();
 		}
@@ -136993,7 +136948,7 @@ var RangeSet = class RangeSet {
 	*/
 	static of(ranges, sort = false) {
 		let build = new RangeSetBuilder();
-		for (let range of ranges instanceof Range ? [ranges] : sort ? lazySort(ranges) : ranges) build.add(range.from, range.to, range.value);
+		for (let range of ranges instanceof Range$1 ? [ranges] : sort ? lazySort(ranges) : ranges) build.add(range.from, range.to, range.value);
 		return build.finish();
 	}
 	/**
@@ -138034,7 +137989,7 @@ var BlockWrapper = class BlockWrapper extends RangeValue {
 BlockWrapper.prototype.startSide = BlockWrapper.prototype.endSide = -1;
 var isElt = (node) => node.nodeType == 1;
 var isText = (node) => node.nodeType == 3;
-function getSelection(root) {
+function getSelection$1(root) {
 	let target;
 	if (root.nodeType == 11) target = root.getSelection ? root : root.ownerDocument;
 	else target = root;
@@ -140195,7 +140150,7 @@ var DocView = class {
 					dom.blur();
 					dom.focus({ preventScroll: true });
 				}
-				let rawSel = getSelection(this.view.root);
+				let rawSel = getSelection$1(this.view.root);
 				if (!rawSel);
 				else if (main.empty) {
 					if (browser.gecko) {
@@ -140236,7 +140191,7 @@ var DocView = class {
 	enforceCursorAssoc() {
 		if (this.hasComposition) return;
 		let { view } = this, cursor = view.state.selection.main;
-		let sel = getSelection(view.root);
+		let sel = getSelection$1(view.root);
 		let { anchorNode, anchorOffset } = view.observer.selectionRange;
 		if (!sel || !cursor.empty || !cursor.assoc || !sel.modify) return;
 		let line = this.lineAt(cursor.head, cursor.assoc);
@@ -141630,7 +141585,7 @@ function dragMovesSelection(view, event) {
 function isInPrimarySelection(view, event) {
 	let { main } = view.state.selection;
 	if (main.empty) return false;
-	let sel = getSelection(view.root);
+	let sel = getSelection$1(view.root);
 	if (!sel || sel.rangeCount == 0) return true;
 	let rects = sel.getRangeAt(0).getClientRects();
 	for (let i = 0; i < rects.length; i++) {
@@ -143652,7 +143607,7 @@ var DOMObserver = class {
 	}
 	readSelectionRange() {
 		let { view } = this;
-		let selection = getSelection(view.root);
+		let selection = getSelection$1(view.root);
 		if (!selection) return false;
 		let range = browser.safari && view.root.nodeType == 11 && view.root.activeElement == this.dom && safariSelectionRangeHack(this.view, selection) || selection;
 		if (!range || this.selectionRange.eq(range)) return false;
@@ -144006,7 +143961,7 @@ var EditContextManager = class {
 		};
 		for (let event in this.handlers) context.addEventListener(event, this.handlers[event]);
 		this.measureReq = { read: (view) => {
-			let sel = getSelection(view.root);
+			let sel = getSelection$1(view.root);
 			if (sel && sel.rangeCount) this.editContext.updateSelectionBounds(sel.getRangeAt(0).getBoundingClientRect());
 		} };
 	}
@@ -154138,7 +154093,7 @@ var SampleFilter = () => {
 	const makeLinter = t5;
 	let t6;
 	if ($[10] !== setFilter) {
-		t6 = debounce$3((value) => {
+		t6 = debounce$2((value) => {
 			setFilter(value);
 		}, 200);
 		$[10] = setFilter;
@@ -154329,17 +154284,16 @@ function _temp5$6(c) {
 	return c.label.endsWith(" ");
 }
 var SelectScorer_module_default = {
-	container: "_container_e52xb_1",
-	grid: "_grid_e52xb_5",
-	row: "_row_e52xb_12",
-	label: "_label_e52xb_26",
-	links: "_links_e52xb_32",
-	selected: "_selected_e52xb_54",
-	bodyColorButton: "_bodyColorButton_e52xb_58"
+	container: "_container_vy6en_1",
+	grid: "_grid_vy6en_5",
+	row: "_row_vy6en_12",
+	label: "_label_vy6en_26",
+	links: "_links_vy6en_32",
+	selected: "_selected_vy6en_54"
 };
 // src/app/samples/sample-tools/SelectScorer.tsx
 var SelectScorer = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(51);
+	const $ = (0, import_compiler_runtime.c)(50);
 	const { scores, selectedScores, setSelectedScores } = t0;
 	const [showing, setShowing] = (0, import_react.useState)(false);
 	const [buttonEl, setButtonEl] = (0, import_react.useState)(null);
@@ -154375,138 +154329,132 @@ var SelectScorer = (t0) => {
 		$[5] = t4;
 	} else t4 = $[5];
 	let t5;
-	if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
-		t5 = clsx(SelectScorer_module_default.bodyColorButton);
-		$[6] = t5;
-	} else t5 = $[6];
-	let t6;
-	if ($[7] !== label || $[8] !== t4) {
-		t6 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
+	if ($[6] !== label || $[7] !== t4) {
+		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolButton, {
 			label,
 			icon: "metrics",
 			onClick: t4,
-			ref: setButtonEl,
-			className: t5
+			ref: setButtonEl
 		});
-		$[7] = label;
-		$[8] = t4;
-		$[9] = t6;
-	} else t6 = $[9];
+		$[6] = label;
+		$[7] = t4;
+		$[8] = t5;
+	} else t5 = $[8];
+	let t6;
 	let t7;
-	let t8;
-	if ($[10] === Symbol.for("react.memo_cache_sentinel")) {
-		t7 = { padding: "3px 5px" };
-		t8 = clsx(SelectScorer_module_default.links, "text-size-smaller");
+	if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
+		t6 = { padding: "3px 5px" };
+		t7 = clsx(SelectScorer_module_default.links, "text-size-smaller");
+		$[9] = t6;
 		$[10] = t7;
-		$[11] = t8;
 	} else {
+		t6 = $[9];
 		t7 = $[10];
-		t8 = $[11];
 	}
-	const t9 = !allScoresSelected ? SelectScorer_module_default.selected : void 0;
-	let t10;
-	if ($[12] !== t9) {
-		t10 = clsx(t9);
+	const t8 = !allScoresSelected ? SelectScorer_module_default.selected : void 0;
+	let t9;
+	if ($[11] !== t8) {
+		t9 = clsx(t8);
+		$[11] = t8;
 		$[12] = t9;
-		$[13] = t10;
-	} else t10 = $[13];
-	let t11;
-	if ($[14] !== scores[0] || $[15] !== setSelectedScores) {
-		t11 = () => {
+	} else t9 = $[12];
+	let t10;
+	if ($[13] !== scores[0] || $[14] !== setSelectedScores) {
+		t10 = () => {
 			const firstScore = scores[0];
 			if (firstScore !== void 0) setSelectedScores([firstScore]);
 		};
-		$[14] = scores[0];
-		$[15] = setSelectedScores;
-		$[16] = t11;
-	} else t11 = $[16];
-	let t12;
-	if ($[17] !== t10 || $[18] !== t11) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+		$[13] = scores[0];
+		$[14] = setSelectedScores;
+		$[15] = t10;
+	} else t10 = $[15];
+	let t11;
+	if ($[16] !== t10 || $[17] !== t9) {
+		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
-			className: t10,
-			onClick: t11,
+			className: t9,
+			onClick: t10,
 			children: "Default"
 		});
-		$[17] = t10;
+		$[16] = t10;
+		$[17] = t9;
 		$[18] = t11;
+	} else t11 = $[18];
+	const t12 = allScoresSelected ? SelectScorer_module_default.selected : void 0;
+	let t13;
+	if ($[19] !== t12) {
+		t13 = clsx(t12);
 		$[19] = t12;
-	} else t12 = $[19];
-	const t13 = allScoresSelected ? SelectScorer_module_default.selected : void 0;
-	let t14;
-	if ($[20] !== t13) {
-		t14 = clsx(t13);
 		$[20] = t13;
-		$[21] = t14;
-	} else t14 = $[21];
-	let t15;
-	if ($[22] !== scores || $[23] !== setSelectedScores) {
-		t15 = () => {
+	} else t13 = $[20];
+	let t14;
+	if ($[21] !== scores || $[22] !== setSelectedScores) {
+		t14 = () => {
 			setSelectedScores(scores);
 		};
-		$[22] = scores;
-		$[23] = setSelectedScores;
-		$[24] = t15;
-	} else t15 = $[24];
-	let t16;
-	if ($[25] !== t14 || $[26] !== t15) {
-		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+		$[21] = scores;
+		$[22] = setSelectedScores;
+		$[23] = t14;
+	} else t14 = $[23];
+	let t15;
+	if ($[24] !== t13 || $[25] !== t14) {
+		t15 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
-			className: t14,
-			onClick: t15,
+			className: t13,
+			onClick: t14,
 			children: "All"
 		});
+		$[24] = t13;
 		$[25] = t14;
 		$[26] = t15;
+	} else t15 = $[26];
+	const t16 = noneSelected ? SelectScorer_module_default.selected : void 0;
+	let t17;
+	if ($[27] !== t16) {
+		t17 = clsx(t16);
 		$[27] = t16;
-	} else t16 = $[27];
-	const t17 = noneSelected ? SelectScorer_module_default.selected : void 0;
-	let t18;
-	if ($[28] !== t17) {
-		t18 = clsx(t17);
 		$[28] = t17;
-		$[29] = t18;
-	} else t18 = $[29];
-	let t19;
-	if ($[30] !== setSelectedScores) {
-		t19 = () => {
+	} else t17 = $[28];
+	let t18;
+	if ($[29] !== setSelectedScores) {
+		t18 = () => {
 			setSelectedScores([]);
 		};
-		$[30] = setSelectedScores;
-		$[31] = t19;
-	} else t19 = $[31];
-	let t20;
-	if ($[32] !== t18 || $[33] !== t19) {
-		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+		$[29] = setSelectedScores;
+		$[30] = t18;
+	} else t18 = $[30];
+	let t19;
+	if ($[31] !== t17 || $[32] !== t18) {
+		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
-			className: t18,
-			onClick: t19,
+			className: t17,
+			onClick: t18,
 			children: "None"
 		});
+		$[31] = t17;
 		$[32] = t18;
 		$[33] = t19;
-		$[34] = t20;
-	} else t20 = $[34];
-	let t21;
-	if ($[35] !== t12 || $[36] !== t16 || $[37] !== t20) {
-		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-			className: t8,
+	} else t19 = $[33];
+	let t20;
+	if ($[34] !== t11 || $[35] !== t15 || $[36] !== t19) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t7,
 			children: [
-				t12,
+				t11,
 				"|",
-				t16,
+				t15,
 				"|",
-				t20
+				t19
 			]
 		});
-		$[35] = t12;
-		$[36] = t16;
+		$[34] = t11;
+		$[35] = t15;
+		$[36] = t19;
 		$[37] = t20;
-		$[38] = t21;
-	} else t21 = $[38];
-	let t22;
-	if ($[39] !== scores || $[40] !== selectedKeys || $[41] !== setSelectedScores) {
-		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	} else t20 = $[37];
+	let t21;
+	if ($[38] !== scores || $[39] !== selectedKeys || $[40] !== setSelectedScores) {
+		t21 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: SelectScorer_module_default.container,
 			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ScoreCheckboxes, {
 				scores,
@@ -154514,44 +154462,44 @@ var SelectScorer = (t0) => {
 				setSelectedScores
 			})
 		});
-		$[39] = scores;
-		$[40] = selectedKeys;
-		$[41] = setSelectedScores;
-		$[42] = t22;
-	} else t22 = $[42];
-	let t23;
-	if ($[43] !== buttonEl || $[44] !== showing || $[45] !== t21 || $[46] !== t22) {
-		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(PopOver, {
+		$[38] = scores;
+		$[39] = selectedKeys;
+		$[40] = setSelectedScores;
+		$[41] = t21;
+	} else t21 = $[41];
+	let t22;
+	if ($[42] !== buttonEl || $[43] !== showing || $[44] !== t20 || $[45] !== t21) {
+		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(PopOver, {
 			id: "score-selector-popover",
 			positionEl: buttonEl,
 			isOpen: showing,
 			setIsOpen: setShowing,
 			placement: "bottom-start",
 			hoverDelay: -1,
-			styles: t7,
-			children: [t21, t22]
+			styles: t6,
+			children: [t20, t21]
 		});
-		$[43] = buttonEl;
-		$[44] = showing;
+		$[42] = buttonEl;
+		$[43] = showing;
+		$[44] = t20;
 		$[45] = t21;
 		$[46] = t22;
-		$[47] = t23;
-	} else t23 = $[47];
-	let t24;
-	if ($[48] !== t23 || $[49] !== t6) {
-		t24 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+	} else t22 = $[46];
+	let t23;
+	if ($[47] !== t22 || $[48] !== t5) {
+		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			style: t2,
 			children: [
 				t3,
-				t6,
-				t23
+				t5,
+				t22
 			]
 		});
-		$[48] = t23;
-		$[49] = t6;
-		$[50] = t24;
-	} else t24 = $[50];
-	return t24;
+		$[47] = t22;
+		$[48] = t5;
+		$[49] = t23;
+	} else t23 = $[49];
+	return t23;
 };
 var ScoreCheckboxes = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(14);
@@ -162629,7 +162577,7 @@ function hostDestinationRoute(message) {
 * consumers of this same log — sample-adjacent hooks mounting elsewhere in
 * the tree — must not be able to refire this controller just by mounting).
 */ var LogLoadController = () => {
-	const $ = (0, import_compiler_runtime.c)(15);
+	const $ = (0, import_compiler_runtime.c)(11);
 	const logDir = useLogDir();
 	const selectedLogFile = useCurrentLogFile();
 	let t0;
@@ -162648,35 +162596,34 @@ function hostDestinationRoute(message) {
 	const settledSeq = useLogFetchState(logDir, t1).data?.details_settled_seq;
 	const clearSelectedScores = useStore(_temp$6);
 	const setWorkspaceTab = useStore(_temp2$5);
+	const detailDataRef = useLatestRef(detail.data);
 	let t2;
-	if ($[4] !== clearSelectedScores || $[5] !== detail || $[6] !== selectedLogFile || $[7] !== setWorkspaceTab || $[8] !== settledSeq) {
+	let t3;
+	if ($[4] !== clearSelectedScores || $[5] !== detailDataRef || $[6] !== selectedLogFile || $[7] !== setWorkspaceTab || $[8] !== settledSeq) {
 		t2 = () => {
-			if (!selectedLogFile || detail.data === void 0 || settledSeq === void 0) return;
-			const details = detail.data;
+			const details = detailDataRef.current;
+			if (!selectedLogFile || details === void 0 || settledSeq === void 0) return;
 			clearSelectedScores();
 			if (details.status !== "started" && details.sampleCount === 0) setWorkspaceTab(kLogViewInfoTabId);
 		};
-		$[4] = clearSelectedScores;
-		$[5] = detail;
-		$[6] = selectedLogFile;
-		$[7] = setWorkspaceTab;
-		$[8] = settledSeq;
-		$[9] = t2;
-	} else t2 = $[9];
-	let t3;
-	if ($[10] !== clearSelectedScores || $[11] !== selectedLogFile || $[12] !== setWorkspaceTab || $[13] !== settledSeq) {
 		t3 = [
 			settledSeq,
 			selectedLogFile,
 			clearSelectedScores,
-			setWorkspaceTab
+			setWorkspaceTab,
+			detailDataRef
 		];
-		$[10] = clearSelectedScores;
-		$[11] = selectedLogFile;
-		$[12] = setWorkspaceTab;
-		$[13] = settledSeq;
-		$[14] = t3;
-	} else t3 = $[14];
+		$[4] = clearSelectedScores;
+		$[5] = detailDataRef;
+		$[6] = selectedLogFile;
+		$[7] = setWorkspaceTab;
+		$[8] = settledSeq;
+		$[9] = t2;
+		$[10] = t3;
+	} else {
+		t2 = $[9];
+		t3 = $[10];
+	}
 	(0, import_react.useEffect)(t2, t3);
 	return null;
 };

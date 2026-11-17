@@ -41,7 +41,13 @@ from inspect_ai.agent import (
     run,
 )
 from inspect_ai.agent._bridge.types import AgentBridge
-from inspect_ai.approval import Approval, ApprovalPolicy, Approver, approver
+from inspect_ai.approval import (
+    Approval,
+    ApprovalPolicy,
+    Approver,
+    approver,
+    auto_approver,
+)
 from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.approval._human import acp as acp_module
 from inspect_ai.approval._human import approver as approver_module
@@ -309,8 +315,9 @@ def assert_logged_replay_equals_live(
     seen: dict[str, Step],
     differences: Sequence[str] = (),
     inferred: str | None = None,
+    old_log_differs: bool = False,
 ) -> list["ReplayStep"]:
-    """Rebuild the steps of a log that `r7_probe(seen, copies=True)` watched, and compare; then compare those with the steps replayed with the log's origins removed and the turns inferred (`inferred` as for `assert_replay_equals_live`)."""
+    """Rebuild the steps of a log that `r7_probe(seen, copies=True)` watched, and compare; then compare those with the steps replayed with the log's origins removed and the turns inferred (`inferred` as for `assert_replay_equals_live`), and, unless `old_log_differs`, with those replayed from the log without its execution ids."""
     assert log.samples
     live = live_steps(log.samples[0], seen)
     replay = replayed(log)
@@ -322,7 +329,27 @@ def assert_logged_replay_equals_live(
     for key, step in live.items():
         assert_step_equals_live(key, rebuilt[key], step, differences)
     assert_inferred(log, replay, inferred)
+    if not old_log_differs:
+        old = replay_events(log, without_execution_ids(logged_sample(log).events))
+        assert replay_record(old) == replay_record(replay)
     return replay
+
+
+def without_execution_ids(events: Sequence[Event]) -> list[Event]:
+    """The events as a log written before `execution_id` holds them."""
+    return [
+        event.model_copy(update={"execution_id": None})
+        if isinstance(event, ToolEvent | ApprovalEvent | SentinelEvent)
+        else event
+        for event in events
+    ]
+
+
+def replay_record(replay: list["ReplayStep"]) -> list[Any]:
+    return [
+        (s.stage, s.id, s.segment, dict(s.recorded_answers), comparable(s.step))
+        for s in replay
+    ]
 
 
 def assert_step_equals_live(
@@ -2639,6 +2666,20 @@ def tool_step_calls(
         for step in replay
         if isinstance(step.step, BeforeToolCall | AfterToolCall)
     ]
+
+
+UNMATCHED_MODIFY = (
+    "Skipped the tool steps of call(s) {}: a sentinel modified each, and its tool "
+    "recorded other arguments than the modify gave it, so the log cannot show "
+    "the call the sentinel was shown."
+)
+
+UNRECORDED_CHECK = (
+    "Skipped the tool steps of call(s) {}: a sentinel modified each under a call "
+    "id other calls share, and no approval that replay can rely on records the call "
+    "as its tool validated it, so the log cannot show the call the sentinel was "
+    "shown."
+)
 
 
 def replay_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
@@ -5579,7 +5620,7 @@ def test_recorded_sentinel_change_controls_executed_arguments(
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
 def test_sentinel_modify_does_not_match_a_different_json_argument_type(
-    inputs: str,
+    inputs: str, caplog: pytest.LogCaptureFixture
 ) -> None:
     messages, events, pool = _historical_approval_events(inputs, "approve", True)
     events = [event for event in events if not isinstance(event, ApprovalEvent)]
@@ -5609,20 +5650,20 @@ def test_sentinel_modify_does_not_match_a_different_json_argument_type(
     events[begin:begin] = check
     adapter = TypeAdapter(list[Event])
     events = adapter.validate_json(adapter.dump_json(events))
-    replay = steps_from_events(
-        messages,
-        events,
-        pool,
-        sample_uuid="sample",
-        eval_info=EvalInfo("0.3.277", True),
+    with caplog.at_level(logging.WARNING):
+        replay = steps_from_events(
+            messages,
+            events,
+            pool,
+            sample_uuid="sample",
+            eval_info=EvalInfo("0.3.277", True),
+        )
+    # the modify's x=True doesn't match the ToolEvent's x=1, so the call is
+    # skipped as one whose tool rewrote its modify's arguments
+    assert not any(
+        isinstance(step.step, BeforeToolCall | AfterToolCall) for step in replay
     )
-    tool_steps = [
-        step.step
-        for step in replay
-        if isinstance(step.step, BeforeToolCall | AfterToolCall)
-    ]
-    assert [step.call.arguments["x"] for step in tool_steps] == [1, 1]
-    assert all(type(step.call.arguments["x"]) is int for step in tool_steps)
+    assert replay_warnings(caplog) == [UNMATCHED_MODIFY.format("'c1'")]
 
 
 @pytest.mark.parametrize("inputs", ["expanded", "pooled"])
@@ -9814,3 +9855,1941 @@ def test_a_result_reviewer_s_same_id_call_leaves_the_reviewed_call_its_result_ch
     assert dict(result.recorded_answers) == {
         "human": HumanAnswer(decision="approve", reason="reviewed the tool error")
     }
+
+
+# Ransom's round-8 B3 on #5765: a generation in the call's conversation
+# proposes its id again while the call's check awaits
+_SAME_ID_TURN: dict[str, anyio.Event] = {}
+
+
+@tool
+def read_path() -> Tool:
+    async def execute(path: str) -> str:
+        """Read a file.
+
+        Args:
+            path: The path.
+        """
+        return f"contents of {path}"
+
+    return execute
+
+
+@protocol
+def r7_modifies_once_a_same_id_turn_completes() -> Protocol:
+    async def check(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        _SAME_ID_TURN["started"].set()
+        await _SAME_ID_TURN["generated"].wait()
+        return Decision(
+            action="modify",
+            modified=replace(step.call, arguments={"path": "safe.txt"}),
+            explanation="safer",
+        )
+
+    return check
+
+
+@solver
+def a_same_id_turn_completes_during_a_call_check(again: str | None) -> Solver:
+    """Run a call while another turn of its conversation proposes its id: from `again` as a new user message, or from the same input (a cache hit)."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        started, generated = anyio.Event(), anyio.Event()
+        _SAME_ID_TURN.update(started=started, generated=generated)
+        model = get_model()
+        tools = [read_path()]
+        messages: list[ChatMessage] = [ChatMessageUser(content="Read the file")]
+        first = await model.generate(messages, tools=tools)
+
+        async def run_call() -> None:
+            await execute_tools([*messages, first.message], tools)
+
+        async def generate_again() -> None:
+            await started.wait()
+            await model.generate(
+                [*messages, ChatMessageUser(content=again)] if again else messages,
+                tools=tools,
+            )
+            generated.set()
+
+        await tg_collect([run_call, generate_again])
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("replies", ["same", "distinct"])
+@pytest.mark.parametrize("approved", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_call_check_pairs_with_its_call_when_a_same_id_turn_completes_during_it(
+    replies: str,
+    approved: bool,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # "same": the second generation returns the first's reply again from the
+    # same input, as a cache hit does (one message id); "distinct": another
+    # turn, from other input, proposes another call under the id
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    reply, again = (
+        ModelOutput.for_tool_call(
+            "mockllm/model",
+            tool_name="read_path",
+            tool_arguments={"path": path},
+            tool_call_id="call_x",
+            content=content,
+        )
+        for path, content in [("bad.txt", "Reading it."), ("other.txt", "Other.")]
+    )
+    if replies == "same":
+        again = reply
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read the file")],
+            solver=a_same_id_turn_completes_during_a_call_check(
+                "Read it again" if replies == "distinct" else None
+            ),
+            sentinel=[
+                r7_probe(seen, copies=True),
+                r7_modifies_once_a_same_id_turn_completes(),
+            ],
+            approval=[ApprovalPolicy(auto_approver(), "*")] if approved else None,
+        ),
+        model=outputs(reply, again),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    [ran] = [e for e in events if isinstance(e, ToolEvent)]
+    assert ran.arguments == {"path": "safe.txt"}
+    proposals = [e for e in events if isinstance(e, ModelEvent)]
+    assert len(proposals) == 2
+    assert (proposals[0].output.message.id == proposals[1].output.message.id) == (
+        replies == "same"
+    )
+
+    # the check names the call it judged, so it pairs with it, and with the
+    # generation that proposed it: its call, message and input equal live
+    with caplog.at_level(logging.WARNING):
+        replay = assert_logged_replay_equals_live(log, seen, old_log_differs=True)
+    assert "match no tool call" not in caplog.text
+    assert [(stage, arguments) for stage, _, arguments in tool_step_calls(replay)] == [
+        ("tool_call", {"path": "bad.txt"}),
+        ("tool_result", {"path": "safe.txt"}),
+    ]
+    tool_steps = [
+        s.step for s in replay if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    ]
+    assert len(tool_steps) == 2
+    assert {(s.message, s.message_id) for s in tool_steps} == {
+        ("Reading it.", proposals[0].output.message.id)
+    }
+    for step in tool_steps:
+        assert [m.text for m in step.input or []] == ["Read the file"]
+
+    # a log without execution ids pairs a call check only after the latest
+    # proposal of its id, so the check is orphaned as before
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        old = replay_events(log, without_execution_ids(events))
+    assert "match no tool call" in caplog.text
+    assert [(stage, arguments) for stage, _, arguments in tool_step_calls(old)] == [
+        ("tool_call", {"path": "safe.txt"}),
+        ("tool_result", {"path": "safe.txt"}),
+    ]
+
+
+@pytest.mark.parametrize("error", [ToolParsingError, ToolApprovalError])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_call_that_raised_after_running_keeps_its_result_check_without_a_call_monitor(
+    error: type[Exception],
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # #5765's known limit: with no monitor at tool_call, a tool that raised
+    # an oversight error after running reads as a call that never ran
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    Panel("approve", "reviewed the tool error").install(monkeypatch)
+
+    @tool
+    def fails_after_running() -> Tool:
+        async def execute() -> str:
+            """Raise an error after running."""
+            raise error("could not interpret the tool output")
+
+        return execute
+
+    log = eval(
+        Task(
+            dataset=[Sample(input="Run the tool")],
+            solver=[use_tools(fails_after_running()), generate()],
+            review=[
+                ReviewPolicy(checks_with_a_same_id_call(False), "fails_after_running")
+            ],
+            sentinel=[h_ask("tool_result", ["approve"])],
+        ),
+        model=outputs(
+            ModelOutput.for_tool_call(
+                "mockllm/model",
+                tool_name="fails_after_running",
+                tool_arguments={},
+                tool_call_id="tool_call_0_0",
+            ),
+            done(),
+        ),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert [e.function for e in runs] == ["fails_after_running", "addition"]
+
+    # the result check names the reviewed call, so the reviewer's call under
+    # its id, which ended first, can't take it
+    [result] = [step for step in replayed(log) if step.stage == "tool_result"]
+    assert isinstance(result.step, AfterToolCall)
+    assert result.step.call.function == "fails_after_running"
+    assert dict(result.recorded_answers) == {
+        "human": HumanAnswer(decision="approve", reason="reviewed the tool error")
+    }
+
+    # a log without execution ids gives it to the reviewer's call, as before
+    [old] = [
+        step
+        for step in replay_events(log, without_execution_ids(events))
+        if step.stage == "tool_result"
+    ]
+    assert isinstance(old.step, AfterToolCall)
+    assert old.step.call.function == "addition"
+
+
+@pytest.mark.parametrize("probed", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_call_that_raised_and_its_same_id_retry_replay_as_two_executions(
+    probed: bool,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # a tool raises ToolParsingError, and the model retries the call under the
+    # same id (a provider that repeats ids), with only a result check, or with
+    # a probe at every stage too
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    Panel("approve", "reviewed the run").install(monkeypatch)
+    attempts: list[str] = []
+    seen: dict[str, Step] = {}
+
+    @tool
+    def parse_once() -> Tool:
+        async def execute(text: str) -> str:
+            """Fail to parse the first input.
+
+            Args:
+                text: The input.
+            """
+            attempts.append(text)
+            if len(attempts) == 1:
+                raise ToolParsingError("could not parse the input")
+            return f"parsed {text}"
+
+        return execute
+
+    log = eval(
+        Task(
+            dataset=[Sample(input="Parse it")],
+            solver=[use_tools(parse_once()), generate()],
+            sentinel=[
+                *([r7_probe(seen, copies=True)] if probed else []),
+                h_ask("tool_result", ["approve"]),
+            ],
+        ),
+        model=outputs(
+            *(
+                ModelOutput.for_tool_call(
+                    "mockllm/model",
+                    tool_name="parse_once",
+                    tool_arguments={"text": text},
+                    tool_call_id="tool_call_0_0",
+                )
+                for text in ("first", "second")
+            ),
+            done(),
+        ),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert [e.id for e in runs] == ["tool_call_0_0", "tool_call_0_0"]
+    assert [e.error.type if e.error else None for e in runs] == ["parsing", None]
+    executions = [e.execution_id for e in runs]
+    assert None not in executions and executions[0] != executions[1]
+
+    # each run is its own execution: the first keeps the call id, and the
+    # retry, whose call id is taken, is named by its execution id
+    with caplog.at_level(logging.WARNING):
+        replay = replayed(log)
+    assert replay_warnings(caplog) == []
+    answer = {"human": HumanAnswer(decision="approve", reason="reviewed the run")}
+    assert [
+        (s.stage, s.id, s.step.call.arguments, dict(s.recorded_answers))
+        for s in replay
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    ] == [
+        ("tool_call", "tool_call_0_0", {"text": "first"}, {}),
+        ("tool_result", "tool_call_0_0", {"text": "first"}, answer),
+        ("tool_call", executions[1], {"text": "second"}, {}),
+        ("tool_result", executions[1], {"text": "second"}, answer),
+    ]
+    if probed:
+        assert_tool_steps_equal_live_by_execution(log, seen, replay)
+        # a log without execution ids, where both runs passed a call check,
+        # can't be replayed, as before
+        with pytest.raises(MalformedLogError, match="Two tool_call steps"):
+            replay_events(log, without_execution_ids(events))
+        return
+
+    # a log without execution ids replays the retry alone, warning that the
+    # first run's result check matches no call
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        old = replay_events(log, without_execution_ids(events))
+    assert "match no tool call" in caplog.text
+    assert [
+        (s.stage, s.id, s.step.call.arguments)
+        for s in old
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    ] == [
+        ("tool_call", "tool_call_0_0", {"text": "second"}),
+        ("tool_result", "tool_call_0_0", {"text": "second"}),
+    ]
+
+
+@protocol
+def r7_rejects_the_first_call() -> Protocol:
+    async def before_call(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if step.call.arguments.get("text") == "first":
+            return Decision(action="reject", explanation="not the first")
+        return None
+
+    return before_call
+
+
+@pytest.mark.parametrize("probed", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_call_rejected_at_tool_call_and_its_same_id_retries_replay_as_executions(
+    probed: bool,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # a sentinel rejects a call at tool_call, and the model retries it twice
+    # under the same id: the reject pairs through the call check, not a result
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    seen: dict[str, Step] = {}
+
+    @tool
+    def echo() -> Tool:
+        async def execute(text: str) -> str:
+            """Echo the input.
+
+            Args:
+                text: The input.
+            """
+            return f"echo {text}"
+
+        return execute
+
+    texts = ["first", "second", "third"]
+    log = eval(
+        Task(
+            dataset=[Sample(input="Echo it")],
+            solver=[use_tools(echo()), generate()],
+            sentinel=[
+                *([r7_probe(seen, copies=True)] if probed else []),
+                r7_rejects_the_first_call(),
+            ],
+        ),
+        model=outputs(
+            *(
+                ModelOutput.for_tool_call(
+                    "mockllm/model",
+                    tool_name="echo",
+                    tool_arguments={"text": text},
+                    tool_call_id="tool_call_0_0",
+                )
+                for text in texts
+            ),
+            done(),
+        ),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert [e.id for e in runs] == ["tool_call_0_0"] * 3
+    assert [e.error.type if e.error else None for e in runs] == [
+        "approval",
+        None,
+        None,
+    ]
+    executions = [e.execution_id for e in runs]
+    assert None not in executions and len(set(executions)) == 3
+    assert [
+        e.execution_id
+        for e in events
+        if isinstance(e, SentinelEvent) and e.action == "reject"
+    ] == executions[:1]
+
+    # the rejected call keeps the call id, and each retry is named by its
+    # execution id
+    with caplog.at_level(logging.WARNING):
+        replay = replayed(log)
+    assert replay_warnings(caplog) == []
+    assert [
+        (s.stage, s.id, s.step.call.arguments)
+        for s in replay
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    ] == [
+        ("tool_call", "tool_call_0_0", {"text": "first"}),
+        ("tool_call", executions[1], {"text": "second"}),
+        ("tool_result", executions[1], {"text": "second"}),
+        ("tool_call", executions[2], {"text": "third"}),
+        ("tool_result", executions[2], {"text": "third"}),
+    ]
+    if probed:
+        assert_tool_steps_equal_live_by_execution(log, seen, replay)
+
+    # a log without execution ids can't be replayed, as before
+    with pytest.raises(MalformedLogError, match="Two tool_call steps"):
+        replay_events(log, without_execution_ids(events))
+
+
+def assert_tool_steps_equal_live_by_execution(
+    log: EvalLog, seen: dict[str, Step], replay: Sequence["ReplayStep"]
+) -> None:
+    """Compare each replayed native tool step with the one `r7_probe(seen, copies=True)` saw live at its stage and execution: live records two executions of one call id under the same step id."""
+    events = logged_sample(log).events
+    live = {
+        (e.stage, e.execution_id): seen[e.explanation or ""]
+        for e in events
+        if isinstance(e, SentinelEvent)
+        and e.path == "r7_probe"
+        and e.stage in ("tool_call", "tool_result")
+    }
+    # a replayed step's id is its call id, or the execution id of a later
+    # execution of that call id
+    first: dict[str, str | None] = {}
+    for e in events:
+        if isinstance(e, ToolEvent):
+            first.setdefault(e.id, e.execution_id)
+    rebuilt = {
+        (s.stage, first.get(s.id, s.id)): s
+        for s in replay
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    }
+    assert set(rebuilt) == set(live)
+    for (stage, execution), step in live.items():
+        assert_step_equals_live(
+            (stage, execution or ""), rebuilt[(stage, execution)], step
+        )
+
+
+def test_each_native_run_names_its_approvals_and_steps() -> None:
+    # a model that repeats a call id across turns
+    repeated = [
+        ModelOutput.for_tool_call(
+            "mockllm/model",
+            tool_name="addition",
+            tool_arguments={"x": x, "y": 1},
+            tool_call_id="call_0",
+        )
+        for x in (1, 2)
+    ]
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="What is 1 + 1?", target="2")],
+            solver=[use_tools(addition()), generate()],
+            sentinel=[r7_probe(seen, copies=True)],
+            approval=[ApprovalPolicy(auto_approver(), "*")],
+        ),
+        model=outputs(*repeated, done()),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert [e.id for e in runs] == ["call_0", "call_0"]
+    executions = [e.execution_id for e in runs]
+    assert None not in executions and executions[0] != executions[1]
+    assert [
+        e.execution_id for e in events if isinstance(e, ApprovalEvent)
+    ] == executions
+    for stage in ("tool_call", "tool_result"):
+        assert [
+            e.execution_id
+            for e in events
+            if isinstance(e, SentinelEvent) and e.stage == stage
+        ] == executions
+    assert [
+        e.execution_id
+        for e in events
+        if isinstance(e, SentinelEvent) and e.stage.startswith("model")
+    ] == [None] * 6
+
+    # replay names the second run's steps by its execution id, the call id
+    # being the first's
+    replay = replayed(log)
+    assert [
+        (s.stage, s.id, s.step.call.arguments)
+        for s in replay
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    ] == [
+        ("tool_call", "call_0", {"x": 1, "y": 1}),
+        ("tool_result", "call_0", {"x": 1, "y": 1}),
+        ("tool_call", executions[1], {"x": 2, "y": 1}),
+        ("tool_result", executions[1], {"x": 2, "y": 1}),
+    ]
+    assert_tool_steps_equal_live_by_execution(log, seen, replay)
+
+
+@pytest.mark.parametrize("stage", ["tool_call", "tool_result"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_person_s_decisions_at_two_runs_of_one_call_id_keep_its_step_id(
+    stage: str, backend: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a model that repeats a call id across turns, with a person deciding each
+    # run at `stage`: later steps see both decisions under the recorded call
+    # id, though replay names the second run's steps by its execution id
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    Panel("approve", "the sum is right").install(monkeypatch)
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="What is 1 + 1?", target="2")],
+            solver=[use_tools(addition()), generate()],
+            sentinel=[
+                r7_probe(seen, copies=True),
+                h_ask(stage, ["approve"]),
+            ],
+        ),
+        model=outputs(
+            *(
+                ModelOutput.for_tool_call(
+                    "mockllm/model",
+                    tool_name="addition",
+                    tool_arguments={"x": x, "y": 1},
+                    tool_call_id="call_0",
+                )
+                for x in (1, 2)
+            ),
+            done(),
+        ),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    executions = [e.execution_id for e in events if isinstance(e, ToolEvent)]
+    assert None not in executions and executions[0] != executions[1]
+    probed = [
+        e for e in events if isinstance(e, SentinelEvent) and e.path == "r7_probe"
+    ]
+    live = [seen[e.explanation or ""] for e in probed]
+    assert [(d.stage, d.step_id) for d in live[-1].human_decisions or []] == [
+        (stage, "call_0"),
+        (stage, "call_0"),
+    ]
+
+    replay = replayed(log)
+    assert [s.id for s in replay if s.stage == stage] == ["call_0", executions[1]]
+    assert [(d.stage, d.step_id) for d in replay[-1].step.human_decisions or []] == [
+        (stage, "call_0"),
+        (stage, "call_0"),
+    ]
+    assert [(s.stage, s.step.conversation) for s in replay] == [
+        (e.stage, step.conversation) for e, step in zip(probed, live, strict=True)
+    ]
+    for rebuilt, step in zip(replay, live, strict=True):
+        assert comparable(rebuilt.step.human_decisions) == comparable(
+            step.human_decisions
+        ), rebuilt.id
+
+
+@tool
+def delete_file() -> Tool:
+    async def execute(path: str) -> str:
+        """Delete a file.
+
+        Args:
+            path: The file.
+        """
+        return f"deleted {path}"
+
+    return execute
+
+
+def one_response(*calls: tuple[str, str]) -> ModelOutput:
+    """A response proposing each (function, path) under the call id `"null"`, as Mistral's converter names calls whose ids the model omitted."""
+    return ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(id="null", function=function, arguments={"path": path})
+                        for function, path in calls
+                    ],
+                ),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+
+
+def replayed_calls(replay: Sequence["ReplayStep"]) -> list[tuple[str, str, Any]]:
+    return [
+        (s.stage, s.step.call.function, s.step.call.arguments)
+        for s in replay
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    ]
+
+
+@pytest.mark.parametrize("deleted", ["old.txt", "readme.txt"])
+@pytest.mark.parametrize("approved", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_distinct_calls_of_one_response_under_one_id_replay_as_proposed(
+    deleted: str,
+    approved: bool,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # after Ransom's review 5930221109: replay rebuilt the first call's check
+    # with the second call's function; the calls differ in their function
+    # alone, or in their arguments too
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="Tidy up")],
+            solver=[use_tools(read_path(), delete_file()), generate()],
+            sentinel=[r7_probe(seen, copies=True)],
+            approval=[ApprovalPolicy(auto_approver(), "*")] if approved else None,
+        ),
+        model=outputs(
+            one_response(("read_path", "readme.txt"), ("delete_file", deleted)),
+            done(),
+        ),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert sorted((e.id, e.function) for e in runs) == [
+        ("null", "delete_file"),
+        ("null", "read_path"),
+    ]
+
+    with caplog.at_level(logging.WARNING):
+        replay = replayed(log)
+    assert replay_warnings(caplog) == []
+    by_function = {
+        (stage, function): arguments
+        for stage, function, arguments in replayed_calls(replay)
+    }
+    assert by_function == {
+        ("tool_call", "read_path"): {"path": "readme.txt"},
+        ("tool_result", "read_path"): {"path": "readme.txt"},
+        ("tool_call", "delete_file"): {"path": deleted},
+        ("tool_result", "delete_file"): {"path": deleted},
+    }
+    assert_tool_steps_equal_live_by_execution(log, seen, replay)
+
+    # a log without execution ids can't be replayed, as before
+    with pytest.raises(MalformedLogError, match="Two tool_call steps"):
+        replay_events(log, without_execution_ids(events))
+
+
+@protocol
+def r7_moves_the_read_of_a() -> Protocol:
+    async def before_call(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if step.call.arguments == {"path": "a.txt"}:
+            return Decision(
+                action="modify",
+                modified=replace(step.call, arguments={"path": "b.txt"}),
+                explanation="read b instead",
+            )
+        return None
+
+    return before_call
+
+
+@pytest.mark.parametrize("approved", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_calls_of_one_function_in_one_response_under_one_id_pair_by_arguments(
+    approved: bool,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # two calls of one function under one id differ only in their arguments:
+    # each execution is paired with the call its recorded arguments name
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read them")],
+            solver=[use_tools(read_path()), generate()],
+            sentinel=[r7_probe(seen, copies=True)],
+            approval=[ApprovalPolicy(auto_approver(), "*")] if approved else None,
+        ),
+        model=outputs(
+            one_response(("read_path", "a.txt"), ("read_path", "b.txt")), done()
+        ),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    with caplog.at_level(logging.WARNING):
+        replay = replayed(log)
+    assert replay_warnings(caplog) == []
+    assert sorted(replayed_calls(replay), key=str) == sorted(
+        [
+            (stage, "read_path", {"path": path})
+            for stage in ("tool_call", "tool_result")
+            for path in ("a.txt", "b.txt")
+        ],
+        key=str,
+    )
+    assert_tool_steps_equal_live_by_execution(log, seen, replay)
+
+
+class R7Spec(BaseModel):
+    path: str
+    mode: str = "r"
+
+
+@tool
+def open_spec() -> Tool:
+    async def execute(spec: R7Spec) -> str:
+        """Open a file.
+
+        Args:
+            spec: The file and its mode.
+        """
+        return f"opened {spec.path} ({spec.mode})"
+
+    return execute
+
+
+def open_specs_under_null() -> ModelOutput:
+    """A response opening a.txt and b.txt under the call id `"null"`, each spec without the mode validation fills in."""
+    return ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(
+                            id="null",
+                            function="open_spec",
+                            arguments={"spec": {"path": path}},
+                        )
+                        for path in ("a.txt", "b.txt")
+                    ],
+                ),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+
+
+def replayed_under_an_unknown_version(log: EvalLog) -> list["ReplayStep"]:
+    """Replay `log` as if its header recorded no inspect_ai version, so its approvals are not taken as the calls they approved."""
+    sample = logged_sample(log)
+    return steps_from_events(
+        sample.messages,
+        sample.events,
+        [],
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo.from_eval(log.eval)._replace(inspect_ai_version=None),
+    )
+
+
+@pytest.mark.parametrize("header", ["recorded", "unknown"])
+@pytest.mark.parametrize("approved", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_calls_of_one_function_under_one_id_whose_arguments_validation_changes_replay(
+    header: str,
+    approved: bool,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # validation fills each call's default, so neither recorded execution's
+    # arguments are a proposed call's; the calls differ only in their
+    # arguments, which the steps take from the log
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="Open them")],
+            solver=[use_tools(open_spec()), generate()],
+            sentinel=[r7_probe(seen, copies=True)],
+            approval=[ApprovalPolicy(auto_approver(), "*")] if approved else None,
+        ),
+        model=outputs(open_specs_under_null(), done()),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    runs = [e for e in logged_sample(log).events if isinstance(e, ToolEvent)]
+    assert sorted((e.arguments for e in runs), key=str) == [
+        {"spec": {"path": path, "mode": "r"}} for path in ("a.txt", "b.txt")
+    ]
+
+    with caplog.at_level(logging.WARNING):
+        replay = (
+            replayed(log)
+            if header == "recorded"
+            else replayed_under_an_unknown_version(log)
+        )
+    assert replay_warnings(caplog) == []
+    if header == "recorded":
+        assert_tool_steps_equal_live_by_execution(log, seen, replay)
+    else:
+        # an unknown version changes fields other than the call (`truncated`)
+        assert sorted(replayed_calls(replay), key=str) == sorted(
+            [
+                (stage, "open_spec", e.arguments)
+                for e in runs
+                for stage in ("tool_call", "tool_result")
+            ],
+            key=str,
+        )
+
+
+@protocol
+def r7_moves_the_open_of_a() -> Protocol:
+    async def before_call(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if step.call.arguments["spec"]["path"] == "a.txt":
+            return Decision(
+                action="modify",
+                modified=replace(
+                    step.call, arguments={"spec": {"path": "c.txt", "mode": "r"}}
+                ),
+                explanation="open c instead",
+            )
+        return None
+
+    return before_call
+
+
+@pytest.mark.parametrize("header", ["recorded", "unknown"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_modified_call_whose_arguments_validation_changes_is_rebuilt_only_from_a_reliable_approval(
+    header: str,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # a sentinel modify's tool_call step is built from the call its approval
+    # records, which a log of unknown version can't be trusted for: its
+    # proposal's arguments would be used, so it is skipped rather than built
+    # from whichever call of its function comes first
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="Open them")],
+            solver=[use_tools(open_spec()), generate()],
+            sentinel=[r7_probe(seen, copies=True), r7_moves_the_open_of_a()],
+            approval=[ApprovalPolicy(auto_approver(), "*")],
+        ),
+        model=outputs(open_specs_under_null(), done()),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert sorted((e.arguments for e in runs), key=str) == [
+        {"spec": {"path": path, "mode": "r"}} for path in ("b.txt", "c.txt")
+    ]
+
+    with caplog.at_level(logging.WARNING):
+        replay = (
+            replayed(log)
+            if header == "recorded"
+            else replayed_under_an_unknown_version(log)
+        )
+    if header == "recorded":
+        assert replay_warnings(caplog) == []
+        assert_tool_steps_equal_live_by_execution(log, seen, replay)
+        return
+    [warning] = [w for w in replay_warnings(caplog) if "several calls" in w]
+    assert "'null'" in warning
+    assert replayed_calls(replay) == [
+        (stage, "open_spec", {"spec": {"path": "b.txt", "mode": "r"}})
+        for stage in ("tool_call", "tool_result")
+    ]
+
+
+@solver
+def r7_prefills_two_calls_under_null() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        state.messages.append(
+            ChatMessageAssistant(
+                content="Pre-filled.",
+                tool_calls=[
+                    ToolCall(id="null", function="read_path", arguments={"path": "a"}),
+                    ToolCall(
+                        id="null", function="delete_file", arguments={"path": "b"}
+                    ),
+                ],
+            )
+        )
+        result = await execute_tools(state.messages, state.tools)
+        state.messages.extend(result.messages)
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("approved", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_prefilled_call_under_an_id_a_later_response_reuses_replays_from_its_own_message(
+    approved: bool,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # no model call proposed the pre-filled calls, and the model's later
+    # response proposes calls under the same id: each pre-filled execution is
+    # rebuilt from the message its ToolEvent names
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="Tidy up")],
+            solver=[
+                use_tools(read_path(), delete_file()),
+                r7_prefills_two_calls_under_null(),
+                generate(),
+            ],
+            sentinel=[r7_probe(seen, copies=True)],
+            approval=[ApprovalPolicy(auto_approver(), "*")] if approved else None,
+        ),
+        model=outputs(one_response(("delete_file", "c"), ("read_path", "d")), done()),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    runs = [e for e in logged_sample(log).events if isinstance(e, ToolEvent)]
+    assert len(runs) == 4 and {e.id for e in runs} == {"null"}
+    assert len({e.call_message_id for e in runs}) == 2
+
+    with caplog.at_level(logging.WARNING):
+        replay = replayed(log)
+    assert replay_warnings(caplog) == []
+    assert_tool_steps_equal_live_by_execution(log, seen, replay)
+
+
+@pytest.mark.parametrize("stage", ["tool_call", "tool_result"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_person_s_decisions_at_a_skipped_call_of_a_shared_id_reach_later_steps(
+    stage: str,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # the moved call's steps are skipped (no approval shows which call it
+    # was), but a person's decision at each still reaches the later steps
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    Panel("approve", "fine").install(monkeypatch)
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read them")],
+            solver=[use_tools(read_path()), generate()],
+            sentinel=[
+                r7_probe(seen, copies=True),
+                r7_moves_the_read_of_a(),
+                h_ask(stage, ["approve"]),
+            ],
+        ),
+        model=outputs(
+            one_response(("read_path", "a.txt"), ("read_path", "b.txt")), done()
+        ),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    probed = [
+        e for e in events if isinstance(e, SentinelEvent) and e.path == "r7_probe"
+    ]
+    last = seen[probed[-1].explanation or ""]
+    assert [(d.stage, d.step_id) for d in last.human_decisions or []] == [
+        (stage, "null"),
+        (stage, "null"),
+    ]
+
+    with caplog.at_level(logging.WARNING):
+        replay = replayed(log)
+    assert any("several calls" in w for w in replay_warnings(caplog))
+    assert replay[-1].stage == probed[-1].stage
+    assert comparable(replay[-1].step.human_decisions) == comparable(
+        last.human_decisions
+    )
+
+
+@pytest.mark.parametrize("approved", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_modified_call_of_one_response_under_a_shared_id_is_paired_only_by_its_approval(
+    approved: bool,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # a sentinel changes the read of a.txt to b.txt, the arguments of the
+    # response's other call under its id: its ToolEvent then records the
+    # other call's arguments, so only an approval, which records the call
+    # before the change, shows which call ran
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read them")],
+            solver=[use_tools(read_path()), generate()],
+            sentinel=[r7_probe(seen, copies=True), r7_moves_the_read_of_a()],
+            approval=[ApprovalPolicy(auto_approver(), "*")] if approved else None,
+        ),
+        model=outputs(
+            one_response(("read_path", "a.txt"), ("read_path", "b.txt")), done()
+        ),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert [e.arguments for e in runs] == [{"path": "b.txt"}] * 2
+    moved = next(
+        e.execution_id
+        for e in events
+        if isinstance(e, SentinelEvent) and e.action == "modify"
+    )
+
+    with caplog.at_level(logging.WARNING):
+        replay = replayed(log)
+    if approved:
+        assert replay_warnings(caplog) == []
+        assert_tool_steps_equal_live_by_execution(log, seen, replay)
+        return
+    # without an approval the moved call's steps are skipped, never rebuilt
+    # from the other call
+    [warning] = [w for w in replay_warnings(caplog) if "several calls" in w]
+    assert "'null'" in warning
+    assert replayed_calls(replay) == [
+        ("tool_call", "read_path", {"path": "b.txt"}),
+        ("tool_result", "read_path", {"path": "b.txt"}),
+    ]
+    [kept] = [e.execution_id for e in runs if e.execution_id != moved]
+    live = {
+        e.stage: seen[e.explanation or ""]
+        for e in events
+        if isinstance(e, SentinelEvent)
+        and e.path == "r7_probe"
+        and e.execution_id == kept
+    }
+    for step in replay:
+        if isinstance(step.step, BeforeToolCall | AfterToolCall):
+            assert_step_equals_live((step.stage, step.id), step, live[step.stage])
+
+
+def memory_calls_under_null(*calls: dict[str, Any]) -> ModelOutput:
+    """A response proposing each `memory()` call under the call id `"null"`."""
+    return ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(id="null", function="memory", arguments=arguments)
+                        for arguments in calls
+                    ],
+                ),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+
+
+@protocol
+def r7_moves_memory_a_to_an_unresolved_path() -> Protocol:
+    async def before_call(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if step.call.arguments.get("path") == "/memories/a":
+            return Decision(
+                action="modify",
+                modified=replace(
+                    step.call,
+                    arguments={**step.call.arguments, "path": "/memories/sub/../c"},
+                ),
+                explanation="use c instead",
+            )
+        return None
+
+    return before_call
+
+
+@pytest.mark.parametrize("approved", [False, True])
+@pytest.mark.parametrize("command", ["view", "create"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_modified_memory_call_under_a_shared_id_is_skipped_though_the_tool_resolved_its_path(
+    approved: bool,
+    command: str,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # after Ransom's review 5931343576: memory() records the modify's path
+    # resolved (/memories/c), not as the modify recorded it, so replay missed
+    # the modify and rebuilt the moved call's check of /memories/a from the
+    # call whose arguments the log records
+    from inspect_ai.tool import memory
+
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    if command == "view":
+        tool = memory(
+            initial_data={f"/memories/{name}": name for name in ("a", "b", "c")}
+        )
+        extra: dict[str, Any] = {}
+    else:
+        tool = memory()
+        extra = {"file_text": "x"}
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="Remember")],
+            solver=[use_tools(tool), generate()],
+            sentinel=[
+                r7_probe(seen, copies=True),
+                r7_moves_memory_a_to_an_unresolved_path(),
+            ],
+            approval=[ApprovalPolicy(auto_approver(), "*")] if approved else None,
+        ),
+        model=outputs(
+            memory_calls_under_null(
+                *(
+                    {"command": command, "path": f"/memories/{name}", **extra}
+                    for name in ("a", "b")
+                )
+            ),
+            done(),
+        ),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert all(e.error is None for e in runs)
+    assert sorted((e.arguments["path"] for e in runs), key=str) == [
+        "/memories/b",
+        "/memories/c",
+    ]
+    [modify] = [
+        e for e in events if isinstance(e, SentinelEvent) and e.action == "modify"
+    ]
+    assert modify.modified is not None
+    assert modify.modified.arguments["path"] == "/memories/sub/../c"
+    moved = modify.execution_id
+    assert seen_at(events, seen, "tool_call", moved).call.arguments["path"] == (
+        "/memories/a"
+    )
+
+    if approved:
+        # the approved call is not the call the ToolEvent records, and no
+        # recorded modify names that call, so the log is refused, as before
+        with pytest.raises(
+            ValueError, match="approved call does not match the ToolEvent"
+        ):
+            replayed(log)
+        return
+    with caplog.at_level(logging.WARNING):
+        replay = replayed(log)
+    # without an approval the moved call's steps are skipped, never rebuilt
+    # from the other call
+    [warning] = [w for w in replay_warnings(caplog) if "several calls" in w]
+    assert "'null'" in warning
+    assert replayed_calls(replay) == [
+        (stage, "memory", {"command": command, "path": "/memories/b", **extra})
+        for stage in ("tool_call", "tool_result")
+    ]
+    [kept] = [e.execution_id for e in runs if e.execution_id != moved]
+    for step in replay:
+        if isinstance(step.step, BeforeToolCall | AfterToolCall):
+            assert_step_equals_live(
+                (step.stage, step.id), step, seen_at(events, seen, step.stage, kept)
+            )
+
+    # without execution ids the calls aren't paired, and the moved call is
+    # skipped since its tool recorded other arguments than its modify's
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        replay = replay_events(log, without_execution_ids(events))
+    assert replay_warnings(caplog) == [UNMATCHED_MODIFY.format("'null'")]
+    assert replayed_calls(replay) == [
+        (stage, "memory", {"command": command, "path": "/memories/b", **extra})
+        for stage in ("tool_call", "tool_result")
+    ]
+    for step in replay:
+        if isinstance(step.step, BeforeToolCall | AfterToolCall):
+            assert_step_equals_live(
+                (step.stage, step.id), step, seen_at(events, seen, step.stage, kept)
+            )
+
+
+def seen_at(
+    events: Sequence[Event], seen: dict[str, Step], stage: str, execution: str | None
+) -> Step:
+    """The step `r7_probe(seen, copies=True)` saw live at `stage` of `execution`."""
+    [step] = [
+        seen[e.explanation or ""]
+        for e in events
+        if isinstance(e, SentinelEvent)
+        and e.path == "r7_probe"
+        and e.stage == stage
+        and e.execution_id == execution
+    ]
+    return step
+
+
+def memory_view(id: str, name: str) -> ToolCall:
+    return ToolCall(
+        id=id,
+        function="memory",
+        arguments={"command": "view", "path": f"/memories/{name}"},
+    )
+
+
+@pytest.mark.parametrize("shape", ["other_function", "repeated_id", "unique_id"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_modified_call_whose_tool_resolved_its_path_is_skipped(
+    shape: str,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # a modify the tool rewrote (memory() resolves /memories/sub/../c) matches
+    # no ToolEvent, so replay rebuilt the moved call's check from the ToolEvent
+    # with no warning: under an id shared with another function's call or
+    # repeated across responses (the merge base refuses both logs), and under a
+    # unique id (as on main)
+    from inspect_ai.tool import memory
+
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    responses = {
+        "other_function": [
+            r7_tool_calls(
+                memory_view("null", "a"),
+                ToolCall(id="null", function="read_path", arguments={"path": "b"}),
+            )
+        ],
+        "repeated_id": [
+            r7_tool_calls(memory_view("r", "a")),
+            r7_tool_calls(memory_view("r", "b")),
+        ],
+        "unique_id": [r7_tool_calls(memory_view("u1", "a"), memory_view("u2", "b"))],
+    }[shape]
+    moved_id = {"other_function": "null", "repeated_id": "r", "unique_id": "u1"}[shape]
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="Remember")],
+            solver=[
+                use_tools(
+                    memory(
+                        initial_data={
+                            f"/memories/{name}": name for name in ("a", "b", "c")
+                        }
+                    ),
+                    read_path(),
+                ),
+                generate(),
+            ],
+            sentinel=[
+                r7_probe(seen, copies=True),
+                r7_moves_memory_a_to_an_unresolved_path(),
+            ],
+        ),
+        model=outputs(*responses, done()),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert all(e.error is None for e in runs)
+    [modify] = [
+        e for e in events if isinstance(e, SentinelEvent) and e.action == "modify"
+    ]
+    assert modify.modified is not None
+    assert modify.modified.arguments["path"] == "/memories/sub/../c"
+    moved = modify.execution_id
+    [moved_run] = [e for e in runs if e.execution_id == moved]
+    assert moved_run.id == moved_id
+    assert moved_run.arguments["path"] == "/memories/c"
+    assert seen_at(events, seen, "tool_call", moved).call.arguments["path"] == (
+        "/memories/a"
+    )
+
+    with caplog.at_level(logging.WARNING):
+        replay = replayed(log)
+    assert replay_warnings(caplog) == [UNMATCHED_MODIFY.format(repr(moved_id))]
+    # every live step but the moved call's tool steps is rebuilt as live saw it
+    live = [
+        (e.stage, seen[e.explanation or ""])
+        for e in events
+        if isinstance(e, SentinelEvent)
+        and e.path == "r7_probe"
+        and not (e.execution_id == moved and e.stage in ("tool_call", "tool_result"))
+    ]
+    assert [s.stage for s in replay] == [stage for stage, _ in live]
+    for (stage, step), rebuilt in zip(live, replay):
+        assert_step_equals_live((stage, rebuilt.id), rebuilt, step)
+    other = "read_path" if shape == "other_function" else "memory"
+    assert [function for _, function, _ in replayed_calls(replay)] == [other] * 2
+
+
+@tool
+def r7_store_data() -> Tool:
+    async def execute(data: dict[str, Any]) -> str:
+        """Store data.
+
+        Args:
+            data: The data.
+        """
+        return f"stored {json.dumps(data)}"
+
+    return execute
+
+
+@protocol
+def r7_modifies_data(target: dict[str, Any]) -> Protocol:
+    """Modify the call whose arguments are exactly `target` (by `repr`, so `True` is not `1`) to store 2."""
+
+    async def before_call(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if repr(step.call.arguments) == repr(target):
+            return Decision(
+                action="modify",
+                modified=replace(step.call, arguments={"data": {"value": 2}}),
+                explanation="store 2 instead",
+            )
+        return None
+
+    return before_call
+
+
+@pytest.mark.parametrize(
+    "number,other,pairs",
+    [
+        ({"data": {"value": 1}}, {"data": {"value": True}}, False),
+        (
+            {"data": {"inner": {"flag": 0}}},
+            {"data": {"inner": {"flag": False}}},
+            False,
+        ),
+        ({"data": {"value": [1, 0]}}, {"data": {"value": [1, False]}}, False),
+        ({"data": {"value": 1}}, {"data": {"value": 1.0}}, True),
+    ],
+    ids=["true_1", "nested_false_0", "list_false_0", "float_1"],
+)
+@pytest.mark.parametrize("approved", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_modified_call_under_a_shared_id_tells_booleans_from_numbers(
+    number: dict[str, Any],
+    other: dict[str, Any],
+    pairs: bool,
+    approved: bool,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # after Ransom's review 5932143555: Python equality took the calls for
+    # one call, so replay presented the call with the number where live
+    # checked the one with the boolean; JSON equality keeps them apart, as
+    # it keeps 1 and 1.0 together. Since review 5932732710 the moved call is
+    # skipped either way, and the warning shows whether the calls were apart
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="Store them")],
+            solver=[use_tools(r7_store_data()), generate()],
+            sentinel=[r7_probe(seen, copies=True), r7_modifies_data(other)],
+            approval=[ApprovalPolicy(auto_approver(), "*")] if approved else None,
+        ),
+        model=outputs(
+            ModelOutput(
+                model="mockllm/model",
+                choices=[
+                    ChatCompletionChoice(
+                        message=ChatMessageAssistant(
+                            content="",
+                            tool_calls=[
+                                ToolCall(
+                                    id="null",
+                                    function="r7_store_data",
+                                    arguments=arguments,
+                                )
+                                for arguments in (number, other)
+                            ],
+                        ),
+                        stop_reason="tool_calls",
+                    )
+                ],
+            ),
+            done(),
+        ),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert all(e.error is None for e in runs)
+    [modify] = [
+        e for e in events if isinstance(e, SentinelEvent) and e.action == "modify"
+    ]
+    moved = modify.execution_id
+    [moved_run] = [e for e in runs if e.execution_id == moved]
+    assert moved_run.arguments == {"data": {"value": 2}}
+    # the JSON round trip keeps the checked call's booleans and floats
+    checked = seen_at(events, seen, "tool_call", moved).call.arguments
+    assert repr(checked) == repr(other)
+
+    with caplog.at_level(logging.WARNING):
+        replay = (replayed_under_an_unknown_version if approved else replayed)(log)
+    [kept] = [e.execution_id for e in runs if e.execution_id != moved]
+    first = runs[0].execution_id
+    rebuilt: dict[tuple[str, str | None], "ReplayStep"] = {
+        (s.stage, first if s.id == "null" else s.id): s
+        for s in replay
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    }
+    called = {
+        key: s.step.call.arguments
+        for key, s in rebuilt.items()
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+    }
+    expected: dict[tuple[str, str | None], dict[str, Any]] = {
+        ("tool_call", kept): number,
+        ("tool_result", kept): number,
+    }
+    # the moved call's steps are skipped, never rebuilt from the other call:
+    # the booleans without an approval name no call; with the approval, which
+    # names the moved call by its arguments, and for 1 and 1.0, which are one
+    # call, no approval replay relies on records the call live checked
+    [warning] = replay_warnings(caplog)
+    if approved or pairs:
+        assert warning == UNRECORDED_CHECK.format("'null'")
+    else:
+        assert "several calls" in warning
+        assert "'null'" in warning
+    assert set(rebuilt) == set(expected)
+    for key, arguments in expected.items():
+        assert repr(called[key]) == repr(arguments), key
+    if approved:
+        # an unknown version changes fields other than the call (`truncated`)
+        return
+    for (stage, execution), step in rebuilt.items():
+        assert_step_equals_live(
+            (stage, step.id), step, seen_at(events, seen, stage, execution)
+        )
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_check_with_a_superseded_modify_or_another_decision_pairs_by_arguments(
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # only a reported modify leaves an execution's recorded arguments short of
+    # naming its call: a superseded modify, or a reported decision of another
+    # action, at its check does not
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    log = eval(
+        Task(
+            dataset=[Sample(input="Read them")],
+            solver=[use_tools(read_path()), generate()],
+            sentinel=[r7_probe({})],
+        ),
+        model=outputs(
+            one_response(("read_path", "a.txt"), ("read_path", "b.txt")), done()
+        ),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    probe = next(
+        e
+        for e in events
+        if isinstance(e, SentinelEvent)
+        and e.path == "r7_probe"
+        and e.stage == "tool_call"
+    )
+    decisions = [
+        probe.model_copy(
+            update={
+                "path": "r7_other",
+                "kind": "decision",
+                "status": status,
+                "action": action,
+                "modified": ToolCall(
+                    id="null", function="read_path", arguments={"path": "c.txt"}
+                )
+                if action == "modify"
+                else None,
+            }
+        )
+        for status, action in (("superseded", "modify"), ("reported", "proceed"))
+    ]
+    at = events.index(probe) + 1
+
+    with caplog.at_level(logging.WARNING):
+        replay = replay_events(log, [*events[:at], *decisions, *events[at:]])
+    assert replay_warnings(caplog) == []
+    assert sorted(replayed_calls(replay), key=str) == sorted(
+        [
+            (stage, "read_path", {"path": path})
+            for stage in ("tool_call", "tool_result")
+            for path in ("a.txt", "b.txt")
+        ],
+        key=str,
+    )
+
+
+@protocol
+def r7_modifies_the_checked_call(
+    checked: dict[str, Any], modified: dict[str, Any]
+) -> Protocol:
+    """Modify the call checked with exactly the arguments `checked` to `modified`."""
+
+    async def before_call(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if repr(step.call.arguments) == repr(checked):
+            return Decision(
+                action="modify",
+                modified=replace(step.call, arguments=modified),
+                explanation="changed",
+            )
+        return None
+
+    return before_call
+
+
+class CheckedFormCase(NamedTuple):
+    """A call whose tool checks other arguments than the model proposed."""
+
+    tool: Callable[[], Tool]
+    proposed: dict[str, Any]
+    checked: dict[str, Any]
+    modified: dict[str, Any]
+    other: dict[str, Any]
+
+
+def checked_form_case(variant: str) -> CheckedFormCase:
+    from inspect_ai.tool import memory
+
+    if variant == "pydantic_default":
+        return CheckedFormCase(
+            open_spec,
+            proposed={"spec": {"path": "a.txt"}},
+            checked={"spec": {"path": "a.txt", "mode": "r"}},
+            modified={"spec": {"path": "c.txt", "mode": "r"}},
+            other={"spec": {"path": "b.txt"}},
+        )
+    command = "create" if variant == "memory_create" else "view"
+    extra = {"file_text": "x"} if command == "create" else {}
+    seeded = {f"/memories/{name}": name for name in ("a", "b", "c")}
+
+    def tool() -> Tool:
+        if variant == "memory_create":
+            return memory()
+        return memory(initial_data=seeded, readonly=variant == "memory_readonly_view")
+
+    def path(path: str) -> dict[str, Any]:
+        return {"command": command, "path": path, **extra}
+
+    return CheckedFormCase(
+        tool,
+        proposed=path("/memories/sub/../a"),
+        checked=path("/memories/a"),
+        modified=path("/memories/c"),
+        other=path("/memories/b"),
+    )
+
+
+@pytest.mark.parametrize(
+    "variant",
+    ["memory_view", "memory_readonly_view", "memory_create", "pydantic_default"],
+)
+@pytest.mark.parametrize("shape", ["other_function", "repeated_id", "unique_id"])
+@pytest.mark.parametrize("approved", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_modified_call_whose_checked_arguments_the_log_lacks_is_skipped_under_a_shared_id(
+    variant: str,
+    shape: str,
+    approved: bool,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # after Ransom's review 5932732710: the tool's validation changes the
+    # model's arguments (memory() resolves /memories/sub/../a, Pydantic fills
+    # a default) before the check, and a sentinel modify then replaces them,
+    # so without an approval the log records neither the checked call nor
+    # anything to tell it from the proposal; under a shared or repeated id
+    # (refused by the merge base) replay rebuilt the check from the proposal
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    case = checked_form_case(variant)
+    function = "open_spec" if variant == "pydantic_default" else "memory"
+
+    def proposed(id: str, arguments: dict[str, Any]) -> ToolCall:
+        return ToolCall(id=id, function=function, arguments=arguments)
+
+    responses = {
+        "other_function": [
+            r7_tool_calls(
+                proposed("null", case.proposed),
+                ToolCall(id="null", function="read_path", arguments={"path": "b"}),
+            )
+        ],
+        "repeated_id": [
+            r7_tool_calls(proposed("r", case.proposed)),
+            r7_tool_calls(proposed("r", case.other)),
+        ],
+        "unique_id": [
+            r7_tool_calls(proposed("u1", case.proposed), proposed("u2", case.other))
+        ],
+    }[shape]
+    moved_id = {"other_function": "null", "repeated_id": "r", "unique_id": "u1"}[shape]
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="Remember")],
+            solver=[use_tools(case.tool(), read_path()), generate()],
+            sentinel=[
+                r7_probe(seen, copies=True),
+                r7_modifies_the_checked_call(case.checked, case.modified),
+            ],
+            approval=[ApprovalPolicy(auto_approver(), "*")] if approved else None,
+        ),
+        model=outputs(*responses, done()),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert all(e.error is None for e in runs)
+    [modify] = [
+        e for e in events if isinstance(e, SentinelEvent) and e.action == "modify"
+    ]
+    moved = modify.execution_id
+    [moved_run] = [e for e in runs if e.execution_id == moved]
+    assert moved_run.id == moved_id
+    assert moved_run.arguments == case.modified
+    # live checked the validated call, which differs from the proposal
+    checked = seen_at(events, seen, "tool_call", moved).call.arguments
+    assert repr(checked) == repr(case.checked)
+    assert checked != case.proposed
+
+    skipped = not approved and shape != "unique_id"
+    live = [
+        (e.stage, seen[e.explanation or ""], e.execution_id)
+        for e in events
+        if isinstance(e, SentinelEvent)
+        and e.path == "r7_probe"
+        and not (
+            skipped
+            and e.execution_id == moved
+            and e.stage in ("tool_call", "tool_result")
+        )
+    ]
+    # a log written before execution ids skips the call alike
+    for recorded in [events, without_execution_ids(events)] if skipped else [events]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            replay = replay_events(log, recorded)
+        assert [s.stage for s in replay] == [stage for stage, _, _ in live]
+        if not skipped:
+            assert replay_warnings(caplog) == []
+        else:
+            assert replay_warnings(caplog) == [UNRECORDED_CHECK.format(repr(moved_id))]
+        for (stage, step, execution), rebuilt in zip(live, replay):
+            if not approved and stage == "tool_call" and execution == moved:
+                # under a unique id, as on main: rebuilt from the proposal,
+                # which the log cannot tell from the checked call
+                assert isinstance(rebuilt.step, BeforeToolCall)
+                assert rebuilt.step.call.arguments == case.proposed
+                assert_step_equals_live(
+                    (stage, rebuilt.id),
+                    rebuilt,
+                    step,
+                    differences=["tool_call.call", "tool_call.view"],
+                )
+                continue
+            assert_step_equals_live((stage, rebuilt.id), rebuilt, step)
+
+
+@approver
+def r7_modifies_the_proposal(
+    proposed: dict[str, Any], modified: dict[str, Any]
+) -> Approver:
+    """Modify the call proposed with exactly the arguments `proposed` to `modified`, and approve the rest."""
+
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        if repr(call.arguments) == repr(proposed):
+            return Approval(
+                decision="modify",
+                modified=replace(call, arguments=modified),
+                explanation="moved",
+            )
+        return Approval(decision="approve")
+
+    return approve
+
+
+class ApproverModifiedCase(NamedTuple):
+    """A `memory()` call an approver modifies to a path its tool resolves.
+
+    A modify the tool's validation would fill a Pydantic default into is
+    refused live, so a tool's canonical arguments are what can change it.
+    """
+
+    tool: Callable[[], Tool]
+    proposed: dict[str, Any]
+    approved: dict[str, Any]
+    checked: dict[str, Any]
+    modified: dict[str, Any]
+    other: dict[str, Any]
+
+
+def approver_modified_case(variant: str) -> ApproverModifiedCase:
+    from inspect_ai.tool import memory
+
+    command = "view" if variant == "readonly_view" else variant
+    extras: dict[str, dict[str, Any]] = {
+        "create": {"file_text": "x"},
+        "str_replace": {"old_str": "text", "new_str": "y"},
+        "insert": {"insert_line": 0, "insert_text": "y"},
+    }
+    extra = extras.get(command, {})
+    seeded = {f"/memories/{name}": "text" for name in ("a", "b", "c", "p")}
+
+    def tool() -> Tool:
+        if command == "create":
+            return memory()
+        return memory(initial_data=seeded, readonly=variant == "readonly_view")
+
+    def arguments(name: str) -> dict[str, Any]:
+        path = f"/memories/{name}"
+        if command == "rename":
+            target = f"/memories/{name.rsplit('/', 1)[-1]}2"
+            return {"command": command, "old_path": path, "new_path": target}
+        return {"command": command, "path": path, **extra}
+
+    return ApproverModifiedCase(
+        tool,
+        proposed=arguments("p"),
+        approved=arguments("sub/../a"),
+        checked=arguments("a"),
+        modified=arguments("c"),
+        other=arguments("b"),
+    )
+
+
+@pytest.mark.parametrize(
+    "variant",
+    [
+        "view",
+        "readonly_view",
+        "create",
+        "str_replace",
+        "insert",
+        "delete",
+        "rename",
+    ],
+)
+@pytest.mark.parametrize("shape", ["other_function", "repeated_id", "unique_id"])
+@pytest.mark.parametrize("sentinel_modifies", [True, False])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_an_approver_modified_call_a_sentinel_modified_is_skipped_under_a_shared_id(
+    variant: str,
+    shape: str,
+    sentinel_modifies: bool,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # after Ransom's review 5940838848: the approval records the approver's
+    # modify before its tool validated it (memory() resolves
+    # /memories/sub/../a), and a sentinel modify then replaces the validated
+    # call in the ToolEvent, so the log does not record the call the sentinel
+    # checked; under a shared or repeated id (refused by the merge base)
+    # replay rebuilt the check from the approval's modify. The control has no
+    # sentinel modify, and an approver modify the tool does not rewrite (one
+    # it rewrites is refused: `_check_modified_approval`).
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    case = approver_modified_case(variant)
+    approved = case.approved if sentinel_modifies else case.checked
+
+    def proposed(id: str, arguments: dict[str, Any]) -> ToolCall:
+        return ToolCall(id=id, function="memory", arguments=arguments)
+
+    responses = {
+        "other_function": [
+            r7_tool_calls(
+                proposed("null", case.proposed),
+                ToolCall(id="null", function="read_path", arguments={"path": "b"}),
+            )
+        ],
+        "repeated_id": [
+            r7_tool_calls(proposed("r", case.proposed)),
+            r7_tool_calls(proposed("r", case.other)),
+        ],
+        "unique_id": [
+            r7_tool_calls(proposed("u1", case.proposed), proposed("u2", case.other))
+        ],
+    }[shape]
+    moved_id = {"other_function": "null", "repeated_id": "r", "unique_id": "u1"}[shape]
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="Remember")],
+            solver=[use_tools(case.tool(), read_path()), generate()],
+            sentinel=[
+                r7_probe(seen, copies=True),
+                *(
+                    [r7_modifies_the_checked_call(case.checked, case.modified)]
+                    if sentinel_modifies
+                    else []
+                ),
+            ],
+            approval=[
+                ApprovalPolicy(r7_modifies_the_proposal(case.proposed, approved), "*")
+            ],
+        ),
+        model=outputs(*responses, done()),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert all(e.error is None for e in runs), [e.error for e in runs]
+    [approval] = [
+        e
+        for e in events
+        if isinstance(e, ApprovalEvent)
+        and e.modified is not None
+        and e.modified.function == "memory"
+    ]
+    assert approval.decision == "modify" and approval.modified is not None
+    assert approval.modified.arguments == approved
+    moved = approval.execution_id
+    [moved_run] = [e for e in runs if e.execution_id == moved]
+    assert moved_run.id == moved_id
+    modifies = [
+        e for e in events if isinstance(e, SentinelEvent) and e.action == "modify"
+    ]
+    assert [e.execution_id for e in modifies] == ([moved] if sentinel_modifies else [])
+    assert moved_run.arguments == (case.modified if sentinel_modifies else case.checked)
+    # live checked the approver's call as its tool validated it
+    checked = seen_at(events, seen, "tool_call", moved).call.arguments
+    assert repr(checked) == repr(case.checked)
+    assert (checked != approved) == sentinel_modifies
+
+    skipped = sentinel_modifies and shape != "unique_id"
+    live = [
+        (e.stage, seen[e.explanation or ""], e.execution_id)
+        for e in events
+        if isinstance(e, SentinelEvent)
+        and e.path == "r7_probe"
+        and not (
+            skipped
+            and e.execution_id == moved
+            and e.stage in ("tool_call", "tool_result")
+        )
+    ]
+    # a log written before execution ids skips the call alike
+    for recorded in [events, without_execution_ids(events)] if skipped else [events]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            replay = replay_events(log, recorded)
+        assert [s.stage for s in replay] == [stage for stage, _, _ in live]
+        if skipped:
+            assert replay_warnings(caplog) == [UNRECORDED_CHECK.format(repr(moved_id))]
+        else:
+            assert replay_warnings(caplog) == []
+        for (stage, step, execution), rebuilt in zip(live, replay):
+            if sentinel_modifies and stage == "tool_call" and execution == moved:
+                # under a unique id, as on main: rebuilt from the approval's
+                # modify, which the log cannot tell from the checked call
+                assert isinstance(rebuilt.step, BeforeToolCall)
+                assert rebuilt.step.call.arguments == approved
+                assert_step_equals_live(
+                    (stage, rebuilt.id),
+                    rebuilt,
+                    step,
+                    differences=["tool_call.call", "tool_call.view"],
+                )
+                continue
+            assert_step_equals_live((stage, rebuilt.id), rebuilt, step)

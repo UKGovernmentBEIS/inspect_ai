@@ -28,6 +28,10 @@ We'll cover each of these configurations in turn below. You can also learn from 
 
 ## Agent Bridge
 
+::: {.callout-caution appearance="simple"}
+`agent_bridge()` runs the agent and its tools in the Inspect process, with access to the host's network and files. Don't use it with adversarial models (see [Adversarial Models](#adversarial-models)).
+:::
+
 The `agent_bridge()` can bridge agents written against the Python APIs for OpenAI Completions, OpenAI Responses, Anthropic, and Google. To bridge a Python based agent running in the same process as Inspect:
 
 1.  Write your custom Python agent as normal using the OpenAI, Anthropic, or Google connector provided by your agent system, specifying "inspect" as the model name.
@@ -379,7 +383,7 @@ Model requests carry one additional ambient fact: `current_bridge_request()` exp
 
 Custom agents run through a bridge still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional agents.
 
-Tools the agent runs itself (e.g. its own shell or file tools) appear only in the model calls. [Bridged tools](#bridged-tools) run by Inspect are recorded as tool events, like other tool calls, including calls that were denied or rejected. A call the model proposed takes the id of the model's tool call, so the log viewer shows it with that call. Each event's `metadata["bridge"]` records the server and tool, the name the model called it by, the id of the proposing call, and whether a proposal matched (`grant`: `"consumed"`, `"denied"`, `"exempt"` for a `require_proposal=False` server, or `None` for a request rejected before that check). Counts of tool events in a bridged sample (e.g. from `events_df()`) include bridged tool calls but not the agent's own tools.
+Tools the agent runs itself (e.g. its own shell or file tools) appear only in the model calls, as reported by the agent (see [Adversarial Models](#adversarial-models)). [Bridged tools](#bridged-tools) run by Inspect are recorded as tool events, like other tool calls, including calls that were denied or rejected. A call the model proposed takes the id of the model's tool call, so the log viewer shows it with that call. Each event's `metadata["bridge"]` records the server and tool, the name the model called it by, the id of the proposing call, and whether a proposal matched (`grant`: `"consumed"`, `"denied"`, `"exempt"` for a `require_proposal=False` server, or `None` for a request rejected before that check). Counts of tool events in a bridged sample (e.g. from `events_df()`) include bridged tool calls but not the agent's own tools.
 
 On a `require_proposal=False` server, a call is paired with the oldest pending proposal for the same tool and arguments, whichever call arrives first. A call the model did not propose (for example, one made from code the model wrote) with the same arguments as a pending proposal takes that proposal's id, and the proposed call is then recorded as `"exempt"` with a fresh id. Both calls run as usual; only the pairing in the log is wrong.
 
@@ -390,3 +394,43 @@ from inspect_ai.log import transcript
 
 transcript().info("custom *markdown* content")
 ```
+
+## Adversarial Models {#adversarial-models}
+
+An adversarial model is one that may try to bypass controls, tamper with evidence, or manipulate the evaluation (for example, a model without safeguards in a cyber evaluation). If you are evaluating one, keep the following in mind.
+
+### Sandbox Bridge
+
+With `sandbox_agent_bridge()` the agent runs inside the sandbox, so the sandbox is what contains it. By default the bridge keeps the model API keys Inspect uses on the host and withholds tools that run outside the sandbox (see [Granted Capabilities](#granted-capabilities)). Credentials you put in the sandbox yourself (for example, through an agent's `env`) can be read by the agent. Anything you grant, including [bridged tools](#bridged-tools), is available to the agent even if the sandbox has no network. Note that most [Inspect SWE](https://meridianlabs-ai.github.io/inspect_swe/#adversarial-models) agents grant web search by default.
+
+Running the agent inside the sandbox has these limits:
+
+-   **By default, any process in the sandbox can call the bridge.** Inspect can't tell the agent apart from other processes in the sandbox. A framework that runs each agent as its own sandbox user (such as [Inspect Swarm](https://github.com/meridianlabs-ai/inspect_swarm)) can limit the bridge to that user. The bridge still can't tell apart processes running as that user, and root can act as any user.
+
+-   **The transcript is the agent's own account of its tool use.** Inspect records model calls, and runs and records any [bridged tools](#bridged-tools) you provide. It doesn't run or check the tools the agent runs inside the sandbox. The message history and tool results in each request come from the agent, which can misreport them. If you need a reliable record of tool calls, use a native agent such as [`react()`](react-agent.qmd).
+
+-   **Don't count on a non-root user.** A capable model may get root in its container. Root can interfere with the bridge inside the sandbox, including the responses the agent receives.
+
+-   **The agent's own permission prompts are usually off.** Agents typically run with their permission prompts and sandboxing disabled (Inspect SWE does this by default).
+
+-   **Approval covers tool calls the agent runs, not their effects.** [Tool approval](#tool-approval) reviews each tool call before the agent sees it. It doesn't review what an approved command then does, or web search and code execution run by the model provider. Remote MCP servers are refused while an approval policy is active.
+
+### In-Process Bridge
+
+Don't use `agent_bridge()` with an adversarial model. The agent and its tools run in the Inspect process with access to the host's network and files, and Inspect reads the files and URLs that messages reference as media. Use `sandbox_agent_bridge()` or a native agent instead.
+
+### Other Recommendations
+
+-   Keep `network_mode: none`, or allow access only to the hosts the task needs (see [Docker Configuration](sandboxing.qmd#sec-docker-configuration)).
+
+-   Don't enable writable [host mounts](sandboxing.qmd#mounting-host-directories).
+
+-   Consider a stronger setup than default Docker. For example, run containers with gVisor's `runsc` runtime, which makes container escape harder. A VM-based sandbox gives more protection still (see [Environment Binding](sandboxing.qmd#environment-binding) for the available sandbox providers).
+
+-   Turn off rendering of model content in the log viewer (see [Untrusted Content](task-views.qmd#untrusted-content)).
+
+-   Keep log directories out of the agent's reach, and only retry or rescore logs you trust (see [Eval Logs](eval-logs.qmd)).
+
+-   If you use `--acp-server`, keep it on the default Unix socket. The server has no authentication, so if you use a TCP port make sure the sandbox can't reach it. A loopback port may not be enough: some setups (for example, Docker Desktop with sandbox networking enabled) let a container connect to the host's loopback ports (see [Intervention](intervention.qmd)).
+
+-   Scorers, graders and monitors that read agent output or sandbox files are reading input the model controls.
