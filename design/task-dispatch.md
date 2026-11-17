@@ -1628,7 +1628,11 @@ test that waits on a run is bounded with `fail_after`.
   before, and `os.environ` is unchanged throughout. One `--runslow` real-Docker test builds a Dockerfile task
   loaded from another directory.
 - `tests/test_enqueue_task.py` (invariants 1–6): an added task starts while
-  its creator runs, under `eval()`, `eval_set()` and selection mode; a
+  its creator runs, under `eval()`, `eval_set()` and selection mode; in a
+  faceted selection worker with pruning enabled, the selected creator's
+  solver calls an unselected `@task` factory and adds the result, and the
+  factory body and the added task's solver both run (needs the
+  runtime-pruning guarantee, "Interactions with related changes"); a
   configuration error (a task with `epochs=Epochs(1, "at_least_2")`, whose
   reducer `validate_reducer` rejects with `PrerequisiteError`), a duplicate id (a `ResolvedTask` or `PreviousTask`
   added twice, listed twice, or added in a two-model run) and a selection
@@ -1915,10 +1919,13 @@ state in the single `eval_run`), so the setup fixes come first.
    injection"), `design/ctl/task-drain.md` ("Out of scope"),
    `design/sample-source.md`. Tests: `test_enqueue_task.py`,
    `test_task_source.py`, `test_task_cancel.py`, `_control/test_ctl.py`,
-   `test_eval_set.py`. Needs steps 1 and 2.
+   `test_eval_set.py`. Needs steps 1 and 2; its selection-mode support, and
+   the faceted-worker test above, also need the runtime-pruning guarantee
+   from the pruning code ("Interactions with related changes"), which
+   stays a separate change.
 
-Then, needing only step 3: **task handles**, one PR
-([task-handles.md](task-handles.md)).
+Then, needing step 3 and, for selection workers, the same runtime-pruning
+guarantee: **task handles**, one PR ([task-handles.md](task-handles.md)).
 
 Follow-ups in provider repositories, none a gate (decision: Ransom,
 2026-11-11, for Podman):
