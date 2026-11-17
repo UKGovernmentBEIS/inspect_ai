@@ -167,8 +167,9 @@ order. Both are synchronous, edit `log` in place and leave writing to the
 caller. Neither takes a task or a `trust_log` option. Every refusal is
 raised before the first edit, so a refused call leaves the log as it was.
 
-The return type, and excluding an already excluded sample again, are not
-yet built; see [Not yet built](#not-yet-built).
+The return type, excluding an already excluded sample again, and
+recomputing after an empty selector sequence are not yet built; see
+[Not yet built](#not-yet-built).
 
 ### Checks on the log and the selectors
 
