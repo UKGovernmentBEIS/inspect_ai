@@ -614,7 +614,8 @@ proposal, and fixing the pairing would mean keeping evicted grants.
   - A host call the log does not join to its proposal, a run whose
     execution an earlier run's steps took, and a shared handout's run under
     a fresh event id, whose checks have the id the call was handed over
-    under.
+    under, and a result check made once the call's id was handed out
+    again.
 - **Hooks, control server, TUI, dataframes.** Pending host events drive the
   TUI's running state and the control server's activity and cancellation like
   native ones. Hooks receive each non-pending update. `events_df()` has `tool`
