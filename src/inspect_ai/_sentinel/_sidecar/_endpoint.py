@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 import anyio
 
-from ._sign import eval_call_message, now, sign
+from ._sign import answer_message, eval_call_message, now, sign
 
 if TYPE_CHECKING:
     from inspect_ai.model._model import ModelAPI
@@ -26,6 +26,15 @@ REDACTED = "<redacted>"
 
 UNAUTHORIZED = -32010
 """The sidecar's error for a call whose token or signature doesn't match the token it keeps for the eval, or whose timestamp is outside its window."""
+
+UNKNOWN_QUESTION = -32011
+"""The sidecar's error code for an answer to a question it doesn't hold for the eval.
+
+The question has closed, or its call has ended.
+"""
+
+QUESTION_ANSWERED = -32012
+"""The sidecar's error code for an answer to a question that already has an answer."""
 
 
 class SentinelProxyError(RuntimeError):
@@ -62,6 +71,28 @@ class EvalAccess:
             "mac": sign(self.token, eval_call_message(method, self.eval_id, timestamp)),
         }
 
+    def answer_params(
+        self, id: str, decision: str, reason: str | None
+    ) -> dict[str, Any]:
+        """The params for `answer_question`, signed now.
+
+        The signature covers the answer itself.
+        """
+        timestamp = now()
+        params: dict[str, Any] = {
+            "eval_id": self.eval_id,
+            "timestamp": timestamp,
+            "mac": sign(
+                self.token,
+                answer_message(self.eval_id, timestamp, id, decision, reason),
+            ),
+            "id": id,
+            "decision": decision,
+        }
+        if reason is not None:
+            params["reason"] = reason
+        return params
+
 
 @dataclass
 class Sidecar:
@@ -72,6 +103,11 @@ class Sidecar:
     client: Any = field(repr=False)
     version: int = 1
     """The version of the endpoint for evals Inspect speaks to it."""
+    review: bool = False
+    """Whether the sidecar sends a sentinel's questions for a person to the eval.
+
+    Inspect shows them in its approval UI.
+    """
     access: EvalAccess | None = field(default=None, repr=False)
     """The eval's id and token for this sidecar, shared by every model of the task whose calls go through it."""
     _ids: "count[int]" = field(default_factory=lambda: count(1), repr=False)
@@ -88,6 +124,26 @@ class Sidecar:
                 method, "the eval hasn't registered with the sidecar"
             )
         return await self.call(method, {**params, **access.credentials(method)})
+
+    async def answer_question(
+        self, id: str, decision: str, reason: str | None
+    ) -> dict[str, Any]:
+        """Send a person's answer to one of the sidecar's questions.
+
+        The call's signature covers the answer, so it can't be reused to send a
+        different answer.
+
+        Raises:
+            SidecarCallError: If the call failed, or the sidecar refused the answer.
+        """
+        access = self.access
+        if access is None or access.registrations == 0:
+            raise SidecarCallError(
+                "answer_question", "the eval hasn't registered with the sidecar"
+            )
+        return await self.call(
+            "answer_question", access.answer_params(id, decision, reason)
+        )
 
     async def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         """Call a method of the endpoint for evals, and return its result.
@@ -247,7 +303,10 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
             f"The sentinel sidecar at {origin} releases replies early ({release!r}), which Inspect doesn't support yet. Run the sidecar with `--release whole`."
         )
     version = max(v for v in versions if v in VERSIONS)
-    return Sidecar(origin, release, client.sdk, version)
+    # A sidecar that doesn't report `review`, such as one from before sidecars
+    # could ask a person through an eval, asks no questions through the eval.
+    review = info.get("review") is True
+    return Sidecar(origin, release, client.sdk, version, review)
 
 
 def _no_answer(origin: str, status: object, ex: Exception) -> tuple[str, bool]:

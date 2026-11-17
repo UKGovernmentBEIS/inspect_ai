@@ -41,6 +41,7 @@ from test_helpers.local_shell_sandbox import LocalShellSandbox
 from inspect_ai.util._checkpoint._copy import copy_out, copy_out_partial_path
 from inspect_ai.util._checkpoint._layout.schemas import SnapshotDetails
 from inspect_ai.util._checkpoint._repo_ops import (
+    drop_orphan_snapshots,
     forget_unrecorded_snapshots,
     list_snapshots,
     walk_snapshot_nodes,
@@ -436,10 +437,11 @@ async def test_egress_rejects_snapshot_with_foreign_tag(repos: _Repos) -> None:
     assert repos.dest_files() == files_after_1
 
 
-async def test_egress_rejects_malformed_snapshot_id(repos: _Repos) -> None:
+@pytest.mark.parametrize("bad", ["latest", "--password-command=echo forged"])
+async def test_egress_rejects_malformed_snapshot_id(repos: _Repos, bad: str) -> None:
     repos.backup("ckpt-00001")
     with pytest.raises(EgressVerificationError, match="malformed"):
-        await repos.egress("ckpt-00001", "latest")
+        await repos.egress("ckpt-00001", bad)
 
 
 async def test_egress_refuses_oversized_delta_before_tarring(repos: _Repos) -> None:
@@ -532,6 +534,27 @@ async def test_egress_first_cycle_writes_keys_before_config(repos: _Repos) -> No
 # --- resume side ------------------------------------------------------
 
 
+@pytest.mark.parametrize("recorded", [False, True])
+async def test_forget_terminates_options(repos: _Repos, recorded: bool) -> None:
+    id1 = repos.backup("ckpt-00001")
+    id2 = repos.backup("ckpt-00002")
+    with patch("anyio.run_process", wraps=anyio.run_process) as run:
+        if recorded:
+            await forget_unrecorded_snapshots(
+                repos.restic,
+                str(repos.repo),
+                PASSWORD,
+                recorded_ids=[id1],
+                required_id=id1,
+            )
+        else:
+            await drop_orphan_snapshots(repos.restic, str(repos.repo), PASSWORD, 1)
+    assert run.call_args.args[0][3:] == ["forget", "--", id2]
+    assert {
+        s["id"] for s in await list_snapshots(repos.restic, str(repos.repo), PASSWORD)
+    } == {id1}
+
+
 async def test_forget_unrecorded_snapshots_keeps_only_recorded(repos: _Repos) -> None:
     id1 = repos.backup("ckpt-00001")
     (repos.src / "notes.txt").write_text("v2\n")
@@ -602,7 +625,7 @@ async def test_forget_unrecorded_snapshots_rejects_malformed_ids(
     repos: _Repos,
 ) -> None:
     id1 = repos.backup("ckpt-00001")
-    for bad in ("", "latest", "ABCDEF01"):
+    for bad in ("", "latest", "ABCDEF01", "--password-command=echo forged"):
         with pytest.raises(RuntimeError, match="malformed"):
             await forget_unrecorded_snapshots(
                 repos.restic,
@@ -679,7 +702,13 @@ async def test_ingress_restores_recorded_snapshot_not_latest(
     repos.backup("ckpt-00002")
     fresh = _FreshSandbox(repos, tmp_path)
 
-    await fresh.ingress(id1)
+    with patch.object(fresh.env, "exec", wraps=fresh.env.exec) as run:
+        await fresh.ingress(id1)
+    restore = next(
+        call.args[0] for call in run.call_args_list if "restore" in call.args[0]
+    )
+    assert restore[-2:] == ["--", f"{id1}:{repos.src.parent}"]
+    assert restore[restore.index("--target") + 1] == str(repos.src.parent)
 
     # The recorded snapshot's file is back at its absolute path.
     assert (repos.src / "notes.txt").read_text() == "v1\n"
@@ -781,12 +810,13 @@ async def test_ingress_cancelled_mid_copy_in_removes_host_tarball(
     assert not any(host_tmp.rglob("ingress.tar"))
 
 
+@pytest.mark.parametrize("bad", ["latest; rm -rf /", "--password-command=echo forged"])
 async def test_ingress_rejects_malformed_recorded_id(
-    repos: _Repos, tmp_path: Path
+    repos: _Repos, tmp_path: Path, bad: str
 ) -> None:
     fresh = _FreshSandbox(repos, tmp_path)
     with pytest.raises(RuntimeError, match="malformed"):
-        await fresh.ingress("latest; rm -rf /")
+        await fresh.ingress(bad)
     assert fresh.env.execs == 0
 
 
@@ -1108,6 +1138,28 @@ def _fake_restic(tmp_path: Path, body: str) -> Path:
 
 async def _walk(restic: Path, visit: Callable[[dict[str, Any]], None]) -> str:
     return await walk_snapshot_nodes(restic, "repo", PASSWORD, _FAKE_ID, visit)
+
+
+async def test_walk_snapshot_nodes_terminates_options(tmp_path: Path) -> None:
+    args_file = tmp_path / "args"
+    restic = _fake_restic(
+        tmp_path,
+        f'printf "%s\\n" "$@" > "{args_file}"\necho \'{_SNAPSHOT_RECORD}\'',
+    )
+    bad = "--password-command=echo forged"
+    assert (
+        await walk_snapshot_nodes(restic, "repo", PASSWORD, bad, lambda _: None)
+        == _FAKE_ID
+    )
+    assert args_file.read_text().splitlines() == [
+        "-r",
+        "repo",
+        "ls",
+        "--json",
+        "--no-lock",
+        "--",
+        bad,
+    ]
 
 
 async def test_walk_snapshot_nodes_kills_restic_on_a_rejected_node(

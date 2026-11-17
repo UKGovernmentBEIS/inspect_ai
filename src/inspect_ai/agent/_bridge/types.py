@@ -49,7 +49,7 @@ from inspect_ai.model._model import (
 )
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
-from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_call import ToolCall, ToolCallViewer
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
@@ -65,6 +65,12 @@ if TYPE_CHECKING:
 
 _MAX_AWAITED_RESULTS = 256
 """Host tool calls tracked for their result message, beyond which the oldest replies' are dropped."""
+
+_RESULT_EVIDENCE = 256
+"""How much of the start of the text a scaffold received for a host tool call its linked answer must hold (scaffolds truncate long results)."""
+
+_MIN_CONTAINED_RESULT = 16
+"""Shortest host tool result text a linked answer may hold among other text; a shorter one must be a whole text of the answer (`_answer_texts`)."""
 
 _MAX_RECENT_THREADS = 16
 """Recent requests and generations kept, each in place of the kept ones it extends, whose replies can contest a thread's placement (see `_contested`)."""
@@ -155,6 +161,16 @@ class _AwaitedReply:
     events: dict[int, "ToolEvent | None"] = field(default_factory=dict)
     """Per executed call's position, its execution, or `None` once the call is settled (linked, or left unlinked)."""
 
+    received: dict[int, "_Received"] = field(default_factory=dict)
+    """Per executed call's position, what the scaffold received for it (`_holds_result`)."""
+
+
+class _Received(NamedTuple):
+    """What the scaffold received for a host tool call, which its result message must hold (`_holds_result`)."""
+
+    text: str
+    """The start of the first text the scaffold received (for an error, the error's text), stripped, at most `_RESULT_EVIDENCE` characters (empty if it received none)."""
+
 
 class DispatchedCall(NamedTuple):
     """A bridged tool call the model made through a scaffold's dispatcher function."""
@@ -169,6 +185,37 @@ class DispatchedCall(NamedTuple):
     """Arguments for the dispatcher call that make the target call with the given ones."""
 
 
+class BridgedToolId(NamedTuple):
+    """Identity of one bridged tool: its server and its name there.
+
+    Servers may serve tools of the same name, so the name alone doesn't
+    identify one.
+    """
+
+    server: str
+    tool: str
+
+
+def target_execution_id(
+    handout: str | None, target: BridgedToolId | None
+) -> str | None:
+    """The `execution_id` of a handout's run of `target`, recorded by its approvals, sentinel steps and host `ToolEvent`.
+
+    A call that denotes several bridged tools (a shared description) is
+    approved, checked and run once per tool, so each tool's run is an
+    execution of its own: the handout's id (`_Handed.execution_id`) with the
+    tool's server and name, `<handout>/<server>/<tool>`. A call no bridged
+    tool serves has the handout's id. `None` where the handout is unknown.
+
+    The id is opaque: consumers compare it for equality and don't parse it.
+    A server or tool name may contain `/`, so the parts can't be recovered
+    from it.
+    """
+    if handout is None or target is None:
+        return handout
+    return f"{handout}/{target.server}/{target.tool}"
+
+
 class ReviewedCalls(NamedTuple):
     """The calls approval reviews for one tool call in a bridged response."""
 
@@ -177,6 +224,12 @@ class ReviewedCalls(NamedTuple):
 
     dispatch: Callable[[dict[str, Any]], dict[str, Any]]
     """Arguments for the tool call that make a reviewed call with the given ones."""
+
+    viewers: list[ToolCallViewer | None]
+    """The registered viewer for each reviewed target, in the same order."""
+
+    targets: list[BridgedToolId | None]
+    """The bridged tool each reviewed call runs, in the same order (None for a call no bridged tool serves)."""
 
 
 def _unchanged(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -250,6 +303,37 @@ class AgentBridge:
             lambda: self._compaction_prefix,
             state.messages.copy(),
             value_type=list[ChatMessage],
+        )
+        # deferred: `_sentinel` imports this module
+        from ._sentinel import (
+            _Handouts,
+            _SavedHandouts,
+            history_ids,
+            inherited_result_keys,
+        )
+
+        # kept as a string the bridge encodes itself, which the checkpoint's
+        # writer can't change (`_SavedHandouts.encoded`). A checkpoint written
+        # without them exempts no result and reserves the ids of its prefix
+        # and its conversation; an incomplete one fails to restore
+        handouts = self._cp.track(
+            "bridge_handouts", lambda: self._handouts.saved().encoded(), ""
+        )
+        self._handouts = _Handouts(
+            _SavedHandouts.decoded(handouts)
+            if handouts
+            else _SavedHandouts(
+                reserved_ids=sorted(
+                    history_ids(self._compaction_prefix)
+                    | history_ids(restored_messages)
+                ),
+                handed={},
+                checked=[],
+                inherited=sorted(inherited_result_keys(state.messages))
+                if self._cp.attempt == "initial"
+                else [],
+            ),
+            viewer=self._bridged_tool_viewer,
         )
         # checkpointed hashes: changing `content_hash` or `edit_id` changes what a
         # resumed sample matches against
@@ -497,6 +581,12 @@ class AgentBridge:
     _proposing_call_verified: list[bool] | None = None
     """Per-call filter verification, aligned with the calls being registered."""
 
+    _proposing_model_ids: list[str] | None = None
+    """The model's id for each call being registered, aligned with them; a call handed over under a fresh id has another (`_fresh_call_ids`)."""
+
+    _proposing_execution_ids: list[str] | None = None
+    """The handout id of each call being registered, aligned with them (`_Handed.execution_id`); a grant's host run records its tool's execution id derived from it (`target_execution_id`)."""
+
     def _handed_calls(
         self, reply_id: str, calls: Sequence[ToolCall]
     ) -> list[_HandedCall]:
@@ -515,9 +605,16 @@ class AgentBridge:
         return [_HandedCall(reply, position) for position in range(len(calls))]
 
     def _await_result_message(
-        self, handed: _HandedCall, event: "ToolEvent", linkable: bool = True
+        self,
+        handed: _HandedCall,
+        event: "ToolEvent",
+        received: _Received,
+        linkable: bool = True,
     ) -> None:
         """Set `event.message_id` when the scaffold first sends the result of `handed`.
+
+        `received` is what the scaffold received for the call, which the
+        message must hold.
 
         The result reaches the bridge only when the scaffold sends it back in a
         later request (`_link_result_messages`). A second execution of the call,
@@ -537,6 +634,7 @@ class AgentBridge:
             handed.reply.id, _AwaitedReply(handed.reply.calls, handed.reply.handed_at)
         )
         executed = handed.position in reply.events
+        reply.received[handed.position] = received
         reply.events[handed.position] = (
             event
             if linkable
@@ -571,7 +669,9 @@ class AgentBridge:
         its content (`sent_in`, per tool message the latest earlier request
         that did), so it was first sent after the execution completed: a
         message sent before, or equal to one sent before, may hold another
-        result. Any other result settles
+        result. A scaffold that gave up on the call (its own client timeout)
+        answers it without the result after the execution completed, so the
+        message must also hold the result (`_holds_result`). Any other result settles
         the call unlinked, as does a result whose call id the dialect inferred
         from order (`inferred`). A call with no result yet keeps waiting.
         """
@@ -613,13 +713,16 @@ class AgentBridge:
                 if not answers:
                     continue
                 reply.events[position] = None
+                answer = messages[answers[0]]
                 if (
                     len(answers) == 1
                     and answers[0] in fresh
                     and answers[0] not in inferred
                     and sent_in.get(answers[0], 0) <= reply.handed_at
+                    and isinstance(answer, ChatMessageTool)
+                    and _holds_result(answer, reply.received[position])
                 ):
-                    event.message_id = messages[answers[0]].id
+                    event.message_id = answer.id
                     transcript()._event_updated(event)
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
@@ -630,6 +733,18 @@ class AgentBridge:
         match the bridged tool's own name and approvers see (and modify) its own
         arguments. In-process bridges have no bridged tools, so nothing is
         dispatched; `SandboxAgentBridge` overrides this.
+        """
+        return None
+
+    def _host_tool_viewer(
+        self, call: ToolCall, tools: Sequence[ToolInfo | Tool]
+    ) -> ToolCallViewer | None:
+        return None
+
+    def _bridged_tool_viewer(self, target: BridgedToolId) -> ToolCallViewer | None:
+        """The viewer of the bridged tool `target`, if the bridge serves it.
+
+        In-process bridges serve no tools; `SandboxAgentBridge` overrides this.
         """
         return None
 
@@ -647,8 +762,15 @@ class AgentBridge:
         """
         dispatched = self.dispatched_call(call)
         if dispatched is not None:
-            return ReviewedCalls([dispatched.target], dispatched.dispatch)
-        return ReviewedCalls([call], _unchanged)
+            return ReviewedCalls(
+                [dispatched.target],
+                dispatched.dispatch,
+                [self._host_tool_viewer(call, tools)],
+                [None],
+            )
+        return ReviewedCalls(
+            [call], _unchanged, [self._host_tool_viewer(call, tools)], [None]
+        )
 
     def compaction(
         self, tools: Sequence[ToolInfo | Tool], model: Model
@@ -1200,6 +1322,16 @@ class AgentBridge:
                 self._record_form(choice.message.id, content_hash(choice.message))
         for choice, form in zip(output.choices, transported):
             self._record_transported_reply(choice.message, form)
+        if transported:
+            self._handouts.read_back(
+                output.message.tool_calls or [],
+                [
+                    call
+                    for message in transported[0]
+                    if isinstance(message, ChatMessageAssistant)
+                    for call in message.tool_calls or []
+                ],
+            )
 
         # every choice's thread, since the scaffold may continue any of them;
         # the primary's last, so it stays kept when the window is full
@@ -1366,6 +1498,94 @@ def _named_result_key(message: ChatMessageTool, call: ToolCall | None) -> str:
     """
     answered = json.dumps(_call_key(call)) if call else f"function:{message.function}"
     return content_hash(message.model_copy(update={"tool_call_id": answered}))
+
+
+def _holds_result(answer: ChatMessageTool, received: _Received) -> bool:
+    """Whether `answer` holds what the scaffold `received` for a host tool call.
+
+    Evidence that the scaffold received the execution's result before it sent
+    `answer`: a scaffold that gave up on the call (its own client timeout)
+    answers it without the result, after the execution completed. Scaffolds
+    reformat, wrap and truncate results, so the evidence is the start of the
+    received text (the first `_RESULT_EVIDENCE` characters) within the
+    answer, within a string of JSON the answer holds (`_answer_texts`), or
+    JSON-escaped once or twice within the answer's text, with or without
+    ASCII escapes (a scaffold may cut its JSON so it no longer parses, and a
+    content result is JSON inside the scaffold's JSON). For an error, the
+    text is the error the RPC raised (`str()` of it, which for an OS error
+    differs from the message the event records), not counting the service's
+    `Error calling method call_tool:` prefix, which a denied call's answer
+    carries too. A text shorter than `_MIN_CONTAINED_RESULT` may appear in
+    any message by chance (a short error is shown behind a prefix), so it
+    must be a whole text of the answer. With no text (an empty result, an
+    inline image with no caption, an error with no text) nothing links.
+    Linear in the answer's size: a few escapings of one bounded text are
+    compared.
+    """
+    expected = received.text
+    if not expected:
+        return False
+    texts = _answer_texts(answer)
+    if len(expected) < _MIN_CONTAINED_RESULT:
+        return expected in texts
+    evidence = expected[:_RESULT_EVIDENCE]
+    forms = {evidence}
+    for ascii_once in (False, True):
+        escaped = json.dumps(evidence, ensure_ascii=ascii_once)[1:-1]
+        forms.add(escaped)
+        for ascii_twice in (False, True):
+            forms.add(json.dumps(escaped, ensure_ascii=ascii_twice)[1:-1])
+    return any(form in text for form in forms for text in texts)
+
+
+def _answer_texts(answer: ChatMessageTool) -> set[str]:
+    """The texts a result may appear as in `answer`, stripped.
+
+    Its text, each text part, and every string in JSON they hold (other than
+    a `"type"` tag) are each a text, and so is every string in JSON such a
+    string holds, one level down. Scaffolds wrap results in JSON (a list of
+    MCP content blocks, a Google `functionResponse`), escaping them, and a
+    host tool's content result reaches them as JSON already. Each level
+    parses strings of the level above, so the work stays linear.
+    """
+    parts = (
+        [answer.content]
+        if isinstance(answer.content, str)
+        else [content.text for content in answer.content if content.type == "text"]
+    )
+    texts = {answer.text.strip()}
+    for part in parts:
+        texts.add(part.strip())
+        for string in _json_strings(part) or []:
+            texts.add(string)
+            texts.update(_json_strings(string) or [])
+    return texts
+
+
+def _json_strings(text: str) -> list[str] | None:
+    """The strings in `text` parsed as a JSON object or array, stripped, other than `"type"` tags.
+
+    `None` if `text` isn't a JSON object or array.
+    """
+    text = text.strip()
+    if not text.startswith(("{", "[")):
+        return None
+    try:
+        value = json.loads(text)
+    except (ValueError, RecursionError):
+        return None
+    strings: list[str] = []
+    pending: list[tuple[Any, str | None]] = [(value, None)]
+    while pending:
+        item, key = pending.pop()
+        if isinstance(item, str):
+            if key != "type":
+                strings.append(item.strip())
+        elif isinstance(item, dict):
+            pending.extend((v, k) for k, v in item.items())
+        elif isinstance(item, list):
+            pending.extend((v, None) for v in item)
+    return strings
 
 
 def _unplaced_key(message: ChatMessage) -> str:

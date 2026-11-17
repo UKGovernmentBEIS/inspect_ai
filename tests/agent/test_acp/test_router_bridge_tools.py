@@ -12,7 +12,9 @@ bridged feeds in ``bridge_model_generate()`` so the synchronous subscriber sees
 the same flag a live bridge generate would set.
 """
 
+from collections.abc import Iterator
 from contextlib import nullcontext
+from typing import Any
 
 import anyio
 import pytest
@@ -44,6 +46,7 @@ from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._samples import _sample_active as samples_var
 from inspect_ai.log._transcript import Transcript, _transcript
 from inspect_ai.model import (
+    ChatMessage,
     ChatMessageAssistant,
     ChatMessageTool,
     ChatMessageUser,
@@ -953,3 +956,52 @@ def test_tracker_forgets_spans_closed_outside_sub_agents() -> None:
     top = InfoEvent(data="top")
     top.span_id = "tool-7"
     assert tracker.process(top) == "emit"
+
+
+class _CountedMessages(list[ChatMessage]):
+    """A request's messages, counting each read of one."""
+
+    reads = 0
+
+    def __getitem__(self, index: Any) -> Any:
+        self.reads += 1
+        return super().__getitem__(index)
+
+    def __iter__(self) -> Iterator[ChatMessage]:
+        for message in super().__iter__():
+            self.reads += 1
+            yield message
+
+
+@pytest.mark.parametrize("replay", [False, True])
+def test_settling_parallel_calls_reads_each_message_a_bounded_number_of_times(
+    replay: bool,
+) -> None:
+    from inspect_ai.agent._acp.event_mapping import (
+        _map_bridge_tool_completions,
+        _scan_bridge_tool_facts,
+    )
+
+    count = 400
+    calls = [_bash_call(f"call_{n}", command=f"ls {n}") for n in range(count)]
+    messages = _CountedMessages(
+        [
+            ChatMessageAssistant(content="", tool_calls=calls),
+            *[
+                ChatMessageTool(content="ok", tool_call_id=call.id, function="bash")
+                for call in calls
+            ],
+        ]
+    )
+    # unvalidated, so the event keeps the counted input
+    event = _result_event().model_copy(update={"input": messages})
+
+    if replay:
+        answered = _scan_bridge_tool_facts([event]).answered_calls
+        assert list(answered.values()) == calls
+    else:
+        pending = {call.id: call for call in calls}
+        settled = list(_map_bridge_tool_completions(event, "s", pending))
+        assert len(settled) == count and not pending
+
+    assert messages.reads <= 4 * (count + 1)

@@ -66,7 +66,7 @@ There are however some requirements that should be met by your task before using
 The human agent works on the task within the default sandbox container for the task. Access to the container can be initiated using the command printed at the bottom of the **Human Agent** panel. For example:
 
 ``` bash
-docker exec -it inspect-gdm_intercod-itmzq4e-default-1 bash -l
+docker exec -it inspect-gdm_intercod-iqes2sgrg8tkq5q5w-default-1 bash -l
 ```
 
 Alternatively, if the human agent is working within VS Code then two links are provided to access the container within VS Code:
@@ -188,5 +188,5 @@ Running task gdm_intercode_ctf (1 sample): anthropic/claude-sonnet-5-5 (config: 
 
 You are completing a task on a Linux system (task instructions will be presented when you login). Login to the system with the following command:
 
-docker exec -it inspect-gdm_intercod-iebwzkg-default-1 bash -l
+docker exec -it inspect-gdm_intercod-iyjq05n2sfjrqzy1r-default-1 bash -l
 ```

@@ -70,9 +70,7 @@ from inspect_ai.model._model import (
 from inspect_ai.model._model_info import get_model_input_budget
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.review._human import (
-    escape_placeholders,
     fenced,
-    view_with_result,
 )
 from inspect_ai.scorer._metric import Reference
 from inspect_ai.solver._task_state import sample_state
@@ -89,11 +87,7 @@ from inspect_ai.tool._tool_call import (
 )
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
-from inspect_ai.util._limit import (
-    suspend_token_limit,
-    suspend_turn_limit,
-    suspend_working_limit,
-)
+from inspect_ai.util._limit import suspend_limits
 from inspect_ai.util._span import span
 from inspect_ai.util._store import store
 
@@ -106,7 +100,8 @@ from ._context import (
     active_task_metadata,
 )
 from ._conversation import current_conversation
-from ._scope import sentinel_scope
+from ._person import chosen_decision, escalation_lines, human_view, offered_choices
+from ._scope import BRIDGE_CHECK_SPAN, sentinel_scope
 from ._steps import (
     ConversationRecord,
     after_generate,
@@ -130,7 +125,11 @@ async def sentinel_before_tool_call(
     message_id: str | None,
     call: ToolCall,
     viewer: ToolCallViewer | None,
-    history: list[ChatMessage],
+    history: list[ChatMessage] | None,
+    producer: ModelEvent | None = None,
+    *,
+    bridge: bool = False,
+    execution_id: str | None = None,
 ) -> Decision | None:
     if not _watches(BeforeToolCall):
         return None
@@ -139,6 +138,8 @@ async def sentinel_before_tool_call(
         view = resolve_tool_call_view(call, viewer, reject_on_error=True)
     except ToolCallViewError as ex:
         raise ToolApprovalError(str(ex)) from ex
+    if producer is None and history is not None:
+        producer = _producing_event(call, history)
     conversation = current_conversation()
     step = before_tool_call(
         conversation=conversation,
@@ -146,11 +147,11 @@ async def sentinel_before_tool_call(
         message_id=_message_id(message_id),
         call=call,
         view=view,
-        producer=producer_of(_producing_event(call, history)),
+        producer=producer_of(producer),
         agent_messages=agent_messages(conversation),
         record=_record(conversation),
     )
-    return await _run(step, call.id)
+    return await _run(step, call.id, bridge=bridge, execution_id=execution_id)
 
 
 def apply_sentinel_decision(decision: Decision | None, call: ToolCall) -> ToolCall:
@@ -177,28 +178,47 @@ async def sentinel_after_tool_call(
     call: ToolCall,
     result: ChatMessageTool,
     output: ToolResult,
-    truncated: tuple[int, int] | None,
+    truncated: tuple[int, int] | Literal[False] | None,
     viewer: ToolCallViewer | None,
-    history: list[ChatMessage],
+    history: list[ChatMessage] | None,
+    producer: ModelEvent | None = None,
+    *,
+    reject_on_viewer_error: bool = False,
+    bridge: bool = False,
+    execution_id: str | None = None,
+    view: ToolCallView | None = None,
 ) -> None:
+    """Run the sentinel after a tool call ran, before the model sees its result.
+
+    `view` is the call's view, if already rendered with `viewer` (a bridge
+    renders it to tell the step apart from those already checked); otherwise
+    it is rendered here.
+    """
     if not _watches(AfterToolCall):
         return
     _require_message_id()
+    if producer is None and history is not None:
+        producer = _producing_event(call, history)
     conversation = current_conversation()
     step = after_tool_call(
         conversation=conversation,
         message=message,
         message_id=_message_id(message_id),
         call=call,
-        view=resolve_tool_call_view(call, viewer),
+        view=view
+        if view is not None
+        else resolve_tool_call_view(
+            call, viewer, reject_on_error=reject_on_viewer_error
+        ),
         result=result,
         output=output,
-        truncated=Truncation(*truncated) if truncated is not None else False,
-        producer=producer_of(_producing_event(call, history)),
+        # None when the host cannot tell (a scaffold-run tool under a bridge)
+        truncated=Truncation(*truncated) if truncated else truncated,
+        producer=producer_of(producer),
         agent_messages=agent_messages(conversation),
         record=_record(conversation),
     )
-    decision = await _run(step, call.id)
+    decision = await _run(step, call.id, bridge=bridge, execution_id=execution_id)
     if decision is not None and decision.action == "terminate":
         raise TerminateSampleError(
             decision.explanation or "Sentinel requested termination."
@@ -285,19 +305,29 @@ def _watches(stage: type[Step]) -> bool:
     return root is not None and stage in watched_stages(root)
 
 
-async def _run(step: Step, step_id: str) -> Decision | None:
+def watches_tool_results() -> bool:
+    return _watches(AfterToolCall)
+
+
+async def _run(
+    step: Step,
+    step_id: str,
+    *,
+    bridge: bool = False,
+    execution_id: str | None = None,
+) -> Decision | None:
     root = active_sentinel()
     if root is None or type(step) not in watched_stages(root):
         return None
-    recorder = _Recorder(step_id)
+    recorder = _Recorder(step_id, execution_id)
     try:
         try:
-            async with span(name="sentinel", type="sentinel"):
+            async with span(
+                name=BRIDGE_CHECK_SPAN if bridge else "sentinel", type="sentinel"
+            ):
                 try:
                     with (
-                        suspend_token_limit(),
-                        suspend_turn_limit(),
-                        suspend_working_limit(),
+                        suspend_limits(),
                         sentinel_scope("sentinel", final=True),
                         suspend_model_event_sink(),
                     ):
@@ -506,14 +536,7 @@ class _HostNative:
                 f"human() cannot offer 'reject' at the {step_stage(step)} stage, "
                 "where a turn can only proceed or be terminated."
             )
-        offered: list[ApprovalDecision] = []
-        for choice in choices:
-            if choice not in _HUMAN_CHOICES:
-                raise ValueError(
-                    f"human() cannot offer {choice!r}; the choices are "
-                    f"{', '.join(repr(c) for c in _HUMAN_CHOICES)}."
-                )
-            offered.append(cast(ApprovalDecision, choice))
+        offered = offered_choices(choices)
         # the approval surfaces show the conversation; a step with no agent's
         # list shows what the model saw instead, and nothing when that is
         # unknown too
@@ -535,58 +558,22 @@ class _HostNative:
                 _human_view(step, escalations),
                 list(conversation),
             )
-        if approval.decision in offered:
-            return HumanAnswer(decision=approval.decision, reason=approval.explanation)
-        # the reason says the person did not choose, since later steps read
-        # this decision in human_decisions
-        return HumanAnswer(
-            decision="reject" if "reject" in offered else "terminate",
-            reason=(
-                "The person closed the prompt without choosing; failing closed "
-                f"(the surface answered {approval.decision}: {approval.explanation})."
-            ),
-        )
-
-
-_HUMAN_CHOICES = ("approve", "reject", "terminate")
+        decision, reason = chosen_decision(approval, offered)
+        return HumanAnswer(decision=decision, reason=reason)
 
 
 def _human_view(
     step: BeforeToolCall | AfterToolCall, escalations: Escalations
 ) -> ToolCallView:
-    view = step.view
-    if escalations:
-        lines = _escalation_lines(escalations)
-        escalated = f"**Escalated by**\n\n{fenced(lines)}"
-        if view.call is None:
-            call = ToolCallContent(format="markdown", content=escalated)
-        elif view.call.format == "markdown":
-            call = ToolCallContent(
-                title=view.call.title,
-                format="markdown",
-                content=f"{escalated}\n\n{view.call.content}",
-            )
-        else:
-            call = ToolCallContent(
-                title=view.call.title,
-                format="text",
-                content=f"Escalated by\n\n{lines}\n\n{view.call.content}",
-            )
-        view = ToolCallView(context=view.context, call=call)
-    if isinstance(step, AfterToolCall):
-        view = view_with_result(view, step.result)
-    return view
+    return human_view(
+        step.view,
+        _escalation_lines(escalations) if escalations else None,
+        step.result if isinstance(step, AfterToolCall) else None,
+    )
 
 
 def _escalation_lines(escalations: Escalations) -> str:
-    return escape_placeholders(
-        "\n".join(
-            f"- {e.name}: {e.report.explanation}"
-            if e.report.explanation
-            else f"- {e.name}"
-            for e in escalations
-        )
-    )
+    return escalation_lines((e.name, e.report.explanation) for e in escalations)
 
 
 async def _ask_about_turn(
@@ -761,8 +748,14 @@ def _one_line(text: str, safe: _Escaped) -> str:
 
 
 class _Recorder:
-    def __init__(self, step_id: str) -> None:
+    def __init__(
+        self,
+        step_id: str,
+        execution_id: str | None = None,
+    ) -> None:
         self._step_id = step_id
+        # the execution a tool-stage step judged (`SentinelEvent.execution_id`)
+        self._execution_id = execution_id
         # this step's human() decisions, published once it settles
         self.kept: list[HumanDecision] = []
 
@@ -771,11 +764,10 @@ class _Recorder:
     ) -> None:
         report = reported.report
         if isinstance(report, Observation):
-            _emit(
+            self._emit(
                 context,
                 factory,
                 step,
-                self._step_id,
                 "observation",
                 "reported",
                 function=reported.function,
@@ -785,11 +777,10 @@ class _Recorder:
                 metadata=report.metadata,
             )
         else:
-            _emit_decision(
+            self._emit_decision(
                 context,
                 factory,
                 step,
-                self._step_id,
                 "reported",
                 reported.function,
                 report,
@@ -801,11 +792,10 @@ class _Recorder:
     def failed(
         self, context: Context, factory: str, step: Step, failed: Failed
     ) -> None:
-        _emit(
+        self._emit(
             context,
             factory,
             step,
-            self._step_id,
             "observation",
             "error",
             function=failed.function,
@@ -821,6 +811,7 @@ class _Recorder:
                 path="",
                 function=root.__name__,
                 step_id=self._step_id,
+                execution_id=self._execution_id,
                 conversation=step.conversation,
                 stage=step_stage(step),
                 kind="observation",
@@ -830,12 +821,10 @@ class _Recorder:
         )
 
     def cancelled(self, context: Context, factory: str, step: Step, name: str) -> None:
-        _emit(
-            context, factory, step, self._step_id, _factory_kind(factory), "cancelled"
-        )
+        self._emit(context, factory, step, _factory_kind(factory), "cancelled")
 
     def bypassed(self, context: Context, factory: str, step: Step, name: str) -> None:
-        _emit(context, factory, step, self._step_id, "decision", "bypassed")
+        self._emit(context, factory, step, "decision", "bypassed")
 
     def superseded(
         self,
@@ -844,88 +833,85 @@ class _Recorder:
         step: Step,
         reported: Reported[Decision],
     ) -> None:
-        _emit_decision(
+        self._emit_decision(
             context,
             factory,
             step,
-            self._step_id,
             "superseded",
             reported.function,
             reported.report,
         )
         self.kept = [k for k in self.kept if not supersedes(context.path, reported, k)]
 
+    def _emit_decision(
+        self,
+        context: Context,
+        factory: str,
+        step: Step,
+        status: SentinelStatus,
+        function: str,
+        decision: Decision,
+    ) -> None:
+        self._emit(
+            context,
+            factory,
+            step,
+            "decision",
+            status,
+            function=function,
+            action=decision.action,
+            audit=decision.audit,
+            message=decision.message,
+            explanation=decision.explanation,
+            references=decision.references,
+            metadata=decision.metadata,
+            modified=decision.modified,
+        )
+
+    def _emit(
+        self,
+        context: Context,
+        factory: str,
+        step: Step,
+        kind: _Kind,
+        status: SentinelStatus,
+        *,
+        function: str | None = None,
+        suspicion: SentinelSuspicion | None = None,
+        action: SentinelAction | None = None,
+        audit: bool = False,
+        message: str | None = None,
+        explanation: str | None = None,
+        references: Sequence[Reference] = (),
+        metadata: dict[str, Any] | None = None,
+        modified: ToolCall | None = None,
+        error: str | None = None,
+    ) -> None:
+        transcript()._event(
+            SentinelEvent(
+                factory=factory,
+                path=context.path,
+                function=function,
+                step_id=self._step_id,
+                execution_id=self._execution_id,
+                conversation=step.conversation,
+                stage=step_stage(step),
+                kind=kind,
+                status=status,
+                suspicion=suspicion,
+                action=action,
+                audit=audit,
+                message=message,
+                explanation=explanation,
+                references=list(references),
+                metadata=metadata,
+                modified=modified,
+                error=error,
+            )
+        )
+
 
 def _factory_kind(factory: str) -> _Kind:
     if registry_lookup("protocol", factory) is not None:
         return "decision"
     return "observation"
-
-
-def _emit_decision(
-    context: Context,
-    factory: str,
-    step: Step,
-    step_id: str,
-    status: SentinelStatus,
-    function: str,
-    decision: Decision,
-) -> None:
-    _emit(
-        context,
-        factory,
-        step,
-        step_id,
-        "decision",
-        status,
-        function=function,
-        action=decision.action,
-        audit=decision.audit,
-        message=decision.message,
-        explanation=decision.explanation,
-        references=decision.references,
-        metadata=decision.metadata,
-        modified=decision.modified,
-    )
-
-
-def _emit(
-    context: Context,
-    factory: str,
-    step: Step,
-    step_id: str,
-    kind: _Kind,
-    status: SentinelStatus,
-    *,
-    function: str | None = None,
-    suspicion: SentinelSuspicion | None = None,
-    action: SentinelAction | None = None,
-    audit: bool = False,
-    message: str | None = None,
-    explanation: str | None = None,
-    references: Sequence[Reference] = (),
-    metadata: dict[str, Any] | None = None,
-    modified: ToolCall | None = None,
-    error: str | None = None,
-) -> None:
-    transcript()._event(
-        SentinelEvent(
-            factory=factory,
-            path=context.path,
-            function=function,
-            step_id=step_id,
-            conversation=step.conversation,
-            stage=step_stage(step),
-            kind=kind,
-            status=status,
-            suspicion=suspicion,
-            action=action,
-            audit=audit,
-            message=message,
-            explanation=explanation,
-            references=list(references),
-            metadata=metadata,
-            modified=modified,
-            error=error,
-        )
-    )

@@ -3038,14 +3038,18 @@ def test_the_time_the_sidecar_spent_judging_is_waiting(decided: dict[str, Any]) 
     assert sample_judged < sample_unjudged - 0.5
 
 
+@pytest.mark.parametrize("limit", ["token", "cost", "turn"])
 @pytest.mark.parametrize("answered", [True, False], ids=["answered", "lookup failed"])
-def test_judging_time_past_the_token_limit_is_waiting_where_the_sidecar_answered(
-    answered: bool, monkeypatch: pytest.MonkeyPatch
+def test_judging_time_past_a_limit_is_waiting_where_the_sidecar_answered(
+    limit: str, answered: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # The reply takes the sample past its token limit, and the sidecar is
+    # The reply takes the sample past its token, cost or turn limit, which
+    # Inspect checks once the reply is recorded, and the sidecar is
     # asked about it only to record what it decided. Where it answers, its
-    # judging is waiting; where the lookup fails, nothing is taken out. Either
-    # way the call's attempts are committed once.
+    # judging is waiting, and the call's event shows the model's own time, as
+    # in process, where a sentinel never judges a reply that ended the sample;
+    # where the lookup fails, nothing is taken out of either. Either way the
+    # call's attempts are committed once.
     from inspect_ai._util.working import ModelAttempts
 
     committed = 0
@@ -3058,7 +3062,7 @@ def test_judging_time_past_the_token_limit_is_waiting_where_the_sidecar_answered
 
     monkeypatch.setattr(ModelAttempts, "commit", counting)
 
-    def run(judging_time: float | None) -> float:
+    def run(judging_time: float | None) -> tuple[float, float]:
         nonlocal committed
         committed = 0
         # the proxy holds the call a second, judging_time of it for its sidecar
@@ -3075,26 +3079,45 @@ def test_judging_time_past_the_token_limit_is_waiting_where_the_sidecar_answered
         task = Task(
             dataset=[Sample(input="What's the weather?")],
             solver=generate(),
-            token_limit=6,
+            token_limit=6 if limit == "token" else None,
+            # the reply's 5 input and 2 output tokens cost $0.000015 at the
+            # rates set below, and the call is sent at $0
+            cost_limit=0.00001 if limit == "cost" else None,
+            turn_limit=0 if limit == "turn" else None,
         )
-        [log] = eval(task, model=_model(stand_in), display="none")
+        # a cost limit needs the agent's model priced
+        if limit == "cost":
+            set_model_cost(
+                "anthropic/claude-haiku-4-5",
+                ModelCost(
+                    input=1.0, output=5.0, input_cache_write=1.25, input_cache_read=0.1
+                ),
+            )
+        try:
+            [log] = eval(task, model=_model(stand_in), display="none")
+        finally:
+            clear_model_info_cache()
         assert log.samples is not None
         sample = log.samples[0]
-        assert sample.limit is not None and sample.limit.type == "token"
+        assert sample.limit is not None and sample.limit.type == limit
         [call] = stand_in.model_calls
         assert _looked_up(stand_in) == [call.headers["x-irid"]]
         assert committed == 1
         assert sample.working_time is not None
-        return sample.working_time
+        event = next(e for e in sample.events if isinstance(e, ModelEvent))
+        assert event.output.time is not None
+        return sample.working_time, event.output.time
 
-    unjudged = run(None)
-    judged = run(0.9)
+    sample_unjudged, call_unjudged = run(None)
+    sample_judged, call_judged = run(0.9)
 
-    assert unjudged >= 1.0
+    assert sample_unjudged >= 1.0 and call_unjudged >= 1.0
     if answered:
-        assert judged < unjudged - 0.5
+        assert sample_judged < sample_unjudged - 0.5
+        assert call_judged < call_unjudged - 0.5
     else:
-        assert judged > unjudged - 0.5
+        assert sample_judged > sample_unjudged - 0.5
+        assert call_judged > call_unjudged - 0.5
 
 
 @solver
@@ -3164,7 +3187,11 @@ def test_a_refusal_recovered_once_retries_are_spent_charges_none_of_the_held_att
     assert output.time is None
     assert committed == 1
     assert sample.total_time is not None and sample.total_time >= 1.0
-    assert sample.working_time is not None and sample.working_time < 0.5
+    # A stall outside the held second, as on a loaded runner, adds to both
+    # the total and the working time, so check the waiting time instead: all
+    # of the held second, less the rounding of the two times.
+    assert sample.working_time is not None
+    assert sample.total_time - sample.working_time >= 0.99
 
 
 def test_a_sample_cancelled_while_the_proxy_holds_its_call_ends_on_its_limit(
@@ -4444,6 +4471,103 @@ def test_a_bridged_agent_whose_filter_generates_is_handed_the_turn_as_left() -> 
     [handed] = seen
     assert isinstance(handed, ModelOutput)
     assert [c.id for c in handed.message.tool_calls or []] == ["call_2"]
+
+
+@pytest.mark.usefixtures("fake_sentinel")
+@pytest.mark.parametrize("outcome", ["terminate", "reject"])
+@pytest.mark.parametrize("filtered", [False, True], ids=["unfiltered", "filter"])
+def test_a_refusal_recovered_through_a_bridge_with_a_sentinel_is_acted_on(
+    outcome: str, filtered: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # a refusal recovered after the provider's error has no model event; with
+    # a sentinel checking the bridge's tool calls, the bridge observes it as a
+    # generation with no known producer
+    from inspect_ai.agent._bridge import util as bridge_util
+    from inspect_ai.agent._bridge.types import AgentBridge
+    from inspect_ai.agent._bridge.util import bridge_generate
+
+    observed: list[Any] = []
+    record = bridge_util._Generations.record
+
+    def recording(self: Any, output: ModelOutput, event: Any) -> None:
+        observed.append(event)
+        record(self, output, event)
+
+    monkeypatch.setattr(bridge_util._Generations, "record", recording)
+    judgment: dict[str, Any] = (
+        {
+            "outcome": "terminate",
+            "steps": [_ends("model_output")],
+            "withheld": _ended_turn(("call_1", "Tokyo")),
+        }
+        if outcome == "terminate"
+        else {
+            "outcome": "reject",
+            "withheld": {
+                "message": _turn_json(("call_1", "Tokyo")),
+                "results": {"call_1": "Tokyo is not allowed."},
+            },
+        }
+    )
+    stand_in = StandInSidecar(
+        # an error Inspect retries, with the judgment looked up once it stops
+        turns=[Turn(status=503)] * 10,
+        methods={"request_result": _answers(_decided(judgment))},
+    )
+    seen: list[ModelOutput | Exception] = []
+
+    async def generating(
+        model: Model,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        return await model.generate(input, tools, tool_choice, config)
+
+    @solver
+    def bridged() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            bridge = AgentBridge(
+                state=AgentState(messages=state.messages),
+                filter=generating if filtered else None,
+            )
+            try:
+                output, _ = await bridge_generate(
+                    bridge,
+                    get_model(),
+                    state.messages,
+                    [],
+                    None,
+                    GenerateConfig(),
+                    requested_model=None,
+                )
+                seen.append(output)
+            except Exception as ex:
+                seen.append(ex)
+            return state
+
+        return solve
+
+    task = Task(
+        dataset=[Sample(input="Hi.")], solver=bridged(), sentinel=counts_calls()
+    )
+
+    eval(task, model=_model(stand_in), max_retries=0, display="none")
+
+    [handed] = seen
+    if outcome == "terminate":
+        # the recovered refusal was observed, with no event, before it ended
+        # the sample at the model call
+        assert observed == [None]
+        assert isinstance(handed, TerminateSampleError)
+        assert handed.reason == "Too far."
+    else:
+        # a bridged agent runs its own tools: the rejection stands as the
+        # provider's error, which the bridge forwards
+        assert observed == []
+        assert isinstance(handed, Exception)
+        assert not isinstance(handed, (AttributeError, TerminateSampleError))
 
 
 _ANTHROPIC_REQUEST = {

@@ -72,17 +72,18 @@ Note that you can also pass `reasoning_tokens` explicitly for these models.
 
 #### Google Gemini 3 and later
 
-Gemini 3 Flash 3.0–3.6 and Flash-Lite 3.1–3.5 expose four thinking levels (`MINIMAL`, `LOW`, `MEDIUM`, `HIGH`). Gemini 3 Pro / Pro 3.1, Gemini 3.7 Flash and later, Gemini 4 Argon, and Gemini 4 Carbon omit `MINIMAL` (the API rejects it), so Inspect maps `minimal` to `LOW` there and logs a warning. The same fail-safe applies to names without a version (rolling aliases such as `gemini-flash-latest`, predeployment codenames) and to versions newer than those listed, until Inspect has confirmed they accept `MINIMAL`.
+Gemini 3 Flash 3.0–3.6 and Flash-Lite 3.1–3.5 expose four thinking levels (`MINIMAL`, `LOW`, `MEDIUM`, `HIGH`). Gemini 3 Pro / Pro 3.1, Gemini 3.7 Flash and later, and Gemini 4 Argon, Carbon and Hydrogen omit `MINIMAL` (the API rejects it), so Inspect maps `minimal` to `LOW` there and logs a warning. The same fail-safe applies to names without a version (rolling aliases such as `gemini-flash-latest`, predeployment codenames) and to versions newer than those listed, until Inspect has confirmed they accept `MINIMAL`. Gemini 4 Hydrogen adds an `XHIGH` level, which Inspect sends for `xhigh` and `max`. Argon and Carbon reject `XHIGH`, and Inspect sends `HIGH` to every model it has not confirmed accepts it.
 
 | Inspect input            | API value (Flash ≤ 3.6, Flash-Lite ≤ 3.5) | API value (other Gemini 3+)                |
 |--------------------------|-------------------------------------------|--------------------------------------------|
-| `none`                   | thinking disabled                         | thinking disabled (Pro: stays on, warning) |
+| `none`                   | thinking disabled                         | thinking disabled (Pro, Hydrogen: stays on, warning) |
 | `minimal`                | `MINIMAL`                                 | `LOW`                                      |
 | `low`                    | `LOW`                                     | `LOW`                                      |
 | `medium`                 | `MEDIUM`                                  | `MEDIUM`                                   |
-| `high` / `xhigh` / `max` | `HIGH`                                    | `HIGH`                                     |
+| `high`                   | `HIGH`                                    | `HIGH`                                     |
+| `xhigh` / `max`          | `HIGH`                                    | `HIGH` (Hydrogen: `XHIGH`)                 |
 
-Pro models cannot disable thinking, so for them `none` leaves thinking on and logs a warning. Inspect also treats Pro names it has not verified (such as a future Gemini 4 Pro) this way.
+Pro models and Gemini 4 Hydrogen cannot disable thinking, so for them `none` leaves thinking on and logs a warning. Inspect also treats Pro names it has not verified (such as a future Gemini 4 Pro) this way.
 
 #### Google Gemini 2.5
 
@@ -156,7 +157,7 @@ Inspect forwards `max` unchanged to OpenRouter. Available effort levels vary by 
 
 #### LiteLLM Proxy
 
-Sends the requested value, which LiteLLM maps to the upstream provider's parameter (e.g. adaptive thinking with `output_config.effort` for Claude). When LiteLLM or the upstream model rejects the value, Inspect retries with the strongest effort the model accepts at or below it (otherwise the weakest above it), or with no effort if the model takes none, and warns once. LiteLLM decides which values a model takes from its model map, so for models it doesn't know set `base_model` in the proxy config (see [LiteLLM Proxy](providers.qmd#litellm-proxy-model-info)).
+Sends the requested value, which LiteLLM maps to the upstream provider's parameter (e.g. adaptive thinking with `output_config.effort` for Claude). When LiteLLM or the upstream model rejects the value, Inspect retries with the strongest effort the model accepts at or below it (otherwise the weakest above it), or with no effort if the model takes none, and warns once. LiteLLM decides which values a model takes from its model map, so for models it doesn't know set `base_model` in the proxy config (see [LiteLLM Proxy](providers.qmd#litellm-proxy-model-info)). For Gemini models, Inspect first maps the effort as the native Google provider does, except that `xhigh` and `max` go as `high`, because LiteLLM's Gemini mapping rejects `xhigh`.
 
 #### Groq / Ollama / SageMaker / SambaNova
 

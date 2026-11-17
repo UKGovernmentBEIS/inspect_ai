@@ -5,7 +5,10 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+SNAPSHOT_ID_PATTERN = r"^[0-9a-f]{8,64}$"
+"""A full restic snapshot id or a CLI-compatible unique prefix."""
 
 
 class ResticBackupSummary(BaseModel):
@@ -42,7 +45,7 @@ class ResticBackupSummary(BaseModel):
     backup_start: datetime
     backup_end: datetime
     total_duration: float
-    snapshot_id: str
+    snapshot_id: str = Field(pattern=SNAPSHOT_ID_PATTERN)
     """Omitted by restic only when snapshot creation was skipped (e.g.
     dry-run); always present for our writes."""
 

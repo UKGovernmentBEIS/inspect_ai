@@ -111,6 +111,7 @@ from inspect_ai.log._condense import (
     SampleSerializationError,
     condense_sample,
     is_log_serializable,
+    mark_attachments_resolved,
     resolve_events_attachments,
 )
 from inspect_ai.log._file import (
@@ -3891,7 +3892,7 @@ def create_eval_sample(
     end_time = sample_clock()
     total_time = end_time - start_time if start_time is not None else None
 
-    return EvalSample(
+    eval_sample = EvalSample(
         id=id,
         epoch=state.epoch,
         input=sample.input,
@@ -3931,6 +3932,7 @@ def create_eval_sample(
         error_retries=error_retries,
         limit=limit,
     )
+    return mark_attachments_resolved(eval_sample, "core")
 
 
 def _finalization_consumes_events(
@@ -4439,9 +4441,22 @@ def _seed_error_retries(sample: EvalSample) -> list[EvalRetryError]:
     Carries forward the sample's own `error_retries` (genuine failures from
     earlier attempts) and appends the terminal error — but only when that
     error is a genuine failure. A cancellation (sibling failure tore the
-    task down) is skipped so it doesn't inflate the retry count.
+    task down) is skipped so it doesn't inflate the retry count. Events come
+    back with their attachments resolved, as in the live sample, which is
+    marked "core" for `condense_sample`.
     """
-    seed = list(sample.error_retries or [])
+    seed = [
+        retry.model_copy(
+            update={
+                "events": resolve_events_attachments(
+                    retry.events, sample.attachments, "full"
+                )
+            }
+        )
+        if retry.events is not None
+        else retry
+        for retry in sample.error_retries or []
+    ]
     if sample.error is not None and not _is_cancellation_error(sample.error):
         seed.append(_eval_retry_error_from_sample(sample))
     return seed

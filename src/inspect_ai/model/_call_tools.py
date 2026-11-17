@@ -43,6 +43,7 @@ import anyio
 import yaml
 from anyio.streams.memory import MemoryObjectSendStream
 from pydantic import BaseModel, TypeAdapter
+from shortuuid import uuid
 from typing_extensions import is_typeddict
 
 from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
@@ -142,6 +143,19 @@ def watch_handoffs() -> Iterator[HandoffWatch]:
         yield watch
     finally:
         _handoff_watch.reset(token)
+
+
+def repeated_call_ids(calls: Sequence[ToolCall]) -> set[str]:
+    """The ids several of `calls` share.
+
+    A provider records no replay state under such an id, as it can't tell the
+    calls' states apart.
+    """
+    seen: set[str] = set()
+    repeated: set[str] = set()
+    for call in calls:
+        (repeated if call.id in seen else seen).add(call.id)
+    return repeated
 
 
 def _fail_fast_tools(message: ChatMessageAssistant) -> set[str]:
@@ -336,6 +350,7 @@ async def _execute_tools_impl(
             # on `event`)
             result_event = ToolEvent(
                 id=call.id,
+                execution_id=event.execution_id,
                 function=call.function,
                 arguments=event.arguments,
                 result=content,
@@ -369,6 +384,7 @@ async def _execute_tools_impl(
                             result,
                             truncated,
                             conversation,
+                            event.execution_id,
                         )
                 except anyio.get_cancelled_exc_class():
                     on_review_cancelled(execution_result, result_event)
@@ -445,6 +461,7 @@ async def _execute_tools_impl(
                 waiting_starts[idx] = sample_clock()
                 stage_events[idx] = ToolEvent(
                     id=call.id,
+                    execution_id=uuid(),
                     function=call.function,
                     arguments=call.arguments,
                     view=call.view,
@@ -474,6 +491,7 @@ async def _execute_tools_impl(
                 )
                 skipped_event = ToolEvent(
                     id=call.id,
+                    execution_id=event.execution_id,
                     function=call.function,
                     arguments=call.arguments,
                     result=tool_result_content(tool_message.content),
@@ -635,6 +653,7 @@ async def _execute_tools_impl(
                     )
                     op_result_event = ToolEvent(
                         id=call.id,
+                        execution_id=event.execution_id,
                         function=call.function,
                         arguments=event.arguments,
                         result=tool_result_content(op_tool_message.content),
@@ -754,6 +773,7 @@ async def _execute_tools_impl(
                     )
                     cancellation_event = ToolEvent(
                         id=call.id,
+                        execution_id=event.execution_id,
                         function=call.function,
                         arguments=event.arguments,
                         result=tool_result_content(tool_message.content),
@@ -983,7 +1003,7 @@ async def call_tool(
     from inspect_ai.approval._apply import apply_tool_approval
 
     approved, approval = await apply_tool_approval(
-        message, call, tool_def.viewer, conversation
+        message, call, tool_def.viewer, conversation, execution_id=event.execution_id
     )
     if not approved:
         await record_pending_tool_event()
@@ -1014,7 +1034,12 @@ async def call_tool(
 
         try:
             decision = await sentinel_before_tool_call(
-                message, message_id, call, tool_def.viewer, conversation
+                message,
+                message_id,
+                call,
+                tool_def.viewer,
+                conversation,
+                execution_id=event.execution_id,
             )
             modified = apply_sentinel_decision(decision, call)
             selected = decision is not None and decision.action == "modify"
@@ -1153,12 +1178,14 @@ async def _apply_tool_review(
     output: ToolResult,
     truncated: tuple[int, int] | None,
     conversation: list[ChatMessage],
+    execution_id: str | None,
 ) -> None:
     """Give the active review policies and sentinel the executed call's result.
 
     Only calls that actually ran are reviewed (the caller checks this): a call
     rejected at the call stage or failed by argument parsing produced no result,
-    and the error the model receives is its feedback.
+    and the error the model receives is its feedback. `execution_id` is the
+    call's `ToolEvent.execution_id`, which the sentinel's steps record.
 
     Raises:
         TerminateSampleError: A reviewer or the sentinel requested termination.
@@ -1186,9 +1213,10 @@ async def _apply_tool_review(
             call,
             result,
             output,
-            truncated,
+            truncated or False,
             tool_def.viewer if tool_def else None,
             conversation,
+            execution_id=execution_id,
         )
 
 

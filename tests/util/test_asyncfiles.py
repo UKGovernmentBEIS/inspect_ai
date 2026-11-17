@@ -3797,6 +3797,7 @@ class _GeneratedObject:
         self.etag = '"generated"'
         self.in_flight = 0
         self.max_in_flight = 0
+        self.after_range: Callable[[], None] = lambda: None
 
     def head(self, IfMatch: str, **kwargs: Any) -> dict[str, Any]:
         assert IfMatch == self.etag
@@ -3805,7 +3806,9 @@ class _GeneratedObject:
     def range(self, Range: str, IfMatch: str) -> bytes:
         assert IfMatch == self.etag
         start, end = (int(v) for v in Range.removeprefix("bytes=").split("-"))
-        return b"\x01" * (end + 1 - start)
+        data = b"\x01" * (end + 1 - start)
+        self.after_range()
+        return data
 
 
 class _GeneratedSyncClient:
@@ -3851,9 +3854,27 @@ class _GeneratedAsyncBody:
         pass
 
 
+def _traced_bytes_under(filename: str) -> int:
+    """Bytes tracemalloc holds for allocations with `filename` on their stack."""
+    snapshot = tracemalloc.take_snapshot().filter_traces(
+        [tracemalloc.Filter(True, filename, all_frames=True)]
+    )
+    return sum(trace.size for trace in snapshot.traces)
+
+
+@pytest.mark.parametrize("interference", [False, True])
 async def test_get_file_if_match_memory_is_bounded_by_ranges(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, interference: bool
 ) -> None:
+    """Memory held by the download stays bounded by its concurrent ranges.
+
+    tracemalloc's peak counts every thread in the process, including threads
+    that earlier tests left running, so the download's memory is sampled
+    after each range is generated, from snapshots filtered to allocations
+    made under `asyncfiles`. `interference` holds an allocation as large as
+    the object on another thread, and on asyncio delays each AnyIO worker
+    after it reports its result, as a busy machine can.
+    """
     import inspect_ai._util.asyncfiles as asyncfiles
 
     chunk = 256 * 1024
@@ -3862,24 +3883,54 @@ async def test_get_file_if_match_memory_is_bounded_by_ranges(
     monkeypatch.setattr(asyncfiles, "_s3_transfer_config", lambda: config)
     obj = _GeneratedObject(64 * chunk + 100)
     local = tmp_path / "out.bin"
+    peak = 0
+
+    def sample() -> None:
+        nonlocal peak
+        peak = max(peak, _traced_bytes_under(asyncfiles.__file__))
+
+    obj.after_range = sample
+
+    allocated = threading.Event()
+    release = threading.Event()
+
+    def hold_allocation() -> None:
+        held = bytearray(obj.size)
+        allocated.set()
+        release.wait(timeout=60)
+        del held
+
+    holder = threading.Thread(target=hold_allocation)
+    if interference and current_async_backend() == "asyncio":
+        loop = asyncio.get_running_loop()
+        loop_thread = threading.current_thread()
+        call_soon_threadsafe = loop.call_soon_threadsafe
+
+        def delayed_call_soon_threadsafe(*args: Any, **kwargs: Any) -> Any:
+            handle = call_soon_threadsafe(*args, **kwargs)
+            if threading.current_thread() is not loop_thread:
+                time.sleep(0.1)
+            return handle
+
+        monkeypatch.setattr(loop, "call_soon_threadsafe", delayed_call_soon_threadsafe)
 
     async with AsyncFilesystem() as fs:
         monkeypatch.setattr(
             fs, "s3_client_async", AsyncMock(return_value=_GeneratedAsyncClient(obj))
         )
         monkeypatch.setattr(fs, "s3_client", lambda: _GeneratedSyncClient(obj))
-        # tracemalloc counts every thread: let the module's moto server finish
-        # requests that earlier tests left in flight
-        for thread in threading.enumerate():
-            if thread.name.endswith("(process_request_thread)"):
-                thread.join(timeout=10)
-        tracemalloc.start()
+        tracemalloc.start(10)
         try:
+            if interference:
+                holder.start()
+                assert allocated.wait(timeout=10)
             await fs.get_file_if_match(
                 f"{S3_BUCKET}/generated", str(local), "generated"
             )
-            _, peak = tracemalloc.get_traced_memory()
         finally:
+            release.set()
+            if holder.is_alive():
+                holder.join(timeout=10)
             tracemalloc.stop()
 
     assert local.stat().st_size == obj.size
