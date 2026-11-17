@@ -2674,6 +2674,12 @@ UNMATCHED_MODIFY = (
     "the call the sentinel was shown."
 )
 
+UNRECORDED_CHECK = (
+    "Skipped the tool steps of call(s) {}: a sentinel modified each under a call "
+    "id other calls share, and without an approval replay can rely on, the log "
+    "cannot show the call the sentinel was shown."
+)
+
 
 def replay_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
     return [
@@ -11250,7 +11256,8 @@ def test_a_modified_call_under_a_shared_id_tells_booleans_from_numbers(
     # after Ransom's review 5932143555: Python equality took the calls for
     # one call, so replay presented the call with the number where live
     # checked the one with the boolean; JSON equality keeps them apart, as
-    # it keeps 1 and 1.0 together
+    # it keeps 1 and 1.0 together. Since review 5932732710 the moved call is
+    # skipped either way, and the warning shows whether the calls were apart
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     seen: dict[str, Step] = {}
     log = eval(
@@ -11317,16 +11324,14 @@ def test_a_modified_call_under_a_shared_id_tells_booleans_from_numbers(
         ("tool_call", kept): number,
         ("tool_result", kept): number,
     }
+    # the moved call's steps are skipped, never rebuilt from the other call:
+    # the booleans without an approval name no call; with the approval, which
+    # names the moved call by its arguments, and for 1 and 1.0, which are one
+    # call, no approval replay relies on records the call live checked
+    [warning] = replay_warnings(caplog)
     if approved or pairs:
-        # the approval names the moved call by its arguments, while 1 and 1.0
-        # are one call, which replay shows as the first (1, where live
-        # checked 1.0)
-        assert replay_warnings(caplog) == []
-        expected[("tool_call", moved)] = number if pairs else other
-        expected[("tool_result", moved)] = {"data": {"value": 2}}
+        assert warning == UNRECORDED_CHECK.format("'null'")
     else:
-        # the moved call's steps are skipped, never rebuilt from the other call
-        [warning] = replay_warnings(caplog)
         assert "several calls" in warning
         assert "'null'" in warning
     assert set(rebuilt) == set(expected)
@@ -11336,21 +11341,9 @@ def test_a_modified_call_under_a_shared_id_tells_booleans_from_numbers(
         # an unknown version changes fields other than the call (`truncated`)
         return
     for (stage, execution), step in rebuilt.items():
-        live = seen_at(events, seen, stage, execution)
-        moved_view = stage == "tool_call" and execution == moved
         assert_step_equals_live(
-            (stage, step.id),
-            step,
-            live,
-            differences=["tool_call.view"] if moved_view else [],
+            (stage, step.id), step, seen_at(events, seen, stage, execution)
         )
-        if moved_view:
-            assert isinstance(step.step, BeforeToolCall)
-            assert isinstance(live, BeforeToolCall)
-            assert step.step.view is not None and step.step.view.call is not None
-            assert live.view is not None and live.view.call is not None
-            assert "{'value': 1}" in step.step.view.call.content
-            assert "{'value': 1.0}" in live.view.call.content
 
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
@@ -11414,3 +11407,179 @@ def test_a_check_with_a_superseded_modify_or_another_decision_pairs_by_arguments
         ],
         key=str,
     )
+
+
+@protocol
+def r7_modifies_the_checked_call(
+    checked: dict[str, Any], modified: dict[str, Any]
+) -> Protocol:
+    """Modify the call checked with exactly the arguments `checked` to `modified`."""
+
+    async def before_call(
+        context: Context, step: BeforeToolCall, escalations: Escalations
+    ) -> Decision | None:
+        if repr(step.call.arguments) == repr(checked):
+            return Decision(
+                action="modify",
+                modified=replace(step.call, arguments=modified),
+                explanation="changed",
+            )
+        return None
+
+    return before_call
+
+
+class CheckedFormCase(NamedTuple):
+    """A call whose tool checks other arguments than the model proposed."""
+
+    tool: Callable[[], Tool]
+    proposed: dict[str, Any]
+    checked: dict[str, Any]
+    modified: dict[str, Any]
+    other: dict[str, Any]
+
+
+def checked_form_case(variant: str) -> CheckedFormCase:
+    from inspect_ai.tool import memory
+
+    if variant == "pydantic_default":
+        return CheckedFormCase(
+            open_spec,
+            proposed={"spec": {"path": "a.txt"}},
+            checked={"spec": {"path": "a.txt", "mode": "r"}},
+            modified={"spec": {"path": "c.txt", "mode": "r"}},
+            other={"spec": {"path": "b.txt"}},
+        )
+    command = "create" if variant == "memory_create" else "view"
+    extra = {"file_text": "x"} if command == "create" else {}
+    seeded = {f"/memories/{name}": name for name in ("a", "b", "c")}
+
+    def tool() -> Tool:
+        if variant == "memory_create":
+            return memory()
+        return memory(initial_data=seeded, readonly=variant == "memory_readonly_view")
+
+    def path(path: str) -> dict[str, Any]:
+        return {"command": command, "path": path, **extra}
+
+    return CheckedFormCase(
+        tool,
+        proposed=path("/memories/sub/../a"),
+        checked=path("/memories/a"),
+        modified=path("/memories/c"),
+        other=path("/memories/b"),
+    )
+
+
+@pytest.mark.parametrize(
+    "variant",
+    ["memory_view", "memory_readonly_view", "memory_create", "pydantic_default"],
+)
+@pytest.mark.parametrize("shape", ["other_function", "repeated_id", "unique_id"])
+@pytest.mark.parametrize("approved", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_modified_call_whose_checked_arguments_the_log_lacks_is_skipped_under_a_shared_id(
+    variant: str,
+    shape: str,
+    approved: bool,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # after Ransom's review 5932732710: the tool's validation changes the
+    # model's arguments (memory() resolves /memories/sub/../a, Pydantic fills
+    # a default) before the check, and a sentinel modify then replaces them,
+    # so without an approval the log records neither the checked call nor
+    # anything to tell it from the proposal; under a shared or repeated id
+    # (refused by the merge base) replay rebuilt the check from the proposal
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    case = checked_form_case(variant)
+    function = "open_spec" if variant == "pydantic_default" else "memory"
+
+    def proposed(id: str, arguments: dict[str, Any]) -> ToolCall:
+        return ToolCall(id=id, function=function, arguments=arguments)
+
+    responses = {
+        "other_function": [
+            r7_tool_calls(
+                proposed("null", case.proposed),
+                ToolCall(id="null", function="read_path", arguments={"path": "b"}),
+            )
+        ],
+        "repeated_id": [
+            r7_tool_calls(proposed("r", case.proposed)),
+            r7_tool_calls(proposed("r", case.other)),
+        ],
+        "unique_id": [
+            r7_tool_calls(proposed("u1", case.proposed), proposed("u2", case.other))
+        ],
+    }[shape]
+    moved_id = {"other_function": "null", "repeated_id": "r", "unique_id": "u1"}[shape]
+    seen: dict[str, Step] = {}
+    log = eval(
+        Task(
+            dataset=[Sample(input="Remember")],
+            solver=[use_tools(case.tool(), read_path()), generate()],
+            sentinel=[
+                r7_probe(seen, copies=True),
+                r7_modifies_the_checked_call(case.checked, case.modified),
+            ],
+            approval=[ApprovalPolicy(auto_approver(), "*")] if approved else None,
+        ),
+        model=outputs(*responses, done()),
+        log_format="json",
+        log_dir=str(tmp_path),
+    )[0]
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    runs = [e for e in events if isinstance(e, ToolEvent)]
+    assert all(e.error is None for e in runs)
+    [modify] = [
+        e for e in events if isinstance(e, SentinelEvent) and e.action == "modify"
+    ]
+    moved = modify.execution_id
+    [moved_run] = [e for e in runs if e.execution_id == moved]
+    assert moved_run.id == moved_id
+    assert moved_run.arguments == case.modified
+    # live checked the validated call, which differs from the proposal
+    checked = seen_at(events, seen, "tool_call", moved).call.arguments
+    assert repr(checked) == repr(case.checked)
+    assert checked != case.proposed
+
+    skipped = not approved and shape != "unique_id"
+    live = [
+        (e.stage, seen[e.explanation or ""], e.execution_id)
+        for e in events
+        if isinstance(e, SentinelEvent)
+        and e.path == "r7_probe"
+        and not (
+            skipped
+            and e.execution_id == moved
+            and e.stage in ("tool_call", "tool_result")
+        )
+    ]
+    # a log written before execution ids skips the call alike
+    for recorded in [events, without_execution_ids(events)] if skipped else [events]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            replay = replay_events(log, recorded)
+        assert [s.stage for s in replay] == [stage for stage, _, _ in live]
+        if not skipped:
+            assert replay_warnings(caplog) == []
+        else:
+            assert replay_warnings(caplog) == [UNRECORDED_CHECK.format(repr(moved_id))]
+        for (stage, step, execution), rebuilt in zip(live, replay):
+            if not approved and stage == "tool_call" and execution == moved:
+                # under a unique id, as on main: rebuilt from the proposal,
+                # which the log cannot tell from the checked call
+                assert isinstance(rebuilt.step, BeforeToolCall)
+                assert rebuilt.step.call.arguments == case.proposed
+                assert_step_equals_live(
+                    (stage, rebuilt.id),
+                    rebuilt,
+                    step,
+                    differences=["tool_call.call", "tool_call.view"],
+                )
+                continue
+            assert_step_equals_live((stage, rebuilt.id), rebuilt, step)
