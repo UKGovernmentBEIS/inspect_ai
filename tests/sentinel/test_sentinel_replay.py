@@ -2558,7 +2558,7 @@ def r14_bridged_scaffold(case: str) -> Agent:
 
     `stripped`, `replaced`, `copied`: the scaffold reports the result with a
     reminder of its own, which a request filter rewrites
-    (`r14_rewrites_results`).
+    (`r14_rewrites_results`); `kept`: without one, which the filter keeps.
     """
 
     async def execute(state: AgentState) -> AgentState:
@@ -2568,10 +2568,12 @@ def r14_bridged_scaffold(case: str) -> Agent:
         from inspect_ai.agent._bridge.sandbox.service import call_tool
         from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 
-        filtered = case in ("stripped", "replaced", "copied")
+        filtered = case in ("stripped", "replaced", "copied", "kept")
         bridge = SandboxAgentBridge(
             state=state,
-            filter=r14_rewrites_results(case) if filtered else None,
+            filter=r14_rewrites_results("stripped" if case == "kept" else case)
+            if filtered
+            else None,
             retry_refusals=None,
             compaction=None,
             port=8080,
@@ -2656,7 +2658,8 @@ def r14_bridged_scaffold(case: str) -> Agent:
             {
                 "role": "tool",
                 "tool_call_id": proposed.id,
-                "content": str(result) + (REMINDER if filtered else ""),
+                "content": str(result)
+                + (REMINDER if filtered and case != "kept" else ""),
             }
         )
         await request()
@@ -2690,7 +2693,7 @@ def r14_run(case: str, sentinel: Any) -> EvalLog:
         model,
         sentinel=[sentinel],
         inferred=None
-        if case in ("stripped", "replaced", "copied")
+        if case in ("stripped", "replaced", "copied", "kept")
         else "two threads in one conversation",
     )
 
@@ -2947,6 +2950,47 @@ def test_a_host_result_a_request_filter_rewrote_is_skipped_with_a_warning(
         # the probe's result check names the run's execution, and is read
         # with its step skipped
         assert list(dict.fromkeys(replay_warnings(caplog))) == [REWRITTEN_WARNING]
+
+
+@pytest.mark.parametrize("rewrite", ["stripped", "replaced", "copied", "kept"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_the_bridge_leaves_a_result_its_request_filter_rewrote_unlinked(
+    rewrite: str,
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # after Ransom's review 5933733456: a rewrite that keeps the start of the
+    # result (`stripped`, as inspect_swe's Kimi Code cleanup strips the
+    # reminders the scaffold appends) leaves nothing in the log to tell it
+    # by, so the bridge, which checked the result before its filter rewrote
+    # it, leaves the run unlinked, and replay builds no tool_result step from
+    # the rewritten message. A filter that keeps the result (`kept`) keeps
+    # the link, and the steps replay as live
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    probed, live = r14_live(rewrite)
+    [result] = [step for stage, _, step in live if stage == "tool_result"]
+    assert result.result.text == "The sum of 1 and 1 is 2." + (
+        "" if rewrite == "kept" else REMINDER
+    )
+    for sentinel in ["inputs_only", "probe"]:
+        log = probed if sentinel == "probe" else r14_run(rewrite, r13_inputs_only())
+        [host] = [e for e in logged_sample(log).events if isinstance(e, ToolEvent)]
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            replay = replayed(log)
+        if rewrite == "kept":
+            assert host.message_id is not None
+            assert replay_warnings(caplog) == []
+            if sentinel == "inputs_only":
+                assert_steps_equal_live(replay, live)
+            continue
+        assert host.message_id is None
+        # without the link and a check, the run is not tied to its proposal
+        assert [(s.stage, s.id) for s in replay if s.stage.startswith("tool")] == (
+            [("tool_call", "host")] if sentinel == "probe" else []
+        )
+        assert list(dict.fromkeys(replay_warnings(caplog))) == [BRIDGE_HOST_WARNING]
 
 
 def r7_tool_calls(*calls: ToolCall) -> ModelOutput:

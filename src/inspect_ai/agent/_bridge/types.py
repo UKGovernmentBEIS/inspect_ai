@@ -432,6 +432,8 @@ class AgentBridge:
         """
         self._unlinked_replies: set[str] = set()
         """Ids of handed replies none of whose executions links (`_unlink`)."""
+        self._filtered_links: dict[str, tuple["ToolEvent", str]] = {}
+        """Per tool message a host execution was linked to while a request filter is set, the execution's event and the message's `content_hash` as linked, until a request's filter has run on it (`_unlink_rewritten_results`)."""
         self._operator_keys: set[str] = set()
         self._warned_request_settings: set[str] = set()
 
@@ -724,6 +726,38 @@ class AgentBridge:
                 ):
                     event.message_id = answer.id
                     transcript()._event_updated(event)
+                    if self.filter is not None and answer.id is not None:
+                        self._filtered_links[answer.id] = (
+                            event,
+                            content_hash(answer),
+                        )
+                        while len(self._filtered_links) > _MAX_AWAITED_RESULTS:
+                            del self._filtered_links[next(iter(self._filtered_links))]
+
+    def _unlink_rewritten_results(self, messages: Sequence[ChatMessage]) -> None:
+        """Unlink the host executions whose result message a request filter rewrote and kept the id of.
+
+        The bridge links a result and checks it as the scaffold sent it, before
+        the request's filter, which can rewrite a message under its id
+        (inspect_swe's Kimi Code adapter strips the reminders the scaffold
+        appends to results). The log then holds only the rewritten message
+        under the id `ToolEvent.message_id` names, which is not the result the
+        bridge checked, so the execution is left unlinked. `messages` are the
+        request's input after its filter ran; each linked result is compared
+        once, in the first request whose filter ran on it.
+        """
+        from inspect_ai.log._transcript import transcript
+
+        for message in messages:
+            if not isinstance(message, ChatMessageTool) or message.id is None:
+                continue
+            linked = self._filtered_links.pop(message.id, None)
+            if linked is None:
+                continue
+            event, content = linked
+            if event.message_id == message.id and content_hash(message) != content:
+                event.message_id = None
+                transcript()._event_updated(event)
 
     def dispatched_call(self, call: ToolCall) -> DispatchedCall | None:
         """The bridged tool call that `call` makes through a dispatcher, if any.

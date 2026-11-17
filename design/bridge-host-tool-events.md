@@ -609,7 +609,12 @@ proposal, and fixing the pairing would mean keeping evicted grants.
   - A run's `tool_result` step is skipped where the log holds several
     contents under the linked message's id, or, for a run without an error,
     a message without the start of the run's result: a request filter
-    rewrote the message after the bridge checked it, keeping its id.
+    rewrote the message after the bridge checked it, keeping its id. A
+    rewrite that keeps that start (inspect_swe's Kimi Code cleanup strips
+    reminders the agent appended) leaves no trace in the log, so the bridge
+    resets `message_id` to `None` where its request filter changes a linked
+    result in the first request whose filter runs on it, and such a run has
+    no `tool_result` step.
   Other host calls, including a shared handout's run under a fresh event
   id, are skipped with a warning.
 - **Hooks, control server, TUI, dataframes.** Pending host events drive the

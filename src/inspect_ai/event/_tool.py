@@ -123,7 +123,10 @@ class ToolEvent(BaseEvent):
     (e.g. the scaffold's client gave up on the call and answered with its
     own timeout); Google names only the result's function and several calls
     of the reply share it; the sample resumed from a checkpoint first; or
-    256 later host calls are tracked before its result arrives.
+    256 later host calls are tracked before its result arrives. It is reset
+    to `None` where the bridge's request filter changes the answer and keeps
+    its id in the first request whose filter runs on it: the bridge checked
+    the answer as the scaffold sent it, which the log then does not hold.
     """
 
     call_message_id: str | None = Field(default=None)
