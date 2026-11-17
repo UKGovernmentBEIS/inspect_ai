@@ -15,6 +15,8 @@ from test_helpers.utils import fail_in_a_group_with_handled_context
 
 from inspect_ai.agent import AgentChannel, AgentInterrupted
 from inspect_ai.agent._channel import Cancel
+from inspect_ai.approval import ApprovalPolicy, Approver, approver
+from inspect_ai.approval._policy import PolicyApprover, policy_approver
 from inspect_ai.event._event import Event
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, init_transcript
@@ -55,6 +57,14 @@ def call(function: str, call_id: str, **arguments: object) -> ToolCall:
 
 def assistant(*calls: ToolCall) -> ChatMessageAssistant:
     return ChatMessageAssistant(content=[], tool_calls=list(calls))
+
+
+def policy_of(approve: Approver) -> PolicyApprover:
+    @approver(name="test_parallel_tools_approver")
+    def registered() -> Approver:
+        return approve
+
+    return policy_approver([ApprovalPolicy(registered(), "*")])
 
 
 # -- tool fixtures ----------------------------------------------------------
@@ -283,7 +293,7 @@ async def test_operator_cancelled_modified_call_records_the_modified_arguments()
         )
 
     proposal = call("cancel_self", "mod-c0", label="original")
-    token = _tool_approver.set(modify)
+    token = _tool_approver.set(policy_of(modify))
     try:
         with anyio.fail_after(5):
             messages, _ = await execute_tools(
@@ -824,7 +834,7 @@ async def test_sibling_cancel_during_approval_records_event_in_transcript():
         call("fast_fail_after_approval_reached", fail_id),
     ]
 
-    token = _tool_approver.set(blocking_approver)
+    token = _tool_approver.set(policy_of(blocking_approver))
     try:
         with pytest.raises(RuntimeError, match="kaboom"):
             with anyio.fail_after(5):
@@ -1293,7 +1303,7 @@ async def test_fail_fast_triggered_by_approval_rejection():
         call("batch_action", "appr-c0", label="L0"),
         call("batch_action", "appr-c1", label="L1"),
     ]
-    token = _tool_approver.set(reject_first)
+    token = _tool_approver.set(policy_of(reject_first))
     try:
         messages, _ = await execute_tools(
             [fail_fast_assistant(*calls)], [ToolDef(batch_action())]

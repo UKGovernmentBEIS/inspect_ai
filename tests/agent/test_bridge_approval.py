@@ -4960,8 +4960,10 @@ async def test_response_filter_replacement_does_not_claim_initial_proposal(
     "edit", ["arguments", "append", "append-duplicate", "parallel-edit"]
 )
 async def test_response_filter_keeps_each_original_call_attribution(edit: str) -> None:
-    """Only unchanged call signatures retain their link and span."""
-    bridge = sandbox_bridge_with_tool(AsyncMock(return_value="contents"), None)
+    """Only unchanged call signatures retain their link and span, which their approvals are recorded in."""
+    bridge = sandbox_bridge_with_tool(
+        AsyncMock(return_value="contents"), [ApprovalPolicy(auto_approver(), "*")]
+    )
     bridge.model_event_sink = StartingStampingSink({"stamp", "open"})
 
     async def change(
@@ -5013,6 +5015,10 @@ async def test_response_filter_keeps_each_original_call_attribution(edit: str) -
         [second] = rest
         assert second.call_message_id is None
         assert second.span_id == outer
+    approvals = [e for e in recorded.events if isinstance(e, ApprovalEvent)]
+    assert sorted((e.call.arguments["path"], e.span_id) for e in approvals) == sorted(
+        (e.arguments["path"], e.span_id) for e in recorded.tool_events
+    )
 
 
 @pytest.mark.parametrize("edit", ["unchanged", "changed_id", "missing_id", "rebuilt"])
