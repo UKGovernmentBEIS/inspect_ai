@@ -6,6 +6,7 @@ from typing import NamedTuple
 
 import anyio
 import pytest
+from test_helpers.limits import find_limit_event, priced_models, with_usage
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
@@ -684,6 +685,80 @@ async def test_reviewer_inference_is_exempt_from_limits() -> None:
     assert tool_message(messages).error is None
     assert tokens.usage == 0
     assert turns.usage == 0
+
+
+@reviewer
+def judging_reviewer() -> Reviewer:
+    """Reviewer which consults the `judge` model role before continuing."""
+
+    async def review_(
+        message: str,
+        call: ToolCall,
+        result: ChatMessageTool,
+        output: ToolResult,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Review:
+        await get_model(role="judge").generate("Should this result stand?")
+        return Review(decision="continue")
+
+    return review_
+
+
+@pytest.mark.parametrize(
+    "answer_tokens,limit_value",
+    [(100, None), (1_500, "$1.6000")],
+    ids=["agent_under_budget", "agent_over_budget"],
+)
+def test_reviewer_inference_is_not_charged_to_the_cost_limit(
+    answer_tokens: int, limit_value: str | None
+) -> None:
+    """A $100 reviewer call under a $1 limit; the agent's own calls stay metered."""
+    agent_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            with_usage(
+                ModelOutput.for_tool_call(
+                    "mockllm/model",
+                    tool_name="addition",
+                    tool_arguments={"x": 1, "y": 1},
+                ),
+                100,
+            ),
+            with_usage(
+                ModelOutput.from_content("mockllm/model", content="2"), answer_tokens
+            ),
+        ],
+        memoize=False,
+    )
+    judge = get_model(
+        "mockllm/judge",
+        custom_outputs=[
+            with_usage(ModelOutput.from_content("mockllm/judge", "yes"), 100_000)
+        ],
+        memoize=False,
+    )
+    with priced_models({"model": 1000.0, "judge": 1000.0}):
+        [log] = eval(
+            review_task([ReviewPolicy(judging_reviewer(), "*")]),
+            model=agent_model,
+            model_roles={"judge": judge},
+            cost_limit=1.0,
+        )
+
+    assert log.status == "success", log.error
+    assert len(log_review_events(log)) == 1
+    assert log.samples
+    sample = log.samples[0]
+    assert sample.model_usage["mockllm/judge"].total_cost == pytest.approx(100.0)
+    assert sample.role_usage["judge"].total_cost == pytest.approx(100.0)
+    if limit_value is None:
+        assert sample.limit is None
+    else:
+        # the agent's answer after review is metered: $0.10 + $1.50, no judge spend
+        event = find_limit_event(log)
+        assert event is not None and event.type == "cost"
+        assert f"value: {limit_value};" in event.message
 
 
 # --- configuration -----------------------------------------------------------

@@ -189,10 +189,9 @@ async def merge_eval_log_shards_async(
             f"task must be the Task the shards ran, not {type(task).__name__}. "
             "Build the task as you passed it to eval() and pass that."
         )
-    location, merged_path, shards_dir = merge_paths(log)
-    given = given_selection(sample_ids, sample_count)
-    check_s3_location(merged_path)
-    check_s3_location(shards_dir)
+    (location, merged_path, shards_dir), given = check_merge_arguments(
+        log, sample_ids, sample_count
+    )
 
     async with AsyncFilesystem() as fs:
         with merge_guard(merged_path):
@@ -257,6 +256,34 @@ def merge_paths(log: str) -> MergePaths:
     merged, shards_dir = _derive_paths(target)
     location = to_uri(merged) if log.startswith("file://") else merged
     return MergePaths(location, merged, shards_dir)
+
+
+class MergeArguments(NamedTuple):
+    """The checked arguments of a merge (see :func:`check_merge_arguments`)."""
+
+    paths: MergePaths
+    """The merged log and its shards directory."""
+
+    given: Selection | None
+    """The selection passed, or ``None``."""
+
+
+def check_merge_arguments(
+    log: str,
+    sample_ids: Sequence[str | int] | None,
+    sample_count: int | None,
+) -> MergeArguments:
+    """Check the arguments of a merge before any I/O.
+
+    Raises:
+        ValueError: An unsupported or recovered-log location, an invalid
+            selection, or an S3 location that S3 would read as another key.
+    """
+    paths = merge_paths(log)
+    given = given_selection(sample_ids, sample_count)
+    check_s3_location(paths.merged)
+    check_s3_location(paths.shards_dir)
+    return MergeArguments(paths, given)
 
 
 def _derive_paths(log: str) -> tuple[str, str]:
@@ -527,7 +554,8 @@ def _incomplete(location: str, status: Status) -> ShardSetIncomplete:
     detail = f" ({'; '.join(parts)})" if parts else ""
     return ShardSetIncomplete(
         f"The shards of {location} are incomplete{detail}. Pass allow_incomplete "
-        "to write an incomplete merged log.",
+        "(--allow-incomplete on the command line) to write an incomplete merged "
+        "log.",
         status=merged_status,
         missing=status.missing,
         running=status.running,

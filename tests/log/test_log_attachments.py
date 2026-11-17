@@ -2,6 +2,8 @@ import dataclasses
 import os
 from collections.abc import Callable
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import Literal
 
 import pytest
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_serializer
@@ -47,7 +49,7 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
-from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
@@ -309,6 +311,117 @@ def test_log_attachments_migration():
 
     # also confirm that we've preserved (now deprecated) transcript
     assert len(log.samples[0].transcript.events) > 0
+
+
+def _model_event_outputs(log: EvalLog) -> list[ModelOutput]:
+    assert log.samples
+    outputs = [
+        event.output
+        for sample in log.samples
+        for event in sample.events
+        if isinstance(event, ModelEvent)
+    ]
+    assert outputs
+    return outputs
+
+
+@pytest.mark.parametrize(
+    "log_name",
+    [
+        "2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval",
+        "2024-11-05T13-31-45-05-00_input-task_8zXjbRzCWrL9GXiXo2vus9.json",
+    ],
+)
+@pytest.mark.parametrize("resolve_attachments", [True, "core"])
+def test_resolve_completion_derived_from_condensed_text(
+    log_name: str, resolve_attachments: bool | Literal["core"], tmp_path: Path
+) -> None:
+    # These logs predate stored completions (0.3.123), so the validator
+    # derives each completion from the condensed message text.
+    log_file = os.path.join("tests", "log", "test_list_logs", log_name)
+    for output in _model_event_outputs(read_eval_log(log_file)):
+        assert output.completion.startswith(ATTACHMENT_PROTOCOL)
+
+    log = read_eval_log(log_file, resolve_attachments=resolve_attachments)
+    completions = [output.completion for output in _model_event_outputs(log)]
+    for output in _model_event_outputs(log):
+        assert not output.completion.startswith(ATTACHMENT_PROTOCOL)
+        assert output.completion == output.message.text
+
+    # rewriting the log stores the text, not the reference
+    rewritten = tmp_path / f"rewritten{Path(log_name).suffix}"
+    write_eval_log(log, rewritten)
+    reread = read_eval_log(rewritten)
+    assert [o.completion for o in _model_event_outputs(reread)] == completions
+
+
+@pytest.mark.parametrize("resolve_attachments", [True, "core"])
+def test_resolve_keeps_stored_completion_with_literal_ref(
+    resolve_attachments: bool | Literal["core"],
+) -> None:
+    reply = "model reply " + ("x" * 200)
+    prompt = "system prompt " + ("y" * 200)
+    reply_hash, prompt_hash = mm3_hash(reply), mm3_hash(prompt)
+    literal = f"{ATTACHMENT_PROTOCOL}{prompt_hash}"
+    event = ModelEvent(
+        model="test-model",
+        input=[ChatMessageUser(content="hello")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(
+            model="test-model",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        content=f"{ATTACHMENT_PROTOCOL}{reply_hash}"
+                    )
+                )
+            ],
+            completion=literal,
+        ),
+    )
+    sample = EvalSample(
+        id="sample",
+        epoch=1,
+        input="input",
+        target="target",
+        events=[event],
+        attachments={reply_hash: reply, prompt_hash: prompt},
+    )
+
+    resolved = resolve_sample_attachments(sample, resolve_attachments)
+
+    [resolved_event] = resolved.events
+    assert isinstance(resolved_event, ModelEvent)
+    assert resolved_event.output.message.text == reply
+    assert resolved_event.output.completion == literal
+
+
+def test_condense_leaves_completion_inline() -> None:
+    reply = "model reply " + ("x" * 200)
+    sample = EvalSample(
+        id="sample",
+        epoch=1,
+        input="input",
+        target="target",
+        events=[
+            ModelEvent(
+                model="test-model",
+                input=[ChatMessageUser(content="hello")],
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput.from_content("test-model", reply),
+            )
+        ],
+    )
+
+    [event] = condense_sample(sample).events
+
+    assert isinstance(event, ModelEvent)
+    assert event.output.message.text.startswith(ATTACHMENT_PROTOCOL)
+    assert event.output.completion == reply
 
 
 def test_retry_event_attachments_round_trip() -> None:
