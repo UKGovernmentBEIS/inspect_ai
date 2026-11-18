@@ -497,7 +497,9 @@ def _counted(node: Limit) -> bool:
   still count its refusal at 10. Usage never decreases (token metering is
   non-decreasing, cost and turns only add), so a refusal at a budget above
   the current one already means usage exceeds it, and the greatest refused
-  budget is the only one equality can depend on. A
+  budget is the only one equality can depend on. The one place a counter
+  goes down is a checkpoint restore, which assigns a root's counter and
+  clears that root's mark ("Checkpoints"). A
   node whose limit is `None` is never reached by count, so the mark does not
   matter for it (an inspect_swarm lever raises on its own state).
 - The top-level generation records, then checks, once. The inner generation
@@ -959,9 +961,9 @@ $0.50, after which the limit allows another $0.50. A limit error that is
 not caught still ends the sample. Spend stays bounded: work before the
 restore is refused once it reaches the limit, and work after it is refused
 again once the restored value reaches it, so a resume can spend about one
-extra budget at worst (decision: Ransom, 2026-11-18). The restore leaves a
-root's `_raised_at` mark in place, and it counts at the exit check only if
-usage reaches that budget again. Model work before the restore is not
+extra budget at worst (decision: Ransom, 2026-11-18). The restore also
+clears the root's `_raised_at` mark ("Checkpoints"), so a refusal before
+the restore is part of the same loss. Model work before the restore is not
 refused: solvers before the agent run again on every resume, so refusing
 them would fail ordinary resumes.
 
@@ -1040,6 +1042,19 @@ and clears and refills the sample's model and role usage, as today
 checkpointer entry that fails part-way and is entered again sets the same
 values. Work the attempt charged before the restore is overwritten; what
 that loses is under "Limits swallowed before a checkpoint restore".
+
+The restore also sets `_raised_at = None` on each root whose counter it
+assigns, before its checks run. The mark keeps the greatest budget at which
+the node raised, which is right only while usage never decreases ("Recording
+and checking"); an assigned counter can be lower than the usage
+the mark was set against. Without the reset, a root refused at 20 before
+the restore, lowered to 10 (before the restore or in `on_resume` after
+it) and restored to 0 would keep a mark of 20: a fresh refusal after it
+consumed 10 would not count at the exit check, since `_refused_at_budget()`
+compares the mark with the budget of 10. After the reset, the mark again
+records only refusals at or after the restored usage, and the
+greatest-budget rule holds from there. A root the payload does not assign
+(its key is missing) keeps its counter and its mark.
 
 The roots of a resumed attempt carry no `_raised_at` mark from the
 previous attempt, so the exit check's handling of a limit reached exactly
@@ -1217,7 +1232,8 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    all (rule 5).
 
 Guarantees 2 and 4 rest on node state, which lives for one attempt. A
-checkpoint resume restores usage but not the `_raised_at` mark, so a refusal at
+checkpoint resume restores usage but not the `_raised_at` mark (it clears
+a mark set earlier in the attempt), so a refusal at
 exactly the budget from before the checkpoint is not carried into the
 resumed attempt ("Checkpoints").
 
@@ -1756,7 +1772,8 @@ documented. Behaviour changes:
   weighted sums such as `(input * 0.1) + output` are unchanged.
 - **Private internals.** `_encloses()`, `_sample_roots()` and `_in_tree()`
   are removed. `_TurnLimit._check_self()` gains a parameter. Chain nodes gain
-  `_outer`, `_in_chain` and `_raised_at`. `record_turn()` no longer checks. inspect_swarm is the only known user of
+  `_outer`, `_in_chain` and `_raised_at`; `restore_sample_runtime()` clears
+  `_raised_at` on the roots it assigns. `record_turn()` no longer checks. inspect_swarm is the only known user of
   these classes (above).
 - **Persisted data and the viewer.** The checkpoint sample-runtime payload
   is unchanged and does not store the `_raised_at` mark, so a resumed sample
@@ -1936,7 +1953,17 @@ under trio with `--runtrio`.
   dispatch; after a scoring-only restore of spent token, cost and turn
   roots, `as_solver(react(...))` returns normally with no model call and
   the sample is scored and not recorded as limited (the no-call control),
-  on asyncio and Trio.
+  on asyncio and Trio;
+  - the restore clears the mark, for token, cost and turn roots each, on
+    asyncio and Trio: a root refused at 20 by a sample-start hook (error
+    caught), lowered to 10 and restored to 0 has `_raised_at` cleared;
+    a call that then reaches exactly 10 followed by a refused call, with
+    the solver returning, records the sample as limited by that root; the
+    same with the budget lowered in `on_resume` after the restore; without
+    the refused call (exactly 10 used) the sample is not recorded as
+    limited; a control with the budget left at 20 and a fresh refusal at
+    20 after the restore is recorded as limited; a payload without the
+    root's key leaves its mark in place.
 - `tests/util/test_limit.py`, sentinel: a stub in-process monitor whose
   priced model call would exceed a reached sample cost limit is made and
   not charged to it.
@@ -2033,6 +2060,9 @@ Each step is one PR, in this order. Each keeps the suite green.
    setter or override-store change), `record_turn` recording only,
    the affine grammar and non-negative weights in `_compile_token_formula()`,
    with metering from the reduced coefficients.
+   `src/inspect_ai/util/_checkpoint/sample_runtime.py`:
+   `restore_sample_runtime()` sets `_raised_at = None` on each root whose
+   counter it assigns (no payload change).
    `src/inspect_ai/model/_model.py`: `record_and_check_model_usage(check=)`,
    the inner generation recording without a check, the outer frame's
    `record_turn()` then `check_limits()`, the same order in
@@ -2040,7 +2070,9 @@ Each step is one PR, in this order. Each keeps the suite green.
    `_check_limits_before_dispatch`.
    Tests: the node-level cases in `tests/util/test_limit*.py` (chain,
    precedence, recording, pre-dispatch refusal, `_raised_at` and
-   `_refused_at_budget()` across setters and overrides).
+   `_refused_at_budget()` across setters and overrides), and in
+   `tests/checkpoint/test_sample_runtime.py` that a restore clears the mark
+   of each root it assigns.
 2. **Unpriced models.** `_limit.py`: `UnmeteredCallError`. `_model.py`:
    the unpriced check in `_check_limits_before_dispatch(model)` and the
    model passed by `generate()`'s and compaction's per-attempt calls;
@@ -2071,8 +2103,8 @@ Each step is one PR, in this order. Each keeps the suite green.
    `tests/test_eval.py`, `tests/agent/test_agent_overflow_compaction.py`,
    the live-override sample outcomes in `tests/_control/test_limits.py`,
    and the restore and scoring-resume outcomes in
-   `tests/checkpoint/test_sample_runtime.py` (the checkpoint code is
-   unchanged).
+   `tests/checkpoint/test_sample_runtime.py` (the checkpoint change is in
+   step 1).
 5. **Ownership in tools.** `_call_tools.py`: the call leaf and ownership test
    in `call_tool_task`, and the same test in `agent_handoff()`'s `except`.
    `src/inspect_ai/agent/_bridge/sandbox/host_tool.py`: `_raised` ownership,
