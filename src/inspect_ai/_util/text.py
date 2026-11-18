@@ -3,6 +3,7 @@ import random
 import re
 import string
 import textwrap
+import unicodedata
 from logging import getLogger
 from typing import List, NamedTuple
 
@@ -33,6 +34,18 @@ def strip_punctuation(s: str) -> str:
     return s.strip(string.whitespace + string.punctuation)
 
 
+_SUBUNIT_SYMBOLS = frozenset("¢￠₥₰")
+"""Currency symbols that are not value-preserving: 50¢ is 0.50, not 50."""
+
+
+def _is_currency_symbol(ch: str) -> bool:
+    """Is this character a currency symbol that labels a value without changing it?
+
+    Every ``Sc`` character except the sub-unit signs, which divide by 100 or 1000.
+    """
+    return unicodedata.category(ch) == "Sc" and ch not in _SUBUNIT_SYMBOLS
+
+
 def strip_numeric_punctuation(s: str) -> str:
     # un-escape LaTeX-escaped currency/formatting symbols (e.g. "\$20" -> "$20").
     # Models frequently escape these inside LaTeX math mode, since a bare "$"
@@ -42,9 +55,13 @@ def strip_numeric_punctuation(s: str) -> str:
     # token by callers such as match(numeric=True).
     s = re.sub(r"\\([$,£,€*_])", r"\1", s)
 
-    # strip $, €, £, and ,
-    # *,_ to string formatting characters sometimes added by LLMs
-    stripped = re.sub(r"[$,£,€,*,_]", "", s)
+    # strip every currency symbol, the thousands separator "," and the
+    # *,_ formatting characters sometimes added by LLMs. Listing only $, € and
+    # £ left ¥1234 unparseable, so it neither matched a target of 1234 nor
+    # unmasked the number before it under location="end".
+    stripped = "".join(
+        ch for ch in s if ch not in ",*_" and not _is_currency_symbol(ch)
+    )
 
     # strip . if it's followed by a space, the end of the string,
     # or a non-digit character

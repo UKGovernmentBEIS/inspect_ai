@@ -43,6 +43,20 @@ from inspect_ai._util.text import strip_numeric_punctuation
         ("\\€20", "20"),
         ("\\*20\\*", "20"),
         ("\\_20\\_", "20"),
+        # Every currency symbol is a value-preserving label, not only $, € and £.
+        # ¥1234 used to stay unparseable: it did not match a target of 1234, and
+        # under location="end" the scorer fell back to an earlier number in the
+        # text, so a wrong answer could score CORRECT (#6572).
+        ("¥1234", "1234"),
+        ("￥1234", "1234"),
+        ("₹1234.50", "1234.50"),
+        ("₩1234", "1234"),
+        ("₽1234", "1234"),
+        # The sub-unit signs do change the value (50¢ is 0.50), so they stay.
+        ("50¢", "50¢"),
+        ("50￠", "50￠"),
+        ("50₥", "50₥"),
+        ("50₰", "50₰"),
     ],
 )
 def test_strip_numeric_punctuation(input_str: str, expected: str) -> None:
