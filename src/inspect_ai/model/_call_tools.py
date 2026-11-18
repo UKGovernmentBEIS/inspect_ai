@@ -4,7 +4,7 @@ import string
 import types
 import typing
 from collections.abc import Collection
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from contextvars import ContextVar
 from copy import copy, deepcopy
 from dataclasses import dataclass, is_dataclass, replace
@@ -86,8 +86,10 @@ from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._json import dataclass_fields
 from inspect_ai.util._limit import LimitExceededError, apply_limits
-from inspect_ai.util._sandbox.environment import SandboxUnavailableError
-from inspect_ai.util._sandbox.events import SandboxTimeoutError
+from inspect_ai.util._sandbox.environment import (
+    SandboxTimeoutError,
+    SandboxUnavailableError,
+)
 from inspect_ai.util._sandbox.service import CONTROL_FLOW_EXCEPTIONS
 from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
@@ -238,10 +240,16 @@ async def execute_tools(
 
     approval_cm = approval_context(approval) if approval else nullcontext()
     review_cm = review_context(review) if review else nullcontext()
+    if checks_tool_calls():
+        from inspect_ai._sentinel._dispatch import tool_turn
+
+        turn_cm: AbstractContextManager[None] = tool_turn(messages)
+    else:
+        turn_cm = nullcontext()
     watch = _handoff_watch.get()
     token = _handoff_watch.set(None)
     try:
-        with approval_cm, review_cm:
+        with approval_cm, review_cm, turn_cm:
             return await _execute_tools_impl(messages, tools, max_output, watch)
     finally:
         _handoff_watch.reset(token)

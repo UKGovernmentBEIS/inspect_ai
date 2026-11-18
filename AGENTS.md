@@ -302,7 +302,7 @@ The title starts with a Conventional Commits type (enforced by the PR Title Lint
 
 Before opening a non-trivial PR, run at least one code review pass in a fresh context — a reviewer that hasn't seen the authoring conversation (e.g. `/code-review` or a subagent) — using a strong (frontier-class) model; in our experience reviews from small fast-tier models rarely surface real issues. Fix or explicitly dismiss each finding before opening, and disclose the pass in the `### Agent review` section.
 
-When asked to open a PR, don't stop at creation — monitor it afterward: watch its CI checks (e.g. `gh pr checks <number> --repo <owner>/<repo> --watch`) until they complete, report the outcome, and investigate/fix any failures. If the branch has fallen behind its base (out of date), update it — merge or rebase the base branch in and push — so CI runs against current code.
+When asked to open a PR, don't stop at creation — monitor it afterward: watch its CI checks (e.g. `gh pr checks <number> --repo <owner>/<repo> --watch`) until they complete, report the outcome, and investigate/fix any failures. `main` does not require PR branches to be up to date before merging. Don't merge or rebase `main` into a branch only because it is behind: each push reruns CI and can dismiss an existing approval. Merge it in to resolve a conflict, or when the branch needs a change from `main` (for example a CI fix, or before regenerating the schema; see the land-ts-mono skill).
 
 Don't edit `CHANGELOG.md`; the Changelog Lint check (`no-changelog-edits`) fails any PR that does, except the release PR. Release Please writes the changelog and the GitHub Release notes at release time from the squash-merged PR titles: `feat`, `fix`, `perf` and `revert` titles become entries, and other types are left out. The PR title is therefore the changelog line, so keep it short (~25 words), state the user-visible behavior change, and leave out internal names and issue numbers (Release Please links the PR). The squash commit's message is the PR description, which Release Please also reads:
 
@@ -317,14 +317,12 @@ Never change a submodule gitlink (e.g. `src/inspect_ai/_view/ts-mono`) unless th
 Please open upstream PRs from a personal fork rather than an organization
 fork, and leave "Allow edits by maintainers" enabled when creating the PR
 (it's on by default in the GitHub UI and `gh pr create`). That setting gives
-upstream maintainers push access to the PR branch, and they need it: upstream
-`main` requires PR branches to be up to date before merging, so every push to
-`main` blocks open PRs until their branches are updated. With maintainer
-edits enabled, a maintainer can update the branch (or push small fixes) and
-merge on their own schedule. GitHub does not support maintainer edits on
-organization-owned forks, so a PR from an org fork can only be kept mergeable
-by its author — it will sit approved but unmergeable whenever `main` moves
-until the author syncs the branch again.
+upstream maintainers push access to the PR branch, so a maintainer can
+resolve a merge conflict (for example after `main` bumps the ts-mono gitlink)
+or push a small fix without waiting for the author. GitHub does not support
+maintainer edits on organization-owned forks, so only people with push access
+to the fork can change a PR from it. If it conflicts with `main`, it sits
+unmergeable until one of them resolves the conflict.
 
 If you must open from an org fork, the following applies.
 

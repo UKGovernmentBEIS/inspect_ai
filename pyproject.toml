@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 # tagless shallow clone. Without it the project builds as 0.1.devN, below the
 # inspect-ai floor of dev dependencies like inspect-scout, and `uv lock` fails.
 # Release Please updates it with each release.
-fallback_version = "0.3.290"
+fallback_version = "0.3.291"
 git_describe_command = [
   'git',
   'describe',
@@ -236,7 +236,7 @@ dev = [
   "groq>=0.28.0",
   "huggingface_hub>=1.6.0",
   "inspect-scout>=0.5.5",
-  "inspect-sentinel>=0.3.1",
+  "inspect-sentinel>=0.3.2",
   "ipython",
   "jsonpath-ng",
   "latex2sympy2-extended==1.11.0",

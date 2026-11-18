@@ -111,6 +111,7 @@ STEP_DIGEST_FIELDS = frozenset(
         "input",
         "tools",
         "tool_choice",
+        "assistant_message",
     }
 )
 STEP_DIGEST_EXCLUDED = {
@@ -130,17 +131,25 @@ class Produced:
     """The generation that produced a bridged call, and the agent span it ran in."""
 
     event: "ModelEvent"
-    """What the model was sent (`input`, `tools`, `tool_choice`)."""
+    """What the model was sent (`input`, `tools`, `tool_choice`) and returned."""
 
     agent_span_id: str | None
     """The agent span current during the generation: the call's conversation."""
+
+    handed: ChatMessageAssistant | None = None
+    """The generation's message as the bridge handed it, when the bridge gave calls fresh ids (`_fresh_call_ids`); otherwise `None`, as the handed calls are the event's."""
+
+    @property
+    def message(self) -> ChatMessageAssistant:
+        """The step's `assistant_message`: the message with the call ids the scaffold was handed, so it holds the step's call and its id is the step's `message_id`."""
+        return self.handed if self.handed is not None else self.event.output.message
 
     def scope(self) -> AbstractContextManager[None]:
         return in_agent_span(self.agent_span_id)
 
     @cached_property
     def digest(self) -> str:
-        """The digest of what a step reads of the generation (`input`, `tools`, `tool_choice`).
+        """The digest of what a step reads of the generation (`input`, `tools`, `tool_choice`, `assistant_message`).
 
         Computed once, so the steps of every result of its calls cost nothing
         in the length of its input.
@@ -149,12 +158,13 @@ class Produced:
             _serialized(self.event.input),
             _serialized(self.event.tools),
             _serialized(self.event.tool_choice),
+            _serialized(self.message),
         )
 
 
 class SentinelCheck(NamedTuple):
     call: ToolCall
-    """The call the steps show (the model's id; a dispatched call's target)."""
+    """The call the steps show (its id as handed over, which is fresh where the model's named another call; a dispatched call's target)."""
 
     viewer: ToolCallViewer | None
     message: str
@@ -996,8 +1006,8 @@ class _Steps:
     check builds them: the conversation, the assistant message's text and
     id, the call, its view (as its viewer renders it, rejecting a viewer
     error where the check does; the check is given that view), the
-    generation's input, tools and tool choice (`Produced.digest`), and the
-    result. The result is all of its fields but its `id`, which the bridge
+    generation's input, tools, tool choice and message (`Produced.digest`),
+    and the result. The result is all of its fields but its `id`, which the bridge
     gives each parsed message afresh. The fields left out are those of
     `STEP_DIGEST_EXCLUDED`. A value that can't be encoded gives a digest no
     other step has. For a check with no proposal's context the digest covers
@@ -1530,6 +1540,7 @@ async def sentinel_tool_call(
                 viewer,
                 history=None,
                 producer=producer.event if producer is not None else None,
+                assistant_message=producer.message if producer is not None else None,
                 bridge=True,
                 execution_id=execution_id,
             ),
@@ -1601,6 +1612,9 @@ async def _tool_result(
                     check.viewer,
                     history=None,
                     producer=producer.event if producer is not None else None,
+                    assistant_message=producer.message
+                    if producer is not None
+                    else None,
                     reject_on_viewer_error=reject_on_viewer_error,
                     bridge=True,
                     # a copy, as the call's

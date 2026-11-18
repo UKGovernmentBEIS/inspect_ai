@@ -5,7 +5,7 @@ import re
 import threading
 from collections import Counter
 from collections.abc import Awaitable, Callable, Iterable, Iterator, Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
@@ -2349,6 +2349,9 @@ def test_a_call_with_no_assistant_message_has_no_input() -> None:
 
 
 def indexed_model_event(input: str, role: str | None = None) -> ModelEvent:
+    """A model call, sent `input`, that made `addition_call()`."""
+    output = ModelOutput.from_content("mockllm/model", content=input)
+    output.message.tool_calls = [addition_call()]
     return ModelEvent(
         model="mockllm/model",
         role=role,
@@ -2356,13 +2359,12 @@ def indexed_model_event(input: str, role: str | None = None) -> ModelEvent:
         tools=[],
         tool_choice="auto",
         config=GenerateConfig(),
-        output=ModelOutput.from_content("mockllm/model", content=input),
+        output=output,
     )
 
 
 def produced_by(event: ModelEvent) -> list[ChatMessage]:
-    message = event.output.choices[0].message
-    return [*event.input, message.model_copy(update={"tool_calls": [addition_call()]})]
+    return [*event.input, event.output.message.model_copy()]
 
 
 class CountingHistoryProvider(FakeTranscriptHistoryProvider):
@@ -2477,47 +2479,93 @@ def test_model_input_skips_a_pending_model_event() -> None:
     assert _producing_event(addition_call(), produced_by(pending)) is None
 
 
-def test_model_input_is_exact_from_the_bounded_sample_buffer(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+class ProviderReads(NamedTuple):
+    pages: list[int]
+    """The start of each page read from the sample buffer."""
+
+    events: list[int]
+    """The number of events in each page."""
+
+
+def count_provider_reads(monkeypatch: pytest.MonkeyPatch) -> ProviderReads:
+    """Run evals with a bounded transcript of 3 resident events, counting the pages and events read back from the sample buffer."""
     import inspect_ai._eval.task.run as task_run
     from inspect_ai.log._recorders.buffer import transcript_history_provider
 
     monkeypatch.setenv("INSPECT_TRANSCRIPT_BOUNDED", "true")
     monkeypatch.setattr(task_run, "DEFAULT_RESIDENT_TAIL", 3)
-    provider_reads: list[int] = []
+    reads = ProviderReads([], [])
     events_from = (
         transcript_history_provider.BufferTranscriptHistoryProvider.events_from
     )
 
     def counted(self: Any, start: int, limit: int | None = None) -> Sequence[Event]:
-        provider_reads.append(start)
-        return events_from(self, start, limit)
+        events = events_from(self, start, limit)
+        reads.pages.append(start)
+        reads.events.append(len(events))
+        return events
 
     monkeypatch.setattr(
         transcript_history_provider.BufferTranscriptHistoryProvider,
         "events_from",
         counted,
     )
+    return reads
+
+
+@monitor
+def d3_logs_after_generate() -> Monitor:
+    """Logs events after each model call, so a transcript bounded to 3 resident events has evicted the call when its tool turn starts."""
+
+    async def check(context: Context, step: AfterGenerate) -> Observation | None:
+        for _ in range(3):
+            transcript().info("after generate")
+        return None
+
+    return check
+
+
+def tool_stage_monitors(stages: str, before: Seen, after: list[AfterToolCall]) -> Any:
+    """Monitors recording tool steps: `both` stages, results only (`after`), or both with each model call `evicted` before its tool turn starts."""
+    monitors: list[Any] = [d3_recording_after(after)]
+    if stages != "after":
+        monitors.insert(0, d3_recording(before))
+    if stages == "evicted":
+        monitors.append(d3_logs_after_generate())
+    return monitors
+
+
+@pytest.mark.parametrize("stages", ["both", "after", "evicted"])
+def test_model_input_is_exact_from_the_bounded_sample_buffer(
+    stages: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A turn's producer is found when the turn starts: read back from the buffer if its model call was `evicted` by then, and otherwise never read back, though the call leaves memory while the turn's steps run."""
+    reads = count_provider_reads(monkeypatch)
     before: Seen = []
     after: list[AfterToolCall] = []
     log = run(
-        [d3_recording(before), d3_recording_after(after)],
+        tool_stage_monitors(stages, before, after),
         turns=5,
         log_dir=str(tmp_path),
     )
     assert log.status == "success", log.error
     assert log.samples
     model_events = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
-    assert len(before) == len(after) == 5
-    for (_, step), after_step, event in zip(before, after, model_events, strict=False):
-        expected = [m.model_dump() for m in event.input]
-        assert step.input is not None and after_step.input is not None
-        assert [m.model_dump() for m in step.input] == expected
-        assert [m.model_dump() for m in after_step.input] == expected
-        tools = producer_tools(log, step.call.id)
-        assert step.tools == after_step.tools == tools
-    assert provider_reads
+    assert len(after) == 5
+    steps: list[BeforeToolCall | AfterToolCall] = [step for _, step in before]
+    steps.extend(after)
+    for step in steps:
+        [event] = [
+            e
+            for e in model_events
+            if step.call.id in {c.id for c in e.output.message.tool_calls or []}
+        ]
+        assert step.input is not None
+        assert [m.model_dump() for m in step.input] == [
+            m.model_dump() for m in event.input
+        ]
+        assert step.tools == producer_tools(log, step.call.id)
+    assert bool(reads.pages) == (stages == "evicted")
 
 
 @tool
@@ -2563,6 +2611,489 @@ def test_tools_from_an_evicted_model_call_are_resolved(
         assert len(info.description) > 100
         assert "attachment://" not in info.description
         assert step.tools == producer_tools(log, step.call.id)
+
+
+@pytest.mark.parametrize("stages", ["both", "after"])
+def test_a_turn_s_tool_steps_share_its_model_call_after_it_is_evicted(
+    stages: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A turn's tool steps share one producer when its model call is evicted after the first step (`both`) or before it (`after`): it was found when the turn started, so it is not read back."""
+    from inspect_ai._sentinel._steps import producing_message_id
+
+    reads = count_provider_reads(monkeypatch)
+    evicted: list[bool] = []
+
+    @monitor
+    def residence() -> Monitor:
+        async def check(context: Context, step: AfterToolCall) -> Observation | None:
+            evicted.append(
+                not any(
+                    producing_message_id(event) == step.message_id
+                    for event in transcript().history.resident_events
+                )
+            )
+            return None
+
+        return check
+
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            calls_output(8, "c"),
+            ModelOutput.from_content("mockllm/model", "done"),
+        ],
+        memoize=False,
+    )
+    before: Seen = []
+    after: list[AfterToolCall] = []
+    task = Task(
+        dataset=[Sample(input="Add.")],
+        solver=[use_tools(addition()), generate()],
+        sentinel=[d3_recording(before), d3_recording_after(after), residence()]
+        if stages == "both"
+        else [d3_recording_after(after), residence()],
+    )
+    log = eval(task, model=model, log_dir=str(tmp_path))[0]
+    assert log.status == "success", log.error
+    # the producing model call left memory while the turn's steps ran
+    assert any(evicted)
+    assert not reads.pages
+    steps: list[BeforeToolCall | AfterToolCall] = [step for _, step in before]
+    steps.extend(after)
+    assert len(steps) == (16 if stages == "both" else 8)
+    assert_share_one_producer(steps, [f"c{i}" for i in range(8)])
+
+
+def calls_output(count: int, prefix: str, model: str = "mockllm/model") -> ModelOutput:
+    """A model output that calls `addition` `count` times, with call ids `<prefix>0`, `<prefix>1`, ..."""
+    return ModelOutput(
+        model=model,
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(
+                            id=f"{prefix}{i}",
+                            function="addition",
+                            arguments={"x": i, "y": 1},
+                        )
+                        for i in range(count)
+                    ],
+                    model=model,
+                ),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+
+
+def assert_share_one_producer(
+    steps: Sequence[BeforeToolCall | AfterToolCall], call_ids: list[str]
+) -> None:
+    """The steps all hold the same producer objects, and its message holds `call_ids`."""
+    first = steps[0]
+    assert first.assistant_message is not None
+    assert first.input is not None and first.tools is not None
+    assert [call.id for call in first.assistant_message.tool_calls or []] == call_ids
+    for step in steps:
+        assert step.assistant_message is first.assistant_message
+        assert step.input is not None and step.tools is not None
+        assert all(a is b for a, b in zip(step.input, first.input, strict=True))
+        assert all(a is b for a, b in zip(step.tools, first.tools, strict=True))
+
+
+def test_a_turn_s_tool_steps_share_its_model_call_across_nested_turns(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A tool that runs its own turn (`generate()` and `execute_tools()`) in the same conversation doesn't change the producer the outer turn's later steps get."""
+    count_provider_reads(monkeypatch)
+    inner = get_model(
+        "mockllm/inner",
+        custom_outputs=[
+            calls_output(1, f"inner{i}_", "mockllm/inner") for i in range(8)
+        ],
+        memoize=False,
+    )
+
+    @tool(parallel=False)
+    def nested() -> Tool:
+        async def execute(x: int) -> str:
+            """Ask an inner model to add.
+
+            Args:
+                x: A number.
+            """
+            messages: list[ChatMessage] = [ChatMessageUser(content=f"Add {x}.")]
+            output = await inner.generate(messages, tools=[addition()])
+            messages.append(output.message)
+            result = await execute_tools(messages, [addition()])
+            return result.messages[0].text
+
+        return execute
+
+    outer = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(id=f"outer{i}", function="nested", arguments={"x": i})
+                        for i in range(8)
+                    ],
+                    model="mockllm/model",
+                ),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[outer, ModelOutput.from_content("mockllm/model", "done")],
+        memoize=False,
+    )
+    before: Seen = []
+    after: list[AfterToolCall] = []
+    task = Task(
+        dataset=[Sample(input="Add.")],
+        solver=[use_tools(nested()), generate()],
+        sentinel=[d3_recording(before), d3_recording_after(after)],
+    )
+    log = eval(task, model=model, log_dir=str(tmp_path))[0]
+    assert log.status == "success", log.error
+    steps: list[BeforeToolCall | AfterToolCall] = [step for _, step in before]
+    steps.extend(after)
+    assert len(steps) == 32
+    assert len({step.conversation for step in steps}) == 1
+    outer_steps = [step for step in steps if step.call.id.startswith("outer")]
+    assert_share_one_producer(outer_steps, [f"outer{i}" for i in range(8)])
+    for i in range(8):
+        inner_steps = [step for step in steps if step.call.id == f"inner{i}_0"]
+        assert len(inner_steps) == 2
+        assert_share_one_producer(inner_steps, [f"inner{i}_0"])
+
+
+@pytest.mark.parametrize("end", ["cancelled", "raised"])
+async def test_a_tool_turn_ends_when_it_is_cancelled_or_raises_and_restores_the_outer_turn(
+    end: str,
+) -> None:
+    from inspect_ai._sentinel._dispatch import _tool_turn, tool_turn
+
+    init_transcript(Transcript())
+    with tool_turn([]):
+        outer = _tool_turn.get()
+        assert outer is not None
+        with (
+            anyio.move_on_after(0),
+            pytest.raises(ValueError) if end == "raised" else nullcontext(),
+        ):
+            with tool_turn([]):
+                assert _tool_turn.get() is not None and _tool_turn.get() is not outer
+                if end == "raised":
+                    raise ValueError("tool failed")
+                await anyio.sleep_forever()
+        assert _tool_turn.get() is outer
+    assert _tool_turn.get() is None
+
+
+@pytest.mark.parametrize("stages", ["both", "after"])
+def test_a_turn_s_tool_steps_get_its_producer_not_a_later_model_call_with_its_message_id(
+    stages: str, tmp_path: Path
+) -> None:
+    """A model call a tool makes during the turn that produces the turn's message id (here, the same output again) did not produce the turn's calls, so no step gets it, also when the first step runs after it (a sentinel that watches only results)."""
+    output = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(id="c0", function="regenerate", arguments={}),
+                        ToolCall(
+                            id="c1", function="addition", arguments={"x": 1, "y": 2}
+                        ),
+                    ],
+                    model="mockllm/model",
+                ),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+
+    @tool(parallel=False)
+    def regenerate() -> Tool:
+        async def execute() -> str:
+            """Ask the model again."""
+            again = get_model("mockllm/model", custom_outputs=[output], memoize=False)
+            await again.generate("Again.")
+            return "ok"
+
+        return execute
+
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[output, ModelOutput.from_content("mockllm/model", "done")],
+        memoize=False,
+    )
+    before: Seen = []
+    after: list[AfterToolCall] = []
+    task = Task(
+        dataset=[Sample(input="Add.")],
+        solver=[use_tools(regenerate(), addition()), generate()],
+        sentinel=[d3_recording(before), d3_recording_after(after)]
+        if stages == "both"
+        else d3_recording_after(after),
+    )
+    log = eval(task, model=model, log_dir=str(tmp_path))[0]
+    assert log.status == "success", log.error
+    steps: list[BeforeToolCall | AfterToolCall] = [step for _, step in before]
+    steps.extend(after)
+    assert len(steps) == (4 if stages == "both" else 2)
+    for step in steps:
+        assert step.input is not None
+        assert step.input[0].text == "Add."
+
+
+@pytest.mark.parametrize("stages", ["both", "after"])
+@pytest.mark.parametrize("inner", ["appended", "run"])
+def test_a_turn_s_tool_steps_get_its_producer_not_a_message_a_tool_adds_with_a_reused_call_id(
+    inner: str, stages: str, tmp_path: Path
+) -> None:
+    """A tool that adds another model's message to the turn's history, holding a call with the id of one of the turn's calls, doesn't change the producer the turn's steps get, also when it runs that message's calls in its own turn."""
+
+    def message_output(message_id: str, calls: list[ToolCall]) -> ModelOutput:
+        return ModelOutput(
+            model="mockllm/model",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        id=message_id, content=message_id, tool_calls=calls
+                    ),
+                    stop_reason="tool_calls",
+                )
+            ],
+        )
+
+    states: list[TaskState] = []
+
+    @tool(parallel=False)
+    def append_turn() -> Tool:
+        async def execute() -> str:
+            """Add an inner model's message to the conversation."""
+            inner_model = get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    message_output(
+                        "inner-message",
+                        [
+                            ToolCall(
+                                id="c1",
+                                function="addition",
+                                arguments={"x": 10, "y": 20},
+                            )
+                        ],
+                    )
+                ],
+                memoize=False,
+            )
+            returned = await inner_model.generate(
+                "Inner input", tools=[addition()], tool_choice="any"
+            )
+            state = states[0]
+            state.messages.append(returned.message)
+            if inner == "run":
+                result = await execute_tools(state.messages, [addition()])
+                state.messages.extend(result.messages)
+            return "ok"
+
+        return execute
+
+    @solver
+    def turn() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            states.append(state)
+            outer = message_output(
+                "outer-message",
+                [
+                    ToolCall(id="c0", function="append_turn", arguments={}),
+                    ToolCall(id="c1", function="addition", arguments={"x": 1, "y": 2}),
+                ],
+            )
+            model = get_model("mockllm/model", custom_outputs=[outer], memoize=False)
+            tools = [append_turn(), addition()]
+            returned = await model.generate(state.messages, tools=tools)
+            state.messages.append(returned.message)
+            result = await execute_tools(state.messages, tools)
+            state.messages.extend(result.messages)
+            return state
+
+        return solve
+
+    before: Seen = []
+    after: list[AfterToolCall] = []
+    task = Task(
+        dataset=[Sample(input="Outer input")],
+        solver=turn(),
+        sentinel=[d3_recording(before), d3_recording_after(after)]
+        if stages == "both"
+        else d3_recording_after(after),
+    )
+    log = eval(task, model="mockllm/model", log_dir=str(tmp_path))[0]
+    assert log.status == "success", log.error
+    steps: list[BeforeToolCall | AfterToolCall] = [step for _, step in before]
+    steps.extend(after)
+    outer_steps = [step for step in steps if step.call.arguments != {"x": 10, "y": 20}]
+    inner_steps = [step for step in steps if step.call.arguments == {"x": 10, "y": 20}]
+    per_call = 2 if stages == "both" else 1
+    assert len(outer_steps) == 2 * per_call
+    assert len(inner_steps) == (per_call if inner == "run" else 0)
+    for step in outer_steps:
+        assert step.message_id == "outer-message"
+        assert step.assistant_message is not None
+        assert step.assistant_message.id == "outer-message"
+        assert step.input is not None
+        assert [message.text for message in step.input] == ["Outer input"]
+        assert step.tools is not None
+        assert [t.name for t in step.tools] == ["append_turn", "addition"]
+        assert step.tool_choice == "auto"
+    for step in inner_steps:
+        assert step.message_id == "inner-message"
+        assert step.assistant_message is not None
+        assert step.assistant_message.id == "inner-message"
+        assert step.input is not None
+        assert [message.text for message in step.input] == ["Inner input"]
+        assert step.tool_choice == "any"
+
+
+@pytest.mark.parametrize("stages", ["both", "after", "evicted"])
+def test_a_turn_s_tool_steps_read_its_evicted_model_call_back_once(
+    stages: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A turn reads its model call back from the sample buffer only if the call was `evicted` when the turn started, and then once: the events read don't grow with the turn's calls."""
+    reads = count_provider_reads(monkeypatch)
+
+    def events_read(calls: int) -> int:
+        model = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                calls_output(calls, "c"),
+                ModelOutput.from_content("mockllm/model", "done"),
+            ],
+            memoize=False,
+        )
+        task = Task(
+            dataset=[Sample(input="Add.")],
+            solver=[use_tools(addition()), generate()],
+            sentinel=tool_stage_monitors(stages, [], []),
+        )
+        reads.events.clear()
+        log = eval(task, model=model, log_dir=str(tmp_path))[0]
+        assert log.status == "success", log.error
+        return sum(reads.events)
+
+    few, many = events_read(8), events_read(32)
+    assert (few > 0) == (stages == "evicted")
+    assert many == few
+
+
+class _CannotCopy:
+    def __deepcopy__(self, memo: dict[int, Any]) -> "_CannotCopy":
+        raise TypeError("cannot copy")
+
+
+@pytest.mark.parametrize("edit", ["content", "calls"])
+def test_a_turn_s_tool_steps_see_edits_to_an_output_logged_live_after_it_is_evicted(
+    edit: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An output that can't be copied is logged live (`_snapshot_message`). When a bounded transcript evicts its model call during the turn, the turn's later steps still get the event's own message, so an edit the agent made after the first call shows: a changed `content`, or `calls` that no longer hold the step's call."""
+    from inspect_ai._sentinel._steps import producing_message_id
+
+    reads = count_provider_reads(monkeypatch)
+    output = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content="",
+                    tool_calls=[
+                        ToolCall(id="c0", function="evict_and_edit", arguments={}),
+                        ToolCall(
+                            id="c1", function="addition", arguments={"x": 1, "y": 2}
+                        ),
+                    ],
+                    model="mockllm/model",
+                    metadata={"uncopyable": _CannotCopy()},
+                ),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+    live: list[ChatMessageAssistant] = []
+    evicted: list[bool] = []
+
+    @tool(parallel=False)
+    def evict_and_edit() -> Tool:
+        async def execute() -> str:
+            """Log enough events to evict the model call, then edit its message."""
+            [message] = live
+            for _ in range(4):
+                transcript().info("filler")
+            evicted.append(
+                not any(
+                    producing_message_id(event) == message.id
+                    for event in transcript().history.resident_events
+                )
+            )
+            if edit == "content":
+                message.content = "edited"
+            else:
+                message.tool_calls = (message.tool_calls or [])[:1]
+            return "ok"
+
+        return execute
+
+    @solver
+    def turn() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            model = get_model("mockllm/model", custom_outputs=[output], memoize=False)
+            tools = [evict_and_edit(), addition()]
+            returned = await model.generate(state.messages, tools=tools)
+            live.append(returned.message)
+            state.messages.append(returned.message)
+            await execute_tools(state.messages, tools)
+            return state
+
+        return solve
+
+    before: Seen = []
+    after: list[AfterToolCall] = []
+    task = Task(
+        dataset=[Sample(input="Add.")],
+        solver=turn(),
+        sentinel=[d3_recording(before), d3_recording_after(after)],
+    )
+    log = eval(task, log_dir=str(tmp_path))[0]
+    assert log.status == "success", log.error
+    assert evicted == [True]
+    assert not reads.pages
+    [message] = live
+    c0_before, c1_before = [step for _, step in before]
+    c0_after, c1_after = after
+    assert c0_before.call.id == c0_after.call.id == "c0"
+    assert c1_before.call.id == c1_after.call.id == "c1"
+    # logged live: the step's message is the agent's own
+    assert c0_before.assistant_message is message
+    assert c0_after.assistant_message is message
+    if edit == "content":
+        for step in (c1_before, c1_after):
+            assert step.assistant_message is message
+            assert step.assistant_message.text == "edited"
+    else:
+        # the message no longer holds c1
+        for step in (c1_before, c1_after):
+            assert step.assistant_message is None
+            assert step.input is None
 
 
 def test_model_input_skips_monitor_calls() -> None:

@@ -30,11 +30,11 @@ from inspect_ai.util._sandbox.context import (
     sandbox_environments_context_var,
 )
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
-from inspect_ai.util._sandbox.environment import SandboxDefaultUser
-from inspect_ai.util._sandbox.events import (
-    SandboxEnvironmentProxy,
+from inspect_ai.util._sandbox.environment import (
+    SandboxDefaultUser,
     SandboxTimeoutError,
 )
+from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
     ExecRemoteAwaitableOptions,
