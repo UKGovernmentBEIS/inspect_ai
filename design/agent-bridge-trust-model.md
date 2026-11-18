@@ -308,9 +308,9 @@ says which the eval decides and which are forwarded.
 
 ### Capabilities withheld by default
 
-Provider-side tools, client-declared MCP servers, media by URL or path,
-client headers other than `Accept-Encoding`, and models other than the
-eval's are withheld unless the eval grants them (see
+Provider-side tools, client-declared MCP servers, client headers other
+than `Accept-Encoding`, and models other than the eval's are withheld unless
+the eval grants them, and media by URL or path is always refused (see
 [Granted Capabilities](../docs/agent-bridge.qmd#granted-capabilities),
 [Models](../docs/agent-bridge.qmd#models) and
 [Remote MCP Servers](../docs/approval.qmd#remote-mcp)). A withheld tool is
@@ -475,8 +475,9 @@ Inspect process, or reach another sample's model calls.
    generations stop, and the recorded limit is raised in the scope that set
    it once the agent unwinds; utility inference run with limits suspended
    (model-backed approvers) is exempt. The scaffold itself keeps running
-   until it exits: only its generation requests get error replies, and
-   granted tools that make no model call and `list_tools` remain available.
+   until it exits: its generation requests, and granted tools that attempt
+   a provider call, get error replies, while granted tools that make no
+   model call and `list_tools` remain available.
    *(Boundary C)*
 7. **Not a browser service.** The proxy sends no cross-origin headers,
    answers no preflight and accepts only JSON object bodies (see
