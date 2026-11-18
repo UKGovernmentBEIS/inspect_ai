@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, AsyncGenerator, AsyncIterator
 
 import httpx2
@@ -3325,6 +3326,40 @@ async def test_failed_request_is_answered_and_the_proxy_keeps_serving(
             async with session.post(f"{base_url}{path}", json=body) as second:
                 assert second.status == 200
                 assert await second.json() == {"served": True}
+
+
+@pytest.mark.parametrize(
+    ("reply", "written"),
+    [("Terminating: Judge flagged the response.", False), ("Unknown method", True)],
+)
+async def test_failed_request_traceback_is_written_unless_the_sample_is_ending(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    reply: str,
+    written: bool,
+) -> None:
+    """An error reply is written to stderr, except one that ends the sample."""
+    monkeypatch.setattr(
+        proxy_module, "_bridge_model_service_service_dir", lambda subdir: tmp_path
+    )
+    (tmp_path / "req.json").write_text(json.dumps({"id": "req", "error": reply}))
+
+    async def reply_service(method: str, **params: Any) -> Any:
+        return proxy_module._read_bridge_model_service_response("req", method)[1]
+
+    body = {"model": "gpt-4o", "messages": [{"role": "user", "content": "hi"}]}
+    async with _proxy_with_service(reply_service) as base_url:
+        async with ClientSession() as session:
+            async with session.post(
+                f"{base_url}/v1/chat/completions", json=body
+            ) as response:
+                assert response.status == 400
+                assert (await response.json())["error"]["message"] == (
+                    f"Model proxy error: {reply}"
+                )
+
+    assert (reply in capsys.readouterr().err) is written
 
 
 @pytest.mark.asyncio

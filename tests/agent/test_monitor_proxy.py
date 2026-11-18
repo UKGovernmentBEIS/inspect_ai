@@ -1,9 +1,13 @@
 """Tests for the sandbox agent bridge's monitoring of its model proxy process."""
 
 import contextlib
+import io
 import json
+import logging
 import traceback
 from collections.abc import Callable, Iterator
+from logging import getLevelName
+from pathlib import Path
 from typing import Any, AsyncIterator, NoReturn, cast
 from unittest.mock import AsyncMock
 
@@ -11,9 +15,17 @@ import anyio
 import pytest
 
 import inspect_ai.agent._bridge.sandbox.bridge as bridge_module
+import inspect_ai.log._transcript as transcript_module
 import inspect_ai.util._sandbox.exec_remote as exec_remote_module
-from inspect_ai._util.constants import DEFAULT_LOG_LEVEL
+from inspect_ai._util.constants import (
+    DEFAULT_LOG_LEVEL,
+    DEFAULT_LOG_LEVEL_TRANSCRIPT,
+    TRACE,
+)
+from inspect_ai._util.logger import LogHandler
 from inspect_ai.agent._bridge.sandbox.bridge import _monitor_proxy, sandbox_agent_bridge
+from inspect_ai.event._logger import LoggerEvent
+from inspect_ai.log._transcript import Transcript
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
@@ -92,6 +104,36 @@ async def test_proxy_stderr_is_a_warning_at_the_default_log_level(
     assert len(message) < bridge_module._PROXY_STDERR_WARNING_CHARS + 200
 
 
+async def test_proxy_stderr_warnings_stay_out_of_the_transcript(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Proxy stderr warnings reach the display, not the sample transcript."""
+    monkeypatch.setenv("INSPECT_TRACE_LEVEL", "info")
+    display = io.StringIO()
+    handler = LogHandler(
+        capture_levelno=TRACE,
+        display_levelno=getLevelName(DEFAULT_LOG_LEVEL.upper()),
+        transcript_levelno=getLevelName(DEFAULT_LOG_LEVEL_TRANSCRIPT.upper()),
+        trace_dir=tmp_path,
+        logger_format="plain",
+        display_stream=display,
+    )
+    bridge_logger = logging.getLogger(bridge_module.__name__)
+    bridge_logger.addHandler(handler)
+    sample_transcript = Transcript()
+    token = transcript_module._transcript.set(sample_transcript)
+    chunks = [ExecStderr(data=f"failure {i}\n") for i in range(256)]
+    try:
+        await _monitor_proxy(cast(ExecRemoteProcess, FakeProcess(list(chunks))))
+    finally:
+        transcript_module._transcript.reset(token)
+        bridge_logger.removeHandler(handler)
+        handler.trace_logger.close()
+
+    assert display.getvalue().count("model proxy stderr") == 256
+    assert not any(isinstance(e, LoggerEvent) for e in sample_transcript.events)
+
+
 async def test_monitor_proxy_success() -> None:
     """Proxy exits with exit_code=0 → returns silently, no exception."""
     proc = FakeProcess(
@@ -124,13 +166,16 @@ def _no_events() -> Iterator[None]:
 
 
 def _use_proxy_sandbox(
-    monkeypatch: pytest.MonkeyPatch, answer_poll: Callable[[float], str]
+    monkeypatch: pytest.MonkeyPatch,
+    answer_poll: Callable[[float], str],
+    kill_stderr: str = "",
 ) -> None:
     """Run `sandbox_agent_bridge` against a sandbox that answers its proxy's RPCs.
 
     Each poll of the proxy is answered by `answer_poll`, given the poll's exec
-    timeout; it returns the JSON-RPC response or raises. The model service is
-    replaced by a task that only reports that it started.
+    timeout; it returns the JSON-RPC response or raises. The kill returns
+    `kill_stderr` as the proxy's last output. The model service is replaced by
+    a task that only reports that it started.
     """
     sandbox = AsyncMock()
     sandbox._tools_user = None
@@ -143,6 +188,8 @@ def _use_proxy_sandbox(
             stdout = _rpc({"pid": 42})
         elif method == "exec_remote_poll":
             stdout = answer_poll(kwargs["timeout"])
+        elif method == "exec_remote_kill":
+            stdout = _rpc({"seq": 1, "stdout": "", "stderr": kill_stderr})
         else:
             stdout = _rpc({"seq": 0, "stdout": "", "stderr": ""})
         return ExecResult(success=True, returncode=0, stdout=stdout, stderr="")
@@ -228,6 +275,30 @@ async def test_bridge_user_can_opt_in_to_proxy_poll_recovery(
     with anyio.fail_after(20):
         async with sandbox_agent_bridge(poll_timeout_recovery=60):
             await answered.wait()
+
+
+async def test_proxy_stderr_returned_by_the_kill_is_logged(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Stderr written after the last poll is logged when the bridge stops."""
+    caplog.set_level(DEFAULT_LOG_LEVEL.upper())
+    polled = anyio.Event()
+
+    def answer_poll(timeout: float) -> str:
+        polled.set()
+        return _running_poll()
+
+    _use_proxy_sandbox(
+        monkeypatch,
+        answer_poll,
+        kill_stderr="OSError: [Errno 28] No space left on device\n",
+    )
+
+    with anyio.fail_after(20):
+        async with sandbox_agent_bridge():
+            await polled.wait()
+
+    assert "No space left on device" in caplog.text
 
 
 def _raise_wrapped() -> NoReturn:

@@ -2489,8 +2489,10 @@ def _request_failed(
 ) -> dict[str, Any]:
     """Answer a generation request that failed in the proxy with an error response.
 
-    The failure is written to stderr with its traceback, which the bridge logs,
-    and the proxy keeps serving later requests. Provider errors do not come
+    The failure is written to stderr with its traceback, which the bridge logs
+    as a warning, and the proxy keeps serving later requests. A reply that the
+    host is ending the sample (`_TERMINATING_REPLY`) is not written: the host
+    reports the termination itself. Provider errors do not come
     here: the host returns them as results, and the handlers forward them with
     the provider's status. What does is an error reply on the service's RPC
     channel or a failure in the proxy's own request handling, which carries no
@@ -2501,13 +2503,27 @@ def _request_failed(
         ex: The exception raised while serving the request.
         error_body: Builds the error body in the route's API dialect.
     """
-    sys.stderr.write(f"Unexpected error during model proxy call: {ex}\n")
-    sys.stderr.write(traceback.format_exc())
-    sys.stderr.flush()
+    if not (
+        isinstance(ex, _ServiceErrorReply) and str(ex).startswith(_TERMINATING_REPLY)
+    ):
+        sys.stderr.write(f"Unexpected error during model proxy call: {ex}\n")
+        sys.stderr.write(traceback.format_exc())
+        sys.stderr.flush()
     return {
         "status": _DEFAULT_ERROR_STATUS,
         "body": error_body(_DEFAULT_ERROR_STATUS, f"Model proxy error: {ex}"),
     }
+
+
+class _ServiceErrorReply(Exception):
+    """An error reply from the bridge model service to a request."""
+
+
+_TERMINATING_REPLY = "Terminating: "
+"""Start of the service's error reply to a request that ends the sample.
+
+The host's sandbox service dispatcher writes it (inspect_ai/util/_sandbox/service.py).
+"""
 
 
 async def _call_bridge_model_service_async(method: str, **params: Any) -> Any:
@@ -2554,7 +2570,7 @@ def _read_bridge_model_service_response(
 
         # raise error if we have one
         if response.get("error", None) is not None:
-            raise Exception(response["error"])
+            raise _ServiceErrorReply(response["error"])
 
         # return response if we have one
         elif "result" in response:

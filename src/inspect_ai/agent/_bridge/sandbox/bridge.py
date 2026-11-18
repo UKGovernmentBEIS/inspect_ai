@@ -7,6 +7,7 @@ import anyio
 from shortuuid import uuid
 
 from inspect_ai._util._async import raise_unwrapped
+from inspect_ai._util.constants import SKIP_TRANSCRIPT_DISPATCH
 from inspect_ai._util.working import untracked_sandbox_execs
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import (
@@ -29,6 +30,7 @@ from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
+    ExecOutput,
     ExecRemoteProcess,
     ExecRemoteStreamingOptions,
     ExecStderr,
@@ -486,14 +488,33 @@ async def _monitor_proxy(
     The proxy writes to stderr only when something fails, including a request
     it answers with an error and keeps serving, so stderr is logged as a
     warning as it arrives, each piece cut to its last
-    `_PROXY_STDERR_WARNING_CHARS` characters, and in full at debug level. Only
-    the last `_PROXY_STDERR_TAIL_CHARS` characters are kept for the error
-    messages, so a long-running proxy's stderr does not grow without bound.
+    `_PROXY_STDERR_WARNING_CHARS` characters, and in full at debug level.
+    The warnings stay out of the sample transcript, so a proxy that keeps
+    failing does not grow it without bound; only the last
+    `_PROXY_STDERR_TAIL_CHARS` characters are kept for the error messages.
+
+    The bridge kills the proxy before it cancels this monitor, and the kill
+    returns the output written since the last poll, such as the traceback of
+    a request that failed just before the agent finished. On cancellation the
+    monitor logs that stderr before it stops.
     """
+    events: AsyncIterator[ExecOutput] = aiter(proxy)
+    try:
+        await _read_proxy_events(events, listening)
+    except anyio.get_cancelled_exc_class():
+        with anyio.CancelScope(shield=True):
+            await _log_remaining_stderr(events)
+        raise
+
+
+async def _read_proxy_events(
+    events: AsyncIterator[ExecOutput], listening: anyio.Event | None
+) -> None:
+    """Handle the proxy's events for `_monitor_proxy` until it exits."""
     stderr = ""
     stderr_truncated = False
     stdout = ""
-    async for event in proxy:
+    while (event := await _next_event(events)) is not None:
         if (
             isinstance(event, ExecStdout)
             and listening is not None
@@ -508,8 +529,7 @@ async def _monitor_proxy(
             if len(stderr) > _PROXY_STDERR_TAIL_CHARS:
                 stderr = stderr[-_PROXY_STDERR_TAIL_CHARS:]
                 stderr_truncated = True
-            logger.debug("model_proxy stderr: %s", event.data.rstrip())
-            _warn_proxy_stderr(event.data)
+            _log_proxy_stderr(event.data)
         if isinstance(event, ExecCompleted):
             output = (
                 f"[earlier output truncated]\n{stderr}" if stderr_truncated else stderr
@@ -524,11 +544,40 @@ async def _monitor_proxy(
                 )
 
 
-def _warn_proxy_stderr(data: str) -> None:
-    """Log a piece of model proxy stderr as a warning, cut to its last characters."""
+async def _log_remaining_stderr(events: AsyncIterator[ExecOutput]) -> None:
+    """Log the stderr a cancelled `_monitor_proxy` had not read.
+
+    The process is killed by then (by the bridge, or by the iterator itself on
+    cancellation), so the iterator yields only the output the kill returned and
+    makes no further call to the sandbox.
+    """
+    while (event := await _next_event(events)) is not None:
+        if isinstance(event, ExecStderr):
+            _log_proxy_stderr(event.data)
+
+
+async def _next_event(events: AsyncIterator[ExecOutput]) -> ExecOutput | None:
+    """The next proxy event, or None at the end.
+
+    An `ExecRemoteProcess` can be iterated only once, so the monitor and its
+    cancellation handler share one iterator and step it directly.
+    """
+    try:
+        return await anext(events)
+    except StopAsyncIteration:
+        return None
+
+
+def _log_proxy_stderr(data: str) -> None:
+    """Log a piece of model proxy stderr in full at debug level and as a bounded warning."""
     text = data.rstrip()
+    logger.debug("model_proxy stderr: %s", text)
     if not text:
         return
     if len(text) > _PROXY_STDERR_WARNING_CHARS:
         text = f"[earlier output truncated]\n{text[-_PROXY_STDERR_WARNING_CHARS:]}"
-    logger.warning("Sandbox agent bridge model proxy stderr:\n%s", text)
+    logger.warning(
+        "Sandbox agent bridge model proxy stderr:\n%s",
+        text,
+        extra={SKIP_TRANSCRIPT_DISPATCH: True},
+    )
