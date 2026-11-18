@@ -1586,10 +1586,13 @@ never scans the directory.
    the eval set continues from the retry, as from any ordinary log (a
    changed `limit` or `sample_id` is handled from the retry; a removed
    merged log is not rebuilt). If a log file in the companion has a newer
-   mtime than the newest such retry, a shard was added after the retry and
-   would be ignored, so `eval_set()` stops with `PrerequisiteError` naming
-   the companion, the retry and the newer files, and saying to remove the
-   new shard logs or the task's unsharded retries. Otherwise the companion
+   mtime than the newest such retry, a shard was added or changed (a tag
+   or metadata edit counts) after the retry and would be ignored, so
+   `eval_set()` stops with `PrerequisiteError` naming the companion, the
+   retry and the newer files. It says to move the companion (and the
+   merged log, if present) out of the log directory to continue from the
+   retry, or to move the retries out to merge again; it does not advise
+   deleting shard logs, which may be existing attempts. Otherwise the companion
    is skipped with an info log line: the normal case of an eval set run
    again after it retried a sharded task. Before this, the `task_id`s are
    checked: a companion whose `task_id` another companion or a listed log
@@ -1989,7 +1992,7 @@ today.
   logs classified by their status and recorded selection and not
   recovered. Once an unsharded retry of a merged log exists, its companion
   is not merged again and the eval set continues from the retry; a shard
-  written after the retry stops `eval_set()`. Retry cleanup is unchanged
+  written or modified after the retry stops `eval_set()`. Retry cleanup is unchanged
   and treats a merged log as an ordinary attempt; it never removes a
   companion, which the user removes. Companions of different tasks that
   would share a `task_id` stop `eval_set()`. A
@@ -2250,8 +2253,8 @@ Per PR (numbers from "Implementation plan"):
    merged log, keeps an unowned `started` one, and keeps the companion;
    once an unsharded retry exists, a second startup does not merge (with
    the merged log listed, after a new selection, and with it removed) and
-   runs only what the retry lacks; a shard written after the retry stops
-   `eval_set()` naming the companion and the retry; companions of two
+   runs only what the retry lacks; a shard added or tag-edited after the
+   retry stops `eval_set()` naming the companion and the retry; companions of two
    models with the same name stop `eval_set()` naming both; no shard
    header is read outside the merge (spy on `read_eval_log_headers`
    inputs), while an ordinary log nested in a shard's `scans/` directory is
@@ -2454,7 +2457,7 @@ same-host dead-pid check can be added if crashed merges turn out to happen.
 - A viewer delete that also removes a merged log's `<name>.shards/`
   companion, with per-object authorization (removed from Step 1 by
   Ransom, 2026-09-24); until then the viewer deletes only the log and the
-  next `eval_set()` startup rebuilds it.
+  next `eval_set()` startup rebuilds it, unless an unsharded retry exists.
 - Shard deletion through Inspect, by the merge or by eval-set retry
   cleanup: PR 9, after PR 6, designs one rule ("Implementation plan").
 

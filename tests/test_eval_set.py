@@ -69,7 +69,12 @@ from inspect_ai.dataset import (
     json_dataset,
 )
 from inspect_ai.event import SampleInitEvent
-from inspect_ai.log import ShardSelectionError, ShardSetError
+from inspect_ai.log import (
+    ShardSelectionError,
+    ShardSetError,
+    TagsEdit,
+    edit_eval_log,
+)
 from inspect_ai.log._edit import ProvenanceData, invalidate_samples
 from inspect_ai.log._file import (
     EvalLogInfo,
@@ -5227,27 +5232,52 @@ def test_eval_set_continues_from_a_retry_without_merging_again(
         assert merged.read_bytes() == before
 
 
+@pytest.mark.parametrize("change", ["added", "edited"])
 def test_eval_set_refuses_a_shard_written_after_the_retry(
-    tmp_path: Path, shard_runs: list[int | str]
+    tmp_path: Path, shard_runs: list[int | str], change: str
 ) -> None:
-    _shard(tmp_path, "0", [1])
+    shard = _shard(tmp_path, "0", [1])
     _SHARD_FAILING.add(4)
     success, [retry] = _sharded_eval_set(tmp_path, retry_attempts=0)
     assert not success and retry.status == "error" and retry.eval.shards is None
     _SHARD_FAILING.clear()
-    _shard(tmp_path, "1", [2])
+    if change == "added":
+        _shard(tmp_path, "1", [2])
+        newer = str(_shards_dir(tmp_path) / "1")
+    else:
+        # a viewer tag edit of an existing shard rewrites its header
+        edited = edit_eval_log(
+            read_eval_log(shard.location, header_only=True),
+            [TagsEdit(tags_add=["reviewed"])],
+            ProvenanceData(author="test_person", reason="test_reason"),
+        )
+        write_eval_log(edited, header_only=True)
+        newer = local_path(shard.location)
     merged = _merged_log(tmp_path).read_bytes()
     names = _log_names(tmp_path)
     shard_runs.clear()
 
-    with pytest.raises(PrerequisiteError, match="written after") as raised:
+    with pytest.raises(PrerequisiteError, match="written or modified") as raised:
         _sharded_eval_set(tmp_path)
 
-    assert str(_shards_dir(tmp_path) / "1") in str(raised.value)
-    assert local_path(retry.location) in str(raised.value)
+    message = str(raised.value)
+    assert newer in message
+    assert local_path(retry.location) in message
+    # an edited shard is an existing attempt: never advise deleting shards
+    assert "Remove" not in message and "move" in message
     assert shard_runs == []
     assert _merged_log(tmp_path).read_bytes() == merged
     assert _log_names(tmp_path) == names
+
+    # the advised remedy: move the shard set out and continue from the retry
+    moved = tmp_path.parent / f"{tmp_path.name}-moved"
+    moved.mkdir()
+    shutil.move(_shards_dir(tmp_path), moved)
+    shutil.move(_merged_log(tmp_path), moved)
+    success, [log] = _sharded_eval_set(tmp_path)
+    assert success and log.eval.shards is None
+    # sample 1 came from the shards through the retry
+    assert 4 in shard_runs and 1 not in shard_runs
 
 
 def test_eval_set_refuses_shard_sets_of_two_tasks_with_one_task_id(

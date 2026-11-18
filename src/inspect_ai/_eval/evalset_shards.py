@@ -314,8 +314,10 @@ def _check_no_newer_shards(
     """Refuse a shard set that holds an attempt newer than its unsharded retries.
 
     The retries were seeded from the merged log, and the eval set continues
-    from them without merging again, so a shard added after them would be
-    ignored. Decision: Ransom, 2026-11-17.
+    from them without merging again, so a shard added or changed after them
+    would be ignored. Decision: Ransom, 2026-11-17. A tag or metadata edit
+    of an existing shard also makes it newer, so the error does not say the
+    files are new or advise deleting them.
 
     Raises:
         PrerequisiteError: A log file in the shard set is newer (by mtime)
@@ -331,12 +333,14 @@ def _check_no_newer_shards(
     if newer:
         raise PrerequisiteError(
             f"[bold]ERROR[/bold]: {_display(shard_set.shards_dir)} holds shard "
-            f"logs written after the unsharded retry of its task "
+            f"logs written or modified after the unsharded retry of its task "
             f"({_display(newest.info.name)}): "
             f"{', '.join(_display(info.name) for info in newer)}. The eval set "
-            "continues from the retry and does not merge shards added after it. "
-            "Remove the new shard logs, or remove the task's unsharded retries "
-            "so that the eval set merges the shards again, then re-run."
+            "continues from the retry and does not merge the shards again. To "
+            f"continue from the retry, move {_display(shard_set.shards_dir)} "
+            f"out of the log directory, with {_display(shard_set.merged)} if "
+            "it is there. To merge the shards again, move the task's unsharded "
+            "retries out of the log directory. Then re-run."
         )
 
 

@@ -70,7 +70,7 @@ The eval set stops with an error, before running any task, when it cannot merge 
 
 -   An eval set whose `sample_id` or `limit` selects fewer samples than the shards hold, or none of the task's samples.
 -   A `.shards` directory that holds only files that are not shard logs.
--   A shard written after an unsharded retry of the task (see below). Remove the new shard logs, or remove the task's unsharded retries so that the eval set merges the shards again.
+-   A shard log written or modified (for example by a tag edit) after an unsharded retry of the task (see below). To continue from the retry, move the `.shards` directory and its merged log out of the log directory. To merge the shards again, move the task's unsharded retries out instead.
 -   `.shards` directories of different tasks with the same name in different directories (for example one per model). Their merged logs would get the same task id. Move one of them to a log directory of its own.
 -   Scanners (`scanner`) over a log directory that holds a `.shards` directory. Scanning sharded tasks is not supported yet.
 -   Any reason the merge itself refuses, such as shards that do not match each other or a merge that is already running.
