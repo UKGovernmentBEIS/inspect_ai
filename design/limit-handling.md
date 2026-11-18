@@ -605,7 +605,7 @@ limit raises. Rule 4 extends that to every place that combines errors:
 | Pre-dispatch check | token, cost, then guards (guards skipped while tokens are suspended) | chain root first (turns included), then guards (still skipped while tokens are suspended) |
 | Overlapping calls in one task group | the group's first leaf, wherever it is reduced | the outermost limit at each limit-aware reduction below |
 | `_apply_response_filter()`, a group of only limits, terminations and refusals (`agent/_bridge/util.py:515-527`) | its first leaf | `first_or_outermost_limit(group)`; a mixed group is still a `ResponseFilterError` |
-| `apply_limits()` | catches a bare owned error only | catches a group whose leaves are all limit errors and whose outermost is owned (below) |
+| `apply_limits()` | catches a bare owned error only | with `catch_errors=True`, also catches a group whose leaves are all limit errors and whose outermost is owned (below); otherwise the group propagates unchanged |
 | Sample runner (`run.py:3416`) | first leaf of the group | `first_or_outermost_limit(group)` |
 | `decisive_tool_exception()` (`_call_tools.py:2052`) | termination, unexpected error, first limit, first leaf | termination, unexpected error, **outermost** limit, first leaf |
 | `decisive_sentinel_exception()` (`_call_tools.py:196`) | termination, other error, first leaf | termination, other error, outermost limit |
@@ -646,9 +646,13 @@ this design").
    is its outermost (`outermost_limit()`; a bare error is its own; a time
    or working limit, outside the chain, ranks after every chain limit, rule
    4). If it is one of the scope's own limits, `limit_scope.limit_error` is
-   set to it and, with `catch_errors=True`, the exception is swallowed
-   (raised as that limit otherwise). If it is a descendant's limit, the
-   exception propagates unchanged, as it does today.
+   set to it and, with `catch_errors=True` (`run()`), the exception is
+   swallowed. With `catch_errors=False` (`as_tool()`, `as_solver()`,
+   handoffs) the exception propagates unchanged, a group as a group, as
+   today, and each receiver picks the limit out as it already does
+   (`decisive_tool_exception()`, the host tool's `_raised()`, the runner's
+   `first_or_outermost_limit()`). If the deciding limit is a descendant's,
+   the exception propagates unchanged, as it does today.
 
 Every swallowed leaf is the scope's own or a descendant's, whose scope this
 one ends anyway. A bare error from one of the scope's own limits, a time
@@ -739,15 +743,10 @@ Rule 6, for token, cost and turn limits:
   limits, a descendant's limit (a `with token_limit()` or `run()` limit
   entered inside the handed-off agent), message limits (see below), and
   errors outside the chain (a time limit entered inside the agent, a
-  sourceless `custom` limit). As today, only a bare error is caught. The
-  handoff runs its agent inside `apply_limits()` (`_call_tools.py:1313`),
-  whose covered exit now raises an owned deciding limit bare, even with
-  `catch_errors=False` ("The owner's exit check"): a group of the
-  handoff's own limits, or of them and its descendants', therefore reaches
-  this handler as a bare limit and becomes the handoff's limit message,
-  where today the group bypasses it and becomes a `limit` tool error. A
-  group that stays grouped after `apply_limits()` (one with a foreign or
-  sourceless leaf, or one of descendants' limits only) still propagates.
+  sourceless `custom` limit). As today, only a bare error is caught; a
+  group propagates through the handoff's `apply_limits()` unchanged, so a
+  handoff's own limit raised in a group stays a `limit` tool error, as
+  today.
 - **Bridged host tools.** `_raised()` (`host_tool.py:517`) uses the same test
   as `execute_tools()`, with the leaf captured when the host tool starts. An
   owned limit becomes a `ToolError` as today. A foreign one is offered to the
@@ -1286,7 +1285,14 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    bridge's kept limit the same way). A call that adds no metered usage
    has no exemption: it raises if a node is already past its budget. A
    call returns normally only when every node's total is at or below its
-   budget; a limit reached exactly then refuses the next dispatch.
+   budget; a limit reached exactly then refuses the next dispatch. The
+   exception is a generation a sentinel sidecar recovers after a provider
+   error: it does not pass through the post-call frame, and it records and
+   checks only when the sidecar's judgment supplies billed usage
+   (`_model.py:1185-1222`). A recovery without billed usage returns
+   normally even if another call has already taken a limit past its
+   budget; the next pre-dispatch check, or the owner's exit check, still
+   finds that limit ("Not this design").
 3. **The runtime may hold the error.** It can catch it, stop its agents
    (close levers, wait for in-flight calls within its grace, cancel the
    rest), write its ledger and re-raise the error, bare or in a group
@@ -1740,13 +1746,7 @@ documented. Behaviour changes:
   recorded limit. Limits the tool or handoff entered itself or entered below
   it, limits outside the chain (time limits, sourceless `custom` limits),
   and all message limits, behave as before; a handoff still returns the
-  handed-off agent's new messages and its limit message for them. One
-  handoff case changes the other way: when the handoff's agent raises its
-  own limits in an exception group (a task group inside the agent),
-  `apply_limits()` now raises the deciding limit bare, so the handoff
-  returns its limit message where today the group became a `limit` tool
-  error. A group with a foreign or sourceless leaf, or of descendants'
-  limits only, still propagates.
+  handed-off agent's new messages and its limit message for them.
 - **Unpriced models under a cost limit fail.** A call to a model with no
   cost data, made while a sample, agent or swarm cost limit is active, is
   refused before dispatch with an `UnmeteredCallError` (a
@@ -1795,9 +1795,11 @@ documented. Behaviour changes:
   streams without a usage chunk, Grok responses without a usage message)
   records zero, so a cost limit does not bound a priced model whose
   provider omits usage. A separate design covers it ("Not this design").
-- **`apply_limits()`** catches its own limit raised in an exception group
-  (when every limit in it is its own or a descendant's; any other leaf,
-  including a sourceless `custom` limit, propagates the group as today),
+- **`apply_limits()`**, with `catch_errors=True` (`run()`), catches its own
+  limit raised in an exception group (when every limit in it is its own or
+  a descendant's; any other leaf, including a sourceless `custom` limit,
+  propagates the group as today); with `catch_errors=False` such a group
+  propagates unchanged, as today,
   and at normal exit raises one of its own limits that is exceeded, or
   reached after it refused a call; it does not check enclosing limits. `run()` therefore returns `(state, error)` in these cases
   where today it raises or returns `(state, None)`. A limit error that
@@ -2048,10 +2050,7 @@ under trio with `--runtrio`.
   handoff passes on a foreign token limit and still answers its own; a
   handoff whose agent exceeds a `with token_limit()` entered inside it, and
   one whose agent exceeds a `time_limit()` entered inside it, return the
-  agent's new messages and the handoff limit message, as today; a handoff
-  whose agent raises its own token limit inside a task group returns the
-  handoff limit message, and one whose group also holds a foreign limit
-  propagates the group.
+  agent's new messages and the handoff limit message, as today.
 - `tests/test_eval.py` (or the existing sample-limit tests): a solver that
   swallows a sample token limit and returns is recorded as limited; a solver
   whose call was refused at exactly the sample token budget, which swallows
@@ -2217,9 +2216,11 @@ None.
 ## Not this design
 
 - A generation a sentinel sidecar recovers as a refusal after a provider
-  error is left as today: its billed usage is recorded and checked in one
-  step (`_model.py:1185-1222`), and it counts no turn, so repeated
-  recovered generations do not advance a turn limit.
+  error is left as today: it counts no turn, so repeated recovered
+  generations do not advance a turn limit, and it records and checks its
+  usage in one step only when the sidecar's judgment supplies billed usage
+  (`_model.py:1185-1222`); without it, nothing is recorded or checked for
+  the call.
 - `SampleLimitEvent` is emitted by every token, cost, turn and message node
   that raises, scoped or not, so the viewer shows an agent's limit as a sample
   limit. inspect_swarm subclasses nodes to avoid it.
