@@ -2927,6 +2927,65 @@ def test_a_google_bridge_log_replays_without_the_google_sdk(
         ], inputs
 
 
+@approver
+def r7_approved_path(path: str | None) -> Approver:
+    """Approves a call, modified to read `path` when one is given."""
+
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        if path is None:
+            return Approval(decision="approve")
+        return Approval(
+            decision="modify", modified=replace(call, arguments={"path": path})
+        )
+
+    return approve
+
+
+@pytest.mark.parametrize("modify", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_google_bridge_call_an_approver_modified_gets_its_result(
+    modify: bool,
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # without a sentinel the bridge sends the call with the approved
+    # arguments, which the recorded output does not hold, and reads it and
+    # its result back under an id rebuilt from them; the `tool_call` step
+    # shows the call as the model wrote it
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=as_solver(gemini_scaffold()),
+        approval=[
+            ApprovalPolicy(r7_approved_path("approved.txt" if modify else None), "*")
+        ],
+    )
+    turns = [r7_tool_calls(read("original.txt", "read_1")), done()]
+    [log] = eval(task, model=get_model("mockllm/model", custom_outputs=turns))
+    assert log.status == "success", log.error
+    approval = next(
+        e for e in logged_sample(log).events if isinstance(e, ApprovalEvent)
+    )
+    assert approval.decision == ("modify" if modify else "approve")
+    for inputs in ["expanded", "pooled"]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            rebuilt = bridged_steps(log, replayed_inputs(log, inputs))
+        assert [(s.stage, s.id.split("/")[1]) for s in rebuilt] == [
+            ("tool_call", "read_1"),
+            ("tool_result", "read_1"),
+        ], inputs
+        assert [called(s).arguments for s in rebuilt] == [
+            {"path": "original.txt"},
+            {"path": "original.txt"},
+        ], inputs
+        assert resulted(rebuilt[1]).text == '{"output": "t0:0"}', inputs
+        assert replay_warnings(caplog) == []
+
+
 @pytest.mark.parametrize("side", [False, True])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 def test_a_google_retry_s_call_gets_the_result_the_agent_sent(
