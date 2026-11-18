@@ -249,7 +249,7 @@ sequenceDiagram
     P->>Q: write {method: call_tool,<br/>params: {server, tool, arguments}}
     S->>Q: poll, read
     S->>S: known server? known tool? nesting depth?
-    S->>S: consume a grant for exactly (server, tool, arguments)<br/>none and not exempt → denied
+    S->>S: consume a matching grant for (server, tool, arguments)<br/>none and not exempt → denied
     S->>S: validate arguments against the tool's schema
     S->>T: run the tool (ToolEvent recorded)
     T-->>S: result, truncated as for a native call
@@ -336,8 +336,8 @@ stays recorded when more than one is reached is in
 A termination (an approver's `terminate`, three consecutive rejections, a
 filter) ends the sample. A refusal under `fail_on_refusal`, an error in a
 `response_filter`, and an unexpected error in a bridged host tool fail the
-sample through the bridge's failure monitor, while the scaffold still gets
-an error reply.
+sample through the bridge's failure monitor; the host attempts an error
+reply to the scaffold, which the sample's teardown can pre-empt.
 
 ## Approval and execution grants
 
