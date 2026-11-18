@@ -64,7 +64,7 @@ $ inspect eval-set mmlu.py mathematics.py \
 
 ### Sharded Tasks
 
-`eval_set()` does not merge [sharded](sharding.qmd) runs. It stops with an error, before pairing logs or running anything, when the log directory holds a `<name>.shards/` directory. To finish a sharded run:
+`eval_set()` does not merge [sharded](sharding.qmd) runs. It stops with an error, before pairing logs, writing viewer or scan output, or running anything, when the log directory holds a `<name>.shards/` directory. To finish a sharded run:
 
 1.  Merge the shards with `inspect log merge-shards` or `merge_eval_log_shards()` (see [Merging](sharding.qmd#merging)).
 2.  If samples failed or are missing, retry each incomplete shard in its own numbered directory with the same selection, run samples that no shard selected as new shards, and merge again.

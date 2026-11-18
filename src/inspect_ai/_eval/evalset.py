@@ -1106,6 +1106,12 @@ def eval_set(
             status.stop()
             status = None
 
+    # refuse shards before the viewer and scan contexts read or write the
+    # directory; the first attempt pairs from this listing
+    listed = list_eval_logs(log_dir)
+    _refuse_shard_companions(listed)
+    first_listing: list[EvalLogInfo] | None = listed
+
     # function which will be called repeatedly to attempt to complete
     # the evaluations. for this purpose we will divide tasks into:
     #   - tasks with no log at all (they'll be attempted for the first time)
@@ -1136,8 +1142,12 @@ def eval_set(
         _validate_sentinel(sentinel)
 
         # list all logs currently in the log directory (update manifest if there are some)
-        log_files = list_eval_logs(log_dir)
-        _refuse_shard_companions(log_files)
+        nonlocal first_listing
+        if first_listing is not None:
+            log_files, first_listing = first_listing, None
+        else:
+            log_files = list_eval_logs(log_dir)
+            _refuse_shard_companions(log_files)
         all_logs = list_all_eval_logs(log_dir, log_files=log_files)
         if len(all_logs) > 0:
             write_log_dir_manifest(log_dir)

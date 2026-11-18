@@ -716,9 +716,9 @@ selection, runs samples no shard selected as new shards, and merges again
 with the API or the CLI.
 
 `eval_set()` refuses a log directory that holds a companion: before
-pairing or running, it checks the names in the listing it already makes
-and stops with `PrerequisiteError` if a listed log is a shard
-log by its own name: its parent directory is all digits under a
+pairing, viewer or scan output, or running, it checks the names in the
+listing it already makes and stops with `PrerequisiteError` if a listed
+log is a shard log by its own name: its parent directory is all digits under a
 `*.shards/` directory, or is a `*.shards/` directory (decision: Ransom,
 2026-11-18). The rule reads only the name's last path components, so it
 does not depend on how a provider lists the log directory, and it is

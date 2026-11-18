@@ -839,7 +839,23 @@ def _files_below(root: Path) -> set[Path]:
     return {path.relative_to(root) for path in root.rglob("*")}
 
 
-def test_eval_set_refuses_a_log_dir_holding_shards(tmp_path: Path) -> None:
+@pytest.mark.parametrize("option", ["none", "embed_viewer", "scanner"])
+def test_eval_set_refuses_a_log_dir_holding_shards(tmp_path: Path, option: str) -> None:
+    options: dict[str, Any] = {}
+    if option == "embed_viewer":
+        options["embed_viewer"] = True
+    elif option == "scanner":
+        pytest.importorskip("inspect_scout")
+        from inspect_scout import Result, Transcript, scanner
+
+        @scanner(messages="all")
+        def echo() -> Any:
+            async def scan(transcript: Transcript) -> Result:
+                return Result(value=transcript.transcript_id)
+
+            return scan
+
+        options["scanner"] = [echo()]
     log_dir = tmp_path / "my logs"
     task = Task(name="foo", dataset=[Sample(id=i, input="hi") for i in (1, 2)])
     companions = [
@@ -855,16 +871,26 @@ def test_eval_set_refuses_a_log_dir_holding_shards(tmp_path: Path) -> None:
             log_dir=str(log_location),
             display="none",
         )
+    # an older attempt that cannot be read: nothing may read shard headers
+    (companions[0] / "0" / "2026-01-01T00-00-00-00-00_foo_old.eval").write_bytes(
+        b"not a log"
+    )
     files = _files_below(log_dir)
 
     with pytest.raises(PrerequisiteError, match="does not merge shards") as raised:
-        eval_set(task, log_dir=str(log_dir), model="mockllm/model", display="none")
+        eval_set(
+            task,
+            log_dir=str(log_dir),
+            model="mockllm/model",
+            display="none",
+            **options,
+        )
 
     for companion in companions:
         # listed local names use forward slashes, also on Windows
         assert companion.as_posix() in str(raised.value)
     assert "inspect log merge-shards" in str(raised.value)
-    # no log or manifest; the eval set id is written before the listing
+    # no log, manifest, viewer or scan output; the eval set id comes first
     assert _files_below(log_dir) - {Path(".eval-set-id")} == files
 
 
