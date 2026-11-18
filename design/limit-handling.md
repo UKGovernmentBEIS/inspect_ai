@@ -791,10 +791,15 @@ leaves message limits active, and `generate()` checks the innermost message
 limit before dispatch (`src/inspect_ai/model/_model.py:1059-1062`,
 `src/inspect_ai/util/_limit.py:780-794`), so a monitor whose own prompt
 reaches an inherited message cap raises a message limit. It keeps today's
-handling: the wrapper turns it into a `SentinelFailure`, which a native tool
-or the runner unwraps as today (`_sentinel_exception()`,
-`_call_tools.py:186-193`; `run.py:2927-2930`). In a bridge the outcome
-depends on the request:
+handling: the wrapper turns it into a `SentinelFailure`. A native tool
+unwraps it as today (`_sentinel_exception()`, `_call_tools.py:186-193`).
+From a native generate stage it reaches the sample runner as a
+`SentinelFailure`, not a `LimitExceededError`, so the runner's
+`except LimitExceededError` does not record it: `handle_error()` only
+selects the inner monitor error for reporting (`run.py:2927-2929`), and the
+sample ends in an error, with the ordinary error-retry handling and no
+`EvalSampleLimit`, as today. In a bridge the outcome depends on the
+request:
 
 - In a bridged generation's generate stage (the sentinel run around the
   request's own generation), it becomes an ordinary error reply, with no
@@ -1175,18 +1180,27 @@ async def generate_forwarding_errors(json_data, headers=None):
   otherwise let a fresh request with a shorter prompt reach the provider.
   Inside a request already admitted, the guard is still skipped for
   suspended calls, as decided.
-- Host-tool requests get the same unconditional entry refusal. Today `call_tool()`
+- Host-tool requests are refused the same way once a limit is kept. Today `call_tool()`
   (`service.py:453-464`) only wraps `execute_host_tool()` in the guard, so
   a host tool admitted after the bridge kept a limit still runs; an
   `as_tool()` child or a tool calling `run()` enters an agent span, and its
   sentinel runs before the child's own pre-dispatch check
   (`_model.py:1106-1116`), with token limits suspended, so the monitor's
   priced call is made and counted by no limit. A scaffold can repeat this
-  until it exits. `call_tool()`'s `execute` therefore checks
-  `bridge.generation_limit` first: when a limit is kept, it raises
-  `ToolError` with the message `_raised()` maps that limit to (the `limit`
-  tool error text), without calling `execute_host_tool()`, so no tool,
-  approval or monitor code runs and the scaffold gets the ordinary
+  until it exits. The refusal goes inside `execute_host_tool()`'s
+  bookkeeping, at the start of `_execute_granted()`
+  (`src/inspect_ai/agent/_bridge/sandbox/host_tool.py:303`), after the
+  server and tool lookup and the grant decision, so an unknown tool, a
+  malformed request and an unproposed call are rejected as today, and a
+  proposed call consumes its grant as today. There, when
+  `bridge.generation_limit` is set, it records the request through
+  `_record_rejection()` (`host_tool.py:224-275`) with a
+  `ToolCallError("limit", ...)` carrying the message `_raised()` maps that
+  limit to, the grant, the proposal's event id, view and call message id,
+  and the raised `ToolError`, so the `ToolEvent` is recorded and the
+  proposal's result message is linked as for any other rejection; it then
+  raises that `ToolError`. Input validation, the tool, its viewer,
+  approval and monitors do not run, and the scaffold gets the ordinary
   tool-error reply. The kept limit is unchanged. Host-tool requests admitted
   before the limit was kept keep the decided bypass for their suspended
   calls (rule 5).
@@ -1274,10 +1288,18 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    bridge's kept limit is promoted the same way).
 3. **The runtime may hold the error.** It can catch it, stop its agents
    (close levers, wait for in-flight calls within its grace, cancel the
-   rest), write its ledger and re-raise the error, bare or in a group. The
-   runner records it as the sample's limit (`EvalSampleLimit` of that type).
-   During the stop, no model call can succeed under the reached limit, so
-   the runtime's final step must make none.
+   rest), write its ledger and re-raise the error, bare or in a group
+   whose first leaf (depth first, in order) is a limit error. The runner
+   records it as the sample's limit (`EvalSampleLimit` of that type),
+   choosing the outermost limit in such a group
+   (`first_or_outermost_limit()`). A group whose first leaf is another
+   error, such as a cleanup failure raised ahead of the limit, is recorded
+   as that error, as guarantee 4 says for an exit decided by a non-limit
+   error. During the stop, no unsuspended provider dispatch can succeed
+   under the reached limit, so the runtime's final step must make none. Two
+   kinds of call still return: a native cache hit, which is served under a
+   reached token or cost limit while its turn limits allow it ("Cache
+   hits"), and suspended approval, review and sentinel calls (rule 5).
 4. **Losing it is not silent.** When the solvers return normally (on
    any attempt but a resume for scoring, and with the restore exception
    below), the sample's exit check records
@@ -1865,7 +1887,12 @@ documented. Behaviour changes:
   native cache hits remain unrefused, as today. A bridged request is
   checked at entry, before the cache, so the bridge refuses it under a
   reached limit or its kept limit, cached or not, as today.
-  No change lets through a call that is refused today. With rule 9, no
+  One change admits calls that fail today: the start-time price check no
+  longer requires prices for role models, so an eval whose approver,
+  reviewer or monitor role model is unpriced, which today fails before any
+  sample runs, now runs those models' suspended calls. Suspension is set by
+  host code (the approval, review and sentinel machinery Inspect runs), not
+  by a sandboxed agent or model output. With rule 9, no
   unpriced model runs unsuspended under a cost node that has a limit,
   whatever model a sample, a
   subagent or a sandboxed agent's request selects: the check runs on the
@@ -2082,7 +2109,10 @@ under trio with `--runtrio`.
   - after a limit is kept, two fresh sequential host-tool requests, one to
     an `as_tool()` agent and one to a tool calling `run()` with a monitor
     configured, each get the `limit` tool-error reply and make no tool,
-    monitor or provider call, and the kept limit is unchanged;
+    monitor or provider call, and the kept limit is unchanged; each
+    proposed request consumes its grant (a repeat of it is denied as
+    unproposed), and the transcript holds one completed `ToolEvent` per
+    request with a `limit` error and the proposal's event id;
   - an unpriced bridged model under a cost limit fails the sample with
     `UnmeteredCallError`, with no provider call: from the generation
     itself, and from a request filter that generates the unpriced model
@@ -2169,17 +2199,20 @@ Each step is one PR, in this order. Each keeps the suite green.
 4. **Ownership in tools.** `_call_tools.py`: the call leaf and ownership test
    in `call_tool_task`, and the same test in `agent_handoff()`'s `except`.
    `src/inspect_ai/agent/_bridge/sandbox/host_tool.py`: `_raised` ownership,
-   `keep_limit` for foreign limits. Tests: `tests/agent/test_agent_execute.py`,
+   `keep_limit` for foreign limits.
+   `src/inspect_ai/agent/_bridge/sandbox/types.py`:
+   `SandboxAgentBridge.keep_limit()` (outermost by `_outer_than()`, from
+   step 1) and the `generation_limit` docstring.
+   Tests: `tests/agent/test_agent_execute.py`,
    `tests/agent/test_agent_handoff.py`, `tests/tools/test_tools_bridge.py`.
 5. **The bridge.** `src/inspect_ai/agent/_bridge/sandbox/service.py`: entry
    simplification (the separate turn check goes; the kept-limit branch
-   stays, after the pre-dispatch check), the host-tool entry refusal in
-   `call_tool()`,
-   `_first_control` outermost, `keep_limit`, deletion of
+   stays, after the pre-dispatch check), `_first_control` outermost and
+   generation errors kept through `keep_limit()` (step 4), deletion of
    `_encloses`/`_sample_roots`/`_in_tree`. `src/inspect_ai/agent/_bridge/util.py`:
    `_apply_response_filter()`'s reduction.
-   `src/inspect_ai/agent/_bridge/sandbox/types.py`: `keep_limit()`, the
-   `generation_limit` docstring. Tests:
+   `src/inspect_ai/agent/_bridge/sandbox/host_tool.py`: the kept-limit
+   refusal at the start of `_execute_granted()`. Tests:
    `tests/agent/test_bridge_provider_errors.py`.
 6. **Docs.** `docs/setting-limits.qmd`, `docs/_agent_limits.md`,
    `docs/_turn_limits.md`, and the docstrings of `token_limit()`,
