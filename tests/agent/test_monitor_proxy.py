@@ -12,6 +12,7 @@ import pytest
 
 import inspect_ai.agent._bridge.sandbox.bridge as bridge_module
 import inspect_ai.util._sandbox.exec_remote as exec_remote_module
+from inspect_ai._util.constants import DEFAULT_LOG_LEVEL
 from inspect_ai.agent._bridge.sandbox.bridge import _monitor_proxy, sandbox_agent_bridge
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
 from inspect_ai.util._sandbox.exec_remote import (
@@ -70,6 +71,25 @@ async def test_monitor_proxy_keeps_a_bounded_stderr_tail() -> None:
     assert "first output" not in message
     assert "[earlier output truncated]" in message
     assert len(message) < bridge_module._PROXY_STDERR_TAIL_CHARS + 200
+
+
+async def test_proxy_stderr_is_a_warning_at_the_default_log_level(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Stderr from a proxy that keeps serving is logged where the default level shows it."""
+    caplog.set_level(DEFAULT_LOG_LEVEL.upper())
+    earlier = "x" * bridge_module._PROXY_STDERR_WARNING_CHARS + "\n"
+    failure = "OSError: [Errno 28] No space left on device\n"
+    proc = cast(ExecRemoteProcess, FakeProcess([ExecStderr(data=earlier + failure)]))
+
+    await _monitor_proxy(proc)
+
+    records = [r for r in caplog.records if r.name == bridge_module.__name__]
+    assert len(records) == 1
+    message = records[0].getMessage()
+    assert "No space left on device" in message
+    assert "[earlier output truncated]" in message
+    assert len(message) < bridge_module._PROXY_STDERR_WARNING_CHARS + 200
 
 
 async def test_monitor_proxy_success() -> None:

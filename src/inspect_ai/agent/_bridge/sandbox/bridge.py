@@ -62,6 +62,9 @@ _LISTENING_PREFIX = "model_proxy: listening on "
 _PROXY_STDERR_TAIL_CHARS = 64 * 1024
 """Characters of the model proxy's latest stderr kept for its error messages."""
 
+_PROXY_STDERR_WARNING_CHARS = 4 * 1024
+"""Characters of each piece of model proxy stderr shown in its warning."""
+
 
 @contextlib.asynccontextmanager
 async def sandbox_agent_bridge(
@@ -480,9 +483,12 @@ async def _monitor_proxy(
     which only the proxy process can write; stdout is buffered only until then.
     A proxy that exits before printing it raises, whatever its exit status.
 
-    Stderr is logged at debug level as it arrives; only the last
-    `_PROXY_STDERR_TAIL_CHARS` characters are kept for the error messages, so
-    a long-running proxy's stderr does not grow without bound.
+    The proxy writes to stderr only when something fails, including a request
+    it answers with an error and keeps serving, so stderr is logged as a
+    warning as it arrives, each piece cut to its last
+    `_PROXY_STDERR_WARNING_CHARS` characters, and in full at debug level. Only
+    the last `_PROXY_STDERR_TAIL_CHARS` characters are kept for the error
+    messages, so a long-running proxy's stderr does not grow without bound.
     """
     stderr = ""
     stderr_truncated = False
@@ -503,6 +509,7 @@ async def _monitor_proxy(
                 stderr = stderr[-_PROXY_STDERR_TAIL_CHARS:]
                 stderr_truncated = True
             logger.debug("model_proxy stderr: %s", event.data.rstrip())
+            _warn_proxy_stderr(event.data)
         if isinstance(event, ExecCompleted):
             output = (
                 f"[earlier output truncated]\n{stderr}" if stderr_truncated else stderr
@@ -515,7 +522,13 @@ async def _monitor_proxy(
                 raise RuntimeError(
                     f"Model proxy process exited unexpectedly with failure: {output}."
                 )
-            if stderr:
-                logger.warning(
-                    "model_proxy stderr output on clean exit:\n%s", output.rstrip()
-                )
+
+
+def _warn_proxy_stderr(data: str) -> None:
+    """Log a piece of model proxy stderr as a warning, cut to its last characters."""
+    text = data.rstrip()
+    if not text:
+        return
+    if len(text) > _PROXY_STDERR_WARNING_CHARS:
+        text = f"[earlier output truncated]\n{text[-_PROXY_STDERR_WARNING_CHARS:]}"
+    logger.warning("Sandbox agent bridge model proxy stderr:\n%s", text)
