@@ -1256,11 +1256,12 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    concurrent one replaces it (rules 3, 4, 8), except in the cases rule 3
    names: a call that only reaches the sample limit while exceeding an
    inner one raises the inner one, and the sample limit arrives at the
-   next pre-dispatch check; and a message limit is checked first. A limit
-   raises after a call only when the call takes usage past its budget
-   (`>`); a call that brings usage exactly to the budget returns normally,
-   the limit is then reached, and its error comes with the next call,
-   which is refused before dispatch (`>=`). If no call follows, nothing
+   next pre-dispatch check; and a message limit is checked first. The
+   check after a call reads the nodes' totals at that moment, whichever
+   call put them there, and raises a limit only when its total is past its
+   budget (`>`). When the totals end exactly at the budget, the call
+   returns normally, the limit is then reached, and its error comes with
+   the next call, which is refused before dispatch (`>=`). If no call follows, nothing
    raises and the sample ends normally, as a sample that used exactly its
    budget does (rule 7 records a reached limit at exit only after it
    refused a call). For a bridged agent the error arrives when the agent's
@@ -1278,13 +1279,14 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    review and sentinel calls are the exception: they run with token, turn
    and cost limits suspended and skip the bridge guard, so a reached limit
    of those kinds, or a bridge's kept limit, does not refuse them.
-   Calls already dispatched complete and are recorded. One whose usage
-   takes a node past its budget raises after recording, with the error of
-   the outermost exceeded node, which is that node or an outer one its
-   usage has pushed over (rules 3 and 8; the bridge's kept limit is
-   promoted the same way). One that adds no metered usage, or leaves every
-   node at or below its budget, returns normally; the reached limit then
-   refuses the next dispatch.
+   Calls already dispatched complete and are recorded, and each then runs
+   the post-call check against the nodes' current totals (rules 2 and 3):
+   it raises the outermost node whose total is past its budget, whether
+   this call or a concurrent one put it there (rule 8 promotes the
+   bridge's kept limit the same way). A call that adds no metered usage
+   has no exemption: it raises if a node is already past its budget. A
+   call returns normally only when every node's total is at or below its
+   budget; a limit reached exactly then refuses the next dispatch.
 3. **The runtime may hold the error.** It can catch it, stop its agents
    (close levers, wait for in-flight calls within its grace, cancel the
    rest), write its ledger and re-raise the error, bare or in a group
