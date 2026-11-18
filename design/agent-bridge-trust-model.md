@@ -9,8 +9,8 @@ sandbox, which relays each model request through a file queue to the Inspect
 process; Inspect serves it with the eval's model, credentials, limits,
 approval policies and transcript. The agent runs its own tools in the
 sandbox; Inspect runs only the host-side tools the eval author chose to
-expose ("bridged tools"), once for each approved call in a response
-handed to the agent.
+expose ("bridged tools"), by default once for each approved call in a
+response handed to the agent.
 
 The trust boundary follows from that split. The sandbox contains the agent,
 and the bridge cannot govern what the agent does there. What the bridge
@@ -138,7 +138,7 @@ context manager the eval's agent enters before it launches the scaffold:
 3. It constructs the `SandboxAgentBridge` and registers each
    `BridgedToolsSpec` as an MCP server at `/mcp/<name>`, refusing duplicate
    names, and warns when bridged tools share a description (see
-   [Approval and execution grants](#approval-and-execution-grants)).
+   [Matching a Proposal](../docs/agent-bridge.qmd#bridged-tools-matching)).
 4. It starts the model service in its own task group and waits until the
    service has prepared its queue.
 5. It starts the proxy as an `exec_remote` job running as the tools user,
@@ -155,8 +155,8 @@ context manager the eval's agent enters before it launches the scaffold:
 8. On exit it kills the proxy in a shielded scope and cancels the service.
 
 A termination raised while serving a request ends the sample even when the
-agent has already returned. A requested failure or a generation limit is
-raised once the agent has unwound, in place of whatever error the scaffold
+agent has already returned. A requested failure is raised once the agent
+has unwound, in place of whatever error the scaffold
 exited with. An error during cleanup after the agent completed successfully
 is logged, not raised.
 
@@ -325,11 +325,14 @@ API's own format. A token, cost, message or turn limit reached in a bridged
 generation is returned the same way and recorded on the bridge. Once a limit
 is recorded the agent's generations stop: a later generation request gets
 the recorded limit's error without a provider call, and a request already in
-flight makes no further provider call (`_refuse_after_a_recorded_limit()`,
-through `dispatch_guard()` in `ai/model/_model.py`). Utility inference run
-with limits suspended, such as a model-backed approver reviewing a response
-already in flight, is not the agent's and can still run. The bridge does not
-stop the scaffold. It raises the recorded limit once the agent unwinds, so
+flight makes no further provider call. A granted host tool's provider
+dispatches are refused the same way; the tool reports an error only if it
+lets the refusal propagate. Both go through
+`_refuse_after_a_recorded_limit()` and `dispatch_guard()` in
+`ai/model/_model.py`. Utility inference run with limits suspended, such as a
+model-backed approver reviewing a response already in flight, is not the
+agent's and can still run. Granted tools that make no model call, and
+`list_tools`, still work. The bridge does not stop the scaffold. It raises the recorded limit once the agent unwinds, so
 the scope that set it handles it as it would for a native agent. Which limit
 stays recorded when more than one is reached is in
 `_forward_provider_errors()` and `_encloses()` in
@@ -470,14 +473,9 @@ Inspect process, or reach another sample's model calls.
    asked for; every bridged tool request is a `ToolEvent` whether or not it
    ran, and every approval decision is an `ApprovalEvent`. The record does
    not claim what the agent then did with a response. *(Boundary C)*
-6. **Limits bind.** Token, cost, message and turn limits apply to bridged
-   generations as to native ones. Once a limit is reached the agent's
-   generations stop, and the recorded limit is raised in the scope that set
-   it once the agent unwinds; utility inference run with limits suspended
-   (model-backed approvers) is exempt. The scaffold itself keeps running
-   until it exits: its generation requests, and granted tools that attempt
-   a provider call, get error replies, while granted tools that make no
-   model call and `list_tools` remain available.
+6. **Limits bind.** Limits apply to bridged generations as to native ones.
+   Once one is reached, the agent gets no further generations, and the limit
+   is raised in the scope that set it (see [Errors and limits](#errors-and-limits)).
    *(Boundary C)*
 7. **Not a browser service.** The proxy sends no cross-origin headers,
    answers no preflight and accepts only JSON object bodies (see
