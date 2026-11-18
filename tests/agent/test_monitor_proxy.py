@@ -5,10 +5,10 @@ import io
 import json
 import logging
 import traceback
-from collections.abc import Callable, Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from logging import getLevelName
 from pathlib import Path
-from typing import Any, AsyncIterator, NoReturn, cast
+from typing import Any, AsyncIterator, NoReturn
 from unittest.mock import AsyncMock
 
 import anyio
@@ -64,7 +64,7 @@ async def test_monitor_proxy_failure() -> None:
     )
 
     with pytest.raises(RuntimeError, match="failure"):
-        await _monitor_proxy(proc)  # type: ignore[arg-type]
+        await _monitor_proxy(proc)
 
 
 async def test_monitor_proxy_keeps_a_bounded_stderr_tail() -> None:
@@ -73,7 +73,7 @@ async def test_monitor_proxy_keeps_a_bounded_stderr_tail() -> None:
     events: list[ExecOutput] = [ExecStderr(data="first output\n")]
     events += [ExecStderr(data=line) for _ in range(256)]
     events += [ExecStderr(data="last output\n"), ExecCompleted(exit_code=1)]
-    proc = cast(ExecRemoteProcess, FakeProcess(events))
+    proc = FakeProcess(events)
 
     with pytest.raises(RuntimeError, match="failure") as excinfo:
         await _monitor_proxy(proc)
@@ -92,7 +92,7 @@ async def test_proxy_stderr_is_a_warning_at_the_default_log_level(
     caplog.set_level(DEFAULT_LOG_LEVEL.upper())
     earlier = "x" * bridge_module._PROXY_STDERR_WARNING_CHARS + "\n"
     failure = "OSError: [Errno 28] No space left on device\n"
-    proc = cast(ExecRemoteProcess, FakeProcess([ExecStderr(data=earlier + failure)]))
+    proc = FakeProcess([ExecStderr(data=earlier + failure)])
 
     await _monitor_proxy(proc)
 
@@ -124,7 +124,7 @@ async def test_proxy_stderr_warnings_stay_out_of_the_transcript(
     token = transcript_module._transcript.set(sample_transcript)
     chunks = [ExecStderr(data=f"failure {i}\n") for i in range(256)]
     try:
-        await _monitor_proxy(cast(ExecRemoteProcess, FakeProcess(list(chunks))))
+        await _monitor_proxy(FakeProcess(list(chunks)))
     finally:
         transcript_module._transcript.reset(token)
         bridge_logger.removeHandler(handler)
@@ -142,7 +142,7 @@ async def test_monitor_proxy_success() -> None:
         ]
     )
 
-    await _monitor_proxy(proc)  # type: ignore[arg-type]
+    await _monitor_proxy(proc)
 
 
 # ============================================================================
@@ -169,13 +169,15 @@ def _use_proxy_sandbox(
     monkeypatch: pytest.MonkeyPatch,
     answer_poll: Callable[[float], str],
     kill_stderr: str = "",
+    before_reply: Callable[[str], Awaitable[None]] | None = None,
 ) -> None:
     """Run `sandbox_agent_bridge` against a sandbox that answers its proxy's RPCs.
 
     Each poll of the proxy is answered by `answer_poll`, given the poll's exec
     timeout; it returns the JSON-RPC response or raises. The kill returns
-    `kill_stderr` as the proxy's last output. The model service is replaced by
-    a task that only reports that it started.
+    `kill_stderr` as the proxy's last output. `before_reply`, given the RPC
+    method, is awaited before each answer. The model service is replaced by a
+    task that only reports that it started.
     """
     sandbox = AsyncMock()
     sandbox._tools_user = None
@@ -184,6 +186,8 @@ def _use_proxy_sandbox(
 
     async def exec(*args: Any, **kwargs: Any) -> ExecResult[str]:
         method = json.loads(kwargs["input"])["method"]
+        if before_reply is not None:
+            await before_reply(method)
         if method == "exec_remote_start":
             stdout = _rpc({"pid": 42})
         elif method == "exec_remote_poll":
@@ -297,6 +301,57 @@ async def test_proxy_stderr_returned_by_the_kill_is_logged(
     with anyio.fail_after(20):
         async with sandbox_agent_bridge():
             await polled.wait()
+
+    assert "No space left on device" in caplog.text
+
+
+@pytest.mark.parametrize("poll_answers_first", [True, False])
+async def test_proxy_stderr_returned_by_a_kill_during_a_poll_is_logged(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    poll_answers_first: bool,
+) -> None:
+    """The kill's stderr is logged whether a poll in flight answers before it or not."""
+    caplog.set_level(DEFAULT_LOG_LEVEL.upper())
+    polling, killing = anyio.Event(), anyio.Event()
+    answer_poll, answer_kill = anyio.Event(), anyio.Event()
+    monitor_returned = anyio.Event()
+
+    async def before_reply(method: str) -> None:
+        if method == "exec_remote_poll":
+            polling.set()
+            await answer_poll.wait()
+        elif method == "exec_remote_kill":
+            killing.set()
+            await answer_kill.wait()
+
+    monitor = bridge_module._monitor_proxy
+
+    async def monitor_then_report(*args: Any) -> None:
+        await monitor(*args)
+        monitor_returned.set()
+
+    monkeypatch.setattr(bridge_module, "_monitor_proxy", monitor_then_report)
+    _use_proxy_sandbox(
+        monkeypatch,
+        lambda timeout: _running_poll(),
+        kill_stderr="OSError: [Errno 28] No space left on device\n",
+        before_reply=before_reply,
+    )
+
+    async def answer_in_order() -> None:
+        await killing.wait()
+        if poll_answers_first:
+            # the poll's empty answer ends the monitor, the kill being pending
+            answer_poll.set()
+            await monitor_returned.wait()
+        answer_kill.set()
+
+    with anyio.fail_after(20):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(answer_in_order)
+            async with sandbox_agent_bridge():
+                await polling.wait()
 
     assert "No space left on device" in caplog.text
 

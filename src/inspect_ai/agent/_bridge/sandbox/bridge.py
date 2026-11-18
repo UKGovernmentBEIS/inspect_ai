@@ -31,7 +31,6 @@ from inspect_ai.util._sandbox._cli import SANDBOX_CLI
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
     ExecOutput,
-    ExecRemoteProcess,
     ExecRemoteStreamingOptions,
     ExecStderr,
     ExecStdout,
@@ -260,6 +259,7 @@ async def sandbox_agent_bridge(
     agent_completed = False
 
     bridge: SandboxAgentBridge | None = None
+    proxy_events: AsyncIterator[ExecOutput] | None = None
     try:
         async with anyio.create_task_group() as tg:
             # event to signal startup of model service
@@ -325,7 +325,8 @@ async def sandbox_agent_bridge(
 
             # monitor proxy for unexpected death (and, in a scope, its listening)
             listening = anyio.Event() if scope is not None else None
-            tg.start_soon(_monitor_proxy, proxy, listening)
+            proxy_events = aiter(proxy)
+            tg.start_soon(_monitor_proxy, proxy_events, listening)
 
             # monitor for a sample failure requested from the service task
             # (fail_on_refusal, a response filter failure, an invalid approver
@@ -370,6 +371,10 @@ async def sandbox_agent_bridge(
         else:
             # Error occurred before or during agent execution
             raise_unwrapped(ex, inner_exception(ex))
+    finally:
+        if proxy_events is not None:
+            with anyio.CancelScope(shield=True):
+                await _log_remaining_stderr(proxy_events)
     # the agent returned after a failure was requested or a limit was reached
     error = await _error_after_unwind(bridge, None)
     if error is not None:
@@ -477,7 +482,7 @@ async def _monitor_failure(bridge: SandboxAgentBridge) -> None:
 
 
 async def _monitor_proxy(
-    proxy: ExecRemoteProcess, listening: anyio.Event | None = None
+    events: AsyncIterator[ExecOutput], listening: anyio.Event | None = None
 ) -> None:
     """Monitor the proxy process event stream and raise if it dies unexpectedly.
 
@@ -492,25 +497,7 @@ async def _monitor_proxy(
     The warnings stay out of the sample transcript, so a proxy that keeps
     failing does not grow it without bound; only the last
     `_PROXY_STDERR_TAIL_CHARS` characters are kept for the error messages.
-
-    The bridge kills the proxy before it cancels this monitor, and the kill
-    returns the output written since the last poll, such as the traceback of
-    a request that failed just before the agent finished. On cancellation the
-    monitor logs that stderr before it stops.
     """
-    events: AsyncIterator[ExecOutput] = aiter(proxy)
-    try:
-        await _read_proxy_events(events, listening)
-    except anyio.get_cancelled_exc_class():
-        with anyio.CancelScope(shield=True):
-            await _log_remaining_stderr(events)
-        raise
-
-
-async def _read_proxy_events(
-    events: AsyncIterator[ExecOutput], listening: anyio.Event | None
-) -> None:
-    """Handle the proxy's events for `_monitor_proxy` until it exits."""
     stderr = ""
     stderr_truncated = False
     stdout = ""
@@ -545,11 +532,15 @@ async def _read_proxy_events(
 
 
 async def _log_remaining_stderr(events: AsyncIterator[ExecOutput]) -> None:
-    """Log the stderr a cancelled `_monitor_proxy` had not read.
+    """Log the proxy stderr `_monitor_proxy` had not read when the bridge stopped.
 
-    The process is killed by then (by the bridge, or by the iterator itself on
-    cancellation), so the iterator yields only the output the kill returned and
-    makes no further call to the sandbox.
+    The bridge calls this after its task group exits, so the proxy is killed
+    and the monitor has stopped: this is the iterator's only reader. The kill
+    returns the output written since the last poll, such as the traceback of a
+    request that failed just before the agent finished, and the monitor may
+    have stopped before reading it (cancelled, or ended by a poll that answered
+    while the kill was pending). A killed process's iterator yields only that
+    output and makes no further call to the sandbox.
     """
     while (event := await _next_event(events)) is not None:
         if isinstance(event, ExecStderr):
@@ -559,8 +550,8 @@ async def _log_remaining_stderr(events: AsyncIterator[ExecOutput]) -> None:
 async def _next_event(events: AsyncIterator[ExecOutput]) -> ExecOutput | None:
     """The next proxy event, or None at the end.
 
-    An `ExecRemoteProcess` can be iterated only once, so the monitor and its
-    cancellation handler share one iterator and step it directly.
+    An `ExecRemoteProcess` can be iterated only once, so the monitor and the
+    bridge's final read share one iterator and step it directly.
     """
     try:
         return await anext(events)
