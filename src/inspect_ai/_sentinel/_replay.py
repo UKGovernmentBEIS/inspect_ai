@@ -286,6 +286,7 @@ class _PoolKeys:
         self.pool = pool
         self._canonical: list[int] | None = None
         self._rows: dict[int, list[int]] = {}
+        self._shared: list[int] = []
 
     def canonical(self, row: int) -> int:
         if self._canonical is None:
@@ -297,6 +298,12 @@ class _PoolKeys:
         """The rows whose content is the canonical row's."""
         return self._rows[canonical]
 
+    def shared(self) -> list[int]:
+        """The rows, sorted, whose content another row also has."""
+        if self._canonical is None:
+            self._key_every_row()
+        return self._shared
+
     def _key_every_row(self) -> None:
         first: dict[str, int] = {}
         canonical: list[int] = []
@@ -305,12 +312,15 @@ class _PoolKeys:
             canonical.append(found)
             self._rows.setdefault(found, []).append(row)
         self._canonical = canonical
+        self._shared = [
+            row for row, found in enumerate(canonical) if len(self._rows[found]) > 1
+        ]
 
 
 class _PooledInput:
     """A logged model input for the fold: positions are rows of the message pool, read as the ranges the log stores (`input_refs`).
 
-    The alignment walks runs, not messages: where the input and the previous input continue through the same rows, the run is matched whole. A message the pointer does not match is looked up in an index of the previous input's ranges over pool rows, built once while it is the previous input. So the work per input is in its ranges and the messages it does not continue, not its length.
+    The alignment walks runs, not messages: where the input and the previous input continue through the same rows, the run is matched whole. A message the pointer does not match is looked up in an index of the previous input's ranges over pool rows, built once while it is the previous input; the messages after it that the previous input cannot hold (rows outside its ranges whose content no other row has) are new without a lookup. So the work per input is in its ranges and the messages it does not continue that the previous input could hold, not its length.
     """
 
     def __init__(self, view: PoolView, keys: _PoolKeys) -> None:
@@ -335,10 +345,16 @@ class _PooledInput:
         return self.view[position]
 
     def new_positions(self, previous: FoldInput | None) -> Iterator[int]:
+        assert previous is None or isinstance(previous, _PooledInput)
+        for start, end in self.new_runs(previous):
+            yield from range(start, end)
+
+    def new_runs(self, previous: "_PooledInput | None") -> Iterator[tuple[int, int]]:
+        """The positions `new_positions` yields, as runs `(start, end)`."""
         if previous is None:
-            yield from range(len(self))
+            if len(self):
+                yield 0, len(self)
             return
-        assert isinstance(previous, _PooledInput)
         position, pointer = 0, 0
         while position < len(self):
             row = self.view.row(position)
@@ -356,10 +372,43 @@ class _PooledInput:
                     continue
             found = previous._find(self._keys.canonical(row), pointer)
             if found is None:
-                yield position
-                position += 1
+                end = position + 1
+                end += previous._absent(row + 1, self._left(position) - 1)
+                yield position, end
+                position = end
             else:
                 pointer = found
+
+    def last_held(self, runs: list[tuple[int, int]], rows: list[int]) -> int | None:
+        """The last position within `runs` (in order) that holds one of `rows` (sorted), found by bisecting `rows` with each range piece the runs cover, from the end."""
+        if not rows:
+            return None
+        starts, refs = self.view.starts, self.view.refs
+        for start, end in reversed(runs):
+            at = bisect_right(starts, end - 1) - 1
+            while at >= 0 and self._ends[at] > start:
+                first, last = max(start, starts[at]), min(end, self._ends[at])
+                begin = refs[at][0] - starts[at]
+                found = bisect_left(rows, last + begin) - 1
+                if found >= 0 and rows[found] >= first + begin:
+                    return rows[found] - begin
+                at -= 1
+        return None
+
+    def _absent(self, row: int, limit: int) -> int:
+        """How many rows from `row` on, at most `limit`, hold content this input cannot: rows outside its ranges whose content no other row has."""
+        if limit <= 0:
+            return 0
+        _, _, (begins, ends) = self._index()
+        stop = row + limit
+        held = bisect_right(ends, row)
+        if held < len(begins):
+            stop = min(stop, max(begins[held], row))
+        shared = self._keys.shared()
+        at = bisect_left(shared, row)
+        if at < len(shared):
+            stop = min(stop, shared[at])
+        return stop - row
 
     def _left(self, position: int) -> int:
         """Positions left in the range holding `position`."""
@@ -1558,7 +1607,7 @@ class _Driver:
     ) -> None:
         """The tool steps of an agent bridge's calls: each call as the model wrote it, and each result as the model next received it (`steps_from_events`).
 
-        A call is taken from the output of a model call the bridge made for its agent, unless a native `ToolEvent` ran it (`native`, by the model call's event index and the call id). Its result is in the first later bridged request of its conversation whose new messages, against the conversation's previous bridged request (`_PooledInput.new_positions`), include a tool message under its id: the last such message, since a call's result follows every earlier message under its id. So a result already in the previous request, as under an id the model reused, is not taken again, and neither is one the request rewrote, as compaction replaces an old result. Only the latest call under an id awaits a result, since a result answers the call the agent used: a call from a response the agent discarded (a request it sent again) gets none.
+        A call is taken from the output of a model call the bridge made for its agent, unless a native `ToolEvent` ran it (`native`, by the model call's event index and the call id). Its result is in the first later bridged request of its conversation whose new messages, against the conversation's previous bridged request (`_PooledInput.new_runs`), include a tool message under its id: the last such message, since a call's result follows every earlier message under its id. It is looked up by the call's id among the pool's tool messages, so finding it doesn't read the request's other new messages, all of a long history after a request with its own. So a result already in the previous request, as under an id the model reused, is not taken again, and neither is one the request rewrote, as compaction replaces an old result. Only the latest call under an id awaits a result, since a result answers the call the agent used: a call from a response the agent discarded (a request it sent again) gets none.
 
         A request is compared with the conversation's previous bridged request, whichever history that continued. After a request with its own history, the next request shows the earlier results it carries as new. They go to no call, since their calls no longer await one, unless an awaiting call shares an id with an earlier call whose result that request carries, and the request doesn't carry the awaiting call's own: the awaiting call then gets the earlier result. This happens when a lost response is retried after such a request, or when a request built from part of the agent's history follows one, as Gemini CLI's loop check can. The ids are shared when the model reuses an id for the same call.
         """
@@ -1577,6 +1626,14 @@ class _Driver:
                     made.setdefault(index, []).append(entry)
                     self._bridged_call(entry)
 
+        # the pool rows of tool messages, by call id
+        tool_rows: dict[str, list[int]] = {}
+        for row, message in enumerate(self.keys.pool if made else []):
+            if (
+                isinstance(message, ChatMessageTool)
+                and message.tool_call_id is not None
+            ):
+                tool_rows.setdefault(message.tool_call_id, []).append(row)
         previous: dict[str, _PooledInput] = {}
         # each conversation's call awaiting a result, by call id
         awaiting: dict[str, dict[str, _BridgedCall]] = {}
@@ -1585,17 +1642,16 @@ class _Driver:
             current = _PooledInput(self._input(event), self.keys)
             waiting = awaiting.setdefault(conversation, {})
             if waiting:
-                results: dict[str, ChatMessageTool] = {}
-                for position in current.new_positions(previous.get(conversation)):
-                    message = current.message(position)
-                    if (
-                        isinstance(message, ChatMessageTool)
-                        and message.tool_call_id in waiting
-                    ):
-                        results.pop(message.tool_call_id, None)
-                        results[message.tool_call_id] = message
-                for call_id, message in results.items():
-                    self._bridged_result(waiting.pop(call_id), index, event, message)
+                runs = list(current.new_runs(previous.get(conversation)))
+                results: list[tuple[int, str]] = []
+                for call_id in waiting:
+                    position = current.last_held(runs, tool_rows.get(call_id, []))
+                    if position is not None:
+                        results.append((position, call_id))
+                for position, call_id in sorted(results):
+                    result = current.message(position)
+                    assert isinstance(result, ChatMessageTool)
+                    self._bridged_result(waiting.pop(call_id), index, event, result)
             previous[conversation] = current
             for entry in made.get(index, []):
                 waiting[entry.call.id] = entry

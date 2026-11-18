@@ -2610,8 +2610,9 @@ def retrying_scaffold(
     compaction: CompactionStrategy | None = None,
     padding: str = "",
     side: Literal["agent", "helper"] | None = None,
+    turns: int = 10,
 ) -> Agent:
-    """A tool loop over the OpenAI or the Anthropic client, bridged with `compaction`, that loses its first response to each request and sends the request again (unless not `retry`), as a client does after a timeout or a dropped connection; it answers each call with `t<turn>:<call id>` and `padding`, until a response has none.
+    """A tool loop over the OpenAI or the Anthropic client, bridged with `compaction`, that loses its first response to each request and sends the request again (unless not `retry`), as a client does after a timeout or a dropped connection; it answers each call with `t<turn>:<call id>` and `padding`, until a response has none or it has sent `turns` requests.
 
     With `side`, it sends a request with its own history and no tools before each of those requests, as Claude Code's permission classifier or opencode's title request does: from the agent, or under `model_origin("helper")`.
     """
@@ -2652,7 +2653,7 @@ def retrying_scaffold(
                             model="inspect", messages=title
                         )
 
-                    for turn in range(10):
+                    for turn in range(turns):
                         if retry:
                             await side_request(openai_title)
                             await openai.chat.completions.create(
@@ -2692,7 +2693,7 @@ def retrying_scaffold(
                             model="inspect", max_tokens=1024, messages=title
                         )
 
-                    for turn in range(10):
+                    for turn in range(turns):
                         if retry:
                             await side_request(anthropic_title)
                             await anthropic.messages.create(
@@ -2835,6 +2836,57 @@ def test_a_cached_retry_s_call_gets_the_result_the_agent_sent(
             f"t1:{prefix}2",
         ], inputs
         assert replay_warnings(caplog) == []
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_side_requests_keep_finding_bridged_results_linear(
+    backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # after Ransom's review of #6624: a request with its own history before
+    # each turn, as Claude Code's permission classifier sends, is the request
+    # the next turn's results are found against, which made replay read the
+    # agent's whole history again at each turn
+    from inspect_ai._sentinel._steps import PoolView
+
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    reads = 0
+    row, getitem = PoolView.row, PoolView.__getitem__
+
+    def counting_row(self: PoolView, position: int) -> int:
+        nonlocal reads
+        reads += 1
+        return row(self, position)
+
+    def counting_getitem(self: PoolView, index: Any) -> Any:
+        nonlocal reads
+        reads += 1
+        return getitem(self, index)
+
+    work: list[int] = []
+    for turns in (20, 40):
+        task = Task(
+            dataset=[Sample(input="What is 1 + 1?", target="2")],
+            solver=as_solver(
+                retrying_scaffold(
+                    "anthropic", retry=False, side="helper", turns=turns + 1
+                )
+            ),
+        )
+        calls = [r7_tool_calls(read(f"{n}.txt", "")) for n in range(turns)]
+        [log] = eval(task, model=generated_ids("toolu_", *calls, done()))
+        assert log.status == "success", log.error
+        for inputs in ["expanded", "pooled"]:
+            reads = 0
+            with monkeypatch.context() as patch:
+                patch.setattr(PoolView, "row", counting_row)
+                patch.setattr(PoolView, "__getitem__", counting_getitem)
+                replay = replayed_inputs(log, inputs)
+            results = [
+                s for s in bridged_steps(log, replay) if s.stage == "tool_result"
+            ]
+            assert len(results) == turns, inputs
+            work.append(reads)
+    assert work[2] <= 2.2 * work[0] and work[3] <= 2.2 * work[1], work
 
 
 @pytest.mark.parametrize("side", ["agent", "helper"])
