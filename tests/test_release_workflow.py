@@ -1028,17 +1028,14 @@ SLACK_ACTION = "meridianlabs-ai/actions/slack-release-announce@"
 NOTES_STEP = "Read the release notes"
 
 
-def test_announce_runs_only_after_this_run_uploaded_to_pypi() -> None:
+def test_announce_runs_only_after_pypi_publishing_succeeds() -> None:
     jobs = _load(".github/workflows/release.yml")["jobs"]
     announce = jobs["announce"]
     # A rejected or failed PyPI publish skips it; npm does not hold it back.
     assert announce["needs"] == ["release-please", "publish-pypi"]
-    # A run whose PyPI job had nothing to upload (a re-run or recovery after
-    # PyPI succeeded) does not announce again.
-    assert announce["if"] == "needs.publish-pypi.outputs.count != '0'"
-    assert jobs["publish-pypi"]["outputs"] == {
-        "count": "${{ steps.dist.outputs.count }}"
-    }
+    # No condition beyond the implicit success() of its needs, as in
+    # inspect_flow and inspect_swarm.
+    assert "if" not in announce
     assert announce["permissions"] == {"contents": "read"}
     assert announce["timeout-minutes"] <= 10
 

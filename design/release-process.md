@@ -62,12 +62,11 @@ The webhook is the `SLACK_WEBHOOK_URL` repository secret, a Slack incoming
 webhook for the announcement channel; only `announce` reads it. While the
 secret is unset, the job succeeds without posting anything.
 
-A run announces only when its `publish-pypi` job uploaded at least one file
-(the `publish-dist` count is not 0). So re-running all jobs, or a recovery
-dispatch, after PyPI already has the release posts no second announcement.
-If the announcement itself failed, re-run the failed jobs: that re-runs only
-`announce`, which keeps the earlier upload count. The break-glass paths do
-not announce.
+Every run whose `publish-pypi` job succeeds announces, as in `inspect_flow`
+and `inspect_swarm`, even when PyPI already had every file. So re-running
+all jobs, or a recovery dispatch, after PyPI already has the release may post
+a duplicate announcement. If only the announcement failed, re-run the failed
+jobs: that re-runs only `announce`. The break-glass paths do not announce.
 
 ## Changelog
 
@@ -209,9 +208,10 @@ Re-running the Release workflow is safe at any point.
 - **A resumed release** rebuilds from the tag (except when only a publish job
   is re-run) and publishes behind the same environment approvals. Its GitHub
   Release notes are the ones Release Please wrote when it created the
-  release. It is announced in Slack only if its PyPI job uploads a file (see
-  [Slack announcement](#slack-announcement)); to retry a failed
-  announcement, re-run the failed jobs.
+  release. It is announced in Slack again once its PyPI job succeeds, even
+  if PyPI already had the release (see [Slack
+  announcement](#slack-announcement)); to retry only a failed announcement,
+  re-run the failed jobs.
 - **Files PyPI already has** are skipped when they match: the same SHA256, or,
   for a rebuild (archive metadata such as timestamps differs between builds),
   the same members with the same contents under the parity rules

@@ -184,8 +184,6 @@ jobs:
     environment:
       name: pypi
       url: https://pypi.org/p/inspect-ai
-    outputs:
-      count: ${{ steps.dist.outputs.count }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -225,15 +223,13 @@ jobs:
     with:
       tag: ${{ needs.release-please.outputs.tag }}
 
-  # Announces the release in Slack once it is on PyPI. A run whose PyPI job
-  # uploaded nothing (PyPI already had every file) does not announce, so
-  # re-running all jobs or a recovery dispatch after PyPI succeeded posts no
-  # duplicate; re-running only this failed job keeps the earlier count. The
+  # Announces the release in Slack once PyPI publishing succeeds, as
+  # inspect_flow and inspect_swarm do. A re-run after PyPI already has the
+  # release (re-running all jobs, a recovery dispatch) announces it again. The
   # shared action does nothing while the SLACK_WEBHOOK_URL secret is unset.
   announce:
     name: Announce in Slack
     needs: [release-please, publish-pypi]
-    if: needs.publish-pypi.outputs.count != '0'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
