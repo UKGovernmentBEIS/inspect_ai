@@ -5,7 +5,7 @@ name: Release
 # since the last release, and writes their titles into CHANGELOG.md and the
 # release notes. Merging that PR tags the release and creates the GitHub
 # Release; this workflow then publishes to PyPI and npm, each behind its
-# environment's approval.
+# environment's approval, and announces the release in Slack once PyPI has it.
 #
 # Everything runs with GITHUB_TOKEN. Releases, tags and pushes made with it
 # trigger no other workflows, so this workflow runs the publish jobs itself
@@ -222,3 +222,41 @@ jobs:
     uses: ./.github/workflows/npm-publish.yml
     with:
       tag: ${{ needs.release-please.outputs.tag }}
+
+  # Announces the release in Slack once PyPI publishing succeeds, as
+  # inspect_flow and inspect_swarm do. A re-run after PyPI already has the
+  # release (re-running all jobs, a recovery dispatch) announces it again. The
+  # shared action does nothing while the SLACK_WEBHOOK_URL secret is unset.
+  announce:
+    name: Announce in Slack
+    needs: [release-please, publish-pypi]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      # The tag is resolved on retries and recovery runs too, where Release
+      # Please's own outputs are empty, so the notes come from that release.
+      - name: Read the release notes
+        id: notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag }}
+        run: |
+          release="$RUNNER_TEMP/release.json"
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,body > "$release"
+          url=$(jq -r .url "$release")
+          delimiter="EOF_$(openssl rand -hex 16)"
+          {
+            echo "url=$url"
+            echo "body<<$delimiter"
+            jq -r .body "$release"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: meridianlabs-ai/actions/slack-release-announce@c2d2df77e8241823e823b3c633f651b8160ef1d5 # main, 2026-11-02
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          title: ":rocket: inspect-ai ${{ needs.release-please.outputs.tag }} released"
+          release-url: ${{ steps.notes.outputs.url }}
+          release-body: ${{ steps.notes.outputs.body }}
