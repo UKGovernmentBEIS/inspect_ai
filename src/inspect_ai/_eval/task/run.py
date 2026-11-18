@@ -2415,7 +2415,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # error log here would supersede the errored prior attempt's log,
             # which must remain the task's final state. The row is completed
             # as cancelled so the display counts it as finished; no samples
-            # ran in this attempt.
+            # ran in this attempt, and its log location is cleared because
+            # the dispatcher discards that log.
+            profile.log_location = ""
             collect_eval_data(stats)
             td.complete(TaskCancelled(0, stats))
             raise

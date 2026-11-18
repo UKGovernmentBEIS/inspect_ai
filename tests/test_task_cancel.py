@@ -1333,8 +1333,13 @@ async def test_abort_pending_before_error_log_write_keeps_full_log(
 
 def _record_task_display_results(
     monkeypatch: pytest.MonkeyPatch,
+    profiles: dict[str, Any] | None = None,
 ) -> dict[str, list[object]]:
-    """Record each task display's `complete()` results, keyed by task display name."""
+    """Record each task display's `complete()` results, keyed by task display name.
+
+    When `profiles` is given, each task's display profile is stored in it under
+    the same name.
+    """
     import inspect_ai._eval.task.run as task_run_module
     from inspect_ai._display import display as real_display
 
@@ -1361,6 +1366,8 @@ def _record_task_display_results(
 
         @contextmanager
         def task(self, profile: Any) -> Iterator[Any]:
+            if profiles is not None:
+                profiles[profile.name] = profile
             with self.inner.task(profile) as td:
                 yield _RecordingTaskDisplay(td, profile.name)
 
@@ -1881,24 +1888,33 @@ async def test_retry_abandoned_after_row_opens_completes_row(
     """A retry abandoned after its display row opened completes that row as cancelled.
 
     The retry is abandoned during its `log_start`, after the row opened and
-    before `register_eval`. The task ends with the first attempt's error log.
+    before `register_eval`. The task ends with the first attempt's error log,
+    and the row's summary does not point at the retry's discarded log.
     """
+    from io import StringIO
+
+    from rich.console import Console
+
     from inspect_ai import eval_async
     from inspect_ai._control.eval_state import abandon_task_retry
-    from inspect_ai._display.core.display import TaskCancelled
+    from inspect_ai._display.core.display import TaskCancelled, TaskWithResult
+    from inspect_ai._display.core.results import tasks_results
     from inspect_ai._eval.task.log import TaskLogger
 
     original_log_start = TaskLogger.log_start
     starts: list[str] = []
+    locations: list[str] = []
 
     async def log_start(self: TaskLogger, *args: Any, **kwargs: Any) -> None:
         starts.append(self.eval.eval_id)
+        locations.append(self.location)
         await original_log_start(self, *args, **kwargs)
         if len(starts) == 2:
             abandon_task_retry(self.eval.task_id)
 
     monkeypatch.setattr(TaskLogger, "log_start", log_start)
-    displayed = _record_task_display_results(monkeypatch)
+    profiles: dict[str, Any] = {}
+    displayed = _record_task_display_results(monkeypatch, profiles)
 
     runs: list[str] = []
     logs = await eval_async(
@@ -1918,6 +1934,19 @@ async def test_retry_abandoned_after_row_opens_completes_row(
     assert len(retry_results) == 1
     assert isinstance(retry_results[0], TaskCancelled)
     assert retry_results[0].samples_completed == 0
+
+    # the retry's log was discarded; its summary names no log
+    assert not Path(locations[1]).exists()
+    retry_profile = profiles["a (retry 1 of 1)"]
+    assert retry_profile.log_location == ""
+    out = StringIO()
+    Console(file=out, width=300).print(
+        tasks_results([TaskWithResult(retry_profile, retry_results[0])])
+    )
+    rendered = out.getvalue()
+    assert "Task interrupted" in rendered
+    assert "Log:" not in rendered
+    assert Path(locations[1]).stem not in rendered
 
 
 @pytest.mark.anyio
