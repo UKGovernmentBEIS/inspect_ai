@@ -204,18 +204,22 @@ def _refuse_shard_companions(log_dir: str) -> None:
     `eval_set()` does not merge shards: no current caller needs it, and a
     retry at startup would run samples outside a launcher's per-instance
     placement (decision: Ransom with JJ Allaire, 2026-11-18). Listed local
-    names are `file://` plus the native path, not percent-encoded, so names
-    and the directory are compared as native paths.
+    names are `file://` plus the native path, not percent-encoded, so local
+    names and the directory are compared as native paths. Remote names are
+    compared as listed: opening a filesystem again from a listed name can
+    lose context the log directory carries (an Azure account).
 
     Raises:
         PrerequisiteError: A listed log is in a shard set (see `is_shard_path`).
     """
     from inspect_ai.log._shards._walk import is_shard_path
 
-    root = native_path(filesystem(log_dir).dir_as_uri(log_dir))
+    fs = filesystem(log_dir)
+    native = native_path if fs.is_local() else str
+    root = native(fs.dir_as_uri(log_dir))
     companions: set[str] = set()
     for info in list_eval_logs(log_dir):
-        path = native_path(info.name)
+        path = native(info.name)
         if is_shard_path(root, path):
             # a shard log is directly in the companion or in a shard directory
             companion = _parent(path)

@@ -40,6 +40,7 @@ from inspect_ai._eval.evalset import (
     EvalSetArgsInTaskIdentifier,
     Log,
     _embed_viewer,
+    _refuse_shard_companions,
     _resumed_task,
     as_previous_tasks,
     epochs_changed,
@@ -627,6 +628,25 @@ def test_log_dir_manifest_keys_relative_to_listed_names(
     for manifest in ("logs.json", "listing.json"):
         keys = json.loads(fs.cat_file(f"/container/logs/{manifest}")).keys()
         assert list(keys) == [log]
+
+
+@pytest.mark.parametrize("shard", [False, True])
+def test_shard_refusal_keeps_the_log_dir_account(
+    azure_like_fs: type[Any], shard: bool
+) -> None:
+    # no default account: only the log directory's URL names it
+    log = "2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
+    path = f"/container/logs/{'run.shards/0/' if shard else ''}{log}"
+    filesystem("azmem://container@acct/logs").fs.pipe_file(
+        path, Path(__file__).parent.joinpath("log", "test_list_logs", log).read_bytes()
+    )
+
+    if shard:
+        with pytest.raises(PrerequisiteError, match="does not merge shards") as raised:
+            _refuse_shard_companions("azmemalias://container@acct/logs")
+        assert "/container/logs/run.shards." in str(raised.value)
+    else:
+        _refuse_shard_companions("azmemalias://container@acct/logs")
 
 
 def test_eval_set_retry_in_same_second_does_not_clobber_failed_log() -> None:

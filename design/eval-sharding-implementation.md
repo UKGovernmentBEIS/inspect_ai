@@ -1471,11 +1471,14 @@ shards and merges with the API or `inspect log merge-shards`.
 
 In `src/inspect_ai/_eval/evalset.py`, after the selection-mode branch and
 before the eval set ID is written, `eval_set()` lists the directory once
-and checks every listed name with `is_shard_path` (shared helper), comparing
-native paths: listed local names are `file://` plus the native path, not
-percent-encoded. If any name is in a shard set, it raises
-`PrerequisiteError` before it lists logs for pairing, runs a task or writes
-anything. The message names each companion and says that `eval_set()` does
+and checks every listed name with `is_shard_path` (shared helper). Local
+names are compared as native paths, since listed local names are
+`file://` plus the native path, not percent-encoded. Remote names are
+compared as listed, against the directory in its listed form
+(`dir_as_uri`), without opening a filesystem from them: that would lose
+context the log directory's URL carries, such as an Azure account. If any
+name is in a shard set, it raises `PrerequisiteError` before it lists logs
+for pairing, runs a task or writes anything. The message names each companion and says that `eval_set()` does
 not merge shards, to merge them with `inspect log merge-shards` (or the
 Python API), rerunning failed or missing samples as shards and merging
 again, and then to move the `.shards` directory out of the log directory.
