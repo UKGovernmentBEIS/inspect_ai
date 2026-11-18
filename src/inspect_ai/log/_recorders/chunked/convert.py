@@ -24,6 +24,7 @@ from inspect_ai._util.file import exists, file, filesystem
 from inspect_ai._util.json import to_json_safe
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
 from inspect_ai.event._event import Event
+from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._pool import (
     _build_call_index,
     _build_msg_index,
@@ -32,12 +33,16 @@ from inspect_ai.event._pool import (
     condense_model_event_calls,
     condense_model_event_inputs,
 )
+from inspect_ai.event._subtask import SubtaskEvent
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.model._chat_message import ChatMessage
 
 from ..._condense import (
+    ATTACHMENT_PROTOCOL,
     WalkContext,
     events_attachment_fn,
     walk_chat_messages,
+    walk_events,
     walk_input,
 )
 from ..._file import log_files_from_ls
@@ -216,8 +221,9 @@ def chunked_sample(
     - Inline `ModelEvent` inputs/calls (logs that predate pooling) are
       condensed into the sequences.
     - Attachments become a fourth sequence (identity = sequence index;
-      refs are renumbered from `attachment://<hash>` to
-      `attachment://<index>` at serialization time). They stay extracted
+      refs in messages, events and the shell are renumbered from
+      `attachment://<hash>` to `attachment://<index>` here, refs in calls
+      at serialization time). They stay extracted
       because content dedups *across containers* (pooled message, wire
       request/response, tool event, state delta, tool schema) — inlining
       measured ~5x content growth on attachment-heavy logs.
@@ -261,8 +267,37 @@ def chunked_sample(
         [len(content.encode()) for content in attachment_contents],
         attachments_chunk_bytes,
     )
+    attachment_index = {hash: i for i, hash in enumerate(attachments)}
 
-    shell = sample.model_copy(update={"input": input}).model_dump(
+    # renumber references only where the typed walkers resolve them, so
+    # plain text that reads like a reference stays as written
+    renumber_fn = _typed_ref_renumberer(attachment_index)
+
+    def renumber_context() -> WalkContext:
+        return WalkContext(message_cache={}, only_core=False, media_fn=renumber_fn)
+
+    def renumber_events(events: list[Event]) -> list[Event]:
+        events = _renumber_completion_refs(events, renumber_fn)
+        events = _renumber_legacy_nested_refs(events, renumber_fn)
+        return walk_events(events, renumber_fn, renumber_context())
+
+    messages = walk_chat_messages(messages, renumber_fn, renumber_context())
+    events = renumber_events(events)
+    input = walk_input(input, renumber_fn, renumber_context())
+    error_retries = (
+        [
+            retry.model_copy(update={"events": renumber_events(retry.events)})
+            if retry.events is not None
+            else retry
+            for retry in sample.error_retries
+        ]
+        if sample.error_retries is not None
+        else None
+    )
+
+    shell = sample.model_copy(
+        update={"input": input, "error_retries": error_retries}
+    ).model_dump(
         mode="json",
         exclude_none=True,
         exclude={"messages", "events", "attachments", "events_data", "metadata"},
@@ -275,9 +310,97 @@ def chunked_sample(
         events=events,
         calls=calls,
         attachments=attachment_contents,
-        attachment_index={hash: i for i, hash in enumerate(attachments)},
+        attachment_index=attachment_index,
         attachment_boundaries=attachment_boundaries,
     )
+
+
+def _renumber_completion_refs(
+    events: list[Event], renumber_fn: Callable[[str], str]
+) -> list[Event]:
+    """Renumber model-event completions that older logs condensed into a reference.
+
+    Inspect no longer condenses `ModelOutput.completion`, which the typed
+    walkers treat as plain text, but older logs hold a reference there: the
+    same one as their first choice's message text. Only such a completion
+    is renumbered; other completion text stays as written. (In a new log the
+    message text is an attachment reference only when the completion is
+    not the same string.)
+    """
+
+    def renumbered(event: Event) -> Event:
+        if not isinstance(event, ModelEvent) or not event.output.choices:
+            return event
+        completion = event.output.completion
+        if completion != event.output.choices[0].message.text:
+            return event
+        new_completion = renumber_fn(completion)
+        if new_completion == completion:
+            return event
+        return event.model_copy(
+            update={
+                "output": event.output.model_copy(update={"completion": new_completion})
+            }
+        )
+
+    return [renumbered(event) for event in events]
+
+
+def _renumber_legacy_nested_refs(
+    events: list[Event], renumber_fn: Callable[[str], str]
+) -> list[Event]:
+    """Renumber references in the deprecated nested events of older logs.
+
+    `SubtaskEvent.events` and `ToolEvent.events` are typed `list[Any]`, so
+    they reload as plain dicts, which the typed walkers leave untouched.
+    Inspect no longer writes them; the older writers that did condensed them
+    into references, so each string in them that is a whole reference is
+    renumbered.
+    """
+
+    def renumbered_value(value: Any) -> Any:
+        if isinstance(value, str):
+            return renumber_fn(value)
+        elif isinstance(value, list):
+            return [renumbered_value(item) for item in value]
+        elif isinstance(value, dict):
+            return {key: renumbered_value(item) for key, item in value.items()}
+        else:
+            return value
+
+    def renumbered_nested(nested: list[Any]) -> list[Any]:
+        return [
+            renumbered_value(item)
+            if isinstance(item, dict)
+            else renumbered(item)
+            if isinstance(item, (SubtaskEvent, ToolEvent))
+            else item
+            for item in nested
+        ]
+
+    def renumbered(event: Event) -> Event:
+        if isinstance(event, (SubtaskEvent, ToolEvent)) and event.events:
+            return event.model_copy(update={"events": renumbered_nested(event.events)})
+        return event
+
+    return [renumbered(event) for event in events]
+
+
+def _typed_ref_renumberer(attachment_index: dict[str, int]) -> Callable[[str], str]:
+    """Content function rewriting an `attachment://<hash>` ref to `attachment://<index>`.
+
+    Unknown hashes are left untouched, matching resolve_sample_attachments'
+    fallback.
+    """
+
+    def renumber(text: str) -> str:
+        if text.startswith(ATTACHMENT_PROTOCOL):
+            index = attachment_index.get(text.removeprefix(ATTACHMENT_PROTOCOL))
+            if index is not None:
+                return f"{ATTACHMENT_PROTOCOL}{index}"
+        return text
+
+    return renumber
 
 
 _ATTACHMENT_REF_PATTERN = re.compile(rb"attachment://([0-9a-f]{32})")
@@ -288,11 +411,10 @@ def _attachment_ref_renumberer(
 ) -> Callable[[bytes], bytes]:
     """Rewrite `attachment://<hash>` refs to `attachment://<index>` in JSON bytes.
 
-    Operates on serialized JSON so every ref site is covered uniformly
-    (including ones the typed walkers miss, e.g. `ModelOutput.completion`,
-    state-event deltas, and provider response payloads — the pattern's
-    characters are never escaped by JSON encoding). Unknown hashes are left
-    untouched, matching resolve_sample_attachments' fallback.
+    For the calls sequence: raw provider payloads, whose refs sit wherever
+    the condensed request and response put them (the pattern's characters
+    are never escaped by JSON encoding). Unknown hashes are left untouched,
+    matching resolve_sample_attachments' fallback.
     """
     replacements = {
         hash.encode(): b"attachment://%d" % index
@@ -305,6 +427,10 @@ def _attachment_ref_renumberer(
         )
 
     return renumber
+
+
+def _unchanged(data: bytes) -> bytes:
+    return data
 
 
 def _write_sidecar(zip: ZipFile, entry_name: str, sidecar: BaseModel) -> None:
@@ -326,13 +452,14 @@ def _write_chunked_sample(
 
     zip.writestr(
         shell_entry_name(sample.id, sample.epoch),
-        renumber(to_json_safe(converted.shell, indent=None)),
+        to_json_safe(converted.shell, indent=None),
     )
 
+    # metadata holds raw values, never attachment references
     if sample.metadata:
         zip.writestr(
             metadata_entry_name(sample.id, sample.epoch),
-            renumber(to_json_safe(sample.metadata, indent=None)),
+            to_json_safe(sample.metadata, indent=None),
         )
 
     # derived sidecars: neither contains event payloads (span names, types,
@@ -354,16 +481,18 @@ def _write_chunked_sample(
         to_json_safe([event.uuid for event in converted.events], indent=None),
     )
 
-    sequences: list[tuple[str, Sequence[Any]]] = [
-        (MESSAGES_SEQUENCE, converted.messages),
-        (EVENTS_SEQUENCE, converted.events),
-        (CALLS_SEQUENCE, converted.calls),
+    # messages and events were renumbered by chunked_sample; calls are
+    # raw provider payloads, renumbered here
+    sequences: list[tuple[str, Sequence[Any], Callable[[bytes], bytes]]] = [
+        (MESSAGES_SEQUENCE, converted.messages, _unchanged),
+        (EVENTS_SEQUENCE, converted.events, _unchanged),
+        (CALLS_SEQUENCE, converted.calls, renumber),
     ]
-    for sequence, items in sequences:
+    for sequence, items, renumber_items in sequences:
         for start, end_exclusive in chunk_ranges(len(items), chunk_size):
             zip.writestr(
                 chunk_entry_name(sample.id, sample.epoch, sequence, start),
-                renumber(to_json_safe(items[start:end_exclusive], indent=None)),
+                renumber_items(to_json_safe(items[start:end_exclusive], indent=None)),
             )
 
     # attachment contents are stored verbatim (no renumbering inside them)

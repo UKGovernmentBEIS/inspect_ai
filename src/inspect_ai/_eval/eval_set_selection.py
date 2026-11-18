@@ -93,6 +93,15 @@ scanning) and compacts/finalizes it as the single writer. A selection may also
 carry `scanners` — runner-injected scanner specs merged with the definition's
 own before dispatch (introduced in version 7).
 
+A selection may set `empty_attempt` (introduced in version 8) to run its tasks
+with the `empty_attempt()` solver in place of their own, which is how a runner
+produces the log `zero_samples()` copies verdicts from for a task as the
+definition defines it. The solver is part of task identity, so it cannot be an
+override: tasks are matched to their identifiers with the definition's solver,
+and only the run that follows uses `empty_attempt()`. The log therefore records
+`inspect_ai/empty_attempt` as its solver and has an identifier of its own, so a
+selection that sets it may not `resume` a task.
+
 This module is deliberately not part of the public API: the models here are a
 versioned wire format (see `EVAL_SET_SELECTION_VERSION`) written by external
 runners (currently inspect_steward, which imports them from this module).
@@ -114,7 +123,7 @@ from .eval_set_overrides import EvalSetOverrides, validate_eval_set_overrides
 
 INSPECT_EVAL_SET_SELECTION = "INSPECT_EVAL_SET_SELECTION"
 
-EVAL_SET_SELECTION_VERSION = 7
+EVAL_SET_SELECTION_VERSION = 8
 
 
 def eval_set_selection_requested() -> str | None:
@@ -198,6 +207,12 @@ class EvalSetSelection(BaseModel):
     These are *merged with* the definition's own `scanner` argument before per-sample dispatch — a name collision with a definition scanner is refused rather than resolved, since either resolution silently changes what one of the two records. A worker may scan through this field alone, with a definition that declares no scanners of its own. The scan directory's lifecycle (init/finalize) belongs to the runner in selection mode, so the merged set here must match the spec the runner wrote into the scan directory.
     """
 
+    empty_attempt: bool | None = None
+    """Run the selected tasks with the `empty_attempt()` solver in place of their own (`None` or `False` keeps the definition's solver).
+
+    Tasks are still matched to their identifiers with the definition's solver. The logs record `inspect_ai/empty_attempt` as their solver, which is what `zero_samples()` requires of an empty-attempt log. Cannot be combined with `resume`.
+    """
+
 
 # The version each optional field was introduced in. A document may not use a
 # field newer than the version it declares: the declaration is what an older
@@ -209,7 +224,11 @@ class EvalSetSelection(BaseModel):
 # The gate is not ceremony, and `limit` is what shows why: an unknown field an
 # older inspect ignores usually costs nothing, but an ignored `limit` means a
 # worker asked for two samples runs five thousand.
-_FIELD_MIN_VERSION: dict[str, int] = {"overrides": 3, "scanners": 7}
+_FIELD_MIN_VERSION: dict[str, int] = {
+    "overrides": 3,
+    "scanners": 7,
+    "empty_attempt": 8,
+}
 
 # the same rule for fields of a *task* entry. It needs its own dict rather than
 # a dotted key because the check has to look at every entry: a facet set on one
@@ -278,7 +297,7 @@ def read_eval_set_selection(selection_path: str) -> EvalSetSelection:
         The selection.
 
     Raises:
-        PrerequisiteError: If the file cannot be read or parsed, if it uses a schema version this version of inspect does not understand, if it sets a field newer than the version it declares, or if it names no tasks, names the same task more than once, or carries a nonsensical override.
+        PrerequisiteError: If the file cannot be read or parsed, if it uses a schema version this version of inspect does not understand, if it sets a field newer than the version it declares, or if it names no tasks, names the same task more than once, carries a nonsensical override, or sets `empty_attempt` and resumes a task.
     """
 
     def unreadable(ex: Exception) -> PrerequisiteError:
@@ -379,5 +398,19 @@ def read_eval_set_selection(selection_path: str) -> EvalSetSelection:
             f"The eval set selection at '{selection_path}' sets `scanners` to "
             "an empty mapping. Omit the field to inject no scanners."
         )
+
+    # a resumed task reuses samples run with the definition's solver, and its
+    # log is checked against the task's identifier, which an empty attempt's
+    # log never matches.
+    if selection.empty_attempt:
+        resumed = sorted(
+            entry.identifier for entry in selection.tasks if entry.resume is not None
+        )
+        if resumed:
+            raise PrerequisiteError(
+                f"The eval set selection at '{selection_path}' sets "
+                "`empty_attempt` and resumes tasks: "
+                f"{', '.join(resumed)}. An empty attempt cannot resume a task."
+            )
 
     return selection
