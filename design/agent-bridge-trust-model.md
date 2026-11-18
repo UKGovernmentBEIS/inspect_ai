@@ -41,7 +41,8 @@ Mechanics documented elsewhere are linked, not repeated:
 - [bridge-model-routing.md](bridge-model-routing.md): the rationale for
   routing unrecognised model names to the eval's model.
 - [bridge-host-tool-events.md](bridge-host-tool-events.md): how a bridged
-  tool call is recorded.
+  tool call is recorded and paired with its proposal, and which grant it
+  consumes.
 - [docs/agent-bridge.qmd](../docs/agent-bridge.qmd): the user contract for
   granted capabilities, bridged tools, model routing, generation and request
   settings, approval and the transcript.
@@ -356,34 +357,32 @@ does not already have.
 
 A failed generation is returned to the scaffold as an error response in the
 API's own format. A token, cost, message or turn limit reached in a bridged
-generation is returned the same way, and the bridge records it. The first
-limit reached stays recorded unless a limit reached later encloses it (an
-ancestor in the same limit tree, or one of the sample's own limits while the
-recorded one is an inner agent's), which replaces it; this keeps a sample
-budget reached by an overlapping request from being lost behind an inner
-limit a caller catches. Later requests get the recorded limit's error
-without another provider call. The bridge does not stop the scaffold when
-it records a limit: it raises the recorded limit once the agent unwinds, so
-the scope that set it handles it as it would for a native agent. A termination (an approver's `terminate`,
-three consecutive rejections, a filter) ends the sample. A refusal under
-`fail_on_refusal`, an error in a `response_filter`, and an unexpected error
-in a bridged host tool fail the sample through the bridge's failure monitor,
-while the scaffold still gets an error reply.
+generation is returned the same way and recorded on the bridge. Once a limit
+is recorded the host makes no further generation for the bridge: later
+generation requests, and model calls a bridged tool makes, get the recorded
+limit's error without a provider call. The bridge does not stop the
+scaffold. It raises the recorded limit once the agent unwinds, so the scope
+that set it handles it as it would for a native agent. Which limit stays
+recorded when more than one is reached is in `_forward_provider_errors()` and
+`_encloses()` in `ai/agent/_bridge/sandbox/service.py`.
+
+A termination (an approver's `terminate`, three consecutive rejections, a
+filter) ends the sample. A refusal under `fail_on_refusal`, an error in a
+`response_filter`, and an unexpected error in a bridged host tool fail the
+sample through the bridge's failure monitor, while the scaffold still gets
+an error reply.
 
 ## Approval on the bridge
 
-A bridged agent runs its own tool loop, so Inspect never executes its calls
-and the native `execute_tools()` approval path never runs
-(`ai/agent/_bridge/_approval.py`). Approval is applied instead to the tool
-calls in each model response, in `bridge_generate()`, before the response is
-handed to the agent. A rejected call is not edited out: the call and a
-synthetic result are replayed to the model, which generates again, so the
-agent sees only the replacement. Three consecutive rejections terminate the
-sample. A multi-choice response whose alternate choices carry tool calls is
-reduced to its primary choice, with a warning, since only that choice is
-reviewed and granted; alternates with text only are passed through. An active sentinel's tool-call check runs
-at the same point, after approval. The user contract is
-[Bridged Agents](../docs/approval.qmd#bridged-agents) and
+A bridged agent runs its own tool loop, so Inspect never dispatches the
+agent's own calls and the native `execute_tools()` approval path never runs.
+Approval runs instead on the tool calls in each model response, in
+`bridge_generate()` (`ai/agent/_bridge/_approval.py`), before the response
+is handed to the agent; an active sentinel's tool-call check runs at the
+same point. A rejected call is replayed to the model with an explanation
+rather than edited out, so the agent sees only the replacement. The user
+contract, including termination after repeated rejections and multi-choice
+responses, is [Bridged Agents](../docs/approval.qmd#bridged-agents) and
 [Tool Approval](../docs/agent-bridge.qmd#tool-approval).
 
 Approval decides what the agent is handed, not what it does: the agent can
@@ -393,55 +392,38 @@ grants.
 
 ### Execution grants
 
-For each tool call in a response handed to the agent, the bridge records a
-one-shot grant (`SandboxAgentBridge.register_tool_execution_grants`). A
-grant binds the bridged server and tool the call denotes and the arguments
-as handed over (as approved, or as modified by an approver). `call_tool`
-consumes a matching grant before it runs a host tool and denies a request
-with none, whether or not an approval policy is active
-(`consume_tool_execution_grant`):
+Each tool call in a response handed to the agent becomes one grant
+(`SandboxAgentBridge.register_tool_execution_grants`), binding the bridged
+server and tool the call denotes and the arguments as approved, or as an
+approver modified them. `call_tool` consumes a matching grant before it runs
+a host tool and denies a request with none, whether or not an approval
+policy is active (`consume_tool_execution_grant`). A grant permits one
+execution and is matched by server, tool and arguments, not by proposal, so
+a retried `tools/call` is denied only when no matching grant remains. A
+server registered with `BridgedToolsSpec(require_proposal=False)` is the
+only opt-out: its tools run for any `tools/call` it receives.
 
-- Arguments match by JSON semantics (`json_equal`): key order and `5` against
-  `5.0` do not matter, any other difference does. When the tool's schema
-  forbids additional properties, granted keys the schema does not declare may
-  be left out of the call, since they could never be valid arguments.
-- Each grant permits one execution. A grant is chosen by server, tool and
-  arguments alone (the oldest matching one), not by proposal, so a retried
-  `tools/call` after a transport failure is denied only when no matching
-  grant remains; if the model proposed the same call more than once, the
-  retry consumes another proposal's grant.
-- A grant lasts until it is consumed or, once 1,024 are pending, evicted with
-  a warning.
-- A server registered with `BridgedToolsSpec(require_proposal=False)` runs
-  its tools for any `tools/call` it receives. Grants are still recorded for
-  it, only to pair executions with proposals in the transcript.
-
-The user contract is
-[Execution Contract](../docs/agent-bridge.qmd#bridged-tools-execution).
+Argument matching is in `consume_tool_execution_grant()`
+(`ai/agent/_bridge/sandbox/types.py`). Which pending grant a request
+consumes, how grants are bounded, and what they record for an exempt server
+are in [Pairing with the proposal](bridge-host-tool-events.md#pairing-with-the-proposal)
+and [Execution ids](bridge-host-tool-events.md#execution-ids). The user
+contract is [Execution Contract](../docs/agent-bridge.qmd#bridged-tools-execution).
 
 ### Bridged tool identity
 
-Agents rename MCP tools for their models (`mcp__<server>__<tool>`,
-`mcp_<server>_<tool>`, a bare name in a namespace), so the bridge does not
-match a proposed call to a bridged tool by name. It matches the call's
-declaration in the agent's request to the description the host served in
-`tools/list` (`_proposed_call` and `_resolve_by_served_content` in
-`ai/agent/_bridge/sandbox/types.py`). Tools the agent discovers through the
-Responses API's `tool_search` count as declarations. A declaration whose
-description matches no bridged tool denotes nothing, and a call to it grants
-nothing. A declaration that agrees with a served description for at least
-64 characters and adds at most a short marker identifies that tool, for
-agents that truncate long descriptions. One dispatcher shape is recognised:
-Antigravity's `call_mcp_tool`, whose `ServerName`, `ToolName` and
-`Arguments` name a bridged tool and its arguments.
-
-Approval reviews each call as the bridged tool its grant will bind, under
-that tool's own name and with its own arguments, so a policy written for a
-bridged tool applies whatever name the agent used. When bridged tools share
-a description, a call to any of them denotes all of them: it is approved
-only if each review approves it, it gets one grant per tool, and a `modify`
-decision for it fails the sample. The bridge warns at setup, naming such
-tools. The user contract is
+Agents rename MCP tools for their models, so a proposed call is tied to a
+bridged tool by the description its declaration carries, matched against
+the description the host served in `tools/list`, not by name
+(`_resolve_by_served_content` in `ai/agent/_bridge/sandbox/types.py`). A
+declaration that matches no served description denotes nothing, and a call
+to it grants nothing. Approval reviews each call as the bridged tool its
+grant will bind, so a policy written for a bridged tool applies whatever
+name the agent used. When bridged tools share a description, a call to any
+of them must pass every review, gets one grant per tool, and fails the
+sample on a `modify`; the bridge warns at setup, naming such tools. The
+matching rules, including truncated descriptions and the recognised
+dispatcher shape, are
 [Matching a Proposal](../docs/agent-bridge.qmd#bridged-tools-matching).
 
 ## What Inspect records
@@ -455,47 +437,28 @@ tools. The user contract is
 | An approval decision | In the Inspect process | (it is the refusal) | `ApprovalEvent` |
 
 - **`ModelEvent`.** Every generation the host performs on the bridge's
-  behalf is a `ModelEvent`, including those a `filter` makes and the model
-  calls compaction and approvers make. The event of the client's request
-  records the name the client sent in `requested_model`
-  (`ai/event/_model.py`), set from the routing result, while `model` records
-  the model that served it. Compaction and approval calls are not the
-  client's request and carry no requested name.
+  behalf is a `ModelEvent`, including those a `filter`, compaction or an
+  approver makes. The event of the client's request records the name the
+  client sent in `requested_model` (`ai/event/_model.py`) and the model that
+  served it in `model`.
 - **`ToolEvent` for `call_tool`.** Every `call_tool` request is one
-  `ToolEvent` in the native layout, executed, denied or rejected. An
-  execution that consumed a grant is placed in the span of the proposing
-  `ModelEvent`; the first request to consume a proposal's grant takes the id
-  of the call as handed to the agent, and any further one (a call granted for
-  several bridged tools sharing a description) gets a fresh id. That holds
-  whether the tool then runs or the request is rejected after consuming the
-  grant (arguments that fail the tool's schema). A request refused before any
-  grant is consumed (unknown server or tool, arguments nested too deep, no
-  matching grant) gets a fresh id. `metadata["bridge"]` records the server and
-  tool, the name the model used, the model's id for the proposing call
-  (`proposal_id`) and whether a grant was `consumed`, `denied` or
-  `exempt`. See [bridge-host-tool-events.md](bridge-host-tool-events.md) and
-  [Transcript](../docs/agent-bridge.qmd#transcript).
+  `ToolEvent`, whether it ran, was denied or was rejected, with
+  `metadata["bridge"]` naming the server, the tool and the grant outcome.
+  How each event pairs with its proposal and which one takes the proposing
+  call's id are in
+  [bridge-host-tool-events.md](bridge-host-tool-events.md#pairing-with-the-proposal);
+  see also [Transcript](../docs/agent-bridge.qmd#transcript).
 - **Message ids.** A request carries no Inspect message ids, so the bridge
-  assigns them to the messages it rebuilds from the request (`AgentBridge._assign_message_ids`): messages that
-  continue the tracked conversation unchanged take its ids, and any other
-  message takes the id an equal message had in an earlier request. The same
-  message therefore keeps one id across requests, in `ModelEvent` inputs and
-  in the sample's messages. A tool call in a response keeps the model's id
-  unless that id is empty or already names another call the bridge has seen
-  (some servers reuse ids, and some scaffolds drop a call under a repeated
-  id); the call is then handed to the agent under a fresh id, and the
-  `ModelEvent` keeps the model's (`_fresh_call_ids` in
-  `ai/agent/_bridge/util.py`).
-- **Agent state.** `bridge.state` is built from the traffic: the bridge
-  picks the agent's main conversation thread out of the requests it sees, by
-  heuristics, and adopts that thread's messages and the latest output
-  (`AgentBridge._track_state`). A call that extends the tracked thread always
-  updates it; a one-off side call (a title generation, a path check) does not
-  displace it, but a sub-agent loop that keeps running can take tracking over
-  for a while, and the main thread reclaims it when it continues. So
-  `bridge.state` can hold a sub-agent's conversation at the moment it is
-  read. Like the history in each request, it is the
-  agent's account of the conversation.
+  assigns them (`AgentBridge._assign_message_ids`) so that the same message
+  keeps one id across requests, in `ModelEvent` inputs and in the sample's
+  messages. A tool call whose id is empty or already names another call is
+  handed to the agent under a fresh id, while the `ModelEvent` keeps the
+  model's (`_fresh_call_ids` in `ai/agent/_bridge/util.py`).
+- **Agent state.** `bridge.state` is assembled from the traffic by
+  heuristics that pick the agent's main conversation thread
+  (`AgentBridge._track_state`), so it can hold a sub-agent's conversation
+  when it is read. Like the history in each request, it is the agent's
+  account of the conversation.
 
 ## Principals
 
@@ -573,16 +536,16 @@ model calls.
    generations as to native ones. Once a limit is reached the host makes no
    further generation for the bridge, and the recorded limit is raised in the
    scope that set it once the agent unwinds. The bridge does not stop the
-   scaffold itself: it keeps running until it exits, getting only error
-   replies from the host. *(Boundary C)*
+   scaffold itself: it keeps running until it exits, and only its
+   generation requests get error replies; granted tools that make no model
+   call and `list_tools` remain available. *(Boundary C)*
 7. **Not a browser service.** The proxy sends no cross-origin headers,
    answers no preflight, and accepts only JSON object bodies, so a web page
    rendered in the sandbox cannot drive it.
-8. **In a sandbox identity scope, one user.** The proxy serves only
-   connections from sockets the scope's user owns, and the queue behind it
-   is private to the tools user, so another non-root sandbox user can reach
-   neither
-   (see [the next section](#sandbox-identity-scopes-and-the-peer-check)).
+8. **In a sandbox identity scope, one user.** The proxy serves only sockets
+   the scope's user owns, and the queue behind it is private to the tools
+   user, so another non-root sandbox user can reach neither (see
+   [the next section](#sandbox-identity-scopes-and-the-peer-check)).
 
 ### What stays outside the guarantee
 
@@ -596,9 +559,9 @@ scope:
 - **The history the agent sends.** The user, assistant and tool-result
   messages in a request, and so `bridge.state`, are the agent's account.
 - **Who in the sandbox calls the bridge.** By default the bridge serves
-  every process in its sandbox. Where a bridge is limited to one sandbox user
-  (a sandbox identity scope), it still cannot tell apart processes running
-  as that user, and root can act as any user.
+  every process in its sandbox; in a sandbox identity scope it still cannot
+  tell apart processes running as the scope's user, and root can act as any
+  user.
 - **Root, or the tools user, interfering with the bridge inside its own
   sandbox,** including with the responses the agent receives, when only that
   sandbox's sample is affected. Where root is not usable the tools user is
@@ -630,39 +593,17 @@ scope:
 A framework that runs each agent as its own sandbox user (inspect_swarm,
 for example) opens a `sandbox_identity(user, ...)` scope around each one
 (see [Sandbox identity scopes](sandbox-trust-model.md#sandbox-identity-scopes)).
-A sandbox bridge entered inside a scope for its sandbox serves only that
-user:
-
-- The bridge passes the scope's user, and nothing secret, to the proxy in
-  `BRIDGE_MODEL_SERVICE_PEER_USER`. The proxy resolves the user before it
-  binds, and stops if the user does not resolve or is uid 0 or 65534, the
-  uids the kernel's socket table reports for sockets it cannot attribute.
-- The proxy listens on `127.0.0.1` and `[::1]` at its port (on
-  `127.0.0.1` alone where there is no IPv6 loopback), never with
-  `SO_REUSEPORT`, so another user cannot listen where `localhost` may lead.
-  The bridge yields only after the proxy prints that it listens, so a user
-  already holding the port makes the bridge fail rather than receive the
-  agent's requests.
-- For each connection, before reading it, the proxy finds the client's
-  socket in `/proc/net/tcp` or `/proc/net/tcp6` and serves the connection
-  only when exactly one live socket matches and the scope's user owns it.
-  Others get HTTP 403 on every route, bridged tools' MCP endpoints included
-  (`guest/_agent_bridge/peer_uid.py`). The kernel records each socket's
-  owner, and no process can create a socket owned by another uid without
-  that uid's privileges.
-- The queue belongs to the tools user, as it does for every bridge, so no
-  other user, the sandbox's default user included, can submit a request
-  without going through the proxy's check.
-
-The check identifies a user, not a process: the scope's user can relay its
-own bridge to another user, and root can act as any user, the scope's
-included. The full description, including how a reset
-connection is kept from handing its address pair to another user, is the
-"Bridge peer check" bullet of
-[Sandbox identity scopes](sandbox-trust-model.md#sandbox-identity-scopes).
-
-Outside a scope the proxy listens on `127.0.0.1` and serves every process in
-its sandbox, as `SECURITY.md` states.
+A sandbox bridge entered inside a scope for its sandbox serves only
+connections from sockets the scope's user owns; others get HTTP 403 on every
+route, bridged tools' MCP endpoints included. The queue belongs to the tools
+user, as for every bridge, so no other user can submit a request except
+through that check. The check identifies a user, not a process: the scope's
+user can relay its own bridge to another user, and root can act as any user.
+Outside a scope the proxy serves every process in its sandbox, as
+`SECURITY.md` states. How the proxy resolves the user, where it listens and
+how it finds a connection's owner is the "Bridge peer check" bullet of
+[Sandbox identity scopes](sandbox-trust-model.md#sandbox-identity-scopes)
+and `guest/_agent_bridge/peer_uid.py`.
 
 ## Not the in-process bridge
 
