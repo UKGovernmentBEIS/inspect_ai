@@ -101,7 +101,7 @@ from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
 from inspect_ai.util._limit import LimitExceededError
-from inspect_ai.util._sandbox.events import SandboxTimeoutError
+from inspect_ai.util._sandbox.environment import SandboxTimeoutError
 from inspect_ai.util._span import (
     SpanRotationScope,
     current_span_id,
