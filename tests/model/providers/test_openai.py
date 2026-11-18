@@ -2,6 +2,7 @@ import base64
 import json
 from contextlib import nullcontext
 from pathlib import Path
+from typing import Any, cast
 
 import httpx2
 import openai
@@ -11,8 +12,15 @@ from test_helpers.output_cache import check_output_cache_round_trip
 from test_helpers.utils import skip_if_no_openai, skip_if_no_openai_model
 
 from inspect_ai import Task, eval
+from inspect_ai._util.content import (
+    ContentData,
+    ContentDocument,
+    ContentImage,
+    ContentText,
+)
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
+    ChatMessage,
     ChatMessageTool,
     ChatMessageUser,
     GenerateConfig,
@@ -22,6 +30,7 @@ from inspect_ai.model import (
 from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._internal import parse_content_with_internal
 from inspect_ai.model._openai import openai_completion_params
+from inspect_ai.model._openai_responses import openai_responses_inputs
 from inspect_ai.tool import ToolFunction, computer, tool
 
 
@@ -74,6 +83,88 @@ async def test_openai_compact_reports_unavailable_endpoint(
     ) as model:
         with pytest.raises(NotImplementedError, match="endpoint not available"):
             await model.compact([ChatMessageUser(content="hello")], [])
+
+
+async def test_openai_compact_preserves_user_media() -> None:
+    """Images and files in user messages survive compaction and replay as input items."""
+    file_data = "data:application/pdf;base64,JVBERi0x"
+    image_url = "data:image/png;base64,iVBORw0KGgo"
+    # the compact endpoint echoes user messages with their original input items
+    body = {
+        "id": "resp_1",
+        "object": "response.compaction",
+        "created_at": 0,
+        "output": [
+            {
+                "id": "msg_1",
+                "type": "message",
+                "role": "user",
+                "status": "completed",
+                "content": [
+                    {"type": "input_text", "text": "see attached"},
+                    {
+                        "type": "input_file",
+                        "detail": "auto",
+                        "file_data": file_data,
+                        "filename": "r.pdf",
+                    },
+                    {"type": "input_image", "detail": "auto", "image_url": image_url},
+                ],
+            },
+            {"id": "cmp_1", "type": "compaction", "encrypted_content": "enc"},
+        ],
+        "usage": {
+            "input_tokens": 10,
+            "output_tokens": 1,
+            "total_tokens": 11,
+            "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
+            "output_tokens_details": {"reasoning_tokens": 0},
+        },
+    }
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        assert request.url.path == "/v1/responses/compact"
+        return httpx2.Response(200, json=body, request=request)
+
+    http_client = DefaultAsyncHttpxClient(transport=httpx2.MockTransport(handler))
+    async with get_model(
+        "openai/test",
+        api_key="test",
+        base_url="http://test/v1",
+        http_client=http_client,
+        responses_api=True,
+        memoize=False,
+    ) as model:
+        messages: list[ChatMessage] = [
+            ChatMessageUser(
+                content=[
+                    ContentText(text="see attached"),
+                    ContentDocument(document=file_data, filename="r.pdf"),
+                    ContentImage(image=image_url),
+                ]
+            )
+        ]
+        compacted, _ = await model.compact(messages, [])
+
+    user, compaction = compacted
+    assert isinstance(user, ChatMessageUser)
+    assert user.content == messages[0].content
+    assert isinstance(compaction.content, list)
+    assert isinstance(compaction.content[0], ContentData)
+
+    # the compacted history is replayed to the model on the next request
+    items = cast(list[dict[str, Any]], await openai_responses_inputs(compacted))
+    content = items[0]["content"]
+    assert [part["type"] for part in content] == [
+        "input_text",
+        "input_file",
+        "input_image",
+    ]
+    assert content[1]["file_data"] == file_data
+    assert content[1]["filename"] == "r.pdf"
+    assert content[2]["image_url"] == image_url
+    assert items[1]["type"] == "compaction"
+    assert items[1]["encrypted_content"] == "enc"
 
 
 async def test_openai_compact_propagates_other_endpoint_errors() -> None:
@@ -880,6 +971,17 @@ async def _gpt_6_none_effort_with_temperature(model_name: str) -> None:
     assert (output.usage.reasoning_tokens or 0) == 0
 
 
+async def _gpt_6_low_effort_with_temperature(model_name: str) -> None:
+    # for models that always reason, temperature is dropped (with a warning)
+    # even with an explicit effort
+    model = get_model(
+        f"openai/{model_name}",
+        config=GenerateConfig(temperature=0.5, reasoning_effort="low"),
+    )
+    output = await model.generate([ChatMessageUser(content="Say hello.")])
+    assert output.completion
+
+
 async def _gpt_6_max_effort(model_name: str) -> None:
     model = get_model(
         f"openai/{model_name}", config=GenerateConfig(reasoning_effort="max")
@@ -939,13 +1041,7 @@ async def test_openai_gpt_6_1_sol_generate() -> None:
 @skip_if_no_openai
 @skip_if_no_openai_model("gpt-6.1-sol")
 async def test_openai_gpt_6_1_sol_low_effort_with_temperature() -> None:
-    # temperature is dropped (with a warning) even with an explicit effort
-    model = get_model(
-        "openai/gpt-6.1-sol",
-        config=GenerateConfig(temperature=0.5, reasoning_effort="low"),
-    )
-    output = await model.generate([ChatMessageUser(content="Say hello.")])
-    assert output.completion
+    await _gpt_6_low_effort_with_temperature("gpt-6.1-sol")
 
 
 @skip_if_no_openai
@@ -975,6 +1071,93 @@ async def test_openai_gpt_6_1_terra_none_effort_with_temperature() -> None:
 @skip_if_no_openai_model("gpt-6.1-terra")
 async def test_openai_gpt_6_1_terra_max_reasoning_effort() -> None:
     await _gpt_6_max_effort("gpt-6.1-terra")
+
+
+# -- GPT-6.2 Astra / Sol (live) --
+#
+# Both always reason like GPT-6 Astra and GPT-6.1 Sol: `none` is rejected and
+# sampling params are dropped regardless of effort.
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-astra")
+async def test_openai_gpt_6_2_astra_generate() -> None:
+    await _gpt_6_generate("gpt-6.2-astra")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-astra")
+async def test_openai_gpt_6_2_astra_low_effort_with_temperature() -> None:
+    await _gpt_6_low_effort_with_temperature("gpt-6.2-astra")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-astra")
+async def test_openai_gpt_6_2_astra_max_reasoning_effort() -> None:
+    await _gpt_6_max_effort("gpt-6.2-astra")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-sol")
+async def test_openai_gpt_6_2_sol_generate() -> None:
+    await _gpt_6_generate("gpt-6.2-sol")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-sol")
+async def test_openai_gpt_6_2_sol_low_effort_with_temperature() -> None:
+    await _gpt_6_low_effort_with_temperature("gpt-6.2-sol")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-sol")
+async def test_openai_gpt_6_2_sol_max_reasoning_effort() -> None:
+    await _gpt_6_max_effort("gpt-6.2-sol")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-astra")
+async def test_openai_gpt_6_2_astra_reasoning_removed_warns() -> None:
+    await _gpt_6_2_reasoning_removed_warns("gpt-6.2-astra")
+
+
+@skip_if_no_openai
+@skip_if_no_openai_model("gpt-6.2-sol")
+async def test_openai_gpt_6_2_sol_reasoning_removed_warns() -> None:
+    await _gpt_6_2_reasoning_removed_warns("gpt-6.2-sol")
+
+
+async def _gpt_6_2_reasoning_removed_warns(model_name: str) -> None:
+    """Editing a message before replayed reasoning makes the API remove it, and we warn.
+
+    Turn 1 produces a reasoning item; turn 2 replays it after an edited user
+    message, which GPT-6.2 reports as a prefix_mismatch removal.
+    """
+    from unittest.mock import patch
+
+    model = get_model(
+        f"openai/{model_name}", config=GenerateConfig(reasoning_effort="medium")
+    )
+    prompt = "Find all real solutions of 3*x^3 - 5*x = 1 to 3 decimal places."
+    first = await model.generate(input=[ChatMessageUser(content=prompt)])
+    content = first.choices[0].message.content
+    assert isinstance(content, list)
+    assert any(c.type == "reasoning" for c in content), "turn 1 produced no reasoning"
+
+    with patch("inspect_ai.model._providers.openai_responses.warn_once") as mock_warn:
+        second = await model.generate(
+            input=[
+                ChatMessageUser(content=prompt + " Show your working."),
+                first.choices[0].message,
+                ChatMessageUser(content="Now add 9 to the largest solution."),
+            ]
+        )
+    assert len(second.completion) >= 1
+    messages = [call.args[1] for call in mock_warn.call_args_list]
+    assert any(
+        "removed replayed reasoning" in m and "(reason: prefix_mismatch)" in m
+        for m in messages
+    )
 
 
 # -- skip_if_no_openai_model gate (no network) --

@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, AsyncIterator
 import anyio
 from shortuuid import uuid
 
-from inspect_ai._sentinel._context import warn_sentinel_bridged
 from inspect_ai._util._async import raise_unwrapped
 from inspect_ai._util.working import untracked_sandbox_execs
 from inspect_ai.model._compaction.types import CompactionStrategy
@@ -129,7 +128,7 @@ async def sandbox_agent_bridge(
             or model spec string) is used instead. Checked before the ``model``
             pin. Keys are the exact names the agent sends. Use this to reach a
             model other than the eval's model (e.g.
-            ``{"claude-haiku-4-5": get_model("anthropic/claude-haiku-4-5")}``),
+            ``{"claude-haiku-5-5": get_model("anthropic/claude-haiku-5-5")}``),
             including a model role the agent is meant to call
             (``{"subagent": get_model(role="subagent")}``). Every key is a
             model the agent can call, so do not alias a role such as a grader.
@@ -220,8 +219,6 @@ async def sandbox_agent_bridge(
             (see ``ModelResponseFilter``). Return ``None`` to pass through;
             return a ``ModelOutput`` to replace the response.
     """
-    warn_sentinel_bridged()
-
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
 

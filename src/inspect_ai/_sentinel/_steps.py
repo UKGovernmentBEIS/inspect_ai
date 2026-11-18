@@ -3,9 +3,11 @@
 Each driver gathers the facts a step is made from, live from its arguments and context variables, or from a sample's events, and hands them to the same functions here, so a field added to a step is built for both or fails both.
 """
 
+import hashlib
 import json
 from bisect import bisect_left, bisect_right
-from collections.abc import Callable, Iterator, Sequence
+from collections import Counter
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from typing import (
     TYPE_CHECKING,
     Literal,
@@ -16,14 +18,12 @@ from typing import (
     overload,
 )
 
-import mmh3
-
-from inspect_ai._util.hash import mm3_hash
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sentinel import SentinelStage
 from inspect_ai.model._chat_message import (
     ChatMessage,
+    ChatMessageAssistant,
     ChatMessageTool,
     _logged_json_adapter,
 )
@@ -115,14 +115,14 @@ _EXCLUDED = {"id", "source", "metadata"}
 
 
 def content_key(message: ChatMessage) -> str:
-    """A hash of what the model is sent of a message: all but its id, source and metadata.
+    """A SHA-256 digest of what the model is sent of a message: all but its id, source and metadata.
 
-    It is encoded as the log is (`logged_json()`), so None, NaN and the infinities are told apart. Text with lone surrogates, which UTF-8 JSON cannot encode, is hashed from JSON with them escaped. A message that cannot be serialized at all (such as a numpy array in its tool arguments) is keyed by identity, so it matches only itself: a rebuilt copy of it is new, and an edit made to it in place is not seen.
+    A match decides that a message is not new, and the agent controls its messages, so the key is collision-resistant. It is encoded as the log is (`logged_json()`), so None, NaN and the infinities are told apart. Text with lone surrogates, which UTF-8 JSON cannot encode, is hashed from JSON with them escaped. A message that cannot be serialized at all (such as a numpy array in its tool arguments) is keyed by identity, so it matches only itself: a rebuilt copy of it is new, and an edit made to it in place is not seen.
     """
     try:
-        return mmh3.hash_bytes(
+        return hashlib.sha256(
             _logged_json_adapter.dump_json(message, exclude=_EXCLUDED)
-        ).hex()
+        ).hexdigest()
     except ValueError:
         pass
     # any value can fail to serialize, in any way; keyed by identity, a
@@ -131,9 +131,31 @@ def content_key(message: ChatMessage) -> str:
         logged = _logged_json_adapter.dump_python(
             message, mode="json", exclude=_EXCLUDED
         )
-        return mm3_hash(json.dumps(logged))
+        return hashlib.sha256(json.dumps(logged).encode()).hexdigest()
     except Exception:
         return f"object:{id(message)}"
+
+
+def not_sent_before(
+    input: Sequence[ChatMessage], sent: Mapping[str, int]
+) -> list[tuple[int, ChatMessage]]:
+    """The messages of a request that the model has not been sent before, each with its position in the request, counting from 1.
+
+    A message was sent before if the model has been sent one with the same content (`content_key()`) that no earlier message of the request has been matched to. So a message rewritten since it was sent is here as its new version, as is an assistant message the scaffold wrote itself. A message sent before is left out wherever it now sits, so one that moved is not here. A message that repeats an earlier one, such as an agent's fixed prompt to continue, is here when the request holds it more times than any request the model was sent did.
+
+    Args:
+        input: The messages the request sends the model.
+        sent: By `content_key()`, the most copies of a message that any one request sent to the model held (`ConversationRecord.sent_to()`).
+    """
+    left = Counter(sent)
+    new: list[tuple[int, ChatMessage]] = []
+    for position, message in enumerate(input, 1):
+        key = content_key(message)
+        if left[key] > 0:
+            left[key] -= 1
+        else:
+            new.append((position, message))
+    return new
 
 
 class FoldInput(Protocol):
@@ -157,6 +179,9 @@ class KeyedInput:
 
     def __len__(self) -> int:
         return len(self._keys)
+
+    def keys(self) -> Sequence[str]:
+        return self._keys
 
     def message(self, position: int) -> ChatMessage:
         return self._messages[position]
@@ -216,7 +241,18 @@ class ConversationRecord:
 
     def __init__(self) -> None:
         self.sent = _Sent()
+        # by a model's name and a message's key, the most copies of the
+        # message that any one input sent to the model held
+        self._sent_to: dict[str, Counter[str]] = {}
         self._decisions: list["HumanDecision"] = []
+
+    def record(self, input: Sequence[ChatMessage], model: str) -> None:
+        """Record an agent turn's input as sent, by the conversation and to `model`."""
+        keyed = KeyedInput(input)
+        self.sent.record_input(keyed)
+        held = self._sent_to.setdefault(model, Counter())
+        for key, copies in Counter(keyed.keys()).items():
+            held[key] = max(held[key], copies)
 
     def publish(self, kept: Sequence["HumanDecision"]) -> None:
         """Add a settled step's `human()` decisions, once its sentinel span has ended."""
@@ -224,6 +260,13 @@ class ConversationRecord:
 
     def history(self) -> ListView[ChatMessage]:
         return view(self.sent.messages)
+
+    def sent_to(self, model: str) -> Mapping[str, int]:
+        """What the conversation has sent `model`: by `content_key()`, the most copies of a message that any one input held.
+
+        `history()` doesn't answer this. It holds what the conversation has sent any model, and a message again each time one is dropped and restored, so it can hold a message more times than any input did.
+        """
+        return self._sent_to.get(model, {})
 
     def human_decisions(self) -> ListView["HumanDecision"]:
         """The `human()` decisions published so far: a step's own, or a parallel step's still running, are not among them."""
@@ -236,11 +279,21 @@ class Producer(NamedTuple):
     input: Sequence[ChatMessage]
     tools: Sequence[ToolInfo]
     tool_choice: ToolChoice
+    message: ChatMessageAssistant
+    """The model call's output message as the event records it, which replay reads back: normally a snapshot (`_snapshot_output`), not the agent's copy, which the agent can change before it runs the calls. A message that cannot be serialized or copied is logged live, so later edits show in it, as for `input`. A bounded transcript (`INSPECT_TRANSCRIPT_BOUNDED`) records such an event when it moves it out of memory. A tool turn that started before then keeps the live event (`tool_turn`), so its steps see edits the agent makes after, but replay rebuilds them from the recorded output, without those edits; the same live/replay difference applies to `input`. A turn that starts after, or a step outside a turn, gets the message as recorded. For an agent bridge that handed calls over under fresh ids, the message with those ids (`Produced.message`)."""
 
 
-def producer_of(event: ModelEvent | None) -> Producer | None:
+def producer_of(
+    event: ModelEvent | None, message: ChatMessageAssistant | None = None
+) -> Producer | None:
+    """What a tool step reads of `event`, with `message` in place of its output message if given (an agent bridge's message with the call ids it handed over)."""
     return (
-        Producer(view(event.input), view(event.tools), event.tool_choice)
+        Producer(
+            view(event.input),
+            view(event.tools),
+            event.tool_choice,
+            message if message is not None else event.output.message,
+        )
         if event is not None
         else None
     )
@@ -366,6 +419,7 @@ def before_tool_call(
         message_id=message_id,
         call=call,
         view=view,
+        assistant_message=producer.message if producer is not None else None,
         input=producer.input if producer is not None else None,
         agent_messages=agent_messages,
         history=record.history(),
@@ -414,6 +468,7 @@ def after_tool_call(
         result=result,
         output=output,
         view=view,
+        assistant_message=producer.message if producer is not None else None,
         input=producer.input if producer is not None else None,
         agent_messages=agent_messages,
         history=record.history(),

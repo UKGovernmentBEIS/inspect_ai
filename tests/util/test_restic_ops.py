@@ -20,6 +20,7 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import anyio
 import pytest
@@ -30,6 +31,7 @@ from inspect_ai.util._restic.ops import (
     _parse_changed_files,
     _parse_listed_files,
     _previous_id,
+    list_changed_files,
     restore_repo,
     run_backup,
 )
@@ -151,6 +153,35 @@ def test_previous_id_matches_short_prefix() -> None:
 
 def test_previous_id_absent_snapshot() -> None:
     assert _previous_id(_SNAPS, "zzzz") is None
+
+
+@pytest.mark.parametrize("parent", [None, "--password-command=echo parent"])
+async def test_list_changed_files_terminates_options(parent: str | None) -> None:
+    snapshot_id = "--password-command=echo snapshot"
+    snapshots = [{"id": snapshot_id, "time": "2026-01-02"}]
+    if parent is not None:
+        snapshots.append({"id": parent, "time": "2026-01-01"})
+    run = AsyncMock(
+        side_effect=[
+            SimpleNamespace(stdout=json.dumps(snapshots).encode()),
+            SimpleNamespace(stdout=b""),
+        ]
+    )
+    with patch("anyio.run_process", run):
+        assert await list_changed_files(Path("/r"), "/repo", "pw", snapshot_id, 10) == (
+            [],
+            0,
+        )
+    operands = [snapshot_id] if parent is None else [parent, snapshot_id]
+    assert run.call_args.args[0] == [
+        "/r",
+        "-r",
+        "/repo",
+        "ls" if parent is None else "diff",
+        "--json",
+        "--",
+        *operands,
+    ]
 
 
 # --- run_backup invocation (host-side) -----------------------------------
@@ -310,13 +341,14 @@ async def test_restore_repo_restores_known_subfolder(
     await _restore(target)
 
     assert [c[3] for c in calls] == ["ls", "restore"]
-    assert calls[0][3:] == ["ls", "--json", "latest"]
+    assert calls[0][3:] == ["ls", "--json", "--", "latest"]
     assert calls[1][3:] == [
         "restore",
-        f"{_SNAPSHOT_ID}:{_SNAPSHOT_PATH}",
         "--target",
         str(target),
         "--verify",
+        "--",
+        f"{_SNAPSHOT_ID}:{_SNAPSHOT_PATH}",
     ]
     assert [p.name for p in target.iterdir()] == ["store.json"]
 
@@ -427,7 +459,7 @@ async def test_restore_repo_restores_legacy_relative_rooted_snapshot(
 
     await _restore(target)
 
-    assert calls[1][4] == f"{_SNAPSHOT_ID}:/ckpts/1__1/context"
+    assert calls[1][-1] == f"{_SNAPSHOT_ID}:/ckpts/1__1/context"
     assert [p.name for p in target.iterdir()] == ["store.json"]
 
 
