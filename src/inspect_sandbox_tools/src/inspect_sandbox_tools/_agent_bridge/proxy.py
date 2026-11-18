@@ -2538,6 +2538,13 @@ async def _call_bridge_model_service_async(method: str, **params: Any) -> Any:
 
 
 def _write_bridge_model_service_request(method: str, **params: Any) -> str:
+    """Write a request file for the bridge model service and return its id.
+
+    A request file that cannot be written in full is removed before the error
+    is raised: the service rereads an incomplete file until it is complete, and
+    the proxy now answers the failed request and keeps serving, so nothing
+    else would remove it.
+    """
     from json import dump
     from uuid import uuid4
 
@@ -2545,8 +2552,12 @@ def _write_bridge_model_service_request(method: str, **params: Any) -> str:
     request_id = str(uuid4())
     request_data = dict(id=request_id, method=method, params=params)
     request_path = requests_dir / (request_id + ".json")
-    with open(request_path, "w") as f:
-        dump(request_data, f)
+    try:
+        with open(request_path, "w") as f:
+            dump(request_data, f)
+    except BaseException:
+        request_path.unlink(missing_ok=True)
+        raise
     return request_id
 
 

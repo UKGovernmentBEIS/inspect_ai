@@ -1,6 +1,7 @@
 """Tests for async HTTP server."""
 
 import asyncio
+import errno
 import json
 import os
 from contextlib import asynccontextmanager
@@ -3360,6 +3361,49 @@ async def test_failed_request_traceback_is_written_unless_the_sample_is_ending(
                 )
 
     assert (reply in capsys.readouterr().err) is written
+
+
+async def test_request_file_that_cannot_be_written_is_removed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A partly written request file is removed; the next request is served."""
+    for subdir in ("requests", "responses"):
+        (tmp_path / subdir).mkdir()
+    monkeypatch.setattr(
+        proxy_module,
+        "_bridge_model_service_service_dir",
+        lambda subdir: tmp_path / subdir,
+    )
+    real_dump = json.dump
+    writes = 0
+
+    def dump(obj: Any, fp: Any) -> None:
+        nonlocal writes
+        writes += 1
+        if writes == 1:
+            fp.write('{"id": "')
+            raise OSError(errno.ENOSPC, "No space left on device")
+        real_dump(obj, fp)
+        # the service's answer
+        response = {"id": obj["id"], "result": {"served": True}}
+        (tmp_path / "responses" / f"{obj['id']}.json").write_text(json.dumps(response))
+
+    monkeypatch.setattr(json, "dump", dump)
+    body = {"model": "gpt-4o", "messages": [{"role": "user", "content": "hi"}]}
+    url = "/v1/chat/completions"
+    async with _proxy_with_service(
+        proxy_module._call_bridge_model_service_async
+    ) as base_url:
+        async with ClientSession() as session:
+            async with session.post(f"{base_url}{url}", json=body) as first:
+                assert first.status == 400
+            assert list((tmp_path / "requests").iterdir()) == []
+            async with session.post(f"{base_url}{url}", json=body) as second:
+                assert second.status == 200
+                assert await second.json() == {"served": True}
+
+    [request] = (tmp_path / "requests").iterdir()
+    assert json.loads(request.read_text())["method"] == "generate_completions"
 
 
 @pytest.mark.asyncio
