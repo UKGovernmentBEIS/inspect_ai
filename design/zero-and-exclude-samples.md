@@ -194,10 +194,6 @@ the outcome from the log. Both are synchronous, edit `log` in place and
 leave writing to the caller. Neither takes a task or a `trust_log` option. Every refusal is
 raised before the first edit, so a refused call leaves the log as it was.
 
-Returning `None`, excluding an already excluded sample again, and
-recomputing after an empty selector sequence are not yet built; see
-[Not yet built](#not-yet-built).
-
 ### Checks on the log and the selectors
 
 Both functions first check, each failure a `ValueError`:
@@ -359,82 +355,7 @@ inspect log zero    LOG_FILE --from EMPTY_LOG --sample ID [--sample ID ...] [--e
   function succeeds, `_run_disposition()` counts
   `_select_samples(log, selectors)`, the same helper the functions use, so
   a bare id counts each of its epochs, a string matches an `int` id, and a
-  repeated selector counts once. There is no `--json` option. The
-  unconditional write and this output are not yet built; see
-  [Not yet built](#not-yet-built).
-
-## Not yet built
-
-The code on `main` differs from this document in one respect, which a
-follow-up implementation changes (decision: Ransom, 2026-11-17). Today
-`exclude_samples()` leaves a target whose held scores are all excluded
-unedited and reports it as unchanged; both functions return a
-`DispositionResult` NamedTuple (`applied`, and `unchanged`, which is always
-empty for zero); and the CLI prints one `excluded`/`zeroed`/`unchanged`
-line per target, has a `--json` option printing the log path with the
-`applied` and `unchanged` lists, and writes the log only when something was
-applied.
-
-The implementation removes:
-
-- in [`log/_disposition.py`](../src/inspect_ai/log/_disposition.py): the
-  `DispositionResult` NamedTuple, the "all scores already excluded" branch
-  of `exclude_samples()`, and the `if not edits: return` path in
-  `_apply_edits()`, and the "Returns" sections of both docstrings; both
-  functions return `None`. An empty selector sequence is still accepted, but
-  now resolves and recomputes the metrics, so a metric or reducer the
-  registry cannot build raises `LookupError` even though no sample is
-  edited (today the call returns without resolving);
-- the `DispositionResult` export from
-  [`log/__init__.py`](../src/inspect_ai/log/__init__.py) and its entry in
-  `docs/reference/inspect_ai.log.qmd`;
-- in [`_cli/log.py`](../src/inspect_ai/_cli/log.py): the
-  `DispositionResult` import, the `--json` option blocks of the `exclude`
-  and `zero` commands, and in `_run_disposition()` the `if result.applied:`
-  write guard, the JSON branch and the per-target print loop, replaced by
-  the one summary line counted with `_select_samples()`; the `apply`
-  parameter's annotation becomes
-  `Callable[[EvalLog, list[SampleSelector], ProvenanceData], None]`;
-- tests in `tests/scorer/test_score_editing.py` and
-  `tests/log/test_zero_samples.py`: the `result = ` assignments and the
-  `result.unchanged` and `result.applied` asserts go (the
-  selector-expansion test checks the log directly instead), and so does
-  `test_zero_samples_twice`'s `assert result == ([("a", 1)], [])`, leaving
-  its history and provenance checks;
-- `test_exclude_samples_unchanged` becomes a re-apply test: after `a` is
-  excluded, the mixed call `exclude_samples(log, ["a", "b"], ...)` grows
-  `a`'s score history and its sample's `ScoreEditEvent` count by one each
-  (and excludes `b` for the first time), and its check that a value edit followed by an
-  exclusion leaves the score excluded stays;
-- a new empty-selector test beside it calls `exclude_samples(log, [], ...)`
-  on a log whose scorer names a metric the registry cannot build and
-  asserts `LookupError` with the log unchanged; `tests/log/test_zero_samples.py`
-  gets the same case for `zero_samples(log, empty, [], ...)`. These two
-  tests pin the two behaviours this change makes, which no other planned
-  test reaches (the CLI requires `--sample`);
-- in `tests/test_eval_set_selection.py`,
-  `test_eval_set_selection_empty_attempt_log_can_zero_samples` calls
-  `zero_samples()` without assigning it and drops its `result.applied`
-  assert, keeping its solver-header checks and the direct
-  `scores == {"a": "I", "b": "C"}` check;
-- tests in `tests/_cli/test_log_disposition.py` are adjusted, not deleted:
-  `test_log_exclude_command` asserts the summary line where it asserts
-  per-target lines, its `--json` re-exclusion of `a` asserts
-  `excluded 2 samples` and a new history entry instead of the JSON, and its
-  last re-exclusion, which today asserts `unchanged` lines and that nothing
-  is written, now asserts the summary line and lets the write happen;
-  `test_log_exclude_command_write_conflict` drops `--json` and asserts that
-  no summary line is printed; `test_log_zero_command` asserts the summary
-  line where it asserts per-target lines, and its `--json` run of `a`
-  asserts `zeroed 2 samples` instead of the JSON; the `json` import goes;
-- docs: in `docs/eval-logs.qmd`, the `result.applied` / `result.unchanged`
-  sentence, the "`--json` prints the result as JSON" sentence, and the
-  `result = ` assignments in the two examples.
-
-All of it must ship before the next release, while `DispositionResult`,
-the return values and the commands' `--json` option are unreleased:
-changing them after a release is a breaking change to `inspect_ai.log` and
-the CLI.
+  repeated selector counts once. There is no `--json` option.
 
 ## Decisions
 
@@ -450,7 +371,7 @@ the CLI.
 - 2026-11-17: exclusion has no "already excluded" no-op, the same as zero;
   there is no `DispositionResult`, both functions return `None`, and the
   CLI has no `--json` option and prints one summary line instead of a line
-  per target (see Not yet built). An operator's replay check for exclusion
+  per target. An operator's replay check for exclusion
   tests the reason and a root `NaN` value; the check for zero tests the
   reason alone.
 

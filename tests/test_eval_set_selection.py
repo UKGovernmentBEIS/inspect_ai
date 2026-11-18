@@ -201,11 +201,8 @@ def test_eval_set_selection_empty_attempt_log_can_zero_samples(
     assert empty.eval.solver == "inspect_ai/empty_attempt"
     assert empty.eval.task == log.eval.task
 
-    result = zero_samples(
-        log, empty, ["a"], ProvenanceData(author="runner", reason="zeroed")
-    )
+    zero_samples(log, empty, ["a"], ProvenanceData(author="runner", reason="zeroed"))
 
-    assert result.applied == [("a", 1)]
     scores = {s.id: (s.scores or {})["includes"].value for s in log.samples or []}
     assert scores == {"a": "I", "b": "C"}
 
