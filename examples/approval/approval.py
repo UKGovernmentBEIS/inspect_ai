@@ -1,6 +1,7 @@
 import ast
 import builtins
 import re
+from collections.abc import Mapping
 from textwrap import dedent
 from typing import Any
 
@@ -61,7 +62,13 @@ def bash_allowlist(
         Approver: A function that approves or rejects bash commands based on the allowed list and rules.
     """
     allowed = name_set(allowed_commands)
-    rules = {k: name_set(v) for k, v in (command_specific_rules or {}).items()}
+    if command_specific_rules is None:
+        command_specific_rules = {}
+    elif not isinstance(command_specific_rules, Mapping):
+        raise TypeError(
+            "command_specific_rules must be a mapping of commands to lists of subcommands"
+        )
+    rules = {k: name_set(v) for k, v in command_specific_rules.items()}
     # characters with no special meaning to bash, and space to separate words
     # (`=` can only assign in the first word, which must be an allowed command)
     plain_command = re.compile(r"[A-Za-z0-9_./:=@%+, -]*")

@@ -122,5 +122,7 @@ def test_approval_example_rejects_malformed_config(
     bash, python = approval_example.bash_allowlist, approval_example.python_allowlist
     with pytest.raises(TypeError, match="list of strings"):
         bash(allowed_commands="ls")
+    with pytest.raises(TypeError, match="command_specific_rules must be a mapping"):
+        bash(allowed_commands=["ls"], command_specific_rules=False)
     with pytest.raises(TypeError, match="list of strings"):
         python(allowed_functions=["print"], allowed_modules="math")
