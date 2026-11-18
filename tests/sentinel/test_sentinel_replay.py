@@ -2942,6 +2942,99 @@ def test_a_google_bridge_call_without_a_sentinel_is_not_looked_up(
         assert attempts == 0, inputs
 
 
+@agent
+def classified_batch_scaffold() -> Agent:
+    """A bridged OpenAI client loop that runs the calls of one response one at a time, sending a request with its own one-message history before each call, as Claude Code's permission classifier does in auto mode, and then the results."""
+
+    async def execute(state: AgentState) -> AgentState:
+        from openai import AsyncOpenAI
+
+        tools: list[Any] = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_file",
+                    "description": "Read a file.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"path": {"type": "string"}},
+                    },
+                },
+            }
+        ]
+        async with agent_bridge(state) as bridge:
+            async with AsyncOpenAI(api_key="sk-test") as client:
+                messages: list[Any] = [{"role": "user", "content": "Read the files."}]
+                completion = await client.chat.completions.create(
+                    model="inspect", messages=messages, tools=tools
+                )
+                message = completion.choices[0].message
+                messages.append(message.model_dump(exclude_none=True))
+                for call in message.tool_calls or []:
+                    question = f"Is call {call.id} safe to run?"
+                    with model_origin("helper"):
+                        await client.chat.completions.create(
+                            model="inspect",
+                            messages=[{"role": "user", "content": question}],
+                        )
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": call.id,
+                            "content": f"result:{call.id}",
+                        }
+                    )
+                await client.chat.completions.create(
+                    model="inspect", messages=messages, tools=tools
+                )
+            return bridge.state
+
+    return execute
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_classifier_request_per_parallel_call_keeps_finding_results_linear(
+    backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # after the pre-push review of 95a93d974: a response proposes many calls
+    # and a request with its own history comes before each one runs; each of
+    # those requests looked up every awaiting call id, so replay was quadratic
+    # in the calls of one response
+    from inspect_ai._sentinel import _replay
+
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    last_held = _replay._PooledInput.last_held
+    attempts = 0
+
+    def counting(self: Any, *args: Any) -> int | None:
+        nonlocal attempts
+        attempts += 1
+        return last_held(self, *args)
+
+    work: list[int] = []
+    for calls in (20, 40):
+        task = Task(
+            dataset=[Sample(input="Read the files.")],
+            solver=as_solver(classified_batch_scaffold()),
+        )
+        output = r7_tool_calls(*(read(f"{n}.py", f"call_{n}") for n in range(calls)))
+        [log] = eval(task, model=generated_ids(None, output, done()))
+        assert log.status == "success", log.error
+        for inputs in ["expanded", "pooled"]:
+            attempts = 0
+            with monkeypatch.context() as patch:
+                patch.setattr(_replay._PooledInput, "last_held", counting)
+                replay = replayed_inputs(log, inputs)
+            results = [
+                s for s in bridged_steps(log, replay) if s.stage == "tool_result"
+            ]
+            assert [(s.id.partition("/")[2], resulted(s).text) for s in results] == [
+                (f"call_{n}", f"result:call_{n}") for n in range(calls)
+            ], inputs
+            work.append(attempts)
+    assert work[2] <= 2.2 * work[0] and work[3] <= 2.2 * work[1], work
+
+
 @pytest.mark.parametrize("side", ["agent", "helper"])
 @pytest.mark.parametrize("client", ["openai", "anthropic"])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])

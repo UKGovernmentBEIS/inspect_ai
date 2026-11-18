@@ -453,12 +453,15 @@ def _new_tool_results(
     previous: _PooledInput | None,
     awaiting: "dict[str, _BridgedCall]",
     tool_rows: Mapping[str, list[int]],
+    every_tool_row: list[int],
 ) -> dict[str, int]:
     """Each awaiting call id's result in `current`, in position order: the position of the last tool message under the id among the messages new against `previous` (`new_positions`).
 
-    The last tool message under the id in all of `current` is found first, from `tool_rows` (the pool rows of tool messages, by call id). If `previous` holds no message with its content, it is new, so it is the last new one, and the rest of `current` is not read. Otherwise the new messages are read in order, as the result can be an earlier one.
+    An input holding no tool message (`every_tool_row`, the pool rows of all tool messages, sorted) has none, as a request with its own history before each of several calls doesn't. Otherwise the last tool message under each id in all of `current` is found first, from `tool_rows` (the pool rows of tool messages, by call id). If `previous` holds no message with its content, it is new, so it is the last new one, and the rest of `current` is not read. Otherwise the new messages are read in order, as the result can be an earlier one.
     """
     results: dict[str, int] = {}
+    if current.last_held(every_tool_row) is None:
+        return results
     for call_id in awaiting:
         position = current.last_held(tool_rows[call_id])
         if position is None:
@@ -1637,6 +1640,7 @@ class _Driver:
                 and message.tool_call_id is not None
             ):
                 tool_rows.setdefault(message.tool_call_id, []).append(row)
+        every_tool_row = sorted(row for rows in tool_rows.values() for row in rows)
         previous: dict[str, _PooledInput] = {}
         # each conversation's call awaiting a result, by call id
         awaiting: dict[str, dict[str, _BridgedCall]] = {}
@@ -1646,7 +1650,11 @@ class _Driver:
             waiting = awaiting.setdefault(conversation, {})
             if waiting:
                 results = _new_tool_results(
-                    current, previous.get(conversation), waiting, tool_rows
+                    current,
+                    previous.get(conversation),
+                    waiting,
+                    tool_rows,
+                    every_tool_row,
                 )
                 for call_id, position in results.items():
                     message = current.message(position)
