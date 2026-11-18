@@ -484,7 +484,7 @@ These steps follow the conversation, not the checks a sentinel made live, so the
 | A host tool a sandbox bridge ran | The tool under the name the model used (e.g. `mcp__host__addition`) |
 | The bridge never handed the call to the agent (e.g. a token limit, or a rejected call in the same response) | The call, and whatever result the model next received |
 | The result never reached the model (e.g. a limit or a sentinel ended the sample) | The call, with no result |
-| The model reused the id of an earlier call (the bridge hands the call over under a new id) | The call, with no result, and the model call's message with the reused id (live's has the new call id and message id) |
+| The model reused the id of an earlier, different call (the bridge hands the call over under a new id) | The call, with no result, and the model call's message with the reused id (live's has the new call id and message id) |
 
 Without a sentinel, the Google bridge doesn't keep call ids, so replay shows the tool calls of an agent using the Google API, but not their results.
 
