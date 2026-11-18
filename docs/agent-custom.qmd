@@ -486,7 +486,7 @@ These steps follow the conversation, not the checks a sentinel made live, so the
 | The result never reached the model (e.g. a limit or a sentinel ended the sample) | The call, with no result |
 | The model reused the id of an earlier, different call (the bridge hands the call over under a new id) | The call, with no result, and the model call's message with the reused id (live's has the new call id and message id) |
 
-Without a sentinel, the Google bridge doesn't keep call ids, so replay shows the tool calls of an agent using the Google API, but not their results.
+In logs written before Inspect 0.3.292, replay shows the tool calls of an agent that used the Google API without a sentinel, but not their results.
 
 Replay doesn't attach the live sentinel's checks of bridged calls to these steps. To compare them, join the two downstream (e.g. in inspect_sentinel) by sample, step (`tool_call` or `tool_result`), the `uuid` of the model call that wrote the call, and call id. To find that model call for a recorded check, use log order: it is the latest bridged `ModelEvent` before the check whose output contains the check's call id. A person's decision at a live check still reaches the later steps of the conversation.
 
