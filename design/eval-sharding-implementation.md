@@ -37,10 +37,11 @@ the two implementations share.
 
 The parent design fixes the direction: shards are ordinary `.eval` files in
 `<dir>/<name>.shards/<k>/`, a trusted incremental merge writes the canonical
-log `<dir>/<name>.eval`, and `eval_set()` runs the merge at startup. This
-document keeps the merge and replaces the startup merge with a refusal
-("Eval-set integration"). The parent leaves the API signatures, the
-ledger's exact shape and the order of work to this document, and two implementation efforts have already started against
+log `<dir>/<name>.eval`, run through a Python API or CLI. `eval_set()`
+does not merge: it refuses a log directory that holds a companion
+("Eval-set integration" here and in the parent). The parent leaves the
+API signatures, the ledger's exact shape and the order of work to this
+document, and two implementation efforts have already started against
 it: the layout helpers (meridianlabs-ai/inspect_ai#530, since landed as
 UKGovernmentBEIS/inspect_ai#5541) and ctl log-dir mode
 (meridianlabs-ai/inspect_ai#528, steps 1–2 since landed as
