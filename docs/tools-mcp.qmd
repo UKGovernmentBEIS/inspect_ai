@@ -143,17 +143,19 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
 You can specify that you'd like an HTTP-based MCP Server to be executed remotely by passing the `execution="remote"` option. For example:
 
 ``` python
+import os
+
 deepwiki = mcp_server_http(
     name="deepwiki", 
     url="https://mcp.deepwiki.com/mcp", 
-    authorization="$DEEPWIKI_API_KEY"
+    authorization=os.environ["DEEPWIKI_API_KEY"],
     execution="remote" # <1>
 )
 ```
 
 1.  This is what indicates that the MCP Server should be executed remotely. Pass `execution="local"` for local execution (the default).
 
-Note that some remote MCP servers will require credentials---in this case pass the `authorization` option (as shown above) to provide an OAuth Bearer Token or pass `headers` to provide credentials using another scheme.
+Note that some remote MCP servers will require credentials---in this case pass the `authorization` option (as shown above) to provide an OAuth Bearer Token or pass `headers` to provide credentials using another scheme. Header values (including `authorization`) are sent to the model provider; Inspect does not record them in the eval log.
 
 Before using remote servers, you should review OpenAI's [Risks and Safety](https://platform.openai.com/docs/guides/tools-remote-mcp#risks-and-safety) guidance for Remote MCP.
 

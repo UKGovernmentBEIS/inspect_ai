@@ -43,7 +43,7 @@ $ inspect view --log-dir ./experiment-logs --port 6565
 
 You only need to run `inspect view` once at the beginning of a session (as it will automatically update to show new evaluations when they are run).
 
-If the logs contain output you don't trust (for example, from a model without safeguards), `inspect view --no-trust-content` shows all log content as plain text. See [Untrusted Content](task-views.qmd#untrusted-content).
+If the logs contain output you don't trust (for example, from a model without safeguards), `inspect view --no-trust-content` shows log content as literal text and replaces media with placeholders. See [Untrusted Content](task-views.qmd#untrusted-content).
 
 ### Remote Access
 

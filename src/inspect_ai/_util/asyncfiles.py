@@ -651,6 +651,17 @@ async def _s3_compose_async(
     return composed_etag
 
 
+def _write_and_release(f: BinaryIO, chunks: list[bytes]) -> None:
+    """Write the one chunk in `chunks` to `f`, removing it from the list.
+
+    AnyIO's asyncio worker thread drops its call's arguments only after it
+    reports the result, and on a busy machine it may not run again until the
+    event loop has fetched the next range. Emptying the list frees the chunk
+    before that.
+    """
+    f.write(chunks.pop())
+
+
 async def _s3_download_file_async(
     client: Any,
     bucket: str,
@@ -692,7 +703,7 @@ async def _s3_download_file_async(
             body.close()
 
         f.seek(start)
-        await anyio.to_thread.run_sync(f.write, data)
+        await anyio.to_thread.run_sync(_write_and_release, f, [data])
 
     async def download_parts() -> None:
         with open(local, "r+b") as f:

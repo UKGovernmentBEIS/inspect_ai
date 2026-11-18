@@ -3187,7 +3187,11 @@ def test_a_refusal_recovered_once_retries_are_spent_charges_none_of_the_held_att
     assert output.time is None
     assert committed == 1
     assert sample.total_time is not None and sample.total_time >= 1.0
-    assert sample.working_time is not None and sample.working_time < 0.5
+    # A stall outside the held second, as on a loaded runner, adds to both
+    # the total and the working time, so check the waiting time instead: all
+    # of the held second, less the rounding of the two times.
+    assert sample.working_time is not None
+    assert sample.total_time - sample.working_time >= 0.99
 
 
 def test_a_sample_cancelled_while_the_proxy_holds_its_call_ends_on_its_limit(

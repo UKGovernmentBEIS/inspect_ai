@@ -49,7 +49,11 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.logger import warn_once
-from inspect_ai.agent._bridge.types import AgentBridge, BridgedToolId
+from inspect_ai.agent._bridge.types import (
+    AgentBridge,
+    BridgedToolId,
+    target_execution_id,
+)
 from inspect_ai.model._call_tools import (
     decisive_sentinel_exception,
     repeated_call_ids,
@@ -107,6 +111,7 @@ STEP_DIGEST_FIELDS = frozenset(
         "input",
         "tools",
         "tool_choice",
+        "assistant_message",
     }
 )
 STEP_DIGEST_EXCLUDED = {
@@ -126,17 +131,25 @@ class Produced:
     """The generation that produced a bridged call, and the agent span it ran in."""
 
     event: "ModelEvent"
-    """What the model was sent (`input`, `tools`, `tool_choice`)."""
+    """What the model was sent (`input`, `tools`, `tool_choice`) and returned."""
 
     agent_span_id: str | None
     """The agent span current during the generation: the call's conversation."""
+
+    handed: ChatMessageAssistant | None = None
+    """The generation's message as the bridge handed it, when the bridge gave calls fresh ids (`_fresh_call_ids`); otherwise `None`, as the handed calls are the event's."""
+
+    @property
+    def message(self) -> ChatMessageAssistant:
+        """The step's `assistant_message`: the message with the call ids the scaffold was handed, so it holds the step's call and its id is the step's `message_id`."""
+        return self.handed if self.handed is not None else self.event.output.message
 
     def scope(self) -> AbstractContextManager[None]:
         return in_agent_span(self.agent_span_id)
 
     @cached_property
     def digest(self) -> str:
-        """The digest of what a step reads of the generation (`input`, `tools`, `tool_choice`).
+        """The digest of what a step reads of the generation (`input`, `tools`, `tool_choice`, `assistant_message`).
 
         Computed once, so the steps of every result of its calls cost nothing
         in the length of its input.
@@ -145,12 +158,13 @@ class Produced:
             _serialized(self.event.input),
             _serialized(self.event.tools),
             _serialized(self.event.tool_choice),
+            _serialized(self.message),
         )
 
 
 class SentinelCheck(NamedTuple):
     call: ToolCall
-    """The call the steps show (the model's id; a dispatched call's target)."""
+    """The call the steps show (its id as handed over, which is fresh where the model's named another call; a dispatched call's target)."""
 
     viewer: ToolCallViewer | None
     message: str
@@ -212,7 +226,10 @@ class _Handed(NamedTuple):
     it was handed with (`_exact_key`): each is a handout of its own."""
 
     execution_id: str | None
-    """The call's latest handout, or None for a call only in a rejected turn."""
+    """The id of the call's latest handout, which its approvals, steps and host
+    `ToolEvent`s record in their `execution_id` with the bridged tool each
+    judged or ran (`target_execution_id`), or None for a call only in a
+    rejected turn."""
 
     ambiguous: bool = False
     """Whether the call was handed out more than once, in any requests: a
@@ -286,6 +303,11 @@ class _Result(NamedTuple):
     views: tuple[ToolCallView | None, ...]
     """Each check's call's view, as its digest was taken of it; None where its
     viewer failed and the check rejects that."""
+
+    execution_id: str | None = None
+    """The handout whose result this is (`_Handed.execution_id`), or None
+    where the bridge can't tell: an id handed out more than once or shared
+    by calls of one response, or one it never handed out."""
 
 
 class _Claim(NamedTuple):
@@ -475,6 +497,7 @@ class _Handouts:
         calls: Sequence[ToolCall],
         history: AbstractSet[str],
         siblings: AbstractSet[str] = frozenset(),
+        distinct: bool = False,
     ) -> bool:
         """Whether the model's id for `calls` (those of a response under it) names another call.
 
@@ -495,8 +518,14 @@ class _Handouts:
         can be handed over under, as approval and the sentinel review the
         call after its id is chosen. So does an id longer than
         `MAX_CALL_ID_LENGTH`, which bounds that work.
+
+        With `distinct`, for a scaffold that keys a response's calls by id
+        and would run only one of those sharing one (Gemini CLI), so does any
+        id several of `calls` share (Mistral's `"null"`).
         """
         if not call_id or len(call_id) > MAX_CALL_ID_LENGTH:
+            return True
+        if distinct and len(calls) > 1:
             return True
         if any(
             echo in self.reserved_ids or echo in self.handed or echo in siblings
@@ -521,12 +550,15 @@ class _Handouts:
         handed: Sequence[ToolCall],
         checks: Sequence[SentinelCheck] | None,
         resolved: Sequence[Sequence[HandedTarget]] | None = None,
+        execution_ids: Sequence[str] | None = None,
     ) -> None:
         """Record a response's calls as handed over, each a new execution.
 
         `proposed` are the calls as the model proposed them, `handed` as
         approval gave them, and `checks` their `tool_result` checks, in order
-        (None without an active sentinel). `resolved` are the targets each
+        (None without an active sentinel). `execution_ids` are the ids the
+        calls' approvals and `tool_call` steps were recorded under, one for
+        each, in order (fresh ones without them). `resolved` are the targets each
         handed call resolved to (`handed_targets`), which a response handed
         over while the sample's sentinel is not active has no checks to give
         (None when the sample has no sentinel). Each handout's targets are
@@ -569,7 +601,7 @@ class _Handouts:
                 handed[last].function,
                 None if shared else _exact_key(proposed[last]),
                 tuple(handouts),
-                uuid(),
+                execution_ids[last] if execution_ids is not None else uuid(),
                 ambiguous,
                 tuple(forms),
                 tuple(targets.records),
@@ -736,6 +768,9 @@ class _Handouts:
             checks.checks,
             tuple(_parts_digest(part, result) for part in checks.parts),
             checks.views,
+            handed.execution_id
+            if handed is not None and not handed.ambiguous
+            else None,
         )
 
     def _checks(
@@ -817,6 +852,9 @@ class _Handouts:
                     result.message,
                     reject_on_viewer_error=len(result.checks) > 1,
                     view=result.views[index],
+                    execution_id=target_execution_id(
+                        result.execution_id, result.checks[index].target
+                    ),
                 )
             except Exception as ex:
                 self.failed.setdefault(digest, ex)
@@ -975,8 +1013,8 @@ class _Steps:
     check builds them: the conversation, the assistant message's text and
     id, the call, its view (as its viewer renders it, rejecting a viewer
     error where the check does; the check is given that view), the
-    generation's input, tools and tool choice (`Produced.digest`), and the
-    result. The result is all of its fields but its `id`, which the bridge
+    generation's input, tools, tool choice and message (`Produced.digest`),
+    and the result. The result is all of its fields but its `id`, which the bridge
     gives each parsed message afresh. The fields left out are those of
     `STEP_DIGEST_EXCLUDED`. A value that can't be encoded gives a digest no
     other step has. For a check with no proposal's context the digest covers
@@ -1493,7 +1531,9 @@ async def sentinel_tool_call(
     call: ToolCall,
     viewer: ToolCallViewer | None,
     producer: Produced | None,
+    execution_id: str | None = None,
 ) -> "Decision | None":
+    """Run the `tool_call` stage for a bridged call, recording its steps under the call's handout (`execution_id`)."""
     from inspect_ai._sentinel._dispatch import sentinel_before_tool_call
 
     with producer.scope() if producer is not None else nullcontext():
@@ -1507,7 +1547,9 @@ async def sentinel_tool_call(
                 viewer,
                 history=None,
                 producer=producer.event if producer is not None else None,
+                assistant_message=producer.message if producer is not None else None,
                 bridge=True,
+                execution_id=execution_id,
             ),
         )
 
@@ -1555,6 +1597,7 @@ async def _tool_result(
     result: ChatMessageTool,
     reject_on_viewer_error: bool = False,
     view: ToolCallView | None = None,
+    execution_id: str | None = None,
 ) -> None:
     from inspect_ai._sentinel._dispatch import sentinel_after_tool_call
 
@@ -1576,10 +1619,14 @@ async def _tool_result(
                     check.viewer,
                     history=None,
                     producer=producer.event if producer is not None else None,
+                    assistant_message=producer.message
+                    if producer is not None
+                    else None,
                     reject_on_viewer_error=reject_on_viewer_error,
                     bridge=True,
                     # a copy, as the call's
                     view=deepcopy(view),
+                    execution_id=execution_id,
                 ),
             )
         except ToolCallViewError as ex:

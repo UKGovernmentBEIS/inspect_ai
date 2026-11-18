@@ -4,7 +4,7 @@ import string
 import types
 import typing
 from collections.abc import Collection
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from contextvars import ContextVar
 from copy import copy, deepcopy
 from dataclasses import dataclass, is_dataclass, replace
@@ -43,6 +43,7 @@ import anyio
 import yaml
 from anyio.streams.memory import MemoryObjectSendStream
 from pydantic import BaseModel, TypeAdapter
+from shortuuid import uuid
 from typing_extensions import is_typeddict
 
 from inspect_ai._sentinel._context import SentinelFailure, checks_tool_calls
@@ -85,8 +86,10 @@ from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._json import dataclass_fields
 from inspect_ai.util._limit import LimitExceededError, apply_limits
-from inspect_ai.util._sandbox.environment import SandboxUnavailableError
-from inspect_ai.util._sandbox.events import SandboxTimeoutError
+from inspect_ai.util._sandbox.environment import (
+    SandboxTimeoutError,
+    SandboxUnavailableError,
+)
 from inspect_ai.util._sandbox.service import CONTROL_FLOW_EXCEPTIONS
 from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
@@ -237,10 +240,16 @@ async def execute_tools(
 
     approval_cm = approval_context(approval) if approval else nullcontext()
     review_cm = review_context(review) if review else nullcontext()
+    if checks_tool_calls():
+        from inspect_ai._sentinel._dispatch import tool_turn
+
+        turn_cm: AbstractContextManager[None] = tool_turn(messages)
+    else:
+        turn_cm = nullcontext()
     watch = _handoff_watch.get()
     token = _handoff_watch.set(None)
     try:
-        with approval_cm, review_cm:
+        with approval_cm, review_cm, turn_cm:
             return await _execute_tools_impl(messages, tools, max_output, watch)
     finally:
         _handoff_watch.reset(token)
@@ -349,6 +358,7 @@ async def _execute_tools_impl(
             # on `event`)
             result_event = ToolEvent(
                 id=call.id,
+                execution_id=event.execution_id,
                 function=call.function,
                 arguments=event.arguments,
                 result=content,
@@ -382,6 +392,7 @@ async def _execute_tools_impl(
                             result,
                             truncated,
                             conversation,
+                            event.execution_id,
                         )
                 except anyio.get_cancelled_exc_class():
                     on_review_cancelled(execution_result, result_event)
@@ -458,6 +469,7 @@ async def _execute_tools_impl(
                 waiting_starts[idx] = sample_clock()
                 stage_events[idx] = ToolEvent(
                     id=call.id,
+                    execution_id=uuid(),
                     function=call.function,
                     arguments=call.arguments,
                     view=call.view,
@@ -487,6 +499,7 @@ async def _execute_tools_impl(
                 )
                 skipped_event = ToolEvent(
                     id=call.id,
+                    execution_id=event.execution_id,
                     function=call.function,
                     arguments=call.arguments,
                     result=tool_result_content(tool_message.content),
@@ -648,6 +661,7 @@ async def _execute_tools_impl(
                     )
                     op_result_event = ToolEvent(
                         id=call.id,
+                        execution_id=event.execution_id,
                         function=call.function,
                         arguments=event.arguments,
                         result=tool_result_content(op_tool_message.content),
@@ -767,6 +781,7 @@ async def _execute_tools_impl(
                     )
                     cancellation_event = ToolEvent(
                         id=call.id,
+                        execution_id=event.execution_id,
                         function=call.function,
                         arguments=event.arguments,
                         result=tool_result_content(tool_message.content),
@@ -996,7 +1011,7 @@ async def call_tool(
     from inspect_ai.approval._apply import apply_tool_approval
 
     approved, approval = await apply_tool_approval(
-        message, call, tool_def.viewer, conversation
+        message, call, tool_def.viewer, conversation, execution_id=event.execution_id
     )
     if not approved:
         await record_pending_tool_event()
@@ -1027,7 +1042,12 @@ async def call_tool(
 
         try:
             decision = await sentinel_before_tool_call(
-                message, message_id, call, tool_def.viewer, conversation
+                message,
+                message_id,
+                call,
+                tool_def.viewer,
+                conversation,
+                execution_id=event.execution_id,
             )
             modified = apply_sentinel_decision(decision, call)
             selected = decision is not None and decision.action == "modify"
@@ -1166,12 +1186,14 @@ async def _apply_tool_review(
     output: ToolResult,
     truncated: tuple[int, int] | None,
     conversation: list[ChatMessage],
+    execution_id: str | None,
 ) -> None:
     """Give the active review policies and sentinel the executed call's result.
 
     Only calls that actually ran are reviewed (the caller checks this): a call
     rejected at the call stage or failed by argument parsing produced no result,
-    and the error the model receives is its feedback.
+    and the error the model receives is its feedback. `execution_id` is the
+    call's `ToolEvent.execution_id`, which the sentinel's steps record.
 
     Raises:
         TerminateSampleError: A reviewer or the sentinel requested termination.
@@ -1202,6 +1224,7 @@ async def _apply_tool_review(
             truncated or False,
             tool_def.viewer if tool_def else None,
             conversation,
+            execution_id=execution_id,
         )
 
 

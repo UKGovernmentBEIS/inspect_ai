@@ -33,6 +33,23 @@ class ToolEvent(BaseEvent):
     id: str
     """Unique identifier for tool call."""
 
+    execution_id: str | None = Field(default=None)
+    """Id of this execution of the call, which the approvals and sentinel steps that judged it record as their `execution_id`.
+
+    Unique to each execution of a native call, also when a model repeats a call
+    id. For a host tool a sandbox agent bridge runs, the handout it ran for
+    (each response's handing of the call to the scaffold has its own) and the
+    bridged tool it ran, as `<handout>/<server>/<tool>`: a call that denotes
+    several bridged tools sharing a description runs once per tool, each an
+    execution of its own. `None` for a host call no handout accounts for, for
+    a host call whose request matched the grants of more than one handout
+    (which one it ran for is unknown), and in logs written before this field.
+
+    The id is opaque: compare it for equality, and don't parse it.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
+
     function: str
     """Function called."""
 
@@ -92,18 +109,21 @@ class ToolEvent(BaseEvent):
     unchanged and the bridge places it under the id it handed it with, the call
     ran once, no other call of the reply has its id or its function and
     arguments, and exactly one tool message answers it (by call id, before the
-    next assistant message with tool calls) and is new in that request. Its
-    content may differ from `result`: scaffolds edit results and dialects
+    next assistant message with tool calls), is new in that request, and
+    contains the start of the result the scaffold received. Its content may
+    otherwise differ from `result`: scaffolds edit results and dialects
     reshape them.
 
     Otherwise it stays `None`: the scaffold never sends the result, edits the
     reply, or sends it where the bridge can't place it (another conversation
     may hold an equal reply); a message the bridge couldn't place took the
     reply's id; the call executed more than once; more than one tool
-    message answers it; the answer equals a message sent before or was sent
-    before the call completed; Google names only the result's function and
-    several calls of the reply share it; the sample resumed from a checkpoint
-    first; or 256 later host calls are tracked before its result arrives.
+    message answers it; the answer equals a message sent before, was sent
+    before the call completed, or doesn't contain the start of the result
+    (e.g. the scaffold's client gave up on the call and answered with its
+    own timeout); Google names only the result's function and several calls
+    of the reply share it; the sample resumed from a checkpoint first; or
+    256 later host calls are tracked before its result arrives.
     """
 
     call_message_id: str | None = Field(default=None)

@@ -127,12 +127,14 @@ from inspect_ai.model._providers._google_computer_use_name import (
 )
 from inspect_ai.model._providers._google_reasoning import (
     GEMINI_COMPUTER_ACTION_KEY,
+    GEMINI_COMPUTER_ARGS_KEY,
     GEMINI_FUNCTION_CALL_ID_KEY,
     GEMINI_FUNCTION_KEY,
     gemini_3_plus,
     gemini_anchor_fits,
     gemini_anchors_with_functions,
     gemini_computer_actions,
+    gemini_computer_calls,
     gemini_is_latest,
     gemini_shared_call_ids,
     gemini_supports_minimal_thinking,
@@ -1888,18 +1890,19 @@ async def content(
         # gives it no signature, as the signatures can't be told apart by call
         emitted_tool_calls: set[int] = set()
         shared_ids = gemini_shared_call_ids(message)
-        sent_actions = gemini_computer_actions(message)
+        sent_calls = gemini_computer_calls(message)
 
         def part_from_tool_call(tool_call: ToolCall) -> Part:
             if tool_call.function == "computer":
+                sent = sent_calls.get(tool_call.id)
                 action_name = gemini_replay_action_name(
-                    tool_call, sent_actions.get(tool_call.id)
+                    tool_call, sent.action if sent else None
                 )
                 return Part(
                     function_call=FunctionCall(
                         id=tool_call.id,
                         name=action_name,
-                        args=gemini_replay_args(action_name, tool_call),
+                        args=gemini_replay_args(action_name, tool_call, sent),
                     )
                 )
             else:
@@ -2355,6 +2358,14 @@ def completion_choice_from_candidate(
                         # the Inspect call can't tell some actions apart
                         # (`go_back`, `search`), so the anchor keeps the one sent
                         internal[GEMINI_COMPUTER_ACTION_KEY] = part.function_call.name
+                        # and its arguments, with fields the Inspect call drops
+                        # (`intent`), for replay (`gemini_replay_args`); as for
+                        # other calls read from a response, not `safety_decision`
+                        internal[GEMINI_COMPUTER_ARGS_KEY] = {
+                            key: value
+                            for key, value in (part.function_call.args or {}).items()
+                            if key != "safety_decision"
+                        }
                     content.append(
                         ContentReasoning(
                             reasoning=signature_b64,

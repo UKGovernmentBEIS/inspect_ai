@@ -135,11 +135,11 @@ class AgentChannel:
         # pre-queued operator message is drained).
         self._on_drained: list[Callable[[list[ChannelItem]], None]] = []
         # Producer-side observers fired when :meth:`turn_scope` enters
-        # ("started"), exits normally ("ended"), or exits via
-        # :exc:`AgentInterrupted` ("cancelled"). Producers register via
-        # :meth:`subscribe_turn_state` to learn the agent's working /
-        # idle boundary without inferring it from drains or scope
-        # presence.
+        # ("started"), exits via :exc:`AgentInterrupted` ("cancelled"),
+        # or exits any other way, including an exception ("ended").
+        # Producers register via :meth:`subscribe_turn_state` to learn
+        # the agent's working / idle boundary without inferring it from
+        # drains or scope presence.
         self._on_turn_state: list[Callable[[TurnState], None]] = []
         # External-reach marker count. Producers that represent a
         # reachable external surface (e.g. an ACP socket server actually
@@ -219,15 +219,23 @@ class AgentChannel:
         same channel are not. The scope must enclose tool execution as
         well as ``model.generate()`` so a blocking tool call can be
         cancelled by a producer-initiated interrupt mid-call.
+
+        Turn-state observers see ``"started"`` on entry and exactly one of
+        ``"cancelled"`` (operator interrupt) or ``"ended"`` (any other
+        exit, including an exception such as a sample limit) on exit.
         """
         self._pending_interrupt = False
-        with anyio.CancelScope() as cs:
-            self._scope = cs
-            self._fire_turn_state("started")
-            try:
-                yield
-            finally:
-                self._scope = None
+        try:
+            with anyio.CancelScope() as cs:
+                self._scope = cs
+                self._fire_turn_state("started")
+                try:
+                    yield
+                finally:
+                    self._scope = None
+        except BaseException:
+            self._fire_turn_state("ended")
+            raise
         if cs.cancelled_caught and self._pending_interrupt:
             self._pending_interrupt = False
             self._fire_turn_state("cancelled")
@@ -304,11 +312,10 @@ class AgentChannel:
         """Register a callback fired on :meth:`turn_scope` transitions.
 
         The callback receives ``"started"`` immediately after the
-        scope binds, ``"ended"`` on normal exit, and ``"cancelled"``
-        when the scope exits via :exc:`AgentInterrupted`. A
-        sample-level cancel (or any other exception) propagating out
-        of the scope fires nothing — the consumer's loop is unwinding
-        and the session-end signal is the producer's cue.
+        scope binds, then ``"cancelled"`` when the scope exits via
+        :exc:`AgentInterrupted` or ``"ended"`` for any other exit,
+        including an exception (a sample limit, an error, a
+        sample-level cancel) propagating out of the scope.
 
         Same resilience contract as :meth:`subscribe_drained`:
         callbacks run synchronously in the consumer's task and

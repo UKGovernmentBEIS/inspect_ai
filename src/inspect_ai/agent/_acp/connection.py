@@ -416,30 +416,16 @@ class ConnectionHandler:
                     )
                 if not target.is_interactive:
                     # The target's transport is alive but has no bound
-                    # agent loop to receive this prompt. Two states
-                    # collapse here:
-                    #
-                    # - ``agent_completed`` — react() has exited and
-                    #   the transport is parked for the scoring window;
-                    # - no bound channel — react() between consecutive
-                    #   invocations (the inter-react gap in the same
-                    #   sample), or a non-channel custom agent.
-                    #
-                    # Pre-fix, the message was silently discarded by
-                    # ``LiveAcpTransport.submit_user_message``'s
-                    # ``_ref is None`` guard. Surface a real error so
-                    # the client (TUI / editor) can drop the binding
-                    # instead of pretending it landed. Detail the
-                    # specific sub-state so clients can render a
-                    # tailored message.
-                    reason = (
-                        "session is scoring"
-                        if target.agent_completed
-                        else "session not currently attachable"
-                    )
+                    # agent loop to receive this prompt: react() has not
+                    # started, has exited (scoring), sits between
+                    # consecutive invocations in the same sample, or the
+                    # sample runs a non-channel custom agent.
+                    # ``submit_user_message`` would silently drop the
+                    # message, so surface a real error and let the
+                    # client (TUI / editor) drop the binding.
                     raise RequestError.invalid_request(
                         {
-                            "reason": reason,
+                            "reason": "session not currently attachable",
                             "target_session_id": target_id,
                         }
                     )

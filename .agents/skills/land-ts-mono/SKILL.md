@@ -47,7 +47,7 @@ First assess where things stand, then enter at the matching step:
 | No ts-mono branch/PR yet | step 1 |
 | Regeneration not done or stale | step 2 |
 | ts-mono PR open; this repo's PR not yet gitlink-bumped/pushed | step 3 |
-| Both PRs open; this repo's PR behind `main` or conflicted | update the branch (see pitfalls), then step 4 |
+| Both PRs open; this repo's PR conflicts with `main`, or its regeneration predates current `main` | update the branch (see step 2 and pitfalls), then step 4 |
 | Both PRs in phase-1 state (green / green-except-gate) | step 4 |
 | ts-mono PR merged; gate still red | step 4.2 |
 
@@ -71,8 +71,8 @@ lands on no branch. A local branch may also lag its remote; trust
 In the submodule, `git fetch origin` and branch from `origin/main` — NOT the
 local `main` ref, which lags arbitrarily far behind (submodules live on
 detached HEADs; nothing routinely updates their local branches, and `fetch`
-moves only `origin/main`). You must be current with ts-mono `origin/main`
-before merging anyway, so get current before making changes. Name the new
+moves only `origin/main`). Branching from current ts-mono `origin/main`
+keeps main's gitlink an ancestor of your branch (see Pitfalls). Name the new
 branch after this repo's branch — a convention that makes the pairing obvious
 at a glance (discovery doesn't depend on it; see "Finding the paired ts-mono
 branch" above).

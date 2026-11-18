@@ -9,7 +9,6 @@ from typing import AbstractSet, Any, Callable, Literal, NamedTuple
 
 from shortuuid import uuid
 
-from inspect_ai._sentinel._context import active_sentinel
 from inspect_ai._util.content import (
     Content,
     ContentImage,
@@ -135,17 +134,13 @@ async def inspect_google_api_request_impl(
         tool_choice_from_google_tool_config(tool_config), tools
     )
 
-    # with a sentinel, calls are handed over and read back under their ids,
-    # which identify each execution's result
-    call_ids = active_sentinel() is not None
-
     # translate messages
     inferred_results: list[ChatMessageTool] = []
     messages = messages_from_google_contents(
         contents,
         system_instruction,
         inferred_results,
-        handed=bridge._handouts.wire_names if call_ids else None,
+        handed=bridge._handouts.wire_names,
     )
     await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
@@ -174,6 +169,9 @@ async def inspect_google_api_request_impl(
         # None when it sent none
         requested_model=client_model if client_model is not None else requested_model,
         routing=routing,
+        # Gemini CLI keys a response's calls by id, so calls sharing one would
+        # run as one
+        distinct_call_ids=True,
     )
     if c_message is not None:
         messages.append(c_message)
@@ -181,24 +179,87 @@ async def inspect_google_api_request_impl(
     debug_log("INSPECT OUTPUT", output.message)
 
     # translate response to Gemini format
-    response = gemini_response_from_output(
-        output, model.api.model_name, call_ids=call_ids
-    )
+    response = gemini_response_from_output(output, model.api.model_name)
     debug_log("SCAFFOLD RESPONSE", response)
     # re-parse the JSON the client receives (e.g. integer argument keys become
     # strings) as a later request's history is parsed, so an unchanged echo
     # matches it
     wire_content = json.loads(json.dumps(response["candidates"][0]["content"]))
-    transported = messages_from_google_contents(
-        [wire_content],
-        None,
-        handed=bridge._handouts.wire_names if call_ids else None,
+    handed = bridge._handouts.wire_names
+    transported = messages_from_google_contents([wire_content], None, handed=handed)
+    # a scaffold that drops the call ids sends the reply back in this form
+    without_ids = _without_call_ids(wire_content)
+    bridge._record_transported_reply(
+        output.message, messages_from_google_contents([without_ids], None)
     )
+    for form, form_handed in ((wire_content, handed), (without_ids, None)):
+        merged = _gemini_cli_merged(form)
+        if merged != form:
+            bridge._record_transported_reply(
+                output.message,
+                messages_from_google_contents([merged], None, handed=form_handed),
+            )
 
     # update state if we have more messages than the last generation
     await bridge._track_state(messages, output, [transported])
 
     return response
+
+
+def _without_call_ids(content: dict[str, Any]) -> dict[str, Any]:
+    """`content` with no id on its function calls.
+
+    A scaffold that rebuilds a call from its name and arguments sends it
+    back so, and the call is read back under the id derived from it.
+    """
+    return {
+        **content,
+        "parts": [
+            {
+                **part,
+                "functionCall": {
+                    key: value
+                    for key, value in part["functionCall"].items()
+                    if key != "id"
+                },
+            }
+            if "functionCall" in part
+            else part
+            for part in content.get("parts", [])
+        ],
+    }
+
+
+def _gemini_cli_merged(content: dict[str, Any]) -> dict[str, Any]:
+    """`content` as Gemini CLI sends a reply back in its history.
+
+    Gemini CLI drops thought parts and appends each non-thought text part to
+    the part before it when that is non-empty non-thought text
+    (`geminiChat.ts`, `processStreamResponse`). So the embedded reasoning
+    part (`gemini_response_from_output`) comes back joined to the text
+    before it, which can change the text the reply is read back with.
+    """
+    parts: list[dict[str, Any]] = []
+    for part in content.get("parts", []):
+        if part.get("thought"):
+            continue
+        if parts and parts[-1].get("text") and _is_text(parts[-1]) and _is_text(part):
+            parts[-1] = {**parts[-1], "text": parts[-1]["text"] + part["text"]}
+        else:
+            parts.append(part)
+    return {**content, "parts": parts}
+
+
+def _is_text(part: dict[str, Any]) -> bool:
+    """Whether Gemini CLI reads `part` as non-thought text (`isValidNonThoughtTextPart`)."""
+    return (
+        isinstance(part.get("text"), str)
+        and not part.get("thought")
+        and not any(
+            key in part
+            for key in ("functionCall", "functionResponse", "inlineData", "fileData")
+        )
+    )
 
 
 def debug_log(caption: str, o: Any) -> None:
@@ -396,17 +457,19 @@ def messages_from_google_contents(
 ) -> list[ChatMessage]:
     """Inspect messages for Google contents.
 
-    With `handed` (a sentinel is active; the function of the call the bridge
-    handed over under an id), a call takes the id its `functionCall` carries
-    and a result the id its `functionResponse` carries (`_function_part_id`),
-    and such a result is not inferred. Otherwise ids the parts carry are
-    ignored, as follows.
+    With `handed` (the functions of the calls the bridge handed over under
+    an id, `_Handouts.wire_names`), a call takes the id its `functionCall`
+    carries and a result the id its `functionResponse` carries
+    (`_function_part_id`), and such a result is not inferred. Without it, ids
+    the parts carry are ignored. A call without an id gets one derived from
+    its function, arguments and position, and a result without one is paired
+    as follows.
 
-    A `functionResponse` names its function but not its call, so it takes
-    the id of the next pending call of the previous model turn with that
-    name. The id is read only when that turn had one call with the name and
-    one response names it. Otherwise it is inferred from order (several
-    calls) or another response may be the call's answer (several
+    A `functionResponse` without an id names its function but not its call,
+    so it takes the id of the next pending call of the previous model turn
+    with that name. The id is read only when that turn had one call with the
+    name and one response names it. Otherwise it is inferred from order
+    (several calls) or another response may be the call's answer (several
     responses), and every response naming the function is appended to
     `inferred_results`.
     """
@@ -869,11 +932,10 @@ def _extract_model_parts(
             if not isinstance(args, dict):
                 args = {"value": args}
 
-            # with a sentinel, the id the bridge handed over, which the scaffold
-            # sends back; otherwise (or failing that), deterministic for message
-            # ID stability, unchanged by a JSON round-trip of the arguments (5.0
-            # sent back as 5); `surrogatepass` encodes a lone surrogate in the
-            # name losslessly
+            # the id the bridge handed over, which the scaffold sends back;
+            # failing that, deterministic for message ID stability, unchanged
+            # by a JSON round-trip of the arguments (5.0 sent back as 5);
+            # `surrogatepass` encodes a lone surrogate in the name losslessly
             call_id = (
                 _function_part_id(func_call, func_name, handed)
                 if handed is not None
@@ -902,16 +964,15 @@ def _extract_model_parts(
     return None, tool_calls
 
 
-def gemini_response_from_output(
-    output: ModelOutput, model_name: str, *, call_ids: bool = False
-) -> dict[str, Any]:
+def gemini_response_from_output(output: ModelOutput, model_name: str) -> dict[str, Any]:
     """The Gemini response for `output`.
 
     The first call carries the one signature the response hands over, and the
     same reasoning is embedded as a text part (`reasoning_to_think_tag`): that
     of the call's own anchor, or none (`gemini_first_call_signature`). A
-    response without calls embeds its last signed reasoning. With `call_ids`
-    (a sentinel is active), each call carries its id.
+    response without calls embeds its last signed reasoning. Each call
+    carries its id, which a scaffold that keeps it (Gemini CLI) sends back
+    with the call and its response.
     """
     parts: list[dict[str, Any]] = []
     working_reasoning_block: ContentReasoning | None = None
@@ -935,10 +996,8 @@ def gemini_response_from_output(
                 name, args = gemini_action_from_tool_call(tc)
             else:
                 name, args = tc.function, tc.arguments
-            # with call ids, with its id, which a scaffold that keeps it
-            # (gemini-cli) sends back with the call and its response
             function_call: dict[str, Any] = {"name": name, "args": args}
-            if call_ids and tc.id:
+            if tc.id:
                 function_call = {"id": tc.id, **function_call}
             fc_part: dict[str, Any] = {"functionCall": function_call}
 

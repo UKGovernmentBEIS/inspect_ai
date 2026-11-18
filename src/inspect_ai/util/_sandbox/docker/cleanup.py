@@ -5,9 +5,11 @@ from pathlib import Path
 from typing import Awaitable, Callable
 
 import anyio
-from rich import box, print
+from rich import box, get_console, print
+from rich.cells import cell_len
 from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 from inspect_ai._util._async import coro_print_exceptions
 from inspect_ai._util.trace import trace_message
@@ -207,14 +209,42 @@ async def project_cleanup_shutdown(cleanup: bool) -> None:
             table.add_column("Sample ID")
             table.add_column("Epoch")
             table.add_column("Container(s)", no_wrap=True)
+            rows: list[tuple[str, str, str]] = []
+            column_widths = [cell_len(str(column.header)) for column in table.columns]
             for project in shutdown_projects:
                 containers = await compose_ps(project, all=True)
-                table.add_row(
+                row = (
                     str(project.sample_id) if project.sample_id is not None else "",
                     str(project.epoch if project.epoch is not None else ""),
                     "\n".join(container["Name"] for container in containers),
                 )
-            print(table)
+                rows.append(row)
+                cells = [Text(value) for value in row]
+                for cell in cells:
+                    cell.expand_tabs()
+                table.add_row(*cells)
+                column_widths = [
+                    max(
+                        width, *(line.cell_len for line in cell.split(allow_blank=True))
+                    )
+                    for width, cell in zip(column_widths, cells)
+                ]
+
+            console = get_console()
+            # Each column has two padding cells; borders add one per column plus one.
+            table_width = sum(column_widths) + 3 * len(table.columns) + 1
+            if table_width <= console.width:
+                print(table)
+            else:
+                console.print(table.title, style="bold")
+                for sample_id, epoch, container_names in rows:
+                    console.print()
+                    console.print(
+                        Text(
+                            f"Sample ID: {sample_id}\nEpoch: {epoch}\n{container_names}"
+                        ),
+                        soft_wrap=True,
+                    )
             print(
                 "\n"
                 "Cleanup all environments: [blue]inspect sandbox cleanup docker[/blue]\n"
