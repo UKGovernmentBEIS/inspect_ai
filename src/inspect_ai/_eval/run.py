@@ -207,6 +207,7 @@ async def eval_run(
     sandbox_manager = SandboxManager(
         eval_config,
         eval_config.sandbox_cleanup is not False,
+        launch_dir=eval_wd,
     )
 
     # track every logger we initialize (seed + injected) so that, if the run
@@ -494,7 +495,10 @@ async def eval_run(
                         initial_role_usage=resolved_task.initial_role_usage,
                         task_source=task_source,
                         startup_sandboxes=startup_sandboxes,
-                        sandbox_bindings=sandbox_manager.bindings,
+                        apply_sandbox_bindings=functools.partial(
+                            sandbox_manager.bindings.apply,
+                            task_dir=task_run_dir(resolved_task.task, eval_wd),
+                        ),
                         input_media_policy=resolved_task.input_media_policy,
                     )
                 )
@@ -1250,9 +1254,13 @@ class SandboxManager:
         self,
         config: EvalConfig,
         cleanup: bool,
+        launch_dir: str,
     ) -> None:
         self._config = config
         self._cleanup = cleanup
+        # the directory of a task not loaded from a file, fixed for the run so
+        # a setup's bindings and its samples' lookup use the same key
+        self._launch_dir = launch_dir
         self._started: Set[TaskSandboxEnvironment] = set()
         self._cleanups: list[
             tuple[TaskCleanup, SandboxEnvironmentConfigType | None, str, Context]
@@ -1349,7 +1357,7 @@ class SandboxManager:
                 sandboxenv = self._resolved_no_metadata.get(cache_key)
             if sandboxenv is None:
                 sandboxenv = await resolve_sandbox_for_task_and_sample(
-                    task.sandbox, task.task, sample
+                    task.sandbox, task.task, sample, self._launch_dir
                 )
                 if sandboxenv is not None and cache_key is not None:
                     self._resolved_no_metadata[cache_key] = sandboxenv
@@ -1393,38 +1401,42 @@ class SandboxManager:
                         self._config.max_sandboxes,
                     )
 
-                    # run startup in the setup chain's context (a failed
-                    # task_init raises here, so its bindings reach nothing)
+                    # run startup in the setup chain's context; a failed
+                    # task_init raises here and registers nothing
                     assert self._chain is not None, "SandboxManager.open() not called"
                     task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
+                    task_cleanup = cast(
+                        TaskCleanup, getattr(sandboxenv_type, "task_cleanup")
+                    )
                     with chdir(sandboxenv.run_dir), environ_vars(dict(sandboxenv.env)):
-                        context = await _run_in_context(
+                        await _run_in_context(
                             self._chain,
                             functools.partial(
                                 task_init, "startup", sandboxenv.sandbox.config
                             ),
+                            on_return=functools.partial(
+                                self._register_setup, sandboxenv, task_cleanup
+                            ),
                         )
-                    self._chain = context
-                    self.bindings.record(sandboxenv, context)
-
-                    # track as started and append cleanup method
-                    self._started.add(sandboxenv)
-                    task_cleanup = cast(
-                        TaskCleanup, getattr(sandboxenv_type, "task_cleanup")
-                    )
-                    self._cleanups.append(
-                        (
-                            task_cleanup,
-                            sandboxenv.sandbox.config,
-                            sandboxenv.run_dir,
-                            context,
-                        )
-                    )
 
                 # provide some space above task display ("none" has no task
                 # display and must keep stdout machine-readable, e.g. --json)
                 if display_type() != "none":
                     print("")
+
+    def _register_setup(
+        self,
+        sandboxenv: TaskSandboxEnvironment,
+        task_cleanup: TaskCleanup,
+        context: Context,
+    ) -> None:
+        """Record a successful `task_init`: its context, bindings and cleanup."""
+        self._chain = context
+        self.bindings.record(sandboxenv, context)
+        self._started.add(sandboxenv)
+        self._cleanups.append(
+            (task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir, context)
+        )
 
     async def shutdown(self) -> None:
         """Run every accumulated `task_cleanup`, then release the lifecycle state.
@@ -1456,23 +1468,26 @@ class SandboxManager:
 
 
 async def _run_in_context(
-    context: Context, func: Callable[[], Awaitable[None]]
-) -> Context:
+    context: Context,
+    func: Callable[[], Awaitable[None]],
+    on_return: Callable[[Context], None] | None = None,
+) -> None:
     """Await `func` in a child task started from a copy of `context`.
 
-    Returns the child's context as `func` returns, holding what it bound. The
-    caller's context is unchanged, and an exception from `func` raises bare.
+    The caller's context is unchanged, and an exception from `func` raises
+    bare. `on_return` gets the child's context, holding what `func` bound, as
+    soon as `func` returns and in the child, so a cancellation of the caller
+    while the task group joins cannot lose it.
     """
-    result: list[Context] = []
 
     async def run() -> None:
         await func()
-        result.append(copy_context())
+        if on_return is not None:
+            on_return(copy_context())
 
     async with unwrap_exception_group(), anyio.create_task_group() as tg:
         # anyio's start_soon gives the child a copy of the current context
         context.copy().run(tg.start_soon, run)
-    return result[0]
 
 
 @asynccontextmanager

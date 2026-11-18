@@ -239,7 +239,7 @@ from .sample_source import (
     get_sample_enqueuer,
     register_sample_enqueuer,
 )
-from .sandbox import SandboxSetupBindings, sandboxenv_context
+from .sandbox import sandboxenv_context
 from .scan import (
     resume_scan_previous_sample,
     scan_eval_sample,
@@ -256,13 +256,7 @@ from .scheduler import (
 )
 from .store import DiskSampleStore, maybe_page_to_disk
 from .task_source import TaskSource
-from .util import (
-    sample_id_filter,
-    sample_limit_count,
-    sample_messages,
-    slice_dataset,
-    task_run_dir,
-)
+from .util import sample_id_filter, sample_limit_count, sample_messages, slice_dataset
 
 py_logger = getLogger(__name__)
 
@@ -826,8 +820,10 @@ class TaskRunOptions:
         default=None
     )
     """Run-level incremental sandbox startup for samples a SampleSource adds."""
-    sandbox_bindings: SandboxSetupBindings | None = field(default=None)
-    """Provider state each sandbox configuration's `task_init` bound."""
+    apply_sandbox_bindings: Callable[[SandboxEnvironmentSpec], None] | None = field(
+        default=None
+    )
+    """Binds the provider state a sample's sandbox configuration's `task_init` bound."""
     input_media_policy: InputMediaPolicy = field(default="inline_only")
     """Authority granted to media references in the sliced seed dataset."""
 
@@ -1846,7 +1842,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         resume_checkpoint=resume_checkpoint,
                         max_sandboxes=config.max_sandboxes,
                         sandbox_cleanup=sandbox_cleanup,
-                        sandbox_bindings=options.sandbox_bindings,
+                        apply_sandbox_bindings=options.apply_sandbox_bindings,
                         plan=plan,
                         scorers=scorers,
                         scorer_names=scorer_names,
@@ -2657,7 +2653,7 @@ async def task_run_sample(
     resume_checkpoint: ResumeCheckpoint | None,
     max_sandboxes: int | None,
     sandbox_cleanup: bool,
-    sandbox_bindings: SandboxSetupBindings | None,
+    apply_sandbox_bindings: Callable[[SandboxEnvironmentSpec], None] | None,
     plan: Plan,
     scorers: list[Scorer] | None,
     scorer_names: list[str] | None,
@@ -2713,7 +2709,7 @@ async def task_run_sample(
             resume_checkpoint=resume_checkpoint,
             max_sandboxes=max_sandboxes,
             sandbox_cleanup=sandbox_cleanup,
-            sandbox_bindings=sandbox_bindings,
+            apply_sandbox_bindings=apply_sandbox_bindings,
             plan=plan,
             scorers=scorers,
             scorer_names=scorer_names,
@@ -2765,7 +2761,7 @@ async def _task_run_sample_attempt(
     resume_checkpoint: ResumeCheckpoint | None,
     max_sandboxes: int | None,
     sandbox_cleanup: bool,
-    sandbox_bindings: SandboxSetupBindings | None,
+    apply_sandbox_bindings: Callable[[SandboxEnvironmentSpec], None] | None,
     plan: Plan,
     scorers: list[Scorer] | None,
     scorer_names: list[str] | None,
@@ -2902,8 +2898,7 @@ async def _task_run_sample_attempt(
                     max_sandboxes,
                     sandbox_cleanup,
                     sample,
-                    setup_bindings=sandbox_bindings,
-                    task_dir=task_run_dir(task),
+                    apply_setup_bindings=apply_sandbox_bindings,
                 ),
                 lambda: isinstance(failure, _AttemptCancel),
             )

@@ -9,6 +9,7 @@ from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import SampleSource, Task, eval
 from inspect_ai._eval.run import SandboxManager
+from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
 from inspect_ai._eval.task.sandbox import TaskSandboxEnvironment
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalConfig
@@ -331,6 +332,15 @@ _manager: ContextVar[_SharedManager] = ContextVar("_manager")
 
 _bindings_calls: list[dict[str, Any]] = []
 
+# events a test coordinates the provider with, created inside the event loop
+_bindings_events: dict[str, anyio.Event] = {}
+
+
+def _bindings_event(name: str) -> anyio.Event:
+    if name not in _bindings_events:
+        _bindings_events[name] = anyio.Event()
+    return _bindings_events[name]
+
 
 def _record_call(call: str, config: SandboxEnvironmentConfigType | None) -> None:
     assert isinstance(config, _BindingsConfig)
@@ -376,6 +386,13 @@ class _BindingsSandbox(SandboxEnvironment):
         _run_id.set(config.name)
         if config.fail:
             raise RuntimeError(f"task_init failed for {config.name}")
+        if config.name in _bindings_events:
+            # a test waiting for this setup to return
+            _bindings_events[config.name].set()
+        if config.name == "Blocked":
+            _bindings_event("blocked_init_entered").set()
+            with anyio.fail_after(10):
+                await _bindings_event("sample_started").wait()
 
     @classmethod
     async def sample_init(
@@ -386,6 +403,8 @@ class _BindingsSandbox(SandboxEnvironment):
     ) -> dict[str, SandboxEnvironment]:
         _record_call("sample_init", config)
         assert isinstance(config, _BindingsConfig)
+        if metadata.get("__sample_id__") == "sample_started":
+            _bindings_event("sample_started").set()
         # raises LookupError when task_init's binding is not visible, as E2B does
         _running.get().append(config.name)
         return {"default": _BindingsSandbox()}
@@ -522,7 +541,7 @@ async def test_setup_bindings_failed_task_init(tmp_path: Path) -> None:
     failed = TaskSandboxEnvironment(_bindings_spec("F", fail=True), str(tmp_path), ())
     ok = TaskSandboxEnvironment(_bindings_spec("A"), str(tmp_path), ())
 
-    manager = SandboxManager(EvalConfig(), cleanup=True)
+    manager = SandboxManager(EvalConfig(), cleanup=True, launch_dir=str(tmp_path))
     manager.open()
     try:
         with pytest.raises(RuntimeError, match="task_init failed for F"):
@@ -539,11 +558,96 @@ async def test_setup_bindings_failed_task_init(tmp_path: Path) -> None:
     assert _run_id.get(None) is None
 
 
+async def test_setup_bindings_cancel_after_task_init_keeps_cleanup(
+    tmp_path: Path,
+) -> None:
+    """A cancellation that arrives as task_init returns still registers its task_cleanup."""
+    _bindings_calls.clear()
+    _bindings_events.clear()
+    returned = _bindings_event("C")
+    manager = SandboxManager(EvalConfig(), cleanup=True, launch_dir=str(tmp_path))
+    manager.open()
+    try:
+        async with anyio.create_task_group() as tg:
+
+            async def cancel_when_task_init_returns() -> None:
+                await returned.wait()
+                tg.cancel_scope.cancel()
+
+            tg.start_soon(cancel_when_task_init_returns)
+            await manager._start_sandboxenvs(
+                {TaskSandboxEnvironment(_bindings_spec("C"), str(tmp_path), ())}
+            )
+    finally:
+        await manager.shutdown()
+
+    assert returned.is_set()
+    [task_cleanup] = _calls("task_cleanup")
+    assert task_cleanup["config"] == "C"
+    assert task_cleanup["run_id"] == "C"
+
+
+def test_setup_bindings_sample_starts_during_other_task_setup(tmp_path: Path) -> None:
+    """A sample of a task not loaded from a file finds its bindings while another setup is in its task directory."""
+    _bindings_calls.clear()
+    _bindings_events.clear()
+    other_dir = tmp_path / "other"
+    other_dir.mkdir()
+
+    class _Later(SampleSource):
+        """Adds a sample once the other task's setup has changed directory."""
+
+        def __init__(self) -> None:
+            self._produced = False
+
+        def initial_samples(self) -> list[Sample]:
+            return [Sample(id=1, input="seed")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            if self._produced:
+                return None
+            self._produced = True
+            with anyio.fail_after(10):
+                await _bindings_event("blocked_init_entered").wait()
+            return [Sample(id="sample_started", input="later")]
+
+    class _Blocked(SampleSource):
+        """Adds a sample whose configuration's setup blocks in its directory."""
+
+        def __init__(self) -> None:
+            self._produced = False
+
+        async def next_samples(self) -> list[Sample] | None:
+            if self._produced:
+                return None
+            self._produced = True
+            return [Sample(input="blocked")]
+
+    later = Task(
+        name="later", dataset=_Later(), solver=[generate()], sandbox=_bindings_spec("A")
+    )
+    blocked = Task(
+        name="blocked",
+        dataset=_Blocked(),
+        solver=[generate()],
+        sandbox=_bindings_spec("Blocked"),
+    )
+    setattr(blocked, TASK_RUN_DIR_ATTR, other_dir.as_posix())
+
+    logs = eval([later, blocked], model="mockllm/model", display="none", max_tasks=2)
+    assert [log.status for log in logs] == ["success", "success"], [
+        log.error for log in logs
+    ]
+    later_init = [c for c in _calls("sample_init", "A")]
+    assert len(later_init) == 2
+    assert all(c["run_id"] == "A" for c in later_init), later_init
+
+
 async def test_setup_bindings_sample_keeps_own_binding(tmp_path: Path) -> None:
     """Applying a configuration's bindings keeps a value the sample bound itself."""
     _bindings_calls.clear()
     spec = _bindings_spec("A")
-    manager = SandboxManager(EvalConfig(), cleanup=True)
+    manager = SandboxManager(EvalConfig(), cleanup=True, launch_dir=str(tmp_path))
     manager.open()
     try:
         await manager._start_sandboxenvs(

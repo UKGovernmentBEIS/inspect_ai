@@ -90,8 +90,7 @@ async def sandboxenv_context(
     max_sandboxes: int | None,
     cleanup: bool,
     sample: Sample,
-    setup_bindings: "SandboxSetupBindings | None" = None,
-    task_dir: str | None = None,
+    apply_setup_bindings: Callable[[SandboxEnvironmentSpec], None] | None = None,
 ) -> AsyncGenerator[None, None]:
     # resolve sandbox
     sandbox = await resolve_sandbox(sandbox, sample, task_name)
@@ -99,8 +98,8 @@ async def sandboxenv_context(
         raise ValueError("sandboxenv_context called with no sandbox specified")
 
     # the provider state its configuration's task_init bound
-    if setup_bindings is not None and task_dir is not None:
-        setup_bindings.apply(sandbox, task_dir)
+    if apply_setup_bindings is not None:
+        apply_setup_bindings(sandbox)
 
     # get sandboxenv_type
     sandboxenv_type = registry_find_sandboxenv(sandbox.type)
@@ -307,6 +306,7 @@ async def resolve_sandbox_for_task_and_sample(
     sandbox: SandboxEnvironmentSpec | None,
     task: Task,
     sample: Sample,
+    launch_dir: str | None = None,
 ) -> TaskSandboxEnvironment | None:
     # `sandbox` is the task's already-resolved sandbox (i.e. `ResolvedTask.sandbox`),
     # which has had any eval-level override (`--sandbox <provider>`) and implicit
@@ -318,7 +318,7 @@ async def resolve_sandbox_for_task_and_sample(
     sandbox = await resolve_sandbox(sandbox, sample, task.name)
     if sandbox is not None:
         # see if there are environment variables required for init of this sample
-        run_dir = task_run_dir(task)
+        run_dir = task_run_dir(task, launch_dir)
         with chdir(run_dir):
             sandboxenv_type = registry_find_sandboxenv(sandbox.type)
             task_init_environment = cast(
