@@ -1277,6 +1277,7 @@ async def test_no_call_can_hide_or_pass_for_another(
     # the panel and console write to a terminal: nothing the agent wrote may
     # reach it as a control sequence
     terminal = io.StringIO()
+    # Use 80 columns so the second call's heading wraps in CI.
     console = Console(file=terminal, force_terminal=True, width=80, record=True)
     for renderable in render_tool_approval(kwargs["message"], view, call.arguments):
         console.print(renderable)
