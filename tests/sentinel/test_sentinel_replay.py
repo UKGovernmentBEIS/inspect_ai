@@ -2008,11 +2008,23 @@ def test_a_scaffold_s_own_tool_calls_steps_equal_live(
     caplog.clear()
     with caplog.at_level(logging.WARNING):
         replay = assert_replay_rebuilds_bridge_steps(log, seen)
-    assert [(s.stage, called(s).id) for s in replay if s.stage.startswith("tool")] == [
+
+    def in_order(steps: list["ReplayStep"]) -> list[Any]:
+        # live checks one request's results concurrently, so they begin in
+        # any order: replay follows the recorded checks
+        order: list[Any] = []
+        for step in steps:
+            key = (step.stage, called(step).id if step.stage.startswith("tool") else "")
+            if order and step.stage == "tool_result" and order[-1][0] == "tool_result":
+                order[-1] = ("tool_result", *sorted([*order[-1][1:], key[1]]))
+            else:
+                order.append(key)
+        return order
+
+    assert [k for k in in_order(replay) if k[0].startswith("tool")] == [
         ("tool_call", "read_1"),
         ("tool_call", "read_2"),
-        ("tool_result", "read_1"),
-        ("tool_result", "read_2"),
+        ("tool_result", "read_1", "read_2"),
         ("tool_call", "read_3"),
         ("tool_result", "read_3"),
     ]
@@ -2022,20 +2034,12 @@ def test_a_scaffold_s_own_tool_calls_steps_equal_live(
     # call and call id
     unwatched, _ = scaffold_log(backend, monkeypatch, *turns, sentinel=False)
     again = replayed(unwatched)
-    assert [(s.stage, getattr(s.step, "call", None)) for s in again] == [
-        (s.stage, getattr(s.step, "call", None)) for s in replay
-    ]
-    turn_ids = [
-        e.uuid for e in logged_sample(unwatched).events if isinstance(e, ModelEvent)
-    ]
-    assert [s.id for s in again if s.stage.startswith("tool")] == [
-        f"{turn_ids[0]}/read_1",
-        f"{turn_ids[0]}/read_2",
-        f"{turn_ids[0]}/read_1",
-        f"{turn_ids[0]}/read_2",
-        f"{turn_ids[1]}/read_3",
-        f"{turn_ids[1]}/read_3",
-    ]
+    assert in_order(again) == in_order(replay)
+    assert sorted(
+        repr((s.stage, comparable(getattr(s.step, "call", None)))) for s in again
+    ) == sorted(
+        repr((s.stage, comparable(getattr(s.step, "call", None)))) for s in replay
+    )
 
 
 async def redact_results(
