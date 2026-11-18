@@ -299,10 +299,11 @@ all host-side configuration.
 ### Generation settings
 
 The client's generation parameters are dropped unless the eval sets
-`forward_generation_config=True`, and settings that change billing,
-provider-side storage or retained context are the eval's (see
-[Generation Config](../docs/agent-bridge.qmd#generation-config) and
-[Request Settings](../docs/agent-bridge.qmd#request-settings)).
+`forward_generation_config=True` (see
+[Generation Config](../docs/agent-bridge.qmd#generation-config)), and other
+request fields follow the
+[Request Settings](../docs/agent-bridge.qmd#request-settings) policy, which
+says which the eval decides and which are forwarded.
 
 ### Capabilities withheld by default
 
@@ -363,11 +364,6 @@ What those pages leave out:
   retried `tools/call` is denied only when no matching grant remains: if the
   model proposed the same call more than once, a retry consumes another
   proposal's grant.
-- Approval decides what the agent is handed, not what it does: the agent can
-  run any command in the sandbox without asking the model. It is a control
-  on host action only for bridged tools on servers that require a proposal,
-  through the grants; a `require_proposal=False` server runs any
-  `tools/call`, including one whose proposal was rejected.
 
 ## What Inspect records
 
@@ -438,12 +434,12 @@ bridge, contains what the agent does.
 
 ### What it guarantees
 
-The bridge's guarantees are about the host and the host's record. They are
-the properties whose violation `SECURITY.md`
-[treats as a vulnerability](../SECURITY.md#in-scope): an agent in a sandbox
-using the bridge to get a capability the evaluation did not grant, read API
-keys kept on the host, run code in the Inspect process, or reach another
-sample's model calls.
+These are the bridge's architecture guarantees, about the host and the
+host's record. What is reportable as a vulnerability is defined by
+`SECURITY.md`'s [In scope](../SECURITY.md#in-scope) list, which for the
+bridge names an agent in a sandbox using it to get a capability the
+evaluation did not grant, read API keys kept on the host, run code in the
+Inspect process, or reach another sample's model calls.
 
 1. **Granted capability only.** On the sandbox's behalf the host performs
    only generations by models the eval's configuration chose, provider-side
@@ -489,23 +485,12 @@ sample's model calls.
 
 ### What stays outside the guarantee
 
-The architecture's exclusions are `SECURITY.md`'s
-[Out of scope](../SECURITY.md#out-of-scope) list, the limits listed under
-[Adversarial Models](../docs/agent-bridge.qmd#adversarial-models), and the
-[sandbox trust model's out-of-scope list](sandbox-trust-model.md#out-of-scope):
-what the agent does in the sandbox, the history it sends (and so
-`bridge.state`), which process in the sandbox calls a bridge set up to serve
-it, root or the tools user interfering with the bridge when only that
-sandbox's sample is affected, what the eval grants, credentials the eval puts in the
-sandbox, the agent's own permission prompts, and the sandbox's own
-isolation. Two consequences are specific to the bridge:
-
-- Where root is not usable the tools user is the sandbox's default user,
-  which the agent often runs as too, so the queue is no barrier between
-  them; Boundary A is absent there.
-- An escape from a Docker sandbox to the host, or from one sandbox to
-  another, that Inspect causes is in scope, and the bridge is one of the
-  channels that must not provide one.
+What the bridge does not guarantee is `SECURITY.md`'s
+[Out of scope](../SECURITY.md#out-of-scope) list, the limits under
+[Adversarial Models](../docs/agent-bridge.qmd#adversarial-models) and the
+[sandbox trust model's out-of-scope list](sandbox-trust-model.md#out-of-scope).
+Where Boundary A is absent, see the Boundary A bullet of
+[Relationship to the sandbox trust model](#relationship-to-the-sandbox-trust-model).
 
 ## Sandbox identity scopes and the peer check
 
@@ -534,7 +519,9 @@ The sandbox trust model's boundaries apply to the bridge as follows:
 - **Boundary A** (in-sandbox privilege) touches the bridge through the
   proxy's identity and its queue's owner, both the tools user. Where
   Boundary A is present, the agent cannot read or write the queue; where it
-  is absent, the queue is no barrier, and that is out of scope.
+  is absent (the agent runs as the tools user, as when root is not usable
+  and the agent runs as the default user), the queue is no barrier, and that
+  is out of scope.
 
 The sandbox trust model's invariant holds with one qualification. Reaching
 the channel is still not authorization: the host decides what to do from
