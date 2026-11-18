@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json as json_module
 import os
 import shutil
@@ -19,10 +20,9 @@ class StreamingAttachmentStore(MutableMapping[str, str]):
     `MutableMapping` methods are provided for type-checker compatibility
     and read-back (e.g. `iter_items`).
 
-    Every unique `(hash, content)` pair is written to
-    `<dir>/<hash[:2]>/<hash[2:]>`. Duplicate writes for the same hash are
-    no-ops. In-memory state is bounded to the set of seen hashes — neither
-    content nor filenames are kept in memory beyond the hash set.
+    Buffer-supplied attachment IDs are opaque keys. A digest of each ID
+    names its backing file, so only generated hex digits enter the path.
+    The store keeps just the original IDs in memory and ignores duplicate writes.
     """
 
     def __init__(self, dir: str) -> None:
@@ -30,28 +30,30 @@ class StreamingAttachmentStore(MutableMapping[str, str]):
         os.makedirs(dir, exist_ok=True)
         self._seen: set[str] = set()
 
+    def _path(self, hash: str) -> str:
+        digest = hashlib.sha256(hash.encode("utf-8")).hexdigest()
+        return os.path.join(self._dir, digest[:2], digest[2:])
+
     def __setitem__(self, hash: str, content: str) -> None:
         if hash in self._seen:
             return
-        self._seen.add(hash)
-        prefix_dir = os.path.join(self._dir, hash[:2])
-        os.makedirs(prefix_dir, exist_ok=True)
-        with open(os.path.join(prefix_dir, hash[2:]), "wb") as f:
+        path = self._path(hash)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:
             f.write(content.encode("utf-8"))
+        self._seen.add(hash)
 
     def __getitem__(self, hash: str) -> str:
         if hash not in self._seen:
             raise KeyError(hash)
-        path = os.path.join(self._dir, hash[:2], hash[2:])
-        with open(path, "rb") as f:
+        with open(self._path(hash), "rb") as f:
             return f.read().decode("utf-8")
 
     def __delitem__(self, hash: str) -> None:
         if hash not in self._seen:
             raise KeyError(hash)
-        self._seen.discard(hash)
-        path = os.path.join(self._dir, hash[:2], hash[2:])
-        os.remove(path)
+        os.remove(self._path(hash))
+        self._seen.remove(hash)
 
     def __iter__(self) -> Iterator[str]:
         return iter(self._seen)
@@ -65,9 +67,7 @@ class StreamingAttachmentStore(MutableMapping[str, str]):
         Order is unspecified (backed by `set` iteration).
         """
         for hash in self._seen:
-            path = os.path.join(self._dir, hash[:2], hash[2:])
-            with open(path, "rb") as f:
-                yield hash, f.read().decode("utf-8")
+            yield hash, self[hash]
 
     def close(self) -> None:
         """Remove the backing directory and all stored attachments."""

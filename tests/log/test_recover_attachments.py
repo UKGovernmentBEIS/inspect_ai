@@ -4,6 +4,7 @@ import io
 import json
 import os
 import tempfile
+from pathlib import Path
 
 from inspect_ai.log._recover._attachments import (
     StreamingAttachmentStore,
@@ -11,14 +12,23 @@ from inspect_ai.log._recover._attachments import (
 )
 
 
-def test_store_writes_content_to_disk() -> None:
-    with tempfile.TemporaryDirectory() as d:
-        store = StreamingAttachmentStore(d)
-        store["abcdef01"] = "hello"
-        assert os.path.exists(os.path.join(d, "ab", "cdef01"))
-        with open(os.path.join(d, "ab", "cdef01"), "rb") as f:
-            assert f.read() == b"hello"
-        store.close()
+def test_store_confines_files_and_preserves_ids(tmp_path: Path) -> None:
+    store_dir = tmp_path / "attachments"
+    store = StreamingAttachmentStore(str(store_dir))
+    outside = tmp_path / "photo"
+    outside.write_bytes(b"original")
+    ids = ["", "..", str(outside), "album/photo", r"album\photo"]
+    expected = {key: f"photo {i}" for i, key in enumerate(ids)}
+    store.update(expected)
+
+    files = [p for p in store_dir.rglob("*") if p.is_file()]
+    assert sorted(p.read_text() for p in files) == sorted(expected.values())
+    assert dict(store.iter_items()) == expected
+    for key, value in expected.items():
+        assert store.pop(key) == value
+    assert all(not p.exists() for p in files)
+    store.close()
+    assert outside.read_bytes() == b"original"
 
 
 def test_store_dedups_by_hash() -> None:
@@ -26,8 +36,7 @@ def test_store_dedups_by_hash() -> None:
         store = StreamingAttachmentStore(d)
         store["abcdef01"] = "hello"
         store["abcdef01"] = "SHOULD_BE_IGNORED"
-        with open(os.path.join(d, "ab", "cdef01"), "rb") as f:
-            assert f.read() == b"hello"
+        assert store["abcdef01"] == "hello"
         store.close()
 
 
