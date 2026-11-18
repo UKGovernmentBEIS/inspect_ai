@@ -74,8 +74,8 @@ Its edge cases all come from the same few interactions in Inspect:
 - **Unpriced calls skip cost checks.** An unpriced call never adds to a cost
   limit and never checks one. A cost limit that a concurrent priced call has
   reached is not raised after it, and an unpriced model that the start-time
-  check does not cover (a subagent, approver or monitor model) can be called
-  without bound under a cost limit. So can a priced model whose provider
+  check does not cover (a subagent's model, or any model an agent
+  resolves by name) can be called without bound under a cost limit. So can a priced model whose provider
   returns no usage, which this design leaves to a separate one (see "Not
   this design").
 - **Groups are reduced before they are compared.** A task group's errors
@@ -473,7 +473,8 @@ def check_limits(raise_for_equal: bool = False, *, turns_only: bool = False) -> 
 
 def check_own_limits(limits: Sequence[Limit]) -> None:
     """At an owner's normal exit: raise the outermost of its own limits that counts."""
-    own = [n for n in limits if n._in_chain and _counted(n)]
+    # kind first: time and working limits carry no chain fields
+    own = [n for n in limits if _counted(n) and n._in_chain]
     for node in sorted(own, key=_chain_depth):  # root first
         node._check_marked(node._refused_at_budget())
 
@@ -492,7 +493,10 @@ def _counted(node: Limit) -> bool:
 - `_Node._check_marked(raise_for_equal)` calls
   `_check_self(raise_for_equal)`; if that raises a `LimitExceededError`, it
   sets `self._raised_at` to the greater of its current value and
-  `self.limit` (the effective limit, a live override included) before re-raising. Every check path goes through it:
+  `self.limit` (the effective limit, a live override included) before
+  re-raising the same error. When `self.limit` is `None` (an inspect_swarm
+  lever, whose closed stop gate raises on its own state) the mark is left
+  as it is and the error is re-raised unchanged. Every check path goes through it:
   `check_limits()` and the per-kind `check()` methods. inspect_swarm's
   `_check_self()` overrides therefore set the mark too.
 - `_Node._refused_at_budget() -> bool` is `self._raised_at is not None and
@@ -792,8 +796,18 @@ or the runner unwraps as today (`_sentinel_exception()`,
 `_call_tools.py:186-193`; `run.py:2927-2930`). In a bridge the outcome
 depends on the request:
 
-- In a bridged generation, it becomes an ordinary error reply, with no kept
-  limit.
+- In a bridged generation's generate stage (the sentinel run around the
+  request's own generation), it becomes an ordinary error reply, with no
+  kept limit.
+- In the tool-call and tool-result stages a bridged request runs (the
+  tool-call stage while approving the generation's calls,
+  `src/inspect_ai/agent/_bridge/_approval.py:314`; the tool-result stage at
+  the request's entry, `agent/_bridge/util.py:1457`), `_guarded()`
+  unwraps a deciding monitor limit and re-raises it bare
+  (`src/inspect_ai/agent/_bridge/_sentinel.py:1630-1647`), so the message
+  limit reaches the request's error handling and the bridge keeps it, as
+  any limit (rule 8): it replaces a kept limit it is outer to, and is
+  raised when the agent unwinds.
 - In a bridged host tool, `tool_call_error()` does not map it, so
   `_raised()` treats it as an unexpected error, which requests sample failure
   (`src/inspect_ai/agent/_bridge/sandbox/host_tool.py:517-532`, `:450-451`).
@@ -805,8 +819,10 @@ depends on the request:
   decided by a non-limit error ("What a runtime can rely on"), and the
   priority is unchanged.
 
-Message limits are outside the chain's exit checks, so nothing records the
-message limit later. This design does not change it.
+Message limits are outside the chain's exit checks, so a message limit
+turned into an error reply (the generate stage) or a sample failure (a host
+tool) is not recorded later; one the bridge kept from a tool stage is
+raised when the agent unwinds. This design does not change either path.
 
 ### The owner's exit check
 
@@ -1517,8 +1533,9 @@ fixes nothing structurally.
 **Innermost limit wins.** The inner owner (a swarm cap, a member limit) then
 always sees its own error first and can stop in order. But the outer limit
 depends on a later check to be raised. If the inner owner catches its error
-and returns without another model call, the outer limit is lost, and the
-sample completes normally over its budget. Outermost-first fails safe instead:
+and returns without another model call, the outer limit is raised only
+when its own owner ends (rule 7), after the inner owner's caller has run
+on as if within budget. Outermost-first fails safe instead:
 the inner scope is unwound by the stronger error, and guarantee 3 gives a
 runtime its orderly stop anyway.
 
@@ -1554,9 +1571,11 @@ in the same attempt. Each owner checking its own limits gives the same
 stored usage to the roots instead of assigning it would keep a limit
 reached before the restore reached. But a checkpointer entry that fails
 part-way (in the restore's check, `on_resume` or the entered
-checkpointer's construction) and is entered again, as the transcript-store
-recovery does, would add the snapshot twice, so it would need a once-only
-accounting lifecycle separate from the entry cache. Refusing model work
+checkpointer's construction) and is entered again by a caller that
+retries the entry would add the snapshot twice, so it would need a
+once-only accounting lifecycle separate from the entry cache. No caller
+retries a failed entry today ("Limits swallowed before a checkpoint
+restore"), so this is a hazard of the alternative, not a current path. Refusing model work
 before the restore instead would fail ordinary resumes, whose solvers
 before the agent run again. The loss is stated instead ("Limits swallowed
 before a checkpoint restore"; decision: Ransom, 2026-11-18).
@@ -1656,9 +1675,11 @@ and cancelled calls stay uncharged, as today, with the retry policy as
 their bound (decision: Ransom, 2026-11-16).
 
 **Warn about unpriced calls instead of refusing them.** Keeps evals with an
-unpriced approver, monitor or subagent model running, but a cost limit then
-does not bound their spend: their calls never advance it, so its checks
-never fail. Refusal was chosen (decision: Ransom, 2026-11-12).
+unpriced subagent or agent model running, but a cost limit then does not
+bound that spend: the calls never advance it, so its checks never fail.
+Approver, reviewer and monitor calls are not part of this argument: they
+run with cost suspended, so no cost limit bounds them either way, and the
+refusal skips them (rule 9). Refusal was chosen (decision: Ransom, 2026-11-12).
 
 **Refuse suspended calls with the bridge guard too.** Approval, review and
 monitor calls inside a bridged request would stop once the bridge kept a
@@ -1981,7 +2002,10 @@ under trio with `--runtrio`.
   - own limits outside the chain: `apply_limits([time_limit(...)],
     catch_errors=True)` and `run(limits=[time_limit(...)])` still catch and
     return their own time limit error, including one raised as the limits
-    exit (the existing `test_apply_limits_handles_time_limit` stays);
+    exit (the existing `test_apply_limits_handles_time_limit` stays); an
+    `apply_limits([time_limit(60), token_limit(10)])` scope, and one with a
+    `working_limit(60)`, whose body stays under budget returns normally (the
+    exit check skips the non-chain limits);
 - `tests/_control/test_limits.py`, live overrides and the exit check: a
   sample whose root token limit is refused at 10, then given an override
   of 20 through `set_sample_limit_override()`, has a call refused at 20
