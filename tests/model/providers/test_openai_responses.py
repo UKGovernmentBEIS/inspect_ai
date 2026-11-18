@@ -656,6 +656,55 @@ async def test_responses_api_no_metadata():
     assert output.metadata is None
 
 
+def _response_with_input_transformations(reasons: list[str]) -> Any:
+    from openai.types.responses import Response
+    from openai.types.responses.response import InputTransformation
+
+    return Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-6.2-sol",
+        object="response",
+        output=[],
+        tools=[],
+        status="completed",
+        input_transformations=[
+            InputTransformation.model_validate(
+                {"id": f"rs_{i}", "action": "removed", "reason": r, "type": "reasoning"}
+            )
+            for i, r in enumerate(reasons)
+        ],
+    )
+
+
+async def test_responses_api_warns_when_reasoning_removed() -> None:
+    """Reasoning the API removed from the input warns once per reason."""
+    from unittest.mock import patch
+
+    response = _response_with_input_transformations(
+        ["prefix_mismatch", "prefix_mismatch", "end_user_mismatch"]
+    )
+    with patch("inspect_ai.model._providers.openai_responses.warn_once") as mock_warn:
+        await _generate_responses_with_mock(response)
+    messages = [call.args[1] for call in mock_warn.call_args_list]
+    removed = [m for m in messages if "removed replayed reasoning" in m]
+    assert len(removed) == 2
+    assert all("gpt-6.2-sol" in m for m in removed)
+    assert any("(reason: prefix_mismatch)" in m for m in removed)
+    assert any("(reason: end_user_mismatch)" in m for m in removed)
+
+
+async def test_responses_api_no_warning_for_turn_boundary() -> None:
+    """turn_boundary removal is the model's normal behavior, so it doesn't warn."""
+    from unittest.mock import patch
+
+    response = _response_with_input_transformations(["turn_boundary"])
+    with patch("inspect_ai.model._providers.openai_responses.warn_once") as mock_warn:
+        await _generate_responses_with_mock(response)
+    messages = [call.args[1] for call in mock_warn.call_args_list]
+    assert not any("removed replayed reasoning" in m for m in messages)
+
+
 def _completed_mock_response():
     from openai.types.responses import Response
 
