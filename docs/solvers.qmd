@@ -177,7 +177,7 @@ We'll present an example and then discuss the various options below (in most cas
 
 ### Example
 
-Below is a full example of reading a dataset for use with `multiple choice()` and using it in an evaluation task. The underlying data in `mmlu.csv` has the following form:
+Below is a full example of reading a dataset for use with `multiple_choice()` and using it in an evaluation task. The underlying data in `mmlu.csv` has the following form:
 
 | Question                                                                            | A   | B   | C   | D   | Answer |
 |------------|------------|------------|------------|------------|:----------:|
@@ -197,7 +197,7 @@ def mmlu():
         sample_fields=record_to_sample
     )
 
-    # task with multiple choice() and choice() scorer
+    # task with multiple_choice() and choice() scorer
     return Task(
         dataset=task_dataset,
         solver=multiple_choice(),
