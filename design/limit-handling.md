@@ -1247,21 +1247,28 @@ sample's background group: work started there keeps its sample-scoped
 lifetime and its errors keep reaching the sample runner. The guarantees below are about work in tasks the runtime owns.
 
 1. **A sample limit reaches the runtime.** A sample token, cost or turn
-   limit reached by any of its agents' model calls, native or bridged, in a
-   tool, a handoff, a subagent or a filter, reaches the runtime's
-   code as a `LimitExceededError` whose `source` is the sample's node
+   limit that raises for any of its agents' model calls, native or
+   bridged, in a tool, a handoff, a subagent or a filter, reaches the
+   runtime's code as a `LimitExceededError` whose `source` is the sample's node
    (`sample_limits().token`, `.cost`, `.turn`). It arrives bare, or in a
    group where `outermost_limit()` returns it. No Inspect code between the
    model call and the runtime converts it (rule 6), and no inner limit reached by the same call or a
    concurrent one replaces it (rules 3, 4, 8), except in the cases rule 3
    names: a call that only reaches the sample limit while exceeding an
    inner one raises the inner one, and the sample limit arrives at the
-   next pre-dispatch check; and a message limit is checked first. For a bridged agent it
-   arrives when the agent's CLI exits. If a handler on the way swallows it
-   (and no checkpoint restore reopens it in between, below)
-   (a fallback, a hook, `tg_collect()` keeping another error), it arrives
-   instead at the next call any agent makes under the sample, which is
-   refused with it (guarantee 2).
+   next pre-dispatch check; and a message limit is checked first. A limit
+   raises after a call only when the call takes usage past its budget
+   (`>`); a call that brings usage exactly to the budget returns normally,
+   the limit is then reached, and its error comes with the next call,
+   which is refused before dispatch (`>=`). If no call follows, nothing
+   raises and the sample ends normally, as a sample that used exactly its
+   budget does (rule 7 records a reached limit at exit only after it
+   refused a call). For a bridged agent the error arrives when the agent's
+   CLI exits. If a handler on the way swallows it (a fallback, a hook,
+   `tg_collect()` keeping another error), it arrives instead at the next
+   call any agent makes under the sample, which is refused with it
+   (guarantee 2), unless a checkpoint restore reopens the limit in between
+   (below).
 2. **A reached limit stays reached.** Within the attempt (but see the
    restore exception below), every later dispatch under that
    sample, including the runtime's own model calls, native compaction and
@@ -1271,10 +1278,13 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    review and sentinel calls are the exception: they run with token, turn
    and cost limits suspended and skip the bridge guard, so a reached limit
    of those kinds, or a bridge's kept limit, does not refuse them.
-   Calls already dispatched complete, are recorded, and raise after
-   recording the error of the outermost reached node, which is that node
-   or an outer one their usage has since pushed over (rules 3 and 8; the
-   bridge's kept limit is promoted the same way).
+   Calls already dispatched complete and are recorded. One whose usage
+   takes a node past its budget raises after recording, with the error of
+   the outermost exceeded node, which is that node or an outer one its
+   usage has pushed over (rules 3 and 8; the bridge's kept limit is
+   promoted the same way). One that adds no metered usage, or leaves every
+   node at or below its budget, returns normally; the reached limit then
+   refuses the next dispatch.
 3. **The runtime may hold the error.** It can catch it, stop its agents
    (close levers, wait for in-flight calls within its grace, cancel the
    rest), write its ledger and re-raise the error, bare or in a group
