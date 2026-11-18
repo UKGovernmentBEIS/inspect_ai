@@ -2611,10 +2611,11 @@ def retrying_scaffold(
     padding: str = "",
     side: Literal["agent", "helper"] | None = None,
     turns: int = 10,
+    nudge: bool = False,
 ) -> Agent:
     """A tool loop over the OpenAI or the Anthropic client, bridged with `compaction`, that loses its first response to each request and sends the request again (unless not `retry`), as a client does after a timeout or a dropped connection; it answers each call with `t<turn>:<call id>` and `padding`, until a response has none or it has sent `turns` requests.
 
-    With `side`, it sends a request with its own history and no tools before each of those requests, as Claude Code's permission classifier or opencode's title request does: from the agent, or under `model_origin("helper")`.
+    With `side`, it sends a request with its own history and no tools before each of those requests, as Claude Code's permission classifier or opencode's title request does: from the agent, or under `model_origin("helper")`. With `nudge`, it follows each turn's results with the same reminder, as a scaffold nudges the model to keep working.
     """
 
     async def execute(state: AgentState) -> AgentState:
@@ -2622,6 +2623,7 @@ def retrying_scaffold(
         from openai import AsyncOpenAI
 
         title: list[Any] = [{"role": "user", "content": "Name this conversation."}]
+        reminder = "Continue working until the task is complete."
 
         async def side_request(create: Callable[[], Awaitable[object]]) -> None:
             if side == "helper":
@@ -2675,6 +2677,8 @@ def retrying_scaffold(
                                     "content": f"t{turn}:{call.id}{padding}",
                                 }
                             )
+                        if nudge:
+                            messages.append({"role": "user", "content": reminder})
             else:
                 tools = [
                     {
@@ -2731,7 +2735,12 @@ def retrying_scaffold(
                                         "content": f"t{turn}:{use.id}{padding}",
                                     }
                                     for use in uses
-                                ],
+                                ]
+                                + (
+                                    [{"type": "text", "text": reminder}]
+                                    if nudge
+                                    else []
+                                ),
                             }
                         )
             return bridge.state
@@ -2838,14 +2847,17 @@ def test_a_cached_retry_s_call_gets_the_result_the_agent_sent(
         assert replay_warnings(caplog) == []
 
 
+@pytest.mark.parametrize("nudge", [False, True], ids=["plain", "nudged"])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 def test_side_requests_keep_finding_bridged_results_linear(
-    backend: str, monkeypatch: pytest.MonkeyPatch
+    backend: str, nudge: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # after Ransom's review of #6624: a request with its own history before
     # each turn, as Claude Code's permission classifier sends, is the request
     # the next turn's results are found against, which made replay read the
-    # agent's whole history again at each turn
+    # agent's whole history again at each turn. `nudged` follows each turn's
+    # results with the same reminder under a new message id, which kept the
+    # lookup reading the history in 391c4072a
     from inspect_ai._sentinel._steps import PoolView
 
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
@@ -2868,7 +2880,11 @@ def test_side_requests_keep_finding_bridged_results_linear(
             dataset=[Sample(input="What is 1 + 1?", target="2")],
             solver=as_solver(
                 retrying_scaffold(
-                    "anthropic", retry=False, side="helper", turns=turns + 1
+                    "anthropic",
+                    retry=False,
+                    side="helper",
+                    turns=turns + 1,
+                    nudge=nudge,
                 )
             ),
         )
@@ -2887,6 +2903,43 @@ def test_side_requests_keep_finding_bridged_results_linear(
             assert len(results) == turns, inputs
             work.append(reads)
     assert work[2] <= 2.2 * work[0] and work[3] <= 2.2 * work[1], work
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_google_bridge_call_without_a_sentinel_is_not_looked_up(
+    backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # after the pre-push review of 391c4072a: without a sentinel no Google
+    # bridge call can get a result (test_a_google_bridge_call_has_no_result_
+    # without_a_sentinel), and looking each one up again at every later
+    # request made replay quadratic in the turns
+    from inspect_ai._sentinel import _replay
+
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    turns = 20
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=as_solver(gemini_scaffold(turns=turns + 1)),
+    )
+    reads = [reading(f"{n}.txt") for n in range(turns)]
+    [log] = eval(task, model=generated_ids("read_", *reads, done()))
+    assert log.status == "success", log.error
+    last_held = _replay._PooledInput.last_held
+    attempts = 0
+
+    def counting(self: Any, *args: Any) -> int | None:
+        nonlocal attempts
+        attempts += 1
+        return last_held(self, *args)
+
+    for inputs in ["expanded", "pooled"]:
+        attempts = 0
+        with monkeypatch.context() as patch:
+            patch.setattr(_replay._PooledInput, "last_held", counting)
+            replay = replayed_inputs(log, inputs)
+        stages = [s.stage for s in bridged_steps(log, replay)]
+        assert stages == ["tool_call"] * turns, inputs
+        assert attempts == 0, inputs
 
 
 @pytest.mark.parametrize("side", ["agent", "helper"])
@@ -2956,8 +3009,9 @@ def gemini_scaffold(
     loop_check: int | None = None,
     compaction: CompactionStrategy | None = None,
     padding: str = "",
+    turns: int = 10,
 ) -> Agent:
-    """A Gemini CLI-style tool loop over the Google client, bridged with `compaction`: it keeps each response's content as history and answers each call with a `functionResponse` carrying the call's id (none without a sentinel), `t<turn>:<index>` and `padding`, until a response has no calls.
+    """A Gemini CLI-style tool loop over the Google client, bridged with `compaction`: it keeps each response's content as history and answers each call with a `functionResponse` carrying the call's id (none without a sentinel), `t<turn>:<index>` and `padding`, until a response has no calls or it has had `turns` responses.
 
     With `retry`, it loses its first response to each request and sends the request again. With `side`, it sends a request with its own history and no tools before each of its requests. With `gemini_cli`, it records each response as Gemini CLI does (`geminiChat.ts`), with adjacent text parts merged. With `loop_check`, before the request of that turn it sends a request with its own history (as Gemini CLI's `web_fetch` does), then a request as Gemini CLI's LLM loop check builds it (`loopDetectionService.ts`): the original request in a wrapper, the last 20 history entries without the trailing call turn and its results, and the check's prompt.
     """
@@ -3015,7 +3069,7 @@ def gemini_scaffold(
                         model="inspect", contents=title
                     )
 
-            for turn in range(10):
+            for turn in range(turns):
                 if turn == loop_check:
                     await client.aio.models.generate_content(
                         model="inspect",
