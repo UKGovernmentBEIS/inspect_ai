@@ -32,6 +32,7 @@ from inspect_ai import (
     eval_async,
 )
 from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
+from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, EvalSample
@@ -49,7 +50,7 @@ from inspect_ai.util._sandbox.docker import cleanup as cleanup_module
 from inspect_ai.util._sandbox.docker import config as config_module
 from inspect_ai.util._sandbox.docker import docker as docker_module
 from inspect_ai.util._sandbox.docker.cleanup import cleanup_state
-from inspect_ai.util._sandbox.docker.compose import Project
+from inspect_ai.util._sandbox.docker.compose import Project, compose_services
 from inspect_ai.util._sandbox.docker.config import auto_compose_dir
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
 from inspect_ai.util._sandbox.docker.util import ComposeProject
@@ -1377,3 +1378,123 @@ def marker_task():
     assert _sample_errors(log) == []
     assert log.samples is not None
     assert log.samples[0].output.completion == "task"
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_docker_env_files_resolve_from_the_compose_file_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Compose's env_file and .env lookups are unchanged by setup running in the launch directory.
+
+    The task and launch directories each hold a `compose.yaml`, a `vars.env`
+    and a `.env`, with different values. The launch `.env` is loaded into the
+    process environment with `init_dotenv()`, as a run started there does.
+    In `task_init` and `sample_init` alike (resolved by real `docker compose
+    config`, and in the running container), the relative `env_file` comes
+    from the compose file's directory, a variable only the task `.env` sets
+    is interpolated from it, and a variable both set keeps the launch value.
+    """
+    task_dir = tmp_path / "task"
+    launch = tmp_path / "launch"
+    for directory in [task_dir, launch]:
+        directory.mkdir(exist_ok=True)
+        (directory / "compose.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "services": {
+                        "default": {
+                            "image": "python:3.12-slim",
+                            "command": "tail -f /dev/null",
+                            "init": True,
+                            "network_mode": "none",
+                            "env_file": "vars.env",
+                            "environment": {
+                                "TASK_ONLY_VALUE": "${INSPECT_TEST_TASK_ONLY:-unset}",
+                                "SHARED_VALUE": "${INSPECT_TEST_SHARED:-unset}",
+                                "COMPOSE_DIR": directory.name,
+                            },
+                        }
+                    }
+                }
+            )
+        )
+        (directory / "vars.env").write_text(f"ENV_FILE_VALUE={directory.name}\n")
+    (task_dir / ".env").write_text(
+        "INSPECT_TEST_TASK_ONLY=task\nINSPECT_TEST_SHARED=task\n"
+    )
+    (launch / ".env").write_text("INSPECT_TEST_SHARED=launch\n")
+    task_file = task_dir / "env_task.py"
+    task_file.write_text(
+        """from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.model import ModelOutput
+from inspect_ai.solver import solver
+from inspect_ai.util import sandbox
+
+
+@solver
+def read_env():
+    async def solve(state, generate):
+        names = ["ENV_FILE_VALUE", "TASK_ONLY_VALUE", "SHARED_VALUE", "COMPOSE_DIR"]
+        result = await sandbox().exec(["printenv", *names])
+        state.output = ModelOutput.from_content(
+            "mockllm/model", ",".join(result.stdout.split())
+        )
+        return state
+
+    return solve
+
+
+@task
+def env_task():
+    return Task(
+        dataset=[Sample(input="x", sandbox=("docker", "compose.yaml"))],
+        solver=read_env(),
+    )
+"""
+    )
+
+    resolved: list[tuple[int | str | None, dict[str, Any]]] = []
+
+    async def recording_compose_services(project: ComposeProject) -> dict[str, Any]:
+        services = await compose_services(project)
+        resolved.append((project.sample_id, dict(services["default"])))
+        return dict(services)
+
+    monkeypatch.setattr(docker_module, "compose_services", recording_compose_services)
+    monkeypatch.chdir(launch)
+    names = ["INSPECT_TEST_TASK_ONLY", "INSPECT_TEST_SHARED"]
+    for name in names:
+        monkeypatch.delenv(name, raising=False)
+    try:
+        init_dotenv()
+        assert os.environ.get("INSPECT_TEST_SHARED") == "launch"
+        assert "INSPECT_TEST_TASK_ONLY" not in os.environ
+
+        [log] = eval(
+            f"{task_file.as_posix()}@env_task",
+            model="mockllm/model",
+            display="none",
+            log_dir=(tmp_path / "logs").as_posix(),
+        )
+    finally:
+        for name in names:
+            os.environ.pop(name, None)
+
+    assert log.status == "success", log.error
+    assert _sample_errors(log) == []
+    expected = {
+        "ENV_FILE_VALUE": "task",
+        "TASK_ONLY_VALUE": "task",
+        "SHARED_VALUE": "launch",
+        "COMPOSE_DIR": "task",
+    }
+    # compose config output: environment as a mapping
+    setup = [service for sample_id, service in resolved if sample_id is None]
+    samples = [service for sample_id, service in resolved if sample_id is not None]
+    assert setup and samples
+    for service in setup + samples:
+        assert {k: service["environment"].get(k) for k in expected} == expected
+    assert log.samples is not None
+    assert log.samples[0].output.completion == "task,task,launch,task"
