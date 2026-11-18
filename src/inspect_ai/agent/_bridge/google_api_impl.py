@@ -27,7 +27,7 @@ from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
 from inspect_ai.model._message_ids import canonical_tool_arguments
 from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import ModelOutput, ModelUsage, StopReason
-from inspect_ai.model._providers._google_computer_use import (
+from inspect_ai.model._providers._google_computer_use_name import (
     gemini_action_from_tool_call,
 )
 from inspect_ai.model._reasoning import (

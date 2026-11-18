@@ -2,9 +2,11 @@
 
 import bisect
 import dataclasses
+import importlib
 import json
 import logging
 import random
+import sys
 from collections.abc import Awaitable, Callable, Iterator, Sequence
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -2884,6 +2886,45 @@ def test_a_google_bridge_identical_calls_do_not_trade_results(
             if gemini_cli
             else [("read_2", '{"output": "t0:1"}')]
         ), inputs
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_google_bridge_log_replays_without_the_google_sdk(
+    backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # replay rebuilds the Google bridge's ids through the bridge's own
+    # functions, which must not need google-genai (an optional dependency)
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=as_solver(gemini_scaffold()),
+    )
+    [log] = eval(task, model=get_model("mockllm/model", custom_outputs=gemini_turns()))
+    assert log.status == "success", log.error
+    for name in list(sys.modules):
+        if name == "google.genai" or name.startswith("google.genai."):
+            monkeypatch.setitem(sys.modules, name, None)
+        elif name in (
+            "inspect_ai.agent._bridge.google_api_impl",
+            "inspect_ai.model._providers._google_computer_use",
+        ):
+            monkeypatch.delitem(sys.modules, name)
+    monkeypatch.setitem(sys.modules, "google.genai", None)
+    with pytest.raises(ImportError):
+        importlib.import_module("google.genai.types")
+    for inputs in ["expanded", "pooled"]:
+        results = [
+            (s.id.split("/")[1], resulted(s).text)
+            for s in bridged_steps(log, replayed_inputs(log, inputs))
+            if s.stage == "tool_result"
+        ]
+        assert results == [
+            ("read_1", '{"output": "t0:0"}'),
+            ("read_2", '{"output": "t0:1"}'),
+            ("read_3", '{"output": "t1:0"}'),
+            ("read_4", '{"output": "t1:1"}'),
+            ("read_5", '{"output": "t2:0"}'),
+        ], inputs
 
 
 @pytest.mark.parametrize("side", [False, True])

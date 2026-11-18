@@ -8306,12 +8306,12 @@ async def test_a_modified_gemini_computer_action_continues_as_the_modified_actio
     from google.genai.types import FunctionCall
 
     from inspect_ai.model._providers._google_computer_use import (
-        gemini_action_from_tool_call,
         gemini_replay_action_name,
         gemini_replay_args,
         tool_call_from_gemini_computer_action,
     )
     from inspect_ai.model._providers._google_computer_use_name import (
+        gemini_action_from_tool_call,
         gemini_computer_action_names,
     )
     from inspect_ai.model._providers.google import as_chat_messages
