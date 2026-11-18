@@ -27,7 +27,7 @@ from inspect_ai._sentinel._integration import (
 )
 from inspect_ai._sentinel._steps import ListView, PoolView
 from inspect_ai._util._async import tg_collect
-from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.content import ContentImage, ContentReasoning, ContentText
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import (
     Agent,
@@ -2610,15 +2610,40 @@ def test_a_side_request_before_a_retry_of_a_reused_id_gives_the_lost_call_a_resu
 
 
 @agent(name="gemini_scaffold")
-def gemini_scaffold(retry: bool = False, side: bool = False) -> Agent:
+def gemini_scaffold(
+    retry: bool = False,
+    side: bool = False,
+    gemini_cli: bool = False,
+    loop_check: int | None = None,
+) -> Agent:
     """A Gemini CLI-style tool loop over the Google client: it keeps each response's content as history and answers each call with a `functionResponse` carrying the call's id (none without a sentinel) and `t<turn>:<index>`, until a response has no calls.
 
-    With `retry`, it loses its first response to each request and sends the request again. With `side`, it sends a request with its own history and no tools before each of its requests.
+    With `retry`, it loses its first response to each request and sends the request again. With `side`, it sends a request with its own history and no tools before each of its requests. With `gemini_cli`, it records each response as Gemini CLI does (`geminiChat.ts`), with adjacent text parts merged. With `loop_check`, before the request of that turn it sends a request with its own history (as Gemini CLI's `web_fetch` does), then a request as Gemini CLI's LLM loop check builds it (`loopDetectionService.ts`): the original request in a wrapper, the last 20 history entries without the trailing call turn and its results, and the check's prompt.
     """
 
     async def execute(state: AgentState) -> AgentState:
         from google import genai
         from google.genai import types
+
+        def recorded(content: types.Content) -> types.Content:
+            if not gemini_cli:
+                return content
+            parts: list[types.Part] = []
+            for part in content.parts or []:
+                if parts and text_only(parts[-1]) and text_only(part):
+                    parts[-1] = types.Part(
+                        text=(parts[-1].text or "") + (part.text or "")
+                    )
+                else:
+                    parts.append(part)
+            return types.Content(role=content.role, parts=parts)
+
+        def text_only(part: types.Part) -> bool:
+            return (
+                part.text is not None
+                and not part.thought
+                and part.function_call is None
+            )
 
         config = types.GenerateContentConfig(
             tools=[
@@ -2650,6 +2675,32 @@ def gemini_scaffold(retry: bool = False, side: bool = False) -> Agent:
                     )
 
             for turn in range(10):
+                if turn == loop_check:
+                    await client.aio.models.generate_content(
+                        model="inspect",
+                        contents=[
+                            types.Content(
+                                role="user", parts=[types.Part(text="Fetch?")]
+                            )
+                        ],
+                    )
+                    await client.aio.models.generate_content(
+                        model="inspect",
+                        contents=[
+                            types.Content(
+                                role="user",
+                                parts=[
+                                    types.Part(
+                                        text="<original_user_request>What is 1 + 1?</original_user_request>"
+                                    )
+                                ],
+                            ),
+                            *contents[1:-2][-20:],
+                            types.Content(
+                                role="user", parts=[types.Part(text="Loop?")]
+                            ),
+                        ],
+                    )
                 if retry:
                     await side_request()
                     await client.aio.models.generate_content(
@@ -2662,7 +2713,7 @@ def gemini_scaffold(retry: bool = False, side: bool = False) -> Agent:
                     config=config,
                 )
                 assert response.candidates and response.candidates[0].content
-                contents.append(response.candidates[0].content)
+                contents.append(recorded(response.candidates[0].content))
                 calls = response.function_calls or []
                 if not calls:
                     break
@@ -2687,7 +2738,7 @@ def gemini_scaffold(retry: bool = False, side: bool = False) -> Agent:
 
 
 def gemini_turns() -> list[ModelOutput]:
-    """Gemini's turns for `gemini_scaffold`: a text part before the second turn's calls moves their parts, and the third reads `a.txt` again at the first part, as the first turn did."""
+    """Gemini's turns for `gemini_scaffold`: a text part and signed reasoning (the bridge's `<think>` part, next to the text) before the second turn's calls move their parts, and the third reads `a.txt` again at the first part, as the first turn did."""
     return [
         r7_tool_calls(read("a.txt", "read_1"), read("b.txt", "read_2")),
         ModelOutput(
@@ -2695,7 +2746,10 @@ def gemini_turns() -> list[ModelOutput]:
             choices=[
                 ChatCompletionChoice(
                     message=ChatMessageAssistant(
-                        content="Reading again.",
+                        content=[
+                            ContentText(text="Reading again."),
+                            ContentReasoning(reasoning="c2lnbmF0dXJl", redacted=True),
+                        ],
                         tool_calls=[read("a.txt", "read_3"), read("c.txt", "read_4")],
                     ),
                     stop_reason="tool_calls",
@@ -2707,9 +2761,11 @@ def gemini_turns() -> list[ModelOutput]:
     ]
 
 
+@pytest.mark.parametrize("gemini_cli", [False, True])
 @pytest.mark.parametrize("sentinel", [False, True])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 def test_a_google_bridge_result_goes_to_its_call(
+    gemini_cli: bool,
     sentinel: bool,
     backend: str,
     monkeypatch: pytest.MonkeyPatch,
@@ -2717,12 +2773,14 @@ def test_a_google_bridge_result_goes_to_its_call(
 ) -> None:
     # the Google bridge hands a call over without its id unless a sentinel is
     # active, and then reads the call and its result back under an id it
-    # rebuilds from the call
+    # rebuilds from the call and its part index, as the scaffold records the
+    # response: with `gemini_cli`, the second turn's text and `<think>` parts
+    # are merged, which moves its calls' parts
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     seen: dict[str, Step] = {}
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
-        solver=as_solver(gemini_scaffold()),
+        solver=as_solver(gemini_scaffold(gemini_cli=gemini_cli)),
         sentinel=[r7_probe(seen, copies=True)] if sentinel else None,
     )
     [log] = eval(task, model=get_model("mockllm/model", custom_outputs=gemini_turns()))
@@ -2833,6 +2891,61 @@ def test_a_google_retry_s_call_gets_the_result_the_agent_sent(
             (3, "read_4", '{"output": "t1:0"}'),
             *([(4, "read_5", '{"output": "t1:0"}')] if side else []),
             (5, "read_6", '{"output": "t2:0"}'),
+        ], inputs
+        assert replay_warnings(caplog) == []
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_google_loop_check_after_a_side_request_gives_a_call_an_earlier_result(
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # the documented limitation (`_bridged_tool_steps`), with no lost response:
+    # without a sentinel, the third turn reads `a.txt` at the first part, as
+    # the first did, so both calls share a rebuilt id; before the next turn's
+    # request, a request with its own history and then a loop check, which
+    # carries the first turn's result but not the third's, so the third call
+    # gets the first turn's result
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=as_solver(gemini_scaffold(loop_check=3)),
+    )
+    [log] = eval(
+        task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                r7_tool_calls(read("a.txt", "read_1")),
+                r7_tool_calls(read("b.txt", "read_2")),
+                r7_tool_calls(read("a.txt", "read_3")),
+                done("Fetched."),
+                done('{"loop": false}'),
+                done(),
+            ],
+        ),
+    )
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    made = [
+        e for e in events if isinstance(e, ModelEvent) and e.requested_model is not None
+    ]
+    assert [bool(e.tools) for e in made] == [True, True, True, False, False, True]
+    uuids = [e.uuid for e in made]
+    for inputs in ["expanded", "pooled"]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            replay = replayed_inputs(log, inputs)
+        results = [
+            (uuids.index(s.id.split("/")[0]), s.id.split("/")[1], resulted(s).text)
+            for s in bridged_steps(log, replay)
+            if s.stage == "tool_result"
+        ]
+        assert results == [
+            (0, "read_1", '{"output": "t0:0"}'),
+            (1, "read_2", '{"output": "t1:0"}'),
+            (2, "read_3", '{"output": "t0:0"}'),
         ], inputs
         assert replay_warnings(caplog) == []
 

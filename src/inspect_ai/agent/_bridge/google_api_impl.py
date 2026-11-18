@@ -206,18 +206,45 @@ def _transported(
     )
 
 
-def gemini_rebuilt_call_ids(output: ModelOutput) -> list[str]:
-    """The id under which the Google bridge reads each of `output`'s calls, and its result, back without a sentinel.
+def gemini_rebuilt_call_ids(output: ModelOutput) -> list[tuple[str, ...]]:
+    """The ids under which the Google bridge reads each of `output`'s calls, and its result, back without a sentinel.
 
-    Without a sentinel the response carries no call ids, so a later request's history rebuilds each call's id from its function, arguments and part index (`_extract_model_parts`), and its `functionResponse` takes that id. This assumes the scaffold sends the response's parts back as the bridge sent them, as the bridge's own state tracking does (`_transported`).
+    Without a sentinel the response carries no call ids, so a later request's history rebuilds each call's id from its function, arguments and part index (`_extract_model_parts`), and its `functionResponse` takes that id. A call's ids are its id under the parts as the bridge sent them, then under the parts as Gemini CLI records the response (adjacent text parts merged, `geminiChat.ts`), unless that is another of its calls' ids as sent. A scaffold that otherwise drops or reorders parts reads the call back under neither.
     """
     content = gemini_response_from_output(output, "")["candidates"][0]["content"]
+    sent = _call_ids(content)
+    recorded = _call_ids({**content, "parts": _merged_text_parts(content["parts"])})
+    return [
+        (a,) if b == a or b in sent else (a, b)
+        for a, b in zip(sent, recorded, strict=True)
+    ]
+
+
+def _call_ids(content: dict[str, Any]) -> list[str]:
+    """The ids a later request's history gives the calls in a response's `content`, sent back without call ids."""
     return [
         call.id
         for message in _transported(content, None)
         if isinstance(message, ChatMessageAssistant)
         for call in message.tool_calls or []
     ]
+
+
+def _merged_text_parts(parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """`parts` with adjacent non-empty text parts merged, as Gemini CLI records a response."""
+    merged: list[dict[str, Any]] = []
+    for part in parts:
+        last = merged[-1] if merged else None
+        if (
+            last is not None
+            and last.keys() == {"text"}
+            and last["text"]
+            and part.keys() == {"text"}
+        ):
+            merged[-1] = {"text": last["text"] + part["text"]}
+        else:
+            merged.append(part)
+    return merged
 
 
 def debug_log(caption: str, o: Any) -> None:

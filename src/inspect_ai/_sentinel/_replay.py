@@ -1560,9 +1560,9 @@ class _Driver:
 
         A call is taken from the output of a model call the bridge made for its agent, unless a native `ToolEvent` ran it (`native`, by the model call's event index and the call id). Its result is in the first later bridged request of its conversation whose new messages, against the conversation's previous bridged request (`_PooledInput.new_positions`), include a tool message under its id: the last such message, since a call's result follows every earlier message under its id. So a result already in the previous request, as under an id the model reused, is not taken again, and neither is one the request rewrote, as compaction replaces an old result. Only the latest call under an id awaits a result, since a result answers the call the agent used: a call from a response the agent discarded (a request it sent again) gets none.
 
-        A tool message is under a call's id when its id is the call's, or, for a tool message under no awaiting call's id, the id the Google bridge rebuilds for the call without a sentinel (`_google_rebuilt`): that bridge then hands a call over without its id, and reads the call and its result back under one it computes from the call. Once such a message is read, a call whose rebuilt id a later awaiting call has no longer awaits a result, as under a call id.
+        A tool message is under a call's id when its id is the call's, or, for a tool message under no awaiting call's id, an id the Google bridge rebuilds for the call without a sentinel (`_google_rebuilt`): that bridge then hands a call over without its id, and reads the call and its result back under one it computes from the call. Once such a message is read, a call whose rebuilt ids later awaiting calls all have no longer awaits a result, as under a call id.
 
-        A request is compared with the conversation's previous bridged request, whichever history that continued. After a side request with its own history, the agent's next request shows its old results as new; they go to no call, since their calls no longer await one, unless a lost response's call shares an id with the previous turn's and the agent retried that response after the side request: that response's call then gets the previous turn's result. The ids are shared when the model reuses an id for the same call, or, under the Google bridge without a sentinel, when the two calls have the same function, arguments and part index.
+        A request is compared with the conversation's previous bridged request, whichever history that continued. After a request with its own history, the next request shows the earlier results it carries as new. They go to no call, since their calls no longer await one, unless an awaiting call shares an id with an earlier call whose result that request carries, and the request doesn't carry the awaiting call's own: the awaiting call then gets the earlier result. This happens when a lost response is retried after such a request, or when a request built from part of the agent's history follows one, as Gemini CLI's loop check can. The ids are shared when the model reuses an id for the same call, or, under the Google bridge without a sentinel, when the two calls have the same function, arguments and part index.
         """
         made: dict[int, list[_BridgedCall]] = {}
         repeated: list[str] = []
@@ -1582,7 +1582,7 @@ class _Driver:
         previous: dict[str, _PooledInput] = {}
         # each conversation's call awaiting a result, by call id
         awaiting: dict[str, dict[str, _BridgedCall]] = {}
-        google: dict[int, dict[str, str]] = {}
+        google: dict[int, dict[str, tuple[str, ...]]] = {}
         for index, event in bridged:
             conversation = self._conversation(event)
             current = _PooledInput(self._input(event), self.keys)
@@ -2563,11 +2563,11 @@ def _same_call(a: ToolCall, b: ToolCall) -> bool:
 
 
 def _google_rebuilt(
-    waiting: dict[str, _BridgedCall], cache: dict[int, dict[str, str]]
+    waiting: dict[str, _BridgedCall], cache: dict[int, dict[str, tuple[str, ...]]]
 ) -> dict[str, _BridgedCall]:
-    """The calls in `waiting` by the id the Google bridge reads each back under without a sentinel (`gemini_rebuilt_call_ids`), from the output their model call recorded; a later call takes an id from an earlier one, since only the latest call under an id awaits a result.
+    """The calls in `waiting` by each id the Google bridge reads them back under without a sentinel (`gemini_rebuilt_call_ids`: as the bridge sent the response, or as Gemini CLI records it), from the output their model call recorded; a later call takes an id from an earlier one, since only the latest call under an id awaits a result.
 
-    It keys on the call's function, arguments and part index in the response the bridge built from that output, through the bridge's own functions; `cache` holds each model call's ids by its event index. The ids of a call that came through another dialect are computed too, and a result matches one only under that exact id.
+    It keys on the call's function, arguments and part index in the response the bridge built from that output, through the bridge's own functions; `cache` holds each model call's ids by its event index. The ids of a call that came through another dialect are computed too, and a result matches one only under such an exact id.
     """
     from inspect_ai.agent._bridge.google_api_impl import gemini_rebuilt_call_ids
 
@@ -2584,7 +2584,8 @@ def _google_rebuilt(
                     strict=True,
                 )
             )
-        rebuilt[ids[entry.call.id]] = entry
+        for rebuilt_id in ids[entry.call.id]:
+            rebuilt[rebuilt_id] = entry
     return rebuilt
 
 
