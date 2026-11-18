@@ -355,42 +355,28 @@ replacement of existing restic repository files, and tie resume to a
 recorded snapshot when one exists. They do not establish that a snapshot
 faithfully captures the sandbox or that its contents are recent or truthful.
 
-The restic strategy accepts two residual risks. Each is a way for a
-sandbox to make its own checkpoints fail to capture or restore; the
-contents of those checkpoints were already under that sandbox's control
-when it captured them:
+The restic strategy accepts two residual risks. Each lets a sandbox
+make its own checkpoints fail to capture or restore; their contents
+were already under that sandbox's control:
 
-- Egress never replaces a repository file the host has accepted, but
-  the sandbox can still add new files that are correctly
-  content-addressed and that restic cannot read, such as an index file
-  that does not decrypt. Egress verification lists only snapshots,
-  which does not load the index, so such a file is accepted. From then
-  on every host-side restic command that loads the index fails for that
-  repository, starting with the changed-files listing of each capture,
-  so the sandbox's later checkpoints fail. With a local checkpoints
-  location the repository is the destination itself, so the listing of
-  the committed snapshot that resume checks before restoring fails too,
-  and none of the sandbox's earlier checkpoints can be restored.
-  Recovery is deleting the file from `restic/sandboxes/<name>/index/`
-  in the sample dir the retry copies from. `restic check` against that
-  repository, with the password in `restic/restic-config.json`, names
-  the file; `restic repair index` removes it and rebuilds the index
-  from the pack files. With an S3 location the file reaches only the
-  host-local staging copy: the failing capture stops before anything
-  is uploaded, so the earlier checkpoints at the destination stay
-  intact, and resume clears staging and reloads them from there.
-- The sandbox initializes its own repository, and the host accepts its
-  `config` and `keys/*` on the first egress, so the repository format
-  and key files are sandbox-authored. The sandbox already receives the
-  repository password, so authoring the key gives it no access it
-  lacks; a format or key the host's restic cannot use is one more way
-  to make restores fail. This residual does not cover host resource
-  use: restic derives a key from each key file's own KDF parameters
-  before it can reject the file, so opening the repository on the host
-  (first-egress verification, and every later host-side command) does
-  key-derivation work the sandbox chooses, which neither the transfer
-  byte cap nor any other limit bounds and which shares host CPU and
-  memory with other samples.
+- Egress never replaces an accepted repository file, but the sandbox
+  can add new, correctly content-addressed files that restic cannot
+  read, such as an index that does not decrypt. Its later checkpoints
+  then fail, and with a local checkpoints location its earlier ones
+  cannot be restored. Recovery is removing the file from
+  `restic/sandboxes/<name>/index/` in the sample dir the retry copies
+  from: `restic repair index --read-all-packs` on that repository
+  ignores unreadable indexes and rebuilds the index from the pack
+  files. With an S3 location only the host's staging copy is affected,
+  and earlier checkpoints still restore from the destination.
+- The sandbox initializes its own repository, so the `config` and
+  `keys/*` the host accepts on the first egress are sandbox-authored. It
+  already holds the repository password, so this gives it no access it
+  lacks, only another way to make restores fail. Not covered by this
+  acceptance: restic derives each key file's key with the file's own
+  KDF parameters before it can reject it, so a sandbox can make host
+  restic do unbounded key-derivation work that shares CPU and memory
+  with other samples.
 
 File-list agreement, newly received snapshot ids, and expected tags enforce
 transfer protocol consistency. A compromised sandbox can satisfy these
