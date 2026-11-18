@@ -1286,10 +1286,15 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    has no exemption: it raises if a node is already past its budget. A
    call returns normally only when every node's total is at or below its
    budget; a limit reached exactly then refuses the next dispatch. The
-   exception is a generation a sentinel sidecar recovers after a provider
-   error: it does not pass through the post-call frame, and it records and
-   checks only when the sidecar's judgment supplies billed usage
-   (`_model.py:1185-1222`). A recovery without billed usage returns
+   exception is a generation a sentinel sidecar recovers in
+   `_generate_prepared()` through `refusal_after_error()`, after
+   `_generate()` has raised: it does not pass through the post-call frame,
+   and it records and checks only when the sidecar's judgment supplies
+   billed usage (`_model.py:1185-1222`). A provider error the sidecar turns
+   into an output inside `_generate()` (`refused_output()`,
+   `_model.py:2000-2008`, `:2057-2063`) is not this
+   exception: that output takes the normal path, counts a turn and gets
+   the post-call check. A recovery without billed usage returns
    normally even if another call has already taken a limit past its
    budget; the next pre-dispatch check, or the owner's exit check, still
    finds that limit ("Not this design").
@@ -2215,12 +2220,14 @@ None.
 
 ## Not this design
 
-- A generation a sentinel sidecar recovers as a refusal after a provider
-  error is left as today: it counts no turn, so repeated recovered
+- A generation a sentinel sidecar recovers as a refusal through
+  `refusal_after_error()` in `_generate_prepared()`, after `_generate()`
+  has raised, is left as today: it counts no turn, so repeated recovered
   generations do not advance a turn limit, and it records and checks its
   usage in one step only when the sidecar's judgment supplies billed usage
   (`_model.py:1185-1222`); without it, nothing is recorded or checked for
-  the call.
+  the call. An output `refused_output()` produces inside `_generate()`
+  follows the normal path (a turn and the post-call check).
 - `SampleLimitEvent` is emitted by every token, cost, turn and message node
   that raises, scoped or not, so the viewer shows an agent's limit as a sample
   limit. inspect_swarm subclasses nodes to avoid it.
