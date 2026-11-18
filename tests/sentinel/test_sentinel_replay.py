@@ -876,6 +876,224 @@ def test_a_prefilled_message_run_through_execute_tools_replays_as_it_ran() -> No
     replay = assert_replay_equals_live(r7_runs_a_prefilled_message(), "mockllm/model")
     [before] = [step for step in replay if step.stage == "tool_call"]
     assert before.step.input is None
+    assert before.step.assistant_message is None
+
+
+def reasoned_calls(turn: int) -> ModelOutput:
+    """One assistant turn with reasoning, text and two calls to `addition`, with ids `t{turn}c0` and `t{turn}c1`."""
+    return ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content=[
+                        ContentReasoning(reasoning=f"plan {turn}"),
+                        ContentText(text=f"adding {turn}"),
+                    ],
+                    model="mockllm/model",
+                    tool_calls=[
+                        ToolCall(
+                            id=f"t{turn}c{index}",
+                            function="addition",
+                            arguments={"x": turn, "y": index},
+                        )
+                        for index in range(2)
+                    ],
+                ),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+
+
+@solver
+def r7_own_generate_loop() -> Solver:
+    """Call `generate()` and `execute_tools()` in the solver's own loop, outside any agent."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        tools = [addition()]
+        while True:
+            state.output = await model.generate(state.messages, tools)
+            state.messages.append(state.output.message)
+            if not state.output.message.tool_calls:
+                return state
+            result = await execute_tools(state.messages, tools)
+            state.messages.extend(result.messages)
+
+    return solve
+
+
+@pytest.mark.parametrize("loop", ["react", "own_loop"])
+@pytest.mark.parametrize("modified_by", [None, "sentinel", "approver"])
+def test_tool_steps_carry_the_assistant_message_that_made_the_call(
+    loop: str, modified_by: str | None
+) -> None:
+    seen: dict[str, Step] = {}
+    task = Task(
+        dataset=[Sample(input="Add.", target="2")],
+        solver=(
+            as_solver(react(tools=[addition()], submit=False))
+            if loop == "react"
+            else r7_own_generate_loop()
+        ),
+        sentinel=[
+            r7_probe(seen),
+            *([d3_modify()] if modified_by == "sentinel" else []),
+        ],
+        approval=(
+            [ApprovalPolicy(d3_approver([], "modify", x=5), "*")]
+            if modified_by == "approver"
+            else None
+        ),
+    )
+    model = outputs(reasoned_calls(1), reasoned_calls(2), done())
+    log = eval(task, model=model, log_format="json")[0]
+    assert log.status == "success", log.error
+    assert log.location is not None and log.location.endswith(".json")
+    replay = assert_logged_replay_equals_live(log, seen)
+
+    [sample] = read_eval_log(log.location).samples or []
+    produced = {
+        event.output.message.id: event.output.message
+        for event in sample.events
+        if isinstance(event, ModelEvent) and event.output.choices
+    }
+    live = live_steps(sample, seen)
+    for steps in (
+        {key: step for key, step in live.items() if key[0].startswith("tool")},
+        {(r.stage, r.id): r.step for r in replay if r.stage.startswith("tool")},
+    ):
+        assert len(steps) == 8
+        by_turn: dict[str, list[Any]] = {}
+        for step in steps.values():
+            assert isinstance(step, BeforeToolCall | AfterToolCall)
+            message = step.assistant_message
+            assert message is not None
+            # the turn that made this call, as the model returned it
+            turn = step.call.id.split("c")[0][1:]
+            assert message.id == step.message_id
+            assert comparable(message) == comparable(produced[step.message_id])
+            assert [call.id for call in message.tool_calls or []] == [
+                f"t{turn}c0",
+                f"t{turn}c1",
+            ]
+            assert message.content[0] == ContentReasoning(reasoning=f"plan {turn}")
+            assert message.text == f"adding {turn}"
+            proposed = next(c for c in message.tool_calls or [] if c.id == step.call.id)
+            assert proposed.arguments == {"x": int(turn), "y": proposed.arguments["y"]}
+            if isinstance(step, AfterToolCall) and modified_by is not None:
+                # `call` is the call as it ran; the message keeps the proposal
+                assert step.call.arguments != proposed.arguments
+            by_turn.setdefault(turn, []).append(message)
+        # a turn's steps share its message: nothing is copied per step
+        assert sorted(by_turn) == ["1", "2"]
+        for messages in by_turn.values():
+            assert all(message is messages[0] for message in messages)
+
+    if loop == "own_loop":
+        assert all(step.agent_messages is None for step in live.values())
+
+
+@solver
+def r7_adds_a_call_to_the_model_s_message() -> Solver:
+    """Run each turn from a copy under the model's id with a call of the scaffold's own added."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        tools = [addition()]
+        while True:
+            state.output = await model.generate(state.messages, tools)
+            message = state.output.message
+            if not message.tool_calls:
+                return state
+            added = ToolCall(
+                id=f"{message.tool_calls[0].id}-added",
+                function="addition",
+                arguments={"x": 0, "y": 0},
+            )
+            state.messages.append(
+                message.model_copy(update={"tool_calls": [*message.tool_calls, added]})
+            )
+            result = await execute_tools(state.messages, tools)
+            state.messages.extend(result.messages)
+
+    return solve
+
+
+def test_a_call_the_scaffold_added_to_the_model_s_message_has_no_assistant_message() -> (
+    None
+):
+    replay = assert_replay_equals_live(
+        r7_adds_a_call_to_the_model_s_message(),
+        outputs(reasoned_calls(1), done()),
+    )
+    by_id: dict[str, list[Any]] = {}
+    for step in replay:
+        if step.stage.startswith("tool"):
+            by_id.setdefault(step.id, []).append(step.step)
+    assert sorted(by_id) == ["t1c0", "t1c0-added", "t1c1"]
+    # the model did not make the added call: no model call produced it
+    assert all(
+        step.assistant_message is None and step.input is None
+        for step in by_id["t1c0-added"]
+    )
+    assert all(
+        step.assistant_message is not None
+        for id in ("t1c0", "t1c1")
+        for step in by_id[id]
+    )
+
+
+@solver
+def r7_runs_a_trimmed_message() -> Solver:
+    """Run only the first call of each turn, from a copy of the turn under its id with its text changed and its other calls taken out."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        tools = [addition()]
+        while True:
+            state.output = await model.generate(state.messages, tools)
+            message = state.output.message
+            if not message.tool_calls:
+                return state
+            state.messages.append(
+                message.model_copy(
+                    update={"content": "trimmed", "tool_calls": message.tool_calls[:1]}
+                )
+            )
+            result = await execute_tools(state.messages, tools)
+            state.messages.extend(result.messages)
+
+    return solve
+
+
+def test_a_tool_step_s_assistant_message_is_the_model_s_not_the_scaffold_s_copy() -> (
+    None
+):
+    seen: dict[str, Step] = {}
+    task = Task(
+        dataset=[Sample(input="Add.", target="2")],
+        solver=r7_runs_a_trimmed_message(),
+        sentinel=[r7_probe(seen)],
+    )
+    log = eval(task, model=outputs(reasoned_calls(1), reasoned_calls(2), done()))[0]
+    assert log.status == "success", log.error
+    # `message` is a known difference: live it is the text of the copy that
+    # ran, in replay the model's
+    replay = assert_logged_replay_equals_live(
+        log, seen, differences=["tool_call.message", "tool_result.message"]
+    )
+    steps = [step for step in replay if step.stage.startswith("tool")]
+    assert [step.id for step in steps] == ["t1c0", "t1c0", "t2c0", "t2c0"]
+    assert log.samples
+    live = live_steps(log.samples[0], seen)
+    for step in steps:
+        assert live[(step.stage, step.id)].message == "trimmed"
+        assert isinstance(step.step, BeforeToolCall | AfterToolCall)
+        message = step.step.assistant_message
+        assert message is not None and message.text == f"adding {step.id[1]}"
+        assert len(message.tool_calls or []) == 2
 
 
 def test_a_log_without_message_ids_replays_its_tool_steps_by_call_id() -> None:
@@ -2111,7 +2329,7 @@ def scaffold_log(
 def assert_bridged_steps_follow_the_conversation(
     log: EvalLog, replay: Sequence["ReplayStep"]
 ) -> list["ReplayStep"]:
-    """Assert each of a bridge's rebuilt tool steps shows its call as its model call's output has it, with that model call's input, and its result as the first later bridged request that carries the call's id has it; return those steps."""
+    """Assert each of a bridge's rebuilt tool steps shows its call as its model call's output has it, with that model call's input and output message (`assistant_message`, one object for the model call's steps, holding the step's call, with the step's `message_id`), and its result as the first later bridged request that carries the call's id has it; return those steps."""
     events = logged_sample(log).events
     turns = [
         (index, e)
@@ -2119,6 +2337,7 @@ def assert_bridged_steps_follow_the_conversation(
         if isinstance(e, ModelEvent) and e.requested_model is not None
     ]
     rebuilt = bridged_steps(log, replay)
+    shared: dict[str, ChatMessageAssistant] = {}
     for step in rebuilt:
         made_by, _, call_id = step.id.partition("/")
         [(at, turn)] = [(i, e) for i, e in turns if e.uuid == made_by]
@@ -2127,6 +2346,12 @@ def assert_bridged_steps_follow_the_conversation(
         ]
         assert called(step) == proposed
         assert comparable(step.step.input) == comparable(turn.input)
+        message = tool_step(step).assistant_message
+        assert message is not None
+        assert comparable(message) == comparable(turn.output.message)
+        assert message.id == tool_step(step).message_id
+        assert proposed in (message.tool_calls or [])
+        assert message is shared.setdefault(made_by, message)
         if step.stage == "tool_result":
             received = next(
                 m
@@ -2190,6 +2415,62 @@ def test_a_scaffold_s_own_tool_calls_steps_equal_live(
                 ("tool_result", ids[2]),
             ]
         ]
+    )
+    assert replay_warnings(caplog) == []
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_bridged_call_under_a_reused_id_carries_the_model_s_message(
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # the model reuses read_1 for another call: live, the bridge hands it over
+    # under a fresh id and its steps' message carries that id; replay shows
+    # the call as the model wrote it, with the model call's own message
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        log, seen = scaffold_log(
+            backend,
+            monkeypatch,
+            r7_tool_calls(read("a.txt", "read_1")),
+            r7_tool_calls(read("b.txt", "read_1")),
+        )
+        replay = replayed(log)
+    rebuilt = assert_bridged_steps_follow_the_conversation(log, replay)
+    assert [(s.stage, s.id.split("/")[1]) for s in rebuilt] == [
+        ("tool_call", "read_1"),
+        ("tool_result", "read_1"),
+        ("tool_call", "read_1"),
+    ]
+    live = [s for s in seen.values() if isinstance(s, BeforeToolCall | AfterToolCall)]
+    assert [(type(s).__name__, s.call.id == "read_1") for s in live] == [
+        ("BeforeToolCall", True),
+        ("AfterToolCall", True),
+        ("BeforeToolCall", False),
+        ("AfterToolCall", False),
+    ]
+    # the first call's steps carry the same message live and in replay
+    for step, again in zip(live[:2], rebuilt[:2]):
+        assert comparable(tool_step(again).assistant_message) == comparable(
+            step.assistant_message
+        )
+    # the second call's: live, the message the bridge handed over, with the
+    # fresh call id and its own message id; replay, the model call's output,
+    # under the reused id; they differ only in those ids
+    handed = live[2].assistant_message
+    assert handed is not None and handed.id == live[2].message_id
+    assert [c.id for c in handed.tool_calls or []] == [live[2].call.id]
+    written = tool_step(rebuilt[2]).assistant_message
+    assert written is not None and written.id == tool_step(rebuilt[2]).message_id
+    assert [c.id for c in written.tool_calls or []] == ["read_1"]
+    assert written.id != handed.id
+    assert [replace(c, id="") for c in written.tool_calls or []] == [
+        replace(c, id="") for c in handed.tool_calls or []
+    ]
+    ids_left_out = {"id": None, "tool_calls": None}
+    assert comparable(written.model_copy(update=ids_left_out)) == comparable(
+        handed.model_copy(update=ids_left_out)
     )
     assert replay_warnings(caplog) == []
 
@@ -2317,8 +2598,9 @@ RETRY_DIFFERENCES = [
     "tool_result.tools",
     "tool_result.tool_choice",
     "tool_result.message_id",
+    "tool_result.assistant_message",
 ]
-"""Where a cached retry's rebuilt `tool_result` step differs from live: the bridge handed the call's id out twice, so live checked the result without its proposal's model call, and replay shows the model call the agent received."""
+"""Where a cached retry's rebuilt `tool_result` step differs from live: the bridge handed the call's id out twice, so live checked the result without its proposal's model call (`None` for `input` and `assistant_message`), and replay shows the model call the agent received."""
 
 
 @agent(name="retrying_scaffold")
@@ -4779,6 +5061,12 @@ def bridged_call_ids(log: EvalLog, replay: Sequence["ReplayStep"]) -> list[str]:
         for s in bridged_steps(log, replay)
         if s.stage == "tool_call"
     ]
+
+
+def tool_step(step: "ReplayStep") -> BeforeToolCall | AfterToolCall:
+    """A replayed tool step's step."""
+    assert isinstance(step.step, BeforeToolCall | AfterToolCall), step.stage
+    return step.step
 
 
 def called(step: "ReplayStep") -> ToolCall:

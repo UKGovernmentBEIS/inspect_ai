@@ -2,14 +2,14 @@
 
 ## Overview
 
-When an operator decides that a sample should not count the way the model ran
-it, there are two answers: **zero** it (count it as a failure) or **exclude**
-it (leave it out of the metrics). This design adds both to Inspect, for logs
-that have landed. Each is a synchronous edit of the log that runs no task
-code: it rewrites the sample's scores as a score edit recording who decided
-and why, keeps the earlier score in `Score.history` and the sample's
-transcript and error as they are, and recomputes the log's metrics from the
-log header.
+When an operator decides that a sample of a finished log should not count the
+way the model ran it, there are two answers: **zero** it (score it as an
+empty attempt, which for most tasks is a failure) or **exclude** it (leave it
+out of the metrics). Each is a
+synchronous edit of the log that runs no task code: it rewrites the sample's
+scores as score edits recording who decided and why, keeps the earlier score
+in `Score.history` and the sample's transcript and error as they were, and
+recomputes the log's metrics from the log header.
 
 **Exclude** rewrites each score the sample holds as an unscored `NaN` with
 the reason `"excluded"`. An errored sample that holds no score gets one,
@@ -17,217 +17,129 @@ under the log's first scorer. Epoch reduction drops excluded epochs before
 the reducer sees them, so an excluded epoch counts as one that never ran.
 
 **Zero** takes two steps. First the operator runs an **empty attempt** of the
-samples: an ordinary eval of the task with the new built-in solver
+samples: an ordinary eval of the task with the built-in solver
 `empty_attempt()`, which does nothing. `Task.setup` still runs, so the
 sample's environment is prepared, and the task's own scorers then score the
-untouched state. Then `zero_samples` copies those verdicts from the
-empty-attempt log into the target log, with the reason `"zeroed"`. A verdict
-that would not count (no score, an unscored value, a dict or list) is
-refused, and the operator can exclude the sample instead.
+state setup leaves. Then `zero_samples()` copies those verdicts from the
+empty-attempt log into the target log, with the reason `"zeroed"`. A missing,
+unscored or structured (dict or list) verdict is refused, and the operator
+can exclude the sample instead.
 
-Both are Python functions in `inspect_ai.log` and two `inspect log`
-subcommands.
+Both are Python functions in `inspect_ai.log` (`exclude_samples()`,
+`zero_samples()`) and two `inspect log` subcommands (`exclude`, `zero`).
+
+The code is [`log/_disposition.py`](../src/inspect_ai/log/_disposition.py)
+(the two functions and their checks), `empty_attempt()` in
+[`solver/_empty.py`](../src/inspect_ai/solver/_empty.py) (and the eval-set
+selection's `empty_attempt` field in
+[`_eval/eval_set_selection.py`](../src/inspect_ai/_eval/eval_set_selection.py)),
+`score_is_excluded()`
+and the `ScoreReason` vocabulary in
+[`scorer/_metric.py`](../src/inspect_ai/scorer/_metric.py), `reduce_scores()`
+in [`_eval/task/results.py`](../src/inspect_ai/_eval/task/results.py), and
+the `exclude` and `zero` commands in
+[`_cli/log.py`](../src/inspect_ai/_cli/log.py). The user docs are
+[Excluding Samples](../docs/eval-logs.qmd#excluding-samples),
+[Zeroing Samples](../docs/eval-logs.qmd#zeroing-samples),
+[Reducing Epochs](../docs/metrics.qmd#reducing-epochs) and
+[Recording the reason](../docs/scoring-policy.qmd#recording-the-reason).
 
 ## Why
 
-The task is meridianlabs-ai/inspect_ai#450. Inspect Steward, an operator
-layer over `eval_set` runs, already zeroes and excludes samples after a
-task's log lands, so that every reader of the log directory sees the result
-the operator signed. It does so outside Inspect:
+Operator layers over `eval_set` runs, such as Inspect Steward, rule on
+samples after a task's log lands, so that every reader of the log directory
+sees the result the operator signed. Exclusion is a score edit, but an
+excluded epoch would still reach the epoch reducer, and not every reducer
+skips `NaN` (`majority` counts it toward the panel; a custom reducer may turn
+it into a counted `0.0`). Zero needs the task's scorer, because what a zero
+is depends on it: typically `I` for `match()`, `0` for a numeric scorer, a
+failed test in a sandbox. Zero copies whatever verdict the scorer gives the
+empty attempt, once it passes the verdict rule below, and does not check that
+it is a failure: a scorer that accepts an empty answer (`match()` against a
+target with no letters or digits scores an empty completion `C`) zeroes the
+sample as a success. Getting that verdict by cancelling a re-run as each
+sample starts is not empty and depends on timing: solver steps before the
+first cancellation checkpoint run, and an agent may reach its first model
+call.
 
-- **Exclude** is a score edit and works, except that an excluded epoch still
-  reaches the epoch reducer, and not every reducer skips `NaN` (see "Epoch
-  reduction").
-- **Zero** needs the task's scorer, because what a zero is depends on it (`I`
-  for `match()`, `0` for a numeric scorer, a fail for a sandbox test).
-  Steward gets the verdict from a side run: an `eval_set` worker process on
-  the ruled samples, polled over the control channel every 0.5 s, with
-  `inspect ctl sample cancel --action score` sent as each sample starts. That
-  is not an empty attempt: solver steps before the first cancellation
-  checkpoint run, and an agent may reach its first model call. It also needs
-  a process launcher, a socket watcher and a time cap.
+The no-op solver skips the main solver without relying on cancellation
+timing. The rest is an ordinary eval, with `Task.setup` and the task's
+scorers as usual (a model-graded scorer still calls its grader, so its
+verdict need not repeat between runs), and both dispositions are log-to-log
+edits.
 
-Inspect can make both simple and deterministic: exclusion as a library
-function over a log, and zero as a no-op solver override, whose log is then
-copied in by the same kind of function.
+## Scope
 
-## Goals and non-goals
-
-Goals:
-
-- Exclude a sample of a landed log, with provenance and recomputed metrics;
-  an excluded epoch takes no part in epoch reduction.
-- Zero a sample of a landed log from an empty-attempt log, with provenance
-  and recomputed metrics.
-- A built-in `empty_attempt()` solver that makes an empty attempt an
-  ordinary eval.
-- `"excluded"` and `"zeroed"` join the standard `ScoreReason` vocabulary.
-
-Non-goals:
-
-- Running the empty attempt inside Inspect's disposition code. The operator
-  runs it with the entry point they ran the task with; its models, task
+- Logs that have landed: neither function works on a running eval.
+- Exclusion works on any landed log with samples.
+- Zero works on samples with **string ids**, from an empty-attempt log of
+  the same task whose verdicts are **single values that are not
+  `NaN`, without transcript references**. The producers that exist (Steward's rulings over
+  static datasets with string ids and scalar scorers) need nothing more;
+  every other shape is refused with an error naming the sample and cause.
+- A disposition never changes a sample's `error`, the log's `status`, or
+  which samples an eval-set retry re-runs.
+- The empty attempt is not run by Inspect's disposition code. The operator
+  runs it with the entry point they ran the task with (for a worker of an
+  external eval-set runner, through the selection's `empty_attempt` field;
+  see [The empty attempt](#the-empty-attempt)), and its models, task
   arguments, sandbox, limits, policies, epochs, display, hooks and control
-  server belong to that eval (decision: Ransom, 2026-11-11).
-- Zeroing or excluding a sample of a running eval (see Future improvements).
-- Steward's other rulings, journal and sign-off.
-- Changing a sample's `error`, the log's `status`, or which samples an
-  eval-set retry re-runs (decision: Ransom, 2026-11-04).
-- Zeroing integer ids and dict or list verdicts (refused; see Design).
-- Bulk selection by error class or status.
+  server belong to that eval.
 
-## Current behaviour
+## Vocabulary
 
-- **Steward** (meridianlabs-ai/inspect_steward, `src/inspect_steward/_marks/`).
-  `mark_unscored` (`edit.py:185-235`) edits every score the sample holds to
-  `ScoreEdit(value=NaN, reason="excluded", ...)` with
-  `recompute_metrics=False`, or creates one under the first entry of
-  `log.eval.scorers` for a sample with none. `harvest_scores`
-  (`edit.py:238-290`) copies each score of the side run's sample in with
-  `reason="zeroed"`, unchecked, so an unscored verdict becomes a zeroed
-  `NaN`. `commit` (`edit.py:293-308`) calls `recompute_metrics(log)` once and
-  writes with `if_match_etag`. The side run and watcher are `run.py:264-364`
-  and `:453-484`.
-- **Unscored values.** `Score.unscored()` sets `value` to `NaN`
-  (`src/inspect_ai/scorer/_metric.py:178`). The standard score filter counts
-  a score as unscored when its value is a float `NaN` at the root
-  (`scorer_for_metrics`, `src/inspect_ai/_eval/task/results.py:396-409`), and
-  any other scalar as scored. A single value cannot be `None`.
-- **`edit_score()`** (`src/inspect_ai/log/_score.py:13`) applies a
-  `ScoreEdit` to one score of one sample and epoch. It records the original
-  as `history[0]` (or creates an absent score with `history=[edit]`), keeps
-  any field the edit leaves `UNCHANGED`, and adds a `ScoreEditEvent`. With
-  `recompute_metrics=True` it resolves metrics before editing and computes
-  them after.
-- **`recompute_metrics()`** (`src/inspect_ai/log/_metric.py:136`) is
-  `resolve_log_metrics()` (`:28`) then `compute_log_metrics()` (`:88`).
-  Resolution reads only the header. Without `trust_log` it imports no task
-  file and raises `RegistryNameNotFound` (a `LookupError`) for a metric or
-  reducer the registry cannot build; `trust_log_advice=False` drops its
-  advice to pass `trust_log=True`. Verified: a metric defined in a task file
-  resolves once that module has been imported in the process, and raises
-  otherwise.
-- **Recorded reducers.** The header's `eval.config.epochs_reducer` holds the
-  reducers the run used: an eval-level reducer when given, otherwise the
-  task's, and `None` for the default `mean`
-  (`src/inspect_ai/_eval/run.py:316-325`). Each is recorded by registry name
-  plus `k` only (`reducer_log_name`,
-  `src/inspect_ai/scorer/_reducer/registry.py:115`), and resolution rebuilds
-  them with `create_reducers()` (`:133`), so other reducer arguments take
-  their defaults.
-- **Epoch reduction.** `reduce_scores()` (`results.py:703`) calls the epoch
-  reducer on each sample's group of scores, also for one epoch. `mean`,
-  `median`, `mode`, `max`, `at_least`, `pass_at`, `pass_k` and `collect`
-  omit a root `NaN`; `majority` counts it toward the panel on purpose
-  (`src/inspect_ai/scorer/_reducer/reducer.py:41-60`), so excluding one of
-  two correct epochs reduces `C` to `NaN` today. Custom reducers vary:
-  inspect_evals' ZeroBench `reliability_at(5)` counts five `NaN` epochs as a
-  counted `0.0`.
-- **Score names.** The runner names task scorers' scores with
-  `unique_scorer_name()` in order (`src/inspect_ai/_eval/task/run.py:1162-1166`,
-  `src/inspect_ai/scorer/_scorer.py:262`), so
-  `[match(), includes(), match()]` writes `match`, `includes`, `match1`, and
-  the first scorer's key is its plain name. `log.eval.scorers[i].name` is the
-  unqualified registry name. A solver may write `state.scores` itself; an
-  errored sample that never scored holds no keys; `inspect score --action
-  append` appends to `log.eval.scorers` and names its scores per sample, so a
-  key alone does not say which scorer wrote it.
-- **Solver override.** `resolve_plan()` (`src/inspect_ai/_eval/task/run.py:674`)
-  prepends `Task.setup` to whatever solver is in effect (`:685-692`), as
-  documented ("always run even when the main `solver` is replaced"). The
-  header records an override by its registry name in `eval.solver`
-  (`inspect eval --solver inspect_ai/generate` records
-  `"inspect_ai/generate"`; no override records `None`). `@solver` prefixes
-  the defining package (`registry_name()`, `src/inspect_ai/_util/registry.py:265`),
-  so a solver defined in `inspect_ai.solver` registers as `inspect_ai/<name>`.
-- **Verified with `mockllm`.** A two-epoch task with string ids, a `Task.setup`
-  that sets a metadata flag and a `system_message()`/`generate()` solver, run
-  with a no-op `@solver` override and `sample_id=["a"]`: both epochs of `a`
-  ran setup, had no model events and scored `I` under `match()` and
-  `includes()`; the log was `success` with the original's task name and
-  scorer names. Copying those scores into the original log with
-  `edit_score(..., recompute_metrics=False, epoch=...)` after
-  `resolve_log_metrics(log, trust_log_advice=False)`, then
-  `compute_log_metrics()`, gave `reason="zeroed"`, the original `C` in
-  `history[0]`, and accuracy recomputed from `0.5` to `0.0`.
-- **Retry reuse.** A prior record is reused only when `error is None` and
-  `invalidation is None` (`classify`,
-  `src/inspect_ai/_eval/task/run.py:3886`).
-
-### Who uses which shapes
-
-The only producer of zero and exclude is Steward. It works on landed `.eval`
-logs of `eval_set()` runs whose tasks have static datasets with string ids
-(its fixture's ids are `user:cybergym/arvo_1` and so on) and a scalar scorer
-(`exact()`); see `tests/evalset/fixtures/erroring_evalset.py:37-43` of
-meridianlabs-ai/inspect_steward. Searching inspect_ai, inspect_scout,
-inspect_flow and inspect_swe for the reasons `excluded` / `zeroed` finds no
-other producer or reader; the viewer shows any reason as text. Scorers with
-dict values exist (inspect_evals' HLE), but no zero of one has been asked
-for. Inspect Scout's `as_scorer()` returns scalar verdicts whose
-`metadata["scanner_references"]` cite messages and events of the transcript
-it scored (`src/inspect_ai/scorer/_metric.py:243-261`).
-
-The design therefore supports exclusion of any landed log, and zero of
-samples with string ids from an empty-attempt log of the same task whose
-verdicts are counted scalars without transcript references. Every other
-shape is refused with an error.
-
-## Design
-
-### Vocabulary
-
-`ScoreReason` (`src/inspect_ai/scorer/_metric.py:49`) gains an operator
-group:
+`ScoreReason` has an operator group beside the model-under-test and
+measurement-instrument groups:
 
 ```python
     # operator decision
     "excluded",  # excluded from scoring; the value is NaN
-    "zeroed",    # scored as an empty attempt
+    "zeroed",  # scored as an empty attempt
 ```
 
-and a predicate beside it, used by epoch reduction and exclusion:
+`score_is_excluded(score)`, an internal helper that no package exports, is
+true when `score.reason == "excluded"` and the value is a float `NaN` at the
+root. A score with the reason `"excluded"` that
+a later edit gave a counted value is therefore not excluded.
 
-```python
-def score_is_excluded(score: Score) -> bool:
-    """`reason == "excluded"` and the value is a float NaN at the root."""
-```
-
-### Epoch reduction
+## Epoch reduction
 
 `reduce_scores()` drops the scores for which `score_is_excluded()` holds from
-each sample's group before calling the reducer:
+each sample's group of epoch scores before calling the reducer:
 
 - When some remain, the reducer sees only those, so the sample reduces as if
-  the excluded epochs had not run. `majority` over `[C, excluded]` reduces
-  to `C`; its treatment of a grader's `NaN` is unchanged, because only the
-  `"excluded"` reason is dropped. A reducer that depends on the number of
-  epochs sees the remaining ones.
-- When none remain, the reducer is not called, and the reduced score is the
-  group's first excluded score, counted as unscored.
+  the excluded epochs had not run, and the reduced score's sample id and
+  sample metadata come from the first remaining epoch. `majority` over
+  `[C, excluded]` reduces to `C`. A grader's unscored `NaN` (any other
+  reason) still reaches the reducer, so `majority`'s treatment of it is
+  unchanged. A reducer that depends on the number of epochs sees the
+  remaining ones.
+- When none remain, the reducer is not called. The reduced score is a copy of
+  the group's first excluded score with an empty history, and it counts as
+  unscored.
 
-This applies wherever final scores are reduced, live and on recompute.
+`reduce_scores()` is the one place final scores are reduced, so this holds
+live and on recompute. Metrics that read unreduced scores see an excluded
+epoch as a root `NaN`, which the standard score filter counts as unscored:
+`@metric(scores="unreduced")` metrics, and legacy `scores="auto"` metrics
+when reducers are disabled (`Epochs(n, [])`, `--no-epochs-reducer`). With
+reducers disabled, a metric that declares `scores="reduced"` is refused when
+sample ids repeat, and excluded epochs still count toward that repetition
+(see [Reducing Epochs](../docs/metrics.qmd#reducing-epochs)).
 
-### The empty attempt
+## The empty attempt
 
-`empty_attempt()` in `inspect_ai.solver` (`src/inspect_ai/solver/_empty.py`,
-exported from `inspect_ai/solver/__init__.py`):
-
-```python
-@solver
-def empty_attempt() -> Solver:
-    """Leave the state unchanged, so the task's scorers score an empty attempt.
-
-    `Task.setup` still runs: it is prepended to any solver override.
-    """
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        return state
-    return solve
-```
-
-It registers as `inspect_ai/empty_attempt`. Nothing else in the runner
-changes: `resolve_plan()` prepends `Task.setup`, the sample is provisioned
-as for any run, and the task's scorers score an empty `output`.
+`empty_attempt()` is a `@solver` in `inspect_ai.solver` whose solve function
+returns the state unchanged. It registers as `inspect_ai/empty_attempt`.
+It runs as any solver override does: `resolve_plan()` prepends `Task.setup`
+to it, the sample is provisioned as for any run, and the task's scorers
+score the state left by `Task.setup` (an empty `output` unless setup wrote
+one); the override makes no further changes. The one place the runner names
+it is the eval-set selection path, below. Its log, the
+**empty-attempt log**, is an ordinary log whose header records the override
+in `eval.solver`: `inspect_ai/empty_attempt` when it is passed as a Python
+object or by registry name, `empty_attempt` when passed as
+`--solver empty_attempt`.
 
 The operator runs it with the entry point they ran the task with:
 
@@ -235,187 +147,327 @@ The operator runs it with the entry point they ran the task with:
 inspect eval TASK --solver inspect_ai/empty_attempt --sample-id a,b --log-dir logs/empty
 ```
 
-or `eval(task, solver=empty_attempt(), sample_id=[...], log_dir=...)`, or
-`eval_set()` with the same `solver`. The result is an ordinary log, called
-the empty-attempt log. Everything about that run belongs to `eval()`, and
-this design specifies none of it. The user docs give short advice:
+or `eval(task, solver=empty_attempt(), sample_id=[...], log_dir=...)`. The
+advice on running it (its own log directory, the original run's settings,
+`--sample-id` patterns, epochs) is in
+[Zeroing Samples](../docs/eval-logs.qmd#zeroing-samples).
 
-- Write the empty-attempt log to its own log directory (an `eval_set()` log
-  directory is also where it looks for logs to reuse).
-- Pass the settings the original run had: the verdict reflects the task and
-  settings of the empty-attempt run.
-- `--sample-id` is a pattern and may carry a task prefix. Samples it selects
-  beyond the targets are ignored by the copy; a target it misses is refused.
-- The run uses the task's epochs (or `--epochs`), and every targeted epoch
-  must be in the empty-attempt log.
+An eval set needs more than a solver argument. The solver is part of task
+identity, so `eval_set(solver=empty_attempt())` gives each task an
+identifier of its own rather than the original run's; it is a separate eval
+set, in its own log directory. An external runner that drives workers with
+an eval-set selection document (`INSPECT_EVAL_SET_SELECTION`, the wire
+format in
+[`_eval/eval_set_selection.py`](../src/inspect_ai/_eval/eval_set_selection.py))
+sets the selection's `empty_attempt` field instead (schema version 8).
+`eval_set()` then matches the selected tasks to their identifiers with the
+definition's own solver and runs them with `empty_attempt()` as the solver
+override, so the log records `inspect_ai/empty_attempt`. A resumed task
+would reuse samples run with the definition's solver, and its prior log is
+checked against an identifier that an empty attempt's log never carries, so
+a selection that sets `empty_attempt` may not `resume` any task: reading
+the selection raises `PrerequisiteError` naming the resumed tasks.
 
-### Python API
-
-In `src/inspect_ai/log/_disposition.py`, exported from `inspect_ai.log`:
+## Python API
 
 ```python
-SampleSelector = int | str | tuple[int | str, int]
+SampleSelector: TypeAlias = int | str | tuple[int | str, int]
 """A sample id (every epoch of it) or an (id, epoch) pair."""
-
-class DispositionResult(NamedTuple):
-    applied: list[tuple[int | str, int]]     # (id, epoch) edited now
-    unchanged: list[tuple[int | str, int]]   # already excluded (exclude only)
 
 def exclude_samples(
     log: EvalLog,
     samples: Sequence[SampleSelector],
     provenance: ProvenanceData,
-) -> DispositionResult: ...
+) -> None: ...
 
 def zero_samples(
     log: EvalLog,
     empty: EvalLog,
     samples: Sequence[SampleSelector],
     provenance: ProvenanceData,
-) -> DispositionResult: ...
+) -> None: ...
 ```
 
-Both are synchronous, edit `log` in place and leave writing to the caller.
-Neither takes a task or a `trust_log` option.
+All three are exported from `inspect_ai.log`. Both functions return
+`None`, as `edit_score()` does: every target is edited, so the caller reads
+the outcome from the log. Both are synchronous, edit `log` in place and
+leave writing to the caller. Neither takes a task or a `trust_log` option. Every refusal is
+raised before the first edit, so a refused call leaves the log as it was.
 
-**Checks for both,** before any edit, each a `ValueError`:
+Returning `None`, excluding an already excluded sample again, and
+recomputing after an empty selector sequence are not yet built; see
+[Not yet built](#not-yet-built).
 
-- `log.samples` is present (a log read whole), and `log.status != "started"`
-  (still being written; run the command once the eval finishes).
+### Checks on the log and the selectors
+
+Both functions first check, each failure a `ValueError`:
+
+- `log.samples` is present (the log was read whole) and `log.status` is not
+  `"started"` (the log is still being written).
 - `provenance.reason` is a non-empty string.
-- Every selector matches. A bare id covers every epoch; `(id, epoch)` covers
-  one. Ids match by value, and a string selector also matches an `int` id
-  with the same `str()`, because the CLI passes strings. Unmatched selectors
-  are named in the error.
+- Every selector is an id or an `(id, epoch)` pair, and every selector
+  matches at least one sample. A bare id covers every epoch; a pair covers
+  one. Ids match by type and value, except that a string selector also
+  matches an `int` id with the same `str()`, because the CLI passes strings.
+  All unmatched selectors are named in one error.
 
-**Zero's checks on the empty-attempt log,** before any edit:
+The targets are the matched samples in selector order, without repeats. An
+empty selector sequence is accepted and selects no target; the call then
+edits nothing, but still resolves and recomputes the metrics as below. (The CLI cannot pass one: `--sample` is required.)
+
+### Exclude
+
+For each target:
+
+- A target that holds scores is edited under every key it holds, whichever
+  scorer, solver or appended rescoring wrote it. This includes a target whose
+  scores are all excluded already: excluding it again adds a history entry
+  and a `ScoreEditEvent` recording the new reason and author.
+- A target that holds no score is edited under one key: the name of the
+  first entry of `log.eval.scorers`. If the log names no scorer, the call is
+  refused ("sample ... holds no score and the log names no scorer to record
+  the exclusion under"), naming every such target.
+
+Each edit is `ScoreEdit(value=float("nan"), reason="excluded",
+explanation=provenance.reason, provenance=provenance)`. `answer` and
+`metadata` are left `UNCHANGED`, because they are evidence about the sample.
+
+### Zero
+
+After the log and selector checks, the empty-attempt log is checked as a
+whole, each failure a `ValueError`:
 
 - `empty.samples` is present and `empty.status == "success"`. A run whose
-  metrics could not aggregate its verdicts ends with `status="error"`
-  (aggregation runs inside the task run, `src/inspect_ai/_eval/task/run.py:2050`), so this also refuses a verdict
-  the task's metrics cannot take.
-- `empty.eval.solver == "inspect_ai/empty_attempt"`.
-- `empty.eval.task == log.eval.task`, and the scorer names of the two
-  headers (`[s.name for s in eval.scorers or []]`) are equal, in order, and
-  not empty. Nothing else is compared: the task's code, options, dataset and
-  the run's settings are the operator's (see Compatibility). A log with
-  appended scorers therefore matches only an empty-attempt log whose task
-  has the full scorer list.
+  metrics could not aggregate its verdicts ends with status `"error"`, so
+  this also refuses a verdict the task's metrics cannot take.
+- `empty.eval.solver` is `inspect_ai/empty_attempt` or `empty_attempt`.
+- `empty.eval.task == log.eval.task`.
+- The scorer names of the two headers (`[s.name for s in eval.scorers or
+  []]`) are equal, in order, and not empty. Only the names are compared, not
+  where they came from: when the log has scorers appended by `inspect score
+  --action append`, the empty-attempt log can get matching entries through
+  the same append rescoring, or from a task that declares the full scorer
+  list.
 
-**Zero's checks per target,** before any edit. Every failing target is named
-in one error, with its cause, and nothing is edited:
+Nothing else about the two runs is compared: the task's code, options and
+dataset and the run's settings are the operator's.
 
-- The target's id is a `str` (decision: Ransom, 2026-11-04). An `int` id
-  need not name the same sample in another run, because Inspect assigns
-  positional `int` ids and the log does not record which ids were assigned.
-- The empty-attempt log holds a sample whose id is that `str` and whose
-  epoch is the target's, with no `error` and no `limit`.
-- **The verdict rule.** The empty-attempt sample holds at least one score;
-  every score it holds is a counted single value (a `str`, `int`, `float` or
-  `bool` that is not a float `NaN`) whose `metadata` holds no non-empty
-  `scanner_references`; and it holds every score name the target holds. The
-  message names each offending key with its cause and suggests exclusion:
-  - no verdict (the empty attempt holds no score);
-  - a dict or list value (zero supports single-value verdicts only);
-  - an unscored value (a root `NaN`, such as a grader failure), with the
-    score's reason and explanation;
-  - transcript references (the verdict cites messages or events of the
-    empty attempt, which the target's transcript does not hold);
-  - a name the target holds and the empty attempt does not produce (a
-    conditional scorer, a solver-written or appended score).
+Then each target is checked. Every failing target is listed in one error,
+with its cause and the advice that a sample without a counted verdict can be
+excluded instead:
 
-The counted-value rule is the standard score filter's. Individual metrics may
-apply further requirements (`krippendorff_alpha()` skips a scalar with a
-warning), so a successful recomputation does not prove that every metric uses
-the score.
+- The target's id is a `str`. Inspect assigns positional `int` ids to
+  samples without one, and the log does not record which ids were assigned,
+  so an `int` id need not name the same sample in another run.
+- The empty-attempt log holds a sample with that id and the target's epoch,
+  and that sample has no `error` and no `limit`.
+- **The verdict rule.** The empty-attempt sample holds at least one score,
+  and every score it holds meets all of these:
+  - its value is a `str`, `int`, `float` or `bool` (not a dict or list);
+  - its value is not a float `NaN` (an unscored verdict, such as a grader
+    failure; the error quotes its reason and explanation);
+  - its `metadata` holds no non-empty `scanner_references` (the verdict
+    would cite messages or events of the empty attempt, which the target's
+    transcript does not hold);
+  - none of its value, answer or explanation is the string `"UNCHANGED"`,
+    which a score edit reads as "keep the current one".
+- Every score name the target holds is produced by the empty attempt (a
+  conditional scorer, a solver-written score or an appended rescoring can
+  leave one behind).
 
-**Edits.** Every disposition is a `ScoreEdit` carrying `provenance`, applied
-with `edit_score(log, id, name, edit, recompute_metrics=False, epoch=epoch)`:
+The root-`NaN` check follows the standard unscored filter. Refusing dict
+and list verdicts is zero's own restriction: ordinary metrics count
+dict-valued scores (keyed metrics read them), but zero supports single-value
+verdicts only. Individual metrics may apply further requirements
+(`krippendorff_alpha()` skips a scalar with a warning), so a successful
+recomputation does not prove that every metric uses the score.
 
-- **Exclude:** for every key the sample holds, or, for a sample that holds
-  none, one key: the first entry of `log.eval.scorers` (refused when that is
-  empty or `None`: "sample <id> (epoch <n>) holds no score and the log names
-  no scorer to record the exclusion under"). The edit is
-  `ScoreEdit(value=float("nan"), reason="excluded",
-  explanation=provenance.reason, provenance=provenance)`; `answer` and
-  `metadata` are `UNCHANGED`, because they are evidence about the sample. A
-  target whose every held score satisfies `score_is_excluded()` (and that
-  holds at least one) is reported `unchanged` and not edited.
-- **Zero:** for every score `v` the empty-attempt sample holds,
-  `ScoreEdit(value=v.value, answer=v.answer, explanation=v.explanation,
-  metadata=v.metadata or {}, reason="zeroed", provenance=provenance)` under
-  the same name. There is no idempotence check: zeroing again applies the
-  verdicts again and appends to the history, so `unchanged` is always empty.
+For each score `v` the empty-attempt sample holds, the edit under the same
+name is `ScoreEdit(value=v.value, answer=v.answer,
+explanation=v.explanation, metadata=deepcopy(v.metadata or {}),
+reason="zeroed", provenance=provenance)`. A name the target does not hold is
+added.
 
-Because each edit sets `reason`, `edit_score()` drops a legacy
-`metadata["unscored_reason"]` from the current score
-(`src/inspect_ai/log/_score.py:137-143`); the original stays in `history[0]`.
-The sample's `error`, `messages`, `output`, `limit`, `invalidation` and
-events (beyond the added `ScoreEditEvent`s) are untouched. Dispositions
-stack: excluding a zeroed sample, or zeroing an excluded one, adds an edit.
+Neither function checks whether a target already carries its disposition:
+excluding or zeroing a sample again applies the edits again and appends to
+the history. An operator layer that re-applies its rulings on every pass and
+wants no repeat entries checks each target first, across its whole score
+map: it skips the target only when the target holds at least one score and
+every score it holds carries the disposition. For an exclusion that means
+`reason == "excluded"` and a float `NaN` value at the root, both public
+`Score` fields; for a zero it means `reason == "zeroed"` alone, since zero
+refuses `NaN` verdicts and a value test adds nothing. Because `edit_score()`
+keeps the reason unless the edit sets one, a score edited back to a counted
+value still reads `"excluded"`, and the value test makes replay exclude it
+again. Any other target still needs the disposition: a sample with no
+score, or one where `inspect score --action append` has added a counted
+score beside an excluded one.
 
-**Recomputation,** for both, is the sequence `edit_score()` uses today:
+### Edits and recomputation
 
-1. `resolve_log_metrics(log, trust_log_advice=False)` before the first edit,
-   so a metric or reducer the registry cannot build leaves the log
-   unchanged. Its `RegistryNameNotFound` is re-raised with the advice:
-   "import the module that registers <name> before running this".
+Every edit is applied with `edit_score(log, id, name, edit,
+recompute_metrics=False, epoch=epoch)`, which records the original score as
+`history[0]` (or creates an absent score with the edit as its history) and
+adds a `ScoreEditEvent`. Because each edit sets `reason`, `edit_score()`
+drops a legacy `metadata["unscored_reason"]` from the current score; the
+original stays in the history. The sample's `error`, `messages`, `output`,
+`limit`, `invalidation` and events (beyond the added `ScoreEditEvent`s) are
+untouched. Dispositions stack: excluding a zeroed sample, or zeroing an
+excluded one, adds an edit.
+
+The sequence is the same whether or not there are targets:
+
+1. `resolve_log_metrics(log, trust_log_advice=False)`, before the first edit.
+   Metrics and epoch reducers are rebuilt from the header by the untrusted
+   resolver, with the reducers rebuilt by registry name and `k`. A metric or
+   reducer the registry cannot build raises `RegistryNameNotFound` (a
+   `LookupError`) whose message advises installing or importing the module
+   that defines it, without the `trust_log` advice, since neither function
+   has that option. The log is unchanged.
 2. The edits.
-3. `compute_log_metrics(log, resolved)`.
+3. `compute_log_metrics(log, resolved)`, which replaces `results` and
+   `reductions`.
 
-Metrics and epoch reducers therefore come from the log header through the
-existing untrusted resolver, exactly as `recompute_metrics(log)` builds them.
-Every refusal happens before the first edit; if metric computation raises
-after the edits, the in-memory log must not be written, as with
-`edit_score()`.
+If metric computation raises after the edits, the in-memory log has been
+edited and must not be written, as with `edit_score()`.
 
-### CLI
-
-Two subcommands of `inspect log` (`src/inspect_ai/_cli/log.py`):
+## CLI
 
 ```
 inspect log exclude LOG_FILE --sample ID [--sample ID ...] [--epoch N]
-                    --reason TEXT [--author NAME] [--json]
+                    --reason TEXT [--author NAME]
 inspect log zero    LOG_FILE --from EMPTY_LOG --sample ID [--sample ID ...] [--epoch N]
-                    --reason TEXT [--author NAME] [--json]
+                    --reason TEXT [--author NAME]
 ```
 
 - Neither loads a task or runs an eval, so neither takes task, model or eval
   options.
-- `--sample` is repeatable and required. `--epoch N` narrows every named
-  sample to that epoch; without it every epoch is covered.
-- `--author` defaults to the git identity, else the OS user name: the
-  `ctl config` helper (`_default_provenance_author`,
-  `src/inspect_ai/_cli/ctl/_config.py:860`), moved to
-  `src/inspect_ai/_cli/util.py`.
-- The command reads the log (and for zero, the empty-attempt log) whole,
-  applies the function, and writes the log back in place with
-  `write_eval_log(log, location, if_match_etag=log.etag)`, so a concurrent
-  rewrite of an S3 log fails with `WriteConflictError`. When nothing changed,
-  nothing is written.
-- Output: one line per sample (`excluded` / `zeroed` / `unchanged`) and the
-  recomputed headline metric. `--json` prints
-  `{"log": ..., "applied": [[id, epoch], ...], "unchanged": [...]}`.
+- `--sample` is repeatable and required, and passes each id as a string.
+  `--epoch N` (at least 1) narrows every named sample to that epoch; without
+  it every epoch is covered.
+- `--author` defaults to `default_provenance_author()` in
+  [`_cli/util.py`](../src/inspect_ai/_cli/util.py), shared with
+  `inspect ctl`: the git identity, else the OS user name.
+- The command reads the log (and for zero, first the empty-attempt log)
+  whole, applies the function, and writes the log back in place with
+  `write_eval_log(log, LOG_FILE, if_match_etag=log.etag)`, so a concurrent rewrite of an S3 log fails with
+  `WriteConflictError`. A `ValueError`, `LookupError` or
+  `WriteConflictError` is reported as a command error.
+- Output, after the write: one summary line (`excluded 3 samples`,
+  `zeroed 1 sample`), then the log's headline metric after recomputation (`<score>/<metric>: <value>`).
+  The count is the number of targets, `(id, epoch)` pairs: after the
+  function succeeds, `_run_disposition()` counts
+  `_select_samples(log, selectors)`, the same helper the functions use, so
+  a bare id counts each of its epochs, a string matches an `int` id, and a
+  repeated selector counts once. There is no `--json` option. The
+  unconditional write and this output are not yet built; see
+  [Not yet built](#not-yet-built).
+
+## Not yet built
+
+The code on `main` differs from this document in one respect, which a
+follow-up implementation changes (decision: Ransom, 2026-11-17). Today
+`exclude_samples()` leaves a target whose held scores are all excluded
+unedited and reports it as unchanged; both functions return a
+`DispositionResult` NamedTuple (`applied`, and `unchanged`, which is always
+empty for zero); and the CLI prints one `excluded`/`zeroed`/`unchanged`
+line per target, has a `--json` option printing the log path with the
+`applied` and `unchanged` lists, and writes the log only when something was
+applied.
+
+The implementation removes:
+
+- in [`log/_disposition.py`](../src/inspect_ai/log/_disposition.py): the
+  `DispositionResult` NamedTuple, the "all scores already excluded" branch
+  of `exclude_samples()`, and the `if not edits: return` path in
+  `_apply_edits()`, and the "Returns" sections of both docstrings; both
+  functions return `None`. An empty selector sequence is still accepted, but
+  now resolves and recomputes the metrics, so a metric or reducer the
+  registry cannot build raises `LookupError` even though no sample is
+  edited (today the call returns without resolving);
+- the `DispositionResult` export from
+  [`log/__init__.py`](../src/inspect_ai/log/__init__.py) and its entry in
+  `docs/reference/inspect_ai.log.qmd`;
+- in [`_cli/log.py`](../src/inspect_ai/_cli/log.py): the
+  `DispositionResult` import, the `--json` option blocks of the `exclude`
+  and `zero` commands, and in `_run_disposition()` the `if result.applied:`
+  write guard, the JSON branch and the per-target print loop, replaced by
+  the one summary line counted with `_select_samples()`; the `apply`
+  parameter's annotation becomes
+  `Callable[[EvalLog, list[SampleSelector], ProvenanceData], None]`;
+- tests in `tests/scorer/test_score_editing.py` and
+  `tests/log/test_zero_samples.py`: the `result = ` assignments and the
+  `result.unchanged` and `result.applied` asserts go (the
+  selector-expansion test checks the log directly instead), and so does
+  `test_zero_samples_twice`'s `assert result == ([("a", 1)], [])`, leaving
+  its history and provenance checks;
+- `test_exclude_samples_unchanged` becomes a re-apply test: after `a` is
+  excluded, the mixed call `exclude_samples(log, ["a", "b"], ...)` grows
+  `a`'s score history and its sample's `ScoreEditEvent` count by one each
+  (and excludes `b` for the first time), and its check that a value edit followed by an
+  exclusion leaves the score excluded stays;
+- a new empty-selector test beside it calls `exclude_samples(log, [], ...)`
+  on a log whose scorer names a metric the registry cannot build and
+  asserts `LookupError` with the log unchanged; `tests/log/test_zero_samples.py`
+  gets the same case for `zero_samples(log, empty, [], ...)`. These two
+  tests pin the two behaviours this change makes, which no other planned
+  test reaches (the CLI requires `--sample`);
+- in `tests/test_eval_set_selection.py`,
+  `test_eval_set_selection_empty_attempt_log_can_zero_samples` calls
+  `zero_samples()` without assigning it and drops its `result.applied`
+  assert, keeping its solver-header checks and the direct
+  `scores == {"a": "I", "b": "C"}` check;
+- tests in `tests/_cli/test_log_disposition.py` are adjusted, not deleted:
+  `test_log_exclude_command` asserts the summary line where it asserts
+  per-target lines, its `--json` re-exclusion of `a` asserts
+  `excluded 2 samples` and a new history entry instead of the JSON, and its
+  last re-exclusion, which today asserts `unchanged` lines and that nothing
+  is written, now asserts the summary line and lets the write happen;
+  `test_log_exclude_command_write_conflict` drops `--json` and asserts that
+  no summary line is printed; `test_log_zero_command` asserts the summary
+  line where it asserts per-target lines, and its `--json` run of `a`
+  asserts `zeroed 2 samples` instead of the JSON; the `json` import goes;
+- docs: in `docs/eval-logs.qmd`, the `result.applied` / `result.unchanged`
+  sentence, the "`--json` prints the result as JSON" sentence, and the
+  `result = ` assignments in the two examples.
+
+All of it must ship before the next release, while `DispositionResult`,
+the return values and the commands' `--json` option are unreleased:
+changing them after a release is a breaking change to `inspect_ai.log` and
+the CLI.
+
+## Decisions
+
+- 2026-11-04: zero supports string ids only; integer ids are refused.
+- 2026-11-04: a disposition does not change a sample's `error`, the log's
+  `status`, or which samples an eval-set retry re-runs.
+- 2026-11-04: scorer-declared zero values, caller-supplied scorers for zero,
+  live dispositions, a sample-level exclusion field and zero for structured
+  verdicts are left out (see Future improvements).
+- 2026-11-11: the operator runs the empty attempt as an ordinary eval with
+  the entry point they ran the task with; Inspect's disposition code does
+  not run it, and zero is a log-to-log edit like exclusion.
+- 2026-11-17: exclusion has no "already excluded" no-op, the same as zero;
+  there is no `DispositionResult`, both functions return `None`, and the
+  CLI has no `--json` option and prints one summary line instead of a line
+  per target (see Not yet built). An operator's replay check for exclusion
+  tests the reason and a root `NaN` value; the check for zero tests the
+  reason alone.
 
 ## Alternatives considered
 
 - **Inspect runs the empty attempt itself** (`zero_samples(log, task,
-  **eval_kwargs)` and `inspect log zero LOG TASK`). It gives one call, but it
-  duplicates or constrains `eval()` wherever the two meet: reserved
-  keywords, one model, a running-eval gate, control server, early stopping,
-  the scratch directory, hooks and cancellation. Its CLI needs `inspect
-  eval`'s options and task construction. With the empty attempt as an
-  ordinary eval, all of that is `eval()`'s, and zero becomes a log-to-log
-  edit like exclusion (decision: Ransom, 2026-11-11).
-- **Steward's side run and cancel-as-it-starts, moved into Inspect.** The
-  attempt is not empty, it needs a second process and a watcher, and its
-  outcome depends on timing. The solver override is deterministic.
-- **Zero by re-running the sample and replacing its record** (invalidate,
-  then retry). It discards the transcript, which is usually the evidence for
-  the decision.
+  **eval_kwargs)`, `inspect log zero LOG TASK`). One call, but it duplicates
+  or constrains `eval()` wherever the two meet (reserved keywords, one model,
+  a running-eval gate, control server, early stopping, hooks, cancellation),
+  and its CLI needs `inspect eval`'s options and task construction.
+- **Cancel a re-run as each sample starts.** The attempt is not empty, it
+  needs a second process and a watcher, and its outcome depends on timing.
+- **Re-run the sample and replace its record** (invalidate, then retry). It
+  discards the transcript, which is usually the evidence for the decision.
 - **Score the logged sample with an emptied output, as `inspect score`
   does.** It has no sandbox and no `Task.setup`, and a logged sample cannot
-  rebuild its sandbox (only file names are logged).
+  rebuild its sandbox.
 - **Copy an unscored verdict as the zero.** The sample would read `zeroed`
   while metrics leave it out of the denominator: an exclusion under another
   name.
@@ -428,74 +480,56 @@ inspect log zero    LOG_FILE --from EMPTY_LOG --sample ID [--sample ID ...] [--e
   it; a score `reason` already flows through metrics, dataframes and the
   viewer.
 - **Exclude under every scorer's name.** The log cannot say which scorer a
-  missing key belongs to once append has named scores per sample, and a
-  missing key already counts toward no metric.
+  missing key belongs to once rescoring has appended scores, and a missing
+  key already counts toward no metric.
 - **Zero integer ids by comparing sample contents.** Matching input, target
-  and files does not establish that two samples are the same (a scorer may
-  read metadata); a string id is the author's own name for the sample.
+  and files does not establish that two samples are the same; a string id is
+  the author's own name for the sample.
 - **Zero dict and list verdicts.** Deciding that a structured verdict counts
   under every metric needs rules about which keys the metrics read; no use
-  asks for it yet.
+  asks for it.
 
-## Compatibility and migration
+## Compatibility
 
-No migration required.
-
-- **Score reasons.** `ScoreReason` gains `"excluded"` and `"zeroed"`. Older
-  Inspect reads them as the plain strings `Score.reason` already admits. The
-  OpenAPI schema (`src/inspect_ai/_view/inspect-openapi.json`) and the
-  viewer's generated types change (an enum widens), which needs the
-  coordinated ts-mono regeneration.
-- **Epoch reduction.** A score with reason `"excluded"` and a root `NaN` no
-  longer reaches the epoch reducer, live or on recompute. The only existing
-  producer is Steward's exclusion. Recomputed values change only under a
-  reducer that does not omit `NaN`: `majority` over a partly excluded sample,
-  and a reducer such as ZeroBench's, whose fully excluded samples now read as
-  unscored instead of `0.0`. The reduced score's other fields can change
-  under every reducer: the built-in reducers take `metadata` from the first
-  input and keep `answer`, `explanation` and `reason` only when all inputs
-  agree (`_reduced_score()`, `src/inspect_ai/scorer/_reducer/reducer.py:593`),
-  so these now come from the remaining epochs. That is the intended meaning:
-  an excluded epoch counts as one that never ran.
+- **Score reasons.** `"excluded"` and `"zeroed"` are standard `ScoreReason`
+  values, listed in the OpenAPI schema and the viewer's generated types.
+  Older Inspect reads them as the plain strings `Score.reason` admits.
+- **Epoch reduction.** A score with the reason `"excluded"` and a root `NaN`
+  does not reach the epoch reducer. Values differ from passing it through
+  only under a reducer that does not omit `NaN` (`majority` over a partly
+  excluded sample; a custom reducer that turns `NaN` epochs into a counted
+  value, whose fully excluded samples now read as unscored). The reduced
+  score's other fields can differ under every reducer: the built-in reducers
+  take `metadata` from the first input and keep `answer`, `explanation` and
+  `reason` only when all inputs agree, so these come from the remaining
+  epochs.
 - **Log contents.** Dispositions write existing structures only: `Score`
-  fields, `Score.history` entries with `ProvenanceData`, `ScoreEditEvent`s
-  and recomputed `results` / `reductions`.
-- **Public API.** New: `exclude_samples`, `zero_samples`,
-  `DispositionResult` and `SampleSelector` in `inspect_ai.log`;
-  `empty_attempt` in `inspect_ai.solver`.
-- **CLI.** New `inspect log exclude` and `inspect log zero`.
-- **What zero copies (limitation).** Zero compares only the task name and
-  scorer names of the two logs. The verdict reflects the task code, dataset,
-  models and settings of the empty-attempt run, which are the operator's;
-  the docs say to pass the settings the original run had.
-- **Reducer arguments (limitation).** Epochs are reduced with the reducers
-  the header records, rebuilt by name and `k`, as `recompute_metrics()` does
-  today; a custom reducer configured with other arguments is rebuilt with
-  its defaults.
+  fields, `Score.history` entries with `ProvenanceData`, `ScoreEditEvent`s,
+  and recomputed `results` and `reductions`.
+- **What zero copies.** Zero compares only the task name and scorer names of
+  the two logs. The verdict reflects the task code, dataset, models and
+  settings of the empty-attempt run.
+- **Reducer arguments.** Epochs are reduced with the reducers the header
+  records, rebuilt by name and `k`, as `recompute_metrics()` does; a custom
+  reducer configured with other arguments is rebuilt with its defaults.
 - **Later rescoring.** `inspect score` rescores the preserved transcript and
   output, not the empty attempt. `--action append` keeps a disposition and
-  adds the new verdict beside it; `--action overwrite` replaces the score map
-  (`src/inspect_ai/_eval/score.py:179-194`), removing the disposition, which
-  should then be applied again. The docs say so.
-- **Eval-set retry.** Unchanged (decision: Ransom, 2026-11-04). A
-  disposition does not clear `error`, so an errored sample that was zeroed or
-  excluded is re-run by `inspect eval-retry` and eval-set retries, and the
-  new record replaces the disposition. The help and docs say so.
-- **Steward.** Its logs read the same, since its strings become the standard
-  reasons. Its change, separately: add `empty_attempt()` to its side run,
-  drop the watcher and cancel, and call `zero_samples` in place of its
-  harvest.
+  adds the new scores beside it, under keys of their own that count in their
+  own metrics; `--action overwrite` replaces the score map, removing the
+  disposition, which must then be applied again.
+- **Eval-set retry.** A disposition does not clear `error`, so an errored
+  sample that was zeroed or excluded is re-run by `inspect eval-retry` and
+  eval-set retries, and the new record replaces the disposition.
 
 ## Security
 
 - **Log contents** of both logs are untrusted when the logs are. Neither
   function imports a task file or runs task code. Metrics and reducers are
-  rebuilt from header names by the existing untrusted resolver, with the
-  registry lookups `recompute_metrics()` makes today (registered objects, and
-  an installed package's entry point for a `pkg/name` name); it refuses
-  metric options that name a model or a non-metric registry object. A score
-  key outside the scorer list is looked up by registry name
-  (`ScorerInfo.from_name()`), as in existing recomputation.
+  rebuilt from header names by the untrusted resolver described in
+  [Code execution from a malicious eval log](malicious-log-code-execution.md),
+  with the same registry lookups as `recompute_metrics()`, whose metric
+  options may construct only registered metrics and score reducers (see its
+  [allow-list](malicious-log-code-execution.md#untrusted-metric-options-construct-only-metrics-and-reducers)).
 - **Copied verdicts** (value, answer, explanation, metadata) are data from
   the empty-attempt log, stored as a score edit. Verdicts with transcript
   references are refused, so no copied link points into another transcript.
@@ -506,101 +540,9 @@ No migration required.
 - **The empty-attempt run** is the operator's own eval, with the trust model
   of `inspect eval`.
 
-## Testing
-
-Pure and `mockllm` tests in the default suite; no network, provider key or
-Docker.
-
-- `tests/scorer/test_reducers.py`, through `reduce_scores()`:
-  - `majority` over `[C, C-excluded]` reduces to `C`, and over `[C,
-    grader_failed]` still to `NaN`.
-  - A reducer that turns `NaN` epochs into a counted `0.0` is not called for
-    a sample with every epoch excluded; the sample reduces to the excluded
-    score and counts unscored.
-  - `mean`, `median`, `max` and `mode` over `[excluded, kept]` equal the
-    reduction of `[kept]`, including `metadata`, `answer`, `explanation` and
-    `reason`.
-- `tests/scorer/test_score_editing.py` (exclude):
-  - Key rule: a sample with a deduplicated key (`match1`), an appended key
-    and a solver-written key has every score excluded, with provenance,
-    `history[0]` the original, and `answer` and `metadata` kept (a legacy
-    `unscored_reason` removed from the current score only). An errored
-    sample with no scores in a log with `[match(), includes()]` gets one
-    excluded score, under `match`. A sample with no scores in a log with no
-    scorers is refused.
-  - Selectors: a bare id covers every epoch, `(id, epoch)` one; a string
-    selector matches an `int` id; unknown selectors are refused.
-  - `unchanged`: a repeat reports the target unchanged; an excluded score
-    later given `ScoreEdit(value=1)` is excluded again.
-  - Recomputation: accuracy over the rest and `unscored_samples` counted; a
-    log written with `epochs=Epochs(5, "pass_at_5")` on a one-epoch task
-    reduces with the header's `pass_at_5`; a header recording `majority`
-    reduces with `majority`.
-  - Refusals leaving the log unchanged: a `started` log, a header-only log,
-    an empty reason, and a metric or reducer the registry cannot build (with
-    the import advice).
-- `tests/log/test_zero_samples.py` (new). The fixture is a task with string
-  ids, a `Task.setup` that sets a metadata flag, a generating main solver
-  and `[match(), includes()]`; the empty-attempt log comes from `eval(task,
-  solver=empty_attempt(), sample_id=[...])`.
-  - Happy path: the empty-attempt log records the solver
-    `inspect_ai/empty_attempt`, `Task.setup` ran and no main-solver
-    `ModelEvent` exists; the zeroed scores equal its verdicts (`I`), with
-    reason `zeroed`, the original in `history[0]`, and the transcript and
-    `error` unchanged; metrics recompute.
-  - An errored target with no scores is zeroed under both scorers.
-  - A multi-epoch log with targets `a/1` and `b/2`, from an empty-attempt
-    log holding every epoch of both: only the targets are edited. A target
-    epoch the empty-attempt log lacks is refused.
-  - Empty-attempt log checks, each refused with the log unchanged: status
-    `error`; a header-only read; another solver (a plain run of the task);
-    another task name; scorer names that differ, are reordered, or are
-    empty.
-  - Verdict rule, each cause named and the log unchanged: an errored or
-    limited empty-attempt sample; a missing target; a scorer returning
-    `None`; `{"x": 0}` and `[0, 1]`; `Score.unscored(reason="grader_failed")`;
-    a verdict with a non-empty `scanner_references` list (an empty list is
-    accepted); a solver-written score on the target. Two failing targets are
-    named in one error.
-  - An integer id is refused.
-  - Zeroing twice appends a second history entry and reports nothing
-    `unchanged`.
-- `tests/_cli/`: one test per command, `inspect log exclude` and `inspect log
-  zero --from`, each parsing `--sample`, `--epoch`, `--reason` and
-  `--author`, writing in place, and printing the per-sample lines and the
-  `--json` envelope.
-- Schema drift: the OpenAPI and TypeScript drift checks pass after the
-  regeneration.
-
-## Implementation plan
-
-1. **Vocabulary and epoch reduction.** The two reasons and
-   `score_is_excluded()` in `src/inspect_ai/scorer/_metric.py`; dropping
-   excluded epochs in `reduce_scores()` (`src/inspect_ai/_eval/task/results.py`);
-   the reasons in `docs/scoring-policy.qmd` and the rule under "Reducing
-   Epochs" in `docs/metrics.qmd`; the OpenAPI and ts-mono regeneration with
-   the land-ts-mono procedure. Tests: the reducer tests.
-2. **Exclude.** `SampleSelector`, `DispositionResult` and `exclude_samples`
-   in `src/inspect_ai/log/_disposition.py`, exported from
-   `src/inspect_ai/log/__init__.py`; `inspect log exclude` in
-   `src/inspect_ai/_cli/log.py`, with the default author helper moved to
-   `src/inspect_ai/_cli/util.py`; a "Zeroing and Excluding Samples" section
-   in `docs/eval-logs.qmd` covering retry, later rescoring, recorded
-   reducers, the import advice, and for a running eval `inspect ctl sample
-   cancel --action cancel` followed by these commands once the log lands.
-   Tests: the exclude and exclude CLI tests.
-3. **Zero.** `empty_attempt()` in `src/inspect_ai/solver/_empty.py`, exported
-   from `inspect_ai.solver`; `zero_samples` in `_disposition.py`; `inspect
-   log zero --from`; the docs section extended with the empty-attempt recipe
-   and its advice. Tests: the zero and zero CLI tests.
-
-## Open questions
-
-None.
-
 ## Future improvements
 
-Left out of this design (decision: Ransom, 2026-11-04) and possible later:
+Left out (decision: Ransom, 2026-11-04) and possible later:
 
 - **Scorer-declared zero values**: a scorer declares its verdict for an
   empty attempt. Cheap where safe, but a second path to keep in step, and
@@ -608,7 +550,9 @@ Left out of this design (decision: Ransom, 2026-11-04) and possible later:
 - **Caller-supplied scorers for zero**, as `inspect score --scorer` does. It
   changes what a zero means and needs naming rules for new scores.
 - **Live exclusion and live zero** (`inspect ctl sample cancel --action
-  exclude|zero`) for a sample of a running eval.
+  exclude|zero`) for a sample of a running eval. Today the operator cancels
+  the sample with `inspect ctl sample cancel --action cancel` and applies the
+  disposition once the log lands.
 - **A sample-level exclusion field**, should retry or the viewer need a mark
   that does not depend on score reasons.
 - **Zero for dict and list verdicts**, and for **integer ids**, if a rule
@@ -636,8 +580,14 @@ Left out of this design (decision: Ransom, 2026-11-04) and possible later:
 - An `excluded_samples` count beside `unscored_samples`, and a viewer badge
   for dispositions.
 - An `inspect log invalidate`-style CLI for the existing re-run path.
-- Two recomputation defects that affect any score edit today: two
-  dict-valued scorers of the same name can both report the first one's data
-  after a recompute (`src/inspect_ai/log/_metric.py:113`,
-  `src/inspect_ai/_eval/task/results.py:161`), and glob metric keys collapse
-  to a `*` row once every score of the scorer is `NaN` (`results.py:500`).
+- The CLI reads the log (and the empty-attempt log) outside the handler
+  that turns `ValueError`, `LookupError` and `WriteConflictError` into a
+  command error, so a read-time `ValueError` from a malformed log surfaces
+  as a raw exception.
+- Two recomputation defects that affect any score edit: two dict-valued
+  scorers of the same name can both report the first one's data after a
+  recompute (`compute_log_metrics()` keys each sample's scores by name, and
+  `eval_results()` looks them up by the scorer's unique name), and glob
+  metric keys collapse to a `*` row once every score of the scorer is `NaN`
+  (`scorers_from_metric_dict()` has no dict-valued score to expand the glob
+  against).

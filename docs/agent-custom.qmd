@@ -472,7 +472,7 @@ An agent run inside the block keeps the block's kind, and a sentinel does not ch
 
 For an agent run through an agent bridge (e.g. Claude Code with inspect_swe), replay shows each tool call as the model wrote it, and each result as the model next received it.
 
-The call's step comes right after the model call that wrote it, with that model call's input and tools. The result's step comes right before the next request to the model that carries it.
+The call's step comes right after the model call that wrote it, with that model call's input, tools and output message (`assistant_message`). The result's step comes right before the next request to the model that carries it, with the same model call's input, tools and message.
 
 These steps follow the conversation, not the checks a sentinel made live, so they can differ from what the sentinel was shown:
 
@@ -484,7 +484,7 @@ These steps follow the conversation, not the checks a sentinel made live, so the
 | A host tool a sandbox bridge ran | The tool under the name the model used (e.g. `mcp__host__addition`) |
 | The bridge never handed the call to the agent (e.g. a token limit, or a rejected call in the same response) | The call, and whatever result the model next received |
 | The result never reached the model (e.g. a limit or a sentinel ended the sample) | The call, with no result |
-| The model reused the id of an earlier call (the bridge hands the call over under a new id) | The call, with no result |
+| The model reused the id of an earlier call (the bridge hands the call over under a new id) | The call, with no result, and the model call's message with the reused id (live's has the new call id and message id) |
 
 Without a sentinel, the Google bridge doesn't keep call ids, so replay shows the tool calls of an agent using the Google API, but not their results.
 
