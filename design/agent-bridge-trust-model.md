@@ -328,8 +328,8 @@ the recorded limit's error without a provider call, and a request already in
 flight makes no further provider call. A granted host tool's provider
 dispatches are refused the same way; the tool reports an error only if it
 lets the refusal propagate. Both go through
-`_refuse_after_a_recorded_limit()` and `dispatch_guard()` in
-`ai/model/_model.py`. Utility inference run with limits suspended, such as a
+`_refuse_after_a_recorded_limit()` in `ai/agent/_bridge/sandbox/service.py`
+and `dispatch_guard()` in `ai/model/_model.py`. Utility inference run with limits suspended, such as a
 model-backed approver reviewing a response already in flight, is not the
 agent's and can still run. Granted tools that make no model call, and
 `list_tools`, still work. The bridge does not stop the scaffold. It raises the recorded limit once the agent unwinds, so
