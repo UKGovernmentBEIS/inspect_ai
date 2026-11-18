@@ -1,3 +1,4 @@
+import asyncio
 from contextvars import ContextVar, copy_context
 from pathlib import Path
 from typing import Any, ClassVar, Literal, overload
@@ -5,7 +6,7 @@ from typing import Any, ClassVar, Literal, overload
 import anyio
 import pytest
 from pydantic import BaseModel
-from test_helpers.utils import skip_if_no_docker
+from test_helpers.utils import skip_if_no_docker, skip_if_trio
 
 from inspect_ai import SampleSource, Task, eval
 from inspect_ai._eval.run import SandboxManager
@@ -389,6 +390,11 @@ class _BindingsSandbox(SandboxEnvironment):
         if config.name in _bindings_events:
             # a test waiting for this setup to return
             _bindings_events[config.name].set()
+        if config.name == "CancelledInside":
+            # a cancellation raised inside task_init, not by cancelling its caller
+            future = asyncio.get_running_loop().create_future()
+            future.cancel()
+            await future
         if config.name == "Blocked":
             _bindings_event("blocked_init_entered").set()
             with anyio.fail_after(10):
@@ -556,6 +562,35 @@ async def test_setup_bindings_failed_task_init(tmp_path: Path) -> None:
     assert [c["config"] for c in _calls("task_cleanup")] == ["A"]
     # setup binds nothing in the caller's context
     assert _run_id.get(None) is None
+
+
+@skip_if_trio
+async def test_setup_bindings_cancellation_inside_task_init_raises(
+    tmp_path: Path,
+) -> None:
+    """A cancellation raised inside task_init propagates and registers nothing."""
+    _bindings_calls.clear()
+    _bindings_events.clear()
+    spec = _bindings_spec("CancelledInside")
+    manager = SandboxManager(EvalConfig(), cleanup=True, launch_dir=str(tmp_path))
+    manager.open()
+    try:
+        with pytest.raises(asyncio.CancelledError):
+            await manager._start_sandboxenvs(
+                {TaskSandboxEnvironment(spec, str(tmp_path), ())}
+            )
+    finally:
+        await manager.shutdown()
+
+    assert _calls("task_cleanup") == []
+    assert copy_context().run(_apply_and_get_run_id, manager, spec, tmp_path) is None
+
+
+def _apply_and_get_run_id(
+    manager: SandboxManager, spec: SandboxEnvironmentSpec, task_dir: Path
+) -> str | None:
+    manager.bindings.apply(spec, str(task_dir))
+    return _run_id.get(None)
 
 
 async def test_setup_bindings_cancel_after_task_init_keeps_cleanup(

@@ -1475,19 +1475,35 @@ async def _run_in_context(
     """Await `func` in a child task started from a copy of `context`.
 
     The caller's context is unchanged, and an exception from `func` raises
-    bare. `on_return` gets the child's context, holding what `func` bound, as
-    soon as `func` returns and in the child, so a cancellation of the caller
-    while the task group joins cannot lose it.
+    bare, including a cancellation raised inside `func` that no enclosing
+    scope requested (the task group would otherwise absorb it, and the caller
+    would return as if `func` had completed). `on_return` gets the child's
+    context, holding what `func` bound, as soon as `func` returns and in the
+    child, so a cancellation of the caller while the task group joins cannot
+    lose it.
     """
+    completed = False
+    cancelled: BaseException | None = None
 
     async def run() -> None:
-        await func()
+        nonlocal completed, cancelled
+        try:
+            await func()
+        except anyio.get_cancelled_exc_class() as ex:
+            cancelled = ex
+            raise
+        completed = True
         if on_return is not None:
             on_return(copy_context())
 
     async with unwrap_exception_group(), anyio.create_task_group() as tg:
         # anyio's start_soon gives the child a copy of the current context
         context.copy().run(tg.start_soon, run)
+
+    if not completed:
+        if cancelled is not None:
+            raise cancelled
+        raise RuntimeError("sandbox setup call ended without completing")
 
 
 @asynccontextmanager
