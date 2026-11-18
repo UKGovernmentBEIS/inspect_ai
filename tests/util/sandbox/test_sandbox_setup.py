@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import SampleSource, Task, enqueue_sample, eval, eval_async
+from inspect_ai._eval.loader import resolve_task_sandbox
 from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
@@ -742,7 +743,7 @@ def test_resolve_config_paths_strings(tmp_path: Path) -> None:
     )
     assert (
         resolve_config_paths("./sub/../compose.yaml", task_dir)
-        == f"{task_dir}/compose.yaml"
+        == f"{task_dir}/sub/../compose.yaml"
     )
     for unchanged in [
         "missing.yaml",
@@ -754,6 +755,38 @@ def test_resolve_config_paths_strings(tmp_path: Path) -> None:
         None,
     ]:
         assert resolve_config_paths(unchanged, task_dir) == unchanged
+
+
+def test_resolve_config_paths_follows_directory_symlinks_before_dot_dot(
+    tmp_path: Path,
+) -> None:
+    task_dir, real_dir = tmp_path / "task", tmp_path / "real"
+    task_dir.mkdir()
+    (real_dir / "child").mkdir(parents=True)
+    (task_dir / "link").symlink_to(real_dir / "child", target_is_directory=True)
+    (real_dir / "compose.yaml").write_text("intended configuration")
+    (task_dir / "compose.yaml").write_text("wrong configuration")
+    (real_dir / "ctx").mkdir()
+    (real_dir / "ctx" / "Dockerfile").write_text("intended context")
+
+    task = Task(dataset=None, sandbox=("docker", "link/../compose.yaml"))
+    setattr(task, TASK_RUN_DIR_ATTR, str(task_dir))
+    resolved = resolve_task_sandbox(task, None)
+    assert resolved is not None and isinstance(resolved.config, str)
+    assert Path(resolved.config).read_text() == "intended configuration"
+
+    compose = resolve_config_paths(
+        ComposeConfig(
+            services={
+                "default": ComposeService(build=ComposeBuild(context="link/../ctx"))
+            }
+        ),
+        task_dir.as_posix(),
+    )
+    assert isinstance(compose, ComposeConfig)
+    build = compose.services["default"].build
+    assert isinstance(build, ComposeBuild) and build.context is not None
+    assert (Path(build.context) / "Dockerfile").read_text() == "intended context"
 
 
 def test_resolve_config_paths_does_not_depend_on_the_working_directory(

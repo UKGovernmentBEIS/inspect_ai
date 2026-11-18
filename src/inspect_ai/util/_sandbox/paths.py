@@ -12,15 +12,17 @@ def resolve_config_paths(
 
     A relative string config, and each relative build context of a
     `ComposeConfig` service, becomes absolute when that path exists under
-    `task_dir`. An omitted `ComposeBuild.context` means the compose default
-    `"."`, so it becomes `task_dir` itself. A URI, an absolute path, and a
-    string naming no file under `task_dir` (inline JSON, or a path to resolve
-    against the launch directory) are returned as given. Other config types
-    are returned as given.
+    `task_dir`. The result keeps any `..` segments, so a path through a
+    directory symlink names the same file it does relative to `task_dir`. An
+    omitted `ComposeBuild.context` means the compose default `"."`, so it
+    becomes `task_dir` itself. A URI, an absolute path, and a string naming no
+    file under `task_dir` (inline JSON, or a path to resolve against the
+    launch directory) are returned as given. Other config types are returned
+    as given.
 
-    The result does not depend on the working directory, so setup and sample
-    start resolve a config to the same value. The config passed in is not
-    modified.
+    For an absolute `task_dir` the result does not depend on the working
+    directory, so setup and sample start resolve a config to the same value.
+    The config passed in is not modified.
 
     Args:
         config: Sandbox config.
@@ -40,11 +42,13 @@ def resolve_config_paths(
 def _resolve_path(path: str, task_dir: str) -> str:
     if "://" in path or os.path.isabs(path):
         return path
-    candidate = os.path.join(task_dir, path)
+    # not normalised: collapsing `..` lexically would change the target of a
+    # path that runs through a directory symlink
+    candidate = os.path.join(os.getcwd(), task_dir, path)
     # os.path.exists returns False on OSError and ValueError (e.g. a string
     # too long to be a path, or one with a null byte)
     if os.path.exists(candidate):
-        return Path(os.path.abspath(candidate)).as_posix()
+        return Path(candidate).as_posix()
     else:
         return path
 
