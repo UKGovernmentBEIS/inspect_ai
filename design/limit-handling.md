@@ -1128,13 +1128,17 @@ async def generate_forwarding_errors(json_data, headers=None):
                 return {PROVIDER_ERROR_KEY: provider_error_payload(bridge.generation_limit)}
             return await generate(json_data, headers)
     except Exception as ex:
-        ...  # terminations and sample failures: unchanged
+        ...  # terminations: unchanged
+        failed = _first_sample_failure(ex)  # now also matches UnmeteredCallError
+        if failed is not None:
+            bridge.request_fail(failed)
+            return {PROVIDER_ERROR_KEY: provider_error_payload(failed)}
         control = _first_control(ex)  # refusal if first, else outermost_limit(ex)
         if isinstance(control, LimitExceededError):
             bridge.keep_limit(control)
             _warn_other_errors(ex)
             return {PROVIDER_ERROR_KEY: provider_error_payload(ex)}
-        ...  # refusals, response filter errors, UnmeteredCallError: fail the sample
+        ...  # refusals, response filter errors: fail the sample (unchanged)
         ...  # other errors: unchanged
 ```
 
@@ -1187,8 +1191,16 @@ async def generate_forwarding_errors(json_data, headers=None):
   hard-stopped the member and then returned.
 - A refused unpriced model (`UnmeteredCallError`, see "Unpriced models")
   in a bridged generation fails the sample through `bridge.request_fail()`,
-  as a `ModelRefusalError` or `ResponseFilterError` does, so the sample
-  fails with the error's message. If a cancellation displaces that failure
+  so the sample fails with the error's message. It goes through the
+  existing group-aware selector: `_first_sample_failure()`
+  (`service.py:262-274`) matches a local tuple,
+  `_BRIDGE_SAMPLE_FAILURES = (*SAMPLE_FAILURES, UnmeteredCallError)`, in
+  place of the sidecar's `SAMPLE_FAILURES` (which stays the sidecar's own
+  list), and finds the error bare or inside a group, nested or not, as a
+  request filter that generates in a task group raises it. It is selected
+  before `_first_control()`, as the sidecar's failures are today, so an
+  unpriced refusal beside a limit in one group fails the sample rather
+  than being kept as a limit. If a cancellation displaces that failure
   before it is delivered, nothing records it; a retried request is refused
   again before dispatch, with nothing spent.
 
@@ -1957,10 +1969,11 @@ under trio with `--runtrio`.
   no provider call and no error, and an uncached call is refused before
   dispatch; the same under `cost_limit()` with a priced model; under an
   exceeded `token_limit()` inside `turn_limit(1)`, a cached generation
-  records its turn and raises the turn limit; a cache hit followed by a
-  fresh uncached call that takes usage from 1 to 2 under `token_limit(1)`
-  (and, separately, a priced call over `cost_limit()`) raises after that
-  call, with an explicit `max_connections`, with adaptive concurrency
+  records its turn and raises the turn limit; with the cache warmed
+  outside the limit, a cache hit at usage 0 under `token_limit(1)`
+  followed by a fresh uncached call reporting 2 tokens (0 to 2), and
+  separately a priced call over `cost_limit()` from zero, raises after
+  that call, with an explicit `max_connections`, with adaptive concurrency
   disabled, with batch concurrency, and under the adaptive controller, and
   a later hit of the crossing response is still served.
 - `tests/util/test_limit_token.py`: inside `suspend_limits()`, a call is not
@@ -2093,7 +2106,11 @@ under trio with `--runtrio`.
     configured, each get the `limit` tool-error reply and make no tool,
     monitor or provider call, and the kept limit is unchanged;
   - an unpriced bridged model under a cost limit fails the sample with
-    `UnmeteredCallError`, with no provider call;
+    `UnmeteredCallError`, with no provider call: from the generation
+    itself, and from a request filter that generates the unpriced model
+    inside a task group (the error in a single group and in a nested
+    group), where the scaffold handles the error reply and returns
+    normally; the sample still fails through `request_fail()`;
   - a kept sample token limit reached exactly by a refused request, then a
     cancellation of the bridged agent before delivery and a normal return
     from the solver, ends the sample on the token limit;
@@ -2153,7 +2170,8 @@ Each step is one PR, in this order. Each keeps the suite green.
    `src/inspect_ai/model/_util.py`: `resolve_model_costs()` checks the task
    model only, with the shared message helper.
    `src/inspect_ai/agent/_bridge/sandbox/service.py`: `UnmeteredCallError`
-   fails the sample. Tests: `tests/util/test_limit_cost.py`,
+   fails the sample, through `_first_sample_failure()` over
+   `_BRIDGE_SAMPLE_FAILURES`. Tests: `tests/util/test_limit_cost.py`,
    `tests/model/test_model_info.py`, `tests/test_eval.py`,
    `tests/test_sample_limits.py`, `tests/test_enqueue_task.py`,
    `tests/agent/test_bridge_provider_errors.py`.
