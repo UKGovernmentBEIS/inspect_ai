@@ -35,7 +35,10 @@ from inspect_ai.log._edit import (
 from inspect_ai.log._file import read_eval_log, write_eval_log
 from inspect_ai.log._log import EvalLog, EvalSample
 from inspect_ai.log._recorders.chunked import convert_eval_logs_to_chunked
-from inspect_ai.log._recorders.chunked.convert import chunked_sample
+from inspect_ai.log._recorders.chunked.convert import (
+    _write_chunked_sample,
+    chunked_sample,
+)
 from inspect_ai.log._recorders.chunked.format import (
     attachment_chunk_boundaries,
     boundary_ranges,
@@ -924,6 +927,54 @@ def test_chunked_sample_keeps_call_data_nested_beyond_the_walk_limit() -> None:
     chunked = chunked_sample(reread, 100)
 
     assert chunked.calls == [{**message, "content": "attachment://0"}]
+
+
+def test_chunked_calls_resolve_a_reference_nested_beyond_the_walk_limit(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A pooled reference deeper than the walk limit renumbers; longer text keeps it."""
+    text = "You are a careful assistant who answers in full. " * 4
+    ref = f"attachment://{mm3_hash(text)}"
+    quoted = f"Please explain {ref} to me."
+    deep: JsonValue = {"ref": ref, "quoted": quoted}
+    for _ in range(MAX_JSON_VALUE_DEPTH + 3):
+        deep = {"nested": deep}
+    sample = EvalSample(
+        id=1,
+        epoch=1,
+        input="hi",
+        target="",
+        events=[
+            ModelEvent(
+                model="mockllm/model",
+                input=[],
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput.from_content("mockllm/model", "ok"),
+                call=ModelCall(
+                    request={"messages": [{"role": "user", "deep": deep}]},
+                    response={},
+                ),
+            )
+        ],
+        attachments={mm3_hash(text): text},
+    )
+    reread = _parse_sample_data(json.dumps(sample.model_dump(mode="json")).encode())
+
+    path = tmp_path / "chunked.zip"
+    with zipfile.ZipFile(path, "w") as zf:
+        _write_chunked_sample(zf, reread, 100)
+    with zipfile.ZipFile(path) as zf:
+        [message] = _read_chunked_sequence(zf, 1, 1, "calls")
+        attachments = _read_chunked_sequence(zf, 1, 1, "attachments")
+
+    leaf = message["deep"]
+    for _ in range(MAX_JSON_VALUE_DEPTH + 3):
+        leaf = leaf["nested"]
+    index = leaf["ref"].removeprefix("attachment://")
+    assert attachments[int(index)] == text
+    assert leaf["quoted"] == quoted
 
 
 def test_convert_chunked_keeps_raw_fields_that_read_like_references(

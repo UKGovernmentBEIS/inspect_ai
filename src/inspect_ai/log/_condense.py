@@ -6,6 +6,7 @@ from typing import (
     Any,
     Callable,
     Final,
+    Iterator,
     Literal,
     NamedTuple,
     Sequence,
@@ -1673,14 +1674,19 @@ def walk_json_value(
     """Apply ``content_fn`` to the strings in a JSON value.
 
     Content nested beyond `MAX_JSON_VALUE_DEPTH` is replaced with
-    `JSON_VALUE_MAX_DEPTH_EXCEEDED`, or, with ``keep_too_deep``, returned
-    unwalked: a pass over data already in a log must not truncate it.
+    `JSON_VALUE_MAX_DEPTH_EXCEEDED`, or, with ``keep_too_deep``, kept and
+    walked without recursion: a pass over data already in a log must not
+    truncate it.
     """
     if isinstance(value, str):
         return content_fn(value)
     elif isinstance(value, (list, dict)):
         if depth >= MAX_JSON_VALUE_DEPTH:
-            return value if keep_too_deep else JSON_VALUE_MAX_DEPTH_EXCEEDED
+            return (
+                _walk_json_iteratively(value, content_fn)
+                if keep_too_deep
+                else JSON_VALUE_MAX_DEPTH_EXCEEDED
+            )
         elif isinstance(value, list):
             return walk_json_list(
                 value, content_fn, context, depth, keep_too_deep=keep_too_deep
@@ -1691,6 +1697,55 @@ def walk_json_value(
             )
     else:
         return value
+
+
+@dataclasses.dataclass
+class _JsonFrame:
+    value: list[JsonValue] | dict[str, JsonValue]
+    items: Iterator[tuple[Any, JsonValue]]
+    key: Any
+    """This container's key or index in its parent."""
+    walked: list[JsonValue] | dict[str, JsonValue] | None = None
+
+    def set(self, key: Any, walked: JsonValue) -> None:
+        if self.walked is None:
+            self.walked = (
+                list(self.value) if isinstance(self.value, list) else self.value.copy()
+            )
+        self.walked[key] = walked
+
+
+def _json_frame(value: list[JsonValue] | dict[str, JsonValue], key: Any) -> _JsonFrame:
+    items = enumerate(value) if isinstance(value, list) else iter(value.items())
+    return _JsonFrame(value, items, key)
+
+
+def _walk_json_iteratively(
+    value: list[JsonValue] | dict[str, JsonValue], content_fn: Callable[[str], str]
+) -> JsonValue:
+    """`walk_json_value` with an explicit stack, for content of any depth.
+
+    Containers are copied only where ``content_fn`` changes a string below
+    them, as in the recursive walk.
+    """
+    stack = [_json_frame(value, None)]
+    while True:
+        frame = stack[-1]
+        for key, child in frame.items:
+            if isinstance(child, (list, dict)):
+                stack.append(_json_frame(child, key))
+                break
+            if isinstance(child, str):
+                walked = content_fn(child)
+                if walked is not child:
+                    frame.set(key, walked)
+        else:
+            stack.pop()
+            done = frame.walked if frame.walked is not None else frame.value
+            if not stack:
+                return done
+            if frame.walked is not None:
+                stack[-1].set(frame.key, done)
 
 
 def walk_json_list(
