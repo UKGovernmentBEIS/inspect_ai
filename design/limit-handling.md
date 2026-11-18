@@ -538,9 +538,18 @@ def _counted(node: Limit) -> bool:
   generation before any token or cost check (`_model.py:1744-1773`), so it
   is served even when an enclosing token or cost limit is already exceeded,
   and only the outer frame's turn record and check run. That stays: the
-  outer frame reads the cache-hit flag the inner generation already sets
-  (`_request_was_cache_hit`, `_model.py:1765-1767`, read at `:2055`) and,
-  for a hit, calls `check_limits(turns_only=True)` after `record_turn()`.
+  outer frame classifies the generation from the `ModelEvent` that
+  `generate()` returns with its output (`_model.py:2010`): the cache branch
+  records its event with `cache="read"` (`_model.py:1746-1755`), and every
+  provider call records `"write"` or `None`. For a hit
+  (`event.cache == "read"`) it calls `check_limits(turns_only=True)` after
+  `record_turn()`, and otherwise `check_limits()`. The event belongs to
+  this generation alone. The `_request_was_cache_hit` context variable is
+  not used for this: it is reset per request only when an adaptive
+  concurrency controller is active (`_model.py:2204-2221`), so with an
+  explicit `max_connections`, adaptive concurrency disabled, batch mode or
+  the fixed-registry fallback it can still hold an earlier hit and would
+  let a fresh paid call skip its token and cost check.
   A hit records no usage or cost, so the token and cost nodes it skips are
   unchanged by it; a reached one refuses the next dispatch (`>=`) or is
   found by its owner's exit check. Turn limits count and check a cached
@@ -1948,7 +1957,12 @@ under trio with `--runtrio`.
   no provider call and no error, and an uncached call is refused before
   dispatch; the same under `cost_limit()` with a priced model; under an
   exceeded `token_limit()` inside `turn_limit(1)`, a cached generation
-  records its turn and raises the turn limit.
+  records its turn and raises the turn limit; a cache hit followed by a
+  fresh uncached call that takes usage from 1 to 2 under `token_limit(1)`
+  (and, separately, a priced call over `cost_limit()`) raises after that
+  call, with an explicit `max_connections`, with adaptive concurrency
+  disabled, with batch concurrency, and under the adaptive controller, and
+  a later hit of the crossing response is still served.
 - `tests/util/test_limit_token.py`: inside `suspend_limits()`, a call is not
   refused by a reached token, turn or cost limit, nor by a
   `dispatch_guard()`, and a reached message limit still refuses it; inside
@@ -2123,8 +2137,8 @@ Each step is one PR, in this order. Each keeps the suite green.
    counter it assigns (no payload change).
    `src/inspect_ai/model/_model.py`: `record_and_check_model_usage(check=)`,
    the inner generation recording without a check, the outer frame's
-   `record_turn()` then `check_limits()` (`turns_only=True` for a cache
-   hit), the same order in
+   `record_turn()` then `check_limits()` (`turns_only=True` when the
+   returned event's `cache` is `"read"`), the same order in
    `_generate_prepared()` for an output `refusal_after_error()` recovers,
    `_check_limits_before_dispatch`.
    Tests: the node-level cases in `tests/util/test_limit*.py` (chain,
