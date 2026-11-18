@@ -1,4 +1,5 @@
 import dataclasses
+import gc
 import json
 import os
 from collections.abc import Callable
@@ -2326,3 +2327,56 @@ async def test_subscribers_see_the_error_completion_of_a_call_with_literals(
     [buffered_event] = [e for e in buffered if isinstance(e, ModelEvent)]
     assert buffered_event.call is not None
     assert buffered_event.call.response == error_response
+
+
+def test_evicted_call_is_renotified_with_its_literals(tmp_path: Path) -> None:
+    """An evicted model event re-notified while it is still held keeps its literals."""
+    literal = "attachment://as-written"
+    transcript = Transcript(log_model_api=True, bounded=True, resident_tail=1)
+    buffer = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    buffer.start_sample(EvalSampleSummary(id="s", epoch=1, input="in", target="t"))
+    transcript._subscribe(
+        lambda e: buffer.log_events([SampleEvent(id="s", epoch=1, event=e)])
+    )
+    event = ModelEvent(
+        model="m",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("m", ""),
+        pending=True,
+    )
+    transcript._event(event)
+    event.call = ModelCall(request={"messages": [{"content": literal}]})
+    transcript._event_updated(event)
+    transcript._event(InfoEvent(data="other activity while call is pending"))
+    event.call = ModelCall(
+        request={"messages": [{"content": literal}]}, response={"content": "ok"}
+    )
+    event.pending = None
+    transcript._event_updated(event)
+    assert event not in transcript.history.resident_events
+
+    # Model.generate re-notifies the completed event with its timings
+    transcript._event_updated(event)
+
+    with buffer.open_sample_history("s", 1) as history:
+        events = resolve_events_attachments(
+            materialize_pooled_events(
+                list(history.iter_events()),
+                history.events_data["messages"],
+                history.events_data["calls"],
+            ),
+            history.attachments,
+            "full",
+        )
+    [stored] = [e for e in events if isinstance(e, ModelEvent)]
+    assert stored.call is not None
+    assert stored.call.request == {"messages": [{"content": literal}]}
+
+    # the kept call is released with the event, so memory stays bounded
+    del event
+    gc.collect()
+    assert transcript._condensed_calls == {}
+    assert transcript._evicted_call_events == {}

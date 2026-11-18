@@ -283,7 +283,10 @@ def chunked_sample(
     messages = walk_chat_messages(messages, renumber_fn, renumber_context())
     events = renumber_events(events)
     calls_context = renumber_context()
-    calls = [walk_json_value(call, renumber_fn, calls_context) for call in calls]
+    calls = [
+        walk_json_value(call, renumber_fn, calls_context, keep_too_deep=True)
+        for call in calls
+    ]
     input = walk_input(input, renumber_fn, renumber_context())
     error_retries = (
         [

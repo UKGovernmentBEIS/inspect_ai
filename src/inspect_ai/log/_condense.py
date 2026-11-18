@@ -1667,16 +1667,28 @@ def walk_json_value(
     content_fn: Callable[[str], str],
     context: WalkContext,
     depth: int = 0,
+    *,
+    keep_too_deep: bool = False,
 ) -> JsonValue:
+    """Apply ``content_fn`` to the strings in a JSON value.
+
+    Content nested beyond `MAX_JSON_VALUE_DEPTH` is replaced with
+    `JSON_VALUE_MAX_DEPTH_EXCEEDED`, or, with ``keep_too_deep``, returned
+    unwalked: a pass over data already in a log must not truncate it.
+    """
     if isinstance(value, str):
         return content_fn(value)
     elif isinstance(value, (list, dict)):
         if depth >= MAX_JSON_VALUE_DEPTH:
-            return JSON_VALUE_MAX_DEPTH_EXCEEDED
+            return value if keep_too_deep else JSON_VALUE_MAX_DEPTH_EXCEEDED
         elif isinstance(value, list):
-            return walk_json_list(value, content_fn, context, depth)
+            return walk_json_list(
+                value, content_fn, context, depth, keep_too_deep=keep_too_deep
+            )
         else:
-            return walk_json_dict(value, content_fn, context, depth)
+            return walk_json_dict(
+                value, content_fn, context, depth, keep_too_deep=keep_too_deep
+            )
     else:
         return value
 
@@ -1686,11 +1698,15 @@ def walk_json_list(
     content_fn: Callable[[str], str],
     context: WalkContext,
     depth: int = 0,
+    *,
+    keep_too_deep: bool = False,
 ) -> list[JsonValue]:
     walked_list: list[JsonValue] | None = None
 
     for i, v in enumerate(value):
-        walked = walk_json_value(v, content_fn, context, depth + 1)
+        walked = walk_json_value(
+            v, content_fn, context, depth + 1, keep_too_deep=keep_too_deep
+        )
         if walked is not v:
             if walked_list is None:
                 walked_list = list(value)
@@ -1704,11 +1720,15 @@ def walk_json_dict(
     content_fn: Callable[[str], str],
     context: WalkContext,
     depth: int = 0,
+    *,
+    keep_too_deep: bool = False,
 ) -> dict[str, JsonValue]:
     walked_dict: dict[str, JsonValue] | None = None
 
     for k, v in value.items():
-        walked = walk_json_value(v, content_fn, context, depth + 1)
+        walked = walk_json_value(
+            v, content_fn, context, depth + 1, keep_too_deep=keep_too_deep
+        )
         if walked is not v:
             if walked_dict is None:
                 walked_dict = value.copy()

@@ -5,6 +5,7 @@ import zipfile
 from typing import Literal, NamedTuple
 
 import pytest
+from pydantic import JsonValue
 from test_helpers.chunked_corpus import CORPUS_SMALL_CHUNK_SIZE, ChunkedCorpus
 
 from inspect_ai import Task
@@ -23,7 +24,7 @@ from inspect_ai.event import (
     ToolEvent,
 )
 from inspect_ai.log import EvalError, EvalRetryError
-from inspect_ai.log._condense import resolve_sample_attachments
+from inspect_ai.log._condense import MAX_JSON_VALUE_DEPTH, resolve_sample_attachments
 from inspect_ai.log._convert import convert_eval_logs
 from inspect_ai.log._edit import (
     MetadataEdit,
@@ -34,6 +35,7 @@ from inspect_ai.log._edit import (
 from inspect_ai.log._file import read_eval_log, write_eval_log
 from inspect_ai.log._log import EvalLog, EvalSample
 from inspect_ai.log._recorders.chunked import convert_eval_logs_to_chunked
+from inspect_ai.log._recorders.chunked.convert import chunked_sample
 from inspect_ai.log._recorders.chunked.format import (
     attachment_chunk_boundaries,
     boundary_ranges,
@@ -50,6 +52,7 @@ from inspect_ai.log._recorders.chunked.format import (
     skeleton_entry_name,
 )
 from inspect_ai.log._recorders.chunked.stats import event_stats
+from inspect_ai.log._recorders.eval import _parse_sample_data
 from inspect_ai.log._resolve import resolve_sample_events_data
 from inspect_ai.model import (
     ChatMessageAssistant,
@@ -885,6 +888,42 @@ def test_convert_chunked_keeps_literal_reference_text(tmp_path: pathlib.Path):
         message["content"] for message in request_messages if isinstance(message, dict)
     ] == [system_prompt, quoted]
     assert model_event.call.response == {"content": literal}
+
+
+def test_chunked_sample_keeps_call_data_nested_beyond_the_walk_limit() -> None:
+    """Renumbering leaves call data nested deeper than the walk limit as written."""
+    text = "You are a careful assistant who answers in full. " * 4
+    deep: JsonValue = "deep"
+    for _ in range(MAX_JSON_VALUE_DEPTH + 1):
+        deep = [deep]
+    message: dict[str, JsonValue] = {
+        "role": "user",
+        "content": f"attachment://{mm3_hash(text)}",
+        "deep": deep,
+    }
+    sample = EvalSample(
+        id=1,
+        epoch=1,
+        input="hi",
+        target="",
+        events=[
+            ModelEvent(
+                model="mockllm/model",
+                input=[],
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput.from_content("mockllm/model", "ok"),
+                call=ModelCall(request={"messages": [message]}, response={}),
+            )
+        ],
+        attachments={mm3_hash(text): text},
+    )
+    reread = _parse_sample_data(json.dumps(sample.model_dump(mode="json")).encode())
+
+    chunked = chunked_sample(reread, 100)
+
+    assert chunked.calls == [{**message, "content": "attachment://0"}]
 
 
 def test_convert_chunked_keeps_raw_fields_that_read_like_references(

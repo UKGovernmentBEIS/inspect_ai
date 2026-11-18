@@ -1,5 +1,6 @@
 import contextlib
 import os
+import weakref
 from collections import deque
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextvars import ContextVar
@@ -591,6 +592,8 @@ class Transcript:
         self._call_walk_cache = CallWalkCache()
         # the calls this transcript condensed, by event key
         self._condensed_calls: dict[str, _CondensedModelCall] = {}
+        # evicted events whose condensed calls are kept while they are alive
+        self._evicted_call_events: dict[str, weakref.ref[Event]] = {}
         self._events: list[Event] = self._normalize_seeded_events(events or [])
         self._history_provider = history_provider
         self._events_view = _TranscriptEventsView(self)
@@ -1070,14 +1073,38 @@ class Transcript:
             evicted_event_ids.add(event_key)
 
         if evicted_event_ids:
-            self._events = [
-                event
-                for event in self._events
-                if self._event_key(event) not in evicted_event_ids
-            ]
+            resident_events: list[Event] = []
+            for event in self._events:
+                event_key = self._event_key(event)
+                if event_key not in evicted_event_ids:
+                    resident_events.append(event)
+                elif event_key in self._condensed_calls:
+                    self._keep_evicted_call(event, event_key)
+            self._events = resident_events
             self._resident_event_ids.difference_update(evicted_event_ids)
             self._events_truncated = True
             self._prune_pin_state()
+
+    def _keep_evicted_call(self, event: Event, event_key: str) -> None:
+        """Keep an evicted event's condensed call until the event is freed.
+
+        Whoever holds the event can still re-notify it (`Model.generate` does
+        after completing it, with its timings). Subscribers then need the call
+        with its literals put back, which the condensed call alone cannot give
+        once the event's attachments are released.
+        """
+        owner = weakref.ref(self)
+
+        def release(_: object) -> None:
+            transcript = owner()
+            if (
+                transcript is not None
+                and event_key not in transcript._resident_event_ids
+            ):
+                transcript._evicted_call_events.pop(event_key, None)
+                transcript._condensed_calls.pop(event_key, None)
+
+        self._evicted_call_events[event_key] = weakref.ref(event, release)
 
     def _prune_pin_state(self) -> None:
         resident_event_keys = self._resident_event_ids
@@ -1094,6 +1121,7 @@ class Transcript:
                 event_key: condensed
                 for event_key, condensed in self._condensed_calls.items()
                 if event_key in resident_event_keys
+                or event_key in self._evicted_call_events
             }
             self._prune_model_call_counts()
             self._prune_attachment_refs(resident_event_keys)
