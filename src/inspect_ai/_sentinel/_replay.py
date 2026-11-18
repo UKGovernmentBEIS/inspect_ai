@@ -121,7 +121,7 @@ def steps_from_events(
     For an agent run through an agent bridge, replay shows each tool call as the model wrote it, and each result as the model next received it. The bridge's model calls are those that record the model its agent requested (`ModelEvent.requested_model`, since Inspect 0.3.277):
 
     - `tool_call`: a call from such a model call's output, as written (no approver's or sentinel's modify, and a host tool under the name the model used), with that model call's input, tools and tool_choice, right after its `model_output` step.
-    - `tool_result`: the tool message under the call's id in the first later bridged request of the same conversation that carries it, as that request's input has it (a rejection or placeholder included), right before that request's `model_input` step. A call no later request answers has none. A call the bridge handed over under a new id, as when the model reused an earlier call's id, has no `tool_result` step: the next request carries its result under the new id.
+    - `tool_result`: the tool message under the call's id in the first later bridged request of the same conversation that carries it, as that request's input has it (a rejection or placeholder included), right before that request's `model_input` step. The result goes to the latest proposal of its id still awaiting one: where the agent sent a request twice and used the second response, the first response's call has none. A call no later request answers has none. A call the bridge handed over under a new id, as when the model reused an earlier call's id, has no `tool_result` step: the next request carries its result under the new id.
     - Both are named `<model call uuid>/<call id>`, by the model call whose output has the call: after a retried generate, its last attempt, where the model steps take the first attempt's `uuid`.
 
     A bridge's recorded checks (in spans named `sentinel_bridge`), approvals and host `ToolEvent`s are not paired with these steps, so a check's recorded `human()` answers are not attached to them. A `human()` decision at such a check, and a person's approval, still reach the later steps of the conversation, as live; that includes the `tool_result` step of the checked result, which comes after its check. A call a native `ToolEvent` ran (a request filter's own agent generates under the bridge's request) keeps its native steps. Calls sharing an id in one bridged response are skipped, with a warning.
@@ -1558,7 +1558,7 @@ class _Driver:
     ) -> None:
         """The tool steps of an agent bridge's calls: each call as the model wrote it, and each result as the model next received it (`steps_from_events`).
 
-        A call is taken from the output of a model call the bridge made for its agent, unless a native `ToolEvent` ran it (`native`, by the model call's event index and the call id). Its result is the first tool message under its id that a later bridged request of its conversation carries. Each request's input is compared with the conversation's previous bridged request (`_PooledInput.new_positions`), so a result already in that input, as under an id the model reused, is not taken again.
+        A call is taken from the output of a model call the bridge made for its agent, unless a native `ToolEvent` ran it (`native`, by the model call's event index and the call id). Its result is the first tool message under its id that a later bridged request of its conversation carries. A result goes to the latest proposal of its id still awaiting one, since it answers the call the agent used: a call from a response the agent discarded (a request it sent again) keeps awaiting, rather than taking the result of a later call under its id. Each request's input is compared with the conversation's previous bridged request (`_PooledInput.new_positions`), so a result already in that input, as under an id the model reused, is not taken again.
         """
         made: dict[int, list[_BridgedCall]] = {}
         repeated: list[str] = []
@@ -1589,7 +1589,7 @@ class _Driver:
                         continue
                     queue = waiting.get(message.tool_call_id or "")
                     if queue:
-                        self._bridged_result(queue.pop(0), index, event, message)
+                        self._bridged_result(queue.pop(), index, event, message)
             previous[conversation] = current
             for entry in made.get(index, []):
                 waiting.setdefault(entry.call.id, []).append(entry)

@@ -2212,6 +2212,98 @@ def test_a_bridged_log_with_no_sentinel_replays_without_a_warning(
     assert replay_warnings(caplog) == []
 
 
+@agent(name="resending_scaffold")
+def resending_scaffold() -> Agent:
+    """An OpenAI-client tool loop that sends its first request twice and uses the second response, then answers each turn's calls with `t<turn>:<call id>`."""
+
+    async def execute(state: AgentState) -> AgentState:
+        from openai import AsyncOpenAI
+
+        tools: list[Any] = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_file",
+                    "description": "Read a file.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"path": {"type": "string"}},
+                    },
+                },
+            }
+        ]
+        async with agent_bridge(state) as bridge:
+            messages: list[Any] = [{"role": "user", "content": "What is 1 + 1?"}]
+            async with AsyncOpenAI(api_key="sk-test") as client:
+                await client.chat.completions.create(
+                    model="inspect", messages=messages, tools=tools
+                )
+                for turn in range(4):
+                    completion = await client.chat.completions.create(
+                        model="inspect", messages=messages, tools=tools
+                    )
+                    message = completion.choices[0].message
+                    messages.append(message.model_dump(exclude_none=True))
+                    if not message.tool_calls:
+                        break
+                    for call in message.tool_calls:
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": call.id,
+                                "content": f"t{turn}:{call.id}",
+                            }
+                        )
+            return bridge.state
+
+    return execute
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_bridged_result_goes_to_the_latest_proposal_awaiting_one(
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # the first two model calls answer one request (the agent uses the
+    # second's), and the model reuses the call id over the next two turns
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        log, _ = scaffold_log(
+            backend,
+            monkeypatch,
+            *[r7_tool_calls(read("a.txt", "read_1"))] * 4,
+            scaffold=resending_scaffold(),
+        )
+        replay = replayed(log)
+    events = logged_sample(log).events
+    made = [
+        e.uuid
+        for e in events
+        if isinstance(e, ModelEvent) and e.requested_model is not None
+    ]
+    assert len(made) == 5
+    # each result is its own turn's: the discarded response's call has none
+    rebuilt = bridged_steps(log, replay)
+    assert [
+        (s.stage, made.index(s.id.split("/")[0]), s.id.split("/")[1]) for s in rebuilt
+    ] == [
+        ("tool_call", 0, "read_1"),
+        ("tool_call", 1, "read_1"),
+        ("tool_result", 1, "read_1"),
+        ("tool_call", 2, "read_1"),
+        ("tool_result", 2, "read_1"),
+        ("tool_call", 3, "read_1"),
+        ("tool_result", 3, "read_1"),
+    ]
+    assert [
+        (made.index(s.id.split("/")[0]), resulted(s).text)
+        for s in rebuilt
+        if s.stage == "tool_result"
+    ] == [(1, "t0:read_1"), (2, "t1:read_1"), (3, "t2:read_1")]
+    assert replay_warnings(caplog) == []
+
+
 @pytest.mark.parametrize("by", ["sentinel", "approver"])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 def test_a_rejected_call_shows_its_rejection_as_its_result(
