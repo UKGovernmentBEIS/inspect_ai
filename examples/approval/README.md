@@ -66,7 +66,7 @@ approvers:
 The list of approvers is applied in order and bound to the tools that match the globs in the `tools` configuration. Note that the `bash_allowlist` and `python_allowlist` approvers are custom approvers defined in the `approval.py` source file (they aren't included in Inspect). These approvers will make one of the following approval decisions for each tool call they are configured to handle:
 
 1) Allow the tool call (based on the various configured options)
-2) Disallow the tool call (because it is considered dangerous under all conditions)
+2) Reject the tool call and report the reason to the model
 3) Escalate the tool call to the human approver.
 
 Note that the human approver is last and is bound to all tools, so escalations from the bash and python allowlist approvers will end up prompting the human approver.

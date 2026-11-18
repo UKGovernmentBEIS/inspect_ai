@@ -265,8 +265,8 @@ class ReceivedCall:
         self.answer_details: dict[str, tuple[str, float]] = {}
         """Details of each question that a person answered here, by question id.
 
-        Each entry is the name of the function that the question's call was for,
-        and when the person answered, in seconds since the epoch.
+        Each entry is what the question was about, in words for a warning, and
+        when the person answered, in seconds since the epoch.
         """
         self.reviews_logged: set[str] = set()
         """The ids of the resolved questions whose records are in the eval's log."""

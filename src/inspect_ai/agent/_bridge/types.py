@@ -196,6 +196,26 @@ class BridgedToolId(NamedTuple):
     tool: str
 
 
+def target_execution_id(
+    handout: str | None, target: BridgedToolId | None
+) -> str | None:
+    """The `execution_id` of a handout's run of `target`, recorded by its approvals, sentinel steps and host `ToolEvent`.
+
+    A call that denotes several bridged tools (a shared description) is
+    approved, checked and run once per tool, so each tool's run is an
+    execution of its own: the handout's id (`_Handed.execution_id`) with the
+    tool's server and name, `<handout>/<server>/<tool>`. A call no bridged
+    tool serves has the handout's id. `None` where the handout is unknown.
+
+    The id is opaque: consumers compare it for equality and don't parse it.
+    A server or tool name may contain `/`, so the parts can't be recovered
+    from it.
+    """
+    if handout is None or target is None:
+        return handout
+    return f"{handout}/{target.server}/{target.tool}"
+
+
 class ReviewedCalls(NamedTuple):
     """The calls approval reviews for one tool call in a bridged response."""
 
@@ -560,6 +580,12 @@ class AgentBridge:
 
     _proposing_call_verified: list[bool] | None = None
     """Per-call filter verification, aligned with the calls being registered."""
+
+    _proposing_model_ids: list[str] | None = None
+    """The model's id for each call being registered, aligned with them; a call handed over under a fresh id has another (`_fresh_call_ids`)."""
+
+    _proposing_execution_ids: list[str] | None = None
+    """The handout id of each call being registered, aligned with them (`_Handed.execution_id`); a grant's host run records its tool's execution id derived from it (`target_execution_id`)."""
 
     def _handed_calls(
         self, reply_id: str, calls: Sequence[ToolCall]
@@ -1218,8 +1244,10 @@ class AgentBridge:
         """Recognize `reply` by the form its dialect hands it back in.
 
         A dialect's wire form can drop parts of a reply (Responses and
-        Anthropic an empty text, Google call ids), so a scaffold that sends the
-        reply back unchanged sends that form.
+        Anthropic an empty text), so a scaffold that sends the reply back
+        unchanged sends that form. Several forms may be recorded (Google's
+        with its call ids, and without them, for a scaffold that drops them,
+        and each with its text parts merged, as Gemini CLI sends it back).
         """
         if reply.id is None:
             return

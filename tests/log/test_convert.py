@@ -7,9 +7,23 @@ from typing import Literal, NamedTuple
 import pytest
 from test_helpers.chunked_corpus import CORPUS_SMALL_CHUNK_SIZE, ChunkedCorpus
 
+from inspect_ai import Task
+from inspect_ai import eval as inspect_eval
 from inspect_ai._util.constants import get_deserializing_context
-from inspect_ai.event import ModelEvent, SampleInitEvent
-from inspect_ai.log import EvalError
+from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.hash import mm3_hash
+from inspect_ai.dataset import Sample
+from inspect_ai.event import (
+    Event,
+    InfoEvent,
+    ModelEvent,
+    SampleInitEvent,
+    ScoreEvent,
+    SubtaskEvent,
+    ToolEvent,
+)
+from inspect_ai.log import EvalError, EvalRetryError
+from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._convert import convert_eval_logs
 from inspect_ai.log._edit import (
     MetadataEdit,
@@ -37,6 +51,25 @@ from inspect_ai.log._recorders.chunked.format import (
 )
 from inspect_ai.log._recorders.chunked.stats import event_stats
 from inspect_ai.log._resolve import resolve_sample_events_data
+from inspect_ai.model import (
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageUser,
+    GenerateConfig,
+    ModelCall,
+    ModelOutput,
+    get_model,
+)
+from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
+from inspect_ai.solver import (
+    Generate,
+    Solver,
+    TaskState,
+    generate,
+    solver,
+    use_tools,
+)
+from inspect_ai.tool import Tool, tool
 
 _TESTS_DIR = pathlib.Path(__file__).resolve().parent
 
@@ -805,3 +838,274 @@ def test_convert_chunked_cli_hidden():
     command = log_command.get_command(None, "convert-chunked")
     assert command is not None
     assert command.hidden
+
+
+def test_convert_chunked_keeps_literal_reference_text(tmp_path: pathlib.Path):
+    """A reply that reads like a reference survives chunking; real refs still resolve."""
+    system_prompt = "You are a careful assistant who answers in full. " * 4
+    literal = f"attachment://{mm3_hash(system_prompt)}"
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", literal)],
+    )
+    task = Task(
+        dataset=[
+            Sample(
+                input=[
+                    ChatMessageSystem(content=system_prompt),
+                    ChatMessageUser(content="hello"),
+                ]
+            )
+        ]
+    )
+    [log] = inspect_eval(
+        task, model=model, log_dir=str(tmp_path / "logs"), display="none"
+    )
+    assert log.location
+
+    output_dir = tmp_path / "chunked"
+    convert_eval_logs_to_chunked(log.location, str(output_dir), chunk_size=_CHUNK_SIZE)
+
+    with zipfile.ZipFile(output_dir / pathlib.Path(log.location).name) as zf:
+        sample, _ = _reassemble_chunked_sample(zf, 1, 1)
+    resolved = resolve_sample_attachments(sample, "full")
+    assert resolved.messages[0].text == system_prompt
+    assert resolved.messages[-1].text == literal
+    [model_event] = [e for e in resolved.events if isinstance(e, ModelEvent)]
+    assert model_event.input[0].text == system_prompt
+    assert model_event.output.message.text == literal
+
+
+def test_convert_chunked_keeps_raw_fields_that_read_like_references(
+    tmp_path: pathlib.Path,
+):
+    """Plain fields stay as written when a literal names an attachment; references still renumber."""
+    system_prompt = "You are a careful assistant who answers in full. " * 4
+    image = "data:image/png;base64," + ("A" * 200)
+    first = f"attachment://{mm3_hash(system_prompt)}"
+    # names the attachment that holds `first`, which is stored as a literal
+    final = f"attachment://{mm3_hash(first)}"
+
+    @tool
+    def echo() -> Tool:
+        async def execute(text: str) -> str:
+            """Return the text.
+
+            Args:
+                text: Text to return.
+            """
+            return text
+
+        return execute
+
+    @solver
+    def ask_again() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            state.store.set("note", final)
+            state.messages.append(ChatMessageUser(content="Again."))
+            return state
+
+        return solve
+
+    @scorer(metrics=[mean()])
+    def explain() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=1, explanation=final)
+
+        return score
+
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call("mockllm/model", "echo", {"text": final}),
+            ModelOutput.from_content("mockllm/model", first),
+            ModelOutput.from_content("mockllm/model", final),
+        ],
+    )
+    task = Task(
+        dataset=[
+            Sample(
+                input=[
+                    ChatMessageSystem(content=system_prompt),
+                    ChatMessageUser(
+                        content=[ContentText(text="Look."), ContentImage(image=image)]
+                    ),
+                ],
+                target=final,
+                metadata={"note": final},
+            )
+        ],
+        solver=[use_tools(echo()), generate(), ask_again(), generate()],
+        scorer=explain(),
+    )
+    [log] = inspect_eval(
+        task, model=model, log_dir=str(tmp_path / "logs"), display="none"
+    )
+    assert log.location
+
+    # add event metadata and a copy of the events as retry history, then
+    # write the fully read sample back
+    full = read_eval_log(log.location, resolve_attachments="full")
+    assert full.samples
+    raw = full.samples[0]
+    events = [*raw.events, InfoEvent(data="note", metadata={"note": final})]
+    raw = raw.model_copy(
+        update={
+            "events": events,
+            "error_retries": [
+                EvalRetryError(
+                    message="retry",
+                    traceback="",
+                    traceback_ansi="",
+                    events=list(events),
+                )
+            ],
+        }
+    )
+    full.samples = [raw]
+    source = tmp_path / "source" / pathlib.Path(log.location).name
+    write_eval_log(full, str(source))
+
+    output_dir = tmp_path / "chunked"
+    convert_eval_logs_to_chunked(str(source), str(output_dir), chunk_size=_CHUNK_SIZE)
+    with zipfile.ZipFile(output_dir / source.name) as zf:
+        sample, _ = _reassemble_chunked_sample(zf, 1, 1)
+
+    # shell fields
+    assert sample.output.completion == final
+    assert sample.output.message.text == final
+    assert sample.target == final
+    assert sample.store["note"] == final
+    assert sample.metadata["note"] == final
+    assert sample.scores is not None
+    assert sample.scores["explain"].explanation == final
+
+    resolved = resolve_sample_attachments(sample, "full")
+
+    # renumbered references still resolve
+    assert isinstance(resolved.input, list)
+    content = resolved.input[1].content
+    assert isinstance(content, list)
+    assert isinstance(content[1], ContentImage)
+    assert content[1].image == image
+    assert resolved.messages[0].text == system_prompt
+
+    # messages
+    assistant = [m for m in resolved.messages if isinstance(m, ChatMessageAssistant)]
+    assert assistant[0].tool_calls is not None
+    assert assistant[0].tool_calls[0].arguments == {"text": final}
+    assert [m.text for m in assistant[1:]] == [first, final]
+    [tool_message] = [m for m in resolved.messages if m.role == "tool"]
+    assert tool_message.text == final
+
+    # events, and their copies in the retry history
+    assert resolved.error_retries is not None
+    retry_events = resolved.error_retries[0].events
+    assert retry_events is not None
+    for event_list in (resolved.events, retry_events):
+        model_events = [e for e in event_list if isinstance(e, ModelEvent)]
+        assert model_events[0].input[0].text == system_prompt
+        assert model_events[-1].output.completion == final
+        assert model_events[-1].output.message.text == final
+        [tool_event] = [e for e in event_list if isinstance(e, ToolEvent)]
+        assert tool_event.arguments == {"text": final}
+        assert tool_event.result == final
+        [score_event] = [e for e in event_list if isinstance(e, ScoreEvent)]
+        assert score_event.score.explanation == final
+        [info_event] = [
+            e for e in event_list if isinstance(e, InfoEvent) and e.data == "note"
+        ]
+        assert info_event.metadata == {"note": final}
+
+
+@pytest.fixture
+def legacy_nested_event_log(tmp_path: pathlib.Path) -> tuple[pathlib.Path, str]:
+    """Log whose subtask and tool events hold nested events, as older Inspect wrote them.
+
+    Older writers condensed the nested events, so their model input, choice
+    text and call payload hold genuine references; they reload as dicts.
+    Returns the log path and the referenced content.
+    """
+    content = "nested model input that was pooled " * 4
+    ref = f"attachment://{mm3_hash(content)}"
+    nested_model = ModelEvent(
+        model="mockllm/model",
+        input=[ChatMessageUser(content=ref)],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("mockllm/model", ref),
+        call=ModelCall(
+            request={"messages": [{"role": "user", "content": ref}]}, response={}
+        ),
+    ).model_dump(mode="json")
+    nested_subtask = SubtaskEvent(
+        name="inner", input={}, events=[nested_model]
+    ).model_dump(mode="json")
+    legacy_events: list[Event] = [
+        SubtaskEvent(name="outer", input={}, events=[nested_model, nested_subtask]),
+        ToolEvent(id="call", function="echo", arguments={}, events=[nested_model]),
+    ]
+
+    [log] = inspect_eval(
+        Task(dataset=[Sample(input="hello")]),
+        model="mockllm/model",
+        log_dir=str(tmp_path / "logs"),
+        display="none",
+    )
+    assert log.location
+    read = read_eval_log(log.location)
+    assert read.samples
+    sample = read.samples[0]
+    read.samples = [
+        sample.model_copy(
+            update={
+                "events": [*sample.events, *legacy_events],
+                "error_retries": [
+                    EvalRetryError(
+                        message="retry",
+                        traceback="",
+                        traceback_ansi="",
+                        events=list(legacy_events),
+                    )
+                ],
+                "attachments": {**sample.attachments, mm3_hash(content): content},
+            }
+        )
+    ]
+    source = tmp_path / "source" / pathlib.Path(log.location).name
+    write_eval_log(read, str(source))
+    return source, content
+
+
+def test_convert_chunked_renumbers_references_in_legacy_nested_events(
+    tmp_path: pathlib.Path, legacy_nested_event_log: tuple[pathlib.Path, str]
+):
+    source, content = legacy_nested_event_log
+    output_dir = tmp_path / "chunked"
+    convert_eval_logs_to_chunked(str(source), str(output_dir), chunk_size=_CHUNK_SIZE)
+    with zipfile.ZipFile(output_dir / source.name) as zf:
+        sample, attachments = _reassemble_chunked_sample(zf, 1, 1)
+
+    def nested_refs(nested: dict) -> list[str]:
+        return [
+            nested["input"][0]["content"],
+            nested["output"]["choices"][0]["message"]["content"],
+            nested["call"]["request"]["messages"][0]["content"],
+        ]
+
+    assert sample.error_retries is not None
+    retry_events = sample.error_retries[0].events
+    assert retry_events is not None
+    refs: list[str] = []
+    for event_list in (sample.events, retry_events):
+        [outer] = [e for e in event_list if isinstance(e, SubtaskEvent)]
+        [tool_event] = [e for e in event_list if isinstance(e, ToolEvent)]
+        nested_model, nested_subtask = outer.events
+        refs += nested_refs(nested_model)
+        refs += nested_refs(nested_subtask["events"][0])
+        refs += nested_refs(tool_event.events[0])
+    assert len(refs) == 18
+    for ref in refs:
+        assert re.fullmatch(r"attachment://\d+", ref), ref
+        assert attachments[ref.removeprefix("attachment://")] == content

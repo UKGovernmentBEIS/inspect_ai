@@ -507,25 +507,37 @@ The agent loop runs normally; ACP enables **mid-flight intervention**
 the agent is done. The client model is "intervene and forget" — users
 don't have to babysit the agent to acknowledge termination.
 
-**Lifecycle:**
-1. Sample starts. `AcpSession` is installed but dormant.
-2. Agent enters its body. First call to `before_turn` claims the
-   adapter; the session becomes enumerable.
-3. *Optional pre-start wait*: if `state.messages` has no user content
-   yet, `before_turn` blocks for the first user message. Otherwise it
-   returns immediately with whatever's queued (typically empty on first
-   call).
-4. Agent runs. Clients can attach at any point, observe events, and
-   `session/cancel` + `session/prompt` to inject user messages
-   mid-flight.
-5. Model decides the agent is done (no more tool calls / submit
-   tool fires). `react()` exits normally — **no waiting for the user**.
-6. The adapter's context manager exit fires: send a final
-   `session/update` with terminal status, close the session, drop all
-   client connections to it (they receive an `end` notification + EOF
-   on their session).
-7. Scoring runs immediately (no waiting on humans).
-8. Sample completes.
+**Lifecycle.** `active_sample()` opens one `LiveAcpTransport` per sample,
+around solving, scoring and logging. The transport has two phases, open
+and closed; whether an agent is bound is separate data (`_ref`), not a
+phase.
+
+1. **Open, no agent bound.** Sample setup, custom solvers that never open
+   `agent_channel()`, the gap between consecutive top-level agents, and
+   scoring. Clients can attach (`is_attachable`) and observe the event
+   stream, including scoring events. `is_interactive` is False, so
+   `session/prompt` is rejected and `session/cancel` is dropped. The
+   `ActiveSample.on_interrupt` hook still calls `cancel_current_turn`, which
+   records an `InterruptEvent` and clears `pending` on in-flight model and
+   tool events.
+2. **Open, agent bound.** The top-level `react()` opened `agent_channel()`,
+   which offered its ref through `maybe_bind` (first binder wins; nested
+   sub-agents are rejected). Prompts and cancels route into the channel.
+   `turn_active` reads the bound channel; `inspect/turn_state` relays the
+   channel's transitions: `started` on entering `turn_scope()`, then
+   `cancelled` for an operator interrupt or `ended` for any other exit,
+   including a limit or an error. Leaving `agent_channel()` unbinds, back to
+   phase 1.
+3. **Closed.** `__aexit__` runs once the sample body (including scoring and
+   logging) is done. It detaches the router, closes pubsub (forwarders see
+   EOF and send `inspect/session_ended`), clears subscribers and client
+   registries, and removes the `ActiveSample` registration. After that,
+   `submit_user_message`, `cancel_current_turn` and client attach are
+   no-ops, and `wait_for_client` raises.
+
+When the model decides the agent is done, `react()` exits without waiting
+for the user, and scoring runs immediately. Clients stay attached and see
+the scoring events until the sample closes.
 
 **Why exit on done, not keep alive:** the user wanted to express
 intervention intent, not own the sample's lifetime. If they wanted to
@@ -537,10 +549,11 @@ matches batch-eval expectations.
 - First call, no user content in `state.messages` yet → block.
 - Otherwise → drain queue and return immediately, non-blocking.
 
-This means a user who attaches *after* the agent has already exited
-sees an immediate `end` notification with the final state replayed.
-They can read the transcript but can't drive further interaction —
-that sample is over.
+This means a client that attaches *after* the agent has already exited
+but before the sample closes (through `inspect/list_samples`; the picker
+lists only interactive sessions) gets an observe-only binding with the
+transcript replayed. They can read it but can't drive further
+interaction.
 
 ## Deep dive: interruption
 

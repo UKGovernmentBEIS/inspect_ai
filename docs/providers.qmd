@@ -1091,6 +1091,36 @@ eval("arc.py", model="hf/some-org/custom-arch-model", model_args=dict(trust_remo
 
 The flag is applied to both the model and tokenizer `from_pretrained()` calls.
 
+### Generation Config
+
+`transformers` applies the model repository's `generation_config.json` to every generation. Inspect sets `do_sample`, `max_new_tokens`, and any of `temperature`, `top_p`, `top_k`, and stop sequences that your `GenerateConfig` specifies; every other field (for example `repetition_penalty`, `num_beams`, or `sequence_bias`) comes from the repository. Use the `generation_config` model arg to change this:
+
+| Value | Behavior |
+|---|---|
+| `auto` (default) | Use the repository's `generation_config.json`. |
+| `default` | Use the `transformers` defaults. Unless your `GenerateConfig` sets them, this means sampling at `temperature=1.0` with `top_k=50`, which may differ from the settings the model was tuned for. |
+| path or Hub id | Load the generation config from that location instead (for example, the model the repository was fine-tuned from), using the model's generation config class. |
+| `transformers.GenerationConfig` (Python only) | Passed to `from_pretrained()`, which uses it in place of the repository's config. Recorded with source `object`. |
+
+`default` is not available for models that use a `GenerationConfig` subclass (for example, diffusion models), since their settings have no defaults; use a path instead. With `default` or a path, the BOS, EOS, PAD and decoder start token ids are still taken from the repository, because they refer to its tokenizer's vocabulary and generation needs the EOS token to stop.
+
+``` bash
+inspect eval gsm8k.py --model hf/some-org/fine-tuned-model -M generation_config=default
+```
+
+Each `ModelOutput` records the model's configuration in `metadata["hf_model_config"]`: the chat template's source (`tokenizer` or `model_arg`), the name of the tokenizer template selected by `chat_template` (if any), and the SHA-256 of the template text, the model's generation config fields that differ from the `transformers` defaults, and whether `trust_remote_code` was set. The recorded generation config is the model's own; values your `GenerateConfig` sets (such as `temperature`) override it at generation time.
+
+### Untrusted Model Repositories {#hf-untrusted-repos}
+
+A model repository contains more than weights. Its chat template determines the prompt the model receives, and its `generation_config.json` controls decoding. Both can change evaluation results without any change to the weights: a template can insert text such as known answers into every prompt, and a generation config can bias decoding toward particular tokens. With `trust_remote_code=true`, the repository's Python code runs in the evaluation process and can modify scorers, read sample targets, or rewrite the log.
+
+When you evaluate a repository you do not trust, take the prompt format and decoding settings from a source you do trust:
+
+- Pass a chat template you have reviewed with `-M chat_template=...` (for example, the template of the model the repository was fine-tuned from).
+- Use `-M generation_config=default`, or load the config from a repository you trust with `-M generation_config=<base-model>`, and set sampling parameters explicitly in your `GenerateConfig`. The special token ids, including EOS, still come from the repository.
+- Do not set `trust_remote_code`. If the model requires it, run the evaluation in an isolated environment (for example a container with no access to other logs or credentials) and treat its results as unverified.
+- Check `metadata["hf_model_config"]` in the log to confirm which template and generation settings were used.
+
 ### Model Class
 
 By default the Hugging Face provider loads models with `AutoModelForCausalLM`. Some architectures are not registered with that auto-class and must be loaded with a different one — for example the Mistral 3 series and other image-text-to-text models require `AutoModelForImageTextToText`. Use the `auto_model_class` model arg to name the `transformers` auto-class to use:
@@ -1296,6 +1326,18 @@ inspect eval gsm8k.py --model vllm/Qwen/Qwen3-1.7B-Base -M use_chat_template=fal
 ::: {.callout-note}
 `use_chat_template` only takes effect when Inspect starts the vLLM server. When connecting to an existing server via `VLLM_BASE_URL`, set `--chat-template` when starting the server instead.
 :::
+
+### Untrusted Model Repositories {#vllm-untrusted-repos}
+
+The vLLM server also applies the model repository's chat template and `generation_config.json` by default, so both can affect results independently of the weights (see [Untrusted Model Repositories](#hf-untrusted-repos) for the Hugging Face provider). When Inspect starts the server, model args are passed to `vllm serve`, so you can take these from a trusted source instead:
+
+``` bash
+inspect eval gsm8k.py --model vllm/some-org/fine-tuned-model \
+  -M generation_config=vllm \
+  -M chat_template=/path/to/reviewed-template.jinja
+```
+
+`generation_config=vllm` uses vLLM's defaults rather than the repository's file, and `chat_template` replaces the repository's template. With `trust_remote_code`, the repository's code runs in the vLLM server process rather than the evaluation process, but as the same user, with the same environment variables (including API keys) and filesystem access, so it is not isolated from the evaluation.
 
 ### Raw Text Completions {#sec-vllm-completions}
 
