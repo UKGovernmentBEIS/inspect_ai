@@ -2943,8 +2943,13 @@ def test_a_google_bridge_call_without_a_sentinel_is_not_looked_up(
 
 
 @agent
-def classified_batch_scaffold() -> Agent:
-    """A bridged OpenAI client loop that runs the calls of one response one at a time, sending a request with its own one-message history before each call, as Claude Code's permission classifier does in auto mode, and then the results."""
+def classified_batch_scaffold(
+    shown: Literal["own", "latest", "history"] = "own",
+) -> Agent:
+    """A bridged OpenAI client loop that runs the calls of one response one at a time, sending a request before each call, as Claude Code's permission classifier does in auto mode, and then the results.
+
+    The request before each call has its own one-message history (`own`), or also the proposing response and the latest result (`latest`), or the agent's messages so far (`history`).
+    """
 
     async def execute(state: AgentState) -> AgentState:
         from openai import AsyncOpenAI
@@ -2972,10 +2977,14 @@ def classified_batch_scaffold() -> Agent:
                 messages.append(message.model_dump(exclude_none=True))
                 for call in message.tool_calls or []:
                     question = f"Is call {call.id} safe to run?"
+                    asked: list[Any] = [{"role": "user", "content": question}]
+                    if shown == "history":
+                        asked = [*messages, *asked]
+                    elif shown == "latest" and len(messages) > 2:
+                        asked = [messages[1], messages[-1], *asked]
                     with model_origin("helper"):
                         await client.chat.completions.create(
-                            model="inspect",
-                            messages=[{"role": "user", "content": question}],
+                            model="inspect", messages=asked
                         )
                     messages.append(
                         {
@@ -2992,18 +3001,23 @@ def classified_batch_scaffold() -> Agent:
     return execute
 
 
+@pytest.mark.parametrize("shown", ["own", "latest", "history"])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 def test_a_classifier_request_per_parallel_call_keeps_finding_results_linear(
-    backend: str, monkeypatch: pytest.MonkeyPatch
+    backend: str,
+    shown: Literal["own", "latest", "history"],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # after the pre-push review of 95a93d974: a response proposes many calls
-    # and a request with its own history comes before each one runs; each of
-    # those requests looked up every awaiting call id, so replay was quadratic
-    # in the calls of one response
+    # and a request comes before each one runs; each of those requests looked
+    # up every awaiting call id, so replay was quadratic in the calls of one
+    # response. Counts each id looked up, each scan of an input's tool rows
+    # and each tool row that scan reads
     from inspect_ai._sentinel import _replay
 
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     last_held = _replay._PooledInput.last_held
+    held_from = _replay._PooledInput.held_from
     attempts = 0
 
     def counting(self: Any, *args: Any) -> int | None:
@@ -3011,11 +3025,17 @@ def test_a_classifier_request_per_parallel_call_keeps_finding_results_linear(
         attempts += 1
         return last_held(self, *args)
 
+    def counting_held(self: Any, *args: Any) -> list[tuple[int, int, int]] | None:
+        nonlocal attempts
+        held = held_from(self, *args)
+        attempts += 1 + sum(end - first for _, first, end in held or [])
+        return held
+
     work: list[int] = []
     for calls in (20, 40):
         task = Task(
             dataset=[Sample(input="Read the files.")],
-            solver=as_solver(classified_batch_scaffold()),
+            solver=as_solver(classified_batch_scaffold(shown)),
         )
         output = r7_tool_calls(*(read(f"{n}.py", f"call_{n}") for n in range(calls)))
         [log] = eval(task, model=generated_ids(None, output, done()))
@@ -3024,6 +3044,7 @@ def test_a_classifier_request_per_parallel_call_keeps_finding_results_linear(
             attempts = 0
             with monkeypatch.context() as patch:
                 patch.setattr(_replay._PooledInput, "last_held", counting)
+                patch.setattr(_replay._PooledInput, "held_from", counting_held)
                 replay = replayed_inputs(log, inputs)
             results = [
                 s for s in bridged_steps(log, replay) if s.stage == "tool_result"

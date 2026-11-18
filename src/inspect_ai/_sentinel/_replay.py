@@ -4,9 +4,10 @@ import logging
 import re
 from bisect import bisect_left, bisect_right
 from collections import Counter
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass, replace
 from functools import partial
+from heapq import heappop, heappush
 from itertools import accumulate
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
@@ -371,6 +372,24 @@ class _PooledInput:
                 return start + rows[found] - begin
         return None
 
+    def held_from(
+        self, rows: list[int], low: int, fewer_than: int
+    ) -> list[tuple[int, int, int]] | None:
+        """Where it holds `rows` (sorted) from `low` up, if fewer than `fewer_than` times: for each range holding some, from the last, its offset (position - row) and the slice of `rows` it names; None once it holds as many."""
+        found: list[tuple[int, int, int]] = []
+        count = 0
+        for start, (begin, end) in zip(
+            reversed(self.view.starts), reversed(self.view.refs)
+        ):
+            first = bisect_left(rows, max(begin, low))
+            last = bisect_left(rows, end)
+            if first < last:
+                count += last - first
+                if count >= fewer_than:
+                    return None
+                found.append((start - begin, first, last))
+        return found
+
     def holds(self, row: int) -> bool:
         """Whether a position holds the row's content: a row with it is in an interval of rows this input covers, found by bisecting with whichever is shorter, the rows with that content or the intervals."""
         rows = self._keys.rows(self._keys.canonical(row))
@@ -448,22 +467,43 @@ class _PooledInput:
         return self._points, self._covers, self._held
 
 
+class _ToolRows(NamedTuple):
+    """The pool rows of tool messages: by call id, and all of them in order with the call id of each."""
+
+    by_id: dict[str, list[int]]
+    rows: list[int]
+    ids: list[str]
+
+
 def _new_tool_results(
     current: _PooledInput,
     previous: _PooledInput | None,
     awaiting: "dict[str, _BridgedCall]",
-    tool_rows: Mapping[str, list[int]],
-    every_tool_row: list[int],
+    tool_rows: _ToolRows,
+    floor: int,
 ) -> dict[str, int]:
     """Each awaiting call id's result in `current`, in position order: the position of the last tool message under the id among the messages new against `previous` (`new_positions`).
 
-    An input holding no tool message (`every_tool_row`, the pool rows of all tool messages, sorted) has none, as a request with its own history before each of several calls doesn't. Otherwise the last tool message under each id in all of `current` is found first, from `tool_rows` (the pool rows of tool messages, by call id). If `previous` holds no message with its content, it is new, so it is the last new one, and the rest of `current` is not read. Otherwise the new messages are read in order, as the result can be an earlier one.
+    The last tool message under each id in all of `current` is found first. Only rows from `floor`, the lowest row of an awaiting id, can be one. Where `current` holds fewer such rows than there are awaiting ids, as a request before each of several calls holds none, or only the results of the calls already run, they are read; otherwise each id's rows are looked up. If `previous` holds no message with the found message's content, it is new, so it is the last new one, and the rest of `current` is not read. Otherwise the new messages are read in order, as the result can be an earlier one.
     """
+    held = current.held_from(tool_rows.rows, floor, len(awaiting))
+    candidates: Iterable[tuple[str, int | None]]
+    if held is None:
+        candidates = (
+            (call_id, current.last_held(tool_rows.by_id[call_id]))
+            for call_id in awaiting
+        )
+    else:
+        last: dict[str, int] = {}
+        for offset, first, end in held:
+            for at in range(first, end):
+                call_id = tool_rows.ids[at]
+                if call_id in awaiting:
+                    here = offset + tool_rows.rows[at]
+                    last[call_id] = max(last.get(call_id, here), here)
+        candidates = last.items()
     results: dict[str, int] = {}
-    if current.last_held(every_tool_row) is None:
-        return results
-    for call_id in awaiting:
-        position = current.last_held(tool_rows[call_id])
+    for call_id, position in candidates:
         if position is None:
             continue
         if previous is not None and previous.holds(current.view.row(position)):
@@ -1633,28 +1673,31 @@ class _Driver:
                     made.setdefault(index, []).append(entry)
                     self._bridged_call(entry)
 
-        tool_rows: dict[str, list[int]] = {}
+        tool_rows = _ToolRows({}, [], [])
         for row, message in enumerate(self.keys.pool if made else []):
             if (
                 isinstance(message, ChatMessageTool)
                 and message.tool_call_id is not None
             ):
-                tool_rows.setdefault(message.tool_call_id, []).append(row)
-        every_tool_row = sorted(row for rows in tool_rows.values() for row in rows)
+                tool_rows.by_id.setdefault(message.tool_call_id, []).append(row)
+                tool_rows.rows.append(row)
+                tool_rows.ids.append(message.tool_call_id)
         previous: dict[str, _PooledInput] = {}
         # each conversation's call awaiting a result, by call id
         awaiting: dict[str, dict[str, _BridgedCall]] = {}
+        # each conversation's awaiting ids by their lowest tool row, with ids
+        # no longer awaiting dropped when they reach the top
+        floors: dict[str, list[tuple[int, str]]] = {}
         for index, event in bridged:
             conversation = self._conversation(event)
             current = _PooledInput(self._input(event), self.keys)
             waiting = awaiting.setdefault(conversation, {})
+            floor = floors.setdefault(conversation, [])
             if waiting:
+                while floor[0][1] not in waiting:
+                    heappop(floor)
                 results = _new_tool_results(
-                    current,
-                    previous.get(conversation),
-                    waiting,
-                    tool_rows,
-                    every_tool_row,
+                    current, previous.get(conversation), waiting, tool_rows, floor[0][0]
                 )
                 for call_id, position in results.items():
                     message = current.message(position)
@@ -1662,8 +1705,9 @@ class _Driver:
                     self._bridged_result(waiting.pop(call_id), index, event, message)
             previous[conversation] = current
             for entry in made.get(index, []):
-                if entry.call.id in tool_rows:
+                if entry.call.id in tool_rows.by_id:
                     waiting[entry.call.id] = entry
+                    heappush(floor, (tool_rows.by_id[entry.call.id][0], entry.call.id))
 
         if repeated:
             logging.getLogger(__name__).warning(
