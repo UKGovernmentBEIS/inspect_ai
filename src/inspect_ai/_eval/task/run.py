@@ -1443,11 +1443,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # single loop a stamp lands either before this check (caught
             # here) or after registration (the ordinary running-task path).
             # Nothing with an end-side pairing has fired yet (the task-start
-            # hook comes after register_eval); the display row opened above
-            # is left result-less, which is cosmetic and confined to this
-            # window by the earlier check above the disk paging. The finally
-            # below still runs, so the paged sample store's temp file is
-            # unlinked.
+            # hook comes after register_eval); the handler below completes
+            # the display row opened above as cancelled. The finally below
+            # still runs, so the paged sample store's temp file is unlinked.
             if task_retry_abandoned(logger.eval.task_id):
                 raise TaskRetryAbandonedError()
 
@@ -2415,7 +2413,11 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # to the dispatcher, which maps it to a side-effect-free finalize
             # and discards this attempt's never-started log entry; writing an
             # error log here would supersede the errored prior attempt's log,
-            # which must remain the task's final state
+            # which must remain the task's final state. The row is completed
+            # as cancelled so the display counts it as finished; no samples
+            # ran in this attempt.
+            collect_eval_data(stats)
+            td.complete(TaskCancelled(0, stats))
             raise
 
         except BaseException as ex:

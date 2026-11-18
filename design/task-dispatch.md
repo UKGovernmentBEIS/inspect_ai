@@ -1084,11 +1084,12 @@ async with _run_task_screen(...):              # absorbs a cancellation of the r
   second check runs in the synchronous step that publishes the retry, and
   that step also drops the record's `attempt_cancel` and `attempt_scope`;
   a cancel after it finds the record `queued` and sets `abort_requested`. At the first check `run_one` takes today's no-retry branch,
-  whose `clear_eval_retry_pending(result.eval.eval_id)` unwinds the task
-  runner's pre-mark. At the second, `run_one` has already re-marked the
-  attempt with `mark_eval_retry_pending`, so it calls
-  `clear_eval_retry_pending(result.eval.eval_id)` with the attempt's eval id
-  before ending the record; otherwise the attempt's `EvalState` would stay
+  which unwinds the task runner's pre-mark with `clear_eval_retry_pending`:
+  on the attempt's own `EvalState`, or, for an attempt that never
+  registered, on the task's latest registered attempt
+  (`latest_eval_for_task`). At the second, `run_one` has already re-marked
+  the attempt with `mark_eval_retry_pending`, so it clears the flag the same
+  way before ending the record; otherwise the flagged `EvalState` would stay
   retry-pending and a later task directive would report abandoning a retry
   that does not exist. This matters only after a latched cancellation, when
   attempts still running can finish after the queue closed.
@@ -2110,19 +2111,6 @@ keeps its slot until it ends.
 - A caller's own cancellation of `eval_async()` (for example
   `anyio.fail_after`) being absorbed by `_run_task_screen` like a Ctrl-C.
 - `TaskSource` under `eval_set()` (see `design/task-source.md`).
-- A stale `retry_pending` flag after an unregistered final retry: `run_one`
-  clears the flag using the unregistered attempt's eval id, which
-  `clear_eval_retry_pending` ignores, so the registered attempt stays
-  flagged and, while the run is open, a task cancel or drain reports
-  abandoning a retry that will not run. Today's behaviour, with one more
-  route: a final retry whose `logger.init()` fails now ends as an
-  unregistered attempt (today that failure escapes `reinit()` before the
-  retry is published). One separate fix covers both routes: when an
-  unregistered final retry ends with no further retry, clear the flag on the
-  task's latest registered attempt (`latest_eval_for_task`).
-- A retry of a registered task stopped by the retry-abandon stamp after its
-  display row opened leaves that row without a result, so Rich and Textual
-  end one completed task short of the total. Today's behaviour, unchanged.
 - The log a retry ends with when it is abandoned inside a startup `await` and
   that startup write then fails: `run_one` stores the returned log over the one
   kept before the retry. Today's behaviour, unchanged.
