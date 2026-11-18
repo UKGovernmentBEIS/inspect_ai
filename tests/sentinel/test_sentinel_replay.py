@@ -2986,6 +2986,173 @@ def test_a_google_bridge_call_an_approver_modified_gets_its_result(
         assert replay_warnings(caplog) == []
 
 
+@tool
+def r7_read_file() -> Tool:
+    async def execute(path: str) -> str:
+        """Read a file.
+
+        Args:
+            path: The file to read.
+        """
+        return f"<{path}>"
+
+    return execute
+
+
+@approver
+def r7_approved_paths(paths: dict[str, str]) -> Approver:
+    """Approves a call, modified to read `paths[path]` where `paths` has its path."""
+
+    async def approve(
+        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
+    ) -> Approval:
+        path = call.arguments.get("path")
+        if path not in paths:
+            return Approval(decision="approve")
+        return Approval(
+            decision="modify",
+            modified=replace(call, arguments={"path": paths[path]}),
+        )
+
+    return approve
+
+
+@agent
+def r7_google_dispatcher_scaffold(approval: list[ApprovalPolicy]) -> Agent:
+    """An Antigravity-style tool loop over the Google API: it calls a bridged host tool through the `call_mcp_tool` dispatcher, runs each call as the bridge hands it over, and sends each result back as a `functionResponse`, until a response has no calls."""
+
+    async def execute(state: AgentState) -> AgentState:
+        from inspect_ai.agent._bridge.google_api import inspect_google_api_request
+        from inspect_ai.agent._bridge.sandbox.service import call_tool
+        from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
+
+        bridge = SandboxAgentBridge(
+            state=state,
+            filter=None,
+            retry_refusals=None,
+            compaction=None,
+            port=8080,
+            model=None,
+            bridged_tools={"host": {"read_file": r7_read_file()}},
+            approval=approval,
+        )
+        tools = [
+            {
+                "functionDeclarations": [
+                    {
+                        "name": "call_mcp_tool",
+                        "description": "Call a tool on an MCP server.",
+                        "parameters": {"type": "object"},
+                    }
+                ]
+            }
+        ]
+        contents: list[dict[str, Any]] = [
+            {"role": "user", "parts": [{"text": "Read the files."}]}
+        ]
+        for _ in range(10):
+            response = await inspect_google_api_request(
+                {"model": "inspect", "contents": contents, "tools": tools},
+                None,
+                None,
+                bridge,
+            )
+            content = response["candidates"][0]["content"]
+            contents.append(content)
+            calls = [p["functionCall"] for p in content["parts"] if "functionCall" in p]
+            if not calls:
+                break
+            parts = []
+            for function_call in calls:
+                arguments = function_call["args"]
+                result = await call_tool(bridge)(
+                    arguments["ServerName"],
+                    arguments["ToolName"],
+                    arguments["Arguments"],
+                )
+                parts.append(
+                    {
+                        "functionResponse": {
+                            "name": function_call["name"],
+                            "response": {"output": str(result)},
+                        }
+                    }
+                )
+            contents.append({"role": "user", "parts": parts})
+        return state
+
+    return execute
+
+
+def dispatched_read(path: str) -> ModelOutput:
+    return call(
+        "call_mcp_tool",
+        ServerName="host",
+        ToolName="read_file",
+        Arguments={"path": path},
+    )
+
+
+@pytest.mark.parametrize("modify", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_google_bridge_call_modified_through_a_dispatcher_takes_no_result(
+    modify: bool,
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # the log doesn't record the arguments the bridge sent a dispatcher call
+    # an approver modified, so replay can't rebuild the id the call's result
+    # comes back under: the call gets no result, and doesn't take another
+    # call's (here the second call's, sent with the first call's arguments)
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    paths = {"first.txt": "second.txt", "third.txt": "first.txt"} if modify else {}
+    log = run_logged(
+        as_solver(
+            r7_google_dispatcher_scaffold(
+                [ApprovalPolicy(r7_approved_paths(paths), "*")]
+            )
+        ),
+        outputs(dispatched_read("first.txt"), dispatched_read("third.txt"), done()),
+    )
+    events = logged_sample(log).events
+    approvals = [e for e in events if isinstance(e, ApprovalEvent)]
+    assert [a.decision for a in approvals] == ["modify" if modify else "approve"] * 2
+    ran = [e for e in events if isinstance(e, ToolEvent)]
+    assert [e.arguments for e in ran] == [
+        {"path": "second.txt" if modify else "first.txt"},
+        {"path": "first.txt" if modify else "third.txt"},
+    ]
+    [first, second] = [
+        c.id
+        for e in events
+        if isinstance(e, ModelEvent) and e.requested_model is not None
+        for c in e.output.message.tool_calls or []
+    ]
+    for inputs in ["expanded", "pooled"]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            rebuilt = bridged_steps(log, replayed_inputs(log, inputs))
+        results = [
+            (s.id.split("/")[1], resulted(s).text)
+            for s in rebuilt
+            if s.stage == "tool_result"
+        ]
+        assert results == (
+            []
+            if modify
+            else [
+                (first, '{"output": "<first.txt>"}'),
+                (second, '{"output": "<third.txt>"}'),
+            ]
+        ), inputs
+        assert [s.id.split("/")[1] for s in rebuilt if s.stage == "tool_call"] == [
+            first,
+            second,
+        ], inputs
+        assert replay_warnings(caplog) == []
+
+
 @pytest.mark.parametrize("side", [False, True])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 def test_a_google_retry_s_call_gets_the_result_the_agent_sent(

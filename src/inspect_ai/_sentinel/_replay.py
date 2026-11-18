@@ -2577,7 +2577,7 @@ def _google_rebuilt(
 ) -> dict[str, _BridgedCall]:
     """The calls in `waiting` by each id the Google bridge reads them back under without a sentinel (`gemini_rebuilt_call_ids`: as the bridge sent the response, or as Gemini CLI records it), from the output their model call recorded; a later call takes an id from an earlier one, since only the latest call under an id awaits a result.
 
-    It keys on the call's function, arguments and part index in the response the bridge built from that output, through the bridge's own functions; `cache` holds each model call's ids by its event index. The bridge sends a call an approver modified with the approved arguments (`with_modified_arguments`; `_with_arguments`), which the recorded output does not hold, so they are taken from the call's last approval in `approvals` (by its model call's event index and call id; `_approved_arguments`). The ids of a call that came through another dialect are computed too, and a result matches one only under such an exact id.
+    It keys on the call's function, arguments and part index in the response the bridge built from that output, through the bridge's own functions; `cache` holds each model call's ids by its event index. The bridge sends a call an approver modified with the approved arguments (`with_modified_arguments`; `_with_arguments`), which the recorded output does not hold, so they are taken from the call's last approval in `approvals` (by its model call's event index and call id; `_approved_arguments`). A modified call whose approved arguments the log doesn't hold (one reached through a dispatcher) has no ids, so it takes no result. The ids of a call that came through another dialect are computed too, and a result matches one only under such an exact id.
     """
     from inspect_ai.agent._bridge.google_api_impl import gemini_rebuilt_call_ids
 
@@ -2587,23 +2587,23 @@ def _google_rebuilt(
         if ids is None:
             output = entry.event.output
             calls = output.choices[0].message.tool_calls or []
-            approved = {
-                index: arguments
-                for index, call in enumerate(calls)
-                if (
-                    arguments := _approved_arguments(
-                        approvals.get((entry.position, call.id)), call
-                    )
-                )
-                is not None
-            }
-            ids = cache[entry.position] = dict(
-                zip(
-                    (call.id for call in calls),
+            approved: dict[int, dict[str, Any]] = {}
+            unknown: set[str] = set()
+            for index, call in enumerate(calls):
+                approval = approvals.get((entry.position, call.id))
+                arguments = _approved_arguments(approval, call)
+                if arguments is not None:
+                    approved[index] = arguments
+                elif _approver_modified(approval) is not None:
+                    unknown.add(call.id)
+            ids = cache[entry.position] = {
+                call.id: () if call.id in unknown else call_ids
+                for call, call_ids in zip(
+                    calls,
                     gemini_rebuilt_call_ids(_with_arguments(output, approved)),
                     strict=True,
                 )
-            )
+            }
         for rebuilt_id in ids[entry.call.id]:
             rebuilt[rebuilt_id] = entry
     return rebuilt
