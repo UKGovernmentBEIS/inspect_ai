@@ -1,4 +1,6 @@
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
 from copy import copy
 from dataclasses import fields
 from logging import getLogger
@@ -99,6 +101,7 @@ from ._person import (
 from ._scope import BRIDGE_CHECK_SPAN, sentinel_scope
 from ._steps import (
     ConversationRecord,
+    Producer,
     after_generate,
     after_tool_call,
     before_generate,
@@ -124,9 +127,14 @@ async def sentinel_before_tool_call(
     history: list[ChatMessage] | None,
     producer: ModelEvent | None = None,
     *,
+    assistant_message: ChatMessageAssistant | None = None,
     bridge: bool = False,
     execution_id: str | None = None,
 ) -> Decision | None:
+    """Run the sentinel before a tool call runs.
+
+    `producer` is the model call that produced `call`, if the caller knows it (an agent bridge); otherwise it is found in `history`. `assistant_message` is the message that made the call, if it is not `producer`'s output message (a bridge that handed the call over under a fresh id): the caller's own copy, which it doesn't change after.
+    """
     if not _watches(BeforeToolCall):
         return None
     _require_message_id()
@@ -134,8 +142,7 @@ async def sentinel_before_tool_call(
         view = resolve_tool_call_view(call, viewer, reject_on_error=True)
     except ToolCallViewError as ex:
         raise ToolApprovalError(str(ex)) from ex
-    if producer is None and history is not None:
-        producer = _producing_event(call, history)
+    produced = _producer(call, history, producer, assistant_message)
     conversation = current_conversation()
     step = before_tool_call(
         conversation=conversation,
@@ -143,7 +150,7 @@ async def sentinel_before_tool_call(
         message_id=_message_id(message_id),
         call=call,
         view=view,
-        producer=producer_of(producer),
+        producer=produced,
         agent_messages=agent_messages(conversation),
         record=_record(conversation),
     )
@@ -179,12 +186,15 @@ async def sentinel_after_tool_call(
     history: list[ChatMessage] | None,
     producer: ModelEvent | None = None,
     *,
+    assistant_message: ChatMessageAssistant | None = None,
     reject_on_viewer_error: bool = False,
     bridge: bool = False,
     execution_id: str | None = None,
     view: ToolCallView | None = None,
 ) -> None:
     """Run the sentinel after a tool call ran, before the model sees its result.
+
+    `producer` and `assistant_message` are as for `sentinel_before_tool_call`.
 
     `view` is the call's view, if already rendered with `viewer` (a bridge
     renders it to tell the step apart from those already checked); otherwise
@@ -193,8 +203,7 @@ async def sentinel_after_tool_call(
     if not _watches(AfterToolCall):
         return
     _require_message_id()
-    if producer is None and history is not None:
-        producer = _producing_event(call, history)
+    produced = _producer(call, history, producer, assistant_message)
     conversation = current_conversation()
     step = after_tool_call(
         conversation=conversation,
@@ -210,7 +219,7 @@ async def sentinel_after_tool_call(
         output=output,
         # None when the host cannot tell (a scaffold-run tool under a bridge)
         truncated=Truncation(*truncated) if truncated else truncated,
-        producer=producer_of(producer),
+        producer=produced,
         agent_messages=agent_messages(conversation),
         record=_record(conversation),
     )
@@ -422,17 +431,111 @@ def _assistant_index(call: ToolCall, history: list[ChatMessage]) -> int | None:
     return None
 
 
-def _producing_event(call: ToolCall, history: list[ChatMessage]) -> ModelEvent | None:
-    index = _assistant_index(call, history)
-    message_id = history[index].id if index is not None else None
-    if message_id is None:
+def _producer(
+    call: ToolCall,
+    history: list[ChatMessage] | None,
+    producer: ModelEvent | None,
+    assistant_message: ChatMessageAssistant | None,
+) -> Producer | None:
+    """What a tool step reads of the model call that produced `call`: `producer`, else the one found in `history`.
+
+    Only a model call whose message (`assistant_message`, else its output message) holds `call` counts. A call the scaffold added to the model's message is not the model's, which is also how replay decides.
+    """
+    if producer is not None:
+        produced = producer_of(producer, assistant_message)
+    elif history is not None:
+        produced = _found_producer(call, history)
+    else:
         return None
+    if produced is None or not any(
+        proposed.id == call.id for proposed in produced.message.tool_calls or []
+    ):
+        return None
+    return produced
+
+
+def _found_producer(call: ToolCall, history: list[ChatMessage]) -> Producer | None:
+    """What a tool step reads of the model call that produced `call`.
+
+    A call of the message whose calls the current `execute_tools()` runs gets that turn's producer (`tool_turn`), without a search of `history`, which a tool may have added to. Any other call gets the producer of the message in `history` holding it.
+    """
+    turn = _tool_turn.get()
+    if turn is not None and call.id in turn.call_ids:
+        return turn.producer()
+    message_id = _assistant_message_id(call, history)
+    return producer_of(_message_event(message_id)) if message_id is not None else None
+
+
+def _producing_event(call: ToolCall, history: list[ChatMessage]) -> ModelEvent | None:
+    """The model call that produced the message in `history` holding `call`."""
+    message_id = _assistant_message_id(call, history)
+    return _message_event(message_id) if message_id is not None else None
+
+
+def _assistant_message_id(call: ToolCall, history: list[ChatMessage]) -> str | None:
+    """The id of the message in `history` holding `call`."""
+    index = _assistant_index(call, history)
+    return history[index].id if index is not None else None
+
+
+def _message_event(message_id: str) -> ModelEvent | None:
+    """The latest model call that produced the message `message_id`."""
     try:
         return transcript().history.find_last(produced_by(message_id))
     except TranscriptHistoryUnavailableError:
         return None
     except Exception as ex:
         raise SentinelFailure(ex) from ex
+
+
+class _ToolTurn:
+    """The message whose calls one `execute_tools()` call runs, and the model call that produced it."""
+
+    def __init__(self, message: ChatMessageAssistant | None) -> None:
+        self.message_id = message.id if message is not None else None
+        # the calls execute_tools() runs, as the message held them when it started
+        self.call_ids = frozenset(
+            call.id
+            for call in (message.tool_calls if message is not None else None) or []
+        )
+        self._producer: Producer | None = None
+        self._found = False
+
+    def producer(self) -> Producer | None:
+        """The model call that produced the message, found once per turn."""
+        if not self._found:
+            if self.message_id is not None:
+                self._producer = producer_of(_message_event(self.message_id))
+            self._found = True
+        return self._producer
+
+
+_tool_turn: ContextVar[_ToolTurn | None] = ContextVar("_tool_turn", default=None)
+
+
+@contextmanager
+def tool_turn(messages: Sequence[ChatMessage]) -> Iterator[None]:
+    """Bind the tool steps of one `execute_tools()` call to the message whose calls it runs (the last of `messages`) and to its producer (`_found_producer`).
+
+    The producer is found before any call runs, so a model call a tool makes during the turn can't be taken for it, even one that produces the same message id (a reused output). A message a tool adds to the history can't be either, even one holding a call with the same id. The steps also share one object where a bounded transcript evicts the model call while they run, when each lookup would read back a new copy.
+    """
+    message = messages[-1] if messages else None
+    turn = _ToolTurn(
+        message
+        if isinstance(message, ChatMessageAssistant) and message.tool_calls
+        else None
+    )
+    if turn.call_ids and (_watches(BeforeToolCall) or _watches(AfterToolCall)):
+        try:
+            turn.producer()
+        except SentinelFailure:
+            # the turn's first step looks again, and fails its call as any step does
+            pass
+    token = _tool_turn.set(turn)
+    try:
+        yield
+    finally:
+        _tool_turn.reset(token)
 
 
 class _HostNative:

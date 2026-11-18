@@ -1021,6 +1021,158 @@ def test_heading_is_renamed_before_the_release_pr_checks_are_dispatched() -> Non
 
 
 # ---------------------------------------------------------------------------
+# Slack announcement
+# ---------------------------------------------------------------------------
+
+SLACK_ACTION = "meridianlabs-ai/actions/slack-release-announce@"
+NOTES_STEP = "Read the release notes"
+
+
+def test_announce_runs_only_after_pypi_publishing_succeeds() -> None:
+    jobs = _load(".github/workflows/release.yml")["jobs"]
+    announce = jobs["announce"]
+    # A rejected or failed PyPI publish skips it; npm does not hold it back.
+    assert announce["needs"] == ["release-please", "publish-pypi"]
+    # No condition beyond the implicit success() of its needs, as in
+    # inspect_flow and inspect_swarm.
+    assert "if" not in announce
+    assert announce["permissions"] == {"contents": "read"}
+    assert announce["timeout-minutes"] <= 10
+
+    steps = announce["steps"]
+    assert not any(s.get("uses", "").startswith("actions/checkout@") for s in steps)
+    (slack,) = [s for s in steps if s.get("uses", "").startswith(SLACK_ACTION)]
+    assert re.fullmatch(r"[0-9a-f]{40}", slack["uses"].removeprefix(SLACK_ACTION))
+    assert slack["with"] == {
+        "webhook": "${{ secrets.SLACK_WEBHOOK_URL }}",
+        "title": ":rocket: inspect-ai ${{ needs.release-please.outputs.tag }} released",
+        "release-url": "${{ steps.notes.outputs.url }}",
+        "release-body": "${{ steps.notes.outputs.body }}",
+    }
+    notes = next(s for s in steps if s.get("name") == NOTES_STEP)
+    assert notes["env"]["TAG"] == "${{ needs.release-please.outputs.tag }}"
+    # Untrusted text reaches the script only through the environment.
+    assert "${{" not in notes["run"]
+
+
+def test_only_the_announce_job_gets_the_slack_webhook() -> None:
+    for path in (REPO / ".github").rglob("*.y*ml"):
+        text = path.read_text()
+        if path.name != "release.yml":
+            assert "SLACK_WEBHOOK_URL" not in text, path
+    jobs = _load(".github/workflows/release.yml")["jobs"]
+    users = [name for name, job in jobs.items() if "SLACK_WEBHOOK_URL" in str(job)]
+    assert users == ["announce"]
+
+
+def _parse_github_output(text: str) -> dict[str, str]:
+    """Parse a $GITHUB_OUTPUT file the way the runner does."""
+    outputs: dict[str, str] = {}
+    lines = iter(text.split("\n"))
+    for line in lines:
+        if "<<" in line and ("=" not in line or line.index("<<") < line.index("=")):
+            key, delimiter = line.split("<<", 1)
+            value: list[str] = []
+            for body_line in lines:
+                if body_line == delimiter:
+                    break
+                value.append(body_line)
+            else:
+                raise AssertionError(f"unterminated output {key}")
+            outputs[key] = "\n".join(value)
+        elif line:
+            key, value_text = line.split("=", 1)
+            outputs[key] = value_text
+    return outputs
+
+
+def _run_notes_step(
+    tmp_path: Path, gh_script: str
+) -> tuple[subprocess.CompletedProcess[str], Path]:
+    """Run the announce job's notes step with a fake `gh`; return its $GITHUB_OUTPUT."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    gh = bin_dir / "gh"
+    gh.write_text(f"#!/bin/bash\n{gh_script}\n")
+    gh.chmod(0o755)
+    output = tmp_path / "github-output"
+    output.write_text("")
+    runner_temp = tmp_path / "runner-temp"
+    runner_temp.mkdir()
+    steps = _load(".github/workflows/release.yml")["jobs"]["announce"]["steps"]
+    step = next(s for s in steps if s.get("name") == NOTES_STEP)
+    env = {
+        **os.environ,
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+        "GH_TOKEN": "token",
+        "TAG": "0.3.300",
+        "GITHUB_REPOSITORY": GH_REPO,
+        "GITHUB_OUTPUT": str(output),
+        "RUNNER_TEMP": str(runner_temp),
+    }
+    # The runner's default shell for `run:` steps.
+    result = subprocess.run(
+        ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", step["run"]],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    return result, output
+
+
+needs_notes_tools = pytest.mark.skipif(
+    any(shutil.which(tool) is None for tool in ("bash", "jq", "openssl")),
+    reason="needs bash, jq and openssl",
+)
+
+
+@needs_notes_tools
+@pytest.mark.parametrize("trailing_newline", [True, False])
+def test_announce_reads_the_notes_of_the_resolved_tag(
+    tmp_path: Path, trailing_newline: bool
+) -> None:
+    """The notes reach the step output intact, however hostile their text."""
+    body = (
+        "## [0.3.300](https://github.com/x/y/compare/0.3.299...0.3.300)\n"
+        "\n"
+        "* fix: $(touch pwned) `touch pwned` ${HOME} <!channel>\n"
+        "EOF\n"
+        "body<<EOF\n"
+        "url=https://evil.example"
+    ) + ("\n" if trailing_newline else "")
+    url = f"https://github.com/{GH_REPO}/releases/tag/0.3.300"
+    release = tmp_path / "release.json"
+    release.write_text(json.dumps({"url": url, "body": body}))
+    gh_args = tmp_path / "gh-args"
+
+    result, output = _run_notes_step(tmp_path, f'echo "$@" > {gh_args}\ncat {release}')
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert gh_args.read_text().split() == [
+        "release",
+        "view",
+        "0.3.300",
+        "--repo",
+        GH_REPO,
+        "--json",
+        "url,body",
+    ]
+    assert _parse_github_output(output.read_text()) == {
+        "url": url,
+        "body": body,
+    }
+    assert not (tmp_path / "pwned").exists()
+
+
+@needs_notes_tools
+def test_announce_fails_when_the_release_cannot_be_read(tmp_path: Path) -> None:
+    result, output = _run_notes_step(tmp_path, "echo 'release not found' >&2\nexit 1")
+    assert result.returncode != 0
+    assert output.read_text() == ""
+
+
+# ---------------------------------------------------------------------------
 # Changelog Lint: PRs other than the release PR must not edit CHANGELOG.md
 # ---------------------------------------------------------------------------
 

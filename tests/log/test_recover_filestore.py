@@ -22,7 +22,7 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
 from inspect_ai.event._store import StoreEvent
-from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
+from inspect_ai.log._condense import ATTACHMENT_PROTOCOL, CONTENT_PROTOCOL
 from inspect_ai.log._file import read_eval_log_async, write_eval_log_async
 from inspect_ai.log._log import (
     EvalConfig,
@@ -1429,7 +1429,17 @@ async def test_streaming_recovery_sample_id_with_unsafe_chars() -> None:
             assert not os.path.exists(os.path.join(temp_dir, "etc", "passwd"))
 
 
-async def test_streaming_recovery_merges_segment_attachment_pool() -> None:
+@pytest.mark.parametrize(
+    ("protocol", "hash_"),
+    [
+        (ATTACHMENT_PROTOCOL, "deadbeefcafe0000deadbeefcafe0000"),
+        (ATTACHMENT_PROTOCOL, "album/café"),
+        (CONTENT_PROTOCOL, "album/photo"),
+    ],
+)
+async def test_streaming_recovery_merges_segment_attachment_pool(
+    protocol: str, hash_: str
+) -> None:
     """Segment attachment pool must be merged into recovered ZIP.
 
     The live buffer writer condenses events into `attachment://<hash>` refs
@@ -1445,13 +1455,12 @@ async def test_streaming_recovery_merges_segment_attachment_pool() -> None:
 
             # Large content (would be condensed at write time by the live writer)
             payload = "x" * 5_000
-            hash_ = "deadbeefcafe0000deadbeefcafe0000"
 
-            # Build a model event with a pre-condensed `attachment://<hash>` ref
-            # (mimicking what the live buffer writer stores after _condense_event)
+            # Buffer events can contain current or legacy attachment references.
+            reference = f"{protocol}{hash_}"
             event = ModelEvent(
                 model="mockllm/model",
-                input=[ChatMessageUser(content=f"{ATTACHMENT_PROTOCOL}{hash_}")],
+                input=[ChatMessageUser(content=reference)],
                 tools=[],
                 tool_choice="auto",
                 config=GenerateConfig(),
@@ -1510,6 +1519,8 @@ async def test_streaming_recovery_merges_segment_attachment_pool() -> None:
                 f"Expected attachment {hash_} to be merged from segment pool, "
                 f"got keys={list(raw['attachments'].keys())}"
             )
+            expected_content = payload if protocol == ATTACHMENT_PROTOCOL else reference
+            assert raw["messages"][0]["content"] == expected_content
 
             # End-to-end resolution must work
             read_log = await read_eval_log_async(
@@ -1521,7 +1532,7 @@ async def test_streaming_recovery_merges_segment_attachment_pool() -> None:
                 e for e in read_sample.events if isinstance(e, ModelEvent)
             )
             # After resolve, the ref should have expanded to payload
-            assert payload in first_model_event.input[0].text
+            assert first_model_event.input[0].text == payload
 
 
 def _write_sample_init_event_dict(

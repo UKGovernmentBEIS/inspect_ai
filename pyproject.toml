@@ -236,7 +236,7 @@ dev = [
   "groq>=0.28.0",
   "huggingface_hub>=1.6.0",
   "inspect-scout>=0.5.5",
-  "inspect-sentinel>=0.3.1",
+  "inspect-sentinel>=0.3.2",
   "ipython",
   "jsonpath-ng",
   "latex2sympy2-extended==1.11.0",
