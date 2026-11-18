@@ -486,6 +486,8 @@ These steps follow the conversation, not the checks a sentinel made live, so the
 | The result never reached the model (e.g. a limit or a sentinel ended the sample) | The call, with no result |
 | The model reused the id of an earlier call (the bridge hands the call over under a new id) | The call, with no result |
 
+Without a sentinel, the Google bridge doesn't keep call ids, so replay shows a Gemini agent's tool calls but not their results.
+
 Replay doesn't attach the live sentinel's checks of bridged calls to these steps. To compare them, join the two downstream (e.g. in inspect_sentinel) by sample, step (`tool_call` or `tool_result`), the `uuid` of the model call that wrote the call, and call id. To find that model call for a recorded check, use log order: it is the latest bridged `ModelEvent` before the check whose output contains the check's call id. A person's decision at a live check still reaches the later steps of the conversation.
 
 A bridged call's steps are named by its model call's `uuid` and the call id (`<uuid>/<call id>`), so they never take the id of a native tool call. If one model response has two calls with the same id, replay skips both and logs a warning.

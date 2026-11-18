@@ -27,7 +27,7 @@ from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
 from inspect_ai.model._message_ids import canonical_tool_arguments
 from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import ModelOutput, ModelUsage, StopReason
-from inspect_ai.model._providers._google_computer_use_name import (
+from inspect_ai.model._providers._google_computer_use import (
     gemini_action_from_tool_call,
 )
 from inspect_ai.model._reasoning import (
@@ -185,8 +185,13 @@ async def inspect_google_api_request_impl(
         output, model.api.model_name, call_ids=call_ids
     )
     debug_log("SCAFFOLD RESPONSE", response)
-    transported = _transported(
-        response["candidates"][0]["content"],
+    # re-parse the JSON the client receives (e.g. integer argument keys become
+    # strings) as a later request's history is parsed, so an unchanged echo
+    # matches it
+    wire_content = json.loads(json.dumps(response["candidates"][0]["content"]))
+    transported = messages_from_google_contents(
+        [wire_content],
+        None,
         handed=bridge._handouts.wire_names if call_ids else None,
     )
 
@@ -194,62 +199,6 @@ async def inspect_google_api_request_impl(
     await bridge._track_state(messages, output, [transported])
 
     return response
-
-
-def _transported(
-    content: dict[str, Any],
-    handed: Callable[[str], AbstractSet[str] | None] | None,
-) -> list[ChatMessage]:
-    """A response's `content` as a later request's history parses it, when the scaffold sends it back unchanged: the JSON the client receives is re-parsed (e.g. integer argument keys become strings), so an unchanged echo matches it."""
-    return messages_from_google_contents(
-        [json.loads(json.dumps(content))], None, handed=handed
-    )
-
-
-def gemini_rebuilt_call_ids(output: ModelOutput) -> list[tuple[str, ...]]:
-    """The ids under which the Google bridge reads each of `output`'s calls, and its result, back without a sentinel.
-
-    Without a sentinel the response carries no call ids, so a later request's history rebuilds each call's id from its function, arguments and part index (`_extract_model_parts`), and its `functionResponse` takes that id. A call's ids are its id under the parts as the bridge sent them, then under the parts as Gemini CLI records the response (adjacent text parts merged, `geminiChat.ts`), except an id that one layout gives another of its calls, which names neither. A scaffold that otherwise drops or reorders parts reads the call back under neither.
-    """
-    content = gemini_response_from_output(output, "")["candidates"][0]["content"]
-    sent = _call_ids(content)
-    recorded = _call_ids({**content, "parts": _merged_text_parts(content["parts"])})
-    ambiguous = {
-        rebuilt_id
-        for rebuilt_id in set(sent) & set(recorded)
-        if sent.index(rebuilt_id) != recorded.index(rebuilt_id)
-    }
-    return [
-        tuple(i for i in dict.fromkeys((a, b)) if i not in ambiguous)
-        for a, b in zip(sent, recorded, strict=True)
-    ]
-
-
-def _call_ids(content: dict[str, Any]) -> list[str]:
-    """The ids a later request's history gives the calls in a response's `content`, sent back without call ids."""
-    return [
-        call.id
-        for message in _transported(content, None)
-        if isinstance(message, ChatMessageAssistant)
-        for call in message.tool_calls or []
-    ]
-
-
-def _merged_text_parts(parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """`parts` with adjacent non-empty text parts merged, as Gemini CLI records a response."""
-    merged: list[dict[str, Any]] = []
-    for part in parts:
-        last = merged[-1] if merged else None
-        if (
-            last is not None
-            and last.keys() == {"text"}
-            and last["text"]
-            and part.keys() == {"text"}
-        ):
-            merged[-1] = {"text": last["text"] + part["text"]}
-        else:
-            merged.append(part)
-    return merged
 
 
 def debug_log(caption: str, o: Any) -> None:

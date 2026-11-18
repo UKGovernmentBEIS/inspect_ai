@@ -33,7 +33,6 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageTool,
 )
-from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_call import (
     ToolCall,
     ToolCallView,
@@ -122,7 +121,7 @@ def steps_from_events(
     For an agent run through an agent bridge, replay shows each tool call as the model wrote it, and each result as the model next received it. The bridge's model calls are those that record the model its agent requested (`ModelEvent.requested_model`, since Inspect 0.3.277):
 
     - `tool_call`: a call from such a model call's output, as written (no approver's or sentinel's modify, and a host tool under the name the model used), with that model call's input, tools and tool_choice, right after its `model_output` step.
-    - `tool_result`: the tool message under the call's id in the first later bridged request of the same conversation that carries it, as that request's input has it (a rejection or placeholder included), right before that request's `model_input` step. Without a sentinel, the Google bridge hands a call over without its id and reads its result back under an id it rebuilds from the call's function, arguments and part index; a result under no awaiting call's id goes to the call with that rebuilt id. The result goes to the latest proposal of its id still awaiting one: where the agent sent a request twice and used the second response, the first response's call has none. A call no later request answers has none. A call the bridge handed over under a new id, as when the model reused an earlier call's id for a different call, has no `tool_result` step: the next request carries its result under the new id.
+    - `tool_result`: the tool message under the call's id in the first later bridged request of the same conversation that carries it, as that request's input has it (a rejection or placeholder included), right before that request's `model_input` step. Without a sentinel, the Google bridge hands a call over without its id and reads its result back under another id, so its calls have no `tool_result` step. The result goes to the latest proposal of its id still awaiting one: where the agent sent a request twice and used the second response, the first response's call has none. A call no later request answers has none. A call the bridge handed over under a new id, as when the model reused an earlier call's id for a different call, has no `tool_result` step: the next request carries its result under the new id.
     - Both are named `<model call uuid>/<call id>`, by the model call whose output has the call: after a retried generate, its last attempt, where the model steps take the first attempt's `uuid`.
 
     A bridge's recorded checks (in spans named `sentinel_bridge`), approvals and host `ToolEvent`s are not paired with these steps, so a check's recorded `human()` answers are not attached to them. A `human()` decision at such a check, and a person's approval, still reach the later steps of the conversation, as live; that includes the `tool_result` step of the checked result, which comes after its check. A call a native `ToolEvent` ran (a request filter's own agent generates under the bridge's request) keeps its native steps. Calls sharing an id in one bridged response are skipped, with a warning.
@@ -700,9 +699,6 @@ class _Driver:
         self.output_spans: dict[int, str | None] = {}
         # call id -> the indexes of the model events that proposed it
         self.proposed: dict[str, list[int]] = {}
-        # the last approval of each proposed call, by the index of the model
-        # event that proposed it and the call id (`_google_rebuilt`)
-        self.last_approvals: dict[tuple[int, str], ApprovalEvent] = {}
         # the ids of model calls' output messages
         self.outputs: set[str] = set()
         # each model event's input view and producer, shared by its steps
@@ -832,8 +828,6 @@ class _Driver:
                         index,
                         event,
                     )
-                if owner is not None:
-                    self.last_approvals[(owner.position, event.call.id)] = event
                 if owner is None and proposals.proposed(event.call.id):
                     unplaced_approvals.append((index, event))
                 else:
@@ -1566,9 +1560,7 @@ class _Driver:
 
         A call is taken from the output of a model call the bridge made for its agent, unless a native `ToolEvent` ran it (`native`, by the model call's event index and the call id). Its result is in the first later bridged request of its conversation whose new messages, against the conversation's previous bridged request (`_PooledInput.new_positions`), include a tool message under its id: the last such message, since a call's result follows every earlier message under its id. So a result already in the previous request, as under an id the model reused, is not taken again, and neither is one the request rewrote, as compaction replaces an old result. Only the latest call under an id awaits a result, since a result answers the call the agent used: a call from a response the agent discarded (a request it sent again) gets none.
 
-        A tool message is under a call's id when its id is the call's, or, for a tool message under no awaiting call's id, an id the Google bridge rebuilds for the call without a sentinel (`_google_rebuilt`): that bridge then hands a call over without its id, and reads the call and its result back under one it computes from the call as it sent it, with any arguments an approver's modify gave it. Once such a message is read, a call whose rebuilt ids later awaiting calls all have no longer awaits a result, as under a call id.
-
-        A request is compared with the conversation's previous bridged request, whichever history that continued. After a request with its own history, the next request shows the earlier results it carries as new. They go to no call, since their calls no longer await one, unless an awaiting call shares an id with an earlier call whose result that request carries, and the request doesn't carry the awaiting call's own: the awaiting call then gets the earlier result. This happens when a lost response is retried after such a request, or when a request built from part of the agent's history follows one, as Gemini CLI's loop check can. The ids are shared when the model reuses an id for the same call, or, under the Google bridge without a sentinel, when the two calls have the same function, arguments and part index.
+        A request is compared with the conversation's previous bridged request, whichever history that continued. After a request with its own history, the next request shows the earlier results it carries as new. They go to no call, since their calls no longer await one, unless an awaiting call shares an id with an earlier call whose result that request carries, and the request doesn't carry the awaiting call's own: the awaiting call then gets the earlier result. This happens when a lost response is retried after such a request, or when a request built from part of the agent's history follows one, as Gemini CLI's loop check can. The ids are shared when the model reuses an id for the same call.
         """
         made: dict[int, list[_BridgedCall]] = {}
         repeated: list[str] = []
@@ -1588,46 +1580,22 @@ class _Driver:
         previous: dict[str, _PooledInput] = {}
         # each conversation's call awaiting a result, by call id
         awaiting: dict[str, dict[str, _BridgedCall]] = {}
-        google: dict[int, dict[str, tuple[str, ...]]] = {}
         for index, event in bridged:
             conversation = self._conversation(event)
             current = _PooledInput(self._input(event), self.keys)
             waiting = awaiting.setdefault(conversation, {})
             if waiting:
-                rebuilt: dict[str, _BridgedCall] | None = None
-                # by the call id of the call each answers
                 results: dict[str, ChatMessageTool] = {}
                 for position in current.new_positions(previous.get(conversation)):
                     message = current.message(position)
                     if (
-                        not isinstance(message, ChatMessageTool)
-                        or message.tool_call_id is None
+                        isinstance(message, ChatMessageTool)
+                        and message.tool_call_id in waiting
                     ):
-                        continue
-                    answered = waiting.get(message.tool_call_id)
-                    if (
-                        answered is None
-                        and message.function is not None
-                        and message.tool_call_id.startswith(f"call_{message.function}_")
-                    ):
-                        if rebuilt is None:
-                            rebuilt = _google_rebuilt(
-                                waiting, google, self.last_approvals
-                            )
-                        answered = rebuilt.get(message.tool_call_id)
-                    if answered is not None:
-                        results.pop(answered.call.id, None)
-                        results[answered.call.id] = message
+                        results.pop(message.tool_call_id, None)
+                        results[message.tool_call_id] = message
                 for call_id, message in results.items():
                     self._bridged_result(waiting.pop(call_id), index, event, message)
-                if rebuilt is not None:
-                    latest = {id(entry) for entry in rebuilt.values()}
-                    for call_id in [
-                        call_id
-                        for call_id, entry in waiting.items()
-                        if id(entry) not in latest
-                    ]:
-                        del waiting[call_id]
             previous[conversation] = current
             for entry in made.get(index, []):
                 waiting[entry.call.id] = entry
@@ -2568,77 +2536,6 @@ def _same_call(a: ToolCall, b: ToolCall) -> bool:
     return json_equal(a.arguments, b.arguments) and replace(a, arguments={}) == replace(
         b, arguments={}
     )
-
-
-def _google_rebuilt(
-    waiting: dict[str, _BridgedCall],
-    cache: dict[int, dict[str, tuple[str, ...]]],
-    approvals: dict[tuple[int, str], ApprovalEvent],
-) -> dict[str, _BridgedCall]:
-    """The calls in `waiting` by each id the Google bridge reads them back under without a sentinel (`gemini_rebuilt_call_ids`: as the bridge sent the response, or as Gemini CLI records it), from the output their model call recorded; a later call takes an id from an earlier one, since only the latest call under an id awaits a result.
-
-    It keys on the call's function, arguments and part index in the response the bridge built from that output, through the bridge's own functions; `cache` holds each model call's ids by its event index. The bridge sends a call an approver modified with the approved arguments (`with_modified_arguments`; `_with_arguments`), which the recorded output does not hold, so they are taken from the call's last approval in `approvals` (by its model call's event index and call id; `_approved_arguments`). A modified call whose approved arguments the log doesn't hold (one reached through a dispatcher) has no ids, so it takes no result. The ids of a call that came through another dialect are computed too, and a result matches one only under such an exact id.
-    """
-    from inspect_ai.agent._bridge.google_api_impl import gemini_rebuilt_call_ids
-
-    rebuilt: dict[str, _BridgedCall] = {}
-    for entry in sorted(waiting.values(), key=lambda entry: entry.seq):
-        ids = cache.get(entry.position)
-        if ids is None:
-            output = entry.event.output
-            calls = output.choices[0].message.tool_calls or []
-            approved: dict[int, dict[str, Any]] = {}
-            unknown: set[str] = set()
-            for index, call in enumerate(calls):
-                approval = approvals.get((entry.position, call.id))
-                arguments = _approved_arguments(approval, call)
-                if arguments is not None:
-                    approved[index] = arguments
-                elif _approver_modified(approval) is not None:
-                    unknown.add(call.id)
-            ids = cache[entry.position] = {
-                call.id: () if call.id in unknown else call_ids
-                for call, call_ids in zip(
-                    calls,
-                    gemini_rebuilt_call_ids(_with_arguments(output, approved)),
-                    strict=True,
-                )
-            }
-        for rebuilt_id in ids[entry.call.id]:
-            rebuilt[rebuilt_id] = entry
-    return rebuilt
-
-
-def _with_arguments(
-    output: ModelOutput, arguments: dict[int, dict[str, Any]]
-) -> ModelOutput:
-    """`output`, or a copy of it with the calls at the positions in `arguments` given those arguments."""
-    if not arguments:
-        return output
-    copied = output.model_copy(deep=True)
-    for index, call in enumerate(copied.message.tool_calls or []):
-        if index in arguments:
-            call.arguments = arguments[index]
-    return copied
-
-
-def _approved_arguments(
-    approval: ApprovalEvent | None, call: ToolCall
-) -> dict[str, Any] | None:
-    """The arguments the bridge sent `call` with after an approver's `modify` (`apply_bridge_tool_approval`); None without one.
-
-    Only where the approver reviewed the call with its own arguments: the
-    bridge maps arguments approved for a dispatcher's target back to the
-    dispatcher call's (`ReviewedCalls.dispatch`), which the log does not record.
-    """
-    modified = _approver_modified(approval)
-    if (
-        approval is None
-        or modified is None
-        or not json_equal(approval.call.arguments, call.arguments)
-    ):
-        return None
-    return modified.arguments
 
 
 def _bridged(event: ToolEvent) -> bool:

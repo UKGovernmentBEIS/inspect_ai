@@ -12,10 +12,8 @@ from inspect_ai.model import ChatMessage, ChatMessageUser, GenerateConfig, get_m
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._providers._google_computer_use import (
     _parse_gemini_action,
-    tool_call_from_gemini_computer_action,
-)
-from inspect_ai.model._providers._google_computer_use_name import (
     gemini_action_from_tool_call,
+    tool_call_from_gemini_computer_action,
 )
 from inspect_ai.model._providers._google_reasoning import gemini_computer_actions
 from inspect_ai.model._providers.google import content as google_content

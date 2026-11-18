@@ -2,11 +2,9 @@
 
 import bisect
 import dataclasses
-import importlib
 import json
 import logging
 import random
-import sys
 from collections.abc import Awaitable, Callable, Iterator, Sequence
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -29,7 +27,12 @@ from inspect_ai._sentinel._integration import (
 )
 from inspect_ai._sentinel._steps import ListView, PoolView
 from inspect_ai._util._async import tg_collect
-from inspect_ai._util.content import ContentImage, ContentReasoning, ContentText
+from inspect_ai._util.content import (
+    Content,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+)
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent import (
     Agent,
@@ -2617,8 +2620,10 @@ def gemini_scaffold(
     side: bool = False,
     gemini_cli: bool = False,
     loop_check: int | None = None,
+    compaction: CompactionStrategy | None = None,
+    padding: str = "",
 ) -> Agent:
-    """A Gemini CLI-style tool loop over the Google client: it keeps each response's content as history and answers each call with a `functionResponse` carrying the call's id (none without a sentinel) and `t<turn>:<index>`, until a response has no calls.
+    """A Gemini CLI-style tool loop over the Google client, bridged with `compaction`: it keeps each response's content as history and answers each call with a `functionResponse` carrying the call's id (none without a sentinel), `t<turn>:<index>` and `padding`, until a response has no calls.
 
     With `retry`, it loses its first response to each request and sends the request again. With `side`, it sends a request with its own history and no tools before each of its requests. With `gemini_cli`, it records each response as Gemini CLI does (`geminiChat.ts`), with adjacent text parts merged. With `loop_check`, before the request of that turn it sends a request with its own history (as Gemini CLI's `web_fetch` does), then a request as Gemini CLI's LLM loop check builds it (`loopDetectionService.ts`): the original request in a wrapper, the last 20 history entries without the trailing call turn and its results, and the check's prompt.
     """
@@ -2663,7 +2668,7 @@ def gemini_scaffold(
                 )
             ]
         )
-        async with agent_bridge(state) as bridge:
+        async with agent_bridge(state, compaction=compaction) as bridge:
             client = genai.Client(api_key="inspect")
             contents: list[types.Content] = [
                 types.Content(role="user", parts=[types.Part(text="What is 1 + 1?")])
@@ -2727,7 +2732,7 @@ def gemini_scaffold(
                                 function_response=types.FunctionResponse(
                                     id=call.id,
                                     name=call.name,
-                                    response={"output": f"t{turn}:{index}"},
+                                    response={"output": f"t{turn}:{index}{padding}"},
                                 )
                             )
                             for index, call in enumerate(calls)
@@ -2764,26 +2769,22 @@ def gemini_turns() -> list[ModelOutput]:
 
 
 @pytest.mark.parametrize("gemini_cli", [False, True])
-@pytest.mark.parametrize("sentinel", [False, True])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
-def test_a_google_bridge_result_goes_to_its_call(
+def test_a_google_bridge_result_goes_to_its_call_with_a_sentinel(
     gemini_cli: bool,
-    sentinel: bool,
     backend: str,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    # the Google bridge hands a call over without its id unless a sentinel is
-    # active, and then reads the call and its result back under an id it
-    # rebuilds from the call and its part index, as the scaffold records the
-    # response: with `gemini_cli`, the second turn's text and `<think>` parts
-    # are merged, which moves its calls' parts
+    # with a sentinel, the Google bridge hands each call over under its id and
+    # reads its result back under it; with `gemini_cli`, the second turn's text
+    # and `<think>` parts are merged, which moves its calls' parts
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     seen: dict[str, Step] = {}
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
         solver=as_solver(gemini_scaffold(gemini_cli=gemini_cli)),
-        sentinel=[r7_probe(seen, copies=True)] if sentinel else None,
+        sentinel=[r7_probe(seen, copies=True)],
     )
     [log] = eval(task, model=get_model("mockllm/model", custom_outputs=gemini_turns()))
     assert log.status == "success", log.error
@@ -2792,10 +2793,9 @@ def test_a_google_bridge_result_goes_to_its_call(
         e for e in events if isinstance(e, ModelEvent) and e.requested_model is not None
     ]
     assert len(made) == 4
-    if sentinel:
-        with caplog.at_level(logging.WARNING):
-            assert_replay_rebuilds_bridge_steps(log, seen)
-        assert replay_warnings(caplog) == []
+    with caplog.at_level(logging.WARNING):
+        assert_replay_rebuilds_bridge_steps(log, seen)
+    assert replay_warnings(caplog) == []
     uuids = [e.uuid for e in made]
     for inputs in ["expanded", "pooled"]:
         caplog.clear()
@@ -2832,157 +2832,6 @@ def test_a_google_bridge_result_goes_to_its_call(
         ], inputs
         for turn, result in results:
             assert result in made[turn + 1].input, inputs
-        assert replay_warnings(caplog) == []
-
-
-@pytest.mark.parametrize("gemini_cli", [False, True])
-@pytest.mark.parametrize("backend", ["asyncio", "trio"])
-def test_a_google_bridge_identical_calls_do_not_trade_results(
-    gemini_cli: bool,
-    backend: str,
-    monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    # without a sentinel, two identical calls after text and `<think>` parts:
-    # the first call's id as sent is the second call's id as Gemini CLI
-    # records the response, so that id names neither, and each layout loses
-    # one result rather than giving it to the other call
-    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
-    task = Task(
-        dataset=[Sample(input="What is 1 + 1?", target="2")],
-        solver=as_solver(gemini_scaffold(gemini_cli=gemini_cli)),
-    )
-    turns = [
-        ModelOutput(
-            model="mockllm/model",
-            choices=[
-                ChatCompletionChoice(
-                    message=ChatMessageAssistant(
-                        content=[
-                            ContentText(text="Reading."),
-                            ContentReasoning(reasoning="c2lnbmF0dXJl", redacted=True),
-                        ],
-                        tool_calls=[read("a.txt", "read_1"), read("a.txt", "read_2")],
-                    ),
-                    stop_reason="tool_calls",
-                )
-            ],
-        ),
-        done(),
-    ]
-    [log] = eval(task, model=get_model("mockllm/model", custom_outputs=turns))
-    assert log.status == "success", log.error
-    for inputs in ["expanded", "pooled"]:
-        caplog.clear()
-        with caplog.at_level(logging.WARNING):
-            replay = replayed_inputs(log, inputs)
-        results = [
-            (s.id.split("/")[1], resulted(s).text)
-            for s in bridged_steps(log, replay)
-            if s.stage == "tool_result"
-        ]
-        assert results == (
-            [("read_1", '{"output": "t0:0"}')]
-            if gemini_cli
-            else [("read_2", '{"output": "t0:1"}')]
-        ), inputs
-
-
-@pytest.mark.parametrize("backend", ["asyncio", "trio"])
-def test_a_google_bridge_log_replays_without_the_google_sdk(
-    backend: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # replay rebuilds the Google bridge's ids through the bridge's own
-    # functions, which must not need google-genai (an optional dependency)
-    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
-    task = Task(
-        dataset=[Sample(input="What is 1 + 1?", target="2")],
-        solver=as_solver(gemini_scaffold()),
-    )
-    [log] = eval(task, model=get_model("mockllm/model", custom_outputs=gemini_turns()))
-    assert log.status == "success", log.error
-    for name in list(sys.modules):
-        if name == "google.genai" or name.startswith("google.genai."):
-            monkeypatch.setitem(sys.modules, name, None)
-        elif name in (
-            "inspect_ai.agent._bridge.google_api_impl",
-            "inspect_ai.model._providers._google_computer_use",
-        ):
-            monkeypatch.delitem(sys.modules, name)
-    monkeypatch.setitem(sys.modules, "google.genai", None)
-    with pytest.raises(ImportError):
-        importlib.import_module("google.genai.types")
-    for inputs in ["expanded", "pooled"]:
-        results = [
-            (s.id.split("/")[1], resulted(s).text)
-            for s in bridged_steps(log, replayed_inputs(log, inputs))
-            if s.stage == "tool_result"
-        ]
-        assert results == [
-            ("read_1", '{"output": "t0:0"}'),
-            ("read_2", '{"output": "t0:1"}'),
-            ("read_3", '{"output": "t1:0"}'),
-            ("read_4", '{"output": "t1:1"}'),
-            ("read_5", '{"output": "t2:0"}'),
-        ], inputs
-
-
-@approver
-def r7_approved_path(path: str | None) -> Approver:
-    """Approves a call, modified to read `path` when one is given."""
-
-    async def approve(
-        message: str, call: ToolCall, view: ToolCallView, history: list[ChatMessage]
-    ) -> Approval:
-        if path is None:
-            return Approval(decision="approve")
-        return Approval(
-            decision="modify", modified=replace(call, arguments={"path": path})
-        )
-
-    return approve
-
-
-@pytest.mark.parametrize("modify", [False, True])
-@pytest.mark.parametrize("backend", ["asyncio", "trio"])
-def test_a_google_bridge_call_an_approver_modified_gets_its_result(
-    modify: bool,
-    backend: str,
-    monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    # without a sentinel the bridge sends the call with the approved
-    # arguments, which the recorded output does not hold, and reads it and
-    # its result back under an id rebuilt from them; the `tool_call` step
-    # shows the call as the model wrote it
-    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
-    task = Task(
-        dataset=[Sample(input="What is 1 + 1?", target="2")],
-        solver=as_solver(gemini_scaffold()),
-        approval=[
-            ApprovalPolicy(r7_approved_path("approved.txt" if modify else None), "*")
-        ],
-    )
-    turns = [r7_tool_calls(read("original.txt", "read_1")), done()]
-    [log] = eval(task, model=get_model("mockllm/model", custom_outputs=turns))
-    assert log.status == "success", log.error
-    approval = next(
-        e for e in logged_sample(log).events if isinstance(e, ApprovalEvent)
-    )
-    assert approval.decision == ("modify" if modify else "approve")
-    for inputs in ["expanded", "pooled"]:
-        caplog.clear()
-        with caplog.at_level(logging.WARNING):
-            rebuilt = bridged_steps(log, replayed_inputs(log, inputs))
-        assert [(s.stage, s.id.split("/")[1]) for s in rebuilt] == [
-            ("tool_call", "read_1"),
-            ("tool_result", "read_1"),
-        ], inputs
-        assert [called(s).arguments for s in rebuilt] == [
-            {"path": "original.txt"},
-            {"path": "original.txt"},
-        ], inputs
-        assert resulted(rebuilt[1]).text == '{"output": "t0:0"}', inputs
         assert replay_warnings(caplog) == []
 
 
@@ -3093,179 +2942,168 @@ def dispatched_read(path: str) -> ModelOutput:
     )
 
 
-@pytest.mark.parametrize("modify", [False, True])
+def reading(*paths: str, content: Sequence[Content] = ()) -> ModelOutput:
+    """A response with `content` before a read of each of `paths`, for `generated_ids` to give the calls ids."""
+    return ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content=list(content), tool_calls=[read(path, "") for path in paths]
+                ),
+                stop_reason="tool_calls",
+            )
+        ],
+    )
+
+
+SIGNED = ContentReasoning(reasoning="c2lnbmF0dXJl", redacted=True)
+"""Signed reasoning, which the Google bridge sends as a `<think>` part."""
+
+
+def google_run(case: str) -> tuple[Agent, Any, list[ApprovalPolicy] | None]:
+    """The scaffold, model and approval policies of a Google bridge run without a sentinel (`test_a_google_bridge_call_has_no_result_without_a_sentinel`)."""
+    text = ContentText(text="Reading.")
+    retried = [o for turn in [reading("a.txt")] * 3 for o in [turn, turn]]
+    match case:
+        case "turns" | "gemini-cli":
+            return (
+                gemini_scaffold(gemini_cli=case == "gemini-cli"),
+                get_model("mockllm/model", custom_outputs=gemini_turns()),
+                None,
+            )
+        case "identical" | "identical-gemini-cli":
+            return (
+                gemini_scaffold(gemini_cli=case == "identical-gemini-cli"),
+                generated_ids(
+                    "read_", reading("a.txt", "a.txt", content=[text, SIGNED]), done()
+                ),
+                None,
+            )
+        case "modified":
+            return (
+                gemini_scaffold(),
+                generated_ids("read_", reading("original.txt"), done()),
+                [
+                    ApprovalPolicy(
+                        r7_approved_paths({"original.txt": "approved.txt"}), "*"
+                    )
+                ],
+            )
+        case "dispatcher-modified":
+            paths = {"first.txt": "second.txt", "third.txt": "first.txt"}
+            return (
+                r7_google_dispatcher_scaffold(
+                    [ApprovalPolicy(r7_approved_paths(paths), "*")]
+                ),
+                outputs(
+                    dispatched_read("first.txt"), dispatched_read("third.txt"), done()
+                ),
+                None,
+            )
+        case "retry" | "retry-side":
+            return (
+                gemini_scaffold(retry=True, side=case == "retry-side"),
+                generated_ids("read_", *retried, done(), done()),
+                None,
+            )
+        case "loop-check":
+            return (
+                gemini_scaffold(loop_check=3),
+                generated_ids(
+                    "read_",
+                    *[reading(f"{name}.txt") for name in "aba"],
+                    done("Fetched."),
+                    done('{"loop": false}'),
+                    done(),
+                ),
+                None,
+            )
+        case "retry-compaction":
+            return (
+                gemini_scaffold(
+                    retry=True,
+                    compaction=CompactionEdit(threshold=COMPACTED_AT_FOUR),
+                    padding=PADDING,
+                ),
+                generated_ids(
+                    "read_",
+                    reading("a.txt", content=[text, SIGNED]),
+                    reading("a.txt", content=[SIGNED]),
+                    *[reading(f"{name}.txt") for name in "bbccdd"],
+                    done(),
+                    done(),
+                ),
+                None,
+            )
+    raise ValueError(case)
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "turns",
+        "gemini-cli",
+        "identical",
+        "identical-gemini-cli",
+        "modified",
+        "dispatcher-modified",
+        "retry",
+        "retry-side",
+        "loop-check",
+        "retry-compaction",
+    ],
+)
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
-def test_a_google_bridge_call_modified_through_a_dispatcher_takes_no_result(
-    modify: bool,
+def test_a_google_bridge_call_has_no_result_without_a_sentinel(
+    case: str,
     backend: str,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    # the log doesn't record the arguments the bridge sent a dispatcher call
-    # an approver modified, so replay can't rebuild the id the call's result
-    # comes back under: the call gets no result, and doesn't take another
-    # call's (here the second call's, sent with the first call's arguments)
+    # without a sentinel, the Google bridge hands a call over without its id
+    # and reads its result back under an id it makes up, so replay shows each
+    # call and no result: a missing result rather than another call's.
+    # `retry-compaction` loses each response and sends its request again, with
+    # text before the first lost call and not before its retry, and compaction
+    # replaces the first result
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
-    paths = {"first.txt": "second.txt", "third.txt": "first.txt"} if modify else {}
-    log = run_logged(
-        as_solver(
-            r7_google_dispatcher_scaffold(
-                [ApprovalPolicy(r7_approved_paths(paths), "*")]
-            )
-        ),
-        outputs(dispatched_read("first.txt"), dispatched_read("third.txt"), done()),
+    scaffold, model, approval = google_run(case)
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=as_solver(scaffold),
+        approval=approval,
     )
-    events = logged_sample(log).events
-    approvals = [e for e in events if isinstance(e, ApprovalEvent)]
-    assert [a.decision for a in approvals] == ["modify" if modify else "approve"] * 2
-    ran = [e for e in events if isinstance(e, ToolEvent)]
-    assert [e.arguments for e in ran] == [
-        {"path": "second.txt" if modify else "first.txt"},
-        {"path": "first.txt" if modify else "third.txt"},
-    ]
-    [first, second] = [
-        c.id
-        for e in events
+    [log] = eval(task, model=model)
+    assert log.status == "success", log.error
+    made = [
+        e
+        for e in logged_sample(log).events
         if isinstance(e, ModelEvent) and e.requested_model is not None
-        for c in e.output.message.tool_calls or []
     ]
+    proposed = [
+        f"{e.uuid}/{c.id}" for e in made for c in e.output.message.tool_calls or []
+    ]
+    received = {
+        m.tool_call_id for e in made for m in e.input if isinstance(m, ChatMessageTool)
+    }
+    # the model received results, under ids no call has
+    assert received and not received & {p.split("/")[1] for p in proposed}
+    if case == "retry-compaction":
+        assert len([e for e in made if e.tools]) == 10
+        removed = [
+            m
+            for e in made
+            for m in e.input
+            if isinstance(m, ChatMessageTool) and m.text == TOOL_RESULT_REMOVED
+        ]
+        assert len(removed) == 2
     for inputs in ["expanded", "pooled"]:
         caplog.clear()
         with caplog.at_level(logging.WARNING):
             rebuilt = bridged_steps(log, replayed_inputs(log, inputs))
-        results = [
-            (s.id.split("/")[1], resulted(s).text)
-            for s in rebuilt
-            if s.stage == "tool_result"
-        ]
-        assert results == (
-            []
-            if modify
-            else [
-                (first, '{"output": "<first.txt>"}'),
-                (second, '{"output": "<third.txt>"}'),
-            ]
-        ), inputs
-        assert [s.id.split("/")[1] for s in rebuilt if s.stage == "tool_call"] == [
-            first,
-            second,
-        ], inputs
-        assert replay_warnings(caplog) == []
-
-
-@pytest.mark.parametrize("side", [False, True])
-@pytest.mark.parametrize("backend", ["asyncio", "trio"])
-def test_a_google_retry_s_call_gets_the_result_the_agent_sent(
-    side: bool,
-    backend: str,
-    monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    # without a sentinel, the agent loses each response and sends its request
-    # again; the model answers the retry with the same call under a new id,
-    # which the Google bridge reads back under the same rebuilt id
-    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
-    task = Task(
-        dataset=[Sample(input="What is 1 + 1?", target="2")],
-        solver=as_solver(gemini_scaffold(retry=True, side=side)),
-    )
-    [log] = eval(
-        task,
-        model=generated_ids(
-            "read_",
-            *[
-                output
-                for turn in [r7_tool_calls(read("a.txt", ""))] * 3
-                for output in [turn, turn]
-            ],
-            done(),
-            done(),
-        ),
-    )
-    assert log.status == "success", log.error
-    events = logged_sample(log).events
-    made = [
-        e
-        for e in events
-        if isinstance(e, ModelEvent) and e.requested_model is not None and e.tools
-    ]
-    assert len(made) == 8
-    uuids = [e.uuid for e in made]
-    for inputs in ["expanded", "pooled"]:
-        caplog.clear()
-        with caplog.at_level(logging.WARNING):
-            replay = replayed_inputs(log, inputs)
-        results = [
-            (uuids.index(s.id.split("/")[0]), s.id.split("/")[1], resulted(s).text)
-            for s in bridged_steps(log, replay)
-            if s.stage == "tool_result"
-        ]
-        # each call the agent received gets its result; a lost response's
-        # call has none, unless a side request came before its retry: the
-        # documented limitation (`_bridged_tool_steps`), as the retry doesn't
-        # carry the lost call's result and the previous turn's result looks
-        # new against the side request
-        assert results == [
-            (1, "read_2", '{"output": "t0:0"}'),
-            *([(2, "read_3", '{"output": "t0:0"}')] if side else []),
-            (3, "read_4", '{"output": "t1:0"}'),
-            *([(4, "read_5", '{"output": "t1:0"}')] if side else []),
-            (5, "read_6", '{"output": "t2:0"}'),
-        ], inputs
-        assert replay_warnings(caplog) == []
-
-
-@pytest.mark.parametrize("backend", ["asyncio", "trio"])
-def test_a_google_loop_check_after_a_side_request_gives_a_call_an_earlier_result(
-    backend: str,
-    monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    # the documented limitation (`_bridged_tool_steps`), with no lost response:
-    # without a sentinel, the third turn reads `a.txt` at the first part, as
-    # the first did, so both calls share a rebuilt id; before the next turn's
-    # request, a request with its own history and then a loop check, which
-    # carries the first turn's result but not the third's, so the third call
-    # gets the first turn's result
-    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
-    task = Task(
-        dataset=[Sample(input="What is 1 + 1?", target="2")],
-        solver=as_solver(gemini_scaffold(loop_check=3)),
-    )
-    [log] = eval(
-        task,
-        model=get_model(
-            "mockllm/model",
-            custom_outputs=[
-                r7_tool_calls(read("a.txt", "read_1")),
-                r7_tool_calls(read("b.txt", "read_2")),
-                r7_tool_calls(read("a.txt", "read_3")),
-                done("Fetched."),
-                done('{"loop": false}'),
-                done(),
-            ],
-        ),
-    )
-    assert log.status == "success", log.error
-    events = logged_sample(log).events
-    made = [
-        e for e in events if isinstance(e, ModelEvent) and e.requested_model is not None
-    ]
-    assert [bool(e.tools) for e in made] == [True, True, True, False, False, True]
-    uuids = [e.uuid for e in made]
-    for inputs in ["expanded", "pooled"]:
-        caplog.clear()
-        with caplog.at_level(logging.WARNING):
-            replay = replayed_inputs(log, inputs)
-        results = [
-            (uuids.index(s.id.split("/")[0]), s.id.split("/")[1], resulted(s).text)
-            for s in bridged_steps(log, replay)
-            if s.stage == "tool_result"
-        ]
-        assert results == [
-            (0, "read_1", '{"output": "t0:0"}'),
-            (1, "read_2", '{"output": "t1:0"}'),
-            (2, "read_3", '{"output": "t0:0"}'),
+        assert [(s.stage, s.id) for s in rebuilt] == [
+            ("tool_call", p) for p in proposed
         ], inputs
         assert replay_warnings(caplog) == []
 
