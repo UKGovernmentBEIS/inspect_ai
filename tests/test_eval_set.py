@@ -861,7 +861,8 @@ def test_eval_set_refuses_a_log_dir_holding_shards(tmp_path: Path) -> None:
         eval_set(task, log_dir=str(log_dir), model="mockllm/model", display="none")
 
     for companion in companions:
-        assert str(companion) in str(raised.value)
+        # listed local names use forward slashes, also on Windows
+        assert companion.as_posix() in str(raised.value)
     assert "inspect log merge-shards" in str(raised.value)
     assert _files_below(log_dir) == files
 

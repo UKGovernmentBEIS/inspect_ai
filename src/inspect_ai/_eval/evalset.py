@@ -218,9 +218,11 @@ def _refuse_shard_companions(log_dir: str) -> None:
             "[bold]ERROR[/bold]: The log directory holds shards: "
             f"{', '.join(escape(c) for c in sorted(companions))}. eval_set() "
             "does not merge shards. Merge them with `inspect log merge-shards` "
-            "(or `merge_eval_log_shards()`), rerunning failed or missing "
-            "samples as shards and merging again, then move the .shards "
-            "directory out of the log directory."
+            "(or `merge_eval_log_shards()`). If samples failed or are missing, "
+            "retry each incomplete shard in its own numbered directory with "
+            "the same selection, run samples no shard selected as new shards, "
+            "and merge again. Then move the .shards directory out of the log "
+            "directory."
         )
 
 

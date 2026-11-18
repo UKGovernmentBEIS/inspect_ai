@@ -1466,8 +1466,8 @@ is guarded.
 a `<name>.shards/` companion (decision: Ransom with JJ Allaire,
 2026-11-18). No current caller needs a merge at startup, and a retry at
 startup would run samples outside a launcher's per-instance placement: a
-launcher that runs one sample per instance reruns failed samples as new
-shards and merges with the API or `inspect log merge-shards`.
+launcher that runs one sample per instance retries a failed sample's shard
+in its own `<k>/` and merges with the API or `inspect log merge-shards`.
 
 In `src/inspect_ai/_eval/evalset.py`, after the selection-mode branch and
 before the eval set ID is written, `eval_set()` lists the directory once
@@ -1482,8 +1482,11 @@ If any listed log is a shard log, it raises `PrerequisiteError` before it
 lists logs for pairing, runs a task or writes anything. The message names
 each `.shards` directory found that way and says that `eval_set()` does
 not merge shards, to merge them with `inspect log merge-shards` (or the
-Python API), rerunning failed or missing samples as shards and merging
-again, and then to move the `.shards` directory out of the log directory.
+Python API), and, if samples failed or are missing, to retry each
+incomplete shard in its own `<k>/` with the same selection (a new shard
+selecting the same samples would overlap it, which the merge refuses), run
+samples no shard selected as new shards and merge again; then to move the
+`.shards` directory out of the log directory.
 
 The rule is broader than `is_shard_path`, deliberately. It also refuses an
 eval set run on a numbered shard directory itself or on a `<name>.shards`
@@ -2188,7 +2191,7 @@ through eval's own task resolution.
 6. **Eval-set integration.** `eval_set()` refuses a log directory that
    holds a companion ("Eval-set integration"), with a `docs/eval-sets.qmd`
    note and a note in `docs/sharding.qmd` giving the workflow (merge,
-   rerun failed samples as shards, move the companion out). Depends on 5
+   retry incomplete shards in place, move the companion out). Depends on 5
    and 5b. Files: `_eval/evalset.py`, `docs/eval-sets.qmd`,
    `docs/sharding.qmd`, `tests/test_eval_set.py`.
 7. **Streaming recomputation.** Include-only score extraction, keeping

@@ -711,7 +711,8 @@ shard, not a transfer through the client.
 `eval_set()` does not merge shards (decision: Ransom with JJ Allaire,
 2026-11-18). No current caller needs a merge at startup, and a retry at
 startup would run samples outside a launcher's per-instance placement. A
-launcher reruns failed or missing samples as new shards and merges again
+launcher retries an incomplete shard in its own `<k>/` with the same
+selection, runs samples no shard selected as new shards, and merges again
 with the API or the CLI.
 
 `eval_set()` refuses a log directory that holds a companion: before it
@@ -723,9 +724,10 @@ log by its own name: its parent directory is all digits under a
 does not depend on how a provider lists the log directory, and it is
 broader than the merge's walk: it also refuses an eval set run on a shard
 directory or companion itself. `log_dir_allow_dirty=True` does not bypass
-it. The message names the companions and says to merge them, rerun failed
-samples as shards and merge again, then move the `.shards` directory out
-of the log directory. After that the merged log is an ordinary log of the
+it. The message names the companions and says to merge them (retrying
+incomplete shards in their own `<k>/` with the same selection, running
+samples no shard selected as new shards, and merging again), then move
+the `.shards` directory out of the log directory. After that the merged log is an ordinary log of the
 eval set. Without the refusal, pairing would take the shard attempts as
 attempts of one task (first-matching pairing, count-based completeness).
 Selection mode never scans the directory and is unchanged.
@@ -825,8 +827,9 @@ What readers that list shards pay:
 ### Notes for harnesses
 
 - `eval_set()` refuses a log directory that holds a companion. Merge the
-  shards, rerun failed samples as shards and merge again, then move the
-  companion out before running an eval set there (see "Eval-set
+  shards (retrying incomplete shards in their own `<k>/` with the same
+  selection, and running samples no shard selected as new shards), then
+  move the companion out before running an eval set there (see "Eval-set
   integration").
 - Harnesses that stage logs on local disk and upload at the end (JJ's
   benchmark harness proposal): `--log-shared` syncs the sample buffer into a
