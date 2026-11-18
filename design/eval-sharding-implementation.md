@@ -1473,8 +1473,15 @@ In `src/inspect_ai/_eval/evalset.py`, `eval_set()` lists the directory
 with `list_eval_logs` and checks those names before the embedded viewer
 and scanner contexts enter, since both read log headers and write output.
 The first `try_eval` attempt passes that listing to
-`list_all_eval_logs(log_dir, log_files=...)` for the header reads; a
-retry attempt lists again and checks again. So the check adds no listing
+`list_all_eval_logs(log_dir, log_files=...)` for the header reads. The
+check runs once, at startup, in both retry modes (decision: Ransom,
+2026-11-18): with the default `retry_immediate=True` there is one
+`try_eval` call, and the legacy `retry_immediate=False` passes list the
+directory again for pairing without checking it again. A launcher writes
+shards before an eval set runs over the parent directory; shards that
+appear while an eval set is running are not supported (the viewer's and
+scanners' teardown read every listed log, which would mask a refusal
+there). So the check adds no listing
 and reads no header of its own, and the eval set reads no shard header
 for pairing (decision: Ransom, 2026-11-18). The listing itself keeps its
 existing best-effort header read for a log whose file name does not parse
@@ -2090,9 +2097,10 @@ Per PR (numbers from "Implementation plan"):
    and writes no log, manifest, viewer or scan output, also with
    `embed_viewer=True` or a scanner (one shard in a numbered directory,
    an unreadable older attempt beside it, one stray log directly in a
-   companion); an eval set over a
-   directory with no shard logs runs and, run again, finds its log
-   complete.
+   companion); an eval set over a directory with no shard logs runs and,
+   run again, finds its log complete; a legacy retry pass
+   (`retry_immediate=False`) lists the directory again and continues from
+   the failed log the first pass wrote.
 7. **Streaming recomputation.** `tests/log/test_shards.py`: peak memory
    (`tracemalloc`) of a merge over shards with large transcripts and small
    scores does not grow with transcript size; with large score metadata,

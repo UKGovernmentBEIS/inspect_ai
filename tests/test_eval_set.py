@@ -894,49 +894,40 @@ def test_eval_set_refuses_a_log_dir_holding_shards(tmp_path: Path, option: str) 
     assert _files_below(log_dir) - {Path(".eval-set-id")} == files
 
 
-def test_eval_set_retry_refuses_shards_written_after_the_first_attempt(
-    tmp_path: Path,
-) -> None:
-    log_dir = tmp_path / "my logs"
-    companion = log_dir / "2026-10-16T10-00-00-00-00_foo_A.shards"
-    log = "2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
-    attempts: list[int] = []
+def test_eval_set_retry_pass_lists_the_log_dir_again(tmp_path: Path) -> None:
+    runs: Counter[Any] = Counter()
 
     @solver
-    def fail_first_attempt() -> Solver:
+    def fail_sample_2_once() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            attempts.append(1)
-            if len(attempts) == 1:
-                # a launcher writes a shard while the first attempt runs
-                (companion / "0").mkdir(parents=True)
-                shutil.copy(
-                    Path(__file__).parent / "log" / "test_list_logs" / log,
-                    companion / "0" / log,
-                )
-                raise ValueError("first attempt fails")
+            runs[state.sample_id] += 1
+            if state.sample_id == 2 and runs[2] == 1:
+                raise ValueError("sample 2 fails on the first pass")
             return state
 
         return solve
 
     task = Task(
-        name="foo", dataset=[Sample(id=1, input="hi")], solver=fail_first_attempt()
+        name="foo",
+        dataset=[Sample(id=i, input="hi") for i in (1, 2)],
+        solver=fail_sample_2_once(),
     )
 
-    with pytest.raises(PrerequisiteError, match="does not merge shards") as raised:
-        eval_set(
-            task,
-            log_dir=str(log_dir),
-            model="mockllm/model",
-            retry_attempts=2,
-            retry_wait=0.001,
-            # retry through eval_set's attempts rather than inside eval()
-            retry_immediate=False,
-            display="none",
-        )
+    success, _ = eval_set(
+        task,
+        log_dir=str(tmp_path / "my logs"),
+        model="mockllm/model",
+        retry_attempts=2,
+        retry_wait=0.001,
+        # retry through eval_set's passes rather than inside eval()
+        retry_immediate=False,
+        display="none",
+    )
 
-    # the retry lists again, so it refuses the new shard before running
-    assert companion.as_posix() in str(raised.value)
-    assert len(attempts) == 1
+    # the retry pass pairs with the failed log the first pass wrote (a stale
+    # listing would not hold it) and reuses sample 1
+    assert success
+    assert runs == {1: 1, 2: 2}
 
 
 def test_eval_set_without_shards_runs_and_resumes(tmp_path: Path) -> None:

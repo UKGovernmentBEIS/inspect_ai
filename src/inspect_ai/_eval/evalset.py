@@ -1154,7 +1154,6 @@ def eval_set(
             first_listing = None
         else:
             log_files = list_eval_logs(log_dir)
-            _refuse_shard_companions(log_files)
         all_logs = list_all_eval_logs(log_dir, log_files=log_files)
         if len(all_logs) > 0:
             write_log_dir_manifest(log_dir)
