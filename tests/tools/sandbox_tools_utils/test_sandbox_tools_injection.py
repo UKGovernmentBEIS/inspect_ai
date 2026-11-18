@@ -52,13 +52,11 @@ from inspect_ai.util._sandbox.environment import (
     SandboxDefaultUser,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxTimeoutError,
     SandboxUnavailableError,
     SandboxUserUnsupportedError,
 )
-from inspect_ai.util._sandbox.events import (
-    SandboxEnvironmentProxy,
-    SandboxTimeoutError,
-)
+from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 from inspect_ai.util._sandbox.recon import Architecture, SupportedContainerOSInfo
 from inspect_ai.util._subprocess import ExecResult
