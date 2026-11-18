@@ -44,7 +44,30 @@ and published to PyPI and npm by GitHub Actions with trusted publishing.
    notes are the version's changelog section. In the same `release.yml` run,
    `build` builds and gates the distributions, and `publish-pypi` (environment
    `pypi`) and `publish-npm` (environment `npm`, via `npm-publish.yml`) each
-   wait for an environment reviewer's approval.
+   wait for an environment reviewer's approval. Once `publish-pypi` succeeds,
+   `announce` posts the release to Slack (see [Slack
+   announcement](#slack-announcement)).
+
+## Slack announcement
+
+The `announce` job in `release.yml` posts ":rocket: inspect-ai X.Y.Z
+released" with the GitHub Release notes and a link to the release, using the
+shared `meridianlabs-ai/actions/slack-release-announce` action. It runs only
+after `publish-pypi` succeeds, so a rejected or failed PyPI publish is never
+announced; it does not wait for npm. It reads the notes and URL with `gh
+release view` for the tag the run resolved, because Release Please reports
+the release only in the run that creates it, not in a re-run or recovery run.
+
+The webhook is the `SLACK_WEBHOOK_URL` repository secret, a Slack incoming
+webhook for the announcement channel; only `announce` reads it. While the
+secret is unset, the job succeeds without posting anything.
+
+A run announces only when its `publish-pypi` job uploaded at least one file
+(the `publish-dist` count is not 0). So re-running all jobs, or a recovery
+dispatch, after PyPI already has the release posts no second announcement.
+If the announcement itself failed, re-run the failed jobs: that re-runs only
+`announce`, which keeps the earlier upload count. The break-glass paths do
+not announce.
 
 ## Changelog
 
@@ -186,7 +209,9 @@ Re-running the Release workflow is safe at any point.
 - **A resumed release** rebuilds from the tag (except when only a publish job
   is re-run) and publishes behind the same environment approvals. Its GitHub
   Release notes are the ones Release Please wrote when it created the
-  release.
+  release. It is announced in Slack only if its PyPI job uploads a file (see
+  [Slack announcement](#slack-announcement)); to retry a failed
+  announcement, re-run the failed jobs.
 - **Files PyPI already has** are skipped when they match: the same SHA256, or,
   for a rebuild (archive metadata such as timestamps differs between builds),
   the same members with the same contents under the parity rules
