@@ -152,7 +152,9 @@ def spawn_followup():
     return solve
 ```
 
-Enqueued tasks run under the current run id, resolved against the run's models and config, and share a buffer with tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running.
+Enqueued tasks run under the current run id and share a buffer with tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running.
+
+Called from inside a running task (a solver, scorer or tool), `enqueue_task()` adds the tasks once, under that task's model. Called anywhere else, including from a `TaskSource` callback, it adds them once per model of the run, as for tasks the callbacks return. A task that sets its own `model` keeps it. Model roles and generate config come from the run.
 
 ## Concurrency
 

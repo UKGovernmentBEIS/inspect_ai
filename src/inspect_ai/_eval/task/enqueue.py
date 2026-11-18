@@ -17,14 +17,16 @@ caller can't enqueue into the wrong (or torn-down) run.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from threading import Lock
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Iterator
 
 if TYPE_CHECKING:
     from inspect_ai._eval.task.resolved import ResolvedTask
     from inspect_ai._eval.task.tasks import Tasks
+    from inspect_ai.model import Model
 
 # Resolve submitted tasks to concrete ``ResolvedTask``s against the run's
 # models / config. Built by the eval runner (which holds that context) and
@@ -70,6 +72,33 @@ class TaskEnqueuer:
 _enqueuer: ContextVar[TaskEnqueuer | None] = ContextVar("task_enqueuer", default=None)
 
 
+# The model of the task attempt running in this context: set for the duration
+# of each attempt and cleared around TaskSource callbacks, so `None` means the
+# caller is not inside a task. Tasks added inside an attempt resolve once,
+# under this model. `active_model()` can't stand in for it: outside an attempt
+# it still holds the last run model that up-front task resolution activated.
+# Temporary: the task handles design's `_attempt` ContextVar (set by `run_one`
+# around the attempt, cleared in TaskSource callbacks) replaces it.
+_creator_model: ContextVar[Model | None] = ContextVar(
+    "enqueue_creator_model", default=None
+)
+
+
+@contextmanager
+def creator_model_scope(model: Model | None) -> Iterator[None]:
+    """Set the creator model for tasks added in this scope (``None``: no creator)."""
+    token = _creator_model.set(model)
+    try:
+        yield
+    finally:
+        _creator_model.reset(token)
+
+
+def creator_model() -> Model | None:
+    """The model of the task attempt running in this context, if any."""
+    return _creator_model.get()
+
+
 def create_task_enqueuer(run_id: str, resolve: ResolveTasksFn) -> TaskEnqueuer:
     return TaskEnqueuer(run_id=run_id, _resolve=resolve)
 
@@ -92,8 +121,13 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:
     """Add one or more tasks to the running eval.
 
     The tasks run in this process under the current run's ``run_id`` (a fresh
-    ``eval_id``/``task_id`` each, their own log files), resolved against the
-    run's models and config.
+    ``eval_id``/``task_id`` each, their own log files).
+
+    Called from inside a running task (a solver, scorer, tool or other code
+    the task runs), the tasks are added once, under that task's model.
+    Called anywhere else, including from a ``TaskSource`` callback, they are
+    added once per model of the run. A task that sets its own ``model`` keeps
+    it. Model roles and generate config come from the run.
 
     When the run is driven by a :class:`~inspect_ai.TaskSource`, added tasks are
     *live*: they start as soon as there is free capacity. Otherwise they run as a

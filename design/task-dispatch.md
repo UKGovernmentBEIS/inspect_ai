@@ -203,9 +203,8 @@ Non-goals:
   "Alternatives considered").
 - `TaskSource` under `eval_set()` or `eval_retry()` (still rejected; see
   [task-source.md](task-source.md#eval_set-support--feasible-but-only-pays-off-for-deterministic-sources)).
-- Recording which task added a task, choosing the creator's model for an
-  ordinary added task under `eval_set()`, and selection-mode handling of
-  added tasks ("Interactions" says where this design touches them).
+- Recording which task added a task, and selection-mode handling of added
+  tasks ("Interactions" says where this design touches them).
 - Task handles; see [task-handles.md](task-handles.md).
 
 ## Current behaviour
@@ -236,7 +235,8 @@ retry at the back of `pending`. `eval_set()` rejects a `TaskSource`
 (`src/inspect_ai/_eval/loader.py`), so the live path is unreachable there.
 
 `enqueue_task()` resolves synchronously through `_resolve_enqueued_tasks`
-(`eval.py`, once per run model) and buffers into the `TaskEnqueuer`; it
+(`eval.py`: once, under the attempt's model, when called inside a running
+attempt; else once per run model) and buffers into the `TaskEnqueuer`; it
 returns `None`. `TaskSource` callback returns go through the same buffer
 (`_enqueue_source_tasks`, `src/inspect_ai/_eval/task/run.py`).
 
@@ -493,11 +493,12 @@ anything is committed:
 - **Task ids.** An id that a record of this run already holds, or that
   repeats in the batch, raises `ValueError` ("task id '<id>' (task '<task>')
   is already in this run: a ResolvedTask or PreviousTask keeps its id, so it
-  can be added once, in a run with one model; pass the Task to run it once
-  per model"). A `Task` resolves to a new id per model, but a `ResolvedTask`
-  or `PreviousTask` keeps its id and `_resolve_enqueued_tasks` resolves its
-  input once per run model, so today such copies run under one id that the
-  control channel folds into one. The seed paths that pass resolved or
+  can be added once, and from outside a running task only in a run with one
+  model; pass the Task to run it once per model"). A `Task` resolves to a new
+  id per model, but a `ResolvedTask` or `PreviousTask` keeps its id, and
+  `_resolve_enqueued_tasks` resolves an input added outside an attempt once
+  per run model, so today such copies run under one id that the control
+  channel folds into one. Added inside an attempt it resolves once. The seed paths that pass resolved or
   previous tasks (`eval_set()` rounds, selection workers, `eval_retry()`)
   resolve each once, so this never fires for them.
 - **Configuration**, in `configure_task()` (`run.py`): today's
@@ -1455,8 +1456,12 @@ depends on it.
 - Recording which task added a task: [task-handles.md](task-handles.md)
   records the creator attempt only for tasks fed through a handle, so that
   change records the origin itself.
-- Ordinary added tasks under `eval_set()` using their creator's model: it
-  changes `_resolve_enqueued_tasks`, which `enqueue_task()` calls unchanged.
+- Added tasks using their creator's model: `_resolve_enqueued_tasks`
+  resolves a task added inside a running attempt once, under the attempt's
+  model, including under `eval_set()` and in selection workers, whose run
+  model is `none` ([task-source.md](task-source.md#relationship-to-enqueue_task)).
+  `enqueue_task()` calls it unchanged, and `RunQueue.add` takes whatever it
+  returns.
 - Selection-mode handling of added tasks: it changes resolution inside the
   selection-mode `eval_set()`; `RunQueue.add` takes whatever that returns.
 - Runtime pruning in selection workers, a prerequisite for adding tasks
@@ -1727,7 +1732,8 @@ test that waits on a run is bounded with `fail_after`.
   runtime-pruning guarantee, "Interactions with related changes"); a
   configuration error (a task with `epochs=Epochs(1, "at_least_2")`, whose
   reducer `validate_reducer` rejects with `PrerequisiteError`), a duplicate id (a `ResolvedTask` or `PreviousTask`
-  added twice, listed twice, or added in a two-model run) and a selection
+  added twice, listed twice, or added from outside an attempt in a
+  two-model run) and a selection
   error raise at the call and add nothing; a parent that enqueues A and then B
   under `sample_id=["parent:1", "B:1"]` gets the selection error at A's call
   (a static A with no `B:1`), under `["parent:1", "1", "B:1"]` A runs its

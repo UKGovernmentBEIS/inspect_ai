@@ -123,6 +123,8 @@ from .task.enqueue import (
     TaskEnqueuer,
     clear_task_enqueuer,
     create_task_enqueuer,
+    creator_model,
+    creator_model_scope,
     register_task_enqueuer,
 )
 from .task.images import InputMediaPolicy
@@ -1202,10 +1204,13 @@ async def _eval_async_inner(
                         # (which may block, and ends the run by returning None).
                         pending = enqueuer.drain() or None
                         if pending is None and task_source is not None:
-                            next_tasks = await task_source.next_tasks()
-                            pending = (
-                                resolve_added_tasks(next_tasks) if next_tasks else None
-                            )
+                            with creator_model_scope(None):
+                                next_tasks = await task_source.next_tasks()
+                                pending = (
+                                    resolve_added_tasks(next_tasks)
+                                    if next_tasks
+                                    else None
+                                )
                     return EvalLogs(results)
 
                 if task_source is not None and parallel > 1:
@@ -1221,8 +1226,9 @@ async def _eval_async_inner(
                     # interleave task fan-outs) — and still drives the source
                     # via enqueuer.drain() / next_tasks().
                     async def inject_next() -> list[ResolvedTask] | None:
-                        more = await task_source.next_tasks()
-                        return resolve_added_tasks(more) if more else None
+                        with creator_model_scope(None):
+                            more = await task_source.next_tasks()
+                            return resolve_added_tasks(more) if more else None
 
                     injection = TaskInjection(
                         drain=enqueuer.drain,
@@ -1312,9 +1318,14 @@ def _resolve_enqueued_tasks(
 
     Bound (via ``functools.partial``) to the run's models / config / roles /
     sandbox, then handed to the :class:`TaskEnqueuer` so additions resolve
-    consistently with the run. Raises ``ValueError`` if the tasks can't be
-    resolved.
+    consistently with the run. Tasks added inside a running task attempt
+    resolve once, under that attempt's model (:func:`creator_model`), in place
+    of the run's models; elsewhere they resolve once per run model. Raises
+    ``ValueError`` if the tasks can't be resolved.
     """
+    attempt_model = creator_model()
+    if attempt_model is not None:
+        models = [attempt_model]
 
     def resolve() -> list[ResolvedTask]:
         resolved_roles = resolve_model_roles(model_roles)
@@ -2165,7 +2176,8 @@ def eval_resolve_tasks(
             init_active_model(m, config)
             if task_source is not None:
                 if seed is None:
-                    seed = task_source.initial_tasks()
+                    with creator_model_scope(None):
+                        seed = task_source.initial_tasks()
                 batch: Tasks = seed
             else:
                 batch = tasks

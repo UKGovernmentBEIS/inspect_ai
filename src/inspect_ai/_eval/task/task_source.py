@@ -70,9 +70,9 @@ class TaskSource:
 
         ``sample`` is the completed sample and ``task`` is the task it ran under
         (the sample alone doesn't identify its task). Return a list of tasks to
-        add to the run (equivalent to calling ``enqueue_task`` with them): they
-        run after the current batch, before the next ``next_tasks()``. Return
-        ``None`` (the default) to add nothing.
+        add to the run (like ``enqueue_task`` called outside a running task:
+        once per run model): they run after the current batch, before the next
+        ``next_tasks()``. Return ``None`` (the default) to add nothing.
 
         Fires for every sample the task logs, including one cancelled
         individually by an operator (its ``error`` is then the cancellation,
@@ -96,9 +96,9 @@ class TaskSource:
         queued under. Nothing about the run reached the log (no
         ``EvalSample`` exists, and the sample is absent from the log passed
         to ``task_complete``), so unlike :meth:`sample_complete` there is no
-        result to deliver. Return a list of tasks to add to the run
-        (equivalent to calling ``enqueue_task`` with them) or ``None`` (the
-        default) to add nothing.
+        result to deliver. Return a list of tasks to add to the run (like
+        ``enqueue_task`` called outside a running task: once per run model) or
+        ``None`` (the default) to add nothing.
 
         Fires when an operator cancels a sample still waiting in the queue
         (``inspect ctl sample cancel --action cancel``), when a cancel lands
@@ -118,8 +118,9 @@ class TaskSource:
     async def task_complete(self, log: "EvalLog") -> list["Task"] | None:
         """A task finished — observe its log and optionally return follow-up tasks.
 
-        Return a list of tasks to add to the run (like ``enqueue_task``): they run
-        after the current batch. Return ``None`` (the default) to add nothing.
+        Return a list of tasks to add to the run (like ``enqueue_task`` called
+        outside a running task: once per run model): they run after the current
+        batch. Return ``None`` (the default) to add nothing.
         """
         return None
 
