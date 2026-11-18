@@ -1939,6 +1939,34 @@ def test_a_result_steps_digest_covers_or_names_every_field_of_the_step() -> None
     )
 
 
+def test_a_result_steps_digest_tells_apart_generations_that_returned_different_messages() -> (
+    None
+):
+    """Two generations with the same input, tools and tool choice give different steps when they returned different messages (`assistant_message`)."""
+    from inspect_ai.agent._bridge._sentinel import Produced
+
+    input: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+
+    def produced(call: ToolCall) -> Produced:
+        output = calls_output(call)
+        output.message.id = "reply"
+        event = ModelEvent(
+            model="mockllm/model",
+            input=input,
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=output,
+        )
+        return Produced(event, agent_span_id=None)
+
+    assert produced(READ).digest == produced(READ).digest
+    assert (
+        produced(READ).digest
+        != produced(replace(READ, arguments={"path": "other.txt"})).digest
+    )
+
+
 def test_a_step_that_cannot_be_serialized_is_never_exempt() -> None:
     """A step with a value its digest can't serialize gets a digest no other step has: its result is checked every time it is reported."""
     from inspect_ai.agent._bridge._sentinel import (
@@ -2290,6 +2318,190 @@ async def test_repeated_calls_are_checked_with_their_own_results(
     assert [(s.call.id, s.output) for s in seen if isinstance(s, AfterToolCall)] == [
         (call.id, f"output {index}") for index, call in enumerate(calls)
     ]
+
+
+async def run_turns(
+    bridge: AgentBridge, model: Scripted, turns: int
+) -> list[ModelOutput]:
+    """Run `turns` generations, answering each call handed over, then a last one; the outputs handed over."""
+    history: list[ChatMessage] = [ChatMessageUser(content=TASK)]
+    outputs: list[ModelOutput] = []
+    for turn in range(turns):
+        output = await generate(bridge, model, history)
+        outputs.append(output)
+        history += [
+            output.message,
+            *[
+                ChatMessageTool(content=f"output {turn}", tool_call_id=call.id)
+                for call in output.message.tool_calls or []
+            ],
+        ]
+    await generate(bridge, model, history)
+    return outputs
+
+
+def generations() -> list[ModelEvent]:
+    return [e for e in transcript().events if isinstance(e, ModelEvent)]
+
+
+@pytest.mark.parametrize("sandbox", [False, True])
+async def test_a_call_handed_over_under_a_fresh_id_has_the_message_as_handed(
+    sandbox: bool,
+) -> None:
+    seen: Steps = []
+    first = replace(READ, id="call_0", arguments={"path": "a.txt"})
+    second = replace(READ, id="call_0", arguments={"path": "b.txt"})
+    model = Scripted(calls_output(first), calls_output(second), calls_output())
+    bridge = sandbox_bridge() if sandbox else in_process_bridge([])
+
+    with active([bridge_recording(seen)]):
+        handed = await run_turns(bridge, model, 2)
+
+    [renamed] = handed[1].message.tool_calls or []
+    assert renamed.id != "call_0"
+    events = generations()
+    assert [type(step) for step in seen] == [BeforeToolCall, AfterToolCall] * 2
+    for step in seen:
+        message = step.assistant_message
+        assert message is not None
+        assert step.call.id in [call.id for call in message.tool_calls or []]
+        assert message.id == step.message_id
+        assert step.input is not None
+    turn_1, turn_2 = seen[:2], seen[2:]
+    # no id reused: the step's message is the event's
+    assert all(step.assistant_message is events[0].output.message for step in turn_1)
+    # reused: the message as handed, one object for the turn's steps
+    assert turn_2[0].assistant_message is turn_2[1].assistant_message
+    assert turn_2[0].assistant_message == handed[1].message
+    assert turn_2[0].assistant_message is not handed[1].message
+    assert [step.call.id for step in turn_2] == [renamed.id] * 2
+    # the event keeps the model's ids
+    assert [call.id for call in events[1].output.message.tool_calls or []] == ["call_0"]
+
+
+class _CannotCopy:
+    def __deepcopy__(self, memo: dict[int, Any]) -> "_CannotCopy":
+        raise TypeError("cannot copy")
+
+
+@pytest.mark.parametrize("edit", ["replaced", "appended"])
+async def test_a_step_checks_an_output_logged_live_as_it_is_when_the_step_runs(
+    edit: str,
+) -> None:
+    """An output that can't be copied is logged live (`_snapshot_message`), so an edit the agent makes after a call's first step shows in the event. A later step checks the calls it holds then, not those it held at the first."""
+    from inspect_ai._sentinel._dispatch import (
+        sentinel_after_tool_call,
+        sentinel_before_tool_call,
+    )
+
+    seen: Steps = []
+    output = calls_output(READ)
+    output.message.metadata = {"uncopyable": _CannotCopy()}
+    added = replace(READ, id="read_2")
+    user = ChatMessageUser(content=TASK)
+
+    with active([bridge_recording(seen)]):
+        returned = await Scripted(output).model.generate([user])
+        [event] = generations()
+        assert event.output.message is returned.message
+        # the agent's history holds a copy of the message, sharing its calls
+        history: list[ChatMessage] = [user, returned.message.model_copy()]
+        await sentinel_before_tool_call("", returned.message.id, READ, None, history)
+        if edit == "replaced":
+            returned.message.tool_calls = []
+            call = READ
+        else:
+            assert returned.message.tool_calls is not None
+            returned.message.tool_calls.append(added)
+            call = added
+        result = ChatMessageTool(content="ok", tool_call_id=call.id)
+        await sentinel_after_tool_call(
+            "", returned.message.id, call, result, "ok", None, None, history
+        )
+
+    before, after = seen
+    assert before.assistant_message is event.output.message
+    if edit == "replaced":
+        # the event's message no longer holds the call
+        assert after.assistant_message is None
+        assert after.input is None
+    else:
+        assert after.assistant_message is event.output.message
+        assert added in (after.assistant_message.tool_calls or [])
+        assert after.input is not None
+
+
+async def test_a_given_producer_counts_only_if_its_message_holds_the_call() -> None:
+    from inspect_ai._sentinel._dispatch import sentinel_before_tool_call
+
+    seen: Steps = []
+    output = calls_output(READ)
+    event = ModelEvent(
+        model="mockllm/model",
+        input=[ChatMessageUser(content=TASK)],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=output,
+    )
+    fresh = replace(READ, id="fresh")
+    handed = output.message.model_copy(update={"tool_calls": [fresh]})
+
+    with active([bridge_recording(seen)]):
+        for call, message in [
+            (READ, None),
+            (fresh, None),
+            (fresh, handed),
+            (READ, handed),
+        ]:
+            await sentinel_before_tool_call(
+                "",
+                output.message.id,
+                call,
+                None,
+                history=None,
+                producer=event,
+                assistant_message=message,
+                bridge=True,
+            )
+
+    assert [type(step) for step in seen] == [BeforeToolCall] * 4
+    assert [step.assistant_message for step in seen] == [
+        output.message,
+        None,
+        handed,
+        None,
+    ]
+    assert [step.input is not None for step in seen] == [True, False, True, False]
+
+
+@pytest.mark.parametrize("sandbox", [False, True])
+async def test_calls_of_one_turn_under_one_id_share_the_message_and_lose_it_for_results(
+    sandbox: bool,
+) -> None:
+    """A known limitation: the bridge hands both calls over under the model's id, so their message holds two calls with the step's id, and their results can't be told apart."""
+    seen: Steps = []
+    first = replace(READ, id="call_0", arguments={"path": "a.txt"})
+    second = replace(READ, id="call_0", arguments={"path": "b.txt"})
+    model = Scripted(calls_output(first, second), calls_output())
+    bridge = sandbox_bridge() if sandbox else in_process_bridge([])
+
+    with active([bridge_recording(seen)]):
+        [handed] = await run_turns(bridge, model, 1)
+
+    assert [call.id for call in handed.message.tool_calls or []] == ["call_0"] * 2
+    event = generations()[0]
+    before = [step for step in seen if isinstance(step, BeforeToolCall)]
+    after = [step for step in seen if isinstance(step, AfterToolCall)]
+    assert [step.call.arguments["path"] for step in before] == ["a.txt", "b.txt"]
+    for step in before:
+        assert step.assistant_message is event.output.message
+        assert step.message_id == event.output.message.id
+    assert len(after) == 2
+    for result in after:
+        assert result.assistant_message is None
+        assert result.input is None
+        assert result.message_id == ""
 
 
 @monitor

@@ -1789,7 +1789,10 @@ class _Driver:
         found = self._producers.get(id(event))
         if found is None:
             found = self._producers[id(event)] = Producer(
-                self._input(event), view(event.tools), event.tool_choice
+                self._input(event),
+                view(event.tools),
+                event.tool_choice,
+                event.output.message,
             )
         return found
 
