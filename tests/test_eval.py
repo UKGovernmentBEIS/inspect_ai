@@ -1468,7 +1468,7 @@ def test_ctl_retunes_task_max_samples() -> None:
 
 
 @task
-def max_samples_retry_task(failed_marker: str) -> Task:
+def max_samples_retry_task(failed_marker: str, max_samples: int | None) -> Task:
     @solver
     def fail_once() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
@@ -1481,22 +1481,46 @@ def max_samples_retry_task(failed_marker: str) -> Task:
 
         return solve
 
-    return Task(dataset=[Sample(input="x")], solver=fail_once(), max_samples=2)
+    return Task(
+        dataset=[Sample(input="x")], solver=fail_once(), max_samples=max_samples
+    )
 
 
-def test_eval_retry_keeps_task_max_samples(tmp_path: Path) -> None:
-    log = eval(
-        max_samples_retry_task(str(tmp_path / "failed")),
+@pytest.mark.parametrize(
+    "task_values,override,expected",
+    [
+        ([2], None, [2]),
+        ([5, 2], None, [5, 2]),
+        ([2, 5], None, [2, 5]),
+        ([5, None], None, [5, None]),
+        ([5, 2], 7, [7, 7]),
+    ],
+)
+def test_eval_retry_keeps_each_task_max_samples(
+    tmp_path: Path,
+    task_values: list[int | None],
+    override: int | None,
+    expected: list[int | None],
+) -> None:
+    log_dir = str(tmp_path / "logs")
+    logs = eval(
+        [
+            max_samples_retry_task(str(tmp_path / f"failed-{i}"), value)
+            for i, value in enumerate(task_values)
+        ],
         model="mockllm/model",
-        log_dir=str(tmp_path / "logs"),
+        log_dir=log_dir,
+        max_tasks=len(task_values),
         display="none",
-    )[0]
-    assert log.status == "error"
-    assert log.eval.config.max_samples == 2
+    )
+    # retry in the order the tasks were given
+    logs = sorted(logs, key=lambda log: log.eval.task_args["failed_marker"])
+    assert [log.status for log in logs] == ["error"] * len(task_values)
+    assert [log.eval.config.max_samples for log in logs] == task_values
 
-    retried = eval_retry(log, log_dir=str(tmp_path / "logs"), display="none")[0]
-    assert retried.status == "success"
-    assert retried.eval.config.max_samples == 2
+    retried = eval_retry(logs, log_dir=log_dir, max_samples=override, display="none")
+    assert [log.status for log in retried] == ["success"] * len(task_values)
+    assert [log.eval.config.max_samples for log in retried] == expected
 
 
 def test_eval_approval_override():
