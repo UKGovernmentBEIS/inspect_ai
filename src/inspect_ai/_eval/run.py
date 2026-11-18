@@ -57,7 +57,6 @@ from inspect_ai._sentinel._config import (
     sentinel_config,
 )
 from inspect_ai._util._async import Wake, unwrap_exception_group
-from inspect_ai._util.environ import environ_vars
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.exception import TaskRetryAbandonedError, TerminateTaskError
 from inspect_ai._util.file import cleanup_s3_sessions
@@ -92,6 +91,7 @@ from inspect_ai.util._sandbox.environment import (
 )
 from inspect_ai.util._sandbox.lifecycle import sandbox_lifecycle_scope
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
+from inspect_ai.util._sandbox.setup import task_init_env
 
 from .loader import (
     as_solver_spec,
@@ -1244,7 +1244,7 @@ class SandboxManager:
         self._cleanup = cleanup
         self._started: Set[TaskSandboxEnvironment] = set()
         self._cleanups: list[
-            tuple[TaskCleanup, SandboxEnvironmentConfigType | None, str]
+            tuple[TaskCleanup, SandboxEnvironmentConfigType | None]
         ] = []
         self._init_lock = anyio.Lock()
         self._lifecycle: ExitStack | None = None
@@ -1319,7 +1319,12 @@ class SandboxManager:
             sandboxenv: TaskSandboxEnvironment | None = None
             cache_key: tuple[Task, SandboxEnvironmentSpec] | None = None
             if not sample.metadata:
-                spec = await resolve_sandbox(task.sandbox, sample, task.task.name)
+                spec = await resolve_sandbox(
+                    task.sandbox,
+                    sample,
+                    task.task.name,
+                    task_dir=task_run_dir(task.task),
+                )
                 if spec is None:
                     continue
                 cache_key = (task.task, spec)
@@ -1374,7 +1379,7 @@ class SandboxManager:
 
                     # run startup
                     task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
-                    with chdir(sandboxenv.run_dir), environ_vars(dict(sandboxenv.env)):
+                    with task_init_env(dict(sandboxenv.env)):
                         await task_init("startup", sandboxenv.sandbox.config)
 
                     # track as started and append cleanup method
@@ -1382,9 +1387,7 @@ class SandboxManager:
                     task_cleanup = cast(
                         TaskCleanup, getattr(sandboxenv_type, "task_cleanup")
                     )
-                    self._cleanups.append(
-                        (task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir)
-                    )
+                    self._cleanups.append((task_cleanup, sandboxenv.sandbox.config))
 
                 # provide some space above task display ("none" has no task
                 # display and must keep stdout machine-readable, e.g. --json)
@@ -1402,9 +1405,8 @@ class SandboxManager:
             try:
                 for cleanup_jobs in self._cleanups:
                     try:
-                        cleanup_fn, config, task_run_dir = cleanup_jobs
-                        with chdir(task_run_dir):
-                            await cleanup_fn("shutdown", config, self._cleanup)
+                        cleanup_fn, config = cleanup_jobs
+                        await cleanup_fn("shutdown", config, self._cleanup)
                     except BaseException as ex:
                         log.warning(
                             f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
