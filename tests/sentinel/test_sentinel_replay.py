@@ -2304,6 +2304,195 @@ def test_a_bridged_result_goes_to_the_latest_proposal_awaiting_one(
     assert replay_warnings(caplog) == []
 
 
+RETRY_DIFFERENCES = [
+    "tool_result.input",
+    "tool_result.tools",
+    "tool_result.tool_choice",
+    "tool_result.message_id",
+]
+"""Where a cached retry's rebuilt `tool_result` step differs from live: the bridge handed the call's id out twice, so live checked the result without its proposal's model call, and replay shows the model call the agent received."""
+
+
+@agent(name="retrying_scaffold")
+def retrying_scaffold(client: str) -> Agent:
+    """A tool loop over the OpenAI or the Anthropic client that loses its first response to each request and sends the request again, as a client does after a timeout or a dropped connection; it answers each call with `t<turn>:<call id>`."""
+
+    async def execute(state: AgentState) -> AgentState:
+        from anthropic import AsyncAnthropic
+        from openai import AsyncOpenAI
+
+        async with agent_bridge(state) as bridge:
+            messages: list[Any] = [{"role": "user", "content": "What is 1 + 1?"}]
+            if client == "openai":
+                tools: list[Any] = [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "read_file",
+                            "description": "Read a file.",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {"path": {"type": "string"}},
+                            },
+                        },
+                    }
+                ]
+                async with AsyncOpenAI(api_key="sk-test") as openai:
+                    for turn in range(3):
+                        await openai.chat.completions.create(
+                            model="inspect", messages=messages, tools=tools
+                        )
+                        completion = await openai.chat.completions.create(
+                            model="inspect", messages=messages, tools=tools
+                        )
+                        message = completion.choices[0].message
+                        messages.append(message.model_dump(exclude_none=True))
+                        for call in message.tool_calls or []:
+                            messages.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": call.id,
+                                    "content": f"t{turn}:{call.id}",
+                                }
+                            )
+            else:
+                tools = [
+                    {
+                        "name": "read_file",
+                        "description": "Read a file.",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {"path": {"type": "string"}},
+                        },
+                    }
+                ]
+                async with AsyncAnthropic(api_key="sk-test") as anthropic:
+                    for turn in range(3):
+                        await anthropic.messages.create(
+                            model="inspect",
+                            max_tokens=1024,
+                            messages=messages,
+                            tools=tools,
+                        )
+                        response = await anthropic.messages.create(
+                            model="inspect",
+                            max_tokens=1024,
+                            messages=messages,
+                            tools=tools,
+                        )
+                        messages.append(
+                            {
+                                "role": "assistant",
+                                "content": [
+                                    block.model_dump(exclude_none=True)
+                                    for block in response.content
+                                ],
+                            }
+                        )
+                        uses = [b for b in response.content if b.type == "tool_use"]
+                        if uses:
+                            messages.append(
+                                {
+                                    "role": "user",
+                                    "content": [
+                                        {
+                                            "type": "tool_result",
+                                            "tool_use_id": use.id,
+                                            "content": f"t{turn}:{use.id}",
+                                        }
+                                        for use in uses
+                                    ],
+                                }
+                            )
+            return bridge.state
+
+    return execute
+
+
+def generated_ids(prefix: str, *turns: ModelOutput) -> Any:
+    """A mock model answering with `turns` in order, giving each call a new id, as a provider generates one per response."""
+    ids = iter(range(1, 100))
+    remaining = iter(turns)
+
+    def generate(*_: Any) -> ModelOutput:
+        output = next(remaining).model_copy(deep=True)
+        for call in output.message.tool_calls or []:
+            call.id = f"{prefix}{next(ids)}"
+        return output
+
+    return get_model("mockllm/model", custom_outputs=generate, memoize=False)
+
+
+@pytest.mark.parametrize("client", ["openai", "anthropic"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_cached_retry_s_call_gets_the_result_the_agent_sent(
+    client: str,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # the agent loses each response and sends its request again: the model
+    # cache answers the retry with the lost response, under the same call ids
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    prefix = "call_" if client == "openai" else "toolu_"
+    seen: dict[str, Step] = {}
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=as_solver(retrying_scaffold(client)),
+        sentinel=[r7_probe(seen, copies=True)],
+        config=GenerateConfig(cache=True),
+    )
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        [log] = eval(
+            task,
+            model=generated_ids(
+                prefix,
+                r7_tool_calls(read("a.txt", "")),
+                r7_tool_calls(read("b.txt", "")),
+                done(),
+            ),
+        )
+        assert log.status == "success", log.error
+        replay = assert_replay_rebuilds_bridge_steps(
+            log, seen, bridge_differences=RETRY_DIFFERENCES
+        )
+    events = logged_sample(log).events
+    made = [
+        e for e in events if isinstance(e, ModelEvent) and e.requested_model is not None
+    ]
+    assert [e.cache for e in made] == ["write", "read"] * 3
+    assert [[c.id for c in e.output.message.tool_calls or []] for e in made] == [
+        [f"{prefix}1"],
+        [f"{prefix}1"],
+        [f"{prefix}2"],
+        [f"{prefix}2"],
+        [],
+        [],
+    ]
+    # each call the agent received gets its result; a lost response's call has
+    # none
+    rebuilt = bridged_steps(log, replay)
+    uuids = [e.uuid for e in made]
+    assert [
+        (s.stage, uuids.index(s.id.split("/")[0]), s.id.split("/")[1]) for s in rebuilt
+    ] == [
+        ("tool_call", 0, f"{prefix}1"),
+        ("tool_call", 1, f"{prefix}1"),
+        ("tool_result", 1, f"{prefix}1"),
+        ("tool_call", 2, f"{prefix}2"),
+        ("tool_call", 3, f"{prefix}2"),
+        ("tool_result", 3, f"{prefix}2"),
+    ]
+    assert [resulted(s).text for s in rebuilt if s.stage == "tool_result"] == [
+        f"t0:{prefix}1",
+        f"t1:{prefix}2",
+    ]
+    assert replay_warnings(caplog) == []
+
+
 @pytest.mark.parametrize("by", ["sentinel", "approver"])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 def test_a_rejected_call_shows_its_rejection_as_its_result(
