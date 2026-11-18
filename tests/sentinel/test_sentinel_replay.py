@@ -2010,7 +2010,7 @@ def test_a_bridged_host_tool_call_s_steps_equal_live(
     assert called(call_step).function == "mcp__host__addition"
     assert ran.function == "addition"
     assert resulted(result_step).text == "2"
-    assert bridge_warning_ids(caplog) == [ran.id]
+    assert replay_warnings(caplog) == []
 
 
 # A bridged scaffold's own tools (as Claude Code runs its own): replay shows
@@ -2183,7 +2183,7 @@ def test_a_scaffold_s_own_tool_calls_steps_equal_live(
             ]
         ]
     )
-    assert bridge_warning_ids(caplog) == ids
+    assert replay_warnings(caplog) == []
 
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
@@ -2260,7 +2260,7 @@ def test_a_rejected_call_shows_its_rejection_as_its_result(
     # live had no result step for either
     assert ("tool_result", "read_1") not in live
     assert ("tool_result", "read_2") not in live
-    assert bridge_warning_ids(caplog) == ["read_1", "read_2", "read_3"]
+    assert replay_warnings(caplog) == []
 
 
 @protocol
@@ -2304,7 +2304,8 @@ def test_a_modified_call_shows_as_the_model_wrote_it(
     ]
     [live] = [step for step in seen.values() if isinstance(step, AfterToolCall)]
     assert live.call.arguments == {"path": "modified.txt"}
-    assert bridge_warning_ids(caplog) == ["read_1"]
+    assert bridged_call_ids(log, replay) == ["read_1"]
+    assert replay_warnings(caplog) == []
 
 
 async def redact_results(
@@ -2354,7 +2355,8 @@ def test_a_result_a_request_filter_rewrote_shows_as_rewritten(
         "[redacted]",
     )
     assert_bridged_steps_follow_the_conversation(log, replay)
-    assert bridge_warning_ids(caplog) == ["read_1"]
+    assert bridged_call_ids(log, replay) == ["read_1"]
+    assert replay_warnings(caplog) == []
 
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
@@ -2421,7 +2423,8 @@ def test_a_result_a_message_limit_kept_from_the_model_has_no_step(
     assert live == [("tool_call", "read_1"), ("tool_result", "read_1")]
     assert [s.stage for s in bridged_steps(log, replay)] == ["tool_call"]
     assert logged_sample(log).limit is not None
-    assert bridge_warning_ids(caplog) == ["read_1"]
+    assert bridged_call_ids(log, replay) == ["read_1"]
+    assert replay_warnings(caplog) == []
 
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
@@ -2515,7 +2518,8 @@ def test_a_native_call_reusing_a_bridged_call_id_keeps_its_tool_steps(
         ("tool_call", "shared", {"x": 5, "y": 5}),
         ("tool_result", "shared", {"x": 5, "y": 5}),
     ]
-    assert bridge_warning_ids(caplog) == ["shared"]
+    assert bridged_call_ids(log, replay) == ["shared"]
+    assert replay_warnings(caplog) == []
 
 
 @solver
@@ -2633,9 +2637,7 @@ def test_a_native_call_keeps_its_id_whether_a_host_call_under_it_ran_first(
         for s in replay
         if isinstance(s.step, BeforeToolCall | AfterToolCall)
     ] == ([*host_ids, *native_ids] if host_first else [*native_ids, *host_ids])
-    assert list(dict.fromkeys(replay_warnings(caplog))) == [
-        BRIDGE_REBUILD_WARNING.format("shared")
-    ]
+    assert replay_warnings(caplog) == []
 
 
 def test_a_person_s_decision_at_a_bridge_check_reaches_later_steps(
@@ -3721,6 +3723,15 @@ def bridged_steps(log: EvalLog, replay: Sequence["ReplayStep"]) -> list["ReplayS
     return [s for s in replay if bridged_call_id(s, uuids) is not None]
 
 
+def bridged_call_ids(log: EvalLog, replay: Sequence["ReplayStep"]) -> list[str]:
+    """The call ids of the bridge's rebuilt `tool_call` steps of `replay`, in order."""
+    return [
+        s.id.partition("/")[2]
+        for s in bridged_steps(log, replay)
+        if s.stage == "tool_call"
+    ]
+
+
 def called(step: "ReplayStep") -> ToolCall:
     """The call a replayed tool step shows."""
     assert isinstance(step.step, BeforeToolCall | AfterToolCall), step.stage
@@ -3822,27 +3833,12 @@ UNRECORDED_CHECK = (
 )
 
 
-BRIDGE_REBUILD_WARNING = (
-    "Replay rebuilt the tool steps of calls made through an agent bridge ({}) from "
-    "the conversation: each call as the model wrote it, and each result as the "
-    "model next received it. These can differ from what a sentinel was shown live."
-)
-
-
 def replay_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
     return [
         record.getMessage()
         for record in caplog.records
         if record.name == "inspect_ai._sentinel._replay"
     ]
-
-
-def bridge_warning_ids(caplog: pytest.LogCaptureFixture) -> list[str]:
-    """The call ids the replay's only warning, that it rebuilt the tool steps of calls made through an agent bridge, names: each replay of the log warns alike (`run_logged` also replays it with its origins removed)."""
-    [warning] = dict.fromkeys(replay_warnings(caplog))
-    ids = warning.split("agent bridge (")[1].split(") from")[0]
-    assert warning == BRIDGE_REBUILD_WARNING.format(ids), warning
-    return ids.split(", ")
 
 
 # a log replay cannot read without guessing fails, naming the rule
@@ -8729,7 +8725,8 @@ def test_a_native_call_run_while_a_bridged_call_waits_keeps_its_tool_steps(
     )
     assert len(tool_step_calls(replay)) == 4
     assert len(bridged_steps(log, replay)) == 2
-    assert bridge_warning_ids(caplog) == ["shared"]
+    assert bridged_call_ids(log, replay) == ["shared"]
+    assert replay_warnings(caplog) == []
 
 
 @agent
@@ -8845,7 +8842,8 @@ def test_a_native_call_under_a_filtered_bridge_proposal_s_id_keeps_its_tool_step
         ("tool_call", "shared", {"x": 5, "y": 5}),
         ("tool_result", "shared", {"x": 5, "y": 5}),
     ]
-    assert bridge_warning_ids(caplog) == ["raw"]
+    assert bridged_call_ids(log, steps) == ["raw"]
+    assert replay_warnings(caplog) == []
 
 
 @agent(name="r10_handoff", description="Handle the requested task.")
@@ -8981,7 +8979,8 @@ def test_a_native_handoff_under_a_bridged_call_s_id_keeps_its_tool_steps(
         if case == "modify"
         else {"human": HumanAnswer(decision="approve", reason="handoff approved")}
     )
-    assert bridge_warning_ids(caplog) == ["shared"]
+    assert bridged_call_ids(log, replay) == ["shared"]
+    assert replay_warnings(caplog) == []
 
 
 @agent
@@ -9092,8 +9091,9 @@ def test_a_helper_handoff_never_takes_a_bridge_check(
     assert len(native) == (1 if native_origin == "agent" else 0)
     assert not any(step.recorded_answers for step in native)
     # the filter's other call under the id is handed over under a fresh one
-    warned = bridge_warning_ids(caplog)
-    assert warned[0] == "shared" and len(warned) == 2
+    bridged = bridged_call_ids(log, all_replay)
+    assert bridged[0] == "shared" and len(bridged) == 2
+    assert replay_warnings(caplog) == []
 
 
 @agent
@@ -9193,7 +9193,7 @@ def test_a_prefilled_native_call_beside_a_bridge_keeps_its_tool_steps(
         }
     # the bridge's call is the one the model wrote, not the filter's
     assert [s.id.split("/")[-1] for s in bridged_steps(log, replay)] == ["raw"]
-    assert bridge_warning_ids(caplog) == ["raw"]
+    assert replay_warnings(caplog) == []
 
 
 def test_a_native_result_check_inside_its_invocation_is_replayed() -> None:
@@ -9401,7 +9401,8 @@ def test_a_native_call_under_a_host_call_s_id_keeps_its_tool_steps(
         ("tool_result", {"x": 5, "y": 5}),
         *([] if ended else [("tool_result", {"x": 1, "y": 1})]),
     ]
-    assert bridge_warning_ids(caplog) == ["shared"]
+    assert bridged_call_ids(log, replay) == ["shared"]
+    assert replay_warnings(caplog) == []
 
 
 @agent
@@ -9505,7 +9506,8 @@ def test_a_scaffold_result_never_becomes_a_failed_native_call_s_result(
             ("tool_call", "explodes"),
             *([] if ended else [("tool_result", "echo")]),
         ]
-        assert bridge_warning_ids(caplog) == ["shared"]
+        assert bridged_call_ids(log, replay) == ["shared"]
+        assert replay_warnings(caplog) == []
 
 
 def test_a_result_only_sentinel_s_bridge_check_never_becomes_a_native_result(
@@ -9536,7 +9538,8 @@ def test_a_result_only_sentinel_s_bridge_check_never_becomes_a_native_result(
         ("tool_call", "echo"),
         ("tool_call", "explodes"),
     ]
-    assert bridge_warning_ids(caplog) == ["shared"]
+    assert bridged_call_ids(log, replay) == ["shared"]
+    assert replay_warnings(caplog) == []
 
 
 @reviewer
@@ -10106,7 +10109,8 @@ def test_native_checks_under_a_span_id_provider_that_yields_beside_a_bridge_repl
         )
     assert len(tool_step_calls(replay)) == 6 + len(bridged_steps(log, replay))
     [host] = [e.id for e in sample.events if isinstance(e, ToolEvent) and e.metadata]
-    assert bridge_warning_ids(caplog) == [host]
+    assert bridged_call_ids(log, replay) == [host]
+    assert replay_warnings(caplog) == []
 
 
 @agent
@@ -10634,7 +10638,7 @@ def test_native_calls_handed_to_a_bridge_keep_their_own_checks(
                     reason=person.answer(step.id, handed.native_answers[step.id]),
                 )
             }
-    assert bridge_warning_ids(caplog) == handed.bridge_calls
+    assert replay_warnings(caplog) == []
 
 
 R13_HELPER = ToolCall(id="helper_add", function="addition", arguments={"x": 2, "y": 3})

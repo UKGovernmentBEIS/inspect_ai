@@ -489,7 +489,7 @@ Replay doesn't attach the live sentinel's checks of bridged calls to these steps
 
 A bridged call's steps are named by its model call's `uuid` and the call id (`<uuid>/<call id>`), so they never take the id of a native tool call. If one model response has two calls with the same id, replay skips both and logs a warning.
 
-If the log has live sentinel checks of bridged calls, replay logs one warning that its steps can differ from them. This replay needs a log from Inspect 0.3.277 or later, which marks the model calls a bridge makes for its agent (`ModelEvent.requested_model`).
+This replay needs a log from Inspect 0.3.277 or later, which marks the model calls a bridge makes for its agent (`ModelEvent.requested_model`).
 
 ## Parallelism
 

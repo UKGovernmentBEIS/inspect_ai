@@ -124,7 +124,7 @@ def steps_from_events(
     - `tool_result`: the tool message under the call's id in the first later bridged request of the same conversation that carries it, as that request's input has it (a rejection or placeholder included), right before that request's `model_input` step. A call no later request answers has none.
     - Both are named `<model call uuid>/<call id>`.
 
-    A bridge's recorded checks (in spans named `sentinel_bridge`), approvals and host `ToolEvent`s are not paired with these steps, so a check's recorded `human()` answers are not attached to them. A `human()` decision at such a check, and a person's approval, still reach the later steps of the conversation, as live; that includes the `tool_result` step of the checked result, which comes after its check. A call a native `ToolEvent` ran (a request filter's own agent generates under the bridge's request) keeps its native steps. Calls sharing an id in one bridged response are skipped, with a warning. Where the log has live sentinel checks of bridged calls, replay warns once that these steps can differ from them.
+    A bridge's recorded checks (in spans named `sentinel_bridge`), approvals and host `ToolEvent`s are not paired with these steps, so a check's recorded `human()` answers are not attached to them. A `human()` decision at such a check, and a person's approval, still reach the later steps of the conversation, as live; that includes the `tool_result` step of the checked result, which comes after its check. A call a native `ToolEvent` ran (a request filter's own agent generates under the bridge's request) keeps its native steps. Calls sharing an id in one bridged response are skipped, with a warning.
 
     A transcript Scout imported from another source (`eval_info` is None) replays from its events where Scout records which model calls its messages come from (`messages_from`): its turns are inferred as for a log without origins, and its tool steps come from its messages, each assistant message joined by its id to the turn whose output it is, which gives the steps that turn's input, tools and conversation; a message no one turn made is placed after the last message before it that one did, with no input. A call under an id an earlier call in the messages has is skipped, with a warning, as step ids are unique in a sample. Its tool events are not read: importers record them without the model's call ids.
 
@@ -1598,18 +1598,6 @@ class _Driver:
                 "Replay skipped the tool steps of bridged call(s) %s: the model "
                 "response proposed several calls under each id.",
                 ", ".join(repr(id) for id in dict.fromkeys(repeated)),
-            )
-        if made and self.bridge_spans:
-            logging.getLogger(__name__).warning(
-                "Replay rebuilt the tool steps of calls made through an agent bridge "
-                "(%s) from the conversation: each call as the model wrote it, and "
-                "each result as the model next received it. These can differ from "
-                "what a sentinel was shown live.",
-                ", ".join(
-                    dict.fromkeys(
-                        entry.call.id for entries in made.values() for entry in entries
-                    )
-                ),
             )
 
     def _bridged_call(self, entry: _BridgedCall) -> None:
