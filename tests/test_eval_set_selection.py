@@ -142,39 +142,6 @@ def test_eval_set_selection_runs_only_selected_task(
     assert len(list_eval_logs(str(log_dir))) == 1
 
 
-def test_eval_set_selection_does_not_merge_shards(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    from unittest.mock import patch
-
-    from inspect_ai import eval
-
-    capture = enumerate_eval_set(monkeypatch, tmp_path)
-    selected = next(
-        t
-        for t in capture.tasks
-        if t.name == "selection_task_one" and t.model == "mockllm/model"
-    )
-    log_dir = tmp_path / "logs"
-    name = "2026-10-16T10-00-00-00-00_selection-task-one_Zx7Run1Id"
-    eval(
-        selection_task_one(),
-        model="mockllm/model",
-        sample_id=[1],
-        log_dir=str(log_dir / f"{name}.shards" / "0"),
-        display="none",
-    )
-
-    with patch("inspect_ai._eval.evalset_shards.merge_shard_sets") as merge:
-        success, _ = run_selection(
-            monkeypatch, tmp_path, selection_for(selected.identifier), log_dir
-        )
-
-    assert success
-    merge.assert_not_called()
-    assert not (log_dir / f"{name}.eval").exists()
-
-
 def test_eval_set_selection_stamps_eval_set_id(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

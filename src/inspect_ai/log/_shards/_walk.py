@@ -21,10 +21,9 @@ from inspect_ai._util.asyncfiles import (
     s3_bucket_and_key,
 )
 from inspect_ai._util.constants import EVAL_LOG_FORMAT
-from inspect_ai._util.file import FileInfo, basename, filesystem, local_path
+from inspect_ai._util.file import FileInfo, basename, local_path
 from inspect_ai._util.log_layout import _RECOVERED_SUFFIX, _SHARDS_SUFFIX
-from inspect_ai._util.path import native_path
-from inspect_ai.log._file import EvalLogInfo, _timestamp_prefix_re, is_log_file
+from inspect_ai.log._file import _timestamp_prefix_re, is_log_file
 
 from ._errors import ShardSetError
 
@@ -328,52 +327,6 @@ def is_shard_path(root: str, path: str) -> bool:
     Raises:
         ValueError: If ``path`` is not below ``root``.
     """
-    return _levels_below_companion(root, path) is not None
-
-
-def listing_root(log_dir: str) -> str:
-    """``log_dir`` in the form of the names its listing returns.
-
-    Some backends list names under another form of the directory (adlfs lists
-    ``az://`` and account-qualified ``abfss://`` paths as ``abfs://``), so
-    listed names are compared with this form rather than ``log_dir`` as given.
-    """
-    return filesystem(log_dir).dir_as_uri(log_dir)
-
-
-def without_shard_logs(log_dir: str, logs: list[EvalLogInfo]) -> list[EvalLogInfo]:
-    """The listed logs of ``log_dir`` that are not in a shard set (see :func:`is_shard_path`).
-
-    Logs nested deeper in a ``<name>.shards/`` directory are kept.
-    """
-    root = listing_root(log_dir)
-    return [info for info in logs if shard_companion(root, info.name) is None]
-
-
-def shard_companion(root: str, path: str) -> str | None:
-    """The ``<name>.shards`` directory whose shard set holds a listed ``path``, or ``None``.
-
-    ``None`` when :func:`is_shard_path` is false. ``root`` (see
-    :func:`listing_root`) and ``path`` are in the form a listing returns: a
-    local name is ``file://`` plus the native path, not percent-encoded, so
-    both are compared as native paths, keeping ``#``, ``?`` and ``%`` as
-    they are. The directory is returned in ``path``'s form: ``path`` without
-    its last one or two components.
-
-    Raises:
-        ValueError: If ``path`` is not below ``root``.
-    """
-    levels = _levels_below_companion(native_path(root), native_path(path))
-    if levels is None:
-        return None
-    companion = path
-    for _ in range(levels):
-        companion = companion[: max(companion.rfind("/"), companion.rfind("\\"))]
-    return companion
-
-
-def _levels_below_companion(root: str, path: str) -> int | None:
-    """How many components of ``path`` follow its companion's (1 or 2), or ``None``."""
     root_parts = _location_parts(root)
     path_parts = _location_parts(path)
     if path_parts[: len(root_parts)] != root_parts:
@@ -381,9 +334,8 @@ def _levels_below_companion(root: str, path: str) -> int | None:
     relative = path_parts[len(root_parts) :]
     for depth, part in enumerate(relative[:-1]):
         if part.endswith(_SHARDS_SUFFIX) and part != _SHARDS_SUFFIX:
-            levels = len(relative) - depth - 1
-            return levels if levels <= 2 else None
-    return None
+            return len(relative) - depth <= 3
+    return False
 
 
 def _shard_sort_key(shard: ShardDir) -> tuple[bool, int, str]:

@@ -504,37 +504,13 @@ def write_log_dir_manifest(
       fs_options (dict[str,Any]): Optional. Additional arguments to pass through
         to the filesystem provider (e.g. `S3FileSystem`).
     """
-    _write_log_dir_manifest(
-        log_dir, filename=filename, output_dir=output_dir, fs_options=fs_options
-    )
-
-
-def _write_log_dir_manifest(
-    log_dir: str,
-    *,
-    filename: str = "logs.json",
-    output_dir: str | None = None,
-    fs_options: dict[str, Any] = {},
-    logs: list[EvalLogInfo] | None = None,
-) -> None:
-    """Write a manifest for a log directory (see `write_log_dir_manifest`).
-
-    Args:
-      log_dir: Log directory to write manifest for.
-      filename: Manifest filename.
-      output_dir: Output directory for manifest (defaults to log_dir).
-      fs_options: Additional arguments to pass through to the filesystem provider.
-      logs: The logs to include, as listed in `log_dir` (defaults to listing
-        `log_dir`). An eval set passes the logs outside shard sets.
-    """
     # resolve log dir to full path
     fs = filesystem(log_dir)
     log_dir_uri = fs.dir_as_uri(log_dir)
     log_dir = fs.dir_location(log_dir)
 
     # list eval logs
-    if logs is None:
-        logs = list_eval_logs(log_dir)
+    logs = list_eval_logs(log_dir)
 
     # resolve to manifest (make filenames relative to the log dir)
     names = [manifest_eval_log_name(log, log_dir_uri, fs.sep) for log in logs]

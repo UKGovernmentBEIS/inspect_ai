@@ -64,20 +64,11 @@ $ inspect eval-set mmlu.py mathematics.py \
 
 ### Sharded Tasks
 
-An eval set can finish a [sharded](sharding.qmd) run. When it starts, it merges each `<name>.shards/` directory in its log directory into `<name>.eval`, using the task in the eval set that the shards ran and the eval set's selection of that task's samples. It then treats the merged log like any other log: if samples are missing or a shard failed, it runs them in an ordinary, unsharded retry seeded from the merged log.
+`eval_set()` does not merge [sharded](sharding.qmd) runs. It stops with an error, before running anything or writing to the log directory, when the log directory holds a `<name>.shards/` directory. To finish a sharded run:
 
-The eval set stops with an error, before running any task, when it cannot merge a `.shards` directory. The error names the directory, the cause and what to do next. This includes:
-
--   An eval set whose `sample_id` or `limit` selects fewer samples than the shards hold, or none of the task's samples.
--   A `.shards` directory that holds only files that are not shard logs.
--   A shard log written or modified (for example by a tag edit) after an unsharded retry of the task (see below). To continue from the retry, move the `.shards` directory and its merged log out of the log directory. To merge the shards again, move the task's unsharded retries out instead.
--   `.shards` directories of different tasks with the same name in different directories (for example one per model). Their merged logs would get the same task id. Move one of them to a log directory of its own.
--   Scanners (`scanner`) over a log directory that holds a `.shards` directory. Scanning sharded tasks is not supported yet.
--   Any reason the merge itself refuses, such as shards that do not match each other or a merge that is already running.
-
-A `.shards` directory whose task is not in the eval set is left alone, with a warning.
-
-Once an unsharded retry of a merged log exists, the eval set does not merge that `.shards` directory again. It continues from the retry, as from any other log, even if you change `limit` or `sample_id` or remove the merged log. One exception: if the merged log is kept beside the retry (with `retry_cleanup=False`, for example) and you edit its tags or metadata, the edit makes it the newest log of the task. The next eval set then continues from the merged log, and with retry cleanup on, the retry is removed. Retry cleanup treats the merged log like any other attempt: once the retry is newer, the merged log is removed, unless its status is `started`. Retry cleanup never removes a `.shards` directory; remove it yourself when you no longer need the shards. `eval_retry()` refuses a merged log that an eval set wrote; run the eval set again instead.
+1.  Merge the shards with `inspect log merge-shards` or `merge_eval_log_shards()` (see [Merging](sharding.qmd#merging)).
+2.  Run failed or missing samples as new shards, and merge again.
+3.  Move the `.shards` directory out of the log directory.
 
 ### Concurrency
 

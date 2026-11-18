@@ -229,52 +229,19 @@ def samples_selected(
         Number of samples that would run.
     """
     if sample_id is not None:
-        return len(selected_sample_ids(dataset, limit, sample_id, task, task_names))
-    return samples_for_limit(len(dataset), limit)
-
-
-def selected_sample_ids(
-    dataset: Dataset,
-    limit: int | tuple[int, int] | None,
-    sample_id: str | int | list[str] | list[int] | list[str | int] | None,
-    task: str | None = None,
-    task_names: Iterable[str] | None = None,
-) -> list[str | int]:
-    """Ids of the dataset samples a `limit` or a `sample_id` selects.
-
-    The ids `slice_dataset` would select, in dataset order, by the rules
-    `samples_selected` describes: an unset id is the sample's position from
-    one, and `task:id` selectors are narrowed to `task`.
-
-    Args:
-        dataset: The task's dataset.
-        limit: Eval limit (first n samples, or [start, stop] range).
-        sample_id: Sample id pattern(s) selected, if any.
-        task: The task's registry name, for resolving `task:id` selectors.
-        task_names: Names of every task in the run.
-
-    Returns:
-        The selected ids; empty when every selector named another task.
-    """
-    if sample_id is not None:
         if task is not None:
             resolved = resolve_task_sample_ids(task, sample_id, task_names)
             if resolved is None or resolved == []:
                 # every selector named some other task
-                return []
+                return 0
             sample_id = resolved
         matcher = sample_id_filter(sample_id)
-        ids = (
-            sample.id if sample.id is not None else position
+        return sum(
+            1
             for position, sample in enumerate(dataset, start=1)
+            if matcher.matches(sample.id if sample.id is not None else position)
         )
-        return [id for id in ids if matcher.matches(id)]
-    selection = slice(*limit) if isinstance(limit, tuple) else slice(0, limit)
-    selected: list[str | int] = []
-    for index in range(len(dataset))[selection]:
-        id = dataset[index].id
-        selected.append(id if id is not None else index + 1)
-    return selected
+    return samples_for_limit(len(dataset), limit)
 
 
 def build_eval_set_capture(

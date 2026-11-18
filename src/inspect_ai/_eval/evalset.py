@@ -3,7 +3,7 @@ import hashlib
 import logging
 import os
 import threading
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from datetime import datetime
@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, TypeVar, cast
 
 import rich
 from pydantic import BaseModel
+from rich.markup import escape
 from rich.status import Status
 from shortuuid import uuid
 from tenacity import (
@@ -71,24 +72,25 @@ from inspect_ai._util.file import (
     filesystem,
 )
 from inspect_ai._util.json import to_json_safe
+from inspect_ai._util.log_layout import _SHARDS_SUFFIX
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
+from inspect_ai._util.path import native_path
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, ApprovalPolicyConfig
 from inspect_ai.log import EvalLog, IncompleteAction
-from inspect_ai.log._bundle import _bundle_log_dir, _embed_log_dir
+from inspect_ai.log._bundle import bundle_log_dir, embed_log_dir
 from inspect_ai.log._file import (
     EvalLogInfo,
     ReadEvalLogsProgress,
-    _write_log_dir_manifest,
     list_eval_logs,
     read_eval_log_headers,
+    write_log_dir_manifest,
     write_log_listing,
 )
 from inspect_ai.log._log import EvalConfig
 from inspect_ai.log._recorders.buffer.buffer import cleanup_sample_buffers_for_log
 from inspect_ai.log._recorders.buffer.database import sample_buffer_shutdown_pending
-from inspect_ai.log._shards._walk import without_shard_logs
 from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
@@ -125,7 +127,6 @@ from .eval_set_manifest import (
     build_eval_set_capture,
     eval_set_capture_requested,
     samples_selected,
-    selected_sample_ids,
     task_args_hash,
 )
 from .eval_set_overrides import (
@@ -195,6 +196,45 @@ def _validate_sentinel(sentinel: SentinelSpec | None) -> None:
     # after task resolution, so names registered by task files resolve
     if sentinel is not None:
         resolve_sentinel_spec(sentinel)
+
+
+def _refuse_shard_companions(log_dir: str) -> None:
+    """Refuse a log directory that holds a `<name>.shards/` companion.
+
+    `eval_set()` does not merge shards: no current caller needs it, and a
+    retry at startup would run samples outside a launcher's per-instance
+    placement (decision: Ransom with JJ Allaire, 2026-11-18). Listed local
+    names are `file://` plus the native path, not percent-encoded, so names
+    and the directory are compared as native paths.
+
+    Raises:
+        PrerequisiteError: A listed log is in a shard set (see `is_shard_path`).
+    """
+    from inspect_ai.log._shards._walk import is_shard_path
+
+    root = native_path(filesystem(log_dir).dir_as_uri(log_dir))
+    companions: set[str] = set()
+    for info in list_eval_logs(log_dir):
+        path = native_path(info.name)
+        if is_shard_path(root, path):
+            # a shard log is directly in the companion or in a shard directory
+            companion = _parent(path)
+            if not companion.endswith(_SHARDS_SUFFIX):
+                companion = _parent(companion)
+            companions.add(companion)
+    if companions:
+        raise PrerequisiteError(
+            "[bold]ERROR[/bold]: The log directory holds shards: "
+            f"{', '.join(escape(c) for c in sorted(companions))}. eval_set() "
+            "does not merge shards. Merge them with `inspect log merge-shards` "
+            "(or `merge_eval_log_shards()`), rerunning failed or missing "
+            "samples as shards and merging again, then move the .shards "
+            "directory out of the log directory."
+        )
+
+
+def _parent(path: str) -> str:
+    return path[: max(path.rfind("/"), path.rfind("\\"))]
 
 
 def _overridden_selection(
@@ -973,6 +1013,8 @@ def eval_set(
         finally:
             reset_run_registries()
 
+    _refuse_shard_companions(log_dir)
+
     # get eval set id (set display name from user-provided value before resolution)
     set_eval_set_id_display(eval_set_id)
     eval_set_id = eval_set_id_for_log_dir(log_dir, eval_set_id=eval_set_id)
@@ -1081,6 +1123,11 @@ def eval_set(
             )
         _validate_sentinel(sentinel)
 
+        # list all logs currently in the log directory (update manifest if there are some)
+        all_logs = list_all_eval_logs(log_dir)
+        if len(all_logs) > 0:
+            write_log_dir_manifest(log_dir)
+
         eval_set_args = EvalSetArgsInTaskIdentifier(
             config=config,
             solver=solver,
@@ -1091,47 +1138,12 @@ def eval_set(
             working_limit=working_limit,
             cost_limit=cost_limit,
         )
-        all_tasks = [
-            (task_identifier(task, eval_set_args), task) for task in resolved_tasks
-        ]
-
-        # list all logs currently in the log directory (update manifest if there are some)
-        log_files = list_eval_logs(log_dir)
-        eval_set_files = without_shard_logs(log_dir, log_files)
-        listed_logs = read_logs(eval_set_files)
-        if len(listed_logs) > 0:
-            _write_log_dir_manifest(log_dir, logs=eval_set_files)
-
         # validate that:
         #  (1) All tasks have a unique identifier
         #  (2) All logs have identifiers that map to tasks
-        # before merging shard sets, so a refused eval set merges nothing
         all_logs = validate_eval_set_prerequisites(
-            resolved_tasks, listed_logs, log_dir_allow_dirty, eval_set_args
+            resolved_tasks, all_logs, log_dir_allow_dirty, eval_set_args
         )
-
-        # merge shard sets, then list again if a merge wrote
-        # (evalset_shards imports this module)
-        from .evalset_shards import merge_shard_sets
-
-        if merge_shard_sets(
-            log_dir,
-            log_files,
-            listed_logs,
-            all_tasks,
-            epochs=epochs,
-            limit=limit,
-            sample_id=sample_id,
-        ):
-            log_files = list_eval_logs(log_dir)
-            eval_set_files = without_shard_logs(log_dir, log_files)
-            all_logs = validate_eval_set_prerequisites(
-                resolved_tasks,
-                read_logs(eval_set_files),
-                log_dir_allow_dirty,
-                eval_set_args,
-            )
-            _write_log_dir_manifest(log_dir, logs=eval_set_files)
 
         # write eval-set info containing data about
         # all the tasks that are a part of this eval set
@@ -1152,6 +1164,9 @@ def eval_set(
             if not shuffle_changed(sample_shuffle, log.header.eval.config, limit)
         ]
         log_task_identifiers = [log.task_identifier for log in reusable_logs]
+        all_tasks = [
+            (task_identifier(task, eval_set_args), task) for task in resolved_tasks
+        ]
         pending_tasks = [
             task[1] for task in all_tasks if task[0] not in log_task_identifiers
         ]
@@ -1234,11 +1249,6 @@ def eval_set(
         before=before,
     )
 
-    if scanner is not None:
-        from .evalset_shards import refuse_scanner_with_shards
-
-        refuse_scanner_with_shards(log_dir)
-
     # must read BEFORE scan_context enters — scan_init invalidates the
     # finalize flag on attach, so reading from inside try_eval is too late
     prior_scan_clean = scan_already_clean(scanner, eval_set_id, log_dir)
@@ -1274,11 +1284,8 @@ def eval_set(
 
         # if specified, bundle the output directory
         if bundle_dir:
-            _bundle_log_dir(
-                log_dir=log_dir,
-                output_dir=bundle_dir,
-                overwrite=bundle_overwrite,
-                logs=eval_set_log_files(log_dir),
+            bundle_log_dir(
+                log_dir=log_dir, output_dir=bundle_dir, overwrite=bundle_overwrite
             )
 
         # report final status
@@ -1296,7 +1303,7 @@ def eval_set(
             print_scan_status(log_dir, scanner)
 
         # update manifest
-        _write_log_dir_manifest(log_dir, logs=eval_set_log_files(log_dir))
+        write_log_dir_manifest(log_dir)
 
         # emit end event
         run_coroutine(emit_eval_set_end(eval_set_id, log_dir))
@@ -1317,7 +1324,7 @@ def eval_set(
 
 @contextlib.contextmanager
 def _embed_viewer(log_dir: str, interval: float = 30) -> Iterator[None]:
-    _embed_log_dir(log_dir=log_dir, logs=eval_set_log_files(log_dir))
+    embed_log_dir(log_dir=log_dir)
 
     stop_event = threading.Event()
     last_state: frozenset[tuple[str, float | None]] = frozenset()
@@ -1326,7 +1333,7 @@ def _embed_viewer(log_dir: str, interval: float = 30) -> Iterator[None]:
         nonlocal last_state
         while not stop_event.wait(interval):
             try:
-                logs = eval_set_log_files(log_dir)
+                logs = list_eval_logs(log_dir)
                 current_state = frozenset((log.name, log.mtime) for log in logs)
                 if current_state != last_state:
                     write_log_listing(log_dir, logs=logs)
@@ -1339,7 +1346,7 @@ def _embed_viewer(log_dir: str, interval: float = 30) -> Iterator[None]:
         yield
     finally:
         stop_event.set()
-        write_log_listing(log_dir, logs=eval_set_log_files(log_dir))
+        write_log_listing(log_dir)
 
 
 def _register_reused_logs(success_logs: list[Log]) -> None:
@@ -1617,14 +1624,9 @@ def _recover_crashed_log(
             systemic crash still recovers-and-retries as it does today.
         incomplete_max: Safety threshold for a resolving disposition.
 
-    A merged shard log (`eval.shards` set) is never recovered: it has no
-    sample buffer, and the startup merge has already brought it up to date.
-
     Returns:
         The recovered log and file info, or the originals when no recovery was available.
     """
-    if eval_log.eval.shards is not None:
-        return eval_log, log_info
     if eval_log.status == "started" and eval_log.location:
         from inspect_ai.log._recover import (
             RecoveryNotAvailable,
@@ -1853,31 +1855,9 @@ def return_last_value(retry_state: RetryCallState) -> list[EvalLog]:
 # list all eval logs
 # recursive=False and progress are used by inspect_flow
 def list_all_eval_logs(
-    log_dir: str,
-    recursive: bool = True,
-    progress: ReadEvalLogsProgress | None = None,
-    skip_shards: bool = False,
+    log_dir: str, recursive: bool = True, progress: ReadEvalLogsProgress | None = None
 ) -> list[Log]:
-    """List the logs in a log directory with their headers.
-
-    Args:
-        log_dir: The log directory.
-        recursive: List subdirectories too.
-        progress: Reports header reads.
-        skip_shards: Leave out the shard logs and stray files of every
-            `<name>.shards/` directory (see `is_shard_path`) before reading
-            headers. Logs nested deeper in such a directory are kept.
-    """
     log_files = list_eval_logs(log_dir, recursive=recursive)
-    if skip_shards:
-        log_files = without_shard_logs(log_dir, log_files)
-    return read_logs(log_files, progress)
-
-
-def read_logs(
-    log_files: list[EvalLogInfo], progress: ReadEvalLogsProgress | None = None
-) -> list[Log]:
-    """Read the headers of listed logs and identify their tasks."""
     log_headers = read_eval_log_headers(log_files, progress)
     task_identifiers = [task_identifier(log_header, None) for log_header in log_headers]
     return [
@@ -1886,16 +1866,6 @@ def read_logs(
             log_files, log_headers, task_identifiers
         )
     ]
-
-
-def eval_set_log_files(log_dir: str) -> list[EvalLogInfo]:
-    """The logs an eval set reads: every listed log outside shard sets.
-
-    Shard attempts are read only by the startup merge, which reads each
-    shard's current attempt; older attempts may be unreadable. The manifest,
-    the embedded viewer's listings and the bundle take this list.
-    """
-    return without_shard_logs(log_dir, list_eval_logs(log_dir))
 
 
 # get the latest logs (cleaning if requested). returns tuple of successful/unsuccessful
@@ -1969,22 +1939,7 @@ def list_latest_eval_logs(
         )
         for tid, task in all_tasks
     }
-    merged_tids = {
-        log.task_identifier for log in latest_logs if log.header.eval.shards is not None
-    }
-    requested_ids = {
-        tid: frozenset(
-            str(id)
-            for id in selected_sample_ids(
-                task.task.dataset, limit, sample_id, task.task.name, task_names
-            )
-        )
-        for tid, task in all_tasks
-        if tid in merged_tids
-    }
-    return one_log_per_task_identifier(
-        complete_logs, incomplete_logs, requested, requested_ids
-    )
+    return one_log_per_task_identifier(complete_logs, incomplete_logs, requested)
 
 
 def log_samples_complete(
@@ -2014,28 +1969,32 @@ def log_samples_complete(
         samples_selected(dataset, limit, sample_id, task.task.name, task_names)
         * epoch_count
     )
-    ids = {
-        str(id)
-        for id in selected_sample_ids(
-            dataset, limit, sample_id, task.task.name, task_names
-        )
-    }
-    # a shuffle can draw a different subset on each task resolution, so ids
-    # cannot prove that a limit selection changed: compare counts
-    selected_ids = ids if sample_id is not None or not dataset.shuffled else None
+    selected_ids: set[str] | None
+    if sample_id is not None:
+        sample_id = resolve_task_sample_ids(task.task.name, sample_id, task_names)
+        matcher = sample_id_filter(sample_id if sample_id is not None else [])
+        selected_ids = {
+            str(selected_id)
+            for position, sample in enumerate(dataset, start=1)
+            if matcher.matches(
+                selected_id := sample.id if sample.id is not None else position
+            )
+        }
+    elif dataset.shuffled:
+        # a shuffle can draw a different subset on each task resolution, so
+        # ids cannot prove that a limit selection changed: compare counts
+        selected_ids = None
+    else:
+        selection = slice(*limit) if isinstance(limit, tuple) else slice(0, limit)
+        selected_ids = set()
+        for index in range(len(dataset))[selection]:
+            sample = dataset[index]
+            selected_ids.add(str(sample.id if sample.id is not None else index + 1))
 
     # a task no `task:id` selector named ran no samples, so its success log
     # holds none (and no results): nothing is outstanding
     if planned == 0:
         return True
-
-    # a merged shard log is `success` only when it holds its recorded
-    # selection for every epoch, so the recorded ids decide. Duplicate
-    # selected ids leave it incomplete, so the retry's unique-id check
-    # reports them (an id set cannot show them)
-    if log.header.eval.shards is not None:
-        recorded = {str(id) for id in log.header.eval.dataset.sample_ids or []}
-        return len(ids) * epoch_count == planned and recorded == ids
     if not log.header.results:
         return False
 
@@ -2124,17 +2083,12 @@ def one_log_per_task_identifier(
     complete_logs: list[Log],
     incomplete_logs: list[Log],
     requested: dict[str, _Selection],
-    requested_ids: Mapping[str, frozenset[str]] = {},
 ) -> tuple[list[Log], list[Log]]:
     """Keep one log per task identifier.
 
     When any of a task's logs was recorded for the requested `limit` and
     `sample_id` (`requested`, keyed by task identifier), only those are
     considered, since a log for another selection can hold other samples.
-    A merged shard log records its selection as ids rather than as `limit`
-    or `sample_id`, so it counts as recorded for the requested selection
-    when its ids equal the selected ids (`requested_ids`, as strings, keyed
-    by task identifier and needed for every task with a merged log).
     Among them a log with invalidated samples is retried first (see
     `invalidate_samples()`). Otherwise the run that started most recently
     wins, complete or not: a newer incomplete log can be the failed retry of
@@ -2147,18 +2101,11 @@ def one_log_per_task_identifier(
     not chosen are left on disk.
     """
 
-    def selected(log: Log) -> bool:
-        if log.header.eval.shards is not None:
-            recorded = log.header.eval.dataset.sample_ids or []
-            return frozenset(map(str, recorded)) == requested_ids[log.task_identifier]
+    def rank(log: Log) -> tuple[bool, bool, datetime, float]:
         config = log.header.eval.config
         return (
-            _selection(config.limit, config.sample_id) == requested[log.task_identifier]
-        )
-
-    def rank(log: Log) -> tuple[bool, bool, datetime, float]:
-        return (
-            selected(log),
+            _selection(config.limit, config.sample_id)
+            == requested[log.task_identifier],
             log.header.invalidated,
             datetime.fromisoformat(
                 log.header.stats.started_at or log.header.eval.created
@@ -2199,7 +2146,7 @@ def cleanup_older_eval_logs(
 ) -> None:
     logs = [
         log
-        for log in list_all_eval_logs(log_dir, skip_shards=True)
+        for log in list_all_eval_logs(log_dir)
         if log.header.eval.task_id in task_ids
     ]
     latest_completed_task_eval_logs(

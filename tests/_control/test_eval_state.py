@@ -182,12 +182,12 @@ def test_retry_sweep_removes_log_and_invalidates_summaries_memo(tmp_path) -> Non
                 task_id="tid",
                 suffix=None,
             ),
-            # only status / eval.task_id / eval.eval_id / eval.shards are consulted
+            # only status / eval.task_id / eval.eval_id are consulted
             header=cast(
                 EvalLog,
                 SimpleNamespace(
                     status=status,
-                    eval=SimpleNamespace(task_id="tid", eval_id=eval_id, shards=None),
+                    eval=SimpleNamespace(task_id="tid", eval_id=eval_id),
                 ),
             ),
             task_identifier="tid",
