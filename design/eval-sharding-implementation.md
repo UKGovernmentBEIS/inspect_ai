@@ -1471,24 +1471,29 @@ shards and merges with the API or `inspect log merge-shards`.
 
 In `src/inspect_ai/_eval/evalset.py`, after the selection-mode branch and
 before the eval set ID is written, `eval_set()` lists the directory once
-and checks every listed name with `is_shard_path` (shared helper). Local
-names are compared as native paths, since listed local names are
-`file://` plus the native path, not percent-encoded. Remote names are
-compared as listed, against the directory in its listed form
-(`dir_as_uri`), without opening a filesystem from them: that would lose
-context the log directory's URL carries, such as an Azure account. If any
-name is in a shard set, it raises `PrerequisiteError` before it lists logs
-for pairing, runs a task or writes anything. The message names each companion and says that `eval_set()` does
+and recognises a shard log by its own listed name (decision: Ransom,
+2026-11-18). A listed log is a shard log when its parent directory name is
+all ASCII digits and the directory above that ends in `.shards`, or when
+its parent directory name itself ends in `.shards` (a stray file the merge
+would refuse). Only the name's last two path components are read, split
+on `/` and `\`; every provider lists those the same way, so no form of the
+log directory is compared and no filesystem is opened from a listed name.
+If any listed log is a shard log, it raises `PrerequisiteError` before it
+lists logs for pairing, runs a task or writes anything. The message names
+each `.shards` directory found that way and says that `eval_set()` does
 not merge shards, to merge them with `inspect log merge-shards` (or the
 Python API), rerunning failed or missing samples as shards and merging
 again, and then to move the `.shards` directory out of the log directory.
 
-A log nested deeper in a companion (in a shard's ancillary directory) is
-not a shard path and does not trigger the refusal, and an eval set whose
-log directory is itself a shard directory runs as before, since only
-components below the log directory count. Selection mode is unchanged: it
-never scans the directory. With the companion moved out, the merged log is
-an ordinary log of the eval set.
+The rule is broader than `is_shard_path`, deliberately. It also refuses an
+eval set run on a numbered shard directory itself or on a `<name>.shards`
+directory itself, and a log directory holding a companion nested inside a
+shard's ancillary directory (such as `scans/`). `log_dir_allow_dirty=True`
+does not bypass the refusal, including for companions of tasks outside
+the eval set, which a dirty directory used to ignore: move those companions
+out or use a separate log directory. Selection mode is unchanged: it never
+scans the directory. With the companion moved out, the merged log is an
+ordinary log of the eval set.
 
 ### Scale items
 
@@ -1533,7 +1538,7 @@ Two PRs after the merge core, each with the measurement that justifies it:
 | `log_basename`, `eval_shards_dir`, `eval_log_for_shards_dir`, `eval_log_name` (`src/inspect_ai/_util/log_layout.py`) | #530, landed (UKGovernmentBEIS/inspect_ai#5541) | the `<name>.eval` / `<name>.shards/` pair, `<name>` minting by launchers | mapping `X.shards/` to its merged log (its "Logical tasks") |
 | `AsyncFilesystem.list_dir(base) -> DirListing(files: list[FileInfo], dirs: list[str])` | #528, landed (UKGovernmentBEIS/inspect_ai#5542) | listing `<name>.shards/` and each `<k>/` | the delimited walk |
 | `ZipEntry.crc32` and `AsyncZipReader(verify_crc=True)` / `ZipCrcError` | #528, landed (UKGovernmentBEIS/inspect_ai#5542) | consistent shard reads; raw copy | consistent member reads |
-| `list_shard_set`, `attempt_sort_key`, `is_shard_path` (`src/inspect_ai/log/_shards/_walk.py`) | PR 3, landed (UKGovernmentBEIS/inspect_ai#5622); ctl's step 4 adds `unlisted_dirs` | steps 4–5; the eval-set refusal | its step 4 (shard aggregation) calls these instead of re-implementing the rules |
+| `list_shard_set`, `attempt_sort_key`, `is_shard_path` (`src/inspect_ai/log/_shards/_walk.py`) | PR 3, landed (UKGovernmentBEIS/inspect_ai#5622); ctl's step 4 adds `unlisted_dirs` | steps 4–5 | its step 4 (shard aggregation) calls these instead of re-implementing the rules |
 | `merged_log_task_id(name, *, task, model) -> str` (`src/inspect_ai/_util/log_layout.py`, beside `eval_log_name`) | PR 5, or ctl's step 4 if it lands first | the merged log's `task_id` at the first merge ("The merged log's `task_id`") | the `task_id` of a shard set whose merged log does not exist yet, so it folds with the same retries as the merged log will |
 | `EvalShards`, `EvalShardEntry` and the recorded selection ("The `EvalSpec.shards` field") | PR 2 below | writing the field | its step 6: totals from the recorded selection; a cold start of the one-row-per-task `task list` row (not sample rows or per-sample reads) from the merged `summaries.json` only for a complete `success` snapshot whose shards are all unchanged and each hold their whole selection (`samples == selected × epochs`), otherwise the shards; `--shards` rows read every shard |
 
@@ -1626,15 +1631,15 @@ The shard-set rules, one implementation for both consumers:
 Ransom, 2026-10-05). A log in a shard's ancillary directory (for example
 `run.shards/0/scans/<file>.eval`), or deeper than a dot-directory of the
 companion, is not a shard path, so no consumer drops it unreported:
-`eval_set()` does not refuse it and pairs it, ctl log-dir mode lists it as
+ctl log-dir mode lists it as
 an ordinary log by descending `unlisted_dirs` (its "Walking the
 directory") and the merge ignores it. Removing the enclosing companion
 removes it with everything else. A companion nested in
 an ancillary directory follows
 the same rule: from a root above the outer companion its logs are
 ordinary logs, and from a root that is the outer companion or a directory
-inside it, it is a shard set. Given the same root, the eval-set refusal and
-ctl therefore agree on which files are shard attempts, which are stray and
+inside it, it is a shard set. Given the same root, the merge and ctl
+therefore agree on which files are shard attempts, which are stray and
 which are ordinary logs.
 
 ctl log-dir mode's step 4 builds on the landed PR 3, adds `unlisted_dirs`
@@ -1727,8 +1732,8 @@ PR 2. Neither depends on the merge.
 - **A broad shard-path rule** (`is_shard_path` true for any path with a
   directory component ending in `.shards`). Simpler to state, but `list_shard_set` never lists below a
   `<k>/`, so a log nested in an ancillary directory (`<k>/scans/...`, or a
-  companion nested there) would make `eval_set()` refuse a directory over
-  a log the merge never reads. Rejected (Ransom, 2026-10-05) for the rule matching the walk
+  companion nested there) would be hidden from the walk's consumers.
+  Rejected (Ransom, 2026-10-05) for the rule matching the walk
   ("Code shared with ctl log-dir mode"). Descending ancillary directories
   in the walk instead would make the merge list scan and checkpoint trees
   it never uses.
@@ -1812,12 +1817,19 @@ today.
   `EvalShardEntry` in `inspect_ai.log`,
   listed in a "Sharding" section of `docs/reference/inspect_ai.log.qmd`.
 - **Eval sets.** `eval_set()` now stops with `PrerequisiteError`, before
-  it lists logs for pairing, runs a task or writes anything, when its log
-  directory holds a `<name>.shards/` companion with a shard log in it.
-  Today it pairs every shard attempt as an ordinary log of the task. An
-  eval set over a directory with no companion, or whose log directory is
-  itself a shard directory, behaves as before, and selection mode is
-  unchanged. Users merge the shards and move the companion out first.
+  it lists logs for pairing, runs a task or writes anything, when a listed
+  log is a shard log by its name ("Eval-set integration"): in a numbered
+  directory under a `.shards` directory, or directly in a `.shards`
+  directory. That includes an eval set run on a shard directory or a
+  companion itself. Today it pairs a shard attempt of one of its tasks as
+  an ordinary log of that task, refusing a dirty directory unless
+  `log_dir_allow_dirty=True`, and ignores other tasks' shard logs under
+  `log_dir_allow_dirty=True`. `log_dir_allow_dirty=True` does not bypass
+  the refusal, including for companions of tasks outside the eval set:
+  users move those companions out or use a separate log directory. Users
+  merge the shards and move the companion out first. An eval set over a
+  directory with no shard logs behaves as before, and selection mode is
+  unchanged.
 - **Scan results and checkpoints written by workers** stay in their
   `<k>/` until the companion is removed; Step 1 neither merges nor
   relocates them. Once the companion is moved out, an eval set with
@@ -2060,9 +2072,10 @@ Per PR (numbers from "Implementation plan"):
 6. **Eval-set integration.** `tests/test_eval_set.py`: an eval set over a
    log directory (with a space in its path) holding two companions stops
    with `PrerequisiteError` naming both and `inspect log merge-shards`,
-   and leaves the directory's files as they were; an eval set whose log
-   directory is itself a shard directory runs and, run again, finds its
-   log complete.
+   and leaves the directory's files as they were (one shard in a numbered
+   directory, one stray log directly in a companion); an eval set over a
+   directory with no shard logs runs and, run again, finds its log
+   complete.
 7. **Streaming recomputation.** `tests/log/test_shards.py`: peak memory
    (`tracemalloc`) of a merge over shards with large transcripts and small
    scores does not grow with transcript size; with large score metadata,

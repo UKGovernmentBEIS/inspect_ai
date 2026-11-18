@@ -40,7 +40,6 @@ from inspect_ai._eval.evalset import (
     EvalSetArgsInTaskIdentifier,
     Log,
     _embed_viewer,
-    _refuse_shard_companions,
     _resumed_task,
     as_previous_tasks,
     epochs_changed,
@@ -630,25 +629,6 @@ def test_log_dir_manifest_keys_relative_to_listed_names(
         assert list(keys) == [log]
 
 
-@pytest.mark.parametrize("shard", [False, True])
-def test_shard_refusal_keeps_the_log_dir_account(
-    azure_like_fs: type[Any], shard: bool
-) -> None:
-    # no default account: only the log directory's URL names it
-    log = "2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"
-    path = f"/container/logs/{'run.shards/0/' if shard else ''}{log}"
-    filesystem("azmem://container@acct/logs").fs.pipe_file(
-        path, Path(__file__).parent.joinpath("log", "test_list_logs", log).read_bytes()
-    )
-
-    if shard:
-        with pytest.raises(PrerequisiteError, match="does not merge shards") as raised:
-            _refuse_shard_companions("azmemalias://container@acct/logs")
-        assert "/container/logs/run.shards." in str(raised.value)
-    else:
-        _refuse_shard_companions("azmemalias://container@acct/logs")
-
-
 def test_eval_set_retry_in_same_second_does_not_clobber_failed_log() -> None:
     """The retry's log must not collide with the failed log's filename.
 
@@ -866,12 +846,13 @@ def test_eval_set_refuses_a_log_dir_holding_shards(tmp_path: Path) -> None:
         log_dir / "2026-10-16T10-00-00-00-00_foo_A.shards",
         log_dir / "2026-10-16T10-00-00-00-00_foo_B.shards",
     ]
-    for k, companion in enumerate(companions):
+    # a shard in a numbered directory, and a stray log directly in a companion
+    for k, log_location in enumerate([companions[0] / "0", companions[1]]):
         eval(
             task,
             model="mockllm/model",
             sample_id=[k + 1],
-            log_dir=str(companion / "0"),
+            log_dir=str(log_location),
             display="none",
         )
     files = _files_below(log_dir)
@@ -885,12 +866,10 @@ def test_eval_set_refuses_a_log_dir_holding_shards(tmp_path: Path) -> None:
     assert _files_below(log_dir) == files
 
 
-def test_eval_set_runs_in_a_shard_directory(tmp_path: Path) -> None:
-    # only directories below the log directory make a shard set
-    log_dir = tmp_path / "2026-10-16T10-00-00-00-00_foo_A.shards" / "0"
+def test_eval_set_without_shards_runs_and_resumes(tmp_path: Path) -> None:
     task = Task(name="foo", dataset=[Sample(id=i, input="hi") for i in (1, 2)])
     args: dict[str, Any] = dict(
-        log_dir=str(log_dir), model="mockllm/model", display="none"
+        log_dir=str(tmp_path / "my logs"), model="mockllm/model", display="none"
     )
 
     success, [first] = eval_set(task, **args)

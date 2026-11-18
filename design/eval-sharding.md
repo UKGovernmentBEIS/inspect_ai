@@ -716,17 +716,19 @@ with the API or the CLI.
 
 `eval_set()` refuses a log directory that holds a companion: before it
 lists logs for pairing, runs a task or writes anything, it lists the
-directory and stops with `PrerequisiteError` if a listed file is in a
-shard set (directly in the first `*.shards/` directory below the log
-directory, or in a directory directly under it). The message names the
-companions and says to merge them, rerun failed samples as shards and
-merge again, then move the `.shards` directory out of the log directory.
-After that the merged log is an ordinary log of the eval set. Without the
-refusal, pairing would take the shard attempts as attempts of one task
-(first-matching pairing, count-based completeness). A log nested deeper
-in a companion is an ordinary log and does not trigger the refusal
-(decision: Ransom, 2026-10-05). Selection mode never scans the directory
-and is unchanged.
+directory and stops with `PrerequisiteError` if a listed log is a shard
+log by its own name: its parent directory is all digits under a
+`*.shards/` directory, or is a `*.shards/` directory (decision: Ransom,
+2026-11-18). The rule reads only the name's last path components, so it
+does not depend on how a provider lists the log directory, and it is
+broader than the merge's walk: it also refuses an eval set run on a shard
+directory or companion itself. `log_dir_allow_dirty=True` does not bypass
+it. The message names the companions and says to merge them, rerun failed
+samples as shards and merge again, then move the `.shards` directory out
+of the log directory. After that the merged log is an ordinary log of the
+eval set. Without the refusal, pairing would take the shard attempts as
+attempts of one task (first-matching pairing, count-based completeness).
+Selection mode never scans the directory and is unchanged.
 
 ### Scale
 
@@ -983,8 +985,8 @@ Pydantic models. New boundaries:
   the move; two files in one `<k>/` (original plus `-recovered`) are treated
   as attempts of one shard, newest taken.
 - Eval-set tests: an eval set over a directory holding a companion stops
-  with `PrerequisiteError` before writing anything; one whose log
-  directory is itself a shard directory runs as before.
+  with `PrerequisiteError` before writing anything; one over a directory
+  without shard logs runs as before.
 - Deletion tests, with the deferred deletion work: in the viewer,
   a delete of a merged log under an access policy that allows the
   canonical file but denies a companion member returns 403 and deletes
@@ -1104,10 +1106,9 @@ Kept for the record and as the rationale for the design above.
   existing). Rejected (Ransom, 2026-09-21): each creates a state where a
   stale merged log hides ongoing work in the shards. The viewer's rule adds
   the mtime condition that avoids this; see "Listing". This concerns the
-  shared listing and the viewer; `eval_set()`'s refusal ("Eval-set
-  integration") is a path rule too, but not a component rule at any depth:
-  a log nested in a shard's ancillary directory does not trigger it
-  (decision: Ransom, 2026-10-05), because the merge's walk never lists it.
+  shared listing and the viewer. `eval_set()`'s refusal ("Eval-set
+  integration") reads only a log's own name and stops the run, so it
+  hides nothing.
 - **A periodic full merge as originally rejected (2026-09-18).** The
   objections were a full rewrite per tick, reading running shards through
   their journals, and needing a `started` status. The incremental-merge

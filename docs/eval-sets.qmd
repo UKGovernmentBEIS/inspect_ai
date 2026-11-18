@@ -70,6 +70,8 @@ $ inspect eval-set mmlu.py mathematics.py \
 2.  Run failed or missing samples as new shards, and merge again.
 3.  Move the `.shards` directory out of the log directory.
 
+The check also applies when the log directory is a `.shards` directory or one of its shard directories. `--log-dir-allow-dirty` does not bypass it, including for `.shards` directories of tasks outside the eval set. Move them out or use a separate log directory.
+
 ### Concurrency
 
 By default, `eval_set()` will run multiple tasks in parallel, using the greater of 10 and the number of models being evaluated as the default `max_tasks`. The eval set scheduler will always attempt to balance active tasks across models so that contention for a single model provider is minimized.

@@ -2,6 +2,7 @@ import contextlib
 import hashlib
 import logging
 import os
+import re
 import threading
 from collections.abc import Callable, Iterator, Sequence
 from collections.abc import Set as AbstractSet
@@ -74,7 +75,6 @@ from inspect_ai._util.file import (
 from inspect_ai._util.json import to_json_safe
 from inspect_ai._util.log_layout import _SHARDS_SUFFIX
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
-from inspect_ai._util.path import native_path
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, ApprovalPolicyConfig
@@ -203,29 +203,16 @@ def _refuse_shard_companions(log_dir: str) -> None:
 
     `eval_set()` does not merge shards: no current caller needs it, and a
     retry at startup would run samples outside a launcher's per-instance
-    placement (decision: Ransom with JJ Allaire, 2026-11-18). Listed local
-    names are `file://` plus the native path, not percent-encoded, so local
-    names and the directory are compared as native paths. Remote names are
-    compared as listed: opening a filesystem again from a listed name can
-    lose context the log directory carries (an Azure account).
+    placement (decision: Ransom with JJ Allaire, 2026-11-18).
 
     Raises:
-        PrerequisiteError: A listed log is in a shard set (see `is_shard_path`).
+        PrerequisiteError: A listed log is a shard log (see `_shard_companion`).
     """
-    from inspect_ai.log._shards._walk import is_shard_path
-
-    fs = filesystem(log_dir)
-    native = native_path if fs.is_local() else str
-    root = native(fs.dir_as_uri(log_dir))
-    companions: set[str] = set()
-    for info in list_eval_logs(log_dir):
-        path = native(info.name)
-        if is_shard_path(root, path):
-            # a shard log is directly in the companion or in a shard directory
-            companion = _parent(path)
-            if not companion.endswith(_SHARDS_SUFFIX):
-                companion = _parent(companion)
-            companions.add(companion)
+    companions = {
+        companion
+        for info in list_eval_logs(log_dir)
+        if (companion := _shard_companion(info.name)) is not None
+    }
     if companions:
         raise PrerequisiteError(
             "[bold]ERROR[/bold]: The log directory holds shards: "
@@ -235,6 +222,27 @@ def _refuse_shard_companions(log_dir: str) -> None:
             "samples as shards and merging again, then move the .shards "
             "directory out of the log directory."
         )
+
+
+def _shard_companion(name: str) -> str | None:
+    """The `<name>.shards` directory of a listed shard log, or `None`.
+
+    A log is a shard log when its parent directory is all ASCII digits and
+    the directory above it ends in `.shards`, or when its parent directory
+    ends in `.shards` (a stray file the merge refuses). Only the name's last
+    path components are read, split on slashes and backslashes, so the rule
+    does not depend on how a provider lists the log directory. It is broader
+    than the layout helper's `is_shard_path`: it also matches when the log
+    directory is a companion or a shard directory, and a companion nested
+    in a shard's ancillary directory (decision: Ransom, 2026-11-18).
+    """
+    parts = re.split(r"[/\\]", name)
+    if len(parts) >= 2 and parts[-2].endswith(_SHARDS_SUFFIX):
+        return _parent(name)
+    shard = parts[-2] if len(parts) >= 3 else ""
+    if shard.isascii() and shard.isdigit() and parts[-3].endswith(_SHARDS_SUFFIX):
+        return _parent(_parent(name))
+    return None
 
 
 def _parent(path: str) -> str:
