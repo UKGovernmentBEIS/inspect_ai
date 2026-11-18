@@ -203,11 +203,12 @@ Non-goals:
 - `_resolve_enqueued_tasks` (`src/inspect_ai/_eval/eval.py`) resolves a
   task added inside a running attempt once, under that attempt's model, and
   a task added elsewhere (including from a `TaskSource` callback) once per
-  run model. A private `ContextVar` (`_creator_model`,
-  `src/inspect_ai/_eval/task/enqueue.py`) carries the attempt's model:
-  `_run_task` (`src/inspect_ai/_eval/run.py`) sets it around `task_run`,
-  and each place Inspect calls a `TaskSource` callback sets it to `None`
-  for the call.
+  run model. A private `ContextVar` (`_creator`,
+  `src/inspect_ai/_eval/task/enqueue.py`) carries the attempt's model in a
+  cell the attempt marks ended on exit, so a background coroutine that
+  outlives its attempt counts as outside it: `_run_task`
+  (`src/inspect_ai/_eval/run.py`) sets it around `task_run`, and each place
+  Inspect calls a `TaskSource` callback sets it to `None` for the call.
 - Every log records its task's dataset name (`EvalDataset.name`, which
   `TaskLogger` takes from `task.dataset`, `src/inspect_ai/_eval/task/log.py`).
   For a `SampleSource` task the dataset is the unnamed `MemoryDataset` of its
@@ -1135,7 +1136,7 @@ the selection-mode tests below run with pruning enabled. Running it under Stewar
 a running worker's fed logs from archival ("Compatibility and migration").
 
 - `_eval/task/enqueue.py` (`TaskHandle`, the errors, `TaskAttempt` and
-  `_attempt`, which replaces `_creator_model` here and in
+  `_attempt`, which replaces `_creator` here and in
   `prune_task_call()`, `result()` refusing a handle whose task is
   not fed through it, the `max_sandboxes` warning naming its `inspect ctl
   config` command, `RunQueue.cancel` closing a fed record's channel itself
@@ -1167,7 +1168,7 @@ a running worker's fed logs from archival ("Compatibility and migration").
   file, and `log_dir_allow_dirty=True` when resuming such an eval set),
   `docs/parallelism.qmd`, `docs/reference`, and `_attempt` set to `None`
   around each `TaskSource` callback call (`_eval/task/run.py`,
-  `_eval/run.py`), where `_creator_model` is cleared today. Tests: those above.
+  `_eval/run.py`), where `_creator` is cleared today. Tests: those above.
 
 ## Open questions
 

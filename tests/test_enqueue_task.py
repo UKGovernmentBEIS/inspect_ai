@@ -6,15 +6,22 @@ the trigger is a solver (the simplest in-run caller); the ergonomic trigger
 surface — hooks, a callback, etc. — is layered on top and tested separately.
 """
 
+from contextvars import copy_context
 from pathlib import Path
 
+import anyio
 import pytest
 
 from inspect_ai import Task, TaskSource, eval, eval_set, task
 from inspect_ai._eval.eval import _resolve_enqueued_tasks
 from inspect_ai._eval.loader import resolve_tasks
-from inspect_ai._eval.task.enqueue import creator_model_scope, enqueue_task
+from inspect_ai._eval.task.enqueue import (
+    creator_model,
+    creator_model_scope,
+    enqueue_task,
+)
 from inspect_ai._eval.task.tasks import Tasks
+from inspect_ai._util.background import run_in_background
 from inspect_ai._util.content import ContentImage
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, EvalSample, read_eval_log
@@ -407,3 +414,102 @@ def test_resolve_enqueued_tasks_outside_attempt_resolves_per_run_model() -> None
     with creator_model_scope(models[1]):
         assert resolve(child()) == ["mockllm/model2"]
         assert resolve(resolved_child) == ["mockllm/model"]
+
+
+def test_enqueue_task_after_creator_attempt_ends_resolves_per_run_model() -> None:
+    # a background coroutine started by a creator attempt that adds a task
+    # after the attempt has ended is outside any attempt: its task resolves
+    # once per run model, not under the ended creator's model
+    class Source(TaskSource):
+        def __init__(self) -> None:
+            self.release: anyio.Event | None = None
+            self.all_added: anyio.Event | None = None
+            self.ended = 0
+            self.added = 0
+            self.pulled = False
+
+        def events(self) -> tuple[anyio.Event, anyio.Event]:
+            if self.release is None or self.all_added is None:
+                self.release, self.all_added = anyio.Event(), anyio.Event()
+            return self.release, self.all_added
+
+        def initial_tasks(self) -> list[Task]:
+            return [
+                Task(
+                    dataset=[Sample(input="hi", target="ok")],
+                    solver=[defer_enqueue(self)],
+                    name="seed",
+                )
+            ]
+
+        async def task_complete(self, log: EvalLog) -> list[Task] | None:
+            if log.eval.task == "seed":
+                self.ended += 1
+                if self.ended == 2:
+                    self.events()[0].set()
+            return None
+
+        async def next_tasks(self) -> list[Task] | None:
+            # keep the run open until the deferred additions are in, then
+            # return one more task so the run drains them
+            if self.pulled:
+                return None
+            self.pulled = True
+            with anyio.fail_after(30):
+                await self.events()[1].wait()
+            return [Task(dataset=[Sample(input="hi")], solver=[], name="last")]
+
+    @solver
+    def defer_enqueue(source: Source) -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            release, all_added = source.events()
+
+            async def add_later() -> None:
+                with anyio.fail_after(30):
+                    await release.wait()
+                enqueue_task(child())
+                source.added += 1
+                if source.added == 2:
+                    all_added.set()
+
+            run_in_background(add_later)
+            return state
+
+        return solve
+
+    models = ["mockllm/model", "mockllm/model2"]
+    logs = eval(Source(), model=models, display="none")
+
+    assert all(log.status == "success" for log in logs)
+    # two deferred additions, each once per run model
+    assert _child_models(logs) == sorted(models * 2)
+
+
+async def test_creator_model_expires_when_attempt_ends() -> None:
+    model = get_model("mockllm/model")
+
+    # a context copied inside the attempt (as a background task's is) sees the
+    # attempt end, whether it returns, raises or is cancelled
+    with creator_model_scope(model):
+        returned = copy_context()
+        assert returned.run(creator_model) is model
+    assert returned.run(creator_model) is None
+
+    with pytest.raises(ValueError):
+        with creator_model_scope(model):
+            raised = copy_context()
+            raise ValueError()
+    assert raised.run(creator_model) is None
+
+    with anyio.CancelScope() as scope:
+        with creator_model_scope(model):
+            cancelled = copy_context()
+            scope.cancel()
+            await anyio.sleep_forever()
+    assert cancelled.run(creator_model) is None
+
+    # clearing it for a callback does not end the enclosing attempt
+    with creator_model_scope(model):
+        with creator_model_scope(None):
+            assert creator_model() is None
+        assert creator_model() is model

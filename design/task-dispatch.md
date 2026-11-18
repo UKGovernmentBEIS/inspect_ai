@@ -1476,7 +1476,8 @@ depends on it.
   the eval set's own tasks, and every `@task` call made by attempt code,
   including one adapted afterwards with `task_with`, runs the factory. A
   task built outside an attempt before the selection is resolved (at module
-  level, say) and added later can still be a placeholder. Adding tasks, and
+  level, say) can be a placeholder; `_resolve_enqueued_tasks` refuses one
+  with `RuntimeError` rather than running it. Adding tasks, and
   task handles, in selection workers depend on this guarantee
   (task-handles.md, "Implementation plan").
 - The dispatcher rule that an attempt with no log or a `cancelled` log means a

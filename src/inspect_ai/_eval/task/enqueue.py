@@ -72,32 +72,53 @@ class TaskEnqueuer:
 _enqueuer: ContextVar[TaskEnqueuer | None] = ContextVar("task_enqueuer", default=None)
 
 
-# The model of the task attempt running in this context: set for the duration
-# of each attempt and cleared around TaskSource callbacks, so `None` means the
-# caller is not inside a task. Tasks added inside an attempt resolve once,
-# under this model, and `@task` calls inside an attempt are never pruned
-# (`eval_set_pruning.prune_task_call`). `active_model()` can't stand in for it: outside an attempt
-# it still holds the last run model that up-front task resolution activated.
-# Temporary: the task handles design's `_attempt` ContextVar (set by `run_one`
-# around the attempt, cleared in TaskSource callbacks) replaces it.
-_creator_model: ContextVar[Model | None] = ContextVar(
-    "enqueue_creator_model", default=None
+@dataclass
+class _CreatorAttempt:
+    """The running attempt's model, marked ended when the attempt exits.
+
+    Shared by reference with every context copied from the attempt, so a
+    background coroutine that outlives its attempt sees it end.
+    """
+
+    model: Model
+    ended: bool = False
+
+
+# The task attempt running in this context: set for the duration of each
+# attempt and cleared around TaskSource callbacks, so `creator_model()` is
+# `None` outside a running task. Tasks added inside an attempt resolve once,
+# under its model, and `@task` calls inside an attempt are never pruned
+# (`eval_set_pruning.prune_task_call`). `active_model()` can't stand in for
+# it: outside an attempt it still holds the last run model that up-front task
+# resolution activated. Temporary: the task handles design's `_attempt`
+# ContextVar (set by `run_one` around the attempt, cleared in TaskSource
+# callbacks) replaces it.
+_creator: ContextVar[_CreatorAttempt | None] = ContextVar(
+    "enqueue_creator", default=None
 )
 
 
 @contextmanager
 def creator_model_scope(model: Model | None) -> Iterator[None]:
-    """Set the creator model for tasks added in this scope (``None``: no creator)."""
-    token = _creator_model.set(model)
+    """Run the scope as a task attempt on ``model``, or (``None``) as outside any attempt.
+
+    An attempt's scope ends on every exit, including errors and cancellation;
+    clearing it (``None``) leaves the enclosing attempt running.
+    """
+    attempt = _CreatorAttempt(model) if model is not None else None
+    token = _creator.set(attempt)
     try:
         yield
     finally:
-        _creator_model.reset(token)
+        if attempt is not None:
+            attempt.ended = True
+        _creator.reset(token)
 
 
 def creator_model() -> Model | None:
-    """The model of the task attempt running in this context, if any."""
-    return _creator_model.get()
+    """The model of the task attempt running in this context, if it has not ended."""
+    attempt = _creator.get()
+    return attempt.model if attempt is not None and not attempt.ended else None
 
 
 def create_task_enqueuer(run_id: str, resolve: ResolveTasksFn) -> TaskEnqueuer:
@@ -140,8 +161,10 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:
             given it must match the active run, else the call is rejected.
 
     Raises:
-        RuntimeError: If no eval is currently running in this process, or
-            ``run_id`` doesn't match the active run.
+        RuntimeError: If no eval is currently running in this process,
+            ``run_id`` doesn't match the active run, or a task is a
+            placeholder that eval-set selection pruning left in place of a
+            task it did not build.
         ValueError: If the tasks can't be resolved (propagated from resolution).
     """
     enqueuer = get_task_enqueuer()

@@ -180,10 +180,11 @@ The last two share the same downstream machinery:
   models. Anywhere else, they resolve once per run model. TaskSource callbacks
   (`initial_tasks`, `next_tasks`, `sample_complete`, `sample_abandoned`,
   `task_complete`) count as outside an attempt, both for the tasks they return
-  and for `enqueue_task()` calls made inside them. A private `ContextVar` in
-  `task/enqueue.py` (`_creator_model`) carries the attempt's model:
-  `_run_task` (`_eval/run.py`) sets it around `task_run`, and each callback
-  site clears it.
+  and for `enqueue_task()` calls made inside them, and so does a background
+  coroutine still running after its attempt ended. A private `ContextVar` in
+  `task/enqueue.py` (`_creator`) carries the attempt's model in a cell the
+  attempt marks ended: `_run_task` (`_eval/run.py`) sets it around
+  `task_run`, and each callback site clears it.
   [task-handles.md](task-handles.md)'s `_attempt` ContextVar replaces it. A
   task that sets its own `model` keeps it either way, and model roles and
   generate config come from the run.
