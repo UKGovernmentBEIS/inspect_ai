@@ -254,16 +254,6 @@ def test_sync_hashes_metadata_json_that_is_written(
     assert filestore.read_sample_metadata("s1", 1, manifest) == {"version": "new"}
 
 
-def test_sample_metadata_file_normalizes_sample_id(
-    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
-) -> None:
-    _, filestore = db_and_filestore
-
-    assert filestore._sample_metadata_file(1, 1, "digest") == (
-        filestore._sample_metadata_file("1", 1, "digest")
-    )
-
-
 @pytest.mark.parametrize("failure", ["hash_mismatch", "invalid_json"])
 def test_read_sample_metadata_falls_back_on_invalid_sidecar(
     db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
@@ -292,7 +282,9 @@ def test_read_sample_metadata_falls_back_on_invalid_sidecar(
     metadata_hash = manifest.samples[0].metadata_hash
     assert metadata_hash is not None
     if failure == "hash_mismatch":
-        metadata_path = filestore._sample_metadata_file("s1", 1, metadata_hash)
+        metadata_path = filestore._sample_sidecar_file(
+            "metadata", "s1", 1, metadata_hash
+        )
         Path(metadata_path).write_bytes(b"{}")
     else:
         invalid_json = b"{"

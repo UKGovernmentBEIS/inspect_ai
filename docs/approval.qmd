@@ -307,7 +307,7 @@ approvers:
 These approvers will make one of the following approval decisions for each tool call they are configured to handle:
 
 1)  Allow the tool call (based on the various configured options)
-2)  Disallow the tool call (because it is considered dangerous under all conditions)
+2)  Reject the tool call and report the reason to the model
 3)  Escalate the tool call to the human approver.
 
 Note that the human approver is last and is bound to all tools, so escalations from the bash and python allow list approvers will end up prompting the human approver.
