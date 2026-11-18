@@ -550,7 +550,9 @@ def _answers(messages: list[ChatMessage]) -> dict[str, str]:
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(
-    "model_ids", [("call_1", "call_2"), ("", "")], ids=["distinct", "missing"]
+    "model_ids",
+    [("call_1", "call_2"), ("", ""), ("null", "null")],
+    ids=["distinct", "missing", "duplicate"],
 )
 @pytest.mark.parametrize("prefixed", [True, False], ids=["gemini_cli", "unprefixed"])
 async def test_identical_google_calls_keep_their_own_ids_and_results_without_a_sentinel(
@@ -561,7 +563,8 @@ async def test_identical_google_calls_keep_their_own_ids_and_results_without_a_s
     The scaffold sends each call and its result back under the call's id,
     prefixed with its function as Gemini CLI does or not, with the results
     in reverse order. Each result answers its own call. A call the model
-    gave no id gets a fresh one.
+    gave no id gets a fresh one, as do calls under one id (Mistral's
+    `"null"`), which Gemini CLI would otherwise run as one call.
     """
     google = _google_bridge(
         _identical_reads(*model_ids), ModelOutput.from_content("mockllm/model", "done")
@@ -572,8 +575,10 @@ async def test_identical_google_calls_keep_their_own_ids_and_results_without_a_s
 
     handed = _handed_ids(reply)
     assert len(set(handed)) == 2 and all(handed)
-    if all(model_ids):
+    if len(set(model_ids)) == 2:
         assert handed == list(model_ids)
+    else:
+        assert not set(handed) & set(model_ids)
 
     def echoed(call_id: str) -> str:
         return f"read_file__{call_id}" if prefixed else call_id

@@ -169,6 +169,9 @@ async def inspect_google_api_request_impl(
         # None when it sent none
         requested_model=client_model if client_model is not None else requested_model,
         routing=routing,
+        # Gemini CLI keys a response's calls by id, so calls sharing one would
+        # run as one
+        distinct_call_ids=True,
     )
     if c_message is not None:
         messages.append(c_message)
