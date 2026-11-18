@@ -185,16 +185,20 @@ async def inspect_google_api_request_impl(
     # strings) as a later request's history is parsed, so an unchanged echo
     # matches it
     wire_content = json.loads(json.dumps(response["candidates"][0]["content"]))
-    transported = messages_from_google_contents(
-        [wire_content],
-        None,
-        handed=bridge._handouts.wire_names,
-    )
+    handed = bridge._handouts.wire_names
+    transported = messages_from_google_contents([wire_content], None, handed=handed)
     # a scaffold that drops the call ids sends the reply back in this form
+    without_ids = _without_call_ids(wire_content)
     bridge._record_transported_reply(
-        output.message,
-        messages_from_google_contents([_without_call_ids(wire_content)], None),
+        output.message, messages_from_google_contents([without_ids], None)
     )
+    for form, form_handed in ((wire_content, handed), (without_ids, None)):
+        merged = _gemini_cli_merged(form)
+        if merged != form:
+            bridge._record_transported_reply(
+                output.message,
+                messages_from_google_contents([merged], None, handed=form_handed),
+            )
 
     # update state if we have more messages than the last generation
     await bridge._track_state(messages, output, [transported])
@@ -224,6 +228,38 @@ def _without_call_ids(content: dict[str, Any]) -> dict[str, Any]:
             for part in content.get("parts", [])
         ],
     }
+
+
+def _gemini_cli_merged(content: dict[str, Any]) -> dict[str, Any]:
+    """`content` as Gemini CLI sends a reply back in its history.
+
+    Gemini CLI drops thought parts and appends each non-thought text part to
+    the part before it when that is non-empty non-thought text
+    (`geminiChat.ts`, `processStreamResponse`). So the embedded reasoning
+    part (`gemini_response_from_output`) comes back joined to the text
+    before it, which can change the text the reply is read back with.
+    """
+    parts: list[dict[str, Any]] = []
+    for part in content.get("parts", []):
+        if part.get("thought"):
+            continue
+        if parts and parts[-1].get("text") and _is_text(parts[-1]) and _is_text(part):
+            parts[-1] = {**parts[-1], "text": parts[-1]["text"] + part["text"]}
+        else:
+            parts.append(part)
+    return {**content, "parts": parts}
+
+
+def _is_text(part: dict[str, Any]) -> bool:
+    """Whether Gemini CLI reads `part` as non-thought text (`isValidNonThoughtTextPart`)."""
+    return (
+        isinstance(part.get("text"), str)
+        and not part.get("thought")
+        and not any(
+            key in part
+            for key in ("functionCall", "functionResponse", "inlineData", "fileData")
+        )
+    )
 
 
 def debug_log(caption: str, o: Any) -> None:
