@@ -1662,7 +1662,11 @@ async def _bridge_generate_impl(
             declarations.extend(declared_in_input(input_messages))
         producer = generations.producer(produced)
         model_ids = [call.id for call in output.message.tool_calls or []]
-        output = _fresh_call_ids(bridge, output, request_ids)
+        fresh = _fresh_call_ids(bridge, output, request_ids)
+        if producer is not None and fresh is not output:
+            # a copy the steps share, as approval and the scaffold get `fresh`
+            producer = replace(producer, handed=fresh.message.model_copy(deep=True))
+        output = fresh
         bridge._handouts.propose(output.message.tool_calls or [])
         # each call's handout, named before review so its approvals and
         # `tool_call` steps record it

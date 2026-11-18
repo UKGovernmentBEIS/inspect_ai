@@ -32,8 +32,17 @@ def sample_messages(sample: Sample) -> list[ChatMessage]:
         return messages
 
 
-def task_run_dir(task: Task) -> str:
-    return getattr(task, TASK_RUN_DIR_ATTR, os.getcwd())
+def task_run_dir(task: Task, default: str | None = None) -> str:
+    """The directory of the file the task was loaded from.
+
+    Args:
+       task: The task.
+       default: Directory for a task not loaded from a file (the current
+          working directory when omitted).
+    """
+    return getattr(
+        task, TASK_RUN_DIR_ATTR, default if default is not None else os.getcwd()
+    )
 
 
 def task_file(task: Task, relative: bool = False) -> str | None:

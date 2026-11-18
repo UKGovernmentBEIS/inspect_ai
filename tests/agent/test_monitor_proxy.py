@@ -16,7 +16,7 @@ from inspect_ai._util.constants import (
     DEFAULT_LOG_LEVEL,
 )
 from inspect_ai.agent._bridge.sandbox.bridge import _monitor_proxy, sandbox_agent_bridge
-from inspect_ai.util._sandbox.events import SandboxTimeoutError
+from inspect_ai.util._sandbox.environment import SandboxTimeoutError
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
     ExecOutput,
