@@ -359,8 +359,7 @@ A failed generation is returned to the scaffold as an error response in the
 API's own format. A token, cost, message or turn limit reached in a bridged
 generation is returned the same way and recorded on the bridge. Once a limit
 is recorded the host makes no further generation for the bridge: later
-generation requests, and model calls a bridged tool makes, get the recorded
-limit's error without a provider call. The bridge does not stop the
+generation requests get the recorded limit's error without a provider call. The bridge does not stop the
 scaffold. It raises the recorded limit once the agent unwinds, so the scope
 that set it handles it as it would for a native agent. Which limit stays
 recorded when more than one is reached is in `_forward_provider_errors()` and
