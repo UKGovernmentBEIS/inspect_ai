@@ -180,12 +180,12 @@ sequenceDiagram
     end
 
     A->>P: POST /v1/messages (or /v1/chat/completions,<br/>/v1/responses, /v1beta/models/...)
-    P->>P: JSON body only; model present
-    P->>Q: write requests/<uuid>.json<br/>{id, method: generate_anthropic,<br/>params: {json_data, headers}}
+    P->>P: JSON body only, model present
+    P->>Q: write requests/#lt;uuid#gt;.json<br/>{id, method: generate_anthropic,<br/>params: {json_data, headers}}
     loop every polling interval
         S->>Q: find requests -name *.json
     end
-    S->>Q: cat requests/<uuid>.json
+    S->>Q: cat requests/#lt;uuid#gt;.json
     S->>S: validate file name, id, method, params
     S->>S: translate dialect → messages, tools, config<br/>route model · drop ungranted tools and settings<br/>inline media only · filter headers · assign message ids
     S->>S: bridge_generate: compaction · filter
@@ -193,7 +193,7 @@ sequenceDiagram
     M-->>S: output (ModelEvent recorded)
     S->>S: response filter · approval<br/>reject → tell the model, generate again<br/>approve → mint execution grants
     S->>S: track agent state
-    S->>Q: write responses/<uuid>.json, remove request
+    S->>Q: write responses/#lt;uuid#gt;.json, remove request
     loop every 0.1 s
         P->>Q: response present?
     end
