@@ -560,8 +560,13 @@ def _counted(node: Limit) -> bool:
   error that reaches its owner stands, and so does any other error). The
   reached limit refuses the next pre-dispatch check, or is found by its
   owner's exit check.
-- Native compaction (`_model.py:1596`) records and checks as one step, since
-  it records no turn.
+- Native compaction (`Model.compact()`, `_model.py:1594-1596`) records no
+  turn. After a successful compaction it records the returned usage when
+  there is any (`record_model_call()`, as today only `if usage`), and then
+  runs `check_limits()` unconditionally, so a compaction that returns no
+  usage still raises a limit another call has already taken past its
+  budget. It does not fail for missing usage (that is the separate no-usage
+  design, "Not this design").
 - `_check_limits_before_dispatch(model: Model | None = None)` (`_model.py:3898`)
   calls `check_limits(raise_for_equal=True)`, then the unpriced-model check
   (rule 9, "Unpriced models") when `model` is given, and then the
@@ -1445,10 +1450,13 @@ with cost suspended.
   the fallback `model_usage_cost()` uses when a serving model has none.
   The same holds for other names whose calls are priced today from the
   model that served them: Azure deployments reached through the OpenAI,
-  Azure AI and Anthropic providers, and Bedrock routing or
-  inference-profile names. A name the model database does not know, such
-  as an Azure deployment name, needs `set_model_info()` with a `ModelInfo`
-  that includes cost, since `set_model_cost()` requires an existing entry;
+  Azure AI and Anthropic providers, Bedrock routing or inference-profile
+  names, Fireworks routers, and LiteLLM proxy aliases that have no
+  called-model price (an alias already priced by user registration, the
+  model database or the proxy's metadata is admitted as today). A name the model database does not know, such
+  as an Azure deployment name, needs
+  `set_model_info(full_model_name, ModelInfo(cost=...))`, since
+  `set_model_cost()` requires an existing entry;
   `set_model_cost()` or `--model-cost-config` works for a name that has
   one.
   Without a cost limit, or with cost suspended, nothing changes.
@@ -1775,10 +1783,14 @@ documented. Behaviour changes:
   models where those are priced; the router's price is the fallback
   `model_usage_cost()` uses when a serving model has none. A router as the
   task model already fails at start today. The same applies to Azure
-  deployments through the OpenAI, Azure AI and Anthropic providers and to
-  Bedrock routing or inference-profile names that an agent resolves
-  separately: an unknown deployment name needs `set_model_info()` with
-  cost, and `set_model_cost()` works for names with a database entry.
+  deployments through the OpenAI, Azure AI and Anthropic providers, to
+  Bedrock routing or inference-profile names, to Fireworks routers and to
+  LiteLLM proxy aliases without a called-model price, when an agent
+  resolves them separately: an unknown called name needs
+  `set_model_info(full_model_name, ModelInfo(cost=...))`, and
+  `set_model_cost()` works for names with a database entry. A LiteLLM
+  alias already priced by user registration, the model database or the
+  proxy's metadata is admitted as today.
 - **Unpriced role models fail per call, not at start.** Today an eval with
   a cost limit and an unpriced model-role model fails before any sample
   runs, with a `PrerequisiteError` from `resolve_model_costs()`, at eval
@@ -1972,7 +1984,9 @@ under trio with `--runtrio`.
   a cache hit under a `token_limit()` an uncached call has already exceeded
   is served and then raises that limit, and
   `test_generate_cache_hit_served_when_token_limit_reached` (a hit at
-  exactly the limit returns) still passes; native compaction is refused at the limit and records no
+  exactly the limit returns) still passes; a native compaction that
+  returns no usage, under a `token_limit()` a concurrent call has already
+  exceeded, raises that limit; native compaction is refused at the limit and records no
   turn; under `turn_limit(1)`, a call that raises a child `token_limit(1)`
   (caught) counts one turn and the next call is refused by the turn limit;
   the same with a child `cost_limit()`.
@@ -2151,7 +2165,8 @@ Each step is one PR, in this order. Each keeps the suite green.
    counter it assigns (no payload change).
    `src/inspect_ai/model/_model.py`: `record_and_check_model_usage(check=)`,
    the inner generation recording without a check, the outer frame's
-   `record_turn()` then `check_limits()`,
+   `record_turn()` then `check_limits()`, `Model.compact()` recording
+   when usage is present and then `check_limits()` unconditionally,
    `_check_limits_before_dispatch`.
    Tests: the node-level cases in `tests/util/test_limit*.py` (chain,
    precedence, recording, pre-dispatch refusal, `_raised_at` and
