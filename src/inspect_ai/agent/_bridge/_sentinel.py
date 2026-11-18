@@ -497,6 +497,7 @@ class _Handouts:
         calls: Sequence[ToolCall],
         history: AbstractSet[str],
         siblings: AbstractSet[str] = frozenset(),
+        distinct: bool = False,
     ) -> bool:
         """Whether the model's id for `calls` (those of a response under it) names another call.
 
@@ -517,8 +518,14 @@ class _Handouts:
         can be handed over under, as approval and the sentinel review the
         call after its id is chosen. So does an id longer than
         `MAX_CALL_ID_LENGTH`, which bounds that work.
+
+        With `distinct`, for a scaffold that keys a response's calls by id
+        and would run only one of those sharing one (Gemini CLI), so does any
+        id several of `calls` share (Mistral's `"null"`).
         """
         if not call_id or len(call_id) > MAX_CALL_ID_LENGTH:
+            return True
+        if distinct and len(calls) > 1:
             return True
         if any(
             echo in self.reserved_ids or echo in self.handed or echo in siblings

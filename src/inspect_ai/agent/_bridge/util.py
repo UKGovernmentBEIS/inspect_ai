@@ -1356,6 +1356,7 @@ async def bridge_generate(
         GenerateConfig,
     ]
     | None = None,
+    distinct_call_ids: bool = False,
 ) -> tuple[ModelOutput, ChatMessageUser | None]:
     """Generate model output through the agent bridge.
 
@@ -1395,6 +1396,9 @@ async def bridge_generate(
     the model, tools, tool choice and config it is made with, after any filter
     rewrite. It is not applied to a generation the filter makes itself.
 
+    With `distinct_call_ids`, the calls of the response are handed over under
+    distinct ids (`_fresh_call_ids`).
+
     A request is refused once a token or cost limit has been reached, before
     compaction (which can make its own model call), the filter and the
     generation's cache lookup, so a scaffold that retries after a limit's
@@ -1423,6 +1427,7 @@ async def bridge_generate(
                 routing,
                 finalize_config,
                 generations,
+                distinct_call_ids,
             )
         finally:
             generations.close()
@@ -1443,6 +1448,7 @@ async def _bridge_generate_impl(
     ]
     | None,
     generations: "_Generations",
+    distinct_call_ids: bool,
 ) -> tuple[ModelOutput, ChatMessageUser | None]:
     """Implementation of bridge_generate (see wrapper)."""
     # restore operator provenance lost to a bridged scaffold's round-trip (e.g.
@@ -1662,7 +1668,7 @@ async def _bridge_generate_impl(
             declarations.extend(declared_in_input(input_messages))
         producer = generations.producer(produced)
         model_ids = [call.id for call in output.message.tool_calls or []]
-        fresh = _fresh_call_ids(bridge, output, request_ids)
+        fresh = _fresh_call_ids(bridge, output, request_ids, distinct_call_ids)
         if producer is not None and fresh is not output:
             # a copy the steps share, as approval and the scaffold get `fresh`
             producer = replace(producer, handed=fresh.message.model_copy(deep=True))
@@ -1745,14 +1751,18 @@ async def _bridge_generate_impl(
 
 
 def _fresh_call_ids(
-    bridge: AgentBridge, output: ModelOutput, history: AbstractSet[str]
+    bridge: AgentBridge,
+    output: ModelOutput,
+    history: AbstractSet[str],
+    distinct: bool = False,
 ) -> ModelOutput:
     """`output` with a fresh id for each call whose model id names another call.
 
     The model's id names another call when it is empty, or the bridge has
     seen it in a request (`history`, the ids in this one) or the conversation
     it started with, or handed it over or rejected it for another call
-    (`_Handouts.reused`). Inspect's providers don't reuse ids, but
+    (`_Handouts.reused`), or, with `distinct`, several of `output`'s calls
+    share it. Inspect's providers don't reuse ids, but
     OpenAI-compatible servers can, and Claude Code drops a call under a
     repeated id, and its result. The provider state recorded under the id is
     the new call's or another's, so it is dropped (`forget_tool_call`), and
@@ -1768,7 +1778,7 @@ def _fresh_call_ids(
     kept: set[str] = set()
     reused: set[str] = set()
     for call_id, under_id in calls.items():
-        if bridge._handouts.reused(call_id, under_id, history, kept):
+        if bridge._handouts.reused(call_id, under_id, history, kept, distinct):
             reused.add(call_id)
         else:
             kept.add(call_id)

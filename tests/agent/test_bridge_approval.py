@@ -7072,7 +7072,7 @@ async def test_a_report_under_a_handed_id_is_checked_as_the_ids_recorded_target(
 
 @pytest.mark.usefixtures("fake_sentinel")
 @pytest.mark.parametrize("secret", [False, True])
-@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic"])
 async def test_calls_sharing_an_id_in_one_reply_are_checked_as_their_targets(
     dialect: HostDialect, secret: bool
 ) -> None:
@@ -7083,6 +7083,9 @@ async def test_calls_sharing_an_id_in_one_reply_are_checked_as_their_targets(
     result is checked as the bridged tool, with the arguments of the call it
     answers and no proposal's context: a secret `read_file` result is
     stopped.
+
+    The Google dialect hands such calls over under ids of their own
+    (`test_gemini_cli_echoes_of_calls_the_model_gave_one_id_are_each_read_as_their_own`).
     """
     calls = [
         ToolCall(id="same", function="mcp__host__read_file", arguments={"path": path})
@@ -7526,7 +7529,7 @@ def _checked_as(seen: list[AfterToolCall]) -> list[tuple[str, str]]:
 
 @pytest.mark.usefixtures("fake_sentinel")
 @pytest.mark.parametrize("change", ["unchanged", "edited", "omitted"])
-@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic"])
 async def test_each_result_of_calls_sharing_an_id_is_checked_as_one_call(
     dialect: HostDialect, change: str
 ) -> None:
@@ -7537,6 +7540,9 @@ async def test_each_result_of_calls_sharing_an_id_is_checked_as_one_call(
     one call as it was handed over, with no context, in work linear in N,
     never a check of every handout for each result. Measured for N of 8 and
     64.
+
+    The Google dialect hands such calls over under ids of their own
+    (`test_gemini_cli_echoes_of_calls_the_model_gave_one_id_are_each_read_as_their_own`).
     """
     seen: list[AfterToolCall] = []
 
@@ -7584,7 +7590,7 @@ async def test_each_result_of_calls_sharing_an_id_is_checked_as_one_call(
 @pytest.mark.usefixtures("fake_sentinel")
 @pytest.mark.parametrize("resumed", [False, True])
 @pytest.mark.parametrize("change", ["edited", "omitted"])
-@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic", "google"])
+@pytest.mark.parametrize("dialect", ["completions", "responses", "anthropic"])
 async def test_a_result_past_the_calls_sharing_an_id_is_checked_as_the_last(
     dialect: HostDialect, change: str, resumed: bool
 ) -> None:
@@ -7595,6 +7601,9 @@ async def test_a_result_past_the_calls_sharing_an_id_is_checked_as_the_last(
     call with the last. No result is checked as more than one call. The
     order is kept in the bridge's checkpoint, so a `resumed` bridge pairs
     them alike.
+
+    The Google dialect hands such calls over under ids of their own
+    (`test_gemini_cli_echoes_of_calls_the_model_gave_one_id_are_each_read_as_their_own`).
     """
     calls = [
         ToolCall(id="same", function="read_file", arguments={"path": path})
@@ -7748,23 +7757,21 @@ async def test_a_changed_call_of_an_id_handed_out_as_two_tools_is_checked_as_bot
 @pytest.mark.usefixtures("fake_sentinel")
 @pytest.mark.parametrize("resumed", [False, True])
 @pytest.mark.parametrize("echo", ["prefixed", "unchanged"])
-@pytest.mark.parametrize("last", ["status", "mcp__host__read_file"])
-async def test_gemini_cli_echoes_of_calls_sharing_an_id_are_each_read_as_the_id(
-    last: str, echo: str, resumed: bool
+@pytest.mark.parametrize("model_id", ["shared", "null"])
+async def test_gemini_cli_echoes_of_calls_the_model_gave_one_id_are_each_read_as_their_own(
+    model_id: str, echo: str, resumed: bool
 ) -> None:
-    """One reply makes a host `read_file` call and a scaffold `status` call under one id; Gemini CLI sends each back under the id `prefixed` with its own function's name.
+    """One reply makes a host `read_file` call and a scaffold `status` call under one `model_id` (Mistral gives every call `"null"`).
 
-    Each prefixed id is read as the shared id, whichever function was handed
-    over `last` under it, so the `read_file` result is checked as the
-    bridged tool and a secret one is stopped, as with the ids `unchanged`.
-    The functions handed over under the id are kept in the bridge's
-    checkpoint, so a `resumed` bridge reads the echoes alike.
+    Gemini CLI keys a response's calls by id and would run one of them, so
+    each is handed over under a fresh id of its own. Gemini CLI sends each
+    back under its id, `prefixed` with its function's name or `unchanged`;
+    each is read as its own call, so the `read_file` result is checked as
+    the bridged tool and a secret one is stopped, on a `resumed` bridge too.
     """
     functions = ["mcp__host__read_file", "status"]
-    if last == "mcp__host__read_file":
-        functions.reverse()
     calls = [
-        ToolCall(id="shared", function=function, arguments={"path": "p"})
+        ToolCall(id=model_id, function=function, arguments={"path": "p"})
         for function in functions
     ]
     done = ModelOutput.from_content("mockllm/model", "Done.")
@@ -7784,9 +7791,9 @@ async def test_gemini_cli_echoes_of_calls_sharing_an_id_are_each_read_as_the_id(
             for part in conversation.history[-1]["parts"]
             if "functionCall" in part
         ]
-        assert [(call["name"], call["id"]) for call in handed] == [
-            (function, "shared") for function in functions
-        ]
+        assert [call["name"] for call in handed] == functions
+        ids = {call["name"]: call["id"] for call in handed}
+        assert len(set(ids.values())) == 2 and model_id not in ids.values()
         if resumed:
             bridge._handouts = _Handouts(
                 _SavedHandouts.model_validate_json(
@@ -7820,7 +7827,7 @@ async def test_gemini_cli_echoes_of_calls_sharing_an_id_are_each_read_as_the_id(
             await conversation.request(bridge)
     [stopped] = [step for step in seen if step.call.function == "read_file"]
     assert "secret" in stopped.result.text
-    assert {step.call.id for step in seen} == {"shared"}
+    assert stopped.call.id == ids["mcp__host__read_file"]
 
 
 @pytest.mark.usefixtures("fake_sentinel")
