@@ -43,9 +43,10 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         from inspect_ai.event._sandbox import SandboxEvent
         from inspect_ai.log._transcript import transcript
 
-        from .identity import sandbox_operation_user
+        from .identity import sandbox_operation_cwd, sandbox_operation_user
 
         user = sandbox_operation_user(self, user)
+        cwd = sandbox_operation_cwd(self, cwd)
 
         # started
         timestamp = datetime.now(timezone.utc)
@@ -139,10 +140,11 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         from inspect_ai.event._sandbox import SandboxEvent
         from inspect_ai.log._transcript import transcript
 
-        from .identity import sandbox_file_user_params
+        from .identity import sandbox_file_user_params, sandbox_operation_file
 
         timestamp = datetime.now(timezone.utc)
         params = sandbox_file_user_params(self, "write_file", user)
+        file = sandbox_operation_file(self, file)
 
         # make call
         try:
@@ -180,10 +182,11 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         from inspect_ai.event._sandbox import SandboxEvent
         from inspect_ai.log._transcript import transcript
 
-        from .identity import sandbox_file_user_params
+        from .identity import sandbox_file_user_params, sandbox_operation_file
 
         timestamp = datetime.now(timezone.utc)
         params = sandbox_file_user_params(self, "read_file", user)
+        file = sandbox_operation_file(self, file)
 
         # make call
         try:

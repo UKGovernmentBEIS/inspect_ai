@@ -457,6 +457,31 @@ async def test_turn_active_is_snapshotted_when_transport_binds_mid_turn() -> Non
             assert acp.turn_active is False
 
 
+async def test_turn_active_clears_when_turn_raises() -> None:
+    """A turn left by an exception reads inactive and publishes "ended"."""
+    from inspect_ai.agent._acp.transport import TurnStateUpdate
+    from inspect_ai.agent._channel import agent_channel
+
+    async with acp_session() as acp:
+        stream = acp.attach()
+        async with agent_channel() as ch:
+            assert acp.maybe_bind(ch, ch._ref()) is True
+            with pytest.raises(ValueError):
+                with ch.turn_scope():
+                    raise ValueError("limit")
+            assert acp.turn_active is False
+            updates = []
+            while True:
+                try:
+                    updates.append(stream.receive_nowait())
+                except anyio.WouldBlock:
+                    break
+            assert [u.state for u in updates if isinstance(u, TurnStateUpdate)] == [
+                "started",
+                "ended",
+            ]
+
+
 async def test_turn_state_unbind_drops_channel_subscription() -> None:
     """After ``unbind`` the transport no longer relays the channel's turn state."""
     from inspect_ai.agent._channel import agent_channel
@@ -902,6 +927,31 @@ async def test_wait_for_client_wakes_on_bind() -> None:
 async def test_wait_for_client_raises_after_session_exit() -> None:
     async with acp_session() as acp:
         pass
+    with pytest.raises(RuntimeError):
+        await acp.wait_for_client()
+
+
+async def test_closed_session_rejects_clients_and_cancels() -> None:
+    """Once the session has exited, input and client attach are no-ops.
+
+    A late ``session/cancel`` must not write an ``InterruptEvent`` into
+    the finished sample's transcript, and a late client attach must not
+    make ``wait_for_client`` report a client on a closed transport.
+    """
+    from inspect_ai.event._interrupt import InterruptEvent
+    from inspect_ai.log._transcript import Transcript, init_transcript
+
+    tr = Transcript()
+    init_transcript(tr)
+    async with acp_session() as acp:
+        pass
+    before = len(tr.events)
+    acp.cancel_current_turn()
+    assert not any(isinstance(e, InterruptEvent) for e in tr.events[before:])
+    assert acp.interrupt_pending is False
+
+    _bind_approver(acp, _StubApproverClient())
+    assert acp.has_client is False
     with pytest.raises(RuntimeError):
         await acp.wait_for_client()
 

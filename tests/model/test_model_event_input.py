@@ -8,9 +8,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import anyio
 import numpy as np
 import pytest
 from pydantic import BaseModel, PrivateAttr
+from test_helpers.utils import collide_murmur3
 
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai.event._model import ModelEvent
@@ -25,7 +27,11 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._chat_message import logged_json
-from inspect_ai.model._model import _snapshot_messages, use_model_event_sink
+from inspect_ai.model._model import (
+    _snapshot_messages,
+    collect_model_events,
+    use_model_event_sink,
+)
 from inspect_ai.tool import ToolCall, ToolCallError
 
 
@@ -294,6 +300,17 @@ def test_model_event_input_snapshots_object_tool_arguments() -> None:
     assert steps == [1, 2]
 
 
+def test_model_event_input_snapshots_a_change_whose_murmur3_hash_collides(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collide_murmur3(monkeypatch)
+    message = ChatMessageUser(content="first")
+    [first] = _snapshot_messages([message])
+    message.content = "second"
+    [second] = _snapshot_messages([message])
+    assert [first.text, second.text] == ["first", "second"]
+
+
 async def test_model_event_input_reuses_deeply_nested_metadata() -> None:
     init_transcript(Transcript())
     model = get_model("mockllm/model")
@@ -309,3 +326,82 @@ async def test_model_event_input_reuses_deeply_nested_metadata() -> None:
 
     first, second = _model_events()
     assert first.input[0] is second.input[0]
+
+
+@pytest.mark.parametrize("with_sink", [False, True])
+async def test_collect_model_events_collects_the_blocks_own_generations(
+    with_sink: bool,
+) -> None:
+    """A block collects its own completed generations, nested ones and those of tasks it starts included, not a concurrent task's."""
+    init_transcript(Transcript())
+    model = get_model("mockllm/model")
+    sink = _Sink()
+    inner_started = anyio.Event()
+    outside_done = anyio.Event()
+    outside: list[ModelOutput] = []
+
+    async def generate_outside() -> None:
+        await inner_started.wait()
+        outside.append(await model.generate("outside"))
+        outside_done.set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(generate_outside)
+        with (
+            use_model_event_sink(sink if with_sink else None),
+            collect_model_events() as outer,
+        ):
+            await model.generate("outer")
+            with collect_model_events() as inner:
+                inner_started.set()
+                await outside_done.wait()
+                await model.generate("inner")
+                async with anyio.create_task_group() as inner_tg:
+                    inner_tg.start_soon(model.generate, "inner task")
+
+    assert [g.event.input[0].text for g in outer] == [
+        "outer",
+        "inner",
+        "inner task",
+    ]
+    assert [g.event.input[0].text for g in inner] == ["inner", "inner task"]
+    assert all(g.event.pending is None for g in outer)
+    assert all(g.model is model for g in outer)
+    assert len(_model_events()) == (1 if with_sink else 4)
+    assert outside[0].message.id not in [g.event.output.message.id for g in outer]
+
+
+@pytest.mark.parametrize("with_sink", [False, True])
+async def test_collect_model_events_ends_when_the_block_exits(with_sink: bool) -> None:
+    """A task outliving the block, and an attempt still in flight when it exits, are not collected."""
+    from unittest.mock import patch
+
+    init_transcript(Transcript())
+    model = get_model("mockllm/model")
+    provider_generate = model.api.generate
+    in_flight = anyio.Event()
+    release = anyio.Event()
+
+    async def held_generate(*args: Any, **kwargs: Any) -> Any:
+        if not release.is_set():
+            in_flight.set()
+            await release.wait()
+        return await provider_generate(*args, **kwargs)
+
+    async def monitor() -> None:
+        await release.wait()
+        for n in range(3):
+            await model.generate(f"monitor {n}")
+
+    with (
+        patch.object(model.api, "generate", held_generate),
+        use_model_event_sink(_Sink() if with_sink else None),
+    ):
+        async with anyio.create_task_group() as tg:
+            with collect_model_events() as events:
+                tg.start_soon(model.generate, "in flight")
+                tg.start_soon(monitor)
+                await in_flight.wait()
+            release.set()
+
+    assert events == []

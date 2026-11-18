@@ -18,6 +18,19 @@ class ApprovalEvent(BaseEvent):
     call: ToolCall
     """Tool call being approved."""
 
+    execution_id: str | None = Field(default=None)
+    """The execution of the call this approval judged: the `execution_id` of the `ToolEvent` that ran it, if one did.
+
+    Set for a native tool call and for a call an agent bridge reviews before
+    handing it to its scaffold, where it names that handout and the bridged
+    tool the approval reviewed the call as, as a host `ToolEvent` records it
+    (a call the scaffold runs itself has no `ToolEvent`). `None` in logs written before
+    this field, and for a call approved outside `execute_tools()` and the
+    agent bridge.
+
+    Experimental: not yet a stable API; may change without notice.
+    """
+
     view: ToolCallView | None = Field(default=None)
     """View presented for approval."""
 

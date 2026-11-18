@@ -179,8 +179,8 @@ async def ingress_sandbox(
        extract it into the standard in-sandbox repo location
        (``/root/.cache/inspect/repo``). Until extraction finishes, the
        sandbox holds both, about twice the repo's size on disk.
-    4. For each root, ``restic restore <id>:<parent> --target <parent>
-       --include /<name> --include-xattr user.*`` inside the sandbox, so
+    4. For each root, ``restic restore --target <parent> --include /<name>
+       --include-xattr user.* -- <id>:<parent>`` inside the sandbox, so
        the root lands at its original absolute path and nothing above
        it is written (restic would otherwise restore the recorded
        metadata of every ancestor directory on the way to a selected
@@ -260,13 +260,14 @@ async def ingress_sandbox(
                 "-r",
                 paths.repo,
                 "restore",
-                args.snapshot_spec,
                 "--target",
                 args.target,
                 "--include",
                 args.include,
                 "--include-xattr",
                 RESTORED_XATTRS,
+                "--",
+                args.snapshot_spec,
             ],
             env={"RESTIC_PASSWORD": password},
             user="root",

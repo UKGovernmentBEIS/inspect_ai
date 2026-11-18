@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 import anyio
 
+from ._sign import answer_message, eval_call_message, now, sign
+
 if TYPE_CHECKING:
     from inspect_ai.model._model import ModelAPI
 
@@ -19,8 +21,20 @@ VERSIONS = (1,)
 PROBE_TIMEOUT = 10.0
 CALL_TIMEOUT = 60.0
 
+REDACTED = "<redacted>"
+"""What the eval's token is replaced with wherever it would otherwise be logged or reported."""
+
 UNAUTHORIZED = -32010
-"""The sidecar's error for a call that didn't present the token it keeps for the eval."""
+"""The sidecar's error for a call whose token or signature doesn't match the token it keeps for the eval, or whose timestamp is outside its window."""
+
+UNKNOWN_QUESTION = -32011
+"""The sidecar's error code for an answer to a question it doesn't hold for the eval.
+
+The question has closed, or its call has ended.
+"""
+
+QUESTION_ANSWERED = -32012
+"""The sidecar's error code for an answer to a question that already has an answer."""
 
 
 class SentinelProxyError(RuntimeError):
@@ -38,15 +52,46 @@ class SidecarCallError(RuntimeError):
 
 @dataclass
 class EvalAccess:
-    """What an eval presents to one sidecar on every call but its first registration: its id, and the token the sidecar gave it when it registered."""
+    """The eval's id and token for one sidecar, which signs every call to it but a registration the sidecar holds no token for."""
 
     eval_id: str
-    token: str | None = field(default=None, repr=False)
-    """The latest token the sidecar gave the eval, or None before it registered."""
-    chosen: str = field(default_factory=lambda: secrets.token_urlsafe(32), repr=False)
-    """The token the eval made for its first registration, which the sidecar keeps and hands back: a first registration whose answer was lost is sent again with it, and isn't refused."""
+    token: str = field(default_factory=lambda: secrets.token_urlsafe(32), repr=False)
+    """The token the eval made for the sidecar, which never changes. It is sent only in a registration to a sidecar that holds no token for the eval, and signs everything else."""
     lock: anyio.Lock = field(default_factory=anyio.Lock, repr=False)
-    """Held while the eval registers, so two registrations never present different tokens."""
+    """Held while the eval registers, so a sidecar that lost the task is registered again once, not by every sample that finds it lost."""
+    registrations: int = 0
+    """How many registrations of the task the sidecar has taken."""
+
+    def credentials(self, method: str) -> dict[str, Any]:
+        """The eval's id, and a signature of a call to a method made now, for the call's params."""
+        timestamp = now()
+        return {
+            "eval_id": self.eval_id,
+            "timestamp": timestamp,
+            "mac": sign(self.token, eval_call_message(method, self.eval_id, timestamp)),
+        }
+
+    def answer_params(
+        self, id: str, decision: str, reason: str | None
+    ) -> dict[str, Any]:
+        """The params for `answer_question`, signed now.
+
+        The signature covers the answer itself.
+        """
+        timestamp = now()
+        params: dict[str, Any] = {
+            "eval_id": self.eval_id,
+            "timestamp": timestamp,
+            "mac": sign(
+                self.token,
+                answer_message(self.eval_id, timestamp, id, decision, reason),
+            ),
+            "id": id,
+            "decision": decision,
+        }
+        if reason is not None:
+            params["reason"] = reason
+        return params
 
 
 @dataclass
@@ -58,46 +103,55 @@ class Sidecar:
     client: Any = field(repr=False)
     version: int = 1
     """The version of the endpoint for evals Inspect speaks to it."""
+    review: bool = False
+    """Whether the sidecar sends a sentinel's questions for a person to the eval.
+
+    Inspect shows them in its approval UI.
+    """
     access: EvalAccess | None = field(default=None, repr=False)
     """The eval's id and token for this sidecar, shared by every model of the task whose calls go through it."""
     _ids: "count[int]" = field(default_factory=lambda: count(1), repr=False)
 
     async def eval_call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
-        """Call a method of the endpoint for evals for the eval, presenting its id and token.
+        """Call a method of the endpoint for evals for the eval, presenting its id and signing the call with its token.
 
         Raises:
-            SidecarCallError: If the call failed, or was answered with an error, including `unauthorized` when the sidecar keeps another token for the eval.
+            SidecarCallError: If the call failed, or was answered with an error, including `unauthorized` when the sidecar keeps another token for the eval or the call's timestamp is outside its window.
         """
         access = self.access
-        if access is None or access.token is None:
+        if access is None or access.registrations == 0:
             raise SidecarCallError(
                 method, "the eval hasn't registered with the sidecar"
             )
-        presented = access.token
-        try:
-            return await self.call(
-                method, {**params, "eval_id": access.eval_id, "token": presented}
-            )
-        except SidecarCallError as ex:
-            if ex.code != UNAUTHORIZED:
-                raise
+        return await self.call(method, {**params, **access.credentials(method)})
 
-            # Another sample may be registering the eval again, as after a
-            # restart, with the sidecar already keeping the new token while
-            # its reply is on its way: that registration finishes first.
-            async with access.lock:
-                pass
+    async def answer_question(
+        self, id: str, decision: str, reason: str | None
+    ) -> dict[str, Any]:
+        """Send a person's answer to one of the sidecar's questions.
 
-            # The call goes again with the token the eval now holds, when
-            # that changed since it was sent.
-            if access.token in (None, presented):
-                raise
-            return await self.call(
-                method, {**params, "eval_id": access.eval_id, "token": access.token}
+        The call's signature covers the answer, so it can't be reused to send a
+        different answer.
+
+        Raises:
+            SidecarCallError: If the call failed, or the sidecar refused the answer.
+        """
+        access = self.access
+        if access is None or access.registrations == 0:
+            raise SidecarCallError(
+                "answer_question", "the eval hasn't registered with the sidecar"
             )
+        return await self.call(
+            "answer_question", access.answer_params(id, decision, reason)
+        )
 
     async def call(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
-        """Call a method of the endpoint for evals, and return its result."""
+        """Call a method of the endpoint for evals, and return its result.
+
+        A registration's request holds the eval's token, and an error may repeat the request, as a proxy's error page does. So no error raised here holds the token, in its message or in an error it is chained to.
+        """
+        failed: str | None = None
+        answer: Any = None
         try:
             response = await self.client.post(
                 f"{self.origin}/sentinel/v1",
@@ -112,7 +166,14 @@ class Sidecar:
             )
             answer = response.json()
         except Exception as ex:
-            raise SidecarCallError(method, str(ex)) from ex
+            if not self._holds_token(ex):
+                raise SidecarCallError(method, str(ex)) from ex
+            failed = self._without_token(str(ex))
+        if failed is not None:
+            # Raised outside the handler, so the error that holds the token
+            # is neither this one's cause nor its context: a traceback prints
+            # both.
+            raise SidecarCallError(method, failed)
         if not isinstance(answer, dict):
             raise SidecarCallError(method, "the answer isn't JSON-RPC")
         error = answer.get("error")
@@ -120,13 +181,35 @@ class Sidecar:
             code = error.get("code")
             raise SidecarCallError(
                 method,
-                str(error.get("message", "")),
+                self._without_token(str(error.get("message", ""))),
                 code if isinstance(code, int) else None,
             )
         result = answer.get("result")
         if not isinstance(result, dict):
             raise SidecarCallError(method, "the answer has no result")
         return result
+
+    def _without_token(self, text: str) -> str:
+        # the text with the eval's token taken out
+        access = self.access
+        return text.replace(access.token, REDACTED) if access is not None else text
+
+    def _holds_token(self, error: BaseException) -> bool:
+        # whether the error, or one it is chained to, holds the eval's token
+        access = self.access
+        if access is None:
+            return False
+        seen: set[int] = set()
+        pending: list[BaseException | None] = [error]
+        while pending:
+            found = pending.pop()
+            if found is None or id(found) in seen:
+                continue
+            seen.add(id(found))
+            if access.token in str(found):
+                return True
+            pending += [found.__cause__, found.__context__]
+        return False
 
 
 class _Client(NamedTuple):
@@ -220,7 +303,10 @@ async def probe(client: _Client) -> Sidecar | NoSidecar:
             f"The sentinel sidecar at {origin} releases replies early ({release!r}), which Inspect doesn't support yet. Run the sidecar with `--release whole`."
         )
     version = max(v for v in versions if v in VERSIONS)
-    return Sidecar(origin, release, client.sdk, version)
+    # A sidecar that doesn't report `review`, such as one from before sidecars
+    # could ask a person through an eval, asks no questions through the eval.
+    review = info.get("review") is True
+    return Sidecar(origin, release, client.sdk, version, review)
 
 
 def _no_answer(origin: str, status: object, ex: Exception) -> tuple[str, bool]:

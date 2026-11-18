@@ -43,6 +43,10 @@ def record_sidecar_reports(
             "trimmed": bool(judgment.trimmed),
             "models": step.models or None,
         }
+        if step.reviews:
+            # the ids of the questions the step asked a person.
+            # `log_reviews` logs each question's record with its id.
+            where["reviews"] = step.reviews
         if judgment.trimmed or step.recorded is None:
             # a step without its records holds only what Inspect acts on,
             # with no monitor or protocol, so no function, to name. The

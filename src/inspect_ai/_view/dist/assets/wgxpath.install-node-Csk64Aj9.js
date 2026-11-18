@@ -1,5 +1,5 @@
 import { n as o } from "./chunk-DfAF0w94.js";
-//#region ../../node_modules/.pnpm/mathxyjax3@0.8.3/node_modules/mathxyjax3/dist/wgxpath.install-node-Csk64Aj9.js
+// ../../node_modules/.pnpm/mathxyjax3@0.8.3/node_modules/mathxyjax3/dist/wgxpath.install-node-Csk64Aj9.js
 var e = globalThis;
 var wgxpath_install_node_Csk64Aj9_default = o(((exports, n) => {
 	(function() {
@@ -1094,7 +1094,6 @@ var wgxpath_install_node_Csk64Aj9_default = o(((exports, n) => {
 		};
 	}).call(e);
 }))();
-//#endregion
 export { wgxpath_install_node_Csk64Aj9_default as default };
 
 //# sourceMappingURL=wgxpath.install-node-Csk64Aj9.js.map

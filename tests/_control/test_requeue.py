@@ -446,7 +446,7 @@ async def test_requeue_uncancel_during_terminal_read_gate_rechecked(
     def start_task_cancel() -> None:
         state = get_eval_state("e1")
         assert state is not None and state.task_cancel is not None
-        state.task_cancel.cancel_type = "abort"
+        state.task_cancel.request("abort")
 
     cases: list[tuple[Any, str]] = [
         (finish_eval, "task already finished"),
@@ -478,7 +478,7 @@ async def test_requeue_uncancel_during_terminal_read_gate_rechecked(
             live=FakeLiveEvalData(sample=read),
             sample_ids=["s1", "s2"],
             epochs=1,
-            task_cancel=TaskCancel(can_retry=False, cancel_task=lambda _: None),
+            task_cancel=TaskCancel(can_retry=False, apply=lambda _: None),
         )
         set_sample_requeue("e1", cast(SampleRequeue, handle))
 
@@ -588,8 +588,8 @@ async def test_requeue_task_cancel_in_flight_rejected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_active_samples(monkeypatch, [])
-    cancel = TaskCancel(can_retry=False, cancel_task=lambda _: None)
-    cancel.cancel_type = "abort"
+    cancel = TaskCancel(can_retry=False, apply=lambda _: None)
+    cancel.request("abort")
     _register_requeueable(prior=_errored_sample(), task_cancel=cancel)
 
     result = await requeue_sample("e1", "s1", 1)

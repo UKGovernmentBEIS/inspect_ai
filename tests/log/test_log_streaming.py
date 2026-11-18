@@ -43,7 +43,7 @@ def test_read_eval_log_samples(streaming_log: str) -> None:
 
 def test_read_eval_log_samples_with_error():
     @task
-    def failing_task():
+    def failing_streaming_task():
         return Task(
             dataset=[Sample("Hello"), Sample("Hello")],
             plan=[failing_solver_deterministic([False, True])],
@@ -51,7 +51,7 @@ def test_read_eval_log_samples_with_error():
 
     with tempfile.TemporaryDirectory() as log_dir:
         eval(
-            failing_task(),
+            failing_streaming_task(),
             model="mockllm/model",
             log_format="eval",
             log_dir=log_dir,

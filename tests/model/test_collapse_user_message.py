@@ -96,6 +96,7 @@ def test_collapse_user_messages_preserves_fields():
     assert combined.metadata["key2"] == "val2"
     assert combined.metadata["shared"] == "from_b"
     assert combined.metadata["combined_from"] == [msg_a.id, msg_b.id]
+    assert combined.id not in {msg_a.id, msg_b.id}
 
 
 @pytest.mark.anyio
@@ -131,3 +132,46 @@ async def test_anthropic_user_tool_messages() -> None:
         )
     except Exception as ex:
         pytest.fail(f"Exception raised: {ex}")
+
+
+def test_collapsed_message_keeps_its_id():
+    messages = [ChatMessageUser(content=text) for text in ["a", "b", "c"]]
+
+    [first] = collapse_consecutive_user_messages(list(messages))
+    [second] = collapse_consecutive_user_messages(list(messages))
+
+    assert first.id == second.id
+    assert first.id not in {m.id for m in messages}
+
+
+def test_collapsed_messages_with_different_sources_get_different_ids():
+    """Source ids are arbitrary strings: ["a,b", "c"] and ["a", "b,c"] are different sources."""
+    collapsed = collapse_consecutive_user_messages(
+        [
+            ChatMessageUser(id="a,b", content="one"),
+            ChatMessageUser(id="c", content="two"),
+            ChatMessageAssistant(id="separator", content="next"),
+            ChatMessageUser(id="a", content="three"),
+            ChatMessageUser(id="b,c", content="four"),
+        ]
+    )
+
+    assert len({m.id for m in collapsed}) == len(collapsed) == 3
+
+
+def test_collapsed_message_id_depends_on_its_content():
+    """The same sources combined into different content are different messages."""
+    a = ChatMessageUser(id="a", content="A")
+    b = ChatMessageUser(id="b", content="B")
+    c = ChatMessageUser(id="c", content=[ContentText(text="C")])
+
+    [first] = collapse_consecutive_user_messages([a, b, c])
+    [ab] = collapse_consecutive_user_messages([a, b])
+    [abc] = collapse_consecutive_user_messages([ab, c])
+    [second] = collapse_consecutive_user_messages(
+        [a, *collapse_consecutive_user_messages([b, c])]
+    )
+
+    assert first.id == abc.id
+    assert first.content != second.content
+    assert first.id != second.id

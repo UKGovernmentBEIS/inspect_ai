@@ -1,4 +1,4 @@
-//#region ../../node_modules/.pnpm/mathxyjax3@0.8.3/node_modules/mathxyjax3/dist/liteDOM-Cp0aN3bP.js
+// ../../node_modules/.pnpm/mathxyjax3@0.8.3/node_modules/mathxyjax3/dist/liteDOM-Cp0aN3bP.js
 (function() {
 	var e, t, n, r, i, a, o, s, c, l = {
 		244: function(e, t, n) {
@@ -742,6 +742,5 @@
 		}
 	} } }), MathJax.startup && (MathJax.startup.registerConstructor(`liteAdaptor`, n.liteAdaptor), MathJax.startup.useAdaptor(`liteAdaptor`, !0));
 })();
-//#endregion
 
 //# sourceMappingURL=liteDOM-Cp0aN3bP.js.map

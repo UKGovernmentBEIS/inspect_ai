@@ -1,6 +1,7 @@
 import inspect
 from typing import Any
 
+import pytest
 from test_helpers.tasks import minimal_task
 
 from inspect_ai import task_with
@@ -31,6 +32,12 @@ def test_task_with_edit_options():
         metadata={"foo": "bar"},
     )
     assert task.metadata == {"foo": "bar"}
+
+
+def test_task_with_invalid_sandbox_raises() -> None:
+    sandbox: Any = 1
+    with pytest.raises(ValueError, match="Invalid sandbox specification"):
+        task_with(minimal_task(), sandbox=sandbox)
 
 
 def test_task_with_name_option():
