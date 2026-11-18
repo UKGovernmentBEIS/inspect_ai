@@ -84,7 +84,10 @@ def test_read_persisted_sidecars_with_numeric_sample_id(tmp_path: Path) -> None:
     ["nested/name", r"nested\name", "a" * 63, "A" * 64, "g" * 64, "a" * 64 + "\n"],
 )
 def test_invalid_sidecar_hash_skips_file_read(
-    invalid_hash: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    invalid_hash: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     filestore = SampleBufferFilestore(str(tmp_path / "log.eval"))
     manifest = _manifest()
@@ -99,7 +102,19 @@ def test_invalid_sidecar_hash_skips_file_read(
 
     monkeypatch.setattr(filestore_module, "open_file", unexpected_open)
     assert filestore.read_sample_metadata("s1", 1, persisted) is None
+    assert "Unable to read sample metadata for id=s1 epoch=1" in caplog.text
     assert filestore.read_sample_store("s1", 1, persisted) is None
+    assert "Unable to read sample store for id=s1 epoch=1" in caplog.text
+
+
+def test_invalid_sidecar_hash_rejected_on_write(tmp_path: Path) -> None:
+    filestore = SampleBufferFilestore(str(tmp_path / "log.eval"))
+
+    with pytest.raises(ValueError, match="Invalid SHA-256 digest for sample metadata"):
+        filestore.write_sample_metadata("s1", 1, "invalid", b"{}")
+    with pytest.raises(ValueError, match="Invalid SHA-256 digest for sample store"):
+        filestore.write_sample_store("s1", 1, "invalid", b"{}")
+    assert not list(tmp_path.rglob("*.json"))
 
 
 def test_legacy_manifest_regains_pool_ids_on_rewrite() -> None:
