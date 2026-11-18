@@ -2610,15 +2610,26 @@ def test_a_native_call_keeps_its_id_whether_a_host_call_under_it_ran_first(
             lambda step: step.call.arguments == {"x": 5, "y": 5},
             HOST_DIFFERENCES,
         )
-    # the host call's model call is the bridge's first
+    # the native call's steps keep the call id, whatever replay does with host steps
+    assert [
+        (s.stage, s.id, s.step.call.arguments)
+        for s in replay
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+        and s.step.call.function == "addition"
+    ] == [
+        ("tool_call", "shared", {"x": 5, "y": 5}),
+        ("tool_result", "shared", {"x": 5, "y": 5}),
+    ]
+    # the host call's steps are named by its model call, the bridge's first
     host_turn = next(
         e for e in events if isinstance(e, ModelEvent) and e.requested_model
     )
-    native_ids = [
-        ("tool_call", "shared", "addition", {"x": 5, "y": 5}),
-        ("tool_result", "shared", "addition", {"x": 5, "y": 5}),
-    ]
-    host_ids = [
+    assert [
+        (s.stage, s.id, s.step.call.function, s.step.call.arguments)
+        for s in replay
+        if isinstance(s.step, BeforeToolCall | AfterToolCall)
+        and s.step.call.function != "addition"
+    ] == [
         (
             "tool_call",
             f"{host_turn.uuid}/shared",
@@ -2632,11 +2643,6 @@ def test_a_native_call_keeps_its_id_whether_a_host_call_under_it_ran_first(
             {"x": 1, "y": 1},
         ),
     ]
-    assert [
-        (s.stage, s.id, s.step.call.function, s.step.call.arguments)
-        for s in replay
-        if isinstance(s.step, BeforeToolCall | AfterToolCall)
-    ] == ([*host_ids, *native_ids] if host_first else [*native_ids, *host_ids])
     assert replay_warnings(caplog) == []
 
 

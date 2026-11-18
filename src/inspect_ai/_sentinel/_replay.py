@@ -116,13 +116,13 @@ def steps_from_events(
 
     Otherwise a call a sentinel modified that has no approval replay relies on keeps its tool steps, and its `tool_call` step is built from the proposed call, or an approver's change to it. The same holds for a call an approver modified before the sentinel did, whose step is built from the approver's call as the approval records it. The log does not record the call the sentinel was shown, which the tool's validation can have changed (`memory()` resolves a path, validation fills a Pydantic default).
 
-    A native tool call is joined to the model call that proposed it by the id of the message its `ToolEvent` records (`call_message_id`, written since inspect_ai #6143), and a call no model call proposed (a pre-filled message) to the message holding it, by the same id. Where the id names several model calls' output (a cached output reused), a native call's producer is the latest of those model calls before the call, in the call's own conversation where they are in several. Where the event records no proposing message (an older log), or the id names no model call's output, it is the latest model call that proposed the call's id before the call (in the call's own conversation, where model calls in several conversations proposed it), a bridge's generation included.
+    A native tool call is joined to the model call that proposed it by the id of the message its `ToolEvent` records (`call_message_id`, written since inspect_ai 0.3.290), and a call no model call proposed (a pre-filled message) to the message holding it, by the same id. Where the id names several model calls' output (a cached output reused), a native call's producer is the latest of those model calls before the call, in the call's own conversation where they are in several. Where the event records no proposing message (an older log), or the id names neither a model call's output nor a message holding the call, it is the latest model call that proposed the call's id before the call (in the call's own conversation, where model calls in several conversations proposed it), a bridge's generation included.
 
     For an agent run through an agent bridge, replay shows each tool call as the model wrote it, and each result as the model next received it. The bridge's model calls are those that record the model its agent requested (`ModelEvent.requested_model`, since Inspect 0.3.277):
 
     - `tool_call`: a call from such a model call's output, as written (no approver's or sentinel's modify, and a host tool under the name the model used), with that model call's input, tools and tool_choice, right after its `model_output` step.
-    - `tool_result`: the tool message under the call's id in the first later bridged request of the same conversation that carries it, as that request's input has it (a rejection or placeholder included), right before that request's `model_input` step. A call no later request answers has none.
-    - Both are named `<model call uuid>/<call id>`.
+    - `tool_result`: the tool message under the call's id in the first later bridged request of the same conversation that carries it, as that request's input has it (a rejection or placeholder included), right before that request's `model_input` step. A call no later request answers has none. A call the bridge handed over under a new id, as when the model reused an earlier call's id, has no `tool_result` step: the next request carries its result under the new id.
+    - Both are named `<model call uuid>/<call id>`, by the model call whose output has the call: after a retried generate, its last attempt, where the model steps take the first attempt's `uuid`.
 
     A bridge's recorded checks (in spans named `sentinel_bridge`), approvals and host `ToolEvent`s are not paired with these steps, so a check's recorded `human()` answers are not attached to them. A `human()` decision at such a check, and a person's approval, still reach the later steps of the conversation, as live; that includes the `tool_result` step of the checked result, which comes after its check. A call a native `ToolEvent` ran (a request filter's own agent generates under the bridge's request) keeps its native steps. Calls sharing an id in one bridged response are skipped, with a warning.
 
@@ -519,7 +519,8 @@ class _Proposals:
         The proposal whose output message ran the call (`ToolEvent.call_message_id`)
         is exact; several share it only where one output was returned again
         (a cache hit), which proposes the same call. Without one (a log
-        written before the id, or a message the agent edited or built), any
+        written before the id, or a message that is neither a model call's
+        output nor in the sample's messages), any
         proposal of the id before `before` is taken. For an execution
         (`ToolEvent.execution_id`), `before` is the completion of its first
         approval, which runs before its check, else the begin of its
