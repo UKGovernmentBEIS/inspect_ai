@@ -812,9 +812,11 @@ What the merge must do differently from today's write paths:
 
 What readers that list shards pay:
 
-- **`eval_set()` reads no shard header.** It refuses a directory holding
-  a companion from the listing alone (see "Eval-set integration"), before
-  `list_all_eval_logs` reads any header.
+- **`eval_set()` reads no shard header for pairing.** It refuses a
+  directory holding a companion from the listing's names alone (see
+  "Eval-set integration"), before `list_all_eval_logs` reads any header.
+  The check opens no filesystem; the listing keeps its existing
+  best-effort header read for a log whose file name does not parse.
 - **Viewer rows cost a header each.** The viewer fetches a header for each
   file it lists, in batches through `/log-headers`
   (`_view/fastapi_server.py:476-491`), and caches them per file, so the

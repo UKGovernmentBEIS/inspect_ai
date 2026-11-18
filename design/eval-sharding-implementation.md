@@ -1475,18 +1475,22 @@ and scanner contexts enter, since both read log headers and write output.
 The first `try_eval` attempt passes that listing to
 `list_all_eval_logs(log_dir, log_files=...)` for the header reads; a
 retry attempt lists again and checks again. So the check adds no listing
-and no shard header is read (decision: Ransom, 2026-11-18). It recognises
-a shard log by its own listed name (decision: Ransom, 2026-11-18). A listed log is a shard log when its parent directory name is
-all ASCII digits and the directory above that ends in `.shards`, or when
-its parent directory name itself ends in `.shards` (a stray file the merge
-would refuse). Only the name's last two path components are read, split
-on `/` and `\`; every provider lists those the same way, so no form of the
-log directory is compared and no filesystem is opened from a listed name.
-If any listed log is a shard log, it raises `PrerequisiteError` before
-pairing, the manifest write, viewer or scan output, or any run. The eval
-set ID comes first, so a first run in a refused directory can leave an
-`.eval-set-id` file. The message names
-each `.shards` directory found that way and says that `eval_set()` does
+and reads no header of its own, and the eval set reads no shard header
+for pairing (decision: Ransom, 2026-11-18). The listing itself keeps its
+existing best-effort header read for a log whose file name does not parse
+(`log_file_info`), shard logs included; launcher-named shards with the
+default timestamped names do not need it. It recognises a shard log by
+its own listed name (decision: Ransom, 2026-11-18). A listed log is a
+shard log when its parent directory name is all ASCII digits and the
+directory above that ends in `.shards`, or when its parent directory name
+itself ends in `.shards` (a stray file the merge would refuse). Only the
+name's last two path components are read, split on `/` and `\`; every
+provider lists those the same way, so no form of the log directory is
+compared and the check itself opens no filesystem. If any listed log is a
+shard log, it raises `PrerequisiteError` before pairing, the manifest
+write, viewer or scan output, or any run. The eval set ID comes first, so
+a first run in a refused directory can leave an `.eval-set-id` file. The
+message names each `.shards` directory found that way and says that `eval_set()` does
 not merge shards, to merge them with `inspect log merge-shards` (or the
 Python API), and, if samples failed or are missing, to retry each
 incomplete shard in its own `<k>/` with the same selection (a new shard
