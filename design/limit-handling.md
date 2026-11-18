@@ -945,6 +945,26 @@ error that is not caught still ends the sample, as today. Spend stays
 bounded: every later call under the reached limit is refused (decision:
 Ransom, 2026-11-17).
 
+**Limits swallowed before a checkpoint restore.** The same principle holds
+for work that runs before a resumed attempt restores its checkpoint. The
+sample's roots are entered when the attempt starts, but the checkpoint is
+restored only when the agent first enters `checkpointer()`
+(`src/inspect_ai/util/_checkpoint/checkpointer_impl.py:134-152`). Work
+before that point charges the roots: the sample-start and attempt-start
+hooks (`run.py:3372-3392`) and any solver that runs before the agent. The
+restore assigns the stored usage, as today ("Checkpoints"), so a limit that
+this work reached and swallowed can be reopened by it: a hook that takes a
+$1 cost limit to $1.10 and catches the error is followed by a restore at
+$0.50, after which the limit allows another $0.50. A limit error that is
+not caught still ends the sample. Spend stays bounded: work before the
+restore is refused once it reaches the limit, and work after it is refused
+again once the restored value reaches it, so a resume can spend about one
+extra budget at worst (decision: Ransom, 2026-11-18). The restore leaves a
+root's `_raised_at` mark in place, and it counts at the exit check only if
+usage reaches that budget again. Model work before the restore is not
+refused: solvers before the agent run again on every resume, so refusing
+them would fail ordinary resumes.
+
 ### Token metering must not decrease
 
 The exit checks and the pre-dispatch refusal read
@@ -1014,30 +1034,12 @@ call. A resume for scoring (`check=False`) runs no check, as today, and
 the runner skips the sample's exit check on that attempt ("The owner's exit
 check").
 
-**Restore adds to what the attempt has already charged.** The roots are
-entered when the attempt starts, but the checkpoint is restored only when
-the agent first enters `checkpointer()`
-(`src/inspect_ai/util/_checkpoint/checkpointer_impl.py:134-152`, once per
-attempt: the entered checkpointer is cached). Work before that point is
-charged to the roots: the sample-start and attempt-start hooks
-(`src/inspect_ai/_eval/task/run.py:3372-3392`) and any solver that runs
-before the agent. Today `restore_sample_runtime()` assigns the stored
-token usage, cost and turns to the roots and clears and refills the
-sample's model and role usage (`sample_runtime.py:153-163`, `:259-266`),
-so those charges are dropped: a hook that took a $1 cost limit to $1.10
-and caught the error is followed by a restore at $0.50, after which the
-limit refuses nothing. Restore instead adds the stored values to the live
-ones: `token_root._usage += stored`, `cost_root._cost += stored`,
-`turn_root._turns += stored`, and each model and role entry is the sum of
-its live and stored usage. The restore runs once per attempt, and the
-stored values come from the previous attempt, so nothing is counted twice;
-on a fresh root the sum equals today's assignment. Usage never decreases
-across the restore, so a limit reached before it stays reached: a normal
-resume's check raises it if exceeded, the next call is refused (`>=`)
-otherwise, and its `_raised_at` mark still counts at the sample's exit.
-The same rule holds for a resume for scoring, where nothing is checked but
-a later call is still refused. Sample model and role usage stay consistent
-with the roots.
+The restore assigns the stored token usage, cost and turns to the roots
+and clears and refills the sample's model and role usage, as today
+(`sample_runtime.py:153-163`, `:259-266`). It is idempotent: a
+checkpointer entry that fails part-way and is entered again sets the same
+values. Work the attempt charged before the restore is overwritten; what
+that loses is under "Limits swallowed before a checkpoint restore".
 
 The roots of a resumed attempt carry no `_raised_at` mark from the
 previous attempt, so the exit check's handling of a limit reached exactly
@@ -1480,6 +1482,17 @@ exemption on a resume for scoring that kept missing limits reached earlier
 in the same attempt. Each owner checking its own limits gives the same
 "one step later" as any swallowed error (decision: Ransom, 2026-11-17).
 
+**Restore adds to what the attempt has already charged.** Adding the
+stored usage to the roots instead of assigning it would keep a limit
+reached before the restore reached. But a checkpointer entry that fails
+part-way (in the restore's check, `on_resume` or the entered
+checkpointer's construction) and is entered again, as the transcript-store
+recovery does, would add the snapshot twice, so it would need a once-only
+accounting lifecycle separate from the entry cache. Refusing model work
+before the restore instead would fail ordinary resumes, whose solvers
+before the agent run again. The loss is stated instead ("Limits swallowed
+before a checkpoint restore"; decision: Ransom, 2026-11-18).
+
 **Make every limit node check itself at exit.** One rule instead of two call
 sites (rule 7), and a plain `with token_limit()` block would find a limit
 that a handler inside it swallowed. But it would raise again an error the
@@ -1702,7 +1715,10 @@ documented. Behaviour changes:
   finished, and records an exceeded or refusing sample limit found then.
   It does not on a resume for scoring, so, as today, a limit swallowed
   during that attempt (by a sample-start or attempt-start hook or the
-  `on_resume` callback) is not recorded. A limit error that escapes the solvers is recorded as today.
+  `on_resume` callback) is not recorded. A limit that work before a
+  checkpoint restore (startup hooks, solvers before the agent) reached and
+  swallowed can be reopened by the restore, which still assigns the stored
+  usage, as today. A limit error that escapes the solvers is recorded as today.
   Errors, terminations, operator interrupts and limits delivered by
   cancellation are handled as today.
 - **Background work.** Its lifetime and the destination of its errors are
@@ -1742,12 +1758,6 @@ documented. Behaviour changes:
   are removed. `_TurnLimit._check_self()` gains a parameter. Chain nodes gain
   `_outer`, `_in_chain` and `_raised_at`. `record_turn()` no longer checks. inspect_swarm is the only known user of
   these classes (above).
-- **Checkpoint restore keeps the attempt's earlier charges.** A resumed
-  attempt's token, cost and turn roots and its model and role usage are
-  the stored values plus what the attempt charged before the restore
-  (startup hooks, solvers before the agent), where today the restore
-  replaces them. A limit reached before the restore therefore stays
-  reached, and the sample's reported usage includes that work.
 - **Persisted data and the viewer.** The checkpoint sample-runtime payload
   is unchanged and does not store the `_raised_at` mark, so a resumed sample
   that returns without another call after a refusal at exactly its budget
@@ -1822,10 +1832,6 @@ under trio with `--runtrio`.
     and is charged (nothing is marked);
   - a cache hit of an unpriced model is served; with no cost limit an
     unpriced call is made;
-  - calls that report no usage stay uncharged (pinned, as today): under
-    `cost_limit(1.0)` a priced model whose scripted output has `usage=None`
-    is called and returns, recording nothing, and the next call is
-    dispatched;
   - routers, in `tests/model/test_model_info.py` beside
     `TestServedModelPricing`, with its `servedtest` stub provider (which
     reports the model that served each call, as OpenRouter does for a
@@ -1851,10 +1857,6 @@ under trio with `--runtrio`.
     role model with cost suspended runs; a solver that calls the same role
     model, unsuspended, fails the sample with `UnmeteredCallError`; an
     unpriced task model still fails at start;
-  - failed attempts and cancellation stay uncharged (pinned): an attempt
-    that raises `AttemptTimeoutError` and one that streams a chunk and then
-    raises are retried under a cost limit with no usage recorded; a
-    generation cancelled in flight records nothing;
   - suspension: inside `suspend_cost_limit()`, a priced call neither
     charges nor is refused by a reached `cost_limit()`, including one
     opened inside the block.
@@ -1902,13 +1904,6 @@ under trio with `--runtrio`.
   caller's next model call is refused with it, and if the solver instead
   returns, the sample is recorded as limited by it; a synchronous deepagent
   subagent's swallowed limit is reported as its result;
-  - an escaped error stands (pinned, synchronized by an `anyio.Event`):
-    `run(limits=[cost_limit(1), token_limit(1)])` over `tg_collect()`, where
-    one task raises the token limit first and a sibling's call, finishing in
-    its cancellation cleanup with token metering suspended, pushes the cost
-    limit over, returns the token limit; the same where the sibling pushes
-    an enclosing `cost_limit()` over returns the token limit, and the
-    caller's next model call is refused by the enclosing cost limit;
   - retuned limits: a `run()` token limit that raised at 10, retuned to 20
     through its `limit` setter, that ends at exactly 20 without a refusal at
     20 returns `(state, None)`; the same limit refused at 20 returns its
@@ -1916,11 +1911,10 @@ under trio with `--runtrio`.
     at 10, lowered through `state.token_limit` (or `state.cost_limit`) to 5,
     where the setter's check raises and is caught, and restored to 10, ends
     at exactly 10 recorded as limited;
-  - plain blocks (pinned): inside `with token_limit(n)`, a ReAct agent
-    whose forced-compaction fallback swallows the block's limit and then
-    returns ends the block normally; a further call made inside the block
-    is refused with that limit; a catch inside the block is not raised
-    again at its close;
+  - plain blocks: inside `with token_limit(n)`, after a call exceeds the
+    block's limit and the error is caught inside the block, a further call
+    made inside the block is refused with that limit; a catch inside the
+    block is not raised again at its close;
   - own limits outside the chain: `apply_limits([time_limit(...)],
     catch_errors=True)` and `run(limits=[time_limit(...)])` still catch and
     return their own time limit error, including one raised as the limits
@@ -1942,31 +1936,10 @@ under trio with `--runtrio`.
   dispatch; after a scoring-only restore of spent token, cost and turn
   roots, `as_solver(react(...))` returns normally with no model call and
   the sample is scored and not recorded as limited (the no-call control),
-  on asyncio and Trio;
-  - restore keeps earlier charges, for token, cost and turn roots each,
-    on asyncio and Trio: a sample-start hook whose model call takes the
-    root over its limit and which catches the error, followed by a normal
-    restore of a smaller stored value, ends the resumed attempt at the
-    restore's check with that limit; a hook whose calls reach exactly the
-    limit and whose next call is refused and caught, then a restore of zero
-    stored usage (still at the limit), has the agent's next call refused and, if the
-    agent returns instead, the sample recorded as limited; a hook whose
-    call succeeds below the limit ($0.40), then a restore of $0.70 under a
-    $1 limit, leaves the root at $1.10, refuses the agent's first call and
-    reports the hook's model usage alongside the restored usage; a scoring
-    restore after the same over-limit hook refuses a later call (the
-    sample's exit check is still skipped); a restore into fresh roots gives
-    the stored values, as `test_restore_reseeds_token_cost_turn_usage`
-    pins today.
+  on asyncio and Trio.
 - `tests/util/test_limit.py`, sentinel: a stub in-process monitor whose
   priced model call would exceed a reached sample cost limit is made and
   not charged to it.
-- `tests/agent/test_agent_execute.py`, adapter replacement (pinned, as
-  today): under outer `token_limit(1)` and `message_limit(1)`, an
-  `as_solver()` agent with its own `message_limit(100)` that appends a
-  message and then exceeds the token limit leaves with the outer message
-  limit, its context the token error; with an outer message limit of 10
-  the token error leaves unchanged.
 - `tests/agent/test_agent_execute.py`: a sample token limit reached inside an
   `as_tool()` agent ends the sample with `limit.type == "token"` and no
   further generation; `as_tool()`'s own token limit is still a tool error;
@@ -1988,9 +1961,7 @@ under trio with `--runtrio`.
     call in its cancellation cleanup after `plan()` returns, exceeds the
     sample cost limit, catches the error and returns: the sample ends on the
     cost limit; the same with a cleanup call refused at exactly the budget;
-    `plan()` raises an inner `cost_limit()` while a worker's cleanup call
-    pushes the sample token limit over and is caught: the sample records the
-    inner cost limit (pinned: an escaped limit stands); `plan()` raises a
+    `plan()` raises a
     `RuntimeError` while a worker's cleanup exceeds a sample limit: the
     sample errors as today; an operator interrupt with an exceeded sample
     limit keeps its operator outcome.
@@ -2100,11 +2071,8 @@ Each step is one PR, in this order. Each keeps the suite green.
    `tests/test_eval.py`, `tests/agent/test_agent_overflow_compaction.py`,
    the live-override sample outcomes in `tests/_control/test_limits.py`,
    and the restore and scoring-resume outcomes in
-   `tests/checkpoint/test_sample_runtime.py`.
-   `src/inspect_ai/util/_checkpoint/sample_runtime.py`:
-   `restore_sample_runtime()` adds the stored token usage, cost and turns
-   to the roots and `_restore_usage_dict()` adds the stored model and role
-   usage to the live entries (no payload change).
+   `tests/checkpoint/test_sample_runtime.py` (the checkpoint code is
+   unchanged).
 5. **Ownership in tools.** `_call_tools.py`: the call leaf and ownership test
    in `call_tool_task`, and the same test in `agent_handoff()`'s `except`.
    `src/inspect_ai/agent/_bridge/sandbox/host_tool.py`: `_raised` ownership,
