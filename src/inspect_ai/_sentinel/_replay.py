@@ -131,7 +131,7 @@ def steps_from_events(
     - A call id the model reused: the bridge hands the call over and checks it under a fresh id, which no model call records, so the call is rebuilt under the model's id with no result, and its checks are left unmatched.
     - Overlapping requests or compaction: the result is taken from the next request that adds it, which for requests in flight together can be another thread's, and a compacted request carries the compacted result.
     - A check run without the model call's context (e.g. of a response filter's copy, or of a result whose call was handed out more than once): the rebuilt step has the model call's input and tools.
-    - A call a response filter replaced: the step shows the model's call, and the check of the filter's is left unmatched.
+    - A call a filter replaced or discarded: each model call made for a request is taken as handed over, so a response filter's replacement leaves its check unmatched and the step shows the model's call, and a request filter's discarded generation (e.g. one of several candidates) has `tool_call` steps live did not.
     - A host call no approver reviewed and the agent never ran: the step names the tool as the agent declared it, not as the host tool it denotes.
     - A result whose request never reached the model (e.g. its check ended the sample): no model call carries it, so it has no `tool_result` step.
 
@@ -606,8 +606,9 @@ class _BridgedCall:
     proposal: _Proposal
     runs: dict[str | None, _BridgedRun] = field(default_factory=dict)
     # the event index of the request whose input first carried the result,
-    # and the result
-    result: tuple[int, ChatMessageTool] | None = None
+    # the result, and the event index of the conversation's bridged request
+    # before it (-1 for none)
+    result: tuple[int, ChatMessageTool, int] | None = None
 
     def run(self, execution_id: str | None) -> _BridgedRun:
         found = self.runs.get(execution_id)
@@ -712,6 +713,8 @@ class _Driver:
         self.failed: set[str] = set()
         self.records: dict[str, ConversationRecord] = {}
         self.compactions: dict[str, int] = {}
+        # each conversation's compaction events, by event index
+        self.compaction_events: dict[str, list[int]] = {}
         self.actions: list[_Action] = []
         self.seq = 0
         self.built: list["ReplayStep"] = []
@@ -870,6 +873,7 @@ class _Driver:
             elif isinstance(event, CompactionEvent):
                 conversation = self._conversation(event)
                 self._at(index, 2, partial(self._count_compaction, conversation))
+                self.compaction_events.setdefault(conversation, []).append(index)
             elif isinstance(event, ToolEvent):
                 # an imported transcript's tool steps are its messages'
                 # (_imported_tool_steps)
@@ -1586,9 +1590,9 @@ class _Driver:
 
         A bridged agent runs its own tools, so the log records no `ToolEvent` for most of its calls, and the bridge does not record where it handed a call over or received its result. Each call in the response of a bridged model call (`_bridge_request`) is taken as handed over, but for one a native `ToolEvent` ran (`native`, by the model call's event index and the call id: a request filter's own agent generates under the bridge's request too), and its result is the first tool message under its id that a later bridged request of the same conversation adds to its input (`_PooledInput.new_positions`). Its `tool_call` step is built where the bridge's recorded check of the call is, else after the model call's `model_output` step and the call's approval; its `tool_result` step where the recorded check of the result is, else before the `model_input` step of the request carrying the result.
 
-        The bridge's recorded checks (in `BRIDGE_CHECK_SPAN` spans), the approvals no native call took, and the host `ToolEvent`s a sandbox bridge records are each paired with the latest bridged call under their call id before them, in their own conversation where calls in several have the id; an approval only where that call is the latest of any model call under the id. A call's records are grouped into runs by their `execution_id`, one for each bridged tool a host call denotes, and records naming none join its only run. A run's steps are named by its `execution_id`, else `<model call uuid>/<call id>`, so they never take a native call's id.
+        The bridge's recorded checks (in `BRIDGE_CHECK_SPAN` spans), the approvals no native call took, and the host `ToolEvent`s a sandbox bridge records are each paired with the latest bridged call under their call id before them, in their own conversation where calls in several have the id; an approval only where that call is the latest of any model call under the id. A record whose `execution_id` an earlier record tied to a call is that call's, since a call under its id can be proposed again before its result is checked (a side request whose model reused the id). A call's records are grouped into runs by their `execution_id`, one for each bridged tool a host call denotes, and records naming none join its only run. A run's steps are named by its `execution_id`, else `<model call uuid>/<call id>`, so they never take a native call's id.
 
-        A run's `tool_call` step shows the call its approval records (the call as the tool it runs, which a host call's `ToolEvent` also records), else the model's call, with the arguments of an approver's modify; its `tool_result` step shows that call with the arguments of the sentinel's recorded modify. Where an approval or a sentinel check refused a call of a response, the bridge handed none of its calls over: only the checked calls get a `tool_call` step, and none gets a `tool_result` step.
+        A run's `tool_call` step shows the call its approval records (the call as the tool it runs, which a host call's `ToolEvent` also records), else the model's call, with the arguments of an approver's modify; its `tool_result` step shows that call with the arguments of the sentinel's recorded modify. Where an approval or a sentinel check refused a call of a response (one under a repeated id included), the bridge handed none of its calls over: only the checked calls get a `tool_call` step, and none gets a `tool_result` step.
         """
         made = _Proposals()
         calls: dict[tuple[int, str], _BridgedCall] = {}
@@ -1612,18 +1616,43 @@ class _Driver:
                 entry = calls[(index, tool_call.id)] = _BridgedCall(proposal)
                 by_request.setdefault(index, []).append(entry)
 
-        def owner(
-            id: str, conversation: str, span_id: str | None, before: int
-        ) -> _BridgedCall | None:
+        # each execution id's call, once a record ties it to one: the bridge
+        # records it on a run's approvals, checks and host ToolEvent alike
+        bound: dict[str, _BridgedCall] = {}
+        # the model calls a response of which an approver or a sentinel refused
+        refused_at: set[int] = set()
+
+        def pair(
+            id: str,
+            execution_id: str | None,
+            conversation: str,
+            span_id: str | None,
+            before: int,
+        ) -> tuple[_Proposal | None, _BridgedCall | None]:
+            if execution_id is not None and execution_id in bound:
+                return bound[execution_id].proposal, bound[execution_id]
             found = made.execution_owner(id, span_id, conversation, None, before)
-            return calls.get((found.position, id)) if found is not None else None
+            held = calls.get((found.position, id)) if found is not None else None
+            if held is not None and execution_id is not None:
+                bound[execution_id] = held
+            return found, held
 
         unpaired: list[tuple[str, str]] = []
         for call_id, span in self.bridge_spans:
             first = self.span_events[span][0]
-            paired = owner(
-                call_id, first.conversation, first.span_id, self.begins[span][0]
+            found, paired = pair(
+                call_id,
+                first.execution_id,
+                first.conversation,
+                first.span_id,
+                self.begins[span][0],
             )
+            if (
+                found is not None
+                and first.stage == "tool_call"
+                and self._rejected(span)
+            ):
+                refused_at.add(found.position)
             run = paired.run(first.execution_id) if paired is not None else None
             if run is None:
                 unpaired.append((call_id, span))
@@ -1636,38 +1665,43 @@ class _Driver:
             if taken is not None:
                 unpaired.append((call_id, taken))
             run.checks[first.stage] = span
-        self.bridge_spans = unpaired
         for index, approval in approvals:
             own = self._conversation(approval)
             latest = proposals.execution_owner(
                 approval.call.id, approval.span_id, own, None, index
             )
-            paired = owner(approval.call.id, own, approval.span_id, index)
-            if (
-                paired is not None
-                and latest is not None
-                and (latest.event is paired.proposal.event)
-            ):
+            found, paired = pair(
+                approval.call.id, approval.execution_id, own, approval.span_id, index
+            )
+            if found is None or latest is None or latest.event is not found.event:
+                continue
+            if _approval_refused(approval):
+                refused_at.add(found.position)
+            if paired is not None:
                 paired.run(approval.execution_id).approval = (index, approval)
         for index, host in hosts:
-            paired = owner(host.id, self._conversation(host), host.span_id, index)
+            _, paired = pair(
+                host.id,
+                host.execution_id,
+                self._conversation(host),
+                host.span_id,
+                index,
+            )
             if paired is None:
                 self.skipped.append(host.id)
                 continue
             run = paired.run(host.execution_id)
             run.host = run.host or host
         for entry in calls.values():
-            _merge_unnamed_runs(entry)
+            unpaired.extend(
+                (entry.proposal.call.id, span) for span in _merge_unnamed_runs(entry)
+            )
+        self.bridge_spans = unpaired
 
         self._answer_bridged_calls(bridged, by_request)
         rebuilt = False
         for index, entries in by_request.items():
-            refused = any(
-                _approval_refused(run.approval[1] if run.approval else None)
-                or self._rejected(run.checks.get("tool_call"))
-                for entry in entries
-                for run in entry.runs.values()
-            )
+            refused = index in refused_at
             for entry in entries:
                 for run in entry.runs.values():
                     rebuilt |= self._bridged_run(entry, run, refused)
@@ -1695,6 +1729,7 @@ class _Driver:
         A request's input is compared with the conversation's previous bridged request (`_PooledInput.new_positions`), so each request costs the messages it adds, and a result carried on unchanged answers nothing again. Calls awaiting a result under one id take the results in the order they were proposed.
         """
         previous: dict[str, _PooledInput] = {}
+        after: dict[str, int] = {}
         waiting: dict[str, dict[str, list[_BridgedCall]]] = {}
         for index, event in bridged:
             conversation = self._conversation(event)
@@ -1709,10 +1744,11 @@ class _Driver:
                     ):
                         continue
                     queue = awaited[message.tool_call_id]
-                    queue.pop(0).result = (index, message)
+                    queue.pop(0).result = (index, message, after.get(conversation, -1))
                     if not queue:
                         del awaited[message.tool_call_id]
             previous[conversation] = current
+            after[conversation] = index
             for entry in by_request.get(index, []):
                 awaited.setdefault(entry.proposal.call.id, []).append(entry)
 
@@ -1729,7 +1765,7 @@ class _Driver:
             and after_span is None
             and not self._checks_calls_of(event)
         ) or (refused and before_span is None):
-            self._unbuilt_bridge_check(after_span)
+            self._unbuilt_bridge_check(after_span, answered=refused)
             return False
         approval = run.approval[1] if run.approval is not None else None
         host = run.host
@@ -1801,9 +1837,9 @@ class _Driver:
         self._at_point(self._cut(before_span, after_output), seq, build_before)
         self._settle_at_end(before_span)
         if refused or entry.result is None:
-            self._unbuilt_bridge_check(after_span)
+            self._unbuilt_bridge_check(after_span, answered=refused)
             return True
-        request, result = entry.result
+        request, result, after_request = entry.result
         input_span = self.step_spans.get(
             ("model_input", self.events[request].uuid or "")
         )
@@ -1824,18 +1860,33 @@ class _Driver:
             )
             self._built(step_id, "tool_result", step, after_span)
 
-        before_input = (
-            (self.begins[input_span][0], 0) if input_span is not None else (request, 0)
+        # live checks a result before the bridge compacts the request
+        compacted = next(
+            (
+                index
+                for index in self.compaction_events.get(conversation, [])
+                if after_request < index < request
+            ),
+            request,
+        )
+        before_input = min(
+            (self.begins[input_span][0], 0) if input_span is not None else (request, 0),
+            (compacted, 0),
         )
         self._at_point(self._cut(after_span, before_input), seq + 2, build_after)
         self._settle_at_end(after_span)
         return True
 
-    def _unbuilt_bridge_check(self, span: str | None) -> None:
-        """Settle a bridge's result check that no rebuilt step takes, and name it in a warning."""
-        if span is not None:
+    def _unbuilt_bridge_check(self, span: str | None, answered: bool) -> None:
+        """Settle a bridge's result check that no rebuilt step takes, and name it in a warning: of checks no call matches where the bridge never handed the call over (`answered`), else of results no request carries."""
+        if span is None:
+            return
+        step_id = self.span_events[span][0].step_id
+        if answered:
+            self.bridge_spans.append((step_id, span))
+        else:
             self._settle_at_end(span)
-            self.unanswered.append(self.span_events[span][0].step_id)
+            self.unanswered.append(step_id)
 
     def _imported_tool_steps(self, generates: list[_Generate]) -> None:
         """An imported transcript's tool steps, from its messages, each placed after the turn that made it.
@@ -2761,19 +2812,24 @@ def _bridged_output(result: ChatMessageTool) -> Any:
     ]
 
 
-def _merge_unnamed_runs(call: _BridgedCall) -> None:
-    """Join a bridged call's records that name no execution to its first run that names one, and give a call with no records one run."""
+def _merge_unnamed_runs(call: _BridgedCall) -> list[str]:
+    """Join a bridged call's records that name no execution to its first run that names one, and give a call with no records one run; return the checks no run takes (a stage the run has a check at)."""
     unnamed = call.runs.pop(None, None)
     if not call.runs:
         call.runs[None] = unnamed or _BridgedRun(None)
-        return
+        return []
     if unnamed is None:
-        return
+        return []
     first = next(iter(call.runs.values()))
+    dropped: list[str] = []
     for stage, span in unnamed.checks.items():
-        first.checks.setdefault(stage, span)
+        if stage in first.checks:
+            dropped.append(span)
+        else:
+            first.checks[stage] = span
     first.approval = first.approval or unnamed.approval
     first.host = first.host or unnamed.host
+    return dropped
 
 
 def _approver_modified(approval: ApprovalEvent | None) -> ToolCall | None:

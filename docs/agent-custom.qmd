@@ -478,7 +478,7 @@ In the usual case, these steps are the ones a live sentinel was shown. They can 
 - A call id that the model reused: the bridge hands the call to the agent under a new id, so replay shows the call without its result.
 - Requests in flight at the same time, or compaction: the result comes from the next request that carries it, which can be another request, or a compacted one.
 - A check that ran without the model call (e.g. of a response filter's copy of the model's output): replay gives the step the model call's input and tools.
-- A call that a response filter replaced: replay shows the model's call.
+- A call that a filter replaced or discarded (e.g. a response filter's replacement, or a request filter that generates several candidates and returns one): replay shows each model call's calls, including those of a candidate the agent never received.
 - A host tool call that no approver reviewed and the agent never ran: replay names the tool as the agent declared it.
 - A result whose request never reached the model (e.g. a sentinel ended the sample at the result): replay has no step for the result.
 
