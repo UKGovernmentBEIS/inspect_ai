@@ -12,8 +12,9 @@ whole instrument.
 """
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -37,7 +38,9 @@ from inspect_ai._eval.eval_set_selection import (
     EvalSetSelection,
     EvalSetSelectionTask,
 )
+from inspect_ai._util.registry import _registry
 from inspect_ai.dataset import Sample
+from inspect_ai.hooks import Hooks, RunStart, hooks
 from inspect_ai.scorer import exact
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
@@ -124,18 +127,45 @@ def prune_rollout(difficulty: str = "easy") -> Task:
 ADDED: list[Task] = []
 """Every task a creator added to its run. Reset per test by the autouse fixture."""
 
+PREPARED: list[Task] = []
+"""Tasks built by `BuildRolloutAtRunStart` for a creator to add. Reset per test."""
+
+
+class BuildRolloutAtRunStart(Hooks):
+    """Builds the rollout in `on_run_start`, for the creator to add during the run."""
+
+    async def on_run_start(self, data: RunStart) -> None:
+        PREPARED.append(prune_rollout(difficulty="hard"))
+
+
+@contextmanager
+def build_rollout_at_run_start() -> Iterator[None]:
+    """Register `BuildRolloutAtRunStart` for the duration of the block."""
+
+    @hooks("prune_build_rollout", description="Builds a rollout at run start.")
+    def build() -> type[Hooks]:
+        return BuildRolloutAtRunStart
+
+    try:
+        yield
+    finally:
+        del _registry["hooks:prune_build_rollout"]
+
 
 @solver
 def add_rollout(how: str) -> Solver:
     """Build an unselected task while the run is in progress and add it to the run.
 
     `how` is how the task is built: `call` calls the factory, `task_with` also
-    adapts the result, and `thread` calls the factory in a worker thread that
-    copies the run's context.
+    adapts the result, `thread` calls the factory in a worker thread that
+    copies the run's context, and `hook` takes the task built by the
+    `on_run_start` hook.
     """
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        if how == "thread":
+        if how == "hook":
+            rollout = PREPARED.pop()
+        elif how == "thread":
             rollout = await anyio.to_thread.run_sync(
                 lambda: prune_rollout(difficulty="hard")
             )
@@ -170,10 +200,12 @@ def clean_pruning_state() -> Any:
     """The pruner caches the selection per process, and these tests change it per case."""
     CONSTRUCTED.clear()
     ADDED.clear()
+    PREPARED.clear()
     reset_pruning()
     yield
     CONSTRUCTED.clear()
     ADDED.clear()
+    PREPARED.clear()
     reset_pruning()
 
 
@@ -403,16 +435,17 @@ def test_a_task_composed_from_another_task_is_not_pruned(
     assert CONSTRUCTED == [outer, "prune_one(hard)"]
 
 
-@pytest.mark.parametrize("how", ["call", "task_with", "thread"])
+@pytest.mark.parametrize("how", ["call", "task_with", "thread", "hook"])
 def test_a_task_added_during_the_run_is_not_pruned(
     how: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A `@task` call made by the running eval builds the real task.
 
     The selection names only the creator, so `prune_rollout` is not selected. Pruning it would add an empty placeholder to the run. The
-    `task_with` row checks that changes made to the built task survive, and the
+    `task_with` row checks that changes made to the built task survive, the
     `thread` row that a worker thread with a copy of the run's context sees the
-    run. The worker still prunes `prune_two` while resolving its own tasks.
+    run, and the `hook` row that a run-start hook does. The worker still prunes
+    `prune_two` while resolving its own tasks.
     """
 
     def tasks() -> list[Task]:
@@ -420,12 +453,13 @@ def test_a_task_added_during_the_run_is_not_pruned(
 
     manifest = capture(monkeypatch, tmp_path, tasks)
 
-    success, logs = run(
-        monkeypatch,
-        tmp_path,
-        selection_naming(manifest, "prune_creator"),
-        tasks=tasks,
-    )
+    with build_rollout_at_run_start() if how == "hook" else nullcontext():
+        success, logs = run(
+            monkeypatch,
+            tmp_path,
+            selection_naming(manifest, "prune_creator"),
+            tasks=tasks,
+        )
 
     assert success
     assert CONSTRUCTED == [f"prune_creator({how})", "prune_rollout(hard)"]

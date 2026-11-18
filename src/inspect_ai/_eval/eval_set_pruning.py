@@ -55,8 +55,7 @@ thread-local, deliberately: see `_constructing`.
 
 **Only the eval set's own resolution is a candidate.** Once a run is in
 progress, a `@task` call comes from code the run is executing (a solver, tool,
-scorer, task or sample hook, or `TaskSource` building a task to add with
-`enqueue_task()`),
+scorer, hook, or `TaskSource` building a task to add with `enqueue_task()`),
 not from resolving the eval set. Such a task is not in the selection, and
 pruning it would hand the run an empty placeholder to execute. So nothing is
 pruned while the run's task enqueuer is bound; see `prune_task_call`.
