@@ -9,7 +9,8 @@ sandbox, which relays each model request through a file queue to the Inspect
 process; Inspect serves it with the eval's model, credentials, limits,
 approval policies and transcript. The agent runs its own tools in the
 sandbox; Inspect runs only the host-side tools the eval author chose to
-expose ("bridged tools"), once for each call the model proposed.
+expose ("bridged tools"), once for each approved call in a response
+handed to the agent.
 
 The trust boundary follows from that split. The sandbox contains the agent,
 and the bridge cannot govern what the agent does there. What the bridge
@@ -444,11 +445,14 @@ Inspect process, or reach another sample's model calls.
 1. **Granted capability only.** On the sandbox's behalf the host performs
    only generations by models the eval's configuration chose, provider-side
    tools and remote MCP servers the eval granted, and executions of host
-   tools the eval bridged, each once per call the model proposed in a
-   bridged generation and the approval policy allowed (unless the server
-   opted out with `require_proposal=False`). It reads no media by URL or
-   path, and forwards no header (other than `Accept-Encoding`) and no
-   billing or storage setting the eval did not allow. Nothing in a request widens this set. *(Boundary B)*
+   tools the eval bridged, each once per approved call in a response handed
+   to the agent, whether the model proposed it or one of the eval's own
+   filters supplied it (unless the server opted out with
+   `require_proposal=False`). It reads no media by URL or path, forwards no
+   header the eval did not allow other than `Accept-Encoding`, and handles
+   request settings as the
+   [Request Settings](../docs/agent-bridge.qmd#request-settings) policy
+   says. Nothing in a request widens this set. *(Boundary B)*
 2. **Credentials stay on the host.** The proxy and the queue carry no
    credentials; the host adds them when it calls the provider. A client
    cannot supply or override a credential header. *(Boundary B)*
