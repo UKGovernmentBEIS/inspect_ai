@@ -26,11 +26,11 @@ from ..environment import (
     SandboxConnection,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxTimeoutError,
     SandboxUnavailableError,
     SandboxUserUnsupportedError,
     sandbox_prebuilt,
 )
-from ..events import SandboxTimeoutError
 from ..limits import OutputLimitExceededError, SandboxEnvironmentLimits
 from ..registry import sandboxenv
 from .cleanup import (

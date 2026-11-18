@@ -31,6 +31,8 @@ async def exec(
 
 The `exec()` method should enforce an output limit of `SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE` (default 10MB, configurable via the `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environment variable) and front-truncate its output to the limit when it is exceeded.
 
+The `timeout_retry` parameter defaults to `True` and allows provider-specific retries for unreliable sandbox operations. Docker retries host-side timeouts up to twice, with retry timeouts of at most 60 and 30 seconds, but does not retry a command timeout it has classified. Set `timeout_retry=False` when retrying a non-idempotent command could repeat side effects.
+
 #### Timeouts
 
 A timeout can mean two different things: the command ran past its deadline, or the provider's request to the sandbox got no answer. `SandboxTimeoutError.reason` carries the provider's classification, with these values (`SandboxTimeoutReason`):
@@ -43,8 +45,6 @@ A timeout can mean two different things: the command ran past its deadline, or t
 | `None`          | Unset. The provider does not classify timeouts, or raised a plain `TimeoutError` that `sandbox()` wrapped.                                                    |
 
 Providers may raise `SandboxTimeoutError` directly and supply `reason`. A provider with a single timer should report `"command"` only if that timer directly stops the command and nothing else could explain the expiry, and `"unknown"` otherwise. Docker reports `"command"` when its in-container `timeout` ended the command, and `"no_response"` when its host-side wait on the Docker daemon expired. The local sandbox reports `"command"`. Partial output, when available, is in `truncated_output`; it does not indicate which kind of timeout occurred.
-
-The `timeout_retry` parameter defaults to `True` and allows provider-specific retries for unreliable sandbox operations. Docker retries host-side timeouts up to twice, with retry timeouts of at most 60 and 30 seconds, but does not retry a command timeout it has classified. Set `timeout_retry=False` when retrying a non-idempotent command could repeat side effects.
 
 A scorer that counts a program overrun as a wrong answer, as code benchmarks do, can use `reason` to keep sandbox failures out of its scores. The `None` branch is where existing behaviour lives: before this field existed, such scorers scored every timeout, and a provider that has not adopted the field still produces that case.
 

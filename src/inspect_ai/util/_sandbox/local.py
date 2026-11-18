@@ -11,9 +11,9 @@ from ._cli import SANDBOX_CLI
 from .environment import (
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxTimeoutError,
     SandboxUserUnsupportedError,
 )
-from .events import SandboxTimeoutError
 from .limits import (
     SandboxEnvironmentLimits,
     verify_read_file_size,
@@ -116,7 +116,7 @@ class LocalSandboxEnvironment(SandboxEnvironment):
             # the command when it expires: nothing but the command's own
             # running time can explain the expiry.
             raise SandboxTimeoutError(
-                str(ex),
+                f"Command timed out after {timeout} seconds",
                 truncated_output=getattr(ex, "truncated_output", None),
                 reason="command",
             ) from ex

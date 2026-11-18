@@ -19,10 +19,11 @@ from .environment import (
     SandboxEnvironments,
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
+    SandboxTimeoutError,
+    SandboxTimeoutReason,
     SandboxUnavailableError,
     SandboxUserUnsupportedError,
 )
-from .events import SandboxTimeoutError, SandboxTimeoutReason
 from .exec_remote import (
     ExecCompleted,
     ExecOutput,

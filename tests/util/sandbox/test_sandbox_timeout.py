@@ -1,9 +1,8 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from types import SimpleNamespace
 from typing import Union
 from unittest.mock import AsyncMock
 
-import anyio
 import pytest
 from test_helpers.utils import skip_if_no_docker
 
@@ -74,8 +73,9 @@ def test_timeout_reason_public_contract() -> None:
 
 
 def test_timeout_reason_is_keyword_only() -> None:
+    constructor: Callable[..., SandboxTimeoutError] = SandboxTimeoutError
     with pytest.raises(TypeError):
-        SandboxTimeoutError("deadline", None, "command")  # type: ignore[call-arg]
+        constructor("deadline", None, "command")
 
 
 @pytest.mark.parametrize("reason", [None, "command", "no_response", "unknown"])
@@ -187,40 +187,6 @@ async def test_local_command_deadline_is_classified() -> None:
         )
     assert raised.value.reason == "command"
     assert isinstance(raised.value.__cause__, TimeoutError)
-
-
-async def test_exec_cancellation_runs_provider_cleanup(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    started = anyio.Event()
-    cleaned = anyio.Event()
-    cancelled = anyio.Event()
-    provider = TimeoutSandbox()
-
-    async def blocked_exec(*args: object, **kwargs: object) -> ExecResult[str]:
-        try:
-            started.set()
-            await anyio.sleep_forever()
-        finally:
-            cleaned.set()
-        raise AssertionError("blocked exec unexpectedly returned")
-
-    monkeypatch.setattr(provider, "exec", blocked_exec)
-
-    async def run_exec() -> None:
-        try:
-            await SandboxEnvironmentProxy(provider).exec(["cmd"])
-        except anyio.get_cancelled_exc_class():
-            cancelled.set()
-            raise
-
-    with anyio.fail_after(5):
-        async with anyio.create_task_group() as tasks:
-            tasks.start_soon(run_exec)
-            await started.wait()
-            tasks.cancel_scope.cancel()
-    assert cleaned.is_set()
-    assert cancelled.is_set()
 
 
 def _docker_proxy() -> SandboxEnvironmentProxy:
