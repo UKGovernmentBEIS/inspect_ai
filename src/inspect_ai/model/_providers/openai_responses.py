@@ -93,9 +93,9 @@ _REASONING_REMOVED_WARNING = (
     "The Responses API removed replayed reasoning item(s) for model '{model}' "
     "(reason: {reason}), so the model no longer sees that reasoning and may "
     "redo it. A prefix_mismatch reason means earlier conversation content "
-    "changed after the reasoning was produced (for example, CompactionEdit "
-    "clearing old tool results). Run with --log-model-api to record each "
-    "response's input_transformations."
+    "or the tool list changed after the reasoning was produced (for example, "
+    "CompactionEdit clearing old tool results). Run with --log-model-api to "
+    "record each response's input_transformations."
 )
 
 
