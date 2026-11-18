@@ -2609,6 +2609,234 @@ def test_a_side_request_before_a_retry_of_a_reused_id_gives_the_lost_call_a_resu
         assert replay_warnings(caplog) == []
 
 
+@agent(name="gemini_scaffold")
+def gemini_scaffold(retry: bool = False, side: bool = False) -> Agent:
+    """A Gemini CLI-style tool loop over the Google client: it keeps each response's content as history and answers each call with a `functionResponse` carrying the call's id (none without a sentinel) and `t<turn>:<index>`, until a response has no calls.
+
+    With `retry`, it loses its first response to each request and sends the request again. With `side`, it sends a request with its own history and no tools before each of its requests.
+    """
+
+    async def execute(state: AgentState) -> AgentState:
+        from google import genai
+        from google.genai import types
+
+        config = types.GenerateContentConfig(
+            tools=[
+                types.Tool(
+                    function_declarations=[
+                        types.FunctionDeclaration(
+                            name="read_file",
+                            description="Read a file.",
+                            parameters_json_schema={
+                                "type": "object",
+                                "properties": {"path": {"type": "string"}},
+                            },
+                        )
+                    ]
+                )
+            ]
+        )
+        async with agent_bridge(state) as bridge:
+            client = genai.Client(api_key="inspect")
+            contents: list[types.Content] = [
+                types.Content(role="user", parts=[types.Part(text="What is 1 + 1?")])
+            ]
+            title = [types.Content(role="user", parts=[types.Part(text="Title?")])]
+
+            async def side_request() -> None:
+                if side:
+                    await client.aio.models.generate_content(
+                        model="inspect", contents=title
+                    )
+
+            for turn in range(10):
+                if retry:
+                    await side_request()
+                    await client.aio.models.generate_content(
+                        model="inspect", contents=contents, config=config
+                    )
+                await side_request()
+                response = await client.aio.models.generate_content(
+                    model="inspect",
+                    contents=contents,
+                    config=config,
+                )
+                assert response.candidates and response.candidates[0].content
+                contents.append(response.candidates[0].content)
+                calls = response.function_calls or []
+                if not calls:
+                    break
+                contents.append(
+                    types.Content(
+                        role="user",
+                        parts=[
+                            types.Part(
+                                function_response=types.FunctionResponse(
+                                    id=call.id,
+                                    name=call.name,
+                                    response={"output": f"t{turn}:{index}"},
+                                )
+                            )
+                            for index, call in enumerate(calls)
+                        ],
+                    )
+                )
+            return bridge.state
+
+    return execute
+
+
+def gemini_turns() -> list[ModelOutput]:
+    """Gemini's turns for `gemini_scaffold`: a text part before the second turn's calls moves their parts, and the third reads `a.txt` again at the first part, as the first turn did."""
+    return [
+        r7_tool_calls(read("a.txt", "read_1"), read("b.txt", "read_2")),
+        ModelOutput(
+            model="mockllm/model",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        content="Reading again.",
+                        tool_calls=[read("a.txt", "read_3"), read("c.txt", "read_4")],
+                    ),
+                    stop_reason="tool_calls",
+                )
+            ],
+        ),
+        r7_tool_calls(read("a.txt", "read_5")),
+        done(),
+    ]
+
+
+@pytest.mark.parametrize("sentinel", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_google_bridge_result_goes_to_its_call(
+    sentinel: bool,
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # the Google bridge hands a call over without its id unless a sentinel is
+    # active, and then reads the call and its result back under an id it
+    # rebuilds from the call
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    seen: dict[str, Step] = {}
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=as_solver(gemini_scaffold()),
+        sentinel=[r7_probe(seen, copies=True)] if sentinel else None,
+    )
+    [log] = eval(task, model=get_model("mockllm/model", custom_outputs=gemini_turns()))
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    made = [
+        e for e in events if isinstance(e, ModelEvent) and e.requested_model is not None
+    ]
+    assert len(made) == 4
+    if sentinel:
+        with caplog.at_level(logging.WARNING):
+            assert_replay_rebuilds_bridge_steps(log, seen)
+        assert replay_warnings(caplog) == []
+    uuids = [e.uuid for e in made]
+    for inputs in ["expanded", "pooled"]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            replay = replayed_inputs(log, inputs)
+        rebuilt = bridged_steps(log, replay)
+        assert [
+            (s.stage, uuids.index(s.id.split("/")[0]), s.id.split("/")[1])
+            for s in rebuilt
+        ] == [
+            ("tool_call", 0, "read_1"),
+            ("tool_call", 0, "read_2"),
+            ("tool_result", 0, "read_1"),
+            ("tool_result", 0, "read_2"),
+            ("tool_call", 1, "read_3"),
+            ("tool_call", 1, "read_4"),
+            ("tool_result", 1, "read_3"),
+            ("tool_result", 1, "read_4"),
+            ("tool_call", 2, "read_5"),
+            ("tool_result", 2, "read_5"),
+        ], inputs
+        # each result as the model next received it
+        results = [
+            (uuids.index(s.id.split("/")[0]), resulted(s))
+            for s in rebuilt
+            if s.stage == "tool_result"
+        ]
+        assert [r.text for _, r in results] == [
+            '{"output": "t0:0"}',
+            '{"output": "t0:1"}',
+            '{"output": "t1:0"}',
+            '{"output": "t1:1"}',
+            '{"output": "t2:0"}',
+        ], inputs
+        for turn, result in results:
+            assert result in made[turn + 1].input, inputs
+        assert replay_warnings(caplog) == []
+
+
+@pytest.mark.parametrize("side", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_google_retry_s_call_gets_the_result_the_agent_sent(
+    side: bool,
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # without a sentinel, the agent loses each response and sends its request
+    # again; the model answers the retry with the same call under a new id,
+    # which the Google bridge reads back under the same rebuilt id
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=as_solver(gemini_scaffold(retry=True, side=side)),
+    )
+    [log] = eval(
+        task,
+        model=generated_ids(
+            "read_",
+            *[
+                output
+                for turn in [r7_tool_calls(read("a.txt", ""))] * 3
+                for output in [turn, turn]
+            ],
+            done(),
+            done(),
+        ),
+    )
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    made = [
+        e
+        for e in events
+        if isinstance(e, ModelEvent) and e.requested_model is not None and e.tools
+    ]
+    assert len(made) == 8
+    uuids = [e.uuid for e in made]
+    for inputs in ["expanded", "pooled"]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            replay = replayed_inputs(log, inputs)
+        results = [
+            (uuids.index(s.id.split("/")[0]), s.id.split("/")[1], resulted(s).text)
+            for s in bridged_steps(log, replay)
+            if s.stage == "tool_result"
+        ]
+        # each call the agent received gets its result; a lost response's
+        # call has none, unless a side request came before its retry: the
+        # documented limitation (`_bridged_tool_steps`), as the retry doesn't
+        # carry the lost call's result and the previous turn's result looks
+        # new against the side request
+        assert results == [
+            (1, "read_2", '{"output": "t0:0"}'),
+            *([(2, "read_3", '{"output": "t0:0"}')] if side else []),
+            (3, "read_4", '{"output": "t1:0"}'),
+            *([(4, "read_5", '{"output": "t1:0"}')] if side else []),
+            (5, "read_6", '{"output": "t2:0"}'),
+        ], inputs
+        assert replay_warnings(caplog) == []
+
+
 PADDING = " word" * 100
 """A tool result's padding, so that one result's removal brings an input back under the compaction threshold."""
 

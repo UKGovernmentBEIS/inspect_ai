@@ -185,13 +185,8 @@ async def inspect_google_api_request_impl(
         output, model.api.model_name, call_ids=call_ids
     )
     debug_log("SCAFFOLD RESPONSE", response)
-    # re-parse the JSON the client receives (e.g. integer argument keys become
-    # strings) as a later request's history is parsed, so an unchanged echo
-    # matches it
-    wire_content = json.loads(json.dumps(response["candidates"][0]["content"]))
-    transported = messages_from_google_contents(
-        [wire_content],
-        None,
+    transported = _transported(
+        response["candidates"][0]["content"],
         handed=bridge._handouts.wire_names if call_ids else None,
     )
 
@@ -199,6 +194,30 @@ async def inspect_google_api_request_impl(
     await bridge._track_state(messages, output, [transported])
 
     return response
+
+
+def _transported(
+    content: dict[str, Any],
+    handed: Callable[[str], AbstractSet[str] | None] | None,
+) -> list[ChatMessage]:
+    """A response's `content` as a later request's history parses it, when the scaffold sends it back unchanged: the JSON the client receives is re-parsed (e.g. integer argument keys become strings), so an unchanged echo matches it."""
+    return messages_from_google_contents(
+        [json.loads(json.dumps(content))], None, handed=handed
+    )
+
+
+def gemini_rebuilt_call_ids(output: ModelOutput) -> list[str]:
+    """The id under which the Google bridge reads each of `output`'s calls, and its result, back without a sentinel.
+
+    Without a sentinel the response carries no call ids, so a later request's history rebuilds each call's id from its function, arguments and part index (`_extract_model_parts`), and its `functionResponse` takes that id. This assumes the scaffold sends the response's parts back as the bridge sent them, as the bridge's own state tracking does (`_transported`).
+    """
+    content = gemini_response_from_output(output, "")["candidates"][0]["content"]
+    return [
+        call.id
+        for message in _transported(content, None)
+        if isinstance(message, ChatMessageAssistant)
+        for call in message.tool_calls or []
+    ]
 
 
 def debug_log(caption: str, o: Any) -> None:
