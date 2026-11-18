@@ -1,9 +1,10 @@
 import base64
 import contextlib
 import os
+from contextvars import Context, ContextVar, copy_context
 from logging import getLogger
 from random import random
-from typing import AsyncGenerator, Callable, NamedTuple, cast
+from typing import Any, AsyncGenerator, Callable, NamedTuple, cast
 
 import anyio
 import httpx
@@ -89,11 +90,17 @@ async def sandboxenv_context(
     max_sandboxes: int | None,
     cleanup: bool,
     sample: Sample,
+    setup_bindings: "SandboxSetupBindings | None" = None,
+    task_dir: str | None = None,
 ) -> AsyncGenerator[None, None]:
     # resolve sandbox
     sandbox = await resolve_sandbox(sandbox, sample, task_name)
     if not sandbox:
         raise ValueError("sandboxenv_context called with no sandbox specified")
+
+    # the provider state its configuration's task_init bound
+    if setup_bindings is not None and task_dir is not None:
+        setup_bindings.apply(sandbox, task_dir)
 
     # get sandboxenv_type
     sandboxenv_type = registry_find_sandboxenv(sandbox.type)
@@ -244,6 +251,56 @@ class TaskSandboxEnvironment(NamedTuple):
     sandbox: SandboxEnvironmentSpec
     run_dir: str
     env: tuple[tuple[str, str], ...]
+
+
+class SandboxSetupBindings:
+    """The `ContextVar` values each sandbox configuration's `task_init` bound.
+
+    Providers keep state in `ContextVar`s that `task_init` binds and
+    `sample_init` and `task_cleanup` read. Each `task_init` runs in its own
+    task, so its bindings reach nothing by themselves; they are recorded here
+    against the run's root context (the context every task and sample of the
+    run starts from) and applied to the samples of the same configuration.
+    """
+
+    def __init__(self, root: Context) -> None:
+        self._root = root
+        self._bindings: dict[
+            tuple[SandboxEnvironmentSpec, str], dict[ContextVar[Any], Any]
+        ] = {}
+
+    def record(self, sandboxenv: TaskSandboxEnvironment, context: Context) -> None:
+        """Record what `context` binds differently from the root context.
+
+        `context` is the one `task_init` returned in, so this is the
+        configuration's whole provider state, including what earlier setups
+        bound and this one inherited. Setups of one spec and task directory
+        that differ only in their `task_init_environment` share an entry.
+        """
+        self._bindings[(sandboxenv.sandbox, sandboxenv.run_dir)] = {
+            var: value
+            for var, value in context.items()
+            if var not in self._root or self._root[var] is not value
+        }
+
+    def apply(self, sandbox: SandboxEnvironmentSpec, task_dir: str) -> None:
+        """Bind the configuration's recorded values in the current context.
+
+        A variable is bound only while its current value is still its value in
+        the root context (the same object, or unset in both), so a value the
+        sample bound itself is kept.
+        """
+        bindings = self._bindings.get((sandbox, task_dir))
+        if not bindings:
+            return
+        current = copy_context()
+        for var, value in bindings.items():
+            if var in self._root:
+                unchanged = var in current and current[var] is self._root[var]
+            else:
+                unchanged = var not in current
+            if unchanged:
+                var.set(value)
 
 
 async def resolve_sandbox_for_task_and_sample(

@@ -2,6 +2,7 @@ import functools
 import logging
 import os
 from contextlib import ExitStack, asynccontextmanager
+from contextvars import Context, copy_context
 from copy import copy
 from dataclasses import dataclass, replace
 from typing import (
@@ -111,6 +112,7 @@ from .task.run import (
     unwritten_task_log,
 )
 from .task.sandbox import (
+    SandboxSetupBindings,
     TaskSandboxEnvironment,
     ensure_sandbox_limiter,
     resolve_sandbox,
@@ -492,6 +494,7 @@ async def eval_run(
                         initial_role_usage=resolved_task.initial_role_usage,
                         task_source=task_source,
                         startup_sandboxes=startup_sandboxes,
+                        sandbox_bindings=sandbox_manager.bindings,
                         input_media_policy=resolved_task.input_media_policy,
                     )
                 )
@@ -1233,6 +1236,14 @@ class SandboxManager:
     `SampleSource` feeder task, a sibling of the samples — registers on the
     object every task inherited rather than in its own context; :meth:`shutdown`
     releases the scope, so a sequential batch after this one starts clean.
+
+    :meth:`open` also captures the run's root context, the one every task and
+    sample starts from. Each `task_init` runs in a task started from the setup
+    chain's context, which starts as the root and which each successful
+    `task_init`'s context replaces, so a later setup sees what earlier ones
+    bound. The `ContextVar` values each configuration's context binds
+    differently from the root are recorded in :attr:`bindings` for its
+    samples, and its `task_cleanup` runs in that context.
     """
 
     def __init__(
@@ -1244,10 +1255,12 @@ class SandboxManager:
         self._cleanup = cleanup
         self._started: Set[TaskSandboxEnvironment] = set()
         self._cleanups: list[
-            tuple[TaskCleanup, SandboxEnvironmentConfigType | None, str]
+            tuple[TaskCleanup, SandboxEnvironmentConfigType | None, str, Context]
         ] = []
         self._init_lock = anyio.Lock()
         self._lifecycle: ExitStack | None = None
+        self._chain: Context | None = None
+        self._bindings: SandboxSetupBindings | None = None
         # keyed by (task, spec): resolution folds in per-task state (run_dir),
         # so a spec-only key would leak one task's resolution to another
         self._resolved_no_metadata: dict[
@@ -1262,8 +1275,18 @@ class SandboxManager:
         with an added sample). :meth:`shutdown` releases it.
         """
         if self._lifecycle is None:
+            set_sandbox_prebuilt(self._config.sandbox_prebuilt is True)
             self._lifecycle = ExitStack()
             self._lifecycle.enter_context(sandbox_lifecycle_scope())
+            root = copy_context()
+            self._chain = root
+            self._bindings = SandboxSetupBindings(root)
+
+    @property
+    def bindings(self) -> SandboxSetupBindings:
+        """The provider state each configuration's `task_init` bound."""
+        assert self._bindings is not None, "SandboxManager.open() not called"
+        return self._bindings
 
     async def start(self, tasks: list[ResolvedTask], task_names: list[str]) -> None:
         """Start the sandboxenvs of `tasks`' selected samples.
@@ -1355,8 +1378,6 @@ class SandboxManager:
             if not sandboxenvs:
                 return
 
-            set_sandbox_prebuilt(self._config.sandbox_prebuilt is True)
-
             # initialiase sandboxenvs (track cleanups)
             with display().suspend_task_app():
                 for sandboxenv in sandboxenvs:
@@ -1372,10 +1393,19 @@ class SandboxManager:
                         self._config.max_sandboxes,
                     )
 
-                    # run startup
+                    # run startup in the setup chain's context (a failed
+                    # task_init raises here, so its bindings reach nothing)
+                    assert self._chain is not None, "SandboxManager.open() not called"
                     task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
                     with chdir(sandboxenv.run_dir), environ_vars(dict(sandboxenv.env)):
-                        await task_init("startup", sandboxenv.sandbox.config)
+                        context = await _run_in_context(
+                            self._chain,
+                            functools.partial(
+                                task_init, "startup", sandboxenv.sandbox.config
+                            ),
+                        )
+                    self._chain = context
+                    self.bindings.record(sandboxenv, context)
 
                     # track as started and append cleanup method
                     self._started.add(sandboxenv)
@@ -1383,7 +1413,12 @@ class SandboxManager:
                         TaskCleanup, getattr(sandboxenv_type, "task_cleanup")
                     )
                     self._cleanups.append(
-                        (task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir)
+                        (
+                            task_cleanup,
+                            sandboxenv.sandbox.config,
+                            sandboxenv.run_dir,
+                            context,
+                        )
                     )
 
                 # provide some space above task display ("none" has no task
@@ -1402,9 +1437,14 @@ class SandboxManager:
             try:
                 for cleanup_jobs in self._cleanups:
                     try:
-                        cleanup_fn, config, task_run_dir = cleanup_jobs
+                        cleanup_fn, config, task_run_dir, context = cleanup_jobs
                         with chdir(task_run_dir):
-                            await cleanup_fn("shutdown", config, self._cleanup)
+                            await _run_in_context(
+                                context,
+                                functools.partial(
+                                    cleanup_fn, "shutdown", config, self._cleanup
+                                ),
+                            )
                     except BaseException as ex:
                         log.warning(
                             f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
@@ -1413,6 +1453,26 @@ class SandboxManager:
                 if self._lifecycle is not None:
                     self._lifecycle.close()
                     self._lifecycle = None
+
+
+async def _run_in_context(
+    context: Context, func: Callable[[], Awaitable[None]]
+) -> Context:
+    """Await `func` in a child task started from a copy of `context`.
+
+    Returns the child's context as `func` returns, holding what it bound. The
+    caller's context is unchanged, and an exception from `func` raises bare.
+    """
+    result: list[Context] = []
+
+    async def run() -> None:
+        await func()
+        result.append(copy_context())
+
+    async with unwrap_exception_group(), anyio.create_task_group() as tg:
+        # anyio's start_soon gives the child a copy of the current context
+        context.copy().run(tg.start_soon, run)
+    return result[0]
 
 
 @asynccontextmanager

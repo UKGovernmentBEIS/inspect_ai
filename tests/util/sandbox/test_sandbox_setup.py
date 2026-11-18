@@ -1,23 +1,31 @@
+from contextvars import ContextVar, copy_context
 from pathlib import Path
-from typing import ClassVar, Literal, overload
+from typing import Any, ClassVar, Literal, overload
 
 import anyio
 import pytest
+from pydantic import BaseModel
 from test_helpers.utils import skip_if_no_docker
 
-from inspect_ai import Task, eval
+from inspect_ai import SampleSource, Task, eval
+from inspect_ai._eval.run import SandboxManager
+from inspect_ai._eval.task.sandbox import TaskSandboxEnvironment
 from inspect_ai.dataset import Sample
+from inspect_ai.log import EvalConfig
 from inspect_ai.model import ModelOutput
 from inspect_ai.scorer import CORRECT, includes
-from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 from inspect_ai.util import (
     ExecResult,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxEnvironmentSpec,
     is_dockerfile,
     sandbox,
+    sandboxenv,
 )
 from inspect_ai.util._sandbox.context import init_sandbox_environments_sample
+from inspect_ai.util._sandbox.environment import sandbox_prebuilt
 
 SANDBOX_SETUP_FILE = (Path(__file__).parent / "sandbox_setup.sh").as_posix()
 SANDBOX_SETUP_ERROR_FILE = (Path(__file__).parent / "sandbox_setup_error.sh").as_posix()
@@ -303,6 +311,260 @@ def test_is_dockerfile():
     assert not is_dockerfile("/path/to/name_Dockerfile")
     assert not is_dockerfile("/path/to/docker-compose.yaml")
     assert not is_dockerfile("/path/to/not_a_dockerfile.txt")
+
+
+# frozen so specs embedding it stay hashable (sandbox startup sets them)
+class _BindingsConfig(BaseModel, frozen=True):
+    name: str
+    fail: bool = False
+
+
+class _SharedManager:
+    """A k8s-style object that task_init gets or creates."""
+
+
+# E2B-style state: each task_init rebinds a fresh list and run id
+_running: ContextVar[list[str]] = ContextVar("_running")
+_run_id: ContextVar[str] = ContextVar("_run_id")
+# k8s-style state: the first task_init creates it, later ones reuse it
+_manager: ContextVar[_SharedManager] = ContextVar("_manager")
+
+_bindings_calls: list[dict[str, Any]] = []
+
+
+def _record_call(call: str, config: SandboxEnvironmentConfigType | None) -> None:
+    assert isinstance(config, _BindingsConfig)
+    running = _running.get(None)
+    _bindings_calls.append(
+        {
+            "call": call,
+            "config": config.name,
+            "run_id": _run_id.get(None),
+            "running": running,
+            "running_items": list(running) if running is not None else None,
+            "manager": _manager.get(None),
+            "prebuilt": sandbox_prebuilt(),
+        }
+    )
+
+
+def _calls(call: str, config: str | None = None) -> list[dict[str, Any]]:
+    return [
+        c
+        for c in _bindings_calls
+        if c["call"] == call and (config is None or c["config"] == config)
+    ]
+
+
+@sandboxenv(name="setup_bindings")
+class _BindingsSandbox(SandboxEnvironment):
+    """Provider that keeps its state in `ContextVar`s bound by `task_init`."""
+
+    @classmethod
+    def config_deserialize(cls, config: dict[str, Any]) -> BaseModel:
+        return _BindingsConfig(**config)
+
+    @classmethod
+    async def task_init(
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None
+    ) -> None:
+        _record_call("task_init", config)
+        assert isinstance(config, _BindingsConfig)
+        if _manager.get(None) is None:
+            _manager.set(_SharedManager())
+        _running.set([])
+        _run_id.set(config.name)
+        if config.fail:
+            raise RuntimeError(f"task_init failed for {config.name}")
+
+    @classmethod
+    async def sample_init(
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        metadata: dict[str, str],
+    ) -> dict[str, SandboxEnvironment]:
+        _record_call("sample_init", config)
+        assert isinstance(config, _BindingsConfig)
+        # raises LookupError when task_init's binding is not visible, as E2B does
+        _running.get().append(config.name)
+        return {"default": _BindingsSandbox()}
+
+    @classmethod
+    async def sample_cleanup(
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        environments: dict[str, SandboxEnvironment],
+        interrupted: bool,
+    ) -> None:
+        _record_call("sample_cleanup", config)
+
+    @classmethod
+    async def task_cleanup(
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None, cleanup: bool
+    ) -> None:
+        _record_call("task_cleanup", config)
+
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        raise NotImplementedError
+
+    async def write_file(
+        self, file: str, contents: str | bytes, *, user: str | None = None
+    ) -> None:
+        raise NotImplementedError
+
+    @overload
+    async def read_file(
+        self, file: str, text: Literal[True] = True, *, user: str | None = None
+    ) -> str: ...
+
+    @overload
+    async def read_file(
+        self, file: str, text: Literal[False], *, user: str | None = None
+    ) -> bytes: ...
+
+    async def read_file(
+        self, file: str, text: bool = True, *, user: str | None = None
+    ) -> str | bytes:
+        raise NotImplementedError
+
+
+def _bindings_spec(name: str, fail: bool = False) -> SandboxEnvironmentSpec:
+    return SandboxEnvironmentSpec(
+        "setup_bindings", _BindingsConfig(name=name, fail=fail)
+    )
+
+
+def test_setup_bindings_per_configuration() -> None:
+    """Each configuration's samples and task_cleanup see its own task_init's bindings."""
+    _bindings_calls.clear()
+    log = eval(
+        Task(
+            dataset=[
+                Sample(id=1, input="a", sandbox=_bindings_spec("A")),
+                Sample(id=2, input="b", sandbox=_bindings_spec("B")),
+            ],
+            solver=[generate()],
+        ),
+        model="mockllm/model",
+        display="none",
+    )[0]
+    assert log.status == "success", log.error
+
+    for name in ["A", "B"]:
+        for call in ["sample_init", "sample_cleanup", "task_cleanup"]:
+            [record] = _calls(call, name)
+            assert record["run_id"] == name, (call, record)
+        # the list the samples appended to is the one task_cleanup sees
+        [sample_init] = _calls("sample_init", name)
+        [task_cleanup] = _calls("task_cleanup", name)
+        assert sample_init["running"] is task_cleanup["running"]
+        assert task_cleanup["running_items"] == [name]
+
+    # a get-or-create object made by the first task_init reaches every
+    # configuration's samples and cleanup
+    first_init, second_init = _calls("task_init")
+    assert first_init["manager"] is None
+    shared = second_init["manager"]
+    assert isinstance(shared, _SharedManager)
+    assert {
+        id(c["manager"])
+        for c in _bindings_calls
+        if c["call"] in ["sample_init", "sample_cleanup", "task_cleanup"]
+    } == {id(shared)}
+
+
+def test_setup_bindings_empty_sample_source_seed() -> None:
+    """Samples of a SampleSource with no seed see the bindings of task_init run by its feeder."""
+    _bindings_calls.clear()
+
+    class _Source(SampleSource):
+        def __init__(self) -> None:
+            self._produced = False
+
+        async def next_samples(self) -> list[Sample] | None:
+            if not self._produced:
+                self._produced = True
+                return [Sample(input="added")]
+            return None
+
+    log = eval(
+        Task(dataset=_Source(), solver=[generate()], sandbox=_bindings_spec("E")),
+        model="mockllm/model",
+        display="none",
+        sandbox_prebuilt=True,
+    )[0]
+    assert log.status == "success", log.error
+    assert log.samples and not log.samples[0].error, log.samples
+    [task_init] = _calls("task_init", "E")
+    [sample_init] = _calls("sample_init", "E")
+    assert sample_init["run_id"] == "E"
+    # the run's --sandbox-prebuilt flag reaches the feeder's setup and the sample
+    assert task_init["prebuilt"] and sample_init["prebuilt"]
+    [task_cleanup] = _calls("task_cleanup", "E")
+    assert task_cleanup["running_items"] == ["E"]
+
+
+async def test_setup_bindings_failed_task_init(tmp_path: Path) -> None:
+    """A failed task_init's bindings reach no later setup, and it gets no task_cleanup."""
+    _bindings_calls.clear()
+    failed = TaskSandboxEnvironment(_bindings_spec("F", fail=True), str(tmp_path), ())
+    ok = TaskSandboxEnvironment(_bindings_spec("A"), str(tmp_path), ())
+
+    manager = SandboxManager(EvalConfig(), cleanup=True)
+    manager.open()
+    try:
+        with pytest.raises(RuntimeError, match="task_init failed for F"):
+            await manager._start_sandboxenvs({failed})
+        await manager._start_sandboxenvs({ok})
+    finally:
+        await manager.shutdown()
+
+    [init_a] = _calls("task_init", "A")
+    assert init_a["run_id"] is None
+    assert init_a["manager"] is None
+    assert [c["config"] for c in _calls("task_cleanup")] == ["A"]
+    # setup binds nothing in the caller's context
+    assert _run_id.get(None) is None
+
+
+async def test_setup_bindings_sample_keeps_own_binding(tmp_path: Path) -> None:
+    """Applying a configuration's bindings keeps a value the sample bound itself."""
+    _bindings_calls.clear()
+    spec = _bindings_spec("A")
+    manager = SandboxManager(EvalConfig(), cleanup=True)
+    manager.open()
+    try:
+        await manager._start_sandboxenvs(
+            {TaskSandboxEnvironment(spec, str(tmp_path), ())}
+        )
+
+        def sample() -> tuple[str | None, list[str] | None]:
+            _run_id.set("own")
+            manager.bindings.apply(spec, str(tmp_path))
+            return _run_id.get(None), _running.get(None)
+
+        def other_task_dir() -> str | None:
+            manager.bindings.apply(spec, str(tmp_path / "other"))
+            return _run_id.get(None)
+
+        run_id, running = copy_context().run(sample)
+        assert run_id == "own"
+        assert running == []
+        assert copy_context().run(other_task_dir) is None
+    finally:
+        await manager.shutdown()
 
 
 if __name__ == "__main__":
