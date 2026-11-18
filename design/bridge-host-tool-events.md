@@ -575,9 +575,12 @@ proposal, and fixing the pairing would mean keeping evicted grants.
   `sentinel_bridge` span under the request, not under the tool span: the
   request carries the call's id, which the MCP call does not. The steps
   record the handout's execution of the tool they judged (see Execution
-  ids). Sentinel replay
-  rebuilds no tool stage for a `ToolEvent` with `metadata["bridge"]`, and
-  warns.
+  ids). Sentinel replay rebuilds a host call's tool steps, like those of the
+  agent's own tools, from the bridge's model calls: the call from the model's
+  response, named by its host `ToolEvent` or approval as the tool it runs, and
+  the result from the agent's next request. It warns that these steps can
+  differ from what the live sentinel was shown (see
+  [Bridged Agents](../docs/agent-custom.qmd#bridged-agents)).
 - **Hooks, control server, TUI, dataframes.** Pending host events drive the
   TUI's running state and the control server's activity and cancellation like
   native ones. Hooks receive each non-pending update. `events_df()` has `tool`
