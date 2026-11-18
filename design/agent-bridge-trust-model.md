@@ -307,8 +307,8 @@ provider-side storage or retained context are the eval's (see
 ### Capabilities withheld by default
 
 Provider-side tools, client-declared MCP servers, media by URL or path,
-client headers and models other than the eval's are withheld unless the
-eval grants them (see
+client headers other than `Accept-Encoding`, and models other than the
+eval's are withheld unless the eval grants them (see
 [Granted Capabilities](../docs/agent-bridge.qmd#granted-capabilities),
 [Models](../docs/agent-bridge.qmd#models) and
 [Remote MCP Servers](../docs/approval.qmd#remote-mcp)). A withheld tool is
@@ -365,7 +365,9 @@ What those pages leave out:
   proposal's grant.
 - Approval decides what the agent is handed, not what it does: the agent can
   run any command in the sandbox without asking the model. It is a control
-  on host action only for bridged tools, through the grants.
+  on host action only for bridged tools on servers that require a proposal,
+  through the grants; a `require_proposal=False` server runs any
+  `tools/call`, including one whose proposal was rejected.
 
 ## What Inspect records
 
@@ -429,8 +431,10 @@ not an independent record of the agent's tool use (see
 sees a tool call only as part of a model response, and can decline to hand
 over a proposal but cannot stop the agent acting without asking. So guarantee
 4 of the sandbox trust model ("a tool call Inspect declines is not executed
-by any route") holds on the bridge only for bridged host tools: for the
-agent's own tools the sandbox, not the bridge, contains what the agent does.
+by any route") holds on the bridge only for bridged host tools on servers
+that require a proposal (not those registered with
+`require_proposal=False`): for the agent's own tools the sandbox, not the
+bridge, contains what the agent does.
 
 ### What it guarantees
 
@@ -447,8 +451,8 @@ sample's model calls.
    tools the eval bridged, each once per call the model proposed in a
    bridged generation and the approval policy allowed (unless the server
    opted out with `require_proposal=False`). It reads no media by URL or
-   path, and forwards no header and no billing or storage setting the eval
-   did not allow. Nothing in a request widens this set. *(Boundary B)*
+   path, and forwards no header (other than `Accept-Encoding`) and no
+   billing or storage setting the eval did not allow. Nothing in a request widens this set. *(Boundary B)*
 2. **Credentials stay on the host.** The proxy and the queue carry no
    credentials; the host adds them when it calls the provider. A client
    cannot supply or override a credential header. *(Boundary B)*
@@ -479,7 +483,8 @@ sample's model calls.
    [Sandbox Bridge](../docs/agent-bridge.qmd#sandbox-bridge)).
 8. **In a sandbox identity scope, one user.** The proxy serves only sockets
    the scope's user owns, and the queue behind it is private to the tools
-   user, so another non-root sandbox user can reach neither (see
+   user, so a sandbox user other than those two and root can reach neither
+   (see
    [the next section](#sandbox-identity-scopes-and-the-peer-check)).
 
 ### What stays outside the guarantee
