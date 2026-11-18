@@ -31,7 +31,7 @@ async def exec(
 
 The `exec()` method should enforce an output limit of `SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE` (default 10MB, configurable via the `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environment variable) and front-truncate its output to the limit when it is exceeded.
 
-The `timeout_retry` parameter defaults to `True` and allows provider-specific retries for unreliable sandbox operations. Docker retries host-side timeouts up to twice, with retry timeouts of at most 60 and 30 seconds, but does not retry a command timeout it has classified. Set `timeout_retry=False` when retrying a non-idempotent command could repeat side effects.
+To deal with potential unreliability of container services, the `exec()` method includes a `timeout_retry` parameter that defaults to `True`. For sandbox implementations, this parameter is _advisory_: providers should retry only when their runtime may be unreliable. Providers should attempt at most two retries, each with a timeout of at most 60 seconds. Docker, for example, may retry when its host-side wait for the daemon times out. When Docker determines that the command itself reached its deadline, it reports the timeout without retrying. If a command is non-idempotent, set `timeout_retry=False` to avoid repeating its side effects.
 
 #### Timeouts
 
