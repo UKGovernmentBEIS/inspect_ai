@@ -1558,7 +1558,7 @@ class _Driver:
     ) -> None:
         """The tool steps of an agent bridge's calls: each call as the model wrote it, and each result as the model next received it (`steps_from_events`).
 
-        A call is taken from the output of a model call the bridge made for its agent, unless a native `ToolEvent` ran it (`native`, by the model call's event index and the call id). Its result is the first tool message under its id that a later bridged request of its conversation carries. A result goes to the latest proposal of its id still awaiting one, since it answers the call the agent used: a call from a response the agent discarded (a request it sent again) keeps awaiting, rather than taking the result of a later call under its id. Each request's input is compared with the conversation's previous bridged request (`_PooledInput.new_positions`), so a result already in that input, as under an id the model reused, is not taken again.
+        A call is taken from the output of a model call the bridge made for its agent, unless a native `ToolEvent` ran it (`native`, by the model call's event index and the call id). Its result is in the first later bridged request of its conversation whose new messages, against the conversation's previous bridged request (`_PooledInput.new_positions`), include a tool message under its id: the last such message, since a call's result follows every earlier message under its id. So a result already in the previous request, as under an id the model reused, is not taken again, and neither is one the request rewrote, as compaction replaces an old result. Only the latest call under an id awaits a result, since a result answers the call the agent used: a call from a response the agent discarded (a request it sent again) gets none.
         """
         made: dict[int, list[_BridgedCall]] = {}
         repeated: list[str] = []
@@ -1576,23 +1576,27 @@ class _Driver:
                     self._bridged_call(entry)
 
         previous: dict[str, _PooledInput] = {}
-        # each conversation's calls awaiting a result, by call id
-        awaiting: dict[str, dict[str, list[_BridgedCall]]] = {}
+        # each conversation's call awaiting a result, by call id
+        awaiting: dict[str, dict[str, _BridgedCall]] = {}
         for index, event in bridged:
             conversation = self._conversation(event)
             current = _PooledInput(self._input(event), self.keys)
             waiting = awaiting.setdefault(conversation, {})
             if waiting:
+                results: dict[str, ChatMessageTool] = {}
                 for position in current.new_positions(previous.get(conversation)):
                     message = current.message(position)
-                    if not isinstance(message, ChatMessageTool):
-                        continue
-                    queue = waiting.get(message.tool_call_id or "")
-                    if queue:
-                        self._bridged_result(queue.pop(), index, event, message)
+                    if (
+                        isinstance(message, ChatMessageTool)
+                        and message.tool_call_id in waiting
+                    ):
+                        results.pop(message.tool_call_id, None)
+                        results[message.tool_call_id] = message
+                for call_id, message in results.items():
+                    self._bridged_result(waiting.pop(call_id), index, event, message)
             previous[conversation] = current
             for entry in made.get(index, []):
-                waiting.setdefault(entry.call.id, []).append(entry)
+                waiting[entry.call.id] = entry
 
         if repeated:
             logging.getLogger(__name__).warning(

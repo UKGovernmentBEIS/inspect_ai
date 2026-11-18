@@ -93,6 +93,9 @@ from inspect_ai.model import (
     modelapi,
 )
 from inspect_ai.model._call_tools import TOOL_CALLS_FAIL_FAST, execute_tools
+from inspect_ai.model._compaction import CompactionEdit
+from inspect_ai.model._compaction.edit import TOOL_RESULT_REMOVED
+from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.review import Review, Reviewer, ReviewPolicy, reviewer
 from inspect_ai.scorer import Score, Scorer, Target, scorer
@@ -2314,14 +2317,19 @@ RETRY_DIFFERENCES = [
 
 
 @agent(name="retrying_scaffold")
-def retrying_scaffold(client: str) -> Agent:
-    """A tool loop over the OpenAI or the Anthropic client that loses its first response to each request and sends the request again, as a client does after a timeout or a dropped connection; it answers each call with `t<turn>:<call id>`."""
+def retrying_scaffold(
+    client: str,
+    retry: bool = True,
+    compaction: CompactionStrategy | None = None,
+    padding: str = "",
+) -> Agent:
+    """A tool loop over the OpenAI or the Anthropic client, bridged with `compaction`, that loses its first response to each request and sends the request again (unless not `retry`), as a client does after a timeout or a dropped connection; it answers each call with `t<turn>:<call id>` and `padding`, until a response has none."""
 
     async def execute(state: AgentState) -> AgentState:
         from anthropic import AsyncAnthropic
         from openai import AsyncOpenAI
 
-        async with agent_bridge(state) as bridge:
+        async with agent_bridge(state, compaction=compaction) as bridge:
             messages: list[Any] = [{"role": "user", "content": "What is 1 + 1?"}]
             if client == "openai":
                 tools: list[Any] = [
@@ -2338,21 +2346,24 @@ def retrying_scaffold(client: str) -> Agent:
                     }
                 ]
                 async with AsyncOpenAI(api_key="sk-test") as openai:
-                    for turn in range(3):
-                        await openai.chat.completions.create(
-                            model="inspect", messages=messages, tools=tools
-                        )
+                    for turn in range(10):
+                        if retry:
+                            await openai.chat.completions.create(
+                                model="inspect", messages=messages, tools=tools
+                            )
                         completion = await openai.chat.completions.create(
                             model="inspect", messages=messages, tools=tools
                         )
                         message = completion.choices[0].message
                         messages.append(message.model_dump(exclude_none=True))
-                        for call in message.tool_calls or []:
+                        if not message.tool_calls:
+                            break
+                        for call in message.tool_calls:
                             messages.append(
                                 {
                                     "role": "tool",
                                     "tool_call_id": call.id,
-                                    "content": f"t{turn}:{call.id}",
+                                    "content": f"t{turn}:{call.id}{padding}",
                                 }
                             )
             else:
@@ -2367,13 +2378,14 @@ def retrying_scaffold(client: str) -> Agent:
                     }
                 ]
                 async with AsyncAnthropic(api_key="sk-test") as anthropic:
-                    for turn in range(3):
-                        await anthropic.messages.create(
-                            model="inspect",
-                            max_tokens=1024,
-                            messages=messages,
-                            tools=tools,
-                        )
+                    for turn in range(10):
+                        if retry:
+                            await anthropic.messages.create(
+                                model="inspect",
+                                max_tokens=1024,
+                                messages=messages,
+                                tools=tools,
+                            )
                         response = await anthropic.messages.create(
                             model="inspect",
                             max_tokens=1024,
@@ -2390,20 +2402,21 @@ def retrying_scaffold(client: str) -> Agent:
                             }
                         )
                         uses = [b for b in response.content if b.type == "tool_use"]
-                        if uses:
-                            messages.append(
-                                {
-                                    "role": "user",
-                                    "content": [
-                                        {
-                                            "type": "tool_result",
-                                            "tool_use_id": use.id,
-                                            "content": f"t{turn}:{use.id}",
-                                        }
-                                        for use in uses
-                                    ],
-                                }
-                            )
+                        if not uses:
+                            break
+                        messages.append(
+                            {
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "tool_result",
+                                        "tool_use_id": use.id,
+                                        "content": f"t{turn}:{use.id}{padding}",
+                                    }
+                                    for use in uses
+                                ],
+                            }
+                        )
             return bridge.state
 
     return execute
@@ -2491,6 +2504,153 @@ def test_a_cached_retry_s_call_gets_the_result_the_agent_sent(
         f"t1:{prefix}2",
     ]
     assert replay_warnings(caplog) == []
+
+
+PADDING = " word" * 100
+"""A tool result's padding, so that one result's removal brings an input back under the compaction threshold."""
+
+COMPACTED_AT_FOUR = 500
+"""A `CompactionEdit` threshold that `retrying_scaffold(padding=PADDING)` first passes with four results, so compaction removes the first (it keeps three)."""
+
+COMPACTED_AT_TWO = 300
+"""A `CompactionEdit` threshold that `retrying_scaffold(padding=PADDING)` first passes with two results."""
+
+
+def replayed_inputs(log: EvalLog, inputs: str) -> list["ReplayStep"]:
+    """`log`'s replay from its model inputs as logged (`"expanded"`) or as a message pool (`"pooled"`)."""
+    from inspect_ai._sentinel import _replay
+
+    sample = logged_sample(log)
+    events: list[Event] = list(sample.events)
+    pool: list[ChatMessage] = []
+    if inputs == "pooled":
+        events, pool = _replay._condensed(events, [])
+    return steps_from_events(
+        sample.messages,
+        events,
+        pool,
+        sample_uuid=sample.uuid or "",
+        eval_info=EvalInfo.from_eval(log.eval),
+    )
+
+
+@pytest.mark.parametrize("client", ["openai", "anthropic"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_compacted_result_is_not_the_result_of_a_discarded_call(
+    client: str,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # each response is lost and its retry answered from the model cache; with
+    # four calls run, compaction replaces the first call's result
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    prefix = "call_" if client == "openai" else "toolu_"
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=as_solver(
+            retrying_scaffold(
+                client,
+                compaction=CompactionEdit(threshold=COMPACTED_AT_FOUR),
+                padding=PADDING,
+            )
+        ),
+        config=GenerateConfig(cache=True),
+    )
+    [log] = eval(
+        task,
+        model=generated_ids(
+            prefix,
+            *[r7_tool_calls(read(f"{name}.txt", "")) for name in "abcd"],
+            done(),
+        ),
+    )
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    made = [
+        e for e in events if isinstance(e, ModelEvent) and e.requested_model is not None
+    ]
+    uuids = [e.uuid for e in made]
+    assert [e.cache for e in made] == ["write", "read"] * 5
+    removed = [
+        m
+        for e in made
+        for m in e.input
+        if isinstance(m, ChatMessageTool) and m.text == TOOL_RESULT_REMOVED
+    ]
+    assert [m.tool_call_id for m in removed] == [f"{prefix}1"] * 2
+    for inputs in ["expanded", "pooled"]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            replay = replayed_inputs(log, inputs)
+        # one result per call run, each the received call's; the lost
+        # responses' calls have none
+        results = [
+            (uuids.index(s.id.split("/")[0]), resulted(s).text)
+            for s in bridged_steps(log, replay)
+            if s.stage == "tool_result"
+        ]
+        assert results == [
+            (2 * turn + 1, f"t{turn}:{prefix}{turn + 1}{PADDING}") for turn in range(4)
+        ], inputs
+        assert replay_warnings(caplog) == []
+
+
+@pytest.mark.parametrize("client", ["openai", "anthropic"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_result_compacted_in_the_request_answering_its_reused_id_is_not_taken(
+    client: str,
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # the model reuses the call id, and compaction (keeping one result)
+    # replaces the first result in the request carrying the second
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=as_solver(
+            retrying_scaffold(
+                client,
+                retry=False,
+                compaction=CompactionEdit(threshold=COMPACTED_AT_TWO, keep_tool_uses=1),
+                padding=PADDING,
+            )
+        ),
+    )
+    [log] = eval(
+        task,
+        model=outputs(
+            r7_tool_calls(read("a.txt", "read_1")),
+            r7_tool_calls(read("a.txt", "read_1")),
+            done(),
+        ),
+    )
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    made = [
+        e for e in events if isinstance(e, ModelEvent) and e.requested_model is not None
+    ]
+    uuids = [e.uuid for e in made]
+    assert [
+        [m.text for m in e.input if isinstance(m, ChatMessageTool)] for e in made
+    ] == [[], [f"t0:read_1{PADDING}"], [TOOL_RESULT_REMOVED, f"t1:read_1{PADDING}"]]
+    for inputs in ["expanded", "pooled"]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            replay = replayed_inputs(log, inputs)
+        results = [
+            (uuids.index(s.id.split("/")[0]), resulted(s).text)
+            for s in bridged_steps(log, replay)
+            if s.stage == "tool_result"
+        ]
+        assert results == [
+            (0, f"t0:read_1{PADDING}"),
+            (1, f"t1:read_1{PADDING}"),
+        ], inputs
+        assert replay_warnings(caplog) == []
 
 
 @pytest.mark.parametrize("by", ["sentinel", "approver"])
