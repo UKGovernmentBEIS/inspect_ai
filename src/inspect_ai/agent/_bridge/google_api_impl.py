@@ -209,13 +209,18 @@ def _transported(
 def gemini_rebuilt_call_ids(output: ModelOutput) -> list[tuple[str, ...]]:
     """The ids under which the Google bridge reads each of `output`'s calls, and its result, back without a sentinel.
 
-    Without a sentinel the response carries no call ids, so a later request's history rebuilds each call's id from its function, arguments and part index (`_extract_model_parts`), and its `functionResponse` takes that id. A call's ids are its id under the parts as the bridge sent them, then under the parts as Gemini CLI records the response (adjacent text parts merged, `geminiChat.ts`), unless that is another of its calls' ids as sent. A scaffold that otherwise drops or reorders parts reads the call back under neither.
+    Without a sentinel the response carries no call ids, so a later request's history rebuilds each call's id from its function, arguments and part index (`_extract_model_parts`), and its `functionResponse` takes that id. A call's ids are its id under the parts as the bridge sent them, then under the parts as Gemini CLI records the response (adjacent text parts merged, `geminiChat.ts`), except an id that one layout gives another of its calls, which names neither. A scaffold that otherwise drops or reorders parts reads the call back under neither.
     """
     content = gemini_response_from_output(output, "")["candidates"][0]["content"]
     sent = _call_ids(content)
     recorded = _call_ids({**content, "parts": _merged_text_parts(content["parts"])})
+    ambiguous = {
+        rebuilt_id
+        for rebuilt_id in set(sent) & set(recorded)
+        if sent.index(rebuilt_id) != recorded.index(rebuilt_id)
+    }
     return [
-        (a,) if b == a or b in sent else (a, b)
+        tuple(i for i in dict.fromkeys((a, b)) if i not in ambiguous)
         for a, b in zip(sent, recorded, strict=True)
     ]
 

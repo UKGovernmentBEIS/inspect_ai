@@ -2833,6 +2833,59 @@ def test_a_google_bridge_result_goes_to_its_call(
         assert replay_warnings(caplog) == []
 
 
+@pytest.mark.parametrize("gemini_cli", [False, True])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_google_bridge_identical_calls_do_not_trade_results(
+    gemini_cli: bool,
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # without a sentinel, two identical calls after text and `<think>` parts:
+    # the first call's id as sent is the second call's id as Gemini CLI
+    # records the response, so that id names neither, and each layout loses
+    # one result rather than giving it to the other call
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=as_solver(gemini_scaffold(gemini_cli=gemini_cli)),
+    )
+    turns = [
+        ModelOutput(
+            model="mockllm/model",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        content=[
+                            ContentText(text="Reading."),
+                            ContentReasoning(reasoning="c2lnbmF0dXJl", redacted=True),
+                        ],
+                        tool_calls=[read("a.txt", "read_1"), read("a.txt", "read_2")],
+                    ),
+                    stop_reason="tool_calls",
+                )
+            ],
+        ),
+        done(),
+    ]
+    [log] = eval(task, model=get_model("mockllm/model", custom_outputs=turns))
+    assert log.status == "success", log.error
+    for inputs in ["expanded", "pooled"]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            replay = replayed_inputs(log, inputs)
+        results = [
+            (s.id.split("/")[1], resulted(s).text)
+            for s in bridged_steps(log, replay)
+            if s.stage == "tool_result"
+        ]
+        assert results == (
+            [("read_1", '{"output": "t0:0"}')]
+            if gemini_cli
+            else [("read_2", '{"output": "t0:1"}')]
+        ), inputs
+
+
 @pytest.mark.parametrize("side", [False, True])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 def test_a_google_retry_s_call_gets_the_result_the_agent_sent(
