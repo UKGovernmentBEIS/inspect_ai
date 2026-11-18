@@ -414,9 +414,12 @@ contract is [Execution Contract](../docs/agent-bridge.qmd#bridged-tools-executio
 Agents rename MCP tools for their models, so a proposed call is tied to a
 bridged tool by the description its declaration carries, matched against
 the description the host served in `tools/list`, not by name
-(`_resolve_by_served_content` in `ai/agent/_bridge/sandbox/types.py`). A
-declaration that matches no served description denotes nothing, and a call
-to it grants nothing. Approval reviews each call as the bridged tool its
+(`_proposed_call` and `_resolve_by_served_content` in
+`ai/agent/_bridge/sandbox/types.py`). The one exception is the recognised
+dispatcher shape (Antigravity's `call_mcp_tool`), whose arguments name a
+bridged tool and its arguments. A call whose declaration matches no served
+description and is not that dispatcher denotes nothing and grants nothing.
+Approval reviews each call as the bridged tool its
 grant will bind, so a policy written for a bridged tool applies whatever
 name the agent used. When bridged tools share a description, a call to any
 of them must pass every review, gets one grant per tool, and fails the
@@ -526,8 +529,9 @@ model calls.
    the bridge whose queue it reached, under that sample's model, limits,
    approval policies and transcript. *(Boundary B)*
 5. **The record is true to what the host did.** Every generation the host
-   performs for the bridge is a `ModelEvent` recording the name the client
-   asked for and the model that served it, every bridged tool request is a
+   performs for the bridge is a `ModelEvent` recording the model that
+   served it, and the event of each client request also records the name
+   the client asked for; every bridged tool request is a
    `ToolEvent` whether or not it ran, and every approval decision is an
    `ApprovalEvent`. The record does not claim what the agent then did with a
    response. *(Boundary C)*
