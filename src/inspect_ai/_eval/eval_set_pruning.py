@@ -90,6 +90,7 @@ from inspect_ai._util.registry import extract_named_params
 
 from .eval_set_manifest import task_args_hash
 from .eval_set_selection import INSPECT_EVAL_SET_SELECTION
+from .task.enqueue import creator_model
 
 INSPECT_EVAL_SET_NO_PRUNE = "INSPECT_EVAL_SET_NO_PRUNE"
 """Set to disable early pruning. The escape hatch for a suspected pruning bug: a run can be compared with and without it without downgrading inspect, and a difference in *results* is a bug report — there should never be one."""
@@ -290,9 +291,14 @@ def prune_task_call(
         kwargs: Keyword arguments of this call.
 
     Returns:
-        Whether to return a placeholder instead of constructing the task. `False` on any uncertainty at all, and always for a task being constructed inside another one.
+        Whether to return a placeholder instead of constructing the task. `False` on any uncertainty at all, always for a task being constructed inside another one, and always for a call made by a running task attempt.
     """
     if _constructing:
+        return False
+    # a call from a running attempt builds a task to add to the run (e.g.
+    # `enqueue_task(child())` in a solver), not an eval-set entry; the
+    # boundary filter never sees it, so a placeholder would run in its place
+    if creator_model() is not None:
         return False
     if not _pruner.active():
         return False

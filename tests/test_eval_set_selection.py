@@ -20,6 +20,7 @@ from inspect_ai._eval.eval_set_overrides import (
     INSPECT_EVAL_SET_OVERRIDES,
     EvalSetOverrides,
 )
+from inspect_ai._eval.eval_set_pruning import reset_pruning
 from inspect_ai._eval.eval_set_selection import (
     EVAL_SET_SELECTION_VERSION,
     INSPECT_EVAL_SET_SELECTION,
@@ -248,29 +249,53 @@ def selection_enqueuing_task() -> Task:
 def test_eval_set_selection_enqueued_task_uses_creator_model(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A task added by a selected task (without a model) runs on its model."""
+    """A task added by a selected task (without a model) runs on its model.
+
+    The selection carries the capture's pruning facets, as runners send them,
+    so the `@task` call the solver makes must build the real child rather than
+    a pruned placeholder.
+    """
+    reset_pruning()
     capture = enumerate_eval_set(
         monkeypatch, tmp_path, tasks=[selection_enqueuing_task()]
     )
     selected = next(t for t in capture.tasks if t.model == "mockllm/model2")
-
-    success, logs = run_selection(
-        monkeypatch,
-        tmp_path,
-        selection_for(selected.identifier),
-        tmp_path / "logs",
-        tasks=[selection_enqueuing_task()],
+    assert selected.registry_name is not None and selected.args_hash is not None
+    selection = EvalSetSelection(
+        version=EVAL_SET_SELECTION_VERSION,
+        eval_set_id="worker-test",
+        tasks=[
+            EvalSetSelectionTask(
+                identifier=selected.identifier,
+                registry_name=selected.registry_name,
+                args_hash=selected.args_hash,
+            )
+        ],
     )
+
+    try:
+        success, logs = run_selection(
+            monkeypatch,
+            tmp_path,
+            selection,
+            tmp_path / "logs",
+            tasks=[selection_enqueuing_task()],
+        )
+    finally:
+        reset_pruning()
 
     added = [log for log in logs if log.eval.task == "selection_task_two"]
     assert [log.eval.model for log in added] == ["mockllm/model2"]
     assert success
     added_log = read_eval_log(added[0].location)
     assert added_log.samples is not None
+    sample = added_log.samples[0]
+    assert sample.error is None
+    # the child's own sample and scorer ran, not a placeholder's
+    assert sample.input == "hello"
+    assert sample.scores is not None and list(sample.scores) == ["exact"]
     # generate() returned model output (the none model raises instead)
-    assert added_log.samples[0].output.completion == (
-        "Default output from mockllm/model"
-    )
+    assert sample.output.completion == "Default output from mockllm/model"
 
 
 def test_eval_set_selection_stamps_eval_set_id(

@@ -1467,21 +1467,18 @@ depends on it.
 - Runtime pruning in selection workers, a prerequisite for adding tasks
   there. A worker resolving a selection prunes `@task` calls that the
   selection does not name: the `@task` wrapper (`_eval/registry.py`) asks
-  `prune_task_call()` (`_eval/eval_set_pruning.py`) on every call, including
-  one made by a running solver, and returns an empty placeholder `Task`
-  instead of running the factory. So a selected creator's
-  `rollout_task()` comes back with no dataset and no `samples_from_handle()`
-  source, and `enqueue_task()` cannot see that it is fed through a handle,
-  give it its creator's model or attach its channel; an ordinary added task
-  runs the placeholder. Tasks constructed by executing attempts must be
-  real tasks before `enqueue_task()` resolves them. The guarantee belongs to
-  the pruning code, not to this design; its minimal form is that
-  `prune_task_call()` returns `False` while a run queue is bound, so pruning
-  applies only to resolving the eval set's own tasks and every `@task` call
-  made by attempt code, including one adapted afterwards with `task_with`,
-  runs the factory. Until it lands, `INSPECT_EVAL_SET_NO_PRUNE=1` works
-  around it. Adding tasks, and task handles, in selection workers depend on
-  it (task-handles.md, "Implementation plan").
+  `prune_task_call()` (`_eval/eval_set_pruning.py`) and returns an empty
+  placeholder `Task` instead of running the factory. A placeholder added
+  to the run would run in place of the task, with no dataset and no
+  `samples_from_handle()` source. `prune_task_call()` returns `False` for a
+  call made inside a running attempt (the same `ContextVar` that
+  `_resolve_enqueued_tasks` reads), so pruning applies only to resolving
+  the eval set's own tasks, and every `@task` call made by attempt code,
+  including one adapted afterwards with `task_with`, runs the factory. A
+  task built outside an attempt before the selection is resolved (at module
+  level, say) and added later can still be a placeholder. Adding tasks, and
+  task handles, in selection workers depend on this guarantee
+  (task-handles.md, "Implementation plan").
 - The dispatcher rule that an attempt with no log or a `cancelled` log means a
   run-level cancellation applies only to attempts `run_one` ran; a record
   ended before its first attempt never reaches it.
@@ -2040,12 +2037,10 @@ state in the single `eval_run`), so the setup fixes come first.
    `design/sample-source.md`. Tests: `test_enqueue_task.py`,
    `test_task_source.py`, `test_task_cancel.py`, `_control/test_ctl.py`,
    `test_eval_set.py`. Needs steps 1 and 2; its selection-mode support, and
-   the faceted-worker test above, also need the runtime-pruning guarantee
-   from the pruning code ("Interactions with related changes"), which
-   stays a separate change.
+   the faceted-worker test above, rely on the runtime-pruning guarantee
+   ("Interactions with related changes").
 
-Then, needing step 3 and, for selection workers, the same runtime-pruning
-guarantee: **task handles**, one PR ([task-handles.md](task-handles.md)).
+Then, needing step 3: **task handles**, one PR ([task-handles.md](task-handles.md)).
 
 Follow-ups in provider repositories, none a gate (decision: Ransom,
 2026-11-11, for Podman):

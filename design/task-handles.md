@@ -906,8 +906,7 @@ the recorder's next flush writes the original path again. Before handles
 are used in Steward selection workers, Steward must not archive a log
 while the worker that wrote it is running (for example, by treating logs
 in the worker's log directory as in flight until it exits). This is a
-Steward change; the Inspect design is unchanged. Selection workers already
-need the runtime-pruning fix ("Implementation plan").
+Steward change; the Inspect design is unchanged.
 
 No eval log schema, viewer type, control-channel or config file changes. A
 fed task's log records the reserved dataset name `samples_from_handle`,
@@ -1129,15 +1128,15 @@ test touched), with mockllm models; every test that waits is bounded with
 
 One PR, after step 3 of
 [task-dispatch.md](task-dispatch.md#implementation-plan). Its selection-mode
-support also needs runtime pruning to leave tasks constructed by attempt
-code unpruned
+support relies on runtime pruning leaving tasks constructed by attempt code
+unpruned
 ([task-dispatch.md](task-dispatch.md#interactions-with-related-changes));
-the selection-mode tests below run with pruning enabled and fail without
-that guarantee. Running it under Steward also needs Steward's protection of
+the selection-mode tests below run with pruning enabled. Running it under Steward also needs Steward's protection of
 a running worker's fed logs from archival ("Compatibility and migration").
 
 - `_eval/task/enqueue.py` (`TaskHandle`, the errors, `TaskAttempt` and
-  `_attempt`, which replaces `_creator_model`, `result()` refusing a handle whose task is
+  `_attempt`, which replaces `_creator_model` here and in
+  `prune_task_call()`, `result()` refusing a handle whose task is
   not fed through it, the `max_sandboxes` warning naming its `inspect ctl
   config` command, `RunQueue.cancel` closing a fed record's channel itself
   in every phase but `ended`, `enqueue_task()` returning handles, passing its creator

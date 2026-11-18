@@ -75,7 +75,8 @@ _enqueuer: ContextVar[TaskEnqueuer | None] = ContextVar("task_enqueuer", default
 # The model of the task attempt running in this context: set for the duration
 # of each attempt and cleared around TaskSource callbacks, so `None` means the
 # caller is not inside a task. Tasks added inside an attempt resolve once,
-# under this model. `active_model()` can't stand in for it: outside an attempt
+# under this model, and `@task` calls inside an attempt are never pruned
+# (`eval_set_pruning.prune_task_call`). `active_model()` can't stand in for it: outside an attempt
 # it still holds the last run model that up-front task resolution activated.
 # Temporary: the task handles design's `_attempt` ContextVar (set by `run_one`
 # around the attempt, cleared in TaskSource callbacks) replaces it.
