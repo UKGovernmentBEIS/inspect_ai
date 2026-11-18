@@ -198,8 +198,8 @@ def _validate_sentinel(sentinel: SentinelSpec | None) -> None:
         resolve_sentinel_spec(sentinel)
 
 
-def _refuse_shard_companions(log_dir: str) -> None:
-    """Refuse a log directory that holds a `<name>.shards/` companion.
+def _refuse_shard_companions(log_files: list[EvalLogInfo]) -> None:
+    """Refuse an eval set whose listed logs include shard logs.
 
     `eval_set()` does not merge shards: no current caller needs it, and a
     retry at startup would run samples outside a launcher's per-instance
@@ -210,7 +210,7 @@ def _refuse_shard_companions(log_dir: str) -> None:
     """
     companions = {
         companion
-        for info in list_eval_logs(log_dir)
+        for info in log_files
         if (companion := _shard_companion(info.name)) is not None
     }
     if companions:
@@ -1027,8 +1027,6 @@ def eval_set(
         finally:
             reset_run_registries()
 
-    _refuse_shard_companions(log_dir)
-
     # get eval set id (set display name from user-provided value before resolution)
     set_eval_set_id_display(eval_set_id)
     eval_set_id = eval_set_id_for_log_dir(log_dir, eval_set_id=eval_set_id)
@@ -1138,7 +1136,9 @@ def eval_set(
         _validate_sentinel(sentinel)
 
         # list all logs currently in the log directory (update manifest if there are some)
-        all_logs = list_all_eval_logs(log_dir)
+        log_files = list_eval_logs(log_dir)
+        _refuse_shard_companions(log_files)
+        all_logs = list_all_eval_logs(log_dir, log_files=log_files)
         if len(all_logs) > 0:
             write_log_dir_manifest(log_dir)
 
@@ -1869,9 +1869,22 @@ def return_last_value(retry_state: RetryCallState) -> list[EvalLog]:
 # list all eval logs
 # recursive=False and progress are used by inspect_flow
 def list_all_eval_logs(
-    log_dir: str, recursive: bool = True, progress: ReadEvalLogsProgress | None = None
+    log_dir: str,
+    recursive: bool = True,
+    progress: ReadEvalLogsProgress | None = None,
+    log_files: list[EvalLogInfo] | None = None,
 ) -> list[Log]:
-    log_files = list_eval_logs(log_dir, recursive=recursive)
+    """Read the headers of the logs in `log_dir`.
+
+    Args:
+        log_dir: Log directory.
+        recursive: List recursively.
+        progress: Progress reporter for the header reads.
+        log_files: Logs already listed from `log_dir`; when given, their
+            headers are read and the directory is not listed again.
+    """
+    if log_files is None:
+        log_files = list_eval_logs(log_dir, recursive=recursive)
     log_headers = read_eval_log_headers(log_files, progress)
     task_identifiers = [task_identifier(log_header, None) for log_header in log_headers]
     return [

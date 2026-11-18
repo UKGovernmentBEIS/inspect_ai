@@ -1469,17 +1469,22 @@ startup would run samples outside a launcher's per-instance placement: a
 launcher that runs one sample per instance retries a failed sample's shard
 in its own `<k>/` and merges with the API or `inspect log merge-shards`.
 
-In `src/inspect_ai/_eval/evalset.py`, after the selection-mode branch and
-before the eval set ID is written, `eval_set()` lists the directory once
-and recognises a shard log by its own listed name (decision: Ransom,
+In `src/inspect_ai/_eval/evalset.py`, each `try_eval` attempt lists the
+directory once with `list_eval_logs`, checks those names, and passes the
+same listing to `list_all_eval_logs(log_dir, log_files=...)` for the
+header reads, so the check adds no listing and no shard header is read
+(decision: Ransom, 2026-11-18). It recognises a shard log by its own listed
+name (decision: Ransom,
 2026-11-18). A listed log is a shard log when its parent directory name is
 all ASCII digits and the directory above that ends in `.shards`, or when
 its parent directory name itself ends in `.shards` (a stray file the merge
 would refuse). Only the name's last two path components are read, split
 on `/` and `\`; every provider lists those the same way, so no form of the
 log directory is compared and no filesystem is opened from a listed name.
-If any listed log is a shard log, it raises `PrerequisiteError` before it
-lists logs for pairing, runs a task or writes anything. The message names
+If any listed log is a shard log, it raises `PrerequisiteError` before
+pairing, the manifest write or any run. Task resolution and the eval set
+ID come first, so a first run in a refused directory can leave an
+`.eval-set-id` file. The message names
 each `.shards` directory found that way and says that `eval_set()` does
 not merge shards, to merge them with `inspect log merge-shards` (or the
 Python API), and, if samples failed or are missing, to retry each
@@ -1819,9 +1824,11 @@ today.
   `ShardSelectionError`, `ShardSetIncomplete`, `EvalShards`,
   `EvalShardEntry` in `inspect_ai.log`,
   listed in a "Sharding" section of `docs/reference/inspect_ai.log.qmd`.
+  `list_all_eval_logs` (internal, but imported by `inspect_flow`) gains an
+  optional `log_files` argument whose default keeps its behaviour.
 - **Eval sets.** `eval_set()` now stops with `PrerequisiteError`, before
-  it lists logs for pairing, runs a task or writes anything, when a listed
-  log is a shard log by its name ("Eval-set integration"): in a numbered
+  pairing or running (it may already have written `.eval-set-id`), when a
+  listed log is a shard log by its name ("Eval-set integration"): in a numbered
   directory under a `.shards` directory, or directly in a `.shards`
   directory. That includes an eval set run on a shard directory or a
   companion itself. Today it pairs a shard attempt of one of its tasks as
@@ -2075,7 +2082,7 @@ Per PR (numbers from "Implementation plan"):
 6. **Eval-set integration.** `tests/test_eval_set.py`: an eval set over a
    log directory (with a space in its path) holding two companions stops
    with `PrerequisiteError` naming both and `inspect log merge-shards`,
-   and leaves the directory's files as they were (one shard in a numbered
+   and writes no log or manifest (one shard in a numbered
    directory, one stray log directly in a companion); an eval set over a
    directory with no shard logs runs and, run again, finds its log
    complete.

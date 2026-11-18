@@ -715,9 +715,9 @@ launcher retries an incomplete shard in its own `<k>/` with the same
 selection, runs samples no shard selected as new shards, and merges again
 with the API or the CLI.
 
-`eval_set()` refuses a log directory that holds a companion: before it
-lists logs for pairing, runs a task or writes anything, it lists the
-directory and stops with `PrerequisiteError` if a listed log is a shard
+`eval_set()` refuses a log directory that holds a companion: before
+pairing or running, it checks the names in the listing it already makes
+and stops with `PrerequisiteError` if a listed log is a shard
 log by its own name: its parent directory is all digits under a
 `*.shards/` directory, or is a `*.shards/` directory (decision: Ransom,
 2026-11-18). The rule reads only the name's last path components, so it
@@ -988,7 +988,7 @@ Pydantic models. New boundaries:
   the move; two files in one `<k>/` (original plus `-recovered`) are treated
   as attempts of one shard, newest taken.
 - Eval-set tests: an eval set over a directory holding a companion stops
-  with `PrerequisiteError` before writing anything; one over a directory
+  with `PrerequisiteError` before pairing or running; one over a directory
   without shard logs runs as before.
 - Deletion tests, with the deferred deletion work: in the viewer,
   a delete of a merged log under an access policy that allows the

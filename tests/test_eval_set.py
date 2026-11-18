@@ -864,7 +864,8 @@ def test_eval_set_refuses_a_log_dir_holding_shards(tmp_path: Path) -> None:
         # listed local names use forward slashes, also on Windows
         assert companion.as_posix() in str(raised.value)
     assert "inspect log merge-shards" in str(raised.value)
-    assert _files_below(log_dir) == files
+    # no log or manifest; the eval set id is written before the listing
+    assert _files_below(log_dir) - {Path(".eval-set-id")} == files
 
 
 def test_eval_set_without_shards_runs_and_resumes(tmp_path: Path) -> None:
