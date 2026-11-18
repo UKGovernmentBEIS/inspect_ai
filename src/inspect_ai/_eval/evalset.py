@@ -1144,7 +1144,8 @@ def eval_set(
         # list all logs currently in the log directory (update manifest if there are some)
         nonlocal first_listing
         if first_listing is not None:
-            log_files, first_listing = first_listing, None
+            log_files = first_listing
+            first_listing = None
         else:
             log_files = list_eval_logs(log_dir)
             _refuse_shard_companions(log_files)
