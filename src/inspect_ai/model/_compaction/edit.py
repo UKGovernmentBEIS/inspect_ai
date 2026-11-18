@@ -32,8 +32,8 @@ class CompactionEdit(CompactionStrategy):
     they were removed.
 
     Models that bind replayed reasoning to the preceding conversation (OpenAI
-    GPT-6.2+, Claude Fable 5.1+ and Opus/Sonnet/Haiku 5.5+) drop reasoning
-    that follows edited content, so the model may redo it.
+    GPT-6.2+; on the Anthropic API, Claude Fable 5.1+ and Opus/Sonnet/Haiku
+    5.5+) drop reasoning that follows edited content, so the model may redo it.
     """
 
     def __init__(

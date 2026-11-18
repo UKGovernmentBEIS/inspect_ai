@@ -1155,7 +1155,8 @@ async def _gpt_6_2_reasoning_removed_warns(model_name: str) -> None:
     assert len(second.completion) >= 1
     messages = [call.args[1] for call in mock_warn.call_args_list]
     assert any(
-        "removed replayed reasoning" in m and "prefix_mismatch" in m for m in messages
+        "removed replayed reasoning" in m and "(reason: prefix_mismatch)" in m
+        for m in messages
     )
 
 

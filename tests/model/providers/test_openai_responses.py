@@ -690,8 +690,8 @@ async def test_responses_api_warns_when_reasoning_removed() -> None:
     removed = [m for m in messages if "removed replayed reasoning" in m]
     assert len(removed) == 2
     assert all("gpt-6.2-sol" in m for m in removed)
-    assert any("prefix_mismatch" in m for m in removed)
-    assert any("end_user_mismatch" in m for m in removed)
+    assert any("(reason: prefix_mismatch)" in m for m in removed)
+    assert any("(reason: end_user_mismatch)" in m for m in removed)
 
 
 async def test_responses_api_no_warning_for_turn_boundary() -> None:
