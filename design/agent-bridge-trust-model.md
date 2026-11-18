@@ -410,9 +410,17 @@ the user its tools run as. For the bridge:
 | Inspect host process | Host | Yes | Provider credentials, model routing, approval policies, limits, bridged tools, the transcript |
 | Eval author | Host-side configuration | Yes | Every grant: capabilities, aliases, bridged tools, `require_proposal`, the user the agent runs as |
 | Agent | Sandbox, as the user it is launched as | No | The scaffold, its configuration and session files, every process the model starts through it, and every request it sends |
-| Tools user | Sandbox | Inspect's identity in the sandbox | The proxy and its queue; root where usable, otherwise the default user |
+| Tools user | Sandbox | No | The proxy and its queue; root where usable, otherwise the default user |
 | Other processes in the sandbox | Sandbox, as their own users | No | Sidecars, other agents in a multi-agent sandbox, other sandbox users |
-| Model provider | External | As configured | Receives what the host sends |
+| Model provider | External | No | Receives what the host sends |
+
+The host does not trust the tools user: it treats every request that
+reaches it through the queue as untrusted, and the tools user is separate
+from the agent only where Boundary A holds (see
+[Relationship to the sandbox trust model](#relationship-to-the-sandbox-trust-model)).
+The eval chooses the model provider and sends it its credentials and the
+conversation; the provider's responses are the evaluated model's output,
+which this trust model treats as the adversary.
 
 The scaffold and the code the model runs through it are one principal. They
 run as the same user, so nothing the bridge could check (a token, a file the
