@@ -1717,3 +1717,23 @@ def test_an_evicted_span_begin_is_released_and_its_agent_span_still_known() -> N
     assert released() is None
     assert retained < 1_000_000
     assert bounded._agent_span("large") == "large"
+
+
+def test_bounded_transcript_releases_calls_of_evicted_events_nobody_holds() -> None:
+    """Eviction keeps no condensed call for an event that is freed."""
+    resident_tail = 4
+    transcript = Transcript(
+        log_model_api=True, bounded=True, resident_tail=resident_tail
+    )
+
+    def generate(n: int) -> None:
+        transcript._event(_model_event_with_call())
+        transcript._event(InfoEvent(data=n))
+
+    for n in range(100):
+        generate(n)
+    gc.collect()
+    generate(100)
+
+    assert len(transcript._condensed_calls) <= resident_tail
+    assert all(ref() is not None for ref in transcript._evicted_call_events.values())

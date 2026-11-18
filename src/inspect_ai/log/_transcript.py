@@ -1073,38 +1073,29 @@ class Transcript:
             evicted_event_ids.add(event_key)
 
         if evicted_event_ids:
-            resident_events: list[Event] = []
-            for event in self._events:
-                event_key = self._event_key(event)
-                if event_key not in evicted_event_ids:
-                    resident_events.append(event)
-                elif event_key in self._condensed_calls:
-                    self._keep_evicted_call(event, event_key)
-            self._events = resident_events
+            self._keep_evicted_calls(evicted_event_ids)
+            self._events = [
+                event
+                for event in self._events
+                if self._event_key(event) not in evicted_event_ids
+            ]
             self._resident_event_ids.difference_update(evicted_event_ids)
             self._events_truncated = True
             self._prune_pin_state()
 
-    def _keep_evicted_call(self, event: Event, event_key: str) -> None:
-        """Keep an evicted event's condensed call until the event is freed.
+    def _keep_evicted_calls(self, evicted_event_ids: set[str]) -> None:
+        """Keep the condensed calls of evicted events while the events are alive.
 
-        Whoever holds the event can still re-notify it (`Model.generate` does
-        after completing it, with its timings). Subscribers then need the call
-        with its literals put back, which the condensed call alone cannot give
-        once the event's attachments are released.
+        Whoever holds an evicted event can still re-notify it (`Model.generate`
+        does after completing it, with its timings). Subscribers then need the
+        call with its literals put back, which the condensed call alone cannot
+        give once the event's attachments are released. Pruning drops a call
+        once its event is freed.
         """
-        owner = weakref.ref(self)
-
-        def release(_: object) -> None:
-            transcript = owner()
-            if (
-                transcript is not None
-                and event_key not in transcript._resident_event_ids
-            ):
-                transcript._evicted_call_events.pop(event_key, None)
-                transcript._condensed_calls.pop(event_key, None)
-
-        self._evicted_call_events[event_key] = weakref.ref(event, release)
+        for event in self._events:
+            event_key = self._event_key(event)
+            if event_key in evicted_event_ids and event_key in self._condensed_calls:
+                self._evicted_call_events[event_key] = weakref.ref(event)
 
     def _prune_pin_state(self) -> None:
         resident_event_keys = self._resident_event_ids
@@ -1117,6 +1108,11 @@ class Transcript:
         )
         if self._bounded:
             self._kept_event_ids.intersection_update(resident_event_keys)
+            self._evicted_call_events = {
+                event_key: ref
+                for event_key, ref in self._evicted_call_events.items()
+                if ref() is not None
+            }
             self._condensed_calls = {
                 event_key: condensed
                 for event_key, condensed in self._condensed_calls.items()

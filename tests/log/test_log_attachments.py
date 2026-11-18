@@ -2375,8 +2375,9 @@ def test_evicted_call_is_renotified_with_its_literals(tmp_path: Path) -> None:
     assert stored.call is not None
     assert stored.call.request == {"messages": [{"content": literal}]}
 
-    # the kept call is released with the event, so memory stays bounded
+    # the kept call is released at the next eviction after the event is freed
     del event
     gc.collect()
+    transcript._event(InfoEvent(data="more activity"))
     assert transcript._condensed_calls == {}
     assert transcript._evicted_call_events == {}
