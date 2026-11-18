@@ -1559,6 +1559,8 @@ class _Driver:
         """The tool steps of an agent bridge's calls: each call as the model wrote it, and each result as the model next received it (`steps_from_events`).
 
         A call is taken from the output of a model call the bridge made for its agent, unless a native `ToolEvent` ran it (`native`, by the model call's event index and the call id). Its result is in the first later bridged request of its conversation whose new messages, against the conversation's previous bridged request (`_PooledInput.new_positions`), include a tool message under its id: the last such message, since a call's result follows every earlier message under its id. So a result already in the previous request, as under an id the model reused, is not taken again, and neither is one the request rewrote, as compaction replaces an old result. Only the latest call under an id awaits a result, since a result answers the call the agent used: a call from a response the agent discarded (a request it sent again) gets none.
+
+        A request is compared with the conversation's previous bridged request, whichever history that continued. After a side request with its own history, the agent's next request shows its old results as new; they go to no call, since their calls no longer await one, unless the model reused an id for the same call and the agent retried a lost response after the side request: that response's call then gets the previous turn's result.
         """
         made: dict[int, list[_BridgedCall]] = {}
         repeated: list[str] = []

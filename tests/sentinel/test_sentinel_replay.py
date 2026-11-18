@@ -5,7 +5,7 @@ import dataclasses
 import json
 import logging
 import random
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Awaitable, Callable, Iterator, Sequence
 from dataclasses import replace
 from datetime import datetime, timezone
 from functools import partial
@@ -2322,12 +2322,25 @@ def retrying_scaffold(
     retry: bool = True,
     compaction: CompactionStrategy | None = None,
     padding: str = "",
+    side: Literal["agent", "helper"] | None = None,
 ) -> Agent:
-    """A tool loop over the OpenAI or the Anthropic client, bridged with `compaction`, that loses its first response to each request and sends the request again (unless not `retry`), as a client does after a timeout or a dropped connection; it answers each call with `t<turn>:<call id>` and `padding`, until a response has none."""
+    """A tool loop over the OpenAI or the Anthropic client, bridged with `compaction`, that loses its first response to each request and sends the request again (unless not `retry`), as a client does after a timeout or a dropped connection; it answers each call with `t<turn>:<call id>` and `padding`, until a response has none.
+
+    With `side`, it sends a request with its own history and no tools before each of those requests, as Claude Code's permission classifier or opencode's title request does: from the agent, or under `model_origin("helper")`.
+    """
 
     async def execute(state: AgentState) -> AgentState:
         from anthropic import AsyncAnthropic
         from openai import AsyncOpenAI
+
+        title: list[Any] = [{"role": "user", "content": "Name this conversation."}]
+
+        async def side_request(create: Callable[[], Awaitable[object]]) -> None:
+            if side == "helper":
+                with model_origin("helper"):
+                    await create()
+            elif side is not None:
+                await create()
 
         async with agent_bridge(state, compaction=compaction) as bridge:
             messages: list[Any] = [{"role": "user", "content": "What is 1 + 1?"}]
@@ -2346,11 +2359,19 @@ def retrying_scaffold(
                     }
                 ]
                 async with AsyncOpenAI(api_key="sk-test") as openai:
+
+                    async def openai_title() -> object:
+                        return await openai.chat.completions.create(
+                            model="inspect", messages=title
+                        )
+
                     for turn in range(10):
                         if retry:
+                            await side_request(openai_title)
                             await openai.chat.completions.create(
                                 model="inspect", messages=messages, tools=tools
                             )
+                        await side_request(openai_title)
                         completion = await openai.chat.completions.create(
                             model="inspect", messages=messages, tools=tools
                         )
@@ -2378,14 +2399,22 @@ def retrying_scaffold(
                     }
                 ]
                 async with AsyncAnthropic(api_key="sk-test") as anthropic:
+
+                    async def anthropic_title() -> object:
+                        return await anthropic.messages.create(
+                            model="inspect", max_tokens=1024, messages=title
+                        )
+
                     for turn in range(10):
                         if retry:
+                            await side_request(anthropic_title)
                             await anthropic.messages.create(
                                 model="inspect",
                                 max_tokens=1024,
                                 messages=messages,
                                 tools=tools,
                             )
+                        await side_request(anthropic_title)
                         response = await anthropic.messages.create(
                             model="inspect",
                             max_tokens=1024,
@@ -2422,23 +2451,28 @@ def retrying_scaffold(
     return execute
 
 
-def generated_ids(prefix: str, *turns: ModelOutput) -> Any:
-    """A mock model answering with `turns` in order, giving each call a new id, as a provider generates one per response."""
+def generated_ids(prefix: str | None, *turns: ModelOutput) -> Any:
+    """A mock model answering with `turns` in order, giving each call a new id, as a provider generates one per response (unless `prefix` is None, keeping the turns' ids); it answers a request without tools with a title."""
     ids = iter(range(1, 100))
     remaining = iter(turns)
 
-    def generate(*_: Any) -> ModelOutput:
+    def generate(_: Any, tools: list[ToolInfo], *__: Any) -> ModelOutput:
+        if not tools:
+            return done("A title")
         output = next(remaining).model_copy(deep=True)
         for call in output.message.tool_calls or []:
-            call.id = f"{prefix}{next(ids)}"
+            if prefix is not None:
+                call.id = f"{prefix}{next(ids)}"
         return output
 
     return get_model("mockllm/model", custom_outputs=generate, memoize=False)
 
 
+@pytest.mark.parametrize("side", [None, "agent", "helper"])
 @pytest.mark.parametrize("client", ["openai", "anthropic"])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
 def test_a_cached_retry_s_call_gets_the_result_the_agent_sent(
+    side: Literal["agent", "helper"] | None,
     client: str,
     backend: str,
     tmp_path: Path,
@@ -2446,14 +2480,15 @@ def test_a_cached_retry_s_call_gets_the_result_the_agent_sent(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     # the agent loses each response and sends its request again: the model
-    # cache answers the retry with the lost response, under the same call ids
+    # cache answers the retry with the lost response, under the same call ids;
+    # with `side`, a request with its own history comes before each request
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
     prefix = "call_" if client == "openai" else "toolu_"
     seen: dict[str, Step] = {}
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
-        solver=as_solver(retrying_scaffold(client)),
+        solver=as_solver(retrying_scaffold(client, side=side)),
         sentinel=[r7_probe(seen, copies=True)],
         config=GenerateConfig(cache=True),
     )
@@ -2469,13 +2504,17 @@ def test_a_cached_retry_s_call_gets_the_result_the_agent_sent(
             ),
         )
         assert log.status == "success", log.error
-        replay = assert_replay_rebuilds_bridge_steps(
+        assert_replay_rebuilds_bridge_steps(
             log, seen, bridge_differences=RETRY_DIFFERENCES
         )
+    assert replay_warnings(caplog) == []
     events = logged_sample(log).events
     made = [
         e for e in events if isinstance(e, ModelEvent) and e.requested_model is not None
     ]
+    sides = [e for e in made if not e.tools]
+    assert [e.origin for e in sides] == ([side] * 6 if side is not None else [])
+    made = [e for e in made if e.tools]
     assert [e.cache for e in made] == ["write", "read"] * 3
     assert [[c.id for c in e.output.message.tool_calls or []] for e in made] == [
         [f"{prefix}1"],
@@ -2485,25 +2524,89 @@ def test_a_cached_retry_s_call_gets_the_result_the_agent_sent(
         [],
         [],
     ]
-    # each call the agent received gets its result; a lost response's call has
-    # none
-    rebuilt = bridged_steps(log, replay)
     uuids = [e.uuid for e in made]
-    assert [
-        (s.stage, uuids.index(s.id.split("/")[0]), s.id.split("/")[1]) for s in rebuilt
-    ] == [
-        ("tool_call", 0, f"{prefix}1"),
-        ("tool_call", 1, f"{prefix}1"),
-        ("tool_result", 1, f"{prefix}1"),
-        ("tool_call", 2, f"{prefix}2"),
-        ("tool_call", 3, f"{prefix}2"),
-        ("tool_result", 3, f"{prefix}2"),
+    for inputs in ["expanded", "pooled"]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            replay = replayed_inputs(log, inputs)
+        # each call the agent received gets its result; a lost response's
+        # call has none
+        rebuilt = bridged_steps(log, replay)
+        assert [
+            (s.stage, uuids.index(s.id.split("/")[0]), s.id.split("/")[1])
+            for s in rebuilt
+        ] == [
+            ("tool_call", 0, f"{prefix}1"),
+            ("tool_call", 1, f"{prefix}1"),
+            ("tool_result", 1, f"{prefix}1"),
+            ("tool_call", 2, f"{prefix}2"),
+            ("tool_call", 3, f"{prefix}2"),
+            ("tool_result", 3, f"{prefix}2"),
+        ], inputs
+        assert [resulted(s).text for s in rebuilt if s.stage == "tool_result"] == [
+            f"t0:{prefix}1",
+            f"t1:{prefix}2",
+        ], inputs
+        assert replay_warnings(caplog) == []
+
+
+@pytest.mark.parametrize("side", ["agent", "helper"])
+@pytest.mark.parametrize("client", ["openai", "anthropic"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_side_request_before_a_retry_of_a_reused_id_gives_the_lost_call_a_result(
+    side: Literal["agent", "helper"],
+    client: str,
+    backend: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # the documented limitation (`_bridged_tool_steps`): the model reuses the
+    # call id for the same call, the agent loses each response and sends its
+    # request again, and a request with its own history comes between; the
+    # retry doesn't carry the lost call's result, and the previous turn's
+    # result looks new against the side request, so the lost call gets it
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=as_solver(retrying_scaffold(client, side=side)),
+        config=GenerateConfig(cache=True),
+    )
+    [log] = eval(
+        task,
+        model=generated_ids(
+            None, *[r7_tool_calls(read("a.txt", "read_1"))] * 3, done()
+        ),
+    )
+    assert log.status == "success", log.error
+    events = logged_sample(log).events
+    made = [
+        e for e in events if isinstance(e, ModelEvent) and e.requested_model is not None
     ]
-    assert [resulted(s).text for s in rebuilt if s.stage == "tool_result"] == [
-        f"t0:{prefix}1",
-        f"t1:{prefix}2",
-    ]
-    assert replay_warnings(caplog) == []
+    assert [(e.origin, bool(e.tools)) for e in made] == [
+        (side, False),
+        ("agent", True),
+    ] * 8
+    assert [e.cache for e in made if e.tools] == ["write", "read"] * 4
+    uuids = [e.uuid for e in made]
+    for inputs in ["expanded", "pooled"]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            replay = replayed_inputs(log, inputs)
+        results = [
+            (uuids.index(s.id.split("/")[0]), resulted(s).text)
+            for s in bridged_steps(log, replay)
+            if s.stage == "tool_result"
+        ]
+        assert results == [
+            (3, "t0:read_1"),
+            (5, "t0:read_1"),
+            (7, "t1:read_1"),
+            (9, "t1:read_1"),
+            (11, "t2:read_1"),
+        ], inputs
+        assert replay_warnings(caplog) == []
 
 
 PADDING = " word" * 100
@@ -4244,12 +4347,16 @@ def assert_replay_rebuilds_bridge_steps(
     assert in_order([k for k, _ in keyed if k in shown]) == in_order(
         [k for k, _ in live if k in rebuilt]
     )
-    by_key = dict(keyed)
+    # a key repeats for a call the bridge handed out twice (a cached retry):
+    # its steps pair in order
+    by_key: dict[tuple[str, ...], list[ReplayStep]] = {}
+    for key, s in keyed:
+        by_key.setdefault(key, []).append(s)
     for key, step in live:
         if key in by_key:
             assert_step_equals_live(
                 key[-2:],
-                by_key[key],
+                by_key[key].pop(0),
                 step,
                 bridge_differences if key[0] == "bridge" else (),
             )
