@@ -1134,7 +1134,7 @@ async def test_streaming_recovery_falls_back_on_unavailable_metadata_sidecar(
             metadata_hash = manifest.samples[0].metadata_hash
             assert metadata_hash is not None
             metadata_path = Path(
-                filestore._sample_metadata_file("sample1", 1, metadata_hash)
+                filestore._sample_sidecar_file("metadata", "sample1", 1, metadata_hash)
             )
             if sidecar_failure == "missing":
                 metadata_path.unlink()
