@@ -21,7 +21,9 @@ which suspend token, turn and cost limits, neither charge nor check them,
 and skip the sandbox bridge's refusal, as they do today.
 
 The limit nodes' own state, not the errors they raise, is the record of what
-happened. Once reached, a limit refuses every later model call in its scope.
+happened. Once reached, a limit refuses every later model call dispatched in
+its scope; a response served from Inspect's cache is not a dispatch and is
+still served, as today.
 Under a cost limit, a call to a model with no price of its own is refused
 before dispatch. Failed attempts, calls cancelled in flight and responses
 that report no usage are not charged, as today, so they can take spend past
@@ -32,8 +34,11 @@ none does, each owner checks its own limits when it ends normally: an
 once all of its work, background cleanup included, has finished (except on
 a resume for scoring). So, within a running attempt, a limit error that some handler
 catches and drops is not lost: it comes back at the next refused call, or at
-its owner's exit. Checkpoints store usage but not the mark of a limit that
-refused a call, so a sample resumed from a checkpoint can lose it.
+its owner's exit. A checkpoint resume is the exception: checkpoints store
+usage but not the mark of a limit that refused a call, and the restore
+assigns the stored usage, so a resumed sample can lose such a refusal, and
+a limit that work before the restore reached and swallowed can be reopened
+by it.
 
 Together these rules let a runtime that runs several agents catch the sample's
 limit error, stop its agents in an orderly way, and re-raise the error.
@@ -326,7 +331,10 @@ tokens per call, run against this branch's base):
 2. **Record, then check.** After a provider call, Inspect records the call
    into every node that meters it (for a top-level generation, its turn
    too), then runs one check. Before a provider call, it runs the same
-   check, with `>=` in place of `>`.
+   check, with `>=` in place of `>`. A generation served from the cache
+   makes no provider call and records no usage: it records its turn and
+   checks only turn limits, so it is served under a reached token or cost
+   limit, as today ("Cache hits").
 3. **One check.** The check walks the chain from the root and raises the
    first token, cost or turn limit that has been reached: the outermost,
    whatever its kind. A turn limit takes part in the pre-dispatch check too.
@@ -375,9 +383,11 @@ under the limit is refused before dispatch, and if no limit error reaches
 the limit's owner, that owner's exit check finds it. A plain `with token_limit()`
 block has no owner but its author and no exit check, so its limit is found
 only by a call made while the block is open ("The owner's exit check").
-That holds within one attempt: a
-checkpoint resume keeps usage but drops the mark of a limit that refused a
-call ("Checkpoints"). An unpriced-model refusal (rule 9) is not a limit
+That holds within one attempt, up to its checkpoint restore: a checkpoint
+resume keeps usage but drops the mark of a limit that refused a call, and
+its assigning restore can reopen a limit that work before it reached and
+swallowed ("Checkpoints", "Limits swallowed before a checkpoint
+restore"). An unpriced-model refusal (rule 9) is not a limit
 error, and nothing marks it: a handler that swallows one and calls the model
 again is refused again, with nothing spent ("Unpriced models"). Where
 Inspect's own
@@ -452,10 +462,13 @@ def record_model_call(usage: ModelUsage, cost: float | None) -> None:
         record_model_cost(cost)  # cost nodes; a no-op while cost is suspended
 
 
-def check_limits(raise_for_equal: bool = False) -> None:
-    """Raise the outermost reached token, cost or turn limit on the chain."""
+def check_limits(raise_for_equal: bool = False, *, turns_only: bool = False) -> None:
+    """Raise the outermost reached token, cost or turn limit on the chain.
+
+    With turns_only (after a cache hit), only turn nodes are checked.
+    """
     for node in _chain_root_first():  # from _limit_chain via _outer
-        if _counted(node):
+        if _counted(node) and (not turns_only or isinstance(node, _TurnLimit)):
             # raises (with its SampleLimitEvent) and sets node._raised_at
             node._check_marked(raise_for_equal)
 
@@ -508,7 +521,8 @@ def _counted(node: Limit) -> bool:
   sample's usage counters but runs no check. After the inner generation
   returns, the outer frame (`_model.py:2033-2039`) calls `record_turn()`,
   which now only records (it is still a no-op while turns are suspended, and
-  still runs for cache hits), and then `check_limits()`. A call that crosses a
+  still runs for cache hits), and then `check_limits()` (for a cache hit,
+  `check_limits(turns_only=True)`, below). A call that crosses a
   child token or cost limit therefore advances every enclosing turn limit
   before the child limit raises, and the next generation is refused by a
   reached turn limit. The control channel's turn count is still pushed in a
@@ -520,6 +534,21 @@ def _counted(node: Limit) -> bool:
   cached. With the check moved to the outer frame, such an output is
   reported to the hooks and cached before the check raises. A later cache
   hit of it is served, as any cache hit is.
+- **Cache hits.** Today a cached response returns from the inner
+  generation before any token or cost check (`_model.py:1744-1773`), so it
+  is served even when an enclosing token or cost limit is already exceeded,
+  and only the outer frame's turn record and check run. That stays: the
+  outer frame reads the cache-hit flag the inner generation already sets
+  (`_request_was_cache_hit`, `_model.py:1765-1767`, read at `:2055`) and,
+  for a hit, calls `check_limits(turns_only=True)` after `record_turn()`.
+  A hit records no usage or cost, so the token and cost nodes it skips are
+  unchanged by it; a reached one refuses the next dispatch (`>=`) or is
+  found by its owner's exit check. Turn limits count and check a cached
+  generation as any other: a cached (N+1)th generation under
+  `turn_limit(N)` records its turn and raises. This is the native cache
+  only: a bridged request is checked at entry, before compaction and the
+  cache, and the bridge's kept limit refuses it, as today ("The sandbox
+  bridge").
 - If the inner generation fails after recording (a usage hook or the cache
   store raising), no turn is recorded, as today, and that error leaves the
   call; it is not compared with a limit the recorded usage reached (a limit
@@ -548,8 +577,8 @@ def _counted(node: Limit) -> bool:
   (rule 9, "Unpriced models") when `model` is given, and then the
   `dispatch_guard()` checks, which are skipped while token limits are
   suspended, as today (`_model.py:3689-3701`, rule 5). It is
-  still called per attempt, after the cache lookup, so a cache hit is never
-  refused. The per-attempt calls in `generate()` and native compaction pass
+  still called per attempt, after the cache lookup, so a native cache hit
+  is never refused ("Cache hits"). The per-attempt calls in `generate()` and native compaction pass
   their model. The bridge still calls it at the start of every request,
   before compaction and the cache, without a model; the generation's own
   per-attempt call then checks the model.
@@ -961,7 +990,16 @@ $0.50, after which the limit allows another $0.50. A limit error that is
 not caught still ends the sample. Spend stays bounded: work before the
 restore is refused once it reaches the limit, and work after it is refused
 again once the restored value reaches it, so a resume can spend about one
-extra budget at worst (decision: Ransom, 2026-11-18). The restore also
+extra budget at worst, per entry of the checkpointer (decision: Ransom,
+2026-11-18). The entered checkpointer is cached only after the restore,
+the `on_resume` callback and its construction succeed
+(`checkpointer_impl.py:148-178`), so a caller that retries a failed entry
+of the same setup restores again and can spend one more `on_resume` (or
+other work before the cache) per retry, which the counters do not keep.
+No caller does this today: ReAct and the inspect_swe CLI agents enter once
+and let a failed entry escape, and an ordinary sample retry builds a fresh
+setup (`run.py:3097`). Spend is bounded by the caller's retries (decision:
+Ransom, 2026-11-18). The restore also
 clears the root's `_raised_at` mark ("Checkpoints"), so a refusal before
 the restore is part of the same loss. Model work before the restore is not
 refused: solvers before the agent run again on every resume, so refusing
@@ -1182,10 +1220,12 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    model call and the runtime converts it (rule 6), and no inner limit reached by the same call or a
    concurrent one replaces it (rules 3, 4, 8). For a bridged agent it
    arrives when the agent's CLI exits. If a handler on the way swallows it
+   (and no checkpoint restore reopens it in between, below)
    (a fallback, a hook, `tg_collect()` keeping another error), it arrives
    instead at the next call any agent makes under the sample, which is
    refused with it (guarantee 2).
-2. **A reached limit stays reached.** Every later dispatch under that
+2. **A reached limit stays reached.** Within the attempt (but see the
+   restore exception below), every later dispatch under that
    sample, including the runtime's own model calls, native compaction and
    bridged requests, is refused with that node's error, or with the error
    of an outer node that has since been reached too (rule 3: the next
@@ -1204,7 +1244,8 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    During the stop, no model call can succeed under the reached limit, so
    the runtime's final step must make none.
 4. **Losing it is not silent.** When the solvers return normally (on
-   any attempt but a resume for scoring), the sample's exit check records
+   any attempt but a resume for scoring, and with the restore exception
+   below), the sample's exit check records
    the outermost sample limit that counts at exit (rule 7): one that is exceeded, or reached exactly after refusing a
    call. That covers a runtime, or a bridged agent
    cancelled before its CLI exited, that drops the error. It runs after
@@ -1231,11 +1272,14 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    background work). Approval, review and sentinel spend is not counted at
    all (rule 5).
 
-Guarantees 2 and 4 rest on node state, which lives for one attempt. A
-checkpoint resume restores usage but not the `_raised_at` mark (it clears
-a mark set earlier in the attempt), so a refusal at
-exactly the budget from before the checkpoint is not carried into the
-resumed attempt ("Checkpoints").
+Guarantees 1, 2 and 4 rest on node state, which lives for one attempt
+and which a checkpoint restore overwrites. A checkpoint resume restores
+usage but not the `_raised_at` mark (it clears a mark set earlier in the
+attempt), so a refusal at exactly the budget from before the checkpoint is
+not carried into the resumed attempt ("Checkpoints"). And because the
+restore assigns the stored usage, a limit that work before the restore
+(startup hooks, solvers before the agent) reached and swallowed can be
+reopened by it ("Limits swallowed before a checkpoint restore").
 
 The sample's time limit (a cancel scope around the solvers) and working limit
 (a sample-wide cancellation) are outside these guarantees. They end the sample
@@ -1531,8 +1575,10 @@ that a cancellation can displace) re-raise or forward it. Each review of
 that approach found another such handler, and the list is open-ended: any
 user or extension code can catch an exception. The rules here make the
 nodes the record instead, so within one attempt a handler that swallows a
-limit error delays it by at most one call and cannot lose it (a checkpoint
-resume drops the `_raised_at` mark, "Checkpoints").
+limit error delays it by at most one call and cannot lose it, except
+across a checkpoint restore, which drops the `_raised_at` mark and can
+reopen a limit swallowed before it ("Checkpoints", "Limits swallowed
+before a checkpoint restore").
 Inspect still changes its own handlers where that decides *which owner*
 hears first (rules 4, 6 and 8), not merely whether the error survives.
 
@@ -1748,7 +1794,9 @@ documented. Behaviour changes:
   telemetry and stored in the cache before the limit raises, where today
   the check raised first ("Recording and checking"). A hook that raises
   there decides the call's error, and the reached limit refuses the next
-  call.
+  call. A native cache hit is still served when an enclosing token or cost
+  limit is already exceeded, as today; it records and checks its turn
+  only ("Cache hits").
 - **Sidecar-recovered generations count as turns.** A generation that a
   sentinel sidecar recovers as a refusal after a provider error now records
   a turn, as every other top-level generation does.
@@ -1805,7 +1853,9 @@ documented. Behaviour changes:
   of the limit error (its type, value and limit), unchanged.
 - **Spend.** The agents' changes either refuse a call sooner (a reached
   turn limit, an unpriced model) or make a limit error propagate further;
-  cache hits remain unrefused, as today.
+  native cache hits remain unrefused, as today. A bridged request is
+  checked at entry, before the cache, so the bridge refuses it under a
+  reached limit or its kept limit, cached or not, as today.
   The one change that lets calls through that are refused today is the cost
   suspension for approval, review and sentinel calls, whose spend a cost
   limit no longer bounds; it is set by host code (the policies Inspect
@@ -1887,10 +1937,18 @@ under trio with `--runtrio`.
   recovers nothing, the error stands and no turn is recorded (as today).
 - `tests/util/test_limit_turn.py`: `turn_limit(3)` makes three generations
   and refuses the fourth before dispatch; a cache hit at the limit is served
-  and then raises; native compaction is refused at the limit and records no
+  and then raises (it records its turn); native compaction is refused at the limit and records no
   turn; under `turn_limit(1)`, a call that raises a child `token_limit(1)`
   (caught) counts one turn and the next call is refused by the turn limit;
   the same with a child `cost_limit()`.
+- `tests/util/test_limit_token.py`, cache hits (next to
+  `test_generate_cache_hit_served_when_token_limit_reached`, which pins
+  equality): under `token_limit(1)`, an uncached call reporting 2 tokens
+  raises and is cached; the same input is then served from the cache with
+  no provider call and no error, and an uncached call is refused before
+  dispatch; the same under `cost_limit()` with a priced model; under an
+  exceeded `token_limit()` inside `turn_limit(1)`, a cached generation
+  records its turn and raises the turn limit.
 - `tests/util/test_limit_token.py`: inside `suspend_limits()`, a call is not
   refused by a reached token, turn or cost limit, nor by a
   `dispatch_guard()`, and a reached message limit still refuses it; inside
@@ -2065,7 +2123,8 @@ Each step is one PR, in this order. Each keeps the suite green.
    counter it assigns (no payload change).
    `src/inspect_ai/model/_model.py`: `record_and_check_model_usage(check=)`,
    the inner generation recording without a check, the outer frame's
-   `record_turn()` then `check_limits()`, the same order in
+   `record_turn()` then `check_limits()` (`turns_only=True` for a cache
+   hit), the same order in
    `_generate_prepared()` for an output `refusal_after_error()` recovers,
    `_check_limits_before_dispatch`.
    Tests: the node-level cases in `tests/util/test_limit*.py` (chain,
