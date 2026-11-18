@@ -1,13 +1,9 @@
 """Tests for the sandbox agent bridge's monitoring of its model proxy process."""
 
 import contextlib
-import io
 import json
-import logging
 import traceback
 from collections.abc import Awaitable, Callable, Iterator
-from logging import getLevelName
-from pathlib import Path
 from typing import Any, AsyncIterator, NoReturn
 from unittest.mock import AsyncMock
 
@@ -15,17 +11,11 @@ import anyio
 import pytest
 
 import inspect_ai.agent._bridge.sandbox.bridge as bridge_module
-import inspect_ai.log._transcript as transcript_module
 import inspect_ai.util._sandbox.exec_remote as exec_remote_module
 from inspect_ai._util.constants import (
     DEFAULT_LOG_LEVEL,
-    DEFAULT_LOG_LEVEL_TRANSCRIPT,
-    TRACE,
 )
-from inspect_ai._util.logger import LogHandler
 from inspect_ai.agent._bridge.sandbox.bridge import _monitor_proxy, sandbox_agent_bridge
-from inspect_ai.event._logger import LoggerEvent
-from inspect_ai.log._transcript import Transcript
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
@@ -83,55 +73,6 @@ async def test_monitor_proxy_keeps_a_bounded_stderr_tail() -> None:
     assert "first output" not in message
     assert "[earlier output truncated]" in message
     assert len(message) < bridge_module._PROXY_STDERR_TAIL_CHARS + 200
-
-
-async def test_proxy_stderr_is_a_warning_at_the_default_log_level(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Stderr from a proxy that keeps serving is logged where the default level shows it."""
-    caplog.set_level(DEFAULT_LOG_LEVEL.upper())
-    earlier = "x" * bridge_module._PROXY_STDERR_WARNING_CHARS + "\n"
-    failure = "OSError: [Errno 28] No space left on device\n"
-    proc = FakeProcess([ExecStderr(data=earlier + failure)])
-
-    await _monitor_proxy(proc)
-
-    records = [r for r in caplog.records if r.name == bridge_module.__name__]
-    assert len(records) == 1
-    message = records[0].getMessage()
-    assert "No space left on device" in message
-    assert "[earlier output truncated]" in message
-    assert len(message) < bridge_module._PROXY_STDERR_WARNING_CHARS + 200
-
-
-async def test_proxy_stderr_warnings_stay_out_of_the_transcript(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Proxy stderr warnings reach the display, not the sample transcript."""
-    monkeypatch.setenv("INSPECT_TRACE_LEVEL", "info")
-    display = io.StringIO()
-    handler = LogHandler(
-        capture_levelno=TRACE,
-        display_levelno=getLevelName(DEFAULT_LOG_LEVEL.upper()),
-        transcript_levelno=getLevelName(DEFAULT_LOG_LEVEL_TRANSCRIPT.upper()),
-        trace_dir=tmp_path,
-        logger_format="plain",
-        display_stream=display,
-    )
-    bridge_logger = logging.getLogger(bridge_module.__name__)
-    bridge_logger.addHandler(handler)
-    sample_transcript = Transcript()
-    token = transcript_module._transcript.set(sample_transcript)
-    chunks = [ExecStderr(data=f"failure {i}\n") for i in range(256)]
-    try:
-        await _monitor_proxy(FakeProcess(list(chunks)))
-    finally:
-        transcript_module._transcript.reset(token)
-        bridge_logger.removeHandler(handler)
-        handler.trace_logger.close()
-
-    assert display.getvalue().count("model proxy stderr") == 256
-    assert not any(isinstance(e, LoggerEvent) for e in sample_transcript.events)
 
 
 async def test_monitor_proxy_success() -> None:
@@ -279,6 +220,80 @@ async def test_bridge_user_can_opt_in_to_proxy_poll_recovery(
     with anyio.fail_after(20):
         async with sandbox_agent_bridge(poll_timeout_recovery=60):
             await answered.wait()
+
+
+def _poll_with_stderr(pieces: list[str], sent: anyio.Event) -> Callable[[float], str]:
+    """Answer polls with one piece of stderr each, then set `sent` and answer empty."""
+    remaining = list(pieces)
+
+    def answer_poll(timeout: float) -> str:
+        if not remaining:
+            sent.set()
+            return _running_poll()
+        return _rpc(
+            {
+                "state": "running",
+                "exit_code": None,
+                "seq": 0,
+                "stdout": "",
+                "stderr": remaining.pop(0),
+            }
+        )
+
+    return answer_poll
+
+
+def _bridge_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [r.getMessage() for r in caplog.records if r.name == bridge_module.__name__]
+
+
+async def test_proxy_stderr_is_a_warning_first_and_when_the_bridge_stops(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Proxy stderr is a warning when it first arrives and once more at the end."""
+    caplog.set_level(DEFAULT_LOG_LEVEL.upper())
+    sent = anyio.Event()
+    pieces = ["failure 1\n", "failure 2\n", "failure 3\n"]
+    _use_proxy_sandbox(
+        monkeypatch,
+        _poll_with_stderr(pieces, sent),
+        kill_stderr="failure at stop\n",
+    )
+
+    with anyio.fail_after(20):
+        async with sandbox_agent_bridge():
+            await sent.wait()
+
+    first, at_stop = _bridge_warnings(caplog)
+    assert "failure 1" in first
+    assert "failure 2" not in first
+    assert "failure 3" in at_stop
+    assert "failure at stop" in at_stop
+
+
+async def test_proxy_stderr_warnings_are_bounded(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """However much stderr the proxy writes, its warnings stay bounded."""
+    caplog.set_level(DEFAULT_LOG_LEVEL.upper())
+    sent = anyio.Event()
+    first_piece = "x" * bridge_module._PROXY_STDERR_WARNING_CHARS + "\nfirst failure\n"
+    pieces = [first_piece] + ["y" * 1023 + "\n"] * 256
+    _use_proxy_sandbox(
+        monkeypatch, _poll_with_stderr(pieces, sent), kill_stderr="last failure\n"
+    )
+
+    with anyio.fail_after(20):
+        async with sandbox_agent_bridge():
+            await sent.wait()
+
+    first, at_stop = _bridge_warnings(caplog)
+    assert "first failure" in first
+    assert "[earlier output truncated]" in first
+    assert len(first) < bridge_module._PROXY_STDERR_WARNING_CHARS + 200
+    assert "last failure" in at_stop
+    assert "[earlier output truncated]" in at_stop
+    assert len(at_stop) < bridge_module._PROXY_STDERR_TAIL_CHARS + 200
 
 
 async def test_proxy_stderr_returned_by_the_kill_is_logged(
