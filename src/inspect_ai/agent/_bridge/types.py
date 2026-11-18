@@ -1244,8 +1244,10 @@ class AgentBridge:
         """Recognize `reply` by the form its dialect hands it back in.
 
         A dialect's wire form can drop parts of a reply (Responses and
-        Anthropic an empty text, Google call ids), so a scaffold that sends the
-        reply back unchanged sends that form.
+        Anthropic an empty text), so a scaffold that sends the reply back
+        unchanged sends that form. Several forms may be recorded (Google's
+        with its call ids, and without them, for a scaffold that drops them,
+        and each with its text parts merged, as Gemini CLI sends it back).
         """
         if reply.id is None:
             return
