@@ -568,10 +568,10 @@ class PortRequest:
     every sent id, and a `--limit 2` ends the task after two). A `task:id`
     selector naming the fed task's name selects nothing there, and the "No
     sample_id selector names task" warning is not logged for it.
-  - `max_samples`: the run's value does not apply. A `Task` cannot set its
-    own, so a fallback to the run's would always win; the fed task takes
-    the default from its model's connection pool, and `inspect ctl config
-    --max-samples` still retunes it while it runs.
+  - `max_samples`: the fed task's own value if it sets one, else the
+    default from its model's connection pool. The run's value does not
+    apply, and `inspect ctl config --max-samples` still retunes it while it
+    runs.
   - `approval`, `review` and `sentinel`: the run's value still wins, as
     today; they are the operator's oversight controls for the whole run.
   - Tags stay merged; generate config and the run-wide limits (`max_tasks`,
@@ -1074,8 +1074,9 @@ test touched), with mockllm models; every test that waits is bounded with
     `time_limit=60`, `turn_limit=100` and `fail_on_error=False` keeps them
     and takes `message_limit=5`, a fed task that sets none takes all four,
     and an ordinary task in the same run that sets `turn_limit=100` takes
-    the run's values, `turn_limit=5` included; a run-level `max_samples=2` does not reach the
-    fed task, whose limit comes from its model's pool; a run-level approval
+    the run's values, `turn_limit=5` included; under a run-level
+    `max_samples=2` a fed task that sets `max_samples=3` runs with 3 and
+    one that sets none takes its model's pool default; a run-level approval
     policy applies to a fed task that sets its own; each rollout log's eval
     config records the values that applied;
   - drain, `score` and `error`: an idle open channel ends the task and a
@@ -1138,9 +1139,9 @@ a running worker's fed logs from archival ("Compatibility and migration").
   the free `enqueue_sample()` refusal), `_eval/task/run.py` (attach and
   detach the channel where the `SampleEnqueuer` is registered and cleared,
   and mark that enqueuer as the channel's), `_eval/run.py`
-  (`configure_task()` resolving a fed task's settings, `turn_limit`
-  included, and clearing its `epochs`, the run's epoch reducer, `limit` and
-  `sample_id`; `_attempt` set in `run_one`; the
+  (`configure_task()` resolving a fed task's settings, `turn_limit` and
+  `max_samples` included, and clearing its `epochs`, the run's epoch
+  reducer, `limit` and `sample_id`; `_attempt` set in `run_one`; the
   uncounted start step; channels closed with the creator's attempt; no
   retry, and `can_retry=False` on the `TaskCancel` that `start_attempt`
   creates, for fed tasks; `channel.close()` from the
@@ -1177,9 +1178,9 @@ creator's model (narrowing "one handle per task × model" to ordinary
 tasks), and its sent samples get `send-<token>-<n>` ids with a per-task
 token; and (2026-11-12) `samples_from_handle()` is the name, a fed task may
 be added from any code inside a running attempt, runs one epoch per sent
-sample, resolves its settings before the run's (except `max_samples` and
-the oversight controls), does not decide `eval_set()`'s result, runs
-in a `.json`-logged run as in any other (dropping the 2026-11-03 `.json`
+sample, resolves its settings before the run's (except the oversight
+controls; the run's `max_samples` does not apply to it), does not decide
+`eval_set()`'s result, runs in a `.json`-logged run as in any other (dropping the 2026-11-03 `.json`
 refusal, whose premise was the per-delivery marker dropped on 2026-11-04),
 and is the only task `result()` waits on (narrowing "wait for the task to
 end" on any handle); and (2026-11-16) a fed task's log is marked by the

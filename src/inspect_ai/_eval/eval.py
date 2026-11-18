@@ -304,7 +304,7 @@ def eval(
         model_cost_config: YAML or JSON file with model prices for cost tracking
             or dict of model -> `ModelCost`
         max_samples: Maximum number of samples to run in parallel within each task
-            (default is max_connections)
+            (overrides a task's own `max_samples`; default is max_connections)
         max_dataset_memory: Maximum MB of dataset sample data to hold in
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
@@ -588,7 +588,8 @@ async def eval_async(
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking
             or dict of model -> `ModelCost`
-        max_samples: Maximum number of samples to run in parallel within each task (default is max_connections)
+        max_samples: Maximum number of samples to run in parallel within each task
+            (overrides a task's own `max_samples`; default is max_connections)
         max_dataset_memory: Maximum MB of dataset sample data to hold in
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
