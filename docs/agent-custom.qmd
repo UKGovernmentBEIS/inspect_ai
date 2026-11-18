@@ -470,19 +470,26 @@ An agent run inside the block keeps the block's kind, and a sentinel does not ch
 
 #### Bridged Agents
 
-An agent run through an agent bridge (e.g. Claude Code with inspect_swe) runs most of its tools itself, so the log has no `ToolEvent` for those calls. Replay takes each call from the model's response, and its result from the agent's next request to the model. It places the call's steps where the bridge's sentinel checks were recorded. Without a recorded check, the call follows the model call that proposed it, and the result comes before the request that carried it. Host tools that a sandbox bridge runs for the agent are replayed the same way. Replay logs a warning when it builds these steps.
+For an agent run through an agent bridge (e.g. Claude Code with inspect_swe), replay shows each tool call as the model wrote it, and each result as the model next received it.
 
-In the usual case, these steps are the ones a live sentinel was shown. They can differ in these cases:
+The call's step comes right after the model call that wrote it, with that model call's input and tools. The result's step comes right before the next request to the model that carries it.
 
-- A result that a request filter rewrote: replay shows the rewritten result.
-- A call id that the model reused: the bridge hands the call to the agent under a new id, so replay shows the call without its result.
-- Requests in flight at the same time, or compaction: the result comes from the next request that carries it, which can be another request, or a compacted one.
-- A check that ran without the model call (e.g. of a response filter's copy of the model's output): replay gives the step the model call's input and tools.
-- A call that a filter replaced or discarded (e.g. a response filter's replacement, or a request filter that generates several candidates and returns one): replay shows each model call's calls, including those of a candidate the agent never received.
-- A host tool call that no approver reviewed and the agent never ran: replay names the tool as the agent declared it.
-- A result whose request never reached the model (e.g. a sentinel ended the sample at the result): replay has no step for the result.
+These steps follow the conversation, not the checks a sentinel made live, so they can differ from what the sentinel was shown:
 
-Replay skips the tool steps of calls that share an id within one model response, and logs a warning naming them. A bridged call's steps are named by the `execution_id` the bridge records for it, or else by the model call's `uuid` and the call id, so they never take the id of a native tool call. This replay needs a log from Inspect 0.3.277 or later, which marks the model calls a bridge makes for its agent (`ModelEvent.requested_model`).
+| Case | What replay shows |
+|----|----|
+| A sentinel or approver rejected the call | The rejection, as the call's result |
+| A sentinel or approver modified the call | The call as the model wrote it |
+| A request filter rewrote the result | The rewritten result |
+| A host tool a sandbox bridge ran | The tool under the name the model used (e.g. `mcp__host__addition`) |
+| The bridge never handed the call to the agent (e.g. a token limit, or a rejected call in the same response) | The call, and whatever result the model next received |
+| The result never reached the model (e.g. a limit or a sentinel ended the sample) | The call, with no result |
+
+Replay doesn't attach the live sentinel's checks of bridged calls to these steps. To compare them, join the two downstream (e.g. in inspect_sentinel) by sample, stage, and call id. A person's decision at a live check still reaches the later steps of the conversation.
+
+A bridged call's steps are named by its model call's `uuid` and the call id (`<uuid>/<call id>`), so they never take the id of a native tool call. If one model response has two calls with the same id, replay skips both and logs a warning.
+
+If the log has live sentinel checks of bridged calls, replay logs one warning that its steps can differ from them. This replay needs a log from Inspect 0.3.277 or later, which marks the model calls a bridge makes for its agent (`ModelEvent.requested_model`).
 
 ## Parallelism
 
