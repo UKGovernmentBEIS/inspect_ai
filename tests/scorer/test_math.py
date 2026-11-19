@@ -979,3 +979,27 @@ def test_worker_context_resets_across_event_loops(
 
     anyio.run(run_once)
     anyio.run(run_once)
+
+
+@pytest.mark.parametrize(
+    "model_output,target",
+    [
+        ("The answer is 12.", "12"),
+        ("The answer is １２.", "12"),
+        ("The answer is ١٢.", "12"),
+        (r"\boxed{１２}", "12"),
+        ("ANSWER: ١٢", "12"),
+        ("**Answer:** １２", "12"),
+        ("１２．５", "12.5"),
+        ("١٢٫٥", "12.5"),
+        ("12", "１２"),
+        ("12.5", "１２．５"),
+    ],
+)
+async def test_math_scorer_unicode_digits(model_output: str, target: str) -> None:
+    scorer = math()
+    state = simple_task_state(model_output=model_output)
+    result = await scorer(state, Target([target]))
+    assert result is not None
+    assert result.value == CORRECT
+

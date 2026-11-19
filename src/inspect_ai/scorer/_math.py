@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import math as stdlib_math
 import re
+import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -218,9 +219,22 @@ def _replace_unicode(text: str) -> str:
         "\u2260": r"\ne",
         "\u222a": r"\cup",
         "\u2229": r"\cap",
+        "\uff0e": ".",
+        "\u066b": ".",
+        "\u066c": ",",
     }
     for source, replacement in replacements.items():
         text = text.replace(source, replacement)
+
+    if any(ord(char) > 127 for char in text):
+        chars = []
+        for char in text:
+            try:
+                chars.append(str(unicodedata.decimal(char)))
+            except (ValueError, TypeError):
+                chars.append(char)
+        text = "".join(chars)
+
     return text
 
 
