@@ -168,7 +168,12 @@ lost, as with a hand removal: a shard attempt rewritten after the pass
 read it is deleted, and a merge that publishes in the meantime keeps its
 log while the shards it read are deleted. The run stays untouched from
 the first `--delete-shards` call until a call with the option returns,
-across any interruption and rerun.
+across any interruption and rerun. To finish a partial removal by hand
+with `--delete-shards`, the merged log must be valid and unchanged since
+its last successful merge (decision: Ransom, 2026-11-19): a rerun that
+finds no shard to read keeps that log as recorded and does not recount
+its samples or plan its status again, so an edit made to it after that
+merge is not caught.
 
 Cost check: free. Enforcing it would need every writer of a log (the
 recorder, the viewer, `inspect score`, the merge on S3) to share a lock
@@ -259,8 +264,9 @@ as for a crashed merge; the user deletes it and reruns.
 The rule needs no marker of a deletion in progress: the ledger and the
 listing identify it. It also finishes a hand removal that stopped part
 way, as long as that left every shard with its recorded current attempt
-or no attempt. A hand removal that deleted a current attempt and left an
-older one (`aws s3 rm --recursive` keeps no order) is refused as an
+or no attempt and the merged log is valid and unchanged since its last
+successful merge ("The quiescence requirement"). A hand removal that
+deleted a current attempt and left an older one (`aws s3 rm --recursive` keeps no order) is refused as an
 attempt regression, as today, and the user finishes it by hand. Cost:
 none beyond the classification the merge already makes.
 
@@ -338,7 +344,8 @@ and gains a "Removing shards" section after "Merging":
 > merged log and its `.shards` directory stay until you remove them.
 
 The Limitations bullet on deleting one shard directory by hand adds
-"Merging with `--delete-shards` deletes the rest, unless an older log
+"If the merged log has not been changed since it was last merged,
+merging with `--delete-shards` deletes the rest, unless an older log
 was left as the newest in a shard directory." The "Eval sets"
 section's last sentence becomes "Then move the `.shards` directory out
 of the log directory, or delete it with `--delete-shards`, before you run
@@ -414,7 +421,8 @@ No migration required.
   schema or `ts-mono` change.
 - **Partial states.** A companion partly removed by hand is finished by
   the same option when every shard holds its recorded current attempt
-  or no attempt; one left with an older attempt current is refused as
+  or no attempt and the merged log is unchanged since its last
+  successful merge; one left with an older attempt current is refused as
   today.
 
 ## Security
@@ -523,7 +531,9 @@ supported only on a quiescent run, without coordination against other
 writers; deletion works from the pass's result with no re-checks; the
 result gains no `shards_deleted` field; and a deleting rerun keeps the
 merged log through the existing no-shards path, with no extra
-validation, the run staying untouched from the first call to the last.
+validation, the run staying untouched from the first call to the last
+and, for a partial hand removal, the merged log valid and unchanged
+since its last successful merge.
 
 ## Not this design
 
