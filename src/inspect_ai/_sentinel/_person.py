@@ -39,7 +39,9 @@ from inspect_ai.tool._tool_call import (
     ToolCall,
     ToolCallContent,
     ToolCallView,
+    arguments_shown,
     default_tool_call_viewer,
+    shows_arguments,
     substitute_tool_call_content,
 )
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
@@ -114,7 +116,10 @@ def human_view(
                 format="text",
                 content=f"Escalated by\n\n{escalated}\n\n{view.call.content}",
             )
-        view = ToolCallView(context=view.context, call=call)
+        view = ToolCallView(
+            context=view.context,
+            call=shows_arguments(call, arguments_shown(view.call)),
+        )
     if result is not None:
         view = view_with_result(view, result)
     return view
@@ -167,8 +172,11 @@ def held_call_view(
     if escaped.escaped:
         shown.append(f"**{_ESCAPED_NOTICE}**")
     return ToolCallView(
-        call=ToolCallContent(
-            title=title, format="markdown", content="\n\n".join([*shown, *made])
+        call=shows_arguments(
+            ToolCallContent(
+                title=title, format="markdown", content="\n\n".join([*shown, *made])
+            ),
+            arguments_shown(view.call),
         )
     )
 

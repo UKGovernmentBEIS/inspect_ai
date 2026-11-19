@@ -56,7 +56,6 @@ from acp.schema import (
 )
 
 from inspect_ai._util.format import markdown_escaped, safe_code_fence
-from inspect_ai._util.transcript import markdown_with_hidden_text_fenced
 from inspect_ai.agent._acp._guards import acp_guard
 from inspect_ai.tool._tool_call import (
     ToolCall,
@@ -65,6 +64,7 @@ from inspect_ai.tool._tool_call import (
 )
 
 from .._approval import Approval, ApprovalDecision
+from .util import arguments_view
 
 if TYPE_CHECKING:
     from acp.schema import ContentToolCallContent
@@ -178,9 +178,7 @@ def _format_view_content_as_markdown(
     includes a bold title heading (if ``view_content.title`` is set)
     and — for non-markdown source — a fenced code block around the
     body so whitespace / indentation are preserved by any markdown
-    renderer. Markdown source has text a renderer would not show (HTML,
-    link destinations, reference definitions) put in code blocks, and the
-    title is escaped, so the client shows the whole call.
+    renderer. The title is escaped, as it can hold the call's arguments.
 
     This is what lets the inline approval section (in the TUI) and
     any other ACP client (Zed etc.) render the same visual structure
@@ -195,7 +193,7 @@ def _format_view_content_as_markdown(
         parts.append(f"**{markdown_escaped(view_content.title)}**")
         parts.append("")  # blank line between heading and body
     if view_content.format == "markdown":
-        parts.append(markdown_with_hidden_text_fenced(view_content.content))
+        parts.append(view_content.content)
     else:
         # Fence plain text so the renderer treats it as preformatted
         # (preserves indentation; avoids markdown reinterpretation).
@@ -352,6 +350,18 @@ def _tool_call_update(
         content_blocks.append(_separator_block())
     if call_blocks:
         content_blocks.extend(call_blocks)
+    # every argument, in a block of its own, when the view may not show them
+    # all (see arguments_view)
+    all_arguments = arguments_view(call, view)
+    arguments_blocks = (
+        content_blocks_from_view(_format_view_content_as_markdown(all_arguments))
+        if all_arguments is not None
+        else None
+    )
+    if arguments_blocks:
+        if content_blocks:
+            content_blocks.append(_separator_block())
+        content_blocks.extend(arguments_blocks)
 
     return ToolCallUpdate(
         tool_call_id=call.id,

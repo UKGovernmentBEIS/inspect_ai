@@ -51,7 +51,12 @@ from inspect_ai.approval._human.acp import (
 )
 from inspect_ai.approval._human.approver import human_approver
 from inspect_ai.log._samples import ActiveSample, PendingInteraction
-from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
+from inspect_ai.tool._tool_call import (
+    ToolCall,
+    ToolCallContent,
+    ToolCallView,
+    shows_arguments,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1445,32 +1450,9 @@ def test_build_request_keeps_the_command_in_one_code_block() -> None:
     assert [fence.content for fence in fences] == [f"{command}\n"]
 
 
-def _shown_markdown_text(text: str) -> str:
-    """The text a Markdown renderer shows: code blocks and inline text."""
-    from markdown_it import MarkdownIt
-
-    shown: list[str] = []
-    for token in MarkdownIt("commonmark").parse(text):
-        if token.type in ("fence", "code_block"):
-            shown.append(token.content)
-        for child in token.children or []:
-            if child.type in ("text", "code_inline"):
-                shown.append(child.content)
-    return "\n".join(shown)
-
-
-@pytest.mark.parametrize(
-    "notes",
-    [
-        "ok\n\n<!--\n\n[r]: /x\n\nrm -rf /tmp/data\n-->",
-        "ok\n\n<div>\n[r]: /x\n\nrm -rf /tmp/data\n</div>",
-        "ok\n\n[r]: /tmp/data\n\nrm -rf /tmp/data",
-        "ok [see](<rm -rf /tmp/data>)",
-        "ok <!-- rm -rf /tmp/data -->",
-    ],
-)
-def test_build_request_shows_hidden_markdown_text(notes: str) -> None:
-    # a tool's own Markdown viewer that puts an argument outside a code block
+def test_build_request_shows_arguments_beneath_a_custom_view() -> None:
+    # a tool's own Markdown view that a renderer shows only part of
+    notes = "ok\n\n<!--\nrm -rf /tmp/data\n-->"
     call = _make_call(function="note", arguments={"notes": notes})
     view = ToolCallView(
         call=ToolCallContent(format="markdown", content="Notes: {{notes}}")
@@ -1478,11 +1460,56 @@ def test_build_request_shows_hidden_markdown_text(notes: str) -> None:
     req = _build_request(
         session_id="s1", call=call, view=view, choices=["approve", "reject"]
     )
-    text = "\n".join(_texts(req.tool_call.content))
-    assert not {"html_block", "html_inline"} & _markdown_token_types(text)
-    shown = _shown_markdown_text(text)
-    for line in notes.splitlines():
-        assert line in shown
+    texts = _texts(req.tool_call.content)
+    # the custom view, a separator, then every argument in a block of its own
+    assert texts[0] == f"Notes: {notes}"
+    assert texts[1] == "---"
+    assert texts[2].startswith("**Arguments**\n\n```python\n")
+    assert f"note(notes={notes!r})" in texts[2]
+
+
+def _client_rendered(call: ToolCall, view: ToolCallView) -> str:
+    """The approval card's text as the ACP TUI renders the request."""
+    import io
+
+    from rich.console import Console
+    from textual.widgets import Static
+
+    from inspect_ai.agent._acp.tui.widgets.tool_call import compose_content_item
+
+    req = _build_request(
+        session_id="s1", call=call, view=view, choices=["approve", "reject"]
+    )
+    buffer = io.StringIO()
+    console = Console(file=buffer, width=200, color_system=None)
+    for block in req.tool_call.content or []:
+        for item in compose_content_item(block):
+            for widget in item.compose():
+                assert isinstance(widget, Static)
+                console.print(widget.content)
+    return buffer.getvalue()
+
+
+@pytest.mark.parametrize(
+    "viewer,param",
+    [("bash", "command"), ("python", "code"), ("think", "thought")],
+)
+def test_client_shows_the_call_when_removed_characters_join_backticks(
+    viewer: str, param: str
+) -> None:
+    # the TUI removes control and format characters before rendering, which
+    # joins the backticks around a zero-width space into a longer run
+    from inspect_ai.tool._tools._execute import code_viewer
+    from inspect_ai.tool._tools._think import think_tool_viewer
+
+    value = "cat <<'EOF'\n``\u200b`\nEOF\n<!--\nrm -rf /tmp/data\n-->"
+    call = _make_call(function=viewer, arguments={param: value})
+    view = (think_tool_viewer() if viewer == "think" else code_viewer(viewer, param))(
+        call
+    )
+    rendered = _client_rendered(call, view)
+    for line in ["<!--", "rm -rf /tmp/data", "-->"]:
+        assert line in rendered
 
 
 def test_build_request_shows_placeholder_text_as_written() -> None:
@@ -1496,7 +1523,8 @@ def test_build_request_shows_placeholder_text_as_written() -> None:
         view=code_viewer("bash", "command")(call),
         choices=["approve", "reject"],
     )
-    text = "\n".join(_texts(req.tool_call.content))
+    # the bash view; `path` is then shown in the arguments block
+    text = _texts(req.tool_call.content)[0]
     assert command in text
     assert "/etc/passwd" not in text
 
@@ -1541,7 +1569,9 @@ def test_build_request_inserts_separator_between_context_and_call() -> None:
         context=ToolCallContent(
             title="Context", format="markdown", content="context body"
         ),
-        call=ToolCallContent(title="Call", format="markdown", content="call body"),
+        call=shows_arguments(
+            ToolCallContent(title="Call", format="markdown", content="call body")
+        ),
     )
     req = _build_request(
         session_id="s1",
@@ -1560,7 +1590,9 @@ def test_build_request_inserts_separator_between_context_and_call() -> None:
 def test_build_request_omits_separator_when_one_half_missing() -> None:
     """Only one view half present → no separator block."""
     view = ToolCallView(
-        call=ToolCallContent(title="Call", format="markdown", content="call body"),
+        call=shows_arguments(
+            ToolCallContent(title="Call", format="markdown", content="call body")
+        ),
     )
     req = _build_request(
         session_id="s1",
@@ -1578,8 +1610,10 @@ def test_build_request_omits_separator_when_one_half_missing() -> None:
 def test_build_request_fences_plain_text_view_content() -> None:
     """``view.format == "text"`` content is wrapped in a fenced code block."""
     view = ToolCallView(
-        call=ToolCallContent(
-            title=None, format="text", content="raw\n  preserve indent\n"
+        call=shows_arguments(
+            ToolCallContent(
+                title=None, format="text", content="raw\n  preserve indent\n"
+            )
         ),
     )
     req = _build_request(
@@ -1606,15 +1640,13 @@ def test_build_request_markdown_snapshot_for_typical_bash_approval() -> None:
     so duplicating it here would mean the same text twice a few
     rows apart in inline-on-transcript clients. No ``_meta`` keys.
     """
-    view = ToolCallView(
-        call=ToolCallContent(
-            title="bash", format="markdown", content="```bash\nls -la\n```"
-        ),
-    )
+    from inspect_ai.tool._tools._execute import code_viewer
+
+    call = _make_call()
     req = _build_request(
         session_id="s1",
-        call=_make_call(),
-        view=view,
+        call=call,
+        view=code_viewer("bash", "command")(call),
         choices=["approve", "reject"],
     )
     # One block — just the formatted view call. No assistant message.

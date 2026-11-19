@@ -1,5 +1,6 @@
 import pprint
 import re
+import unicodedata
 from string import Formatter
 from textwrap import indent
 from typing import Any, NamedTuple
@@ -54,6 +55,10 @@ def safe_code_fence(content: str) -> str:
 
     Minimum length 3 — keeps standard plaintext (no backticks at
     all) wrapped in the familiar ``` fence.
+
+    Control and format characters other than newline and tab do not end a
+    run: a renderer that removes them (as the ACP TUI does) would join the
+    backticks around them into one longer run.
     """
     max_run = 0
     cur_run = 0
@@ -62,7 +67,7 @@ def safe_code_fence(content: str) -> str:
             cur_run += 1
             if cur_run > max_run:
                 max_run = cur_run
-        else:
+        elif ch in "\n\t" or unicodedata.category(ch) not in ("Cc", "Cf"):
             cur_run = 0
     return "`" * max(3, max_run + 1)
 

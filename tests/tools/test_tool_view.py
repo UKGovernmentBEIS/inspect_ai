@@ -227,12 +227,14 @@ _BACKTICKS = [
 ]
 
 
-def _render_approval(view: ToolCallView, arguments: dict[str, Any]) -> str:
+def _render_approval(
+    view: ToolCallView, arguments: dict[str, Any], call: ToolCall | None = None
+) -> str:
     """The approval panel's text, as the console and Textual approvers show it."""
     buffer = io.StringIO()
     console = Console(file=buffer, width=200, color_system=None)
     with patch("inspect_ai.approval._human.util.display_type", return_value="full"):
-        for renderable in render_tool_approval("", view, arguments):
+        for renderable in render_tool_approval("", view, arguments, call):
             console.print(renderable)
     return buffer.getvalue()
 
@@ -297,26 +299,43 @@ def test_agent_view_shows_every_line(value: str) -> None:
     _assert_shows_every_line(rendered, arguments["prompt"])
 
 
-# Notes a tool's own Markdown viewer puts outside any code block, each holding
-# lines a Markdown renderer would not show: an HTML comment or block (with a
-# reference definition inside), a reference definition, a link and an image.
-_HIDDEN_IN_MARKDOWN = [
-    "ok\n\n<!--\n\n[r]: /x\n\nrm -rf /tmp/data\n-->",
-    "ok\n\n<div>\n[r]: /x\n\nrm -rf /tmp/data\n</div>",
-    "ok\n\n[r]: /tmp/data\n\nrm -rf /tmp/data",
-    "ok [see](<rm -rf /tmp/data>)",
-    "ok <!-- rm -rf /tmp/data -->",
-    "ok ![x](<rm -rf /tmp/data>)",
-]
-
-
-@pytest.mark.parametrize("notes", _HIDDEN_IN_MARKDOWN)
-def test_approval_shows_hidden_markdown_text(notes: str) -> None:
+def test_approval_shows_arguments_beneath_a_custom_view() -> None:
+    # a tool's own Markdown view that a renderer shows only part of
+    notes = "ok\n\n<!--\nrm -rf /tmp/data\n-->"
+    call = ToolCall(id="1", function="note", arguments={"notes": notes})
     view = ToolCallView(
         call=ToolCallContent(format="markdown", content="Notes: {{notes}}")
     )
-    rendered = _render_approval(view, {"notes": notes})
-    _assert_shows_every_line(rendered, notes)
+    rendered = _render_approval(view, call.arguments, call)
+    assert "Arguments" in rendered
+    assert f"note(notes={notes!r})" in rendered
+
+
+def test_approval_shows_no_arguments_block_for_inspect_views() -> None:
+    from inspect_ai.agent._deepagent.agent_tool import agent_tool
+    from inspect_ai.agent._deepagent.subagent import subagent
+
+    agent_viewer = tool_def_fields(
+        agent_tool(subagents=[subagent(name="r", description="R.", prompt="R.")])
+    ).viewer
+    assert agent_viewer is not None
+    calls: list[tuple[ToolCallViewer | None, dict[str, Any]]] = [
+        (code_viewer("bash", "command"), {"command": "ls"}),
+        (code_viewer("python", "code"), {"code": "print(1)"}),
+        (think_tool_viewer(), {"thought": "hmm"}),
+        (agent_viewer, {"prompt": "Go.", "task_description": "Do", "background": True}),
+        (None, {"path": "/tmp/x"}),
+        (_raising_viewer, {"path": "/tmp/x"}),
+    ]
+    for viewer, arguments in calls:
+        call = ToolCall(id="1", function="tool", arguments=arguments)
+        view = resolve_tool_call_view(call, viewer)
+        assert "Arguments" not in _render_approval(view, arguments, call)
+
+    # a call with an argument the view does not show gets the block
+    call = ToolCall(id="1", function="bash", arguments={"command": "ls", "x": 1})
+    view = code_viewer("bash", "command")(call)
+    assert "Arguments" in _render_approval(view, call.arguments, call)
 
 
 @pytest.mark.parametrize(

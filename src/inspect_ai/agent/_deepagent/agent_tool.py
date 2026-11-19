@@ -37,6 +37,7 @@ from inspect_ai.tool._tool_call import (
     ToolCallContent,
     ToolCallView,
     ToolCallViewer,
+    shows_arguments,
     tool_call_code_block,
 )
 from inspect_ai.tool._tool_def import ToolDef
@@ -253,6 +254,8 @@ def _agent_viewer_for(single_name: str | None) -> ToolCallViewer:
     block the arguments cannot close. When the model provides a
     ``task_description``, it is shown above the prompt; when absent, it is
     omitted (otherwise the literal ``{{task_description}}`` would render).
+    The title names the subagent and says when the dispatch runs in the
+    background, so the view shows every argument.
 
     Args:
         single_name: Name of the sole subagent, or None when there are
@@ -268,11 +271,17 @@ def _agent_viewer_for(single_name: str | None) -> ToolCallViewer:
         if has_description:
             description = tool_call_code_block(call, "{{task_description}}")
             content = f"{description}\n{content}"
+        title = f"agent: {subagent_type}" if subagent_type else "agent"
+        shown = {"subagent_type", "prompt", "task_description"}
+        background = call.arguments.get("background")
+        if isinstance(background, bool):
+            shown.add("background")
+            if background:
+                title = f"{title} (background)"
         return ToolCallView(
-            call=ToolCallContent(
-                title=f"agent: {subagent_type}" if subagent_type else "agent",
-                format="markdown",
-                content=content,
+            call=shows_arguments(
+                ToolCallContent(title=title, format="markdown", content=content),
+                set(call.arguments) <= shown,
             )
         )
 

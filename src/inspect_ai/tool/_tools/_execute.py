@@ -11,6 +11,7 @@ from .._tool_call import (
     ToolCallContent,
     ToolCallView,
     ToolCallViewer,
+    shows_arguments,
     tool_call_code_block,
 )
 from .._tool_def import ToolDef
@@ -34,7 +35,9 @@ def code_viewer(
             format="markdown",
             content=tool_call_code_block(tool_call, code, language),
         )
-        return ToolCallView(call=call)
+        return ToolCallView(
+            call=shows_arguments(call, set(tool_call.arguments) <= {code_param})
+        )
 
     return viewer
 

@@ -5,7 +5,13 @@ from inspect_ai.approval._approval import Approval, ApprovalDecision
 from inspect_ai.approval._human.approver import human_approver
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.tool._tool import ToolResult
-from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
+from inspect_ai.tool._tool_call import (
+    ToolCall,
+    ToolCallContent,
+    ToolCallView,
+    arguments_shown,
+    shows_arguments,
+)
 
 from ._registry import reviewer
 from ._review import Review, ReviewDecision
@@ -95,7 +101,9 @@ def view_with_result(view: ToolCallView, result: ChatMessageTool) -> ToolCallVie
             format="text",
             content=f"{view.call.content}\n\nResult\n\n{outcome}",
         )
-    return ToolCallView(context=view.context, call=call)
+    return ToolCallView(
+        context=view.context, call=shows_arguments(call, arguments_shown(view.call))
+    )
 
 
 def review_from_approval(approval: Approval, offered: list[ApprovalDecision]) -> Review:

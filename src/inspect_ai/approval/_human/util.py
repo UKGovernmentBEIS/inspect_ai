@@ -5,13 +5,13 @@ from rich.markup import escape
 from rich.rule import Rule
 from rich.text import Text
 
-from inspect_ai._util.transcript import (
-    markdown_with_hidden_text_fenced,
-    transcript_markdown,
-)
+from inspect_ai._util.transcript import transcript_markdown
 from inspect_ai.tool._tool_call import (
+    ToolCall,
     ToolCallContent,
     ToolCallView,
+    arguments_shown,
+    default_tool_call_viewer,
     substitute_tool_call_content,
 )
 from inspect_ai.util._display import display_type
@@ -22,11 +22,32 @@ HUMAN_TERMINATED = "Human operator asked that the sample be terminated."
 HUMAN_ESCALATED = "Human operator escalated the tool call approval."
 
 
+def arguments_view(call: ToolCall, view: ToolCallView) -> ToolCallContent | None:
+    """The default view of `call`, to show beneath `view` unless it shows it all.
+
+    A tool's own viewer writes Markdown that a renderer may show only part of,
+    so the person approving the call also sees every argument as a Python
+    literal, in a block of its own that the view cannot affect. Views that
+    show every argument as written are marked (`shows_arguments`), and a call
+    with no arguments needs no such block.
+    """
+    if not call.arguments or arguments_shown(view.call):
+        return None
+    content = default_tool_call_viewer(call).call
+    if content is None:
+        return None
+    return content.model_copy(update={"title": "Arguments"})
+
+
 def render_tool_approval(
-    message: str, view: ToolCallView, arguments: dict[str, JsonValue] | None = None
+    message: str,
+    view: ToolCallView,
+    arguments: dict[str, JsonValue] | None = None,
+    call: ToolCall | None = None,
 ) -> list[RenderableType]:
     renderables: list[RenderableType] = []
     text_highlighter = ReprHighlighter()
+    all_arguments = arguments_view(call, view) if call is not None else None
 
     # substitute placeholders in view content
     if arguments is not None:
@@ -48,11 +69,7 @@ def render_tool_approval(
                 Text.from_markup(f"[bold]{escape(view_content.title)}[/bold]\n")
             )
         if view_content.format == "markdown":
-            renderables.append(
-                transcript_markdown(
-                    markdown_with_hidden_text_fenced(view_content.content)
-                )
-            )
+            renderables.append(transcript_markdown(view_content.content))
         else:
             text_content = text_highlighter(Text(view_content.content))
             renderables.append(text_content)
@@ -74,6 +91,14 @@ def render_tool_approval(
             renderables.append(Rule("", style="#282c34", align="left", characters="․"))
         renderables.append(Text())
         add_view_content(view.call)
+        renderables.append(Text())
+
+    # every argument, when the view may not show them all
+    if all_arguments:
+        if message or view.context or view.call:
+            renderables.append(Rule("", style="#282c34", align="left", characters="․"))
+        renderables.append(Text())
+        add_view_content(all_arguments)
         renderables.append(Text())
 
     return renderables
