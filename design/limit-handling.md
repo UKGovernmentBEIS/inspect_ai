@@ -868,7 +868,7 @@ sample's work has joined, and only when the solvers returned normally: it
 covers the sample's token, cost and turn roots (`sample_limits()`), and an
 attempt whose solvers raised, were cancelled or were interrupted keeps its
 outcome. It raises
-every root that counts at exit, each with its `SampleLimitEvent`, as one
+every root that is exceeded at exit, each with its `SampleLimitEvent`, as one
 combined error (rule 4), and the existing `except LimitExceededError`
 (`run.py:3455`) records it, `EvalSample.limit` from its primary fields.
 
@@ -1931,7 +1931,7 @@ documented. Behaviour changes:
   (by ownership of every limit in it), not compared with node state.
 - **The sample runner**, when the solvers return normally, checks the
   sample's limits after the solvers and the sample's background work have
-  finished, and records an exceeded or refusing sample limit found then.
+  finished, and records an exceeded sample limit found then.
   It does not on a resume for scoring, so, as today, a limit swallowed
   during that attempt (by a sample-start or attempt-start hook or the
   `on_resume` callback) is not recorded. A limit that work before a
