@@ -2428,7 +2428,8 @@ def test_a_bridged_call_under_a_reused_id_carries_the_model_s_message(
 ) -> None:
     # the model reuses read_1 for another call: live, the bridge hands it over
     # under a fresh id and its steps' message carries that id; replay shows
-    # the call as the model wrote it, with the model call's own message
+    # the call as the model wrote it, with the model call's own message. Two
+    # calls were proposed under read_1, so neither has a result step
     caplog.clear()
     with caplog.at_level(logging.WARNING):
         log, seen = scaffold_log(
@@ -2441,7 +2442,6 @@ def test_a_bridged_call_under_a_reused_id_carries_the_model_s_message(
     rebuilt = assert_bridged_steps_follow_the_conversation(log, replay)
     assert [(s.stage, s.id.split("/")[1]) for s in rebuilt] == [
         ("tool_call", "read_1"),
-        ("tool_result", "read_1"),
         ("tool_call", "read_1"),
     ]
     live = [s for s in seen.values() if isinstance(s, BeforeToolCall | AfterToolCall)]
@@ -2451,19 +2451,18 @@ def test_a_bridged_call_under_a_reused_id_carries_the_model_s_message(
         ("BeforeToolCall", False),
         ("AfterToolCall", False),
     ]
-    # the first call's steps carry the same message live and in replay
-    for step, again in zip(live[:2], rebuilt[:2]):
-        assert comparable(tool_step(again).assistant_message) == comparable(
-            step.assistant_message
-        )
+    # the first call's step carries the same message live and in replay
+    assert comparable(tool_step(rebuilt[0]).assistant_message) == comparable(
+        live[0].assistant_message
+    )
     # the second call's: live, the message the bridge handed over, with the
     # fresh call id and its own message id; replay, the model call's output,
     # under the reused id; they differ only in those ids
     handed = live[2].assistant_message
     assert handed is not None and handed.id == live[2].message_id
     assert [c.id for c in handed.tool_calls or []] == [live[2].call.id]
-    written = tool_step(rebuilt[2]).assistant_message
-    assert written is not None and written.id == tool_step(rebuilt[2]).message_id
+    written = tool_step(rebuilt[1]).assistant_message
+    assert written is not None and written.id == tool_step(rebuilt[1]).message_id
     assert [c.id for c in written.tool_calls or []] == ["read_1"]
     assert written.id != handed.id
     assert [replace(c, id="") for c in written.tool_calls or []] == [
@@ -2550,13 +2549,14 @@ def resending_scaffold() -> Agent:
 
 
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
-def test_a_bridged_result_goes_to_the_latest_proposal_awaiting_one(
+def test_bridged_calls_under_an_id_proposed_again_get_no_result(
     backend: str,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     # the first two model calls answer one request (the agent uses the
-    # second's), and the model reuses the call id over the next two turns
+    # second's), and the model reuses the call id for the same call over the
+    # next two turns
     caplog.clear()
     with caplog.at_level(logging.WARNING):
         log, _ = scaffold_log(
@@ -2573,35 +2573,17 @@ def test_a_bridged_result_goes_to_the_latest_proposal_awaiting_one(
         if isinstance(e, ModelEvent) and e.requested_model is not None
     ]
     assert len(made) == 5
-    # each result is its own turn's: the discarded response's call has none
+    # the conversation proposed four calls under read_1, so none has a result
     rebuilt = bridged_steps(log, replay)
     assert [
         (s.stage, made.index(s.id.split("/")[0]), s.id.split("/")[1]) for s in rebuilt
     ] == [
         ("tool_call", 0, "read_1"),
         ("tool_call", 1, "read_1"),
-        ("tool_result", 1, "read_1"),
         ("tool_call", 2, "read_1"),
-        ("tool_result", 2, "read_1"),
         ("tool_call", 3, "read_1"),
-        ("tool_result", 3, "read_1"),
     ]
-    assert [
-        (made.index(s.id.split("/")[0]), resulted(s).text)
-        for s in rebuilt
-        if s.stage == "tool_result"
-    ] == [(1, "t0:read_1"), (2, "t1:read_1"), (3, "t2:read_1")]
     assert replay_warnings(caplog) == []
-
-
-RETRY_DIFFERENCES = [
-    "tool_result.input",
-    "tool_result.tools",
-    "tool_result.tool_choice",
-    "tool_result.message_id",
-    "tool_result.assistant_message",
-]
-"""Where a cached retry's rebuilt `tool_result` step differs from live: the bridge handed the call's id out twice, so live checked the result without its proposal's model call (`None` for `input` and `assistant_message`), and replay shows the model call the agent received."""
 
 
 @agent(name="retrying_scaffold")
@@ -2769,7 +2751,7 @@ def generated_ids(prefix: str | None, *turns: ModelOutput) -> Any:
 @pytest.mark.parametrize("side", [None, "agent", "helper"])
 @pytest.mark.parametrize("client", ["openai", "anthropic"])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
-def test_a_cached_retry_s_call_gets_the_result_the_agent_sent(
+def test_a_cached_retry_s_call_gets_no_result(
     side: Literal["agent", "helper"] | None,
     client: str,
     backend: str,
@@ -2779,7 +2761,9 @@ def test_a_cached_retry_s_call_gets_the_result_the_agent_sent(
 ) -> None:
     # the agent loses each response and sends its request again: the model
     # cache answers the retry with the lost response, under the same call ids;
-    # with `side`, a request with its own history comes before each request
+    # with `side`, a request with its own history comes before each request.
+    # Each id is proposed twice, so its calls have no result step; live checked
+    # the two results the agent sent
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
     prefix = "call_" if client == "openai" else "toolu_"
@@ -2802,9 +2786,7 @@ def test_a_cached_retry_s_call_gets_the_result_the_agent_sent(
             ),
         )
         assert log.status == "success", log.error
-        assert_replay_rebuilds_bridge_steps(
-            log, seen, bridge_differences=RETRY_DIFFERENCES
-        )
+        assert_replay_rebuilds_bridge_steps(log, seen, unbuilt=2)
     assert replay_warnings(caplog) == []
     events = logged_sample(log).events
     made = [
@@ -2827,8 +2809,6 @@ def test_a_cached_retry_s_call_gets_the_result_the_agent_sent(
         caplog.clear()
         with caplog.at_level(logging.WARNING):
             replay = replayed_inputs(log, inputs)
-        # each call the agent received gets its result; a lost response's
-        # call has none
         rebuilt = bridged_steps(log, replay)
         assert [
             (s.stage, uuids.index(s.id.split("/")[0]), s.id.split("/")[1])
@@ -2836,14 +2816,8 @@ def test_a_cached_retry_s_call_gets_the_result_the_agent_sent(
         ] == [
             ("tool_call", 0, f"{prefix}1"),
             ("tool_call", 1, f"{prefix}1"),
-            ("tool_result", 1, f"{prefix}1"),
             ("tool_call", 2, f"{prefix}2"),
             ("tool_call", 3, f"{prefix}2"),
-            ("tool_result", 3, f"{prefix}2"),
-        ], inputs
-        assert [resulted(s).text for s in rebuilt if s.stage == "tool_result"] == [
-            f"t0:{prefix}1",
-            f"t1:{prefix}2",
         ], inputs
         assert replay_warnings(caplog) == []
 
@@ -3023,7 +2997,7 @@ def test_a_classifier_request_per_parallel_call_keeps_finding_results_linear(
 @pytest.mark.parametrize("side", ["agent", "helper"])
 @pytest.mark.parametrize("client", ["openai", "anthropic"])
 @pytest.mark.parametrize("backend", ["asyncio", "trio"])
-def test_a_side_request_before_a_retry_of_a_reused_id_gives_the_lost_call_a_result(
+def test_a_side_request_before_a_retry_of_a_reused_id_gives_the_lost_call_no_result(
     side: Literal["agent", "helper"],
     client: str,
     backend: str,
@@ -3031,11 +3005,11 @@ def test_a_side_request_before_a_retry_of_a_reused_id_gives_the_lost_call_a_resu
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    # the documented limitation (`_bridged_tool_steps`): the model reuses the
-    # call id for the same call, the agent loses each response and sends its
-    # request again, and a request with its own history comes between; the
-    # retry doesn't carry the lost call's result, and the previous turn's
-    # result looks new against the side request, so the lost call gets it
+    # the model reuses the call id for the same call, the agent loses each
+    # response and sends its request again, and a request with its own
+    # history comes between. The previous turn's result looks new against the
+    # side request, but the id was proposed more than once, so no call under
+    # it takes a result
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
     task = Task(
@@ -3069,13 +3043,7 @@ def test_a_side_request_before_a_retry_of_a_reused_id_gives_the_lost_call_a_resu
             for s in bridged_steps(log, replay)
             if s.stage == "tool_result"
         ]
-        assert results == [
-            (3, "t0:read_1"),
-            (5, "t0:read_1"),
-            (7, "t1:read_1"),
-            (9, "t1:read_1"),
-            (11, "t2:read_1"),
-        ], inputs
+        assert results == [], inputs
         assert replay_warnings(caplog) == []
 
 
@@ -3866,7 +3834,9 @@ def test_a_compacted_result_is_not_the_result_of_a_discarded_call(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     # each response is lost and its retry answered from the model cache; with
-    # four calls run, compaction replaces the first call's result
+    # four calls run, compaction replaces the first call's result. Each id is
+    # proposed twice, by the lost response and its retry, so no call takes a
+    # result, the compacted one included
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
     prefix = "call_" if client == "openai" else "toolu_"
@@ -3907,16 +3877,9 @@ def test_a_compacted_result_is_not_the_result_of_a_discarded_call(
         caplog.clear()
         with caplog.at_level(logging.WARNING):
             replay = replayed_inputs(log, inputs)
-        # one result per call run, each the received call's; the lost
-        # responses' calls have none
-        results = [
-            (uuids.index(s.id.split("/")[0]), resulted(s).text)
-            for s in bridged_steps(log, replay)
-            if s.stage == "tool_result"
-        ]
-        assert results == [
-            (2 * turn + 1, f"t{turn}:{prefix}{turn + 1}{PADDING}") for turn in range(4)
-        ], inputs
+        steps = bridged_steps(log, replay)
+        assert [uuids.index(s.id.split("/")[0]) for s in steps] == list(range(8))
+        assert all(s.stage == "tool_call" for s in steps), inputs
         assert replay_warnings(caplog) == []
 
 
@@ -3928,8 +3891,9 @@ def test_a_result_compacted_in_the_request_answering_its_reused_id_is_not_taken(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    # the model reuses the call id, and compaction (keeping one result)
-    # replaces the first result in the request carrying the second
+    # the model reuses the call id for the same call, and compaction (keeping
+    # one result) replaces the first result in the request carrying the
+    # second. Neither call takes a result: two calls were proposed under the id
     monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
@@ -3968,10 +3932,391 @@ def test_a_result_compacted_in_the_request_answering_its_reused_id_is_not_taken(
             for s in bridged_steps(log, replay)
             if s.stage == "tool_result"
         ]
-        assert results == [
-            (0, f"t0:read_1{PADDING}"),
-            (1, f"t1:read_1{PADDING}"),
-        ], inputs
+        assert results == [], inputs
+        assert replay_warnings(caplog) == []
+
+
+COMPACTED_AT_FOUR_FRESH = 570
+"""As `COMPACTED_AT_FOUR`, for results under the bridge's fresh call ids, which are longer."""
+
+
+@pytest.mark.parametrize("files", ["abcd", "abac"])
+@pytest.mark.parametrize("client", ["openai", "anthropic"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_calls_under_a_reused_id_take_no_compacted_result(
+    files: str,
+    client: str,
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # four reads, all under Mistral's SDK-default "null" id, and compaction
+    # (keeping three results) replacing the first read's result in the
+    # request carrying the fourth's. The bridge hands a read of another file
+    # than the first over under a fresh id, and keeps "null" for the first
+    # file read again. The conversation proposed four calls under "null", so
+    # none has a result step, and none takes the removed result
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=as_solver(
+            retrying_scaffold(
+                client,
+                retry=False,
+                compaction=CompactionEdit(threshold=COMPACTED_AT_FOUR_FRESH),
+                padding=PADDING,
+            )
+        ),
+    )
+    [log] = eval(
+        task,
+        model=outputs(
+            *[r7_tool_calls(read(f"{name}.txt", "null")) for name in files],
+            done(),
+        ),
+    )
+    assert log.status == "success", log.error
+    made = [
+        e
+        for e in logged_sample(log).events
+        if isinstance(e, ModelEvent) and e.requested_model is not None
+    ]
+    uuids = [e.uuid for e in made]
+    assert [[c.id for c in e.output.message.tool_calls or []] for e in made] == [
+        ["null"]
+    ] * 4 + [[]]
+    # the last request carries "null" for the first file's reads, a fresh id
+    # for each other read, and the removed result under "null"
+    [tool_ids] = [
+        [m.tool_call_id for m in e.input if isinstance(m, ChatMessageTool)]
+        for e in made[4:]
+    ]
+    kept = [turn for turn, name in enumerate(files) if name == "a"]
+    assert [turn for turn, id in enumerate(tool_ids) if id == "null"] == kept
+    assert len(set(tool_ids) - {"null"}) == 4 - len(kept)
+    removed = [
+        (made.index(e), m.tool_call_id)
+        for e in made
+        for m in e.input
+        if isinstance(m, ChatMessageTool) and m.text == TOOL_RESULT_REMOVED
+    ]
+    assert removed == [(4, "null")]
+    for inputs in ["expanded", "pooled"]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            replay = replayed_inputs(log, inputs)
+        assert [
+            (s.stage, uuids.index(s.id.split("/")[0]))
+            for s in bridged_steps(log, replay)
+        ] == [("tool_call", turn) for turn in range(4)], inputs
+        assert replay_warnings(caplog) == []
+
+
+@pytest.mark.parametrize("spans", ["agent", "none"])
+@pytest.mark.parametrize("client", ["openai", "anthropic"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_sequential_bridges_take_no_result_under_an_id_each_reused(
+    spans: str,
+    client: str,
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # two agents run one after the other, each with its own bridge, all calls
+    # under "null": the first reads a.txt, the second b.txt and then a.txt
+    # three times, with compaction (keeping three results) replacing b.txt's
+    # result in its last request. The second bridge keeps "null" for b.txt and
+    # hands each a.txt over under a fresh id. In their own agent spans the
+    # agents are two conversations; without one, they are one
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+
+    @solver
+    def two_agents() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            first = retrying_scaffold(client, retry=False)
+            second = retrying_scaffold(
+                client,
+                retry=False,
+                padding=PADDING,
+                compaction=CompactionEdit(threshold=COMPACTED_AT_FOUR_FRESH),
+            )
+            if spans == "agent":
+                await run(first, "What is 1 + 1?")
+                await run(second, "What is 1 + 1?")
+            else:
+                await first(AgentState(messages=[]))
+                await second(AgentState(messages=[]))
+            return state
+
+        return solve
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")], solver=two_agents()
+    )
+    reads = [r7_tool_calls(read(f"{name}.txt", "null")) for name in "abaaa"]
+    [log] = eval(task, model=outputs(reads[0], done(), *reads[1:], done()))
+    assert log.status == "success", log.error
+    made = [
+        e
+        for e in logged_sample(log).events
+        if isinstance(e, ModelEvent) and e.requested_model is not None
+    ]
+    uuids = [e.uuid for e in made]
+    [tool_ids] = [
+        [m.tool_call_id for m in e.input if isinstance(m, ChatMessageTool)]
+        for e in made[6:]
+    ]
+    assert tool_ids[0] == "null"
+    assert "null" not in tool_ids[1:]
+    removed = [
+        (made.index(e), m.tool_call_id)
+        for e in made
+        for m in e.input
+        if isinstance(m, ChatMessageTool) and m.text == TOOL_RESULT_REMOVED
+    ]
+    assert removed == [(6, "null")]
+    # in two conversations, the first agent's one call under "null" has its
+    # result, and the second agent's four calls have none; in one
+    # conversation, no call has a result
+    want = [(0, "t0:null")] if spans == "agent" else []
+    for inputs in ["expanded", "pooled"]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            replay = replayed_inputs(log, inputs)
+        steps = bridged_steps(log, replay)
+        assert [
+            uuids.index(s.id.split("/")[0]) for s in steps if s.stage == "tool_call"
+        ] == [0, 2, 3, 4, 5], inputs
+        assert [
+            (uuids.index(s.id.split("/")[0]), resulted(s).text)
+            for s in steps
+            if s.stage == "tool_result"
+        ] == want, inputs
+        assert replay_warnings(caplog) == []
+
+
+@agent(name="concurrent_scaffold")
+def concurrent_scaffold() -> Agent:
+    """Two OpenAI-client tool loops run concurrently in one bridge, each sending its first request before either sends a result, and answering its calls with `loop<n>:<call id>`."""
+
+    async def execute(state: AgentState) -> AgentState:
+        from openai import AsyncOpenAI
+
+        tools: list[Any] = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_file",
+                    "description": "Read a file.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"path": {"type": "string"}},
+                    },
+                },
+            }
+        ]
+        proposed = 0
+        both_proposed = anyio.Event()
+        async with agent_bridge(state) as bridge:
+            async with AsyncOpenAI(api_key="sk-test") as client:
+
+                async def loop(n: int) -> None:
+                    nonlocal proposed
+                    messages: list[Any] = [
+                        {"role": "user", "content": "What is 1 + 1?"}
+                    ]
+                    for _ in range(2):
+                        completion = await client.chat.completions.create(
+                            model="inspect", messages=messages, tools=tools
+                        )
+                        message = completion.choices[0].message
+                        messages.append(message.model_dump(exclude_none=True))
+                        if not message.tool_calls:
+                            return
+                        proposed += 1
+                        if proposed == 2:
+                            both_proposed.set()
+                        await both_proposed.wait()
+                        for call in message.tool_calls:
+                            messages.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": call.id,
+                                    "content": f"loop{n}:{call.id}",
+                                }
+                            )
+
+                await tg_collect([partial(loop, 0), partial(loop, 1)])
+            return bridge.state
+
+    return execute
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_concurrent_identical_calls_under_one_id_take_no_result(
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # two tool loops of one agent each propose the same call under "null"
+    # before either sends its result; the bridge hands both over under
+    # "null". Each loop's next request carries its own result, so a result
+    # under the id can be either call's, and neither call has a result step
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=as_solver(concurrent_scaffold()),
+    )
+    proposal = r7_tool_calls(read("a.txt", "null"))
+    [log] = eval(task, model=outputs(proposal, proposal, done(), done()))
+    assert log.status == "success", log.error
+    made = [
+        e
+        for e in logged_sample(log).events
+        if isinstance(e, ModelEvent) and e.requested_model is not None
+    ]
+    uuids = [e.uuid for e in made]
+    assert [[c.id for c in e.output.message.tool_calls or []] for e in made] == [
+        ["null"],
+        ["null"],
+        [],
+        [],
+    ]
+    assert sorted(
+        m.text for e in made for m in e.input if isinstance(m, ChatMessageTool)
+    ) == ["loop0:null", "loop1:null"]
+    for inputs in ["expanded", "pooled"]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            replay = replayed_inputs(log, inputs)
+        assert [
+            (s.stage, uuids.index(s.id.split("/")[0]))
+            for s in bridged_steps(log, replay)
+        ] == [("tool_call", 0), ("tool_call", 1)], inputs
+        assert replay_warnings(caplog) == []
+
+
+@agent(name="history_scaffold")
+def history_scaffold(history_id: str, side: bool) -> Agent:
+    """An OpenAI-client tool loop, bridged with `CompactionEdit` keeping one result, whose first request already holds a call under `history_id` and its result (a history the agent started with); with `side`, it sends a request with its own history and no tools first, as a title request does. It answers each call with `t<turn>:<call id>`."""
+
+    async def execute(state: AgentState) -> AgentState:
+        from openai import AsyncOpenAI
+
+        tools: list[Any] = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_file",
+                    "description": "Read a file.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"path": {"type": "string"}},
+                    },
+                },
+            }
+        ]
+        compaction = CompactionEdit(threshold=COMPACTED_AT_TWO, keep_tool_uses=1)
+        async with agent_bridge(state, compaction=compaction) as bridge:
+            messages: list[Any] = [
+                {"role": "user", "content": "What is 1 + 1?"},
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": history_id,
+                            "type": "function",
+                            "function": {
+                                "name": "read_file",
+                                "arguments": json.dumps({"path": "history.txt"}),
+                            },
+                        }
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": history_id,
+                    "content": f"history{PADDING}",
+                },
+            ]
+            async with AsyncOpenAI(api_key="sk-test") as client:
+                if side:
+                    await client.chat.completions.create(
+                        model="inspect",
+                        messages=[{"role": "user", "content": "Name this."}],
+                    )
+                for turn in range(3):
+                    completion = await client.chat.completions.create(
+                        model="inspect", messages=messages, tools=tools
+                    )
+                    message = completion.choices[0].message
+                    messages.append(message.model_dump(exclude_none=True))
+                    if not message.tool_calls:
+                        break
+                    for call in message.tool_calls:
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": call.id,
+                                "content": f"t{turn}:{call.id}{PADDING}",
+                            }
+                        )
+        return bridge.state
+
+    return execute
+
+
+@pytest.mark.parametrize("side", [False, True], ids=["first", "after_side"])
+@pytest.mark.parametrize("history_id", ["null", "call_0"])
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_a_call_under_an_id_the_starting_history_holds_takes_no_result(
+    history_id: str,
+    side: bool,
+    backend: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # the agent starts from a history with a call under `history_id` and its
+    # result, and the model proposes one call under "null"; compaction
+    # replaces the history's result in the next request. Under "null", the
+    # bridge hands the call over under a fresh id, and the history's id
+    # counts as a call proposed under it, so the call has no result step and
+    # doesn't take the removed result. Under another id, the call keeps its
+    # result. With `side`, a request with its own history comes first
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=as_solver(history_scaffold(history_id, side)),
+    )
+    [log] = eval(
+        task,
+        model=generated_ids(None, r7_tool_calls(read("a.txt", "null")), done()),
+    )
+    assert log.status == "success", log.error
+    made = [
+        e
+        for e in logged_sample(log).events
+        if isinstance(e, ModelEvent) and e.requested_model is not None and e.tools
+    ]
+    uuids = [e.uuid for e in made]
+    [last] = [
+        [(m.tool_call_id, m.text) for m in e.input if isinstance(m, ChatMessageTool)]
+        for e in made[1:]
+    ]
+    assert last[0] == (history_id, TOOL_RESULT_REMOVED)
+    assert (last[1][0] == "null") == (history_id != "null")
+    for inputs in ["expanded", "pooled"]:
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            replay = replayed_inputs(log, inputs)
+        assert [
+            (s.stage, uuids.index(s.id.split("/")[0]), resulted(s).text)
+            if s.stage == "tool_result"
+            else (s.stage, uuids.index(s.id.split("/")[0]))
+            for s in bridged_steps(log, replay)
+        ] == [("tool_call", 0)] + (
+            [] if history_id == "null" else [("tool_result", 0, f"t0:null{PADDING}")]
+        ), inputs
         assert replay_warnings(caplog) == []
 
 
@@ -4643,9 +4988,8 @@ def test_a_bridge_checking_one_call_id_more_than_once_replays(case: str) -> None
         # the bridge checked a step under the call id more than once
         assert len(tool_checks) > len(set(tool_checks))
     # replay rebuilds each call the model wrote, with the result the model
-    # next received under its id, whatever the bridge checked; the bridge hands
-    # a reused id over under a fresh one, which the next request carries, so
-    # the call the model wrote under the reused id has no result
+    # next received under its id, whatever the bridge checked; a call under an
+    # id the model proposed for more than one call has no result
     steps = replayed(log)
     generates = [(stage, id) for stage, id, _ in checks if stage.startswith("model")]
     assert [
@@ -4660,12 +5004,10 @@ def test_a_bridge_checking_one_call_id_more_than_once_replays(case: str) -> None
         ],
         "reused_id": [
             ("tool_call", "c1", {"text": "one"}),
-            ("tool_result", "c1", {"text": "one"}),
             ("tool_call", "c1", {"text": "two"}),
         ],
         "reused_by_host": [
             ("tool_call", "c1", {"text": "one"}),
-            ("tool_result", "c1", {"text": "one"}),
             ("tool_call", "c1", {"x": 1, "y": 1}),
         ],
         "retried": [
@@ -4675,8 +5017,8 @@ def test_a_bridge_checking_one_call_id_more_than_once_replays(case: str) -> None
     }[case]
     assert [resulted(s).text for s in rebuilt if s.stage == "tool_result"] == {
         "reported_twice": ["2"],
-        "reused_id": ["one"],
-        "reused_by_host": ["one"],
+        "reused_id": [],
+        "reused_by_host": [],
         "retried": ["one"],
     }[case]
 
