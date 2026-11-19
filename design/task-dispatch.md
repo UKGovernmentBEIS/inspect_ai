@@ -23,9 +23,10 @@ like any other task failure. Setup no longer changes the process's working
 directory or environment: Inspect makes relative config paths absolute
 against the task directory before any provider sees them, and every
 provider call runs in the launch directory, as `sample_init` does today.
-The `ContextVar` values a provider binds in `task_init` are captured per
-setup, so each sample and each `task_cleanup` sees the state its own
-configuration's `task_init` produced.
+The `ContextVar` values a provider binds in `task_init` stay captured per
+setup, as they are today, with one capture for the whole run, so each
+sample and each `task_cleanup` sees the state its own configuration's
+`task_init` produced, whichever task's attempt ran the setup.
 
 [task-handles.md](task-handles.md) builds on this queue: handles that let a
 running task cancel the tasks it adds, send samples to a task fed through
@@ -162,8 +163,6 @@ Could change what an eval computes:
   directory, where today `resolve_task_sandbox`'s unconditional join gives
   an absolute path to the missing file and setup fails. The same rule keeps
   a task-level inline-JSON string config, which the join rewrites today.
-- **Which `ContextVar` values a sample sees**: its own configuration's setup
-  state rather than the last setup's.
 - **`os.environ` during setup** no longer holds `task_init_environment`
   values; only Docker returns any, and it receives them directly. A
   provider outside Docker's class family whose `task_init_environment`
@@ -186,10 +185,6 @@ supervisors whose workers run `eval_set()` in selection mode. Today:
 - Setup changes the process-wide working directory and environment while
   other tasks run: a running sample that reads `os.getcwd()` while an added
   task's `task_init` awaits sees the added task's directory.
-- Providers that keep their sandbox list in `ContextVar`s bound by
-  `task_init` (E2B, Modal, Daytona) lose earlier lists when a later
-  `task_init` rebinds them, so end-of-run cleanup misses sandboxes, and a
-  `SampleSource` task with an empty seed fails every later sample.
 
 There are two drivers, so each of these has to be fixed twice.
 
@@ -206,7 +201,8 @@ Goals:
 - Every task, including one waiting to start, is listed and cancellable
   through the control channel.
 - No process-wide working-directory or environment change across an `await`;
-  per-setup provider state, with no provider release needed.
+  today's per-setup provider state kept when every task sets up in its own
+  attempt, with no provider release needed.
 
 Non-goals:
 
@@ -365,22 +361,49 @@ Paths reach providers in three ways:
 
 ### Provider state
 
-`SandboxManager.open()` binds Docker's `SandboxLifecycleState`
-(`src/inspect_ai/util/_sandbox/lifecycle.py`) in `eval_run`'s context. Every
-other provider keeps state in its own `ContextVar`s, and every `task_init`
-and `task_cleanup` runs in `eval_run`'s context:
+Every provider but Docker keeps state in its own `ContextVar`s, which
+`task_init` binds and `sample_init` and `task_cleanup` read:
 
-| provider | what `task_init` binds | effect today |
-| --- | --- | --- |
-| E2B, Modal | rebinds `_running_sandboxes` (E2B also `_run_id`) | a later `task_init` replaces the list; `task_cleanup` sees only the last one |
-| Daytona | rebinds the list, run id and `_daytona_client` | same; client of the last configuration only |
-| Podman | rebinds project and compose-file registries | same |
-| k8s | get-or-create `HelmReleaseManager` and `PodOpExecutor` | shared across configurations |
-| Proxmox, EC2, Vagrant | class state or nothing | unaffected |
+| provider | what `task_init` binds |
+| --- | --- |
+| E2B, Modal | rebinds `_running_sandboxes` (E2B also `_run_id`) |
+| Daytona | rebinds the list, run id and `_daytona_client` |
+| Podman | rebinds project and compose-file registries |
+| k8s | get-or-create `HelmReleaseManager` and `PodOpExecutor`, shared across configurations |
+| Proxmox, EC2, Vagrant | class state or nothing |
 
-With an empty `SampleSource` seed, `task_init` runs in the feeder, a sibling
-of the samples, so its bindings are invisible to them: E2B and Modal raise
-`LookupError`, Daytona raises "client not initialized".
+`SandboxManager` captures that state per configuration
+(`src/inspect_ai/_eval/run.py`):
+
+- `SandboxManager.open()`, which `eval_run` calls before it prepares any
+  task, sets the `--sandbox-prebuilt` flag, enters Docker's
+  `sandbox_lifecycle_scope()` and takes `root`, a `copy_context()` of
+  `eval_run`'s context: the context every task and sample of that
+  `eval_run` starts from, holding no provider state. `shutdown()`, in
+  `eval_run`'s `finally`, runs the cleanups and then exits the scope.
+- Each `task_init` runs in a child task started from the setup chain's
+  context (`_run_in_context`), which starts as `root`; each successful
+  call's context replaces it, so a later setup sees what earlier ones bound
+  (k8s's shared manager stays shared). As the call returns, inside the
+  child, `_register_setup` keeps that context for the configuration's
+  `task_cleanup` and records its bindings in `SandboxSetupBindings`
+  (`src/inspect_ai/_eval/task/sandbox.py`): every `ContextVar` whose value
+  differs, by identity, from `root`'s, keyed by the resolved spec and task
+  directory. A failed `task_init` records nothing and does not replace the
+  chain.
+- `prepare_options` gives each task's `TaskRunOptions` an
+  `apply_sandbox_bindings` callable, `SandboxSetupBindings.apply` bound to
+  the task directory, and `sandboxenv_context` calls it before
+  `sample_init`. It binds the configuration's recorded values only where
+  the sample's current value is still `root`'s, so a value the sample bound
+  itself is kept. So each configuration's samples, their `sample_cleanup`
+  and its `task_cleanup` see its own state, including the samples of a
+  `SampleSource` task whose feeder ran the setup.
+- Docker's `SandboxLifecycleState` is a mutated object on the lifecycle
+  scope, not a rebinding, so it never appears in the bindings.
+
+Under `run_batches` each batch is its own `eval_run`, with its own
+`SandboxManager` and `root`.
 
 ## Design
 
@@ -1412,56 +1435,28 @@ restored afterwards. In place of the `chdir`:
 
 ### Provider state per setup
 
-`eval_run` enters Docker's `sandbox_lifecycle_scope()` first, in its own
-context, before it creates the queue, the sandbox manager or any task (today
-`SandboxManager.open()` does this before preparing tasks), keeps it through
-the run and its shutdown cleanup, and exits it in that same context in
-its `finally`, on every exit, a configuration error in the seed included.
-`SandboxManager` is created next and takes `root`, a `copy_context()` of
-`eval_run`'s context at that moment, after `eval_run` has set the
-`--sandbox-prebuilt` flag and before any task or setup starts: the context
-every attempt and sample inherits, holding the lifecycle scope and no
-provider state. Each `task_init` runs in a task started from the setup
-chain's context, which starts as a copy of `root` (so Docker's lifecycle
-scope object is inherited) and which each successful `task_init`'s context
-replaces in turn, so a later `task_init` sees what earlier ones bound, as
-today (k8s's shared manager stays shared). When `task_init` succeeds, the
-manager keeps two things for that configuration:
+Today's capture ("Current behaviour", "Provider state") is kept, and with
+one `eval_run` per run it covers every task of the run:
 
-- `context`: a `copy_context()` taken inside the setup's task as the call
-  returns, for its `task_cleanup`.
-- `bindings`: every `ContextVar` in that context whose value differs, by
-  `is not`, from its value in `root` (a variable missing from `root`
-  differs), excluding the `env` variable above. So `bindings` is the
-  configuration's whole provider state, including what earlier setups bound
-  and this one inherited: for E2B, Modal and Daytona each configuration's
-  own rebound list and run id, and for k8s the manager an earlier setup
-  created and this one reused without rebinding.
+- `eval_run` calls `SandboxManager.open()` before it creates the queue or
+  adds the seed, so `root` is taken before any attempt or setup starts, and
+  `shutdown()` stays in its `finally`, on every exit, a configuration error
+  in the seed included. One manager, one setup chain and one `root` then
+  serve the seed, every added task and every retry.
+- `configure_task()` gives every task's `TaskRunOptions` the
+  `apply_sandbox_bindings` callable that `prepare_options` gives it today,
+  bound to the task directory, beside its `startup_sandboxes`. Each attempt
+  runs its own setups through the shared manager ("Sandbox setup in the
+  attempt"), so a configuration's bindings are recorded once, by whichever
+  attempt set it up, and reach the samples of every task that uses it.
+- Step 1's `env` variable must not become a binding: the context a setup
+  records holds no value for it, so a sample never sees one setup's
+  `task_init_environment` values.
 
-A failed `task_init` keeps neither, and its context does not replace the
-chain's, so its bindings reach no later setup.
-
-- **Samples.** `sandboxenv_context` applies the bindings of the
-  configuration it finds for the sample (by its resolved spec and task
-  directory) in the sample's own context before `sample_init`, but only for a
-  variable whose current value is still its value in `root` (the same
-  object, or missing from both): a value the sample (or its solver) bound
-  itself is left alone. Samples start from `root`'s descendants, so for every
-  provider variable that holds, and each sample gets its own configuration's
-  state, wherever the setup ran. `sample_init`, the sample's sandbox calls
-  and `sample_cleanup` then see it. This fixes the empty-seed `LookupError`
-  for E2B, Modal and Daytona.
-- **Cleanup.** Each `task_cleanup` runs in a task started from its
-  configuration's `context`, so E2B, Modal, Daytona and Podman clean up the
-  list their own `task_init` bound, including sandboxes an interrupted
-  `sample_cleanup` left behind.
-- Docker's `SandboxLifecycleState` is a mutated object, not a rebinding, so it
-  never appears in `bindings`.
-
-The lifecycle scope stays internal: with captured bindings, the pattern
-providers already use (bind in `task_init`, read in `sample_init` and
-`task_cleanup`) is correct for every provider without a new API, and no
-inspect_sandboxes change is needed.
+With captured bindings, the pattern providers already use (bind in
+`task_init`, read in `sample_init` and `task_cleanup`) stays correct for
+every provider without a new API, and no inspect_sandboxes change is
+needed.
 
 ### Where the handles attach
 
@@ -1565,8 +1560,6 @@ here depends on it.
   that resolves Docker's string configs inside a setup. Once Inspect makes
   config paths absolute, no surveyed provider needs the task directory in
   Python, so the accessor would be API nobody calls.
-- **Exporting the lifecycle scope.** Every provider would have to adopt it;
-  captured bindings make the existing pattern correct.
 - **Clearing a failed row's frames instead of snapshotting its error**:
   keep `TaskError` with the real exception and traceback, and once the
   attempt ends run `traceback.clear_frames` over the exception, its
@@ -1688,8 +1681,6 @@ and `CONTROL_API_VERSION` increases. Older CLIs see an unknown status value.
   reaches them.
 - **Control channel:** cancelling a queued task uses the existing task
   directive's authorization; queued rows expose what running rows expose.
-- **Captured provider bindings** are the provider's own objects, applied only
-  inside samples of the same run and configuration.
 
 ## Testing
 
@@ -1699,7 +1690,7 @@ test touched), mostly with a stub sandbox provider registered with
 `os.getcwd()` and `os.environ`, and binds `ContextVar`s as E2B does. Every
 test that waits on a run is bounded with `fail_after`.
 
-- `tests/util/sandbox/test_sandbox_setup.py` (new; invariants 7 and 8): a
+- `tests/util/sandbox/test_sandbox_setup.py` (invariants 7 and 8): a
   running sample's `os.getcwd()` and `os.environ` are unchanged while
   `task_init` awaits; `task_init`, `task_init_environment` and `task_cleanup`
   see the launch directory, and a `subprocess()` they start runs there;
@@ -1717,18 +1708,16 @@ test that waits on a run is bounded with `fail_after`.
   directory's absolute path, while a file-based control (a relative
   `compose.yaml` beside the task) arrives as that file's absolute path with
   its contents unchanged; a task-level inline-JSON config reaches
-  `task_init` unchanged; per-setup bindings reach
-  `sample_init`, `sample_cleanup` and the matching `task_cleanup` for two
-  configurations, an added task's configuration and an empty `SampleSource`
-  seed, with samples of both configurations starting from the run's original
-  context: an E2B-style provider that rebinds a list per `task_init` gives
-  each configuration's samples their own list, and a k8s-style get-or-create
-  object created by the first configuration's `task_init` reaches the second
-  configuration's samples too; a sample that bound a variable itself keeps
-  its value; a failed `task_init`'s bindings reach no later setup; a sample
+  `task_init` unchanged; a sample
   whose config is a relative compose file resolves in `sandboxenv_context`
   to the spec its task's `task_init` got, and finds that configuration's
-  bindings, for a seed sample and a `SampleSource` addition.
+  bindings, for a seed sample and a `SampleSource` addition; Docker's
+  `env` variable is not among a setup's recorded bindings. The existing
+  `test_setup_bindings_*` cases pass unchanged under the dispatcher, and one
+  more covers an added task: a configuration first set up by a task added
+  with `enqueue_task()` gives that task's samples and its `task_cleanup` the
+  bindings its `task_init` made, beside a seed configuration that keeps its
+  own.
 - `tests/test_retry.py`: a task loaded from a file in another directory,
   with the stub provider, fails once and is retried with `eval_retry()` from
   its saved log, run from a working directory different from both the first
@@ -1983,8 +1972,7 @@ test that waits on a run is bounded with `fail_after`.
   succeeds when the second `task_init` does; under `retry_immediate=False` a
   seed task cancelled while queued in the first round runs in the next.
 - inspect_sandboxes: a test per provider that two configurations and an added
-  task's configuration clean up every sandbox, against an Inspect build with
-  step 2; it needs provider API keys and runs where that repo's live tests run.
+  task's configuration clean up every sandbox; it needs provider API keys and runs where that repo's live tests run.
   Offline converter tests for Modal (`convert_compose_to_modal_params`) and
   Daytona (`create_single_service_params`): with a different `Dockerfile` in
   the task and launch directories and the working directory set to the
@@ -1994,15 +1982,14 @@ test that waits on a run is bounded with `fail_after`.
   today.
 
 The `--runslow` Docker tests run in the PR CI `slow-tests` job on PRs that
-touch `src/inspect_ai/util/_sandbox/**` or `tests/util/sandbox/**` (steps 1
-and 2 do); the rest run in the normal test job.
+touch `src/inspect_ai/util/_sandbox/**` or `tests/util/sandbox/**` (step 1
+does); the rest run in the normal test job.
 
 ## Implementation plan
 
 Each step is one PR and leaves `main` correct. Unifying the dispatcher first
-would extend two of today's live-path bugs to plain evals (the process-wide
-`chdir` overlapping running tasks, and a later `task_init` rebinding provider
-state in the single `eval_run`), so the setup fixes come first.
+would extend today's live-path bug of the process-wide `chdir`
+overlapping running tasks to plain evals, so the setup fix comes first.
 
 1. **Sandbox setup without process-wide directory or environment changes.**
    `util/_sandbox/paths.py` (`resolve_config_paths`), `util/_sandbox/setup.py`
@@ -2018,18 +2005,10 @@ state in the single `eval_run`), so the setup fixes come first.
    `prepare_options` still awaits `logger.init()` inside its own `chdir`
    after this step; step 3a removes that await from the `chdir`, completing
    invariant 7.
-2. **Provider state per setup.** `_eval/run.py` (`SandboxManager` runs each
-   `task_init` in the chained context and records each configuration's
-   bindings against the run's root context, and its context), `_eval/task/sandbox.py`
-   (`sandboxenv_context` finds the sample's configuration by its resolved
-   spec and task directory and applies its bindings where the root value
-   holds), `_eval/task/run.py`. Fixes the E2B, Modal and Daytona
-   leaks and `LookupError` with no inspect_sandboxes release. Independent of
-   step 1. Tests: `test_sandbox_setup.py` (the per-setup binding cases:
-   bindings reaching `sample_init`, `sample_cleanup` and the matching
-   `task_cleanup` for two configurations, the shared k8s-style object, a
-   sample's own binding kept, a failed `task_init`'s bindings reaching no
-   later setup, and the empty `SampleSource` seed).
+2. **Provider state per setup** needs no step of its own: today's capture
+   ("Current behaviour", "Provider state") already gives each
+   configuration its state, and 3a keeps it for the single `eval_run`
+   ("Provider state per setup").
 3. Step 3 is split in two (decision: Ransom, 2026-11-18): 3a is the queue
    and the dispatcher, which task handles need; 3b is the control channel's
    view of queued tasks, which they do not.
@@ -2054,8 +2033,9 @@ state in the single `eval_run`), so the setup fixes come first.
    `run_one` dropping the pair when it publishes a retry or ends the
    record, and its closed and abort checks, the
    run's task
-   names seeded from `eval_set_tasks`, `startup_sandboxes` and the record's
-   resolution cache for every task, the display's task total lowered for a
+   names seeded from `eval_set_tasks`, `startup_sandboxes`,
+   `apply_sandbox_bindings` and the record's resolution cache for every
+   task, `SandboxManager.open()` before the queue is created, the display's task total lowered for a
    record that ends before its row opens; `prepare_options`, `TaskInjection`,
    `PreparedFeed`, `_empty_feed` removed), `_eval/eval.py` (one `eval_run`;
    the `max_tasks` docstrings, with `_eval/evalset.py`'s and
@@ -2090,7 +2070,7 @@ state in the single `eval_run`), so the setup fixes come first.
    `test_task_source.py`, `test_eval_set.py`, and the abort, reporting and
    display-total cases of `test_task_cancel.py`, each cancelling a queued
    or unregistered record through `RunQueue.cancel` (found with
-   `RunQueue.find`). Needs steps 1 and 2; its selection-mode support, and
+   `RunQueue.find`). Needs step 1; its selection-mode support, and
    the faceted-worker test above, rely on the runtime-pruning guarantee
    ("Interactions with related changes").
 
