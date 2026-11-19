@@ -109,8 +109,9 @@ and does not restate it. It relies on:
   and "Validation"). So when a pass that read shards returns a
   `success` merged log, that log holds every current attempt the pass
   listed. The no-shards path is the exception: it returns the stored
-  status without checking the members against the ledger or planning
-  the status again (`_recorded_pass` in `src/inspect_ai/log/_shards/_api.py`).
+  status, without checking the members against the ledger and without
+  refusing on the status it plans from them (`_recorded_pass` in
+  `src/inspect_ai/log/_shards/_api.py`).
 - **Listing and names.** The merge lists the companion two levels deep
   (`list_shard_set`) and refuses an S3 name that S3 would read as another
   key (`check_s3_location`), both in `src/inspect_ai/log/_shards/_walk.py`.
