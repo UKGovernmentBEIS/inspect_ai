@@ -212,6 +212,8 @@ class MCPServerLocalSession(MCPServer):
             async with AsyncExitStack() as exit_stack:
                 session = await self._connect(exit_stack)
                 self._conn = _Connection(session, exit_stack.pop_all())
+                # Unentered use after this connection lists the tools again.
+                self._unconnected_tool_list = None
         return self
 
     @override
@@ -244,7 +246,8 @@ class MCPServerLocalSession(MCPServer):
             if self._unconnected_tool_list is None:
                 async with AsyncExitStack() as exit_stack:
                     session = await self._connect(exit_stack)
-                    self._unconnected_tool_list = await self._list_tools(session)
+                    tool_list = await self._list_tools(session)
+                self._unconnected_tool_list = tool_list
             mcp_tools = self._unconnected_tool_list
 
         return [

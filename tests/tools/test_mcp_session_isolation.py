@@ -143,6 +143,7 @@ async def test_tool_list_not_served_after_close(
 
     closed.assert_awaited_once()
     assert session._conn is None
+    assert _tool_names(await session.tools()) == ["temporary"]
     async with session:
         assert _tool_names(await session.tools()) == ["reconnected"]
 

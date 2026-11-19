@@ -1108,10 +1108,11 @@ async def test_mcp_tool_list_spanning_connect_is_not_cached(returns: str) -> Non
 
 @skip_if_no_mcp_package
 async def test_mcp_tools_listed_once_per_connection() -> None:
-    """An open connection, and a session that was never entered, list once.
+    """An open connection, and a session that is not entered, list once.
 
     `resolve_tools()` calls `tools()` on every generate, so a server that is
-    never entered would otherwise connect and list on every turn.
+    never entered would otherwise connect and list on every turn. Unentered
+    use after a connection lists again rather than serving the earlier list.
     """
     from inspect_ai.tool._mcp._local import MCPServerLocalSession
 
@@ -1130,11 +1131,14 @@ async def test_mcp_tools_listed_once_per_connection() -> None:
                 assert [ToolDef(t).name for t in await session.tools()] == [
                     "connection_1"
                 ]
+        for _ in range(2):
+            assert [ToolDef(t).name for t in await session.tools()] == ["connection_2"]
 
     assert not unexpected, f"writer saw unexpected methods: {unexpected}"
     assert [r for r in received if r[1] == "tools/list"] == [
         (0, "tools/list"),
         (1, "tools/list"),
+        (2, "tools/list"),
     ]
 
 
