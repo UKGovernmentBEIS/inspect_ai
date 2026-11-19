@@ -48,19 +48,10 @@ ends normally: an
 `apply_limits()` scope the limits it entered, and the sample its own limits
 once all of its work, background cleanup included, has finished (except on
 a resume for scoring). So, within a running attempt, a token, cost or turn
-limit error that some handler catches and drops is not lost: it comes back at the next refused call, or, if
-the limit is exceeded, at its owner's exit. Four exceptions remain. A
-limit at exactly its budget whose refusal was swallowed, with no later
-call, is not recorded at its owner's exit, as today. A plain `with token_limit()`,
-`cost_limit()` or `turn_limit()` block has no exit check, so a limit
-swallowed inside it is lost if no later call in the block meets it.
-Background work that keeps running after the `run()` that started it has
-returned can likewise swallow that scope's limit after its exit check. And
-a checkpoint restore assigns the stored usage, so a limit that work before
-the restore reached and swallowed can be reopened by it. Message limits are outside this: a message limit checks one
-conversation's length and keeps no state, so a swallowed message limit
-error is not recovered, and a shorter conversation under the same limit
-can still dispatch.
+limit error that some handler catches and drops usually comes back at the
+next refused call, or, if the limit is exceeded, at its owner's exit; the
+design lists the cases where it does not in one place ("Recovery
+boundaries").
 
 Together these rules let a runtime that runs several agents catch the sample's
 limit error, stop its agents in an orderly way, and re-raise the error.
@@ -422,11 +413,8 @@ tokens per call, run against this branch's base):
    the set of limits any of its requests reached (generations and host
    tools alike), refuses every later request and host-tool request at entry
    with their combined error (rule 4), and raises that error when the
-   agent has unwound. A request already admitted is stopped only by
-   reached limits on its own path (rule 3): if a kept limit was entered on
-   another request's path only, the admitted request can finish its
-   remaining provider calls. Spend is bounded by the work already in
-   flight (decision: Ransom, 2026-11-19).
+   agent has unwound. Work already admitted is stopped only by reached
+   limits on its own path ("After a limit is kept").
 9. **A cost limit refuses an unpriced model.** While a cost limit is active
    and cost is not suspended, a call to a model with no cost data of
    its own, a router included, is refused before dispatch. Nothing is
@@ -438,17 +426,9 @@ does not try to carry every limit error intact through every handler that
 can catch one (a fallback, a hook, a first-error reduction, a cancelled
 delivery). A swallowed limit error costs time, not budget: the next call
 under the limit is refused before dispatch, and if no limit error reaches
-the limit's owner, that owner's exit check finds it if it is exceeded. A plain `with token_limit()`
-block has no owner but its author and no exit check, so its limit is found
-only by a call made while the block is open ("The owner's exit check").
-Background work that keeps running after the `run()` or `apply_limits()`
-scope that started it has returned can swallow that scope's limit after its
-exit check, and nothing finds it then ("Background work that outlives its
-owner"). A limit reached exactly, not exceeded, whose refusal was
-swallowed with no later call under it is not found at exit either ("What
-raises at exit"). That holds within one attempt, up to its checkpoint
-restore: the assigning restore can reopen a limit that work before it
-reached and swallowed ("Limits swallowed before a checkpoint restore"). An unpriced-model refusal (rule 9) is not a limit
+the limit's owner, that owner's exit check finds it if it is exceeded.
+The cases where neither happens are listed once, under "Recovery
+boundaries" ("The owner's exit check"). An unpriced-model refusal (rule 9) is not a limit
 error, and nothing marks it: a handler that swallows one and calls the model
 again is refused again, with nothing spent ("Unpriced models"). Where
 Inspect's own
@@ -734,13 +714,8 @@ refuse a call made by an approval or review callback that is already
 running.
 
 Message limits, which suspension never covered, are still checked as today
-(decision: Ransom, 2026-11-17). Once the bridge has kept a limit, an
-approval, review or monitor call made for a request already in flight
-still runs, and its spend counts against no limit, as today. Every later
-request is refused at entry, before any tool or policy code runs: a
-generation request before its generation, and a host-tool request before
-the tool executes ("The sandbox bridge"), so before any approval or
-monitor call. The agent still ends on the kept limit.
+(decision: Ransom, 2026-11-17). What suspended calls can still do after
+the sandbox bridge keeps a limit is under "After a limit is kept".
 
 ### Ownership
 
@@ -873,6 +848,35 @@ call sites:
   is refused at the caller's next call, or found by the sample's exit
   check, one step later, as for any swallowed error.
 - The sample runner, when its solvers return normally (below).
+
+**Recovery boundaries.** Within an attempt, a token, cost or turn limit
+error that a handler swallowed comes back at the next call under the
+limit, which is refused before dispatch, or, if the limit is exceeded, at
+its owner's normal exit. This is the one list of where a swallowed limit
+can still be lost; every other summary in this document points here:
+
+- **A limit at exactly its budget** whose refusal was swallowed, with no
+  later call: exit checks raise only exceeded limits ("What raises at
+  exit").
+- **A plain `with` block**: it has no exit check, so its limit is found
+  only by a call made while the block is open ("Plain `with` blocks").
+- **Background work that outlives its owner**: a scope's limit swallowed
+  after that scope's exit check ("Background work that outlives its
+  owner").
+- **A resume for scoring**: that attempt has no sample exit check
+  ("Limits swallowed during a resume for scoring").
+- **A checkpoint restore**: it assigns the stored usage, so a limit that
+  work before it reached and swallowed can be reopened ("Limits swallowed
+  before a checkpoint restore").
+- **A raised or removed budget**: a node counts as reached only under its
+  current effective budget, so a `limit` setter or a live override that
+  raises it lets calls through again.
+- **Message limits** keep no state: a swallowed message limit error is not
+  recovered, and a shorter conversation under the same limit can still
+  dispatch.
+
+A limit error that does reach its owner can still leave out another limit
+reached at the same time ("What the owner can miss").
 
 **The sample's exit check.** Today the solvers run in `run()`, a task of the
 sample's task group, whose `finally` cancels the group (`run.py:3394-3397`)
@@ -1168,9 +1172,7 @@ order, of which only the limit handling changes:
   arrives while a limit is kept gets the kept error's reply without a
   generation, whatever is suspended, so a kept message limit (which the
   check does not cover) still refuses a fresh request with a shorter
-  prompt. A request admitted before a limit was kept makes its remaining
-  provider calls under node state alone: each refuses a reached token,
-  cost or turn node and checks its own conversation's message limit.
+  prompt.
 - **Host-tool requests are refused once a limit is kept.** Today only the
   dispatch guard wraps a host tool's execution (`service.py:453-464`), so a host
   tool admitted after the bridge kept a limit still runs, and a monitor in
@@ -1181,13 +1183,31 @@ order, of which only the limit handling changes:
   and recorded like any other rejected call: an unknown tool, a malformed
   request and an unproposed call are rejected as today, and a proposed
   call uses up its grant and gets a completed `ToolEvent` linked to its
-  proposal. The kept limits are unchanged. A host-tool request admitted
-  before a limit was kept runs on, like an admitted generation request:
-  its child `run()` agent (an `as_tool()` agent or a tool calling `run()`)
-  can keep making unsuspended generations until its own limits or a
-  reached limit on its own path stop it, and its suspended calls run as
-  rule 5 says. Spend is bounded by that agent's limits and the work
-  already in flight.
+  proposal. The kept limits are unchanged.
+- **After a limit is kept.** This is the one statement of what still runs
+  once the bridge has kept a limit; other sections point here.
+  - Every new generation request and host-tool request is refused at
+    entry with the kept error, whatever is suspended.
+  - A generation request admitted before the limit was kept makes its
+    remaining provider calls under node state alone: each refuses a
+    reached token, cost or turn node on its own path and checks its own
+    conversation's message limit. So it continues when the kept limit is
+    a message limit, a sourceless `custom` limit, or a token, cost or turn
+    limit entered only on another request's path (decision: Ransom,
+    2026-11-19).
+  - A host-tool request admitted before the limit was kept runs on the
+    same way: its child `run()` agent (an `as_tool()` agent or a tool
+    calling `run()`) can keep making unsuspended generations until its
+    own limits or a reached limit on its own path stop it.
+  - Suspended approval, review and monitor calls made for admitted work
+    run and count against no limit (rule 5).
+  - A kept limit whose budget a `limit` setter or a live override has
+    since raised no longer refuses admitted work, since its node is no
+    longer reached; the entry refusal still uses the kept error.
+
+  Spend after a kept limit is therefore bounded by the work already in
+  flight and the limits on its own path. No guard replaces the removed
+  dispatch guard.
 - `_encloses()`, `_sample_roots()` and `_in_tree()` are deleted. The
   `solving()` dependency goes with them. Keeping every limit needs no
   comparison, and the rank works the same during the solve and in scorers.
@@ -1294,10 +1314,10 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    CLI exits. If a handler on the way swallows it (a fallback, a hook,
    `tg_collect()` keeping another error), it arrives instead at the next
    call any agent makes under the sample, which is refused with it
-   (guarantee 2), unless a checkpoint restore reopens the limit in between
-   (below).
-2. **A reached limit stays reached.** Within the attempt (but see the
-   restore exception below), every later dispatch under that
+   (guarantee 2), except in the cases listed under "Recovery boundaries".
+2. **A reached limit stays reached under its current budget.** Within the
+   attempt, while the node is reached under its current effective budget,
+   every later dispatch under that
    sample, including the runtime's own model calls, native compaction and
    bridged requests, is refused with that node's error, or with an error
    holding it and every other node that has since been reached (rule 3: the next
@@ -1306,7 +1326,12 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    and cost limits suspended, so a reached limit of those kinds does not
    refuse them (rule 5). A bridge's kept limit refuses new bridged
    requests and host-tool requests at entry, suspended or not; work already
-   admitted stops only at reached limits on its own path (rule 8).
+   admitted stops only at reached limits on its own path (rule 8, "After a
+   limit is kept"). Raising or removing the budget (a `limit` setter, a
+   live override) lets dispatch through again; the bridge's entry refusal
+   of a kept limit is separate and is not reopened by it. The other cases
+   where a reached limit does not keep refusing are under "Recovery
+   boundaries".
    Calls already dispatched complete and are recorded, and each then runs
    the post-call check against the nodes' current totals (rules 2 and 3):
    it raises every node whose total is past its budget, combined, whether
@@ -1338,13 +1363,11 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    error. During the stop, no unsuspended provider dispatch can succeed
    under the reached limit, so the runtime's final step must make none.
    Suspended approval, review and sentinel calls still run (rule 5).
-4. **Losing it is not silent.** When the solvers return normally (on
-   any attempt but a resume for scoring, and with the restore exception
-   below), the sample's exit check records
-   the sample limits that are exceeded at exit (rule 7), combined. That
-   covers a runtime, or a bridged agent cancelled before its CLI exited,
-   that drops the error of an exceeded limit; a limit reached exactly whose
-   refusal was dropped is the accepted loss under "What raises at exit". It runs after
+4. **Losing it is not silent.** When the solvers return normally, the
+   sample's exit check records the sample limits that are exceeded at exit
+   (rule 7), combined. That covers a runtime, or a bridged agent cancelled
+   before its CLI exited, that drops the error of an exceeded limit; the
+   cases it does not cover are under "Recovery boundaries". It runs after
    background cleanup, so usage recorded there counts. A limit error that
    reaches the runner is recorded as it is: it can leave out a sample
    limit that counts when a limit is pushed over in
@@ -1368,10 +1391,8 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    background work). Approval, review and sentinel spend is not counted at
    all (rule 5).
 
-Guarantees 1, 2 and 4 rest on node state, which lives for one attempt
-and which a checkpoint restore overwrites. Because the restore assigns the stored usage, a limit that work before the restore
-(startup hooks, solvers before the agent) reached and swallowed can be
-reopened by it ("Limits swallowed before a checkpoint restore").
+Guarantees 1, 2 and 4 rest on node state, which lives for one attempt;
+where it does not hold is under "Recovery boundaries".
 
 The sample's time limit (a cancel scope around the solvers) and working limit
 (a sample-wide cancellation) are outside these guarantees. They end the sample
@@ -1515,7 +1536,12 @@ with cost suspended.
 
 After a call, the one check runs whatever the call's cost (rule 2). An
 unpriced call that is admitted (cost suspended, or no cost node with a
-limit) records no cost. Token and turn limits were already checked after
+limit) records whatever cost `model_usage_cost()` resolves, as today: none
+for a model with no cost data, but the serving model's cost when the
+provider reports a priced serving model (a router), into the sample's
+usage and into every cost node that is not suspended, such as an
+inspect_swarm meter (`None` limit); cost suspension still keeps it off the
+nodes. The admission rule for routers is unchanged. Token and turn limits were already checked after
 such calls; what is new is that unsuspended cost nodes are checked after
 them too, so a node whose own check raises without a limit, such as
 inspect_swarm's closed lever gate, raises after the call where today it
@@ -1733,14 +1759,8 @@ that a cancellation can displace) re-raise or forward it. Each review of
 that approach found another such handler, and the list is open-ended: any
 user or extension code can catch an exception. The rules here make the
 nodes the record instead, so within one attempt a handler that swallows a
-limit error delays it by at most one call and cannot lose it, except in
-a plain `with` block, which has no exit check ("Plain `with` blocks"), in
-background work that swallows a scope's limit after that scope's exit
-check ("Background work that outlives its owner"), for a limit reached
-exactly whose refusal was swallowed with no later call ("What raises at
-exit"), and across a checkpoint restore, which can reopen a limit
-swallowed before it ("Checkpoints", "Limits swallowed
-before a checkpoint restore").
+limit error usually delays it by at most one call; the cases where it can
+still be lost are listed under "Recovery boundaries".
 Inspect still changes its own handlers where that decides *which owner*
 handles the error and that it sees every limit in it (rules 4, 6 and 8),
 not merely whether the error survives.
@@ -1836,6 +1856,14 @@ documented. Behaviour changes:
   optional. Nothing serialized changes: `EvalSample.limit`
   (`EvalSampleLimit`) and inspect_swarm's `ended_by` stay single-valued and
   take the top-ranked limit; no log or schema field becomes a list.
+  Migration for code that decides ownership: `source` and the other
+  ordinary fields identify only the primary member of a combined error.
+  Code that catches a limit error and decides whether it is its own, or
+  contains it (as `error.source is my_limit`), must consider every member
+  of `limits`: matching `source` alone can swallow a foreign limit held
+  beside its own, such as a sample message limit beside its token limit.
+  Reporting a primary type or source from the ordinary fields stays as
+  it is.
 - **`turn_limit(N)`** now allows N generations and refuses the (N+1)th before
   dispatch. Today the (N+1)th is made and raises after it returns. The error
   type is the same; its message reads "Turn limit reached" when raised before
@@ -1957,7 +1985,19 @@ documented. Behaviour changes:
   crosses both, the token limit raises first and `run()` returns it, and
   the solver continues. Now the call raises their combined error, which
   `run()` does not own all of, so it escapes `run()`, and the sample
-  records the token limit (it ranks first).
+  records the token limit (it ranks first). The same holds for an
+  adapter's limits: an `as_tool()` agent's, a handoff's or an
+  `as_solver()` agent's `cost_limit()` inside a token-limited `run()`.
+  Today a call crossing both is a tool error or handoff message for the
+  tool's or handoff's limit (or escapes `as_solver()` as the token error),
+  and the next call is refused by `run()`'s token limit, which `run()`
+  returns; now the combined error leaves the adapter and `run()` and can
+  end the sample. Context membership (rule 6) applies only to a scope that
+  entered no token, cost, turn or message limit; once a scope enters one,
+  inside-ness follows each kind's tree. So coverage is not monotonic in the
+  limit list: `run(limits=[time_limit(...)])` owns an inner adapter's cost
+  limit, and adding a `token_limit()` to the same list makes that cost
+  limit foreign.
 - **The sample runner**, when the solvers return normally, checks the
   sample's limits after the solvers and the sample's background work have
   finished, and records an exceeded sample limit found then.
@@ -1991,32 +2031,22 @@ documented. Behaviour changes:
   tools reached, whatever their kinds, and raises their combined error;
   today it keeps one, replacing it only by a same-tree ancestor or a sample
   root.
-- **The bridge's dispatch guard is gone.** A request the bridge admitted
-  before it kept a limit is now stopped by node state alone: each provider
-  call it still makes refuses a reached token, cost or turn node, as every
-  call does. One case changes: after the bridge keeps a message limit (or
-  a sourceless `custom` limit), a request already in flight can make its
-  remaining provider calls, each still checking its own conversation's
-  message limit; today the guard refused them with a copy of the kept
-  limit. New requests and host-tool requests are still refused at entry,
-  but a host tool already running continues: its child `run()` agent (an
-  `as_tool()` agent or a tool calling `run()`) can keep generating,
-  unsuspended, until its own limits or a reached limit on its own path
-  stop it; today the guard around host-tool execution
-  (`service.py:453-464`) refused those generations too. No replacement
-  guard is added.
-  A kept limit whose budget a live override has since raised no longer
-  refuses calls already in flight, since the node no longer counts as
-  reached. `dispatch_guard()` was private and had no other user.
-  The same holds across requests: a request already admitted stops only at
-  reached limits on its own path, so when the bridge keeps a token, cost or
-  turn limit entered on a sibling request's path only, the admitted
-  request can finish its remaining provider calls (decision: Ransom,
-  2026-11-19). Today only a request filter that enters a limit around one
-  request produces this: a host tool's own limits become tool errors and
-  are never kept, and inspect_swarm enters member limits around each
-  member's own bridged agent, so one member's limit never reaches another
-  member's bridge.
+- **The bridge's dispatch guard is gone.** Today the guard refused every
+  provider call a bridged request or host tool made once the bridge had
+  kept a limit, with a copy of the kept error (`service.py:172-193`,
+  `:453-464`). Now admitted work is stopped by node state alone, so more
+  of it can finish after a kept limit: a generation request already in
+  flight when a message limit, a sourceless `custom` limit or a limit on
+  another request's path is kept; an already-running host tool's child
+  `run()` agent, until its own limits stop it; and admitted work under a
+  kept limit whose budget a live override has since raised. The exact
+  rules and their bounds are under "After a limit is kept". New requests
+  and host-tool requests are still refused at entry. Today only a request
+  filter that enters a limit around one request produces the off-path
+  case: a host tool's own limits become tool errors and are never kept,
+  and inspect_swarm enters member limits around each member's own bridged
+  agent, so one member's limit never reaches another member's bridge.
+  `dispatch_guard()` was private and had no other user.
 - **Token limit formulas.** A token limit `type` formula must now be a
   non-negative weighted sum of `input` and `output` ("Token metering must
   not decrease"); `token_limit(10, type="input - output")` and formulas
@@ -2048,7 +2078,8 @@ documented. Behaviour changes:
   one of them than the live run did. No generated TypeScript type changes.
 - **Docs.** `docs/setting-limits.qmd` and `docs/_agent_limits.md` state the
   combined error and its `limits`, which limit fills the single-valued
-  records, that tool-based agents return a message for their own limits (an
+  records, that `source` names only the primary member so ownership checks
+  must look at every member of `limits`, that tool-based agents return a message for their own limits (an
   error holding an enclosing limit ends the caller), the new turn semantics, the
   suspension rule, that every model called under a cost limit needs cost
   data of its own (routers included), that calls reporting no usage are
@@ -2073,11 +2104,17 @@ documented. Behaviour changes:
   of the limit error (its type, value and limit), unchanged; for a combined
   error those are the top-ranked limit's.
 - **Spend.** The agents' changes either refuse a call sooner (a reached
-  turn limit, an unpriced model) or make a limit error propagate further.
-  One change admits calls that fail today: the start-time price check no
-  longer requires prices for role models, so an eval whose approver,
-  reviewer or monitor role model is unpriced, which today fails before any
-  sample runs, now runs those models' suspended calls. Suspension is set by
+  turn limit, an unpriced model) or make a limit error propagate further,
+  with two exceptions that admit calls refused today. The start-time price
+  check no longer requires prices for role models, so an eval whose
+  approver, reviewer or monitor role model is unpriced, which today fails
+  before any sample runs, now runs those models' suspended calls. And with
+  the bridge's dispatch guard removed, work a sandboxed agent's requests
+  already started can continue after the bridge keeps a limit (admitted
+  requests and host-tool child agents after an off-path, message or
+  `custom` limit, or after a live override raises a budget), bounded by
+  the work in flight and the limits on its own path ("After a limit is
+  kept"); new requests are still refused at entry. Suspension is set by
   host code (the approval, review and sentinel machinery Inspect runs), not
   by a sandboxed agent or model output. With rule 9, no
   unpriced model runs unsuspended under a cost node that has a limit,
@@ -2135,7 +2172,10 @@ under trio with `--runtrio`.
     and priced from its serving model; with a serving model that has no
     cost data it is priced at the router's rates; without a cost limit, and
     inside `suspend_cost_limit()`, the unpriced router is dispatched and
-    priced from its serving model, as today;
+    priced from its serving model, as today; under a `cost_limit(None)`
+    meter, the unpriced router's call is dispatched and the meter records
+    its serving model's cost, while inside `suspend_cost_limit()` the
+    meter records nothing;
   - sample retries: with `retry_on_error=1`, a sample that makes a priced
     call and then calls an unpriced model is retried once, makes the priced
     call again, and fails with `UnmeteredCallError` (pinned);
@@ -2218,6 +2258,11 @@ under trio with `--runtrio`.
     `apply_limits([time_limit(60), token_limit(10)])` scope, and one with a
     `working_limit(60)`, whose body stays under budget returns normally (the
     exit check skips the time and working limits);
+- `tests/_control/test_limits.py`, reopening: a sample whose token limit
+  was reached and refused a call is given a higher budget through
+  `set_sample_limit_override()`; the next call is dispatched; with a
+  bridged agent, the bridge's kept limit still refuses a new request at
+  entry after the override.
 - `tests/checkpoint/test_sample_runtime.py`: the payload is unchanged
   (no new keys); after a dump and normal restore of a token root that
   refused a call at exactly its budget, the next call is refused before
@@ -2232,7 +2277,13 @@ under trio with `--runtrio`.
   handoff passes on a foreign token limit and still answers its own; a
   handoff whose agent exceeds a `with token_limit()` entered inside it, and
   one whose agent exceeds a `time_limit()` entered inside it, return the
-  agent's new messages and the handoff limit message, as today.
+  agent's new messages and the handoff limit message, as today; an
+  `as_tool()` agent with its own `cost_limit()`, called inside
+  `run(limits=[token_limit(N)])`, whose one call crosses both limits,
+  raises their combined error out of `execute_tools()` and out of
+  `run()`, and the sample records the token limit; the same agent whose
+  call crosses only its own cost limit gets the tool's `limit` error, as
+  today.
 - `tests/tools/test_call_tools.py`, `decisive_tool_exception()` and the
   call's ownership test, beside
   `test_native_group_with_limit_leaf_is_reported_as_the_limit`: a native
