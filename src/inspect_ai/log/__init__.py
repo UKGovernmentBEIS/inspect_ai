@@ -17,7 +17,6 @@ from ._config_update import (
 )
 from ._convert import convert_eval_logs
 from ._disposition import (
-    DispositionResult,
     SampleSelector,
     exclude_samples,
     zero_samples,
@@ -182,7 +181,6 @@ __all__ = [
     "uninvalidate_samples",
     "exclude_samples",
     "zero_samples",
-    "DispositionResult",
     "SampleSelector",
     "recover_eval_log",
     "recoverable_eval_logs",

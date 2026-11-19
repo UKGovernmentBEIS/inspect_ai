@@ -33,6 +33,7 @@ from ..environment import (
 )
 from ..limits import OutputLimitExceededError, SandboxEnvironmentLimits
 from ..registry import sandboxenv
+from ..setup import current_task_init_env
 from .cleanup import (
     cli_cleanup,
     project_cleanup,
@@ -105,7 +106,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         try:
             # create project
             project = await ComposeProject.create(
-                name=task_project_name(task_name), config=config
+                name=task_project_name(task_name),
+                config=config,
+                env=current_task_init_env(),
             )
 
             # record auto compose
