@@ -104,6 +104,7 @@ async def write_recovered_eval_log(
     error_message: str | None = None,
     completed_at: datetime | None = None,
     log_update: LogUpdate | None = None,
+    has_buffer: bool = True,
 ) -> EvalLog:
     """Write a recovered .eval file with true streaming.
 
@@ -138,11 +139,13 @@ async def write_recovered_eval_log(
             (`resolve_log_metrics()`), or `None` to write the log without
             results.
         status: Status of the log when it is not finalized as "success".
-        error_message: Message of the log's `EvalError` (default: "Eval
-            recovered from crash" for status "error", no error for
-            "cancelled").
+        error_message: Message of the log's `EvalError`, which then has an
+            empty traceback (default: "Eval recovered from crash" for status
+            "error", no error for "cancelled").
         completed_at: `stats.completed_at` of the log (default: now).
         log_update: Appended to the crashed log's `log_updates`.
+        has_buffer: Whether a sample buffer was found for the log. Without
+            one the default error's traceback is empty too.
 
     Returns:
         The written EvalLog (header only, samples on disk).
@@ -354,13 +357,18 @@ async def write_recovered_eval_log(
         final_status = "success"
     else:
         final_status = status
+        # Only the default error describes the recovery, and its text names
+        # the buffer, so it is left out when there was none.
+        traceback = ""
         if status == "error" and error_message is None:
             error_message = "Eval recovered from crash"
+            if has_buffer:
+                traceback = (
+                    "Eval process crashed; log recovered from sample buffer database.\n"
+                )
         if error_message is not None:
             error = EvalError(
-                message=error_message,
-                traceback="Eval process crashed; log recovered from sample buffer database.\n",
-                traceback_ansi="Eval process crashed; log recovered from sample buffer database.\n",
+                message=error_message, traceback=traceback, traceback_ansi=traceback
             )
 
     if stats is not None:

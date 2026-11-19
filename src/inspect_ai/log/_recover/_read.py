@@ -89,14 +89,14 @@ async def read_crashed_eval_log(location: str) -> CrashedEvalLog:
             if data.get("status") != "started":
                 raise ValueError(
                     f"Log is not crashed ({HEADER_JSON} has status "
-                    f"'{data.get('status')}'): {location}"
+                    f"'{data.get('status')}')"
                 )
             header = EvalLog.model_validate(data, context=get_deserializing_context())
 
         # Validate: must have start.json
         start_path = _journal_path(START_JSON)
         if start_path not in entry_names:
-            raise ValueError(f"Log is invalid (missing {start_path}): {location}")
+            raise ValueError(f"Log is invalid (missing {start_path})")
 
         # Read start data
         start = LogStart.model_validate(

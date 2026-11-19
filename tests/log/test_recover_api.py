@@ -18,8 +18,15 @@ from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.error import EvalError
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.log._edit import LogUpdate, MetadataEdit, ProvenanceData, TagsEdit
-from inspect_ai.log._file import read_eval_log_async
+from inspect_ai.log._edit import (
+    LogUpdate,
+    MetadataEdit,
+    ProvenanceData,
+    TagsEdit,
+    edit_eval_log,
+    invalidate_samples,
+)
+from inspect_ai.log._file import read_eval_log_async, write_eval_log_async
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
@@ -924,21 +931,13 @@ async def test_recover_eval_log_no_buffer_db() -> None:
                 )
 
 
-def _write_header(
-    path: str,
-    log_start: LogStart,
-    status: EvalStatus,
-    log_updates: list[LogUpdate] | None = None,
-    invalidated: bool = False,
-) -> None:
+def _write_header(path: str, log_start: LogStart, status: EvalStatus) -> None:
     """Add a header.json to a crashed .eval, as a rewrite of the log would."""
     header = EvalLog(
         version=log_start.version,
         eval=log_start.eval,
         plan=log_start.plan,
         status=status,
-        log_updates=log_updates,
-        invalidated=invalidated,
     )
     with ZipFile(path, "a") as zf:
         zf.writestr(HEADER_JSON, _to_json(header))
@@ -959,6 +958,9 @@ async def test_recover_no_buffer_allowed_uses_flushed_samples(tmp_path: Path) ->
 
     read_log = await read_eval_log_async(output_path)
     assert read_log.status == "error"
+    assert read_log.error is not None
+    assert read_log.error.message == "Eval recovered from crash"
+    assert read_log.error.traceback == ""
     assert read_log.log_updates is None
     assert read_log.samples is not None
     assert sorted(s.id for s in read_log.samples) == [1, 2]
@@ -993,13 +995,27 @@ async def test_recover_no_buffer_allowed_still_refuses_finished_log(
     log_start = _write_crashed_eval(eval_path, samples=[_make_sample(1)])
     _write_header(eval_path, log_start, status)
 
-    with pytest.raises(RecoveryNotAvailable):
+    with pytest.raises(RecoveryNotAvailable, match=f"status '{status}'"):
         await recover_eval_log_async(
             eval_path,
             output=(tmp_path / "out.eval").as_posix(),
             _db_dir=tmp_path / "bufferdb",
             allow_no_buffer=True,
         )
+
+
+async def test_recover_unreadable_log_names_the_log_and_reason(tmp_path: Path) -> None:
+    """A log that can't be parsed is refused with its path and the parse error."""
+    eval_path = (tmp_path / "test.eval").as_posix()
+    with ZipFile(eval_path, "w") as zf:
+        zf.writestr("_journal/start.json", "{")
+
+    with pytest.raises(RecoveryNotAvailable) as excinfo:
+        await recover_eval_log_async(eval_path, _db_dir=tmp_path / "bufferdb")
+
+    assert eval_path in str(excinfo.value)
+    assert isinstance(excinfo.value.__cause__, json.JSONDecodeError)
+    assert str(excinfo.value.__cause__) in str(excinfo.value)
 
 
 @pytest.mark.parametrize(
@@ -1039,6 +1055,8 @@ async def test_recover_status_and_error_message(
     else:
         assert read_log.error is not None
         assert read_log.error.message == expected_message
+        # only the default error describes the recovery
+        assert bool(read_log.error.traceback) == (error_message is None)
 
 
 async def test_recover_finalized_ignores_status_and_error_message(
@@ -1082,19 +1100,22 @@ async def test_recover_completed_at(tmp_path: Path) -> None:
     assert read_log.stats.completed_at == completed_at.isoformat()
 
 
-async def test_recover_appends_log_update_to_started_header(tmp_path: Path) -> None:
-    """A "started" header's edits and invalidation survive, plus the caller's update."""
+@pytest.mark.parametrize("header_only", [True, False])
+async def test_recover_appends_log_update_to_started_header(
+    tmp_path: Path, header_only: bool
+) -> None:
+    """An edited crashed log keeps its edits and invalidation, plus the caller's update."""
     eval_path = (tmp_path / "test.eval").as_posix()
     output_path = (tmp_path / "test-recovered.eval").as_posix()
     db_dir = (tmp_path / "bufferdb").as_posix()
-    log_start = _write_crashed_eval(eval_path, samples=[_make_sample(1)])
-    edited = LogUpdate(
-        edits=[TagsEdit(tags_add=["reviewed"])],
-        provenance=ProvenanceData(author="editor"),
-    )
-    _write_header(
-        eval_path, log_start, "started", log_updates=[edited], invalidated=True
-    )
+    _write_crashed_eval(eval_path, samples=[_make_sample(1)])
+    editor = ProvenanceData(author="editor")
+    edited = await read_eval_log_async(eval_path, header_only=header_only)
+    edited = edit_eval_log(edited, [TagsEdit(tags_add=["reviewed"])], editor)
+    if not header_only:  # invalidating a sample rewrites the whole log
+        edited = invalidate_samples(edited, "all", editor)
+    await write_eval_log_async(edited, eval_path, header_only=header_only)
+    assert edited.log_updates is not None
     _create_buffer_db(eval_path, completed_ids=[2], in_progress_ids=[], db_dir=db_dir)
     recovered = LogUpdate(
         edits=[MetadataEdit(metadata_set={"recovered_by": "platform"})],
@@ -1106,8 +1127,8 @@ async def test_recover_appends_log_update_to_started_header(tmp_path: Path) -> N
     )
 
     read_log = await read_eval_log_async(output_path)
-    assert read_log.log_updates == [edited, recovered]
-    assert read_log.invalidated
+    assert read_log.log_updates == [*edited.log_updates, recovered]
+    assert read_log.invalidated == (not header_only)
     assert read_log.tags == ["reviewed"]
     assert read_log.metadata == {"recovered_by": "platform"}
     assert read_log.samples is not None

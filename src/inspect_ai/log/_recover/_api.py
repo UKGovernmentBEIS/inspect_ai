@@ -195,10 +195,10 @@ def recover_eval_log(
             database, but a run elsewhere leaves no local trace.
         status: Status of the recovered log unless `incomplete_action="error"`
             finalizes it with `status="success"`.
-        error_message: Message of the recovered log's `EvalError`. Defaults to
-            "Eval recovered from crash" with `status="error"`; with
-            `status="cancelled"` the log has no error unless a message is
-            given.
+        error_message: Message of the recovered log's `EvalError`, which then
+            has an empty traceback. Defaults to "Eval recovered from crash"
+            with `status="error"`; with `status="cancelled"` the log has no
+            error unless a message is given.
         completed_at: Completion time recorded in `stats.completed_at`
             (default: now).
         log_update: Appended to the recovered log's `log_updates`, e.g. to
@@ -266,8 +266,8 @@ async def recover_eval_log_async(
     # Step 1: Read the crashed .eval file metadata
     try:
         crashed = await read_crashed_eval_log(log)
-    except ValueError:
-        raise RecoveryNotAvailable(f"Log is not recoverable: {log}")
+    except ValueError as ex:
+        raise RecoveryNotAvailable(f"Log is not recoverable: {log}: {ex}") from ex
 
     # Resolve output paths. When overwriting, write to a temp sibling path
     # first to avoid corrupting the source file (which is read during
@@ -400,6 +400,7 @@ async def recover_eval_log_async(
         error_message=error_message,
         completed_at=completed_at,
         log_update=log_update,
+        has_buffer=buffer is not None,
     )
 
     # For overwrite mode, move the temp file over the original and

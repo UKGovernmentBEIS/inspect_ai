@@ -238,3 +238,11 @@ log = recover_eval_log(
     incomplete_max=0.1,
 )
 ```
+
+`recover_eval_log()` raises `RecoveryNotAvailable` for a crashed log that has no sample buffer. Pass `allow_no_buffer=True` to recover such a log from its flushed samples alone, for example when the run was killed on another machine and its buffer database is gone:
+
+``` python
+log = recover_eval_log("path/to/crashed.eval", allow_no_buffer=True)
+```
+
+Pass it only for a log whose run you know has ended. Inspect cannot detect a run that is still going on another machine, and a log recovered while its run is still writing lacks the samples written afterwards.
