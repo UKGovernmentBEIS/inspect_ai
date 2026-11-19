@@ -108,10 +108,10 @@ and does not restate it. It relies on:
   ([implementation plan, "The merge"](eval-sharding-implementation.md#the-merge)
   and "Validation"). So when a pass that read shards returns a
   `success` merged log, that log holds every current attempt the pass
-  listed. The no-shards path is the exception: it returns the stored
-  status, without checking the members against the ledger and without
-  refusing on the status it plans from them (`_recorded_pass` in
-  `src/inspect_ai/log/_shards/_api.py`).
+  listed. With no attempt left, the pass returns the merged log as
+  recorded: its stored status must be `success` (unless
+  `allow_incomplete`) and a supplied selection must equal the recorded
+  one.
 - **Listing and names.** The merge lists the companion two levels deep
   (`list_shard_set`) and refuses an S3 name that S3 would read as another
   key (`check_s3_location`), both in `src/inspect_ai/log/_shards/_walk.py`.
@@ -166,7 +166,9 @@ each shard: a write between the pass and the deletion is the user's to
 prevent. If the requirement is broken, a concurrent writer's work can be
 lost, as with a hand removal: a shard attempt rewritten after the pass
 read it is deleted, and a merge that publishes in the meantime keeps its
-log while the shards it read are deleted.
+log while the shards it read are deleted. The run stays untouched from
+the first `--delete-shards` call until a call with the option returns,
+across any interruption and rerun.
 
 Cost check: free. Enforcing it would need every writer of a log (the
 recorder, the viewer, `inspect score`, the merge on S3) to share a lock
@@ -241,19 +243,17 @@ and only one case is new:
   message gains "If a deletion of the shards was interrupted, merge
   again with `delete_shards=True` (`--delete-shards`) to finish it."
 
-A merge with the option finishes every case. In the third, the pass
-accepts shards with no attempt left when every shard that still has one
-is unchanged: it writes nothing and keeps the merged log as recorded (as
-when no shard is left: a supplied selection must equal the recorded
-one). Whenever a pass with the option keeps the merged log as recorded
-without reading shards (the third case and the no-shards case), it
-validates that log before deletion may run, from what it has already
-read (the merged log's members and its full ledger): the members must
-number the ledger's sample counts, and the status planned from them
-must be `success`, not only the stored one. Otherwise it refuses, with
-nothing deleted, and names the merged log as changed outside the merge.
-In all three cases, deletion then deletes what remains. Any other difference (a changed shard, a new
-`<k>/`) is refused as today. A local lock left by a crash is reported,
+A merge with the option finishes every case. In the third, the deleting
+rerun takes the existing no-shards path, which it also takes when the
+only differences from the ledger are shard directories with no attempt
+left: it writes nothing and keeps the merged log as recorded, the stored
+status must be `success`, a supplied selection must equal the recorded
+one, and every shard that still has an attempt must match the ledger.
+Because the run has stayed untouched since the first `--delete-shards`
+call ("The quiescence requirement"), the merged log it keeps is the one
+that call's pass checked. In all three cases, deletion then deletes what
+remains. Any other difference (a changed shard, a new `<k>/`) is refused
+as today. A local lock left by a crash is reported,
 as for a crashed merge; the user deletes it and reruns.
 
 The rule needs no marker of a deletion in progress: the ledger and the
@@ -262,9 +262,7 @@ way, as long as that left every shard with its recorded current attempt
 or no attempt. A hand removal that deleted a current attempt and left an
 older one (`aws s3 rm --recursive` keeps no order) is refused as an
 attempt regression, as today, and the user finishes it by hand. Cost:
-none beyond the classification the merge already makes; the validation
-of a kept log is in memory, over members and a ledger the pass has
-already read.
+none beyond the classification the merge already makes.
 
 ### What users see
 
@@ -272,8 +270,13 @@ already read.
   the shards. A failed check on the set to delete or a non-empty
   confirming listing raises `ShardSetError`, whose message says whether
   this call wrote the merged log and that the shards were not (or not
-  all) deleted; a storage error propagates as raised. Each message says
-  to merge again with the option once nothing else is writing the run.
+  all) deleted; a storage error propagates as raised. Messages state
+  what must be corrected before retrying: an S3 name that S3 would read
+  as another key keeps `check_s3_location`'s advice to rename it, and a
+  merged log changed outside the merge keeps the existing advice to
+  delete and rebuild it. Transient failures (a storage error, a
+  cancellation) and an interrupted cleanup recommend running the merge
+  again with the option.
 - **Command report.** After the status line, `  shards: deleted <shards
   dir>` when `--delete-shards` was given.
 - **`--json`.** The result object is unchanged. Errors use the existing
@@ -383,6 +386,14 @@ report line, and the error-kind table's `refused` row mentions deletion.
   writing nothing. It changes existing merge behaviour, and a shard
   directory deleted by hand would no longer be flagged. Declined
   (decision: Ransom, 2026-11-19).
+- **Validate a merged log that a deleting rerun keeps** (recount its
+  members against the ledger, require a planned `success`). It guards
+  only against an edit between cleanup calls, which the quiescence
+  requirement already rules out. Dropped (decision: Ransom, 2026-11-19).
+- **Leave S3 directory markers.** The recursive file listings skip them,
+  so without deleting them the companion is never empty and the
+  confirming listing could not hold. Kept (decision: Ransom,
+  2026-11-19).
 - **Re-read every sample of the merged log before deleting.** It would
   roughly double the cost of a deleting merge; the merge already checks
   each member's CRC as it copies it.
@@ -470,18 +481,6 @@ No test needs network, Docker or a model provider.
 - `test_delete_shards_refuses_hand_removal_leaving_older_attempt`: a
   `<k>/` whose recorded current attempt was deleted while an older one
   was kept is refused as an attempt regression, nothing deleted.
-- `test_delete_shards_refuses_ledger_mismatch_after_interruption`,
-  parametrized over a partly deleted companion and one with no attempt
-  left: a sample member removed from the merged log between cleanup
-  calls (its `success` header kept) is refused by a merge with the
-  option, with nothing deleted.
-- `test_delete_shards_refuses_planned_incomplete_log_after_interruption`,
-  parametrized over a partly deleted companion and one with no attempt
-  left: between cleanup calls the merged log's header is rewritten so
-  that the status planned from it is incomplete (its recorded selection
-  gains an id no shard holds, or a ledger entry's status becomes
-  `error`) while its members, ledger counts and stored `success` stay
-  unchanged; a merge with the option refuses, with nothing deleted.
 - `test_delete_shards_refuses_interrupted_deletion_with_changed_shard`:
   one remaining shard changed; refused, nothing deleted.
 - `test_delete_shards_does_not_follow_symlinks` (local): a link in a
@@ -490,7 +489,8 @@ No test needs network, Docker or a model provider.
 - `test_delete_shards_stays_in_prefix` (S3): keys under `<name>.shards-x/`
   and `<name>.shardsx` survive.
 - `test_delete_shards_refuses_unsafe_s3_name`: a key with `#` deep under
-  `scans/` is refused before anything is deleted.
+  `scans/` is refused before anything is deleted, and the message tells
+  the user to rename it.
 - `test_delete_shards_holds_lock` (local): a merge started during
   deletion raises `WriteConflictError`.
 - `test_delete_shards_cancelled`: cancellation during deletion (cancel
@@ -520,15 +520,13 @@ unchanged); `--delete-shards` and the report line in
 None. Resolved by Ransom on 2026-11-19: deletion requires a `success`
 merged log and cannot be combined with `allow_incomplete`; the option is
 supported only on a quiescent run, without coordination against other
-writers; deletion works from the pass's result with no re-checks; and
-the result gains no `shards_deleted` field.
+writers; deletion works from the pass's result with no re-checks; the
+result gains no `shards_deleted` field; and a deleting rerun keeps the
+merged log through the existing no-shards path, with no extra
+validation, the run staying untouched from the first call to the last.
 
 ## Not this design
 
-- Validating the merged log in a plain merge's no-shards path, which
-  returns the stored status without checking members against the ledger.
-  It predates deletion; this design adds the check only when
-  `delete_shards` is given.
 - A viewer delete of a merged log that also removes its companion, with
   per-object authorization (implementation plan, "Not this design").
 - A delete command or function that needs no task.
