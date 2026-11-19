@@ -203,9 +203,14 @@ Guarantees:
   none does, and refuses a state where some shards have lost theirs, as
   vanished shards. That refusal's message adds that a deletion
   interrupted part way is finished by merging again with the option.
-- A changed shard or a new shard directory found by a deleting rerun is
-  refused, as today, with the advice to restore the files or delete the
-  rest of the shards directory by hand.
+- When the interruption left some recorded attempts missing, a changed
+  shard or a new shard directory found by a deleting rerun is refused,
+  as today, with the advice to restore the files or delete the rest of
+  the shards directory by hand. When every recorded attempt is still
+  there, the rerun is an ordinary deleting call and merges such a change
+  before deleting, as a first deleting call does; with no marker of a
+  deletion in progress the two cannot be told apart, and keeping the run
+  untouched between calls is the user's responsibility.
 
 The deleting rerun takes the merge's existing path for a companion with
 no attempts left, which it also takes when the only differences from
@@ -220,7 +225,7 @@ classification.
 - **Messages say what must be corrected before retrying**: rename an S3
   name that S3 would read as another key; delete and rebuild a merged log
   changed outside the merge; restore the files or finish by hand for a
-  changed or new shard; for an incomplete set on a deleting call,
+  changed or new shard beside missing recorded attempts; for an incomplete set on a deleting call,
   restore a complete, mergeable shard set (or, to abandon the run,
   remove its shards by hand), never `--allow-incomplete`. A storage
   failure or an interruption during deletion says to run the merge again
@@ -405,9 +410,9 @@ model provider.
 - `test_delete_shards_interrupted_then_finished`: after an interruption
   at each stage, every shard holds its recorded current attempt or none,
   a plain merge behaves as today, and a deleting rerun finishes.
-- `test_delete_shards_refuses_changed_shard_after_interruption`: a
-  changed or new shard after an interruption is refused with corrective
-  advice, nothing deleted.
+- `test_delete_shards_refuses_changed_shard_after_interruption`: after an
+  interruption that left some recorded attempts missing, a changed or new
+  shard is refused with corrective advice, nothing deleted.
 - `test_delete_shards_does_not_follow_symlinks` (local): link targets
   survive, and a linked companion is refused before anything is written.
 - `test_delete_shards_stays_in_prefix` (S3): sibling prefixes survive.
