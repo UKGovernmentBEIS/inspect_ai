@@ -50,10 +50,13 @@ class SidecarCall(NamedTuple):
         headers = {**(config.extra_headers or {}), INSPECT_CONTEXT: self.header}
         return config.model_copy(update={"extra_headers": headers})
 
-    async def registration_current(self) -> None:
+    async def registration_current(self) -> "SidecarCall":
         """Complete the sample's registration again if the sidecar may have lost it since `sidecar_call`, once the call has its connection.
 
         The wait for a connection can be long. A sidecar that restarted meanwhile, and that another sample registered the task with again, would otherwise get the call's request without the sample's facts. What is sent again is what the attempt first sent.
+
+        Returns:
+            The call, with whether the sidecar's admin registered the task beforehand as the sidecar says now: a sidecar that restarted may have the task in its tasks folder since.
 
         Raises:
             SentinelProxyError: If the sidecar couldn't take the sample.
@@ -64,8 +67,13 @@ class SidecarCall(NamedTuple):
         sidecars = task_sidecars()
         active = sample_active()
         state = sample_state()
-        if sidecars is not None and active is not None and state is not None:
-            await _complete_registration(sidecars, self.sidecar, active, state)
+        if sidecars is None or active is None or state is None:
+            return self
+        return self._replace(
+            registered_beforehand=await _complete_registration(
+                sidecars, self.sidecar, active, state
+            )
+        )
 
 
 async def sidecar_call(model: "Model") -> SidecarCall | None:

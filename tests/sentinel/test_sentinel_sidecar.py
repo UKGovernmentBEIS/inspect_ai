@@ -1385,44 +1385,61 @@ async def test_a_restart_loses_the_sample_whose_request_was_sent_and_not_the_one
     assert waiting.get("Tally:lookups") == 1
 
 
+@solver
+def _waits_for_a_connection_through_a_restart(
+    stand_in: StandInSidecar, restart: Callable[[], None]
+) -> Solver:
+    # a sample one of whose calls waits for the model's one connection while
+    # the sidecar restarts and another sample registers the task again
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        model = get_model()
+        sidecars = task_sidecars()
+        assert sidecars is not None
+        sidecar = await sidecars.sidecar(model.api)
+        assert sidecar is not None
+        failed: list[Exception] = []
+
+        async def waiting() -> None:
+            try:
+                await model.generate("Bye.")
+            except Exception as ex:
+                failed.append(ex)
+
+        # the sample's first call completes its registration
+        await model.generate("Hi.")
+        # its next holds the connection, its reply slow
+        answered = anyio.Event()
+        stand_in.answer_after = answered
+        calls = len(stand_in.model_calls)
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(model.generate, "Hello.")
+            while len(stand_in.model_calls) == calls:
+                await anyio.sleep(0.01)
+            # and another waits for the connection, its registration complete
+            # as far as it knows
+            tg.start_soon(waiting)
+            await anyio.wait_all_tasks_blocked()
+            restart()
+            await sidecars.complete_registration(sidecar, _sample(2), "other", 1)
+            answered.set()
+        if failed:
+            raise failed[0]
+        return state
+
+    return solve
+
+
 def test_a_call_that_waited_for_a_connection_through_a_restart_registers_again_before_it_is_sent() -> (
     None
 ):
     stand_in = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 1})})
-
-    @solver
-    def calls_through_a_restart() -> Solver:
-        async def solve(state: TaskState, generate: Generate) -> TaskState:
-            model = get_model()
-            sidecars = task_sidecars()
-            assert sidecars is not None
-            sidecar = await sidecars.sidecar(model.api)
-            assert sidecar is not None
-            # the sample's first call completes its registration
-            await model.generate("Hi.")
-            # its next holds the model's one connection, its reply slow
-            answered = anyio.Event()
-            stand_in.answer_after = answered
-            async with anyio.create_task_group() as tg:
-                tg.start_soon(model.generate, "Hello.")
-                while len(stand_in.model_calls) < 2:
-                    await anyio.sleep(0.01)
-                # and another waits for the connection, its registration
-                # complete as far as it knows
-                tg.start_soon(model.generate, "Bye.")
-                await anyio.wait_all_tasks_blocked()
-                # the sidecar restarts, and another sample registers the
-                # task again
-                stand_in.tokens.clear()
-                await sidecars.complete_registration(sidecar, _sample(2), "other", 1)
-                answered.set()
-            return state
-
-        return solve
+    calls_through_a_restart = _waits_for_a_connection_through_a_restart(
+        stand_in, stand_in.tokens.clear
+    )
 
     task = Task(
         dataset=[Sample(input="Hi.", id=1)],
-        solver=calls_through_a_restart(),
+        solver=calls_through_a_restart,
         scorer=_reads_monitor_state(),
     )
 
@@ -1457,6 +1474,60 @@ def test_a_call_that_waited_for_a_connection_through_a_restart_registers_again_b
     assert marker["copied"] is False
     assert "lost the sample partway" in marker["reason"]
     assert sample.error is not None and "isn't scored" in sample.error.message
+
+
+def test_a_call_that_waited_for_a_connection_acts_on_what_the_sidecar_says_of_the_task_since() -> (
+    None
+):
+    # While a call waits for a connection, the sidecar restarts with the task
+    # in its tasks folder, which doesn't hold the sample. The call's
+    # registration, sent again, is answered that the task is fixed, so its
+    # refusal is one a retry would meet again.
+    fixed = [False]
+
+    def restart() -> None:
+        stand_in.tokens.clear()
+        fixed[0] = True
+
+    def result(params: dict[str, Any]) -> dict[str, Any]:
+        waited = stand_in.model_calls[2:3]
+        if waited and params["id"] == waited[0].headers.get("x-irid"):
+            return {
+                "id": params["id"],
+                "records": "held",
+                "state": "not_judged",
+                "reason": "unregistered",
+            }
+        return {}
+
+    stand_in = StandInSidecar(
+        turns=[Turn(), Turn(), Turn(status=400)],
+        methods={
+            "complete_registration": lambda _: {"fixed": fixed[0]},
+            "request_result": result,
+        },
+    )
+    task = Task(
+        dataset=[Sample(input="Hi.", id=1)],
+        solver=_waits_for_a_connection_through_a_restart(stand_in, restart),
+        scorer=_graded(),
+    )
+
+    [log] = eval(
+        task,
+        model=_model(stand_in),
+        sentinel_proxy="auto",
+        max_connections=1,
+        retry_on_error=1,
+        display="none",
+    )
+
+    assert log.samples is not None
+    [sample] = log.samples
+    assert sample.error is not None
+    assert "SampleRefusedError" in sample.error.message
+    assert not sample.error_retries
+    assert len(stand_in.model_calls) == 3
 
 
 async def test_a_sample_is_ended_with_its_task_named() -> None:
