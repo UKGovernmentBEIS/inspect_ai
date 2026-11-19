@@ -22,7 +22,7 @@ from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._score import ScoreEvent
 from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 from inspect_ai.event._store import StoreEvent
-from inspect_ai.log._condense import ATTACHMENT_PROTOCOL, condense_sample
+from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._log import (
     EvalConfig,
@@ -1915,15 +1915,24 @@ async def test_recovery_store_keeps_sidecar_monitor_state(
             assert recovered.samples[0].store == logged
 
 
+@pytest.mark.parametrize("input_kind", ["messages", "string"])
+@pytest.mark.parametrize("protocol", ["attachment://", "tc://"])
 @pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
-async def test_recovery_keeps_literal_reference_text(buffer_kind: str) -> None:
+async def test_recovery_keeps_literal_reference_text(
+    buffer_kind: str, protocol: str, input_kind: str
+) -> None:
     """A recovered sample reads text that names one of its attachments as written.
 
     The buffer is given the events as a run's transcript gives them, with
-    the model call condensed, and recovery rebuilds the call from it.
+    the model call condensed, and recovery rebuilds the sample's input from
+    its `SampleInitEvent` and its call from the buffered call.
     """
     prompt = "You are a careful assistant who answers in full. " * 4
-    literal = f"{ATTACHMENT_PROTOCOL}{mm3_hash(prompt)}"
+    literal = f"{protocol}{mm3_hash(prompt)}"
+    input: list[ChatMessage] = [
+        ChatMessageSystem(content=prompt),
+        ChatMessageUser(content=literal),
+    ]
     model = get_model(
         "mockllm/model",
         custom_outputs=[ModelOutput.from_content("mockllm/model", literal)],
@@ -1941,9 +1950,13 @@ async def test_recovery_keeps_literal_reference_text(buffer_kind: str) -> None:
     token = _transcript.set(None)
     try:
         init_transcript(transcript)
-        await model.generate(
-            [ChatMessageSystem(content=prompt), ChatMessageUser(content=literal)]
+        sample_input = input if input_kind == "messages" else literal
+        transcript._event(
+            SampleInitEvent(
+                sample=Sample(id="s1", input=sample_input, target="t"), state={}
+            )
         )
+        await model.generate(input)
     finally:
         _transcript.reset(token)
 
@@ -1956,6 +1969,11 @@ async def test_recovery_keeps_literal_reference_text(buffer_kind: str) -> None:
 
     assert recovered.samples is not None
     sample = recovered.samples[0]
+    if input_kind == "messages":
+        assert isinstance(sample.input, list)
+        assert [message.text for message in sample.input] == [prompt, literal]
+    else:
+        assert sample.input == literal
     assert [message.text for message in sample.messages] == [prompt, literal, literal]
     assert sample.output.message.text == literal
     [model_event] = [e for e in sample.events if isinstance(e, ModelEvent)]

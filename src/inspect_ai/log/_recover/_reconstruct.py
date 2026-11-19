@@ -27,7 +27,6 @@ from inspect_ai.event._validate import validate_events
 from inspect_ai.log._condense import (
     WalkContext,
     resolve_attachment_fn,
-    resolve_events_attachments,
     walk_json_value,
     walk_model_output,
 )
@@ -191,13 +190,19 @@ def dataset_sample_or_summary(
     Shared by both recovery paths. The buffered summary is thinned
     (`EvalSampleSummary.thin_data` truncates long text and drops images), so
     prefer the dataset sample its `SampleInitEvent` recorded. The buffer stores
-    that event condensed; its `attachment://` refs are resolved here so the
-    write path condenses the input as a normal run does.
+    that event condensed. A message-list input stays condensed, like the
+    recovered messages, since the write path condenses it again as a sample
+    that holds references. The write path leaves a string input as it is, so
+    its reference is resolved here.
     """
     if sample_init is None:
         return summary
-    [resolved] = resolve_events_attachments([sample_init], attachments)
-    return cast(SampleInitEvent, resolved).sample
+    sample = sample_init.sample
+    if isinstance(sample.input, str):
+        return sample.model_copy(
+            update={"input": resolve_attachment_fn(attachments)(sample.input)}
+        )
+    return sample
 
 
 def recovered_sample_scores(
