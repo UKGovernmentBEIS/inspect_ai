@@ -588,7 +588,8 @@ reduced to one. Ranking limits *above* other errors (or below them)
 everywhere is a separate question and is left out (see "Not this design").
 A limit that a non-limit error displaces at one of these sites is not lost
 for good: it stays reached, so the next dispatch is refused (rule 3), and its
-owner's exit check raises it if that owner ends normally (rule 7).
+owner's exit check raises it if it is exceeded and that owner ends
+normally (rule 7), except in the cases under "Recovery boundaries".
 
 Generic reductions are left alone. `tg_collect()` and
 `unwrap_exception_group("first")` (`src/inspect_ai/_util/_async.py:44-124`)
@@ -2574,9 +2575,8 @@ None.
   and `tg_collect()`'s first-error reduction. They are unchanged. What a
   limit error swallowed there costs: it surfaces one step later, at the
   next call under the limit, which is refused at no cost, or at the owner's
-  exit check; a plain `with` block's limit surfaces only at a call made
-  while the block is open. Spend stays bounded and the sample limit is not
-  lost. An
+  exit check, except in the cases under "Recovery boundaries". Spend stays
+  bounded. An
   unpriced-model refusal swallowed there is refused again at the handler's
   next call to that model, with nothing spent. Making each re-raise these
   errors would only make them arrive sooner.
