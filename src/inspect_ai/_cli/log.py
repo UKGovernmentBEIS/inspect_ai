@@ -14,7 +14,6 @@ from inspect_ai._cli.log_merge_shards import merge_shards_command
 from inspect_ai._cli.util import int_or_bool_flag_callback
 from inspect_ai._util.constants import PKG_PATH
 from inspect_ai.log import (
-    DispositionResult,
     EvalLog,
     EvalStatus,
     IncompleteAction,
@@ -564,21 +563,12 @@ def recover_command(
     default=None,
     help="Author of the exclusion (default: the git identity, else the user name).",
 )
-@click.option(
-    "--json",
-    "json_output",
-    type=bool,
-    is_flag=True,
-    default=False,
-    help="Print the result as JSON.",
-)
 def exclude_command(
     log_file: str,
     sample_ids: tuple[str, ...],
     epoch: int | None,
     reason: str,
     author: str | None,
-    json_output: bool,
 ) -> None:
     """Exclude samples of a finished log from its metrics.
 
@@ -603,7 +593,6 @@ def exclude_command(
         epoch,
         reason,
         author,
-        json_output,
     )
 
 
@@ -637,14 +626,6 @@ def exclude_command(
     default=None,
     help="Author of the zero (default: the git identity, else the user name).",
 )
-@click.option(
-    "--json",
-    "json_output",
-    type=bool,
-    is_flag=True,
-    default=False,
-    help="Print the result as JSON.",
-)
 def zero_command(
     log_file: str,
     empty_log: str,
@@ -652,7 +633,6 @@ def zero_command(
     epoch: int | None,
     reason: str,
     author: str | None,
-    json_output: bool,
 ) -> None:
     """Score samples of a finished log as empty attempts.
 
@@ -685,24 +665,23 @@ def zero_command(
         epoch,
         reason,
         author,
-        json_output,
     )
 
 
 def _run_disposition(
     verb: str,
-    apply: Callable[[EvalLog, list[SampleSelector], ProvenanceData], DispositionResult],
+    apply: Callable[[EvalLog, list[SampleSelector], ProvenanceData], None],
     log_file: str,
     sample_ids: tuple[str, ...],
     epoch: int | None,
     reason: str,
     author: str | None,
-    json_output: bool,
 ) -> None:
     """Apply a disposition to LOG_FILE, write it back and print the result."""
     from inspect_ai._cli.util import default_provenance_author
     from inspect_ai._util.error import WriteConflictError
     from inspect_ai.log import write_eval_log
+    from inspect_ai.log._disposition import _select_samples
     from inspect_ai.log._headline import headline_metric
 
     log = read_eval_log(log_file)
@@ -714,29 +693,13 @@ def _run_disposition(
         author=author or default_provenance_author(), reason=reason
     )
     try:
-        result = apply(log, selectors, provenance)
-        if result.applied:
-            write_eval_log(log, log_file, if_match_etag=log.etag)
+        apply(log, selectors, provenance)
+        count = len(_select_samples(log, selectors))
+        write_eval_log(log, log_file, if_match_etag=log.etag)
     except (ValueError, LookupError, WriteConflictError) as ex:
         raise click.ClickException(str(ex)) from ex
 
-    if json_output:
-        print(
-            dumps(
-                {
-                    "log": log_file,
-                    "applied": [list(target) for target in result.applied],
-                    "unchanged": [list(target) for target in result.unchanged],
-                },
-                indent=2,
-            )
-        )
-        return
-
-    for sample_id, sample_epoch in result.applied:
-        print(f"{verb} {sample_id} (epoch {sample_epoch})")
-    for sample_id, sample_epoch in result.unchanged:
-        print(f"unchanged {sample_id} (epoch {sample_epoch})")
+    print(f"{verb} {count} sample{'s' if count != 1 else ''}")
     headline = headline_metric(log)
     if headline is not None:
         print(f"{headline.score.name}/{headline.name}: {headline.metric.value}")

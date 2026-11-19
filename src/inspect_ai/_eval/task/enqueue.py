@@ -17,14 +17,16 @@ caller can't enqueue into the wrong (or torn-down) run.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from threading import Lock
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Iterator
 
 if TYPE_CHECKING:
     from inspect_ai._eval.task.resolved import ResolvedTask
     from inspect_ai._eval.task.tasks import Tasks
+    from inspect_ai.model import Model
 
 # Resolve submitted tasks to concrete ``ResolvedTask``s against the run's
 # models / config. Built by the eval runner (which holds that context) and
@@ -70,6 +72,54 @@ class TaskEnqueuer:
 _enqueuer: ContextVar[TaskEnqueuer | None] = ContextVar("task_enqueuer", default=None)
 
 
+@dataclass
+class _CreatorAttempt:
+    """The running attempt's model, marked ended when the attempt exits.
+
+    Shared by reference with every context copied from the attempt, so a
+    background coroutine that outlives its attempt sees it end.
+    """
+
+    model: Model
+    ended: bool = False
+
+
+# The task attempt running in this context: set for the duration of each
+# attempt and cleared around TaskSource callbacks, so `creator_model()` is
+# `None` outside a running task. Tasks added inside an attempt resolve once,
+# under its model. `active_model()` can't stand in for
+# it: outside an attempt it still holds the last run model that up-front task
+# resolution activated. Temporary: the task handles design's `_attempt`
+# ContextVar (set by `run_one` around the attempt, cleared in TaskSource
+# callbacks) replaces it.
+_creator: ContextVar[_CreatorAttempt | None] = ContextVar(
+    "enqueue_creator", default=None
+)
+
+
+@contextmanager
+def creator_model_scope(model: Model | None) -> Iterator[None]:
+    """Run the scope as a task attempt on ``model``, or (``None``) as outside any attempt.
+
+    An attempt's scope ends on every exit, including errors and cancellation;
+    clearing it (``None``) leaves the enclosing attempt running.
+    """
+    attempt = _CreatorAttempt(model) if model is not None else None
+    token = _creator.set(attempt)
+    try:
+        yield
+    finally:
+        if attempt is not None:
+            attempt.ended = True
+        _creator.reset(token)
+
+
+def creator_model() -> Model | None:
+    """The model of the task attempt running in this context, if it has not ended."""
+    attempt = _creator.get()
+    return attempt.model if attempt is not None and not attempt.ended else None
+
+
 def create_task_enqueuer(run_id: str, resolve: ResolveTasksFn) -> TaskEnqueuer:
     return TaskEnqueuer(run_id=run_id, _resolve=resolve)
 
@@ -92,8 +142,13 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:
     """Add one or more tasks to the running eval.
 
     The tasks run in this process under the current run's ``run_id`` (a fresh
-    ``eval_id``/``task_id`` each, their own log files), resolved against the
-    run's models and config.
+    ``eval_id``/``task_id`` each, their own log files).
+
+    Called from inside a running task (a solver, scorer, tool or other code
+    the task runs), the tasks are added once, under that task's model.
+    Called anywhere else, including from a ``TaskSource`` callback, they are
+    added once per model of the run. A task that sets its own ``model`` keeps
+    it. Model roles and generate config come from the run.
 
     When the run is driven by a :class:`~inspect_ai.TaskSource`, added tasks are
     *live*: they start as soon as there is free capacity. Otherwise they run as a
@@ -105,8 +160,10 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:
             given it must match the active run, else the call is rejected.
 
     Raises:
-        RuntimeError: If no eval is currently running in this process, or
-            ``run_id`` doesn't match the active run.
+        RuntimeError: If no eval is currently running in this process,
+            ``run_id`` doesn't match the active run, or a task is a
+            placeholder that eval-set selection pruning left in place of a
+            task it did not build.
         ValueError: If the tasks can't be resolved (propagated from resolution).
     """
     enqueuer = get_task_enqueuer()
