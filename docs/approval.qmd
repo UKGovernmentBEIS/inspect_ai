@@ -232,7 +232,7 @@ A [remote MCP server](tools-mcp.qmd#remote-mcp) (`execution="remote"`) has its t
 
 ## Provider-Run Tools {#provider-run-tools}
 
-[Web search](tools-standard.qmd#sec-web-search) with a model's internal provider and [code execution](tools-standard.qmd#sec-code-execution) with a provider's native implementation are run by the model provider during generation. Inspect never sees these calls, so approval policies don't review them, and an active policy doesn't prevent them. This also applies to web search and code execution [granted](agent-bridge.qmd#granted-capabilities) to a bridged agent with the `web_search` and `code_execution` options of `agent_bridge()` and `sandbox_agent_bridge()`. Web search through an external provider (such as Tavily or Exa) and code execution through the `python()` fallback are run by Inspect, so policies approve them like any other tool call.
+[Web search](tools-standard.qmd#sec-web-search) with a model's internal provider and [code execution](tools-standard.qmd#sec-code-execution) with a provider's native implementation are run by the model provider during generation. Approval policies don't review these calls, and an active policy doesn't prevent them. This also applies to web search and code execution [granted](agent-bridge.qmd#granted-capabilities) to a bridged agent with the `web_search` and `code_execution` options of `agent_bridge()` and `sandbox_agent_bridge()`. Web search through an external provider (such as Tavily or Exa) and code execution through the `python()` fallback are run by Inspect, so policies approve them like any other tool call.
 
 ## Custom Approvers
 
