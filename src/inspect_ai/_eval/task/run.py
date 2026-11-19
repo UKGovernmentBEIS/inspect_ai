@@ -258,7 +258,13 @@ from .scheduler import (
 )
 from .store import DiskSampleStore, maybe_page_to_disk
 from .task_source import TaskSource
-from .util import sample_id_filter, sample_limit_count, sample_messages, slice_dataset
+from .util import (
+    sample_id_filter,
+    sample_limit_count,
+    sample_messages,
+    slice_dataset,
+    task_run_dir,
+)
 
 py_logger = getLogger(__name__)
 
@@ -1845,6 +1851,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         max_sandboxes=config.max_sandboxes,
                         sandbox_cleanup=sandbox_cleanup,
                         apply_sandbox_bindings=options.apply_sandbox_bindings,
+                        task_dir=task_run_dir(task, options.eval_wd),
                         plan=plan,
                         scorers=scorers,
                         scorer_names=scorer_names,
@@ -2656,6 +2663,7 @@ async def task_run_sample(
     max_sandboxes: int | None,
     sandbox_cleanup: bool,
     apply_sandbox_bindings: Callable[[SandboxEnvironmentSpec], None] | None,
+    task_dir: str,
     plan: Plan,
     scorers: list[Scorer] | None,
     scorer_names: list[str] | None,
@@ -2712,6 +2720,7 @@ async def task_run_sample(
             max_sandboxes=max_sandboxes,
             sandbox_cleanup=sandbox_cleanup,
             apply_sandbox_bindings=apply_sandbox_bindings,
+            task_dir=task_dir,
             plan=plan,
             scorers=scorers,
             scorer_names=scorer_names,
@@ -2764,6 +2773,7 @@ async def _task_run_sample_attempt(
     max_sandboxes: int | None,
     sandbox_cleanup: bool,
     apply_sandbox_bindings: Callable[[SandboxEnvironmentSpec], None] | None,
+    task_dir: str,
     plan: Plan,
     scorers: list[Scorer] | None,
     scorer_names: list[str] | None,
@@ -2900,6 +2910,7 @@ async def _task_run_sample_attempt(
                     max_sandboxes,
                     sandbox_cleanup,
                     sample,
+                    task_dir,
                     apply_setup_bindings=apply_sandbox_bindings,
                 ),
                 lambda: isinstance(failure, _AttemptCancel),

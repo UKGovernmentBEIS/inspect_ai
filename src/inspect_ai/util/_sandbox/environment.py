@@ -572,6 +572,11 @@ class SandboxEnvironment(abc.ABC):
     ) -> None:
         """Called at task startup initialize resources.
 
+        Runs in the directory the eval was launched from, with the process's
+        own environment, as `sample_init` does. A relative config path that
+        exists under the task's directory (a string config, or a build
+        context in a `ComposeConfig`) arrives as an absolute path.
+
         Args:
           task_name: Name of task using the sandbox environment.
           config: Implementation defined configuration (optional).
@@ -593,12 +598,21 @@ class SandboxEnvironment(abc.ABC):
         sample metadata variable interpolation) and end up yielding different images
         that need their own init (e.g. 'docker pull').
 
+        The variables are not set in the process environment. Inspect passes them
+        only to the Docker provider's `task_init` (and its subclasses'). Any other
+        provider that returns variables fails setup with a `PrerequisiteError`:
+        put what `task_init` needs in the sandbox config instead, and pass
+        environment variables to the subprocesses it starts with
+        `subprocess(env=...)`.
+
+        Runs in the directory the eval was launched from.
+
         Args:
             config: Implementation defined configuration (optional).
             metadata: metadata: Sample `metadata` field
 
         Returns:
-            Environment variables to set for call to task_init.
+            Environment variables for the call to task_init.
         """
         return {}
 
@@ -647,6 +661,9 @@ class SandboxEnvironment(abc.ABC):
         cls, task_name: str, config: SandboxEnvironmentConfigType | None, cleanup: bool
     ) -> None:
         """Called at task exit as a last chance to cleanup resources.
+
+        Runs in the directory the eval was launched from, with the process's
+        own environment.
 
         Args:
           task_name: Name of task using the sandbox environment.

@@ -58,7 +58,6 @@ from inspect_ai._sentinel._config import (
     sentinel_config,
 )
 from inspect_ai._util._async import Wake, unwrap_exception_group
-from inspect_ai._util.environ import environ_vars
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.exception import TaskRetryAbandonedError, TerminateTaskError
 from inspect_ai._util.file import cleanup_s3_sessions
@@ -93,6 +92,7 @@ from inspect_ai.util._sandbox.environment import (
 )
 from inspect_ai.util._sandbox.lifecycle import sandbox_lifecycle_scope
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
+from inspect_ai.util._sandbox.setup import task_init_env
 
 from .loader import (
     as_solver_spec,
@@ -1269,7 +1269,7 @@ class SandboxManager:
         self._launch_dir = launch_dir
         self._started: Set[TaskSandboxEnvironment] = set()
         self._cleanups: list[
-            tuple[TaskCleanup, SandboxEnvironmentConfigType | None, str, Context]
+            tuple[TaskCleanup, SandboxEnvironmentConfigType | None, Context]
         ] = []
         self._init_lock = anyio.Lock()
         self._lifecycle: ExitStack | None = None
@@ -1356,7 +1356,12 @@ class SandboxManager:
             sandboxenv: TaskSandboxEnvironment | None = None
             cache_key: tuple[Task, SandboxEnvironmentSpec] | None = None
             if not sample.metadata:
-                spec = await resolve_sandbox(task.sandbox, sample, task.task.name)
+                spec = await resolve_sandbox(
+                    task.sandbox,
+                    sample,
+                    task.task.name,
+                    task_dir=task_run_dir(task.task, self._launch_dir),
+                )
                 if spec is None:
                     continue
                 cache_key = (task.task, spec)
@@ -1414,16 +1419,18 @@ class SandboxManager:
                     task_cleanup = cast(
                         TaskCleanup, getattr(sandboxenv_type, "task_cleanup")
                     )
-                    with chdir(sandboxenv.run_dir), environ_vars(dict(sandboxenv.env)):
-                        await _run_in_context(
-                            self._chain,
-                            functools.partial(
-                                task_init, "startup", sandboxenv.sandbox.config
-                            ),
-                            on_return=functools.partial(
-                                self._register_setup, sandboxenv, task_cleanup
-                            ),
-                        )
+                    await _run_in_context(
+                        self._chain,
+                        functools.partial(
+                            _task_init_startup,
+                            task_init,
+                            sandboxenv.sandbox.config,
+                            dict(sandboxenv.env),
+                        ),
+                        on_return=functools.partial(
+                            self._register_setup, sandboxenv, task_cleanup
+                        ),
+                    )
 
                 # provide some space above task display ("none" has no task
                 # display and must keep stdout machine-readable, e.g. --json)
@@ -1440,9 +1447,7 @@ class SandboxManager:
         self._chain = context
         self.bindings.record(sandboxenv, context)
         self._started.add(sandboxenv)
-        self._cleanups.append(
-            (task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir, context)
-        )
+        self._cleanups.append((task_cleanup, sandboxenv.sandbox.config, context))
 
     async def shutdown(self) -> None:
         """Run every accumulated `task_cleanup`, then release the lifecycle state.
@@ -1455,14 +1460,13 @@ class SandboxManager:
             try:
                 for cleanup_jobs in self._cleanups:
                     try:
-                        cleanup_fn, config, task_run_dir, context = cleanup_jobs
-                        with chdir(task_run_dir):
-                            await _run_in_context(
-                                context,
-                                functools.partial(
-                                    cleanup_fn, "shutdown", config, self._cleanup
-                                ),
-                            )
+                        cleanup_fn, config, context = cleanup_jobs
+                        await _run_in_context(
+                            context,
+                            functools.partial(
+                                cleanup_fn, "shutdown", config, self._cleanup
+                            ),
+                        )
                     except BaseException as ex:
                         log.warning(
                             f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
@@ -1471,6 +1475,21 @@ class SandboxManager:
                 if self._lifecycle is not None:
                     self._lifecycle.close()
                     self._lifecycle = None
+
+
+async def _task_init_startup(
+    task_init: TaskInit,
+    config: SandboxEnvironmentConfigType | None,
+    env: dict[str, str],
+) -> None:
+    """Run a startup `task_init` with its `task_init_environment` values.
+
+    The values are set in the setup state that Docker's `task_init` reads,
+    inside the child task `_run_in_context` starts, and reset before its
+    context is recorded as the setup's bindings.
+    """
+    with task_init_env(env):
+        await task_init("startup", config)
 
 
 async def _run_in_context(
