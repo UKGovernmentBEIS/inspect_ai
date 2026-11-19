@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import html
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any
 
 from rich.align import AlignMethod
 from rich.box import ROUNDED, Box
@@ -16,45 +16,108 @@ if TYPE_CHECKING:
 from inspect_ai._util.content import ContentReasoning
 from inspect_ai._util.text import truncate_lines
 
-from .format import format_function_call
+from .format import format_function_call, safe_code_fence
 
 
 def transcript_code_theme() -> str:
     return "github-dark"
 
 
-def transcript_markdown(
-    content: str, *, escape: bool = False, html_as_text: bool = False
-) -> Markdown:
+def transcript_markdown(content: str, *, escape: bool = False) -> Markdown:
     from rich.markdown import Markdown
 
     code_theme = transcript_code_theme()
-    markdown = Markdown(
+    return Markdown(
         html_escape_markdown(content) if escape else content,
         code_theme=code_theme,
         inline_code_lexer="python",
         inline_code_theme=code_theme,
     )
-    return show_html_as_text(markdown) if html_as_text else markdown
 
 
-MarkdownT = TypeVar("MarkdownT", bound="Markdown")
+def markdown_with_hidden_text_fenced(content: str) -> str:
+    """Markdown in which text a renderer would not show is in code blocks.
 
-
-def show_html_as_text(markdown: MarkdownT) -> MarkdownT:
-    """Parse `markdown` again so HTML in it renders as literal text.
-
-    Rich renders nothing for HTML blocks and inline HTML, so whatever text an
-    HTML comment or block holds would not be shown at all. This keeps the
-    parser rich uses, with its HTML rules turned off.
+    A Markdown renderer shows nothing of HTML blocks, inline HTML, link
+    destinations, images or reference definitions, so text in them would not
+    be seen. Each source line holding one, and each other line no rendered
+    block holds, is put in a code block whose fence is longer than any
+    backtick run in it, so it shows as written. Moving lines into a code block
+    can change how the lines around it parse, so this repeats until no such
+    line is left, and fences the whole content if that takes too long.
     """
+    for _ in range(_FENCE_HIDDEN_PASSES):
+        lines = _markdown_lines(content)
+        hidden = _hidden_markdown_lines(content, lines)
+        if not hidden:
+            return content
+        shown: list[str] = []
+        run: list[str] = []
+        for i, line in enumerate(lines):
+            if i in hidden:
+                run.append(line)
+                continue
+            if run:
+                shown.append(_fenced_lines(run))
+                run = []
+            shown.append(line)
+        if run:
+            shown.append(_fenced_lines(run))
+        content = "\n".join(shown)
+    return _fenced_lines(_markdown_lines(content))
+
+
+_FENCE_HIDDEN_PASSES = 5
+
+# tokens whose lines a renderer shows (a table's delimiter row and a setext
+# heading's underline are in the table's and heading's lines only)
+_SHOWN_TOKENS = {
+    "paragraph_open",
+    "heading_open",
+    "inline",
+    "fence",
+    "code_block",
+    "hr",
+    "table_open",
+}
+
+# inline tokens a renderer drops text of: inline HTML, a link's destination
+# (but not an autolink, which shows it) and an image
+_HIDING_INLINE = {"html_inline", "link_open", "image"}
+
+
+def _hidden_markdown_lines(content: str, lines: list[str]) -> set[int]:
     from markdown_it import MarkdownIt
 
-    parser = MarkdownIt("commonmark", {"html": False})
-    markdown.parsed = (
-        parser.enable("strikethrough").enable("table").parse(markdown.markup)
-    )
-    return markdown
+    # the parser rich's Markdown uses
+    parser = MarkdownIt("commonmark").enable("strikethrough").enable("table")
+    shown: set[int] = set()
+    hidden: set[int] = set()
+    for token in parser.parse(content):
+        if token.map is None:
+            continue
+        held = range(token.map[0], token.map[1])
+        if token.type in _SHOWN_TOKENS:
+            shown.update(held)
+        if token.type == "html_block" or any(
+            child.type in _HIDING_INLINE and child.markup != "autolink"
+            for child in token.children or []
+        ):
+            hidden.update(held)
+    return hidden | {
+        i for i, line in enumerate(lines) if i not in shown and line.strip()
+    }
+
+
+def _markdown_lines(content: str) -> list[str]:
+    # split as the tokenizer counts lines (see html_escape_markdown)
+    return content.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+
+
+def _fenced_lines(lines: list[str]) -> str:
+    text = "\n".join(lines)
+    fence = safe_code_fence(text)
+    return f"{fence}\n{text}\n{fence}"
 
 
 def html_escape_markdown(content: str) -> str:

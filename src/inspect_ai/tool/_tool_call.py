@@ -145,7 +145,15 @@ def resolve_tool_call_view(
 
 
 def default_tool_call_viewer(call: ToolCall) -> ToolCallView:
-    code = format_function_call(call.function, call.arguments, literal_strings=True)
+    r"""The call as a Python function call, with its arguments as literals.
+
+    The surfaces fill `{{param}}` placeholders in a view from the call's
+    arguments, so `{{` in a string literal is written `{\x7b`, which reads as
+    the same string and is not a placeholder.
+    """
+    code = format_function_call(
+        call.function, call.arguments, literal_strings=True
+    ).replace("{{", "{\\x7b")
     return ToolCallView(
         call=ToolCallContent(
             format="markdown", content=tool_call_code_block(call, code, "python")

@@ -23,8 +23,12 @@ def code_viewer(
     title = title or language
 
     def viewer(tool_call: ToolCall) -> ToolCallView:
-        code = tool_call.arguments.get(code_param, None)
-        code = str(code or tool_call.function).strip()
+        # a placeholder, so the surfaces fill in the code as written (code
+        # embedded here would have its own `{{...}}` text substituted)
+        if tool_call.arguments.get(code_param, None):
+            code = f"{{{{{code_param}}}}}"
+        else:
+            code = tool_call.function
         call = ToolCallContent(
             title=title,
             format="markdown",

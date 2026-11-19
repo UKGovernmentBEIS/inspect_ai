@@ -46,7 +46,8 @@ def think(
 
 def think_tool_viewer() -> ToolCallViewer:
     def viewer(tool_call: ToolCall) -> ToolCallView:
-        thought = str(tool_call.arguments.get("thought", ""))
+        # a placeholder, so the surfaces fill in the thought as written
+        thought = "{{thought}}" if "thought" in tool_call.arguments else ""
         call = ToolCallContent(
             format="markdown",
             content=tool_call_code_block(tool_call, thought, "markdown"),

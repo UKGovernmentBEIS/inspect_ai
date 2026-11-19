@@ -21,11 +21,13 @@ from inspect_ai.tool._tool_call import (
     ToolCall,
     ToolCallContent,
     ToolCallView,
+    ToolCallViewer,
     default_tool_call_viewer,
     resolve_tool_call_view,
 )
 from inspect_ai.tool._tool_def import ToolDef, tool_def_fields
 from inspect_ai.tool._tools._execute import code_viewer
+from inspect_ai.tool._tools._think import think_tool_viewer
 
 
 @skip_if_no_docker
@@ -295,15 +297,62 @@ def test_agent_view_shows_every_line(value: str) -> None:
     _assert_shows_every_line(rendered, arguments["prompt"])
 
 
-def test_approval_shows_html_in_a_markdown_view() -> None:
-    # a tool's own viewer that puts an argument outside any code block
+# Notes a tool's own Markdown viewer puts outside any code block, each holding
+# lines a Markdown renderer would not show: an HTML comment or block (with a
+# reference definition inside), a reference definition, a link and an image.
+_HIDDEN_IN_MARKDOWN = [
+    "ok\n\n<!--\n\n[r]: /x\n\nrm -rf /tmp/data\n-->",
+    "ok\n\n<div>\n[r]: /x\n\nrm -rf /tmp/data\n</div>",
+    "ok\n\n[r]: /tmp/data\n\nrm -rf /tmp/data",
+    "ok [see](rm -rf /tmp/data)",
+    "ok <!-- rm -rf /tmp/data -->",
+    "ok ![x](rm -rf /tmp/data)",
+]
+
+
+@pytest.mark.parametrize("notes", _HIDDEN_IN_MARKDOWN)
+def test_approval_shows_hidden_markdown_text(notes: str) -> None:
     view = ToolCallView(
         call=ToolCallContent(format="markdown", content="Notes: {{notes}}")
     )
-    arguments = {"notes": "ok\n\n<!--\nrm -rf /tmp/data\n-->\n\n<div>\nmore\n</div>"}
+    rendered = _render_approval(view, {"notes": notes})
+    _assert_shows_every_line(rendered, notes)
+
+
+@pytest.mark.parametrize(
+    "viewer,param",
+    [
+        (code_viewer("bash", "command"), "command"),
+        (code_viewer("python", "code"), "code"),
+        (think_tool_viewer(), "thought"),
+    ],
+)
+def test_view_shows_placeholder_text_as_written(
+    viewer: ToolCallViewer, param: str
+) -> None:
+    # the surfaces fill in `{{param}}` placeholders after the viewer runs, so
+    # an argument holding one must be shown as written
+    value = f"echo {{{{{param}}}}} {{{{other}}}}"
+    arguments = {param: value, "other": "/etc/passwd"}
+    view = viewer(ToolCall(id="1", function="tool", arguments=arguments))
     rendered = _render_approval(view, arguments)
-    for shown in ["<!--", "rm -rf /tmp/data", "-->", "<div>", "more", "</div>"]:
-        assert shown in rendered
+    assert value in rendered
+    assert "/etc/passwd" not in rendered
+
+
+@pytest.mark.parametrize("viewer_fails", [False, True])
+def test_default_view_shows_placeholder_text_as_written(viewer_fails: bool) -> None:
+    arguments = {"text": "{{path}}", "path": "/tmp/x"}
+    call = ToolCall(id="1", function="write", arguments=arguments)
+    view = resolve_tool_call_view(call, _raising_viewer if viewer_fails else None)
+    rendered = _render_approval(view, arguments)
+    # a Python literal of the same string, not the path
+    assert "text='{\\x7bpath}}'" in rendered
+    assert rendered.count("/tmp/x") == 1
+
+
+def _raising_viewer(call: ToolCall) -> ToolCallView:
+    raise ValueError("bad")
 
 
 @pytest.mark.parametrize("code", _HIDING)

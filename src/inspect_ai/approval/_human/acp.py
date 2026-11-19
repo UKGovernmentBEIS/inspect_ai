@@ -56,6 +56,7 @@ from acp.schema import (
 )
 
 from inspect_ai._util.format import markdown_escaped, safe_code_fence
+from inspect_ai._util.transcript import markdown_with_hidden_text_fenced
 from inspect_ai.agent._acp._guards import acp_guard
 from inspect_ai.tool._tool_call import (
     ToolCall,
@@ -177,7 +178,9 @@ def _format_view_content_as_markdown(
     includes a bold title heading (if ``view_content.title`` is set)
     and — for non-markdown source — a fenced code block around the
     body so whitespace / indentation are preserved by any markdown
-    renderer.
+    renderer. Markdown source has text a renderer would not show (HTML,
+    link destinations, reference definitions) put in code blocks, and the
+    title is escaped, so the client shows the whole call.
 
     This is what lets the inline approval section (in the TUI) and
     any other ACP client (Zed etc.) render the same visual structure
@@ -192,7 +195,7 @@ def _format_view_content_as_markdown(
         parts.append(f"**{markdown_escaped(view_content.title)}**")
         parts.append("")  # blank line between heading and body
     if view_content.format == "markdown":
-        parts.append(view_content.content)
+        parts.append(markdown_with_hidden_text_fenced(view_content.content))
     else:
         # Fence plain text so the renderer treats it as preformatted
         # (preserves indentation; avoids markdown reinterpretation).

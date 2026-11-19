@@ -23,14 +23,12 @@ terminal display.
 
 from __future__ import annotations
 
-from typing import Any
-
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.markdown import CodeBlock, Heading, Markdown
 from rich.syntax import Syntax
 from rich.text import Text
 
-from inspect_ai._util.transcript import show_html_as_text, transcript_code_theme
+from inspect_ai._util.transcript import transcript_code_theme
 
 _CODE_BG = "#282c34"
 """Background colour for syntax-highlighted blocks.
@@ -100,12 +98,7 @@ class PlainHeading(Heading):
 
 
 class StyledMarkdown(Markdown):
-    """Markdown variant with custom code + heading renderers.
-
-    HTML renders as literal text (see `show_html_as_text`), so the tool calls
-    and approval prompts shown here cannot hide text in an HTML comment or
-    block.
-    """
+    """Markdown variant with custom code + heading renderers."""
 
     elements = {
         **Markdown.elements,
@@ -113,7 +106,3 @@ class StyledMarkdown(Markdown):
         "code_block": StyledCodeBlock,
         "heading_open": PlainHeading,
     }
-
-    def __init__(self, markup: str, **kwargs: Any) -> None:
-        super().__init__(markup, **kwargs)
-        show_html_as_text(self)

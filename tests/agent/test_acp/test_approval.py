@@ -1445,6 +1445,62 @@ def test_build_request_keeps_the_command_in_one_code_block() -> None:
     assert [fence.content for fence in fences] == [f"{command}\n"]
 
 
+def _shown_markdown_text(text: str) -> str:
+    """The text a Markdown renderer shows: code blocks and inline text."""
+    from markdown_it import MarkdownIt
+
+    shown: list[str] = []
+    for token in MarkdownIt("commonmark").parse(text):
+        if token.type in ("fence", "code_block"):
+            shown.append(token.content)
+        for child in token.children or []:
+            if child.type in ("text", "code_inline"):
+                shown.append(child.content)
+    return "\n".join(shown)
+
+
+@pytest.mark.parametrize(
+    "notes",
+    [
+        "ok\n\n<!--\n\n[r]: /x\n\nrm -rf /tmp/data\n-->",
+        "ok\n\n<div>\n[r]: /x\n\nrm -rf /tmp/data\n</div>",
+        "ok\n\n[r]: /tmp/data\n\nrm -rf /tmp/data",
+        "ok [see](rm -rf /tmp/data)",
+        "ok <!-- rm -rf /tmp/data -->",
+    ],
+)
+def test_build_request_shows_hidden_markdown_text(notes: str) -> None:
+    # a tool's own Markdown viewer that puts an argument outside a code block
+    call = _make_call(function="note", arguments={"notes": notes})
+    view = ToolCallView(
+        call=ToolCallContent(format="markdown", content="Notes: {{notes}}")
+    )
+    req = _build_request(
+        session_id="s1", call=call, view=view, choices=["approve", "reject"]
+    )
+    text = "\n".join(_texts(req.tool_call.content))
+    assert not {"html_block", "html_inline"} & _markdown_token_types(text)
+    shown = _shown_markdown_text(text)
+    for line in notes.splitlines():
+        assert line in shown
+
+
+def test_build_request_shows_placeholder_text_as_written() -> None:
+    from inspect_ai.tool._tools._execute import code_viewer
+
+    command = "echo {{command}} {{path}}"
+    call = _make_call(arguments={"command": command, "path": "/etc/passwd"})
+    req = _build_request(
+        session_id="s1",
+        call=call,
+        view=code_viewer("bash", "command")(call),
+        choices=["approve", "reject"],
+    )
+    text = "\n".join(_texts(req.tool_call.content))
+    assert command in text
+    assert "/etc/passwd" not in text
+
+
 def test_separator_block_is_horizontal_rule_markdown() -> None:
     block = _separator_block()
     assert block.type == "content"

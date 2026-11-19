@@ -5,7 +5,10 @@ from rich.markup import escape
 from rich.rule import Rule
 from rich.text import Text
 
-from inspect_ai._util.transcript import transcript_markdown
+from inspect_ai._util.transcript import (
+    markdown_with_hidden_text_fenced,
+    transcript_markdown,
+)
 from inspect_ai.tool._tool_call import (
     ToolCallContent,
     ToolCallView,
@@ -46,7 +49,9 @@ def render_tool_approval(
             )
         if view_content.format == "markdown":
             renderables.append(
-                transcript_markdown(view_content.content, html_as_text=True)
+                transcript_markdown(
+                    markdown_with_hidden_text_fenced(view_content.content)
+                )
             )
         else:
             text_content = text_highlighter(Text(view_content.content))
