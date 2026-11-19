@@ -23,9 +23,10 @@ like any other task failure. Setup no longer changes the process's working
 directory or environment: Inspect makes relative config paths absolute
 against the task directory before any provider sees them, and every
 provider call runs in the launch directory, as `sample_init` does today.
-The `ContextVar` values a provider binds in `task_init` are captured per
-setup, so each sample and each `task_cleanup` sees the state its own
-configuration's `task_init` produced.
+The `ContextVar` values a provider binds in `task_init` stay captured per
+setup, as they are today, with one capture for the whole run, so each
+sample and each `task_cleanup` sees the state its own configuration's
+`task_init` produced, whichever task's attempt ran the setup.
 
 [task-handles.md](task-handles.md) builds on this queue: handles that let a
 running task cancel the tasks it adds, send samples to a task fed through
@@ -123,10 +124,13 @@ hides a problem):
   retry. `eval()` returns the log with the other logs, so an eval set or
   selection-mode worker that requested the task reports failure. Under
   `eval_set(retry_immediate=False)` the next round runs such a task again,
-  as it does a running task cancelled today.
+  as it does a running task cancelled today. (A task fed through a handle
+  and cancelled while queued ends at once with no log instead;
+  [task-handles.md](task-handles.md#tasks-fed-through-a-handle).)
 - `debug_errors=True` raises task errors at every `max_tasks`.
-- The control channel lists queued tasks and cancels, drains, pauses and
-  resumes them.
+- The control channel lists queued tasks and cancels and drains them.
+  `inspect ctl task pause` and `resume` of a queued task still answer "not
+  found", as today.
 
 Could change what an eval computes:
 
@@ -159,8 +163,6 @@ Could change what an eval computes:
   directory, where today `resolve_task_sandbox`'s unconditional join gives
   an absolute path to the missing file and setup fails. The same rule keeps
   a task-level inline-JSON string config, which the join rewrites today.
-- **Which `ContextVar` values a sample sees**: its own configuration's setup
-  state rather than the last setup's.
 - **`os.environ` during setup** no longer holds `task_init_environment`
   values; only Docker returns any, and it receives them directly. A
   provider outside Docker's class family whose `task_init_environment`
@@ -183,10 +185,6 @@ supervisors whose workers run `eval_set()` in selection mode. Today:
 - Setup changes the process-wide working directory and environment while
   other tasks run: a running sample that reads `os.getcwd()` while an added
   task's `task_init` awaits sees the added task's directory.
-- Providers that keep their sandbox list in `ContextVar`s bound by
-  `task_init` (E2B, Modal, Daytona) lose earlier lists when a later
-  `task_init` rebinds them, so end-of-run cleanup misses sandboxes, and a
-  `SampleSource` task with an empty seed fails every later sample.
 
 There are two drivers, so each of these has to be fixed twice.
 
@@ -203,7 +201,8 @@ Goals:
 - Every task, including one waiting to start, is listed and cancellable
   through the control channel.
 - No process-wide working-directory or environment change across an `await`;
-  per-setup provider state, with no provider release needed.
+  today's per-setup provider state kept when every task sets up in its own
+  attempt, with no provider release needed.
 
 Non-goals:
 
@@ -362,22 +361,49 @@ Paths reach providers in three ways:
 
 ### Provider state
 
-`SandboxManager.open()` binds Docker's `SandboxLifecycleState`
-(`src/inspect_ai/util/_sandbox/lifecycle.py`) in `eval_run`'s context. Every
-other provider keeps state in its own `ContextVar`s, and every `task_init`
-and `task_cleanup` runs in `eval_run`'s context:
+Every provider but Docker keeps state in its own `ContextVar`s, which
+`task_init` binds and `sample_init` and `task_cleanup` read:
 
-| provider | what `task_init` binds | effect today |
-| --- | --- | --- |
-| E2B, Modal | rebinds `_running_sandboxes` (E2B also `_run_id`) | a later `task_init` replaces the list; `task_cleanup` sees only the last one |
-| Daytona | rebinds the list, run id and `_daytona_client` | same; client of the last configuration only |
-| Podman | rebinds project and compose-file registries | same |
-| k8s | get-or-create `HelmReleaseManager` and `PodOpExecutor` | shared across configurations |
-| Proxmox, EC2, Vagrant | class state or nothing | unaffected |
+| provider | what `task_init` binds |
+| --- | --- |
+| E2B, Modal | rebinds `_running_sandboxes` (E2B also `_run_id`) |
+| Daytona | rebinds the list, run id and `_daytona_client` |
+| Podman | rebinds project and compose-file registries |
+| k8s | get-or-create `HelmReleaseManager` and `PodOpExecutor`, shared across configurations |
+| Proxmox, EC2, Vagrant | class state or nothing |
 
-With an empty `SampleSource` seed, `task_init` runs in the feeder, a sibling
-of the samples, so its bindings are invisible to them: E2B and Modal raise
-`LookupError`, Daytona raises "client not initialized".
+`SandboxManager` captures that state per configuration
+(`src/inspect_ai/_eval/run.py`):
+
+- `SandboxManager.open()`, which `eval_run` calls before it prepares any
+  task, sets the `--sandbox-prebuilt` flag, enters Docker's
+  `sandbox_lifecycle_scope()` and takes `root`, a `copy_context()` of
+  `eval_run`'s context: the context every task and sample of that
+  `eval_run` starts from, holding no provider state. `shutdown()`, in
+  `eval_run`'s `finally`, runs the cleanups and then exits the scope.
+- Each `task_init` runs in a child task started from the setup chain's
+  context (`_run_in_context`), which starts as `root`; each successful
+  call's context replaces it, so a later setup sees what earlier ones bound
+  (k8s's shared manager stays shared). As the call returns, inside the
+  child, `_register_setup` keeps that context for the configuration's
+  `task_cleanup` and records its bindings in `SandboxSetupBindings`
+  (`src/inspect_ai/_eval/task/sandbox.py`): every `ContextVar` whose value
+  differs, by identity, from `root`'s, keyed by the resolved spec and task
+  directory. A failed `task_init` records nothing and does not replace the
+  chain.
+- `prepare_options` gives each task's `TaskRunOptions` an
+  `apply_sandbox_bindings` callable, `SandboxSetupBindings.apply` bound to
+  the task directory, and `sandboxenv_context` calls it before
+  `sample_init`. It binds the configuration's recorded values only where
+  the sample's current value is still `root`'s, so a value the sample bound
+  itself is kept. So each configuration's samples, their `sample_cleanup`
+  and its `task_cleanup` see its own state, including the samples of a
+  `SampleSource` task whose feeder ran the setup.
+- Docker's `SandboxLifecycleState` is a mutated object on the lifecycle
+  scope, not a rebinding, so it never appears in the bindings.
+
+Under `run_batches` each batch is its own `eval_run`, with its own
+`SandboxManager` and `root`.
 
 ## Design
 
@@ -390,7 +416,8 @@ The design keeps these, and each section below says how:
 2. **Every task × model is one record, and every record ends exactly once**
    (`RunQueue.end`), with the log its last attempt returned, or `None` when
    dispatch ended first or, for a fed task, when its channel closed before
-   any sample was sent (task-handles.md, "Closing").
+   any sample was sent or it was cancelled while queued (task-handles.md,
+   "Closing" and "Cancelling").
 3. **A record is visible to the control channel from the moment it is
    added, and after it ends**: in the queued registry until one of its
    attempts first calls `register_eval`, then through its `EvalState`, as
@@ -655,7 +682,8 @@ when `abort_requested` is set, and schedules `run_one` with them. So a
 cancel of a record that has never registered sees one of two states only (a
 record with `reached == "registered"` takes the `cancel_task` route below
 first, whatever its phase). A record still `queued` has not been picked for
-its next attempt: it gets `abort_requested` and the uncounted start. A record
+its next attempt: it gets `abort_requested` and the uncounted start (a
+record fed through a handle instead ends at once, below). A record
 already picked for its current attempt, including one whose `run_one` has
 not yet run its first statement, is an attempt that has not registered: the cancel goes to the pair
 `start_attempt` stored on the record, the attempt aborts at `task_run`'s
@@ -668,8 +696,8 @@ the `TaskSource` runs inside `_run_task`, before the slot is released, so a
 `max_tasks=1` waits as it does today for any attempt that ends while holding
 the only slot. Only `run_one`
 (and `end_all()` after the group exits) ends a record in `attempt`:
-`end_unstarted()` and, in task-handles.md, the empty-channel close act on
-`queued` records only, so a scheduled `run_one` always has its attempt to
+`end_unstarted()` and, in task-handles.md, the empty-channel close and a
+fed record's cancel act on `queued` records only, so a scheduled `run_one` always has its attempt to
 run. A cancellation of the attempt group right after the pick does not skip
 `run_one`: an AnyIO task started with `start_soon` runs its synchronous
 body up to its first checkpoint even when its group is cancelled first
@@ -702,7 +730,8 @@ queued row and by a handle's `cancel()`, is synchronous:
   attempt or abandons a pending retry (the dispatcher drops it and the
   record ends with its stored log), exactly as `inspect ctl task cancel`
   does today.
-- `queued`, never registered: an attempt that aborts before it starts.
+- `queued`, never registered (a record fed through a handle excepted,
+  below): an attempt that aborts before it starts.
   `RunQueue.cancel` records the intent, `record.abort_requested = True`,
   and rings `wake`; it creates no `TaskCancel` or scope. The dispatcher
   starts the record on its next pass ("Start rule": a record with
@@ -729,13 +758,16 @@ queued row and by a handle's `cancel()`, is synchronous:
   closed"), so no retry is published and the record ends with that
   attempt's log. No case reports `retry_abandoned`, which stays the answer
   for a pending retry of a registered task only.
-- (task-handles.md) A record fed through a handle: after the route above
-  (so a queued record's `abort_requested` is already set), `RunQueue.cancel`
-  closes the record's sample channel itself, in the same synchronous call,
-  in every phase but `ended`, whether or not the route's directive applied:
-  once the attempt's `EvalState` is terminal while the record is still in
-  `attempt` (its `task_complete` running), `cancel_task` answers "task
-  already finished" without calling `apply`.
+- (task-handles.md) A record fed through a handle, which is never
+  retried: in `queued` it has never started, and `RunQueue.cancel` ends it
+  at once with no log (`RunQueue.end(record, None)`) instead of the route
+  above, so it never gets `abort_requested` (decision: Ransom, 2026-11-19).
+  In `attempt`, after the route above, `RunQueue.cancel` closes the
+  record's sample channel itself, in the same synchronous call, whether or
+  not the route's directive applied: once the attempt's `EvalState` is
+  terminal while the record is still in `attempt` (its `task_complete`
+  running), `cancel_task` answers "task already finished" without calling
+  `apply`.
 
 **Aborting an attempt that has not registered.** `start_attempt` creates
 the attempt's cancel scope and its `TaskCancel`, whose `apply` cancels that
@@ -838,7 +870,10 @@ twice is reported three times.
   ends the record with its earlier attempt's log) reports nothing; nor does
   an unregistered attempt aborted after `_run_task` returned: in each case
   the attempt whose log the record keeps was reported when it returned. A
-  record ended unstarted when dispatch ends is not reported, as today.
+  record ended unstarted when dispatch ends is not reported, as today, nor
+  is a record fed through a handle that ends before it starts (its channel
+  closed before any sample was sent, or cancelled while queued;
+  task-handles.md), since no attempt ran.
 
 The call keeps `notify_task_source`'s rules, as today: a callback exception
 is logged (propagated under `debug_errors`), and the tasks a callback
@@ -900,7 +935,7 @@ display and logger format.
 attempt calls `register_eval` (cancelled while queued, which aborts before it registers, a startup failure
 such as a failed `init()` or a bad adaptive setting with no retry left, an
 attempt aborted before it registered, a record ended unstarted, a fed task closed before
-any sample was sent) would otherwise vanish from the control channel when
+any sample was sent or cancelled while queued) would otherwise vanish from the control channel when
 it leaves the queued registry: `latest_eval_for_task` finds nothing, and a
 repeated cancel or drain answers 404. So `RunQueue.end`, in the same
 synchronous step and before removing the registry entry, calls today's
@@ -922,23 +957,22 @@ Textual displays count completed tasks from the rows attempts open. So a
 record that ends with `reached == "added"` (cancelled while queued, ended
 unstarted at the end of dispatch, aborted or failed in startup before its
 row opened, or, in task-handles.md, a fed task closed before any
-sample was sent) takes one off the total, once. A record whose row opened
+sample was sent or cancelled while queued) takes one off the total, once. A record whose row opened
 leaves the total unchanged, as today; an abort from `log_start()` on
 completes that row ("Aborting an attempt that has not registered").
 `RunQueue.end` calls `display().update_task_count(-1)` only while
 `queue.screen_open` is set: the dispatcher sets it on entering the body of
 `_run_task_screen`, after Textual's app has loaded and `task_screen(tasks)`
 has set the seed's total, and clears it when it leaves the screen. No
-record that should count ends outside that window: a cancel only requests
-an abort and the dispatcher, inside the screen, runs it; a fed task's
-channel is closed by attempt code, by `RunQueue.end` or (task-handles.md)
-by `RunQueue.cancel`, which a handle or a control-channel directive can
-call at any time, but `RunQueue.cancel` sets a queued record's
-`abort_requested` before it closes the channel, so that empty-channel close
-keeps the record queued for its abort attempt inside the screen (or for
-`end_unstarted()`), and closing a record already in `attempt` leaves its
-end to `run_one`; `end_unstarted()` runs in
-the dispatcher's `finally`, inside the screen. What ends outside it changes
+record that should count ends outside that window: a cancel of an
+ordinary queued record only requests an abort and the dispatcher, inside
+the screen, runs it, and `end_unstarted()` runs in the dispatcher's
+`finally`, inside the screen. A fed record (task-handles.md) can end while
+queued at any time, when its channel closes with no request or when a
+handle or a control-channel directive cancels it, but it is added only by
+an attempt, which runs inside the screen, and `end_unstarted()` ends it
+before the screen closes if nothing else has; a fed record already in
+`attempt` is left to `run_one`. What ends outside it changes
 no display: `end_all()` after the screen has closed, and every record when
 a failure came before the screen opened. The displays' counting is
 unchanged.
@@ -1215,7 +1249,8 @@ task id, and `EvalState`s persist across those calls.
   keeping its history. CLI selectors resolve queued tasks like running ones.
 - `_task_cancel_directive` looks in the registry first. A cancel or drain of
   a record that has not registered follows `RunQueue.cancel`, which
-  requests its abort, and returns `changed: true`, `task_queued: true`,
+  requests its abort (or, for a queued record fed through a handle, ends
+  it at once with no log), and returns `changed: true`, `task_queued: true`,
   `in_flight: 0` (and `queued: 0` for a drain, whose `queued` is a sample
   count); `dry_run` reports without acting. When the record is `queued`
   with `abort_requested` set, a repeated cancel or drain, dry runs
@@ -1231,20 +1266,18 @@ task id, and `EvalState`s persist across those calls.
   answers 409 ("task … has not
   started, so there are no samples for a resolution to apply to; use cancel
   or drain").
-- `pause_task` and `resume_task` (`_control/pause.py`) look in the registry
-  first, as the cancel directive does, and use `latest_eval_for_task` only
-  for a task the registry does not hold: under
-  `eval_set(retry_immediate=False)` a second round's queued record shares
-  its id with the first round's terminal `EvalState`, which would otherwise
-  answer "task already finished" to a pause and describe the old eval on a
-  resume. For a queued record they close or open the task's pause gate
-  (`_task_gate(task_id)`), which is
-  the gate the start rule checks: a paused queued task is skipped by the
-  dispatcher, which starts the tasks behind it, and starts after a resume
-  (the resume fires the dispatch wakers). The response describes the queued
-  task with its record's task name and model, `status: "queued"`, and
-  `dry_run` reports without acting. A gate closed while the task was queued
-  keeps holding its samples after it starts, as for a paused running task.
+- `pause_task` and `resume_task` (`_control/pause.py`) are unchanged
+  (decision: Ransom, 2026-11-19): they look a task up with
+  `latest_eval_for_task`, so for a queued task that has never registered
+  they answer 404, which the CLI shows as "Task '<id>' not found in this
+  process (it may have finished)", although `task list` shows the task as
+  queued; under `eval_set(retry_immediate=False)` they find the earlier
+  round's `EvalState` and answer for it, as today. An operator holds queued
+  tasks with `inspect ctl process pause` or cancels them. The start rule
+  still checks `task_dispatch_paused`, so a process or model pause, and a
+  task pause of a registered task's pending retry, hold a queued record as
+  today. Pausing a queued task can be added later without breaking anyone
+  ("Not this design").
 - `CONTROL_API_VERSION` increases by one.
 
 #### Tasks cancelled before they start under `eval_set()`
@@ -1404,56 +1437,28 @@ restored afterwards. In place of the `chdir`:
 
 ### Provider state per setup
 
-`eval_run` enters Docker's `sandbox_lifecycle_scope()` first, in its own
-context, before it creates the queue, the sandbox manager or any task (today
-`SandboxManager.open()` does this before preparing tasks), keeps it through
-the run and its shutdown cleanup, and exits it in that same context in
-its `finally`, on every exit, a configuration error in the seed included.
-`SandboxManager` is created next and takes `root`, a `copy_context()` of
-`eval_run`'s context at that moment, after `eval_run` has set the
-`--sandbox-prebuilt` flag and before any task or setup starts: the context
-every attempt and sample inherits, holding the lifecycle scope and no
-provider state. Each `task_init` runs in a task started from the setup
-chain's context, which starts as a copy of `root` (so Docker's lifecycle
-scope object is inherited) and which each successful `task_init`'s context
-replaces in turn, so a later `task_init` sees what earlier ones bound, as
-today (k8s's shared manager stays shared). When `task_init` succeeds, the
-manager keeps two things for that configuration:
+Today's capture ("Current behaviour", "Provider state") is kept, and with
+one `eval_run` per run it covers every task of the run:
 
-- `context`: a `copy_context()` taken inside the setup's task as the call
-  returns, for its `task_cleanup`.
-- `bindings`: every `ContextVar` in that context whose value differs, by
-  `is not`, from its value in `root` (a variable missing from `root`
-  differs), excluding the `env` variable above. So `bindings` is the
-  configuration's whole provider state, including what earlier setups bound
-  and this one inherited: for E2B, Modal and Daytona each configuration's
-  own rebound list and run id, and for k8s the manager an earlier setup
-  created and this one reused without rebinding.
+- `eval_run` calls `SandboxManager.open()` before it creates the queue or
+  adds the seed, so `root` is taken before any attempt or setup starts, and
+  `shutdown()` stays in its `finally`, on every exit, a configuration error
+  in the seed included. One manager, one setup chain and one `root` then
+  serve the seed, every added task and every retry.
+- `configure_task()` gives every task's `TaskRunOptions` the
+  `apply_sandbox_bindings` callable that `prepare_options` gives it today,
+  bound to the task directory, beside its `startup_sandboxes`. Each attempt
+  runs its own setups through the shared manager ("Sandbox setup in the
+  attempt"), so a configuration's bindings are recorded once, by whichever
+  attempt set it up, and reach the samples of every task that uses it.
+- Step 1's `env` variable must not become a binding: the context a setup
+  records holds no value for it, so a sample never sees one setup's
+  `task_init_environment` values.
 
-A failed `task_init` keeps neither, and its context does not replace the
-chain's, so its bindings reach no later setup.
-
-- **Samples.** `sandboxenv_context` applies the bindings of the
-  configuration it finds for the sample (by its resolved spec and task
-  directory) in the sample's own context before `sample_init`, but only for a
-  variable whose current value is still its value in `root` (the same
-  object, or missing from both): a value the sample (or its solver) bound
-  itself is left alone. Samples start from `root`'s descendants, so for every
-  provider variable that holds, and each sample gets its own configuration's
-  state, wherever the setup ran. `sample_init`, the sample's sandbox calls
-  and `sample_cleanup` then see it. This fixes the empty-seed `LookupError`
-  for E2B, Modal and Daytona.
-- **Cleanup.** Each `task_cleanup` runs in a task started from its
-  configuration's `context`, so E2B, Modal, Daytona and Podman clean up the
-  list their own `task_init` bound, including sandboxes an interrupted
-  `sample_cleanup` left behind.
-- Docker's `SandboxLifecycleState` is a mutated object, not a rebinding, so it
-  never appears in `bindings`.
-
-The lifecycle scope stays internal: with captured bindings, the pattern
-providers already use (bind in `task_init`, read in `sample_init` and
-`task_cleanup`) is correct for every provider without a new API, and no
-inspect_sandboxes change is needed.
+With captured bindings, the pattern providers already use (bind in
+`task_init`, read in `sample_init` and `task_cleanup`) stays correct for
+every provider without a new API, and no inspect_sandboxes change is
+needed.
 
 ### Where the handles attach
 
@@ -1565,8 +1570,6 @@ here depends on it.
   that resolves Docker's string configs inside a setup. Once Inspect makes
   config paths absolute, no surveyed provider needs the task directory in
   Python, so the accessor would be API nobody calls.
-- **Exporting the lifecycle scope.** Every provider would have to adopt it;
-  captured bindings make the existing pattern correct.
 - **Clearing a failed row's frames instead of snapshotting its error**:
   keep `TaskError` with the real exception and traceback, and once the
   attempt ends run `traceback.clear_frames` over the exception, its
@@ -1648,7 +1651,9 @@ Public API:
 Logs: a task cancelled while queued is returned by `eval()` with today's
 abort error log ("Task cancelled by user (abort)") and no file (empty
 `location`), where today it would have run; one cancelled in its attempt
-before it registers ends with the same abort log.
+before it registers ends with the same abort log. A task fed through a
+handle and cancelled while queued ends with no log
+([task-handles.md](task-handles.md#tasks-fed-through-a-handle)).
 Code that reads `log.location` from `eval()`'s results gets an empty string
 for it, as it already can for a task whose log could not be written. No eval
 log schema, viewer type or config file changes here.
@@ -1667,9 +1672,10 @@ it is created; a bad adaptive setting on an added task ends that task with
 its error log instead of raising from `eval()`.
 
 Control channel: `GET /tasks` gains queued rows (`status: "queued"`); task
-cancel, drain, pause and resume accept queued tasks (`task_queued` in a
-cancel or drain result; a repeated one before the queued task's abort runs
-answers "cancel already requested (abort)"); a task that ended without
+cancel and drain accept queued tasks (`task_queued` in a cancel or drain
+result; a repeated one before the queued task's abort runs answers "cancel
+already requested (abort)"); task pause and resume of a queued task answer
+404, as today, though the task is now listed; a task that ended without
 starting stays listed as finished, and a repeated cancel or drain of it
 answers "task already finished";
 and `CONTROL_API_VERSION` increases. Older CLIs see an unknown status value.
@@ -1685,8 +1691,6 @@ and `CONTROL_API_VERSION` increases. Older CLIs see an unknown status value.
   reaches them.
 - **Control channel:** cancelling a queued task uses the existing task
   directive's authorization; queued rows expose what running rows expose.
-- **Captured provider bindings** are the provider's own objects, applied only
-  inside samples of the same run and configuration.
 
 ## Testing
 
@@ -1696,7 +1700,7 @@ test touched), mostly with a stub sandbox provider registered with
 `os.getcwd()` and `os.environ`, and binds `ContextVar`s as E2B does. Every
 test that waits on a run is bounded with `fail_after`.
 
-- `tests/util/sandbox/test_sandbox_setup.py` (new; invariants 7 and 8): a
+- `tests/util/sandbox/test_sandbox_setup.py` (invariants 7 and 8): a
   running sample's `os.getcwd()` and `os.environ` are unchanged while
   `task_init` awaits; `task_init`, `task_init_environment` and `task_cleanup`
   see the launch directory, and a `subprocess()` they start runs there;
@@ -1714,18 +1718,16 @@ test that waits on a run is bounded with `fail_after`.
   directory's absolute path, while a file-based control (a relative
   `compose.yaml` beside the task) arrives as that file's absolute path with
   its contents unchanged; a task-level inline-JSON config reaches
-  `task_init` unchanged; per-setup bindings reach
-  `sample_init`, `sample_cleanup` and the matching `task_cleanup` for two
-  configurations, an added task's configuration and an empty `SampleSource`
-  seed, with samples of both configurations starting from the run's original
-  context: an E2B-style provider that rebinds a list per `task_init` gives
-  each configuration's samples their own list, and a k8s-style get-or-create
-  object created by the first configuration's `task_init` reaches the second
-  configuration's samples too; a sample that bound a variable itself keeps
-  its value; a failed `task_init`'s bindings reach no later setup; a sample
+  `task_init` unchanged; a sample
   whose config is a relative compose file resolves in `sandboxenv_context`
   to the spec its task's `task_init` got, and finds that configuration's
-  bindings, for a seed sample and a `SampleSource` addition.
+  bindings, for a seed sample and a `SampleSource` addition; Docker's
+  `env` variable is not among a setup's recorded bindings. The existing
+  `test_setup_bindings_*` cases pass unchanged under the dispatcher, and one
+  more covers an added task: a configuration first set up by a task added
+  with `enqueue_task()` gives that task's samples and its `task_cleanup` the
+  bindings its `task_init` made, beside a seed configuration that keeps its
+  own.
 - `tests/test_retry.py`: a task loaded from a file in another directory,
   with the stub provider, fails once and is retried with `eval_retry()` from
   its saved log, run from a working directory different from both the first
@@ -1863,9 +1865,7 @@ test that waits on a run is bounded with `fail_after`.
 - `tests/test_enqueue_task.py` (live fixes): at `max_tasks=1`, a long seed
   task holds the only slot and a task it added waits behind it; `inspect
   ctl config --max-tasks 2` starts the added task while the seed task still
-  runs; a queued task paused with
-  `inspect ctl task pause` is skipped while the task behind it starts, and
-  starts after `inspect ctl task resume`.
+  runs.
 - `tests/test_enqueue_task.py` (loader exception): a solver's
   `enqueue_task("other_dir/tasks.py@name")`, whose module imports a sibling
   module and whose task reads a relative file at construction, adds and runs
@@ -1894,7 +1894,8 @@ test that waits on a run is bounded with `fail_after`.
   the run ending normally, on asyncio and trio: B cancelled, and in another
   run drained, while queued behind a running A, with `.eval` and `.json`
   logs (no location, no buffer database, no display row); B cancelled
-  while queued and paused (the cancel starts it anyway); B cancelled before the task
+  while queued and held by a process pause (`pause_process()`; the cancel
+  starts it anyway); B cancelled before the task
   screen opens (Textual's app load held on an event), counted once off the
   total; B a queued retry whose first attempt's log init failed, cancelled
   while it waits (two reports: the failed attempt and the aborted one); B
@@ -1942,12 +1943,8 @@ test that waits on a run is bounded with `fail_after`.
   `location`, no file, returned by `eval_async()`); a repeated cancel and
   drain before that pass, with and without `--dry-run`, answer
   `changed: false`, "cancel already requested (abort)"; `score`/`error`
-  answer 409; pause and resume of a queued task change its gate and report
-  `status: "queued"` with its model, and `--dry-run` changes nothing; under
-  `eval_set(retry_immediate=False)`, pause, resume and their `--dry-run` on a
-  second round's queued record whose first round left a terminal
-  `EvalState` act on and describe the queued record, which is skipped while
-  paused and starts after resume; a
+  answer 409; `inspect ctl task pause` of a listed queued task answers
+  "not found", as today, and the task starts when a slot is free; a
   cancel of a record in its attempt before `register_eval` aborts it, landing
   before `_run_task` enters the attempt's scope, while `logger.init()` is
   held and while `log_start()` is held, each ending the record with "Task
@@ -1986,8 +1983,7 @@ test that waits on a run is bounded with `fail_after`.
   succeeds when the second `task_init` does; under `retry_immediate=False` a
   seed task cancelled while queued in the first round runs in the next.
 - inspect_sandboxes: a test per provider that two configurations and an added
-  task's configuration clean up every sandbox, against an Inspect build with
-  step 2; it needs provider API keys and runs where that repo's live tests run.
+  task's configuration clean up every sandbox; it needs provider API keys and runs where that repo's live tests run.
   Offline converter tests for Modal (`convert_compose_to_modal_params`) and
   Daytona (`create_single_service_params`): with a different `Dockerfile` in
   the task and launch directories and the working directory set to the
@@ -1997,15 +1993,14 @@ test that waits on a run is bounded with `fail_after`.
   today.
 
 The `--runslow` Docker tests run in the PR CI `slow-tests` job on PRs that
-touch `src/inspect_ai/util/_sandbox/**` or `tests/util/sandbox/**` (steps 1
-and 2 do); the rest run in the normal test job.
+touch `src/inspect_ai/util/_sandbox/**` or `tests/util/sandbox/**` (step 1
+does); the rest run in the normal test job.
 
 ## Implementation plan
 
 Each step is one PR and leaves `main` correct. Unifying the dispatcher first
-would extend two of today's live-path bugs to plain evals (the process-wide
-`chdir` overlapping running tasks, and a later `task_init` rebinding provider
-state in the single `eval_run`), so the setup fixes come first.
+would extend today's live-path bug of the process-wide `chdir`
+overlapping running tasks to plain evals, so the setup fix comes first.
 
 1. **Sandbox setup without process-wide directory or environment changes.**
    `util/_sandbox/paths.py` (`resolve_config_paths`), `util/_sandbox/setup.py`
@@ -2021,18 +2016,10 @@ state in the single `eval_run`), so the setup fixes come first.
    `prepare_options` still awaits `logger.init()` inside its own `chdir`
    after this step; step 3a removes that await from the `chdir`, completing
    invariant 7.
-2. **Provider state per setup.** `_eval/run.py` (`SandboxManager` runs each
-   `task_init` in the chained context and records each configuration's
-   bindings against the run's root context, and its context), `_eval/task/sandbox.py`
-   (`sandboxenv_context` finds the sample's configuration by its resolved
-   spec and task directory and applies its bindings where the root value
-   holds), `_eval/task/run.py`. Fixes the E2B, Modal and Daytona
-   leaks and `LookupError` with no inspect_sandboxes release. Independent of
-   step 1. Tests: `test_sandbox_setup.py` (the per-setup binding cases:
-   bindings reaching `sample_init`, `sample_cleanup` and the matching
-   `task_cleanup` for two configurations, the shared k8s-style object, a
-   sample's own binding kept, a failed `task_init`'s bindings reaching no
-   later setup, and the empty `SampleSource` seed).
+2. **Provider state per setup** needs no step of its own: today's capture
+   ("Current behaviour", "Provider state") already gives each
+   configuration its state, and 3a keeps it for the single `eval_run`
+   ("Provider state per setup").
 3. Step 3 is split in two (decision: Ransom, 2026-11-18): 3a is the queue
    and the dispatcher, which task handles need; 3b is the control channel's
    view of queued tasks, which they do not.
@@ -2057,8 +2044,9 @@ state in the single `eval_run`), so the setup fixes come first.
    `run_one` dropping the pair when it publishes a retry or ends the
    record, and its closed and abort checks, the
    run's task
-   names seeded from `eval_set_tasks`, `startup_sandboxes` and the record's
-   resolution cache for every task, the display's task total lowered for a
+   names seeded from `eval_set_tasks`, `startup_sandboxes`,
+   `apply_sandbox_bindings` and the record's resolution cache for every
+   task, `SandboxManager.open()` before the queue is created, the display's task total lowered for a
    record that ends before its row opens; `prepare_options`, `TaskInjection`,
    `PreparedFeed`, `_empty_feed` removed), `_eval/eval.py` (one `eval_run`;
    the `max_tasks` docstrings, with `_eval/evalset.py`'s and
@@ -2070,8 +2058,13 @@ state in the single `eval_run`), so the setup fixes come first.
    `unwritten_task_log` with no location),
    `_eval/task/task_source.py` (the `task_complete` docstring, which says
    "A task finished", says that it is called once per attempt, a failed
-   one included, as `docs/task-source.qmd` already does, and drops "they
-   run after the current batch"),
+   one included, as `docs/task-source.qmd` already does; it, the module
+   docstring and the `sample_complete` docstring drop "they run after the
+   current batch, before the next `next_tasks()`" and say that returned
+   tasks start when a `max_tasks` slot is free, before the next
+   `next_tasks()` call), `docs/task-source.qmd` (the same fix in "Returning
+   follow-up tasks", which says returned tasks "run after the current
+   batch"),
    `_display/core/display.py` (`TaskError.from_exception`),
    `_display/core/results.py` and `_display/log/display.py` (rendering the
    snapshot; logging its text as `exc_snapshot`), `_util/logger.py`
@@ -2088,7 +2081,7 @@ state in the single `eval_run`), so the setup fixes come first.
    `test_task_source.py`, `test_eval_set.py`, and the abort, reporting and
    display-total cases of `test_task_cancel.py`, each cancelling a queued
    or unregistered record through `RunQueue.cancel` (found with
-   `RunQueue.find`). Needs steps 1 and 2; its selection-mode support, and
+   `RunQueue.find`). Needs step 1; its selection-mode support, and
    the faceted-worker test above, rely on the runtime-pruning guarantee
    ("Interactions with related changes").
 
@@ -2108,12 +2101,13 @@ state in the single `eval_run`), so the setup fixes come first.
    `_control/eval_state.py` and `RunQueue.end` (terminal identity through
    `register_completed_eval` for a record that ends without registering),
    `_control/cancel.py` (the registry first in `_task_cancel_directive`,
-   and the attempt's `attempt_cancel` answers), `_control/pause.py` (queued
-   pause and resume), `_control/state.py` (queued rows in `GET /tasks`),
+   and the attempt's `attempt_cancel` answers), `_control/state.py` (queued
+   rows in `GET /tasks`),
    `_control/__init__.py` (`CONTROL_API_VERSION`), `_cli/ctl/_task.py`;
    `design/ctl/task-drain.md` ("Out of scope"). Tests:
-   `test_task_cancel.py` and `_control/test_ctl.py` (listing, cancel,
-   drain, pause and resume of queued tasks through `inspect ctl`, repeated
+   `test_task_cancel.py` and `_control/test_ctl.py` (listing, cancel and
+   drain of queued tasks through `inspect ctl`, pause of one still
+   answering "not found", repeated
    directives, finished rows of records that never registered), and 3a's
    queued and unregistered cancels in `test_task_source.py` and
    `test_eval_set.py` made again through `inspect ctl`. Needs 3a.
@@ -2195,7 +2189,12 @@ place of the snapshot is withdrawn (decision: Ransom, 2026-11-19), because
 clearing a suspended frame on Python 3.11 and 3.12 finalizes a coroutine
 that may still be running (see
 [Alternatives considered](#alternatives-considered)); the frame-free
-snapshot stands.
+snapshot stands. Also (2026-11-19): `inspect ctl task pause` and `resume`
+of a queued task are left out of step 3b and answer 404 as today, and a
+task fed through a handle that is cancelled while queued ends at once with
+no log rather than through an abort attempt, narrowing the 2026-11-17
+queued-cancel decision to ordinary records
+([task-handles.md](task-handles.md#tasks-fed-through-a-handle)).
 
 ## Not this design
 
@@ -2227,6 +2226,14 @@ snapshot stands.
   Controllers stay lazy; nothing is created eagerly. The follow-up also
   specifies what the retune's answer and the logs record when it reaches
   no controller yet.
+- Pausing and resuming a queued task through `inspect ctl task pause` and
+  `resume` (decision: Ransom, 2026-11-19, deferred out of step 3b). It
+  needs `pause_task` and `resume_task` to look in the queued registry
+  first, with the registry winning over an earlier legacy round's
+  `EvalState` of the same id, a queued-shaped response with `--dry-run`,
+  and a pause gate closed while queued that keeps holding the task's
+  samples after it starts. No use case needs it: `inspect ctl process
+  pause` holds every queued task, and a cancel removes one.
 - A provider's own lookups in `sample_init` (a missing config's compose-file
   search) seeing the task directory.
 - A caller's own cancellation of `eval_async()` (for example

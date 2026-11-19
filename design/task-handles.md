@@ -61,9 +61,8 @@ errored rollout is returned to its sender with its `error` set and then ends
 the task; requests still unresolved receive `TaskEndedError`, and a task fed
 through a handle is not retried. `fail_on_error=False` lets the task keep
 accepting rollouts after a sample error. A task fed through a handle keeps
-its own limits and error tolerance, falling back to the run's values when
-unset. Its `max_samples` is its own value when set, otherwise its model's
-default; the run's value does not apply.
+its own limits, error tolerance and `max_samples`, falling back to the
+run's values when unset.
 
 Closing never stops rollouts already sent; a creator stops them with
 `cancel()` in an `except BaseException:` that re-raises, as above. It runs
@@ -95,11 +94,14 @@ All of these are new API; no existing eval waits on a handle or uses
   a sample and has not ended.
 - A task fed through a handle runs once, under its creator's model, with
   one epoch, whatever models and epochs the run has.
-- For a task fed through a handle, a sample limit or error-tolerance setting
-  is its own value if it sets one, else the run's, else the default, and its
-  `max_samples` is its own value or its model's default, never the run's.
-  For every other task, an ordinary task added from inside a running task
-  included, the run's value replaces the task's, as today.
+- For a task fed through a handle, a sample limit, error-tolerance setting
+  or `max_samples` is its own value if it sets one, else the run's, else the
+  default. For every other task, an ordinary task added from inside a
+  running task included, the run's value replaces the task's, as today.
+- A task fed through a handle that is cancelled before it starts ends at
+  once with no log, as one whose handle is closed before any sample is
+  sent: no abort attempt runs, the run's `TaskSource` hears nothing, and
+  `eval()` returns no log for it.
 - A task fed through a handle is never retried automatically, and
   `eval_retry()` refuses its log. Its log is returned and listed with the
   run's other logs but does not decide `eval_set()`'s result or a
@@ -118,9 +120,10 @@ All of these are new API; no existing eval waits on a handle or uses
   handle of any other added task it raises `RuntimeError`, and that task's
   log is read after the run.
 - A run whose `max_sandboxes`, `max_samples` or `max_connections` leaves no
-  room for the work a handle wait depends on can hang; the docs explain the
-  headroom needed, and for sandboxes a warning names the `inspect ctl config
-  --max-sandboxes` command that raises it while the run goes on.
+  room for the work a handle wait depends on can hang, with no warning; the
+  docs explain the headroom needed and the `inspect ctl config
+  --max-sandboxes` command that raises the sandbox limit while the run goes
+  on.
 
 ## Why
 
@@ -338,8 +341,8 @@ including when dispatch ends, so no wait outlives its target:
 
 | how the target ended | `result()` | an unresolved `enqueue_sample()` |
 | --- | --- | --- |
-| an attempt returned a log (success, error, setup failure, log-init failure, abort, including the abort of a task cancelled while queued, a run-level cancellation of a running task) | that log | `TaskEndedError(log=<that log>)` |
-| no log (a fed task closed before any sample was sent, or dispatch ended first) | `None` | `TaskEndedError(log=None)` |
+| an attempt returned a log (success, error, setup failure, log-init failure, abort, a run-level cancellation of a running task) | that log | `TaskEndedError(log=<that log>)` |
+| no log (a fed task closed before any sample was sent, cancelled before it started, or still queued when dispatch ended) | `None` | `TaskEndedError(log=None)` |
 
 A request that already has its run keeps it; one abandoned raises
 `SampleAbandonedError`. A cancelled caller's wait raises the cancellation;
@@ -524,7 +527,8 @@ class PortRequest:
   `max_samples`, `max_sandboxes` and the model's connection limit like any
   task's, and its creator's own slot is counted. A record whose channel
   closes before any sample was sent ends with no log and no attempt, so a
-  handle that is never used costs nothing. Its model controller is created
+  handle that is never used costs nothing, and so does a record cancelled
+  while queued ("Closing"). Its model controller is created
   lazily on its first `generate`, as for any added task
   ([task-dispatch.md](task-dispatch.md#adding-tasks)); under its creator's
   model it usually exists already. When it does not (the rollout task sets
@@ -589,9 +593,14 @@ class PortRequest:
   2026-11-19):
   - The sample limits (`message_limit`, `token_limit` with its
     `token_limit_type`, `turn_limit`, `time_limit`, `working_limit`,
-    `cost_limit`) and error tolerance (`fail_on_error`, `continue_on_fail`,
-    `score_on_error`) are the fed task's own value if it sets one, else the
-    run's, else the default.
+    `cost_limit`), error tolerance (`fail_on_error`, `continue_on_fail`,
+    `score_on_error`) and `max_samples` are the fed task's own value if it
+    sets one, else the run's, else the default (for `max_samples`, the
+    default from its model's connection pool). So a rollout task that sets
+    no `max_samples` runs at most the run's `max_samples` samples at once
+    when the run sets one; its author sets the task's own value to size it
+    apart from the run. `inspect ctl config --max-samples` retunes it while
+    it runs, as for any task.
   - `epochs`, the epoch reducer, `limit` and `sample_id` are cleared: one
     epoch, no reducer from the run, no limit, no selection, whatever the run
     passes. For the reducer, `configure_task()` does not apply the run's
@@ -607,10 +616,6 @@ class PortRequest:
     every sent id, and a `--limit 2` ends the task after two). A `task:id`
     selector naming the fed task's name selects nothing there, and the "No
     sample_id selector names task" warning is not logged for it.
-  - `max_samples`: the fed task's own value if it sets one, else the
-    default from its model's connection pool. The run's value does not
-    apply, and `inspect ctl config --max-samples` still retunes it while it
-    runs.
   - `approval`, `review` and `sentinel`: the run's value still wins, as
     today; they are the operator's oversight controls for the whole run.
   - Tags stay merged; generate config and the run-wide limits (`max_tasks`,
@@ -631,28 +636,37 @@ class PortRequest:
   `ended` and closes the attempt's channels in the synchronous step in which
   it publishes a retry or ends the record, its exception exit included, for
   a counted and an uncounted attempt alike, so a fed task that is itself a
-  creator closes its channels when it ends) and `RunQueue.end`. Closing a channel whose record is still `queued`
-  with no request ends the record with no log, unless its `abort_requested`
-  is set (cancelled while queued): that record stays queued for the
-  dispatcher to start its abort attempt, which ends it with the abort log
-  and one report to the source, or for `end_unstarted()` if dispatch ends
-  first. `RunQueue.cancel` closes the channel when it sets the flag, and so
-  can an explicit `close()` or the creator's attempt ending before the
-  dispatcher's next pass, so the exception covers every close. A creator that forgets to
-  close cannot keep a rollout task open past its own attempt. A handle's
-  `cancel()` does not depend on the directive being accepted:
-  `RunQueue.cancel` closes a fed record's channel itself, after routing the
-  cancel (so a queued record's `abort_requested` is set first), in every
-  phase but `ended`. That covers a fed attempt that has already ended on
-  its own (its `EvalState` terminal, its enqueuer detached) while its
-  `task_complete` still runs: `cancel_task` then answers "task already
-  finished" without calling `apply`, and the record is still in `attempt`.
-  So a send between a fed task's `cancel()` and the record's end raises
-  `RuntimeError` at once rather than waiting through the abort's log
-  write, or the natural end's `task_complete`, for `TaskEndedError`. Samples already buffered or running when a drain,
-  `score` or `error` cancel closes it follow the directive's existing rules
-  and settle through `sample_complete` or `sample_abandoned`; an abort
-  cancels them with the attempt, as today.
+  creator closes its channels when it ends) and `RunQueue.end`. Closing a
+  channel whose record is still `queued` with no request ends the record
+  with no log. A creator that forgets to close cannot keep a rollout task
+  open past its own attempt.
+- **Cancelling.** A fed record is never retried, so while it is `queued` it
+  has never started. `RunQueue.cancel` of such a record ends it at once with
+  no log, `RunQueue.end(record, None)`, whether or not a request was sent:
+  that closes its channel and settles every request with
+  `TaskEndedError(log=None)`, as for a handle closed before any sample was
+  sent or a record still queued when dispatch ends (decision: Ransom,
+  2026-11-19). No abort attempt runs, the run's `TaskSource` hears nothing,
+  and the record never gets `abort_requested`, so every way a fed task can
+  end before it starts has one outcome. The abort log and report an
+  ordinary queued task ends with exist for `eval_set()`'s result and for a
+  source waiting on reports; a fed log does not decide the result ("Logs
+  and eval sets"), and a fed handle never used already ends unreported.
+  In `attempt`,
+  `RunQueue.cancel` routes the cancel as for any record
+  ([task-dispatch.md](task-dispatch.md#phases-and-cancelling)) and then
+  closes the record's channel itself, in the same synchronous call, so a
+  handle's `cancel()` does not depend on the directive being accepted.
+  That covers a fed attempt that has already ended on its own (its
+  `EvalState` terminal, its enqueuer detached) while its `task_complete`
+  still runs: `cancel_task` then answers "task already finished" without
+  calling `apply`, and the record is still in `attempt`. So a send between
+  a fed task's `cancel()` and the record's end raises `RuntimeError` at
+  once rather than waiting through the abort's log write, or the natural
+  end's `task_complete`, for `TaskEndedError`. Samples already buffered or
+  running when a drain, `score` or `error` cancel closes the channel follow
+  the directive's existing rules and settle through `sample_complete` or
+  `sample_abandoned`; an abort cancels them with the attempt, as today.
 - **Retries.** A task fed through a handle is never retried automatically
   (decision: Ransom, 2026-11-10). When its attempt fails for any reason, a
   sent sample's sandbox setup included, the task ends with its error log,
@@ -670,10 +684,10 @@ class PortRequest:
   `inspect log list`, `list_eval_logs()` and the viewer list it. It does not
   decide the eval set's result: `all_evals_succeeded`, which is also
   `eval_set()`'s retry predicate and selection mode's result, skips the
-  logs with that dataset name. So a creator that cancels its rollout task,
-  a rollout task cancelled while queued (its abort log, held in memory,
-  carries the eval spec built at add), or one that failed and was replaced, does not
-  fail the set; the creator's own log does, if the creator fails.
+  logs with that dataset name. So a creator that cancels its running
+  rollout task, or whose rollout task failed and was replaced, does not
+  fail the set (a rollout task cancelled while queued has no log at all);
+  the creator's own log does, if the creator fails.
   `eval_retry()` refuses a fed task's log: after it recovers its crashed
   logs, as for any log (recovery runs nothing), and before it resolves any
   task, `eval_retry_async` checks every log's `eval.dataset.name` and raises
@@ -772,21 +786,7 @@ that a handle wait depends on, and none is lent:
   bookkeeping, and the limiter is a semaphore that cannot hand a permit to
   one specific sample, so permits are not lent. `max_sandboxes` for each
   provider both tasks use must exceed the number of samples that hold one
-  while waiting. Inspect warns once per provider per run when a handle wait
-  starts while every permit of a provider the wait depends on is in use
-  (`sandbox_limiters()`, `in_use >= limit`). For `enqueue_sample()` that is
-  the sent sample's effective provider, resolved with today's
-  `await resolve_sandbox(task_sandbox, sample, task_name)`
-  (`src/inspect_ai/_eval/task/sandbox.py`),
-  so the task's own sandbox type takes precedence and a sample-level
-  sandbox counts when the task has none; for `result()` it is the
-  task-level provider and the effective providers of its sent samples not
-  yet settled. Each provider is checked against its own limiter and warned
-  about once: "task 'search'
-  is waiting on task 'rollout', which uses 'docker' sandboxes, while all 1 of
-  them (max_sandboxes) are in use; if their holders are waiting on
-  'rollout', the run will not progress: raise it while the run goes on with
-  `inspect ctl config --max-sandboxes N`".
+  while waiting.
 - **`max_samples`** is per task, so a task's samples that wait on work its
   own other samples do need room for both.
 - **`max_connections`.** A model connection permit is held for the whole
@@ -797,16 +797,19 @@ that a handle wait depends on, and none is lent:
   sample on the creator's model holds a permit that sample needs: with
   `max_connections=1` it waits forever, whatever the sample and sandbox
   headroom. A run that waits from such a hook needs a connection limit
-  above the number of such waits; no warning covers it.
+  above the number of such waits.
 
-The warning is advice: holders that finish release what they hold. The
-`max_tasks`, `max_samples`, `max_sandboxes` and `max_connections`
-docstrings, `docs/parallelism.qmd` and the handle docs in
-`docs/task-source.qmd` state the fed-task exception to `max_tasks` (beside
-the exception for a task cancelled while queued that task-dispatch.md
-documents) and the
-`max_sandboxes`, `max_samples` and `max_connections` headroom a waiting run
-needs.
+No warning covers any of the three (decision: Ransom, 2026-11-19): a
+warning when a wait starts with every permit in use would also fire when
+the holders are about to finish, and for sandboxes it would need each
+sent sample's provider resolved and tracked until it settles
+("Alternatives considered"). The `max_tasks`, `max_samples`,
+`max_sandboxes` and `max_connections` docstrings, `docs/parallelism.qmd`
+and the handle docs in `docs/task-source.qmd` state the fed-task exception
+to `max_tasks` (beside the exception for a task cancelled while queued that
+task-dispatch.md documents), the `max_sandboxes`, `max_samples` and
+`max_connections` headroom a waiting run needs, and that `inspect ctl
+config --max-sandboxes N` raises the sandbox limit while the run goes on.
 
 ## Alternatives considered
 
@@ -841,14 +844,25 @@ needs.
   only what its creator sends, so exempting those alone stays bounded by the
   sample limits.
 - **Starting a fed task when it is added.** It would remove the start
-  condition, the rule that closing an empty channel ends a queued record
-  with no log, and that rule's exception for a record with
-  `abort_requested`, which stays queued for its abort attempt ("Closing").
-  But a handle never used would run an attempt, write an empty log and
-  fire the task hooks. Starting on the first sample costs that close rule
-  and its exception; the start itself needs nothing new, because the
+  condition and the rule that closing an empty channel ends a queued record
+  with no log ("Closing"). But a handle never used would run an attempt,
+  write an empty log and fire the task hooks. Starting on the first sample
+  costs that close rule; the start itself needs nothing new, because the
   dispatcher already rescans on `wake` (decision: Ransom, 2026-11-17,
   kept 2026-11-18).
+- **A fed task cancelled while queued ending through an abort attempt**, as
+  an ordinary queued task does
+  ([task-dispatch.md](task-dispatch.md#phases-and-cancelling)), with the
+  abort log and one report to the source. That serves an ordinary task
+  because `eval_set()` counts its abort log as a failure and a source may
+  wait on its report. A fed log counts toward neither the eval set's result
+  nor its log-directory check, and a fed task ending with no log is already
+  an outcome (a handle never used). Taking the abort path would need an
+  exception to the empty-channel close rule, so that a cancel which closes
+  the channel leaves the record queued for its abort attempt, and an order
+  inside `RunQueue.cancel` (set `abort_requested`, then close the channel)
+  (decision: Ransom, 2026-11-19, replacing the 2026-11-17 queued-cancel
+  rule for fed records only).
 - **One fed task per run model**, as for tasks added outside an attempt. The creator would
   pick the handle for its own model and close the rest in every use.
 - **Several epochs per sent sample**, with one result per epoch. It needs a
@@ -867,6 +881,12 @@ needs.
   Fed tasks are new and need none of it, so only they resolve task-first
   (decision: Ransom, 2026-11-19, narrowing the 2026-11-18 one-rule
   decision); it can be revisited if a real need appears.
+- **A fed task's `max_samples` skipping the run's value**, going from its
+  own straight to its model's pool default. It was chosen while a `Task`
+  could not set its own `max_samples`, when a fallback to the run's value
+  would always have won. Now the rollout task sets its own when it wants a
+  size apart from the run's, and its `max_samples` resolves like its other
+  settings, with no branch of its own (decision: Ransom, 2026-11-19).
 - **`max_samples` and similar settings as keyword arguments on
   `enqueue_task()`.** They would cover only `enqueue_task()`, with a second
   precedence rule beside the task's own settings; `max_samples` on `Task`
@@ -923,11 +943,21 @@ needs.
   normally would abort the rollout task before it finished its samples; a
   creator that wants to stop them when it stops early calls `cancel()` in
   an `except BaseException:` that re-raises.
+- **A warning when a handle wait starts while every `max_sandboxes` permit
+  of a provider it depends on is in use**, naming `inspect ctl config
+  --max-sandboxes`. For `enqueue_sample()` it needs each sent sample's
+  effective provider resolved (an `await resolve_sandbox(...)` per send);
+  for `result()`, the providers of every sent sample not yet settled
+  tracked per request; and once-per-provider state for the run. It is only
+  advice, since holders that finish release their permits, so it can fire
+  when nothing is stuck. A version for `enqueue_sample()` alone drops the
+  per-request tracking but keeps the per-send resolution. The docs state
+  the headroom instead (decision: Ransom, 2026-11-19).
 - **Refusing waits that would never end** with a process-level wait-for graph
   over handle waits and sandbox and sample permits. It must be re-checked
   at every blocking event and limit change (a live retune can lower a limit
-  below its use); documented headroom and the `max_sandboxes` warning cover
-  the configurations the use case needs.
+  below its use); documented headroom covers the configurations the use
+  case needs.
 
 ## Compatibility and migration
 
@@ -940,7 +970,7 @@ buffers the task, now raises `RuntimeError`, and the worker calls
 `TaskHandle`,
 `TaskEndedError`, `SampleAbandonedError` and `samples_from_handle`. Existing `SampleSource` tasks, and every ordinary task added with `enqueue_task()`, keep their settings resolution and filtering: only a task fed through a handle ignores
 the run's `--limit`, `--sample-id` and `--epochs` (with the run's epoch
-reducer) and the run's `max_samples`, resolves its settings before the
+reducer), resolves its settings, `max_samples` included, before the
 run's, is exempt from `max_tasks` and is left out of
 `eval_set()`'s result and the eval set's log-directory check.
 
@@ -1026,14 +1056,17 @@ test touched), with mockllm models; every test that waits is bounded with
     of a fed task queued, in its attempt before `register_eval` and
     running; `close()` and `async with` leaving running rollouts to finish;
   - the terminal-outcome table row by row: a target whose sent sample's
-    setup fails, whose log init fails, cancelled while queued (its abort
-    log, with no file), cancelled while queued with no sample sent, alone,
-    then closed explicitly, and with its creator's attempt ending before the
-    dispatcher's next pass (each ending with the abort log and one source
-    report while the run is open), closed before any sample was sent (no attempt, no
-    log; the display's task total drops by one, as for an added task ended
-    unstarted), and still queued at a latched cancellation (with the waiter in
-    a sibling attempt's shielded cleanup);
+    setup fails, whose log init fails, closed before any sample was sent,
+    cancelled while queued with no sample sent, and cancelled while queued
+    holding a sent request (sent under a process pause, which keeps the
+    record from starting while the creator's sample runs), each of the last
+    three ending at once with no attempt and no log: `result()` returns
+    `None`, the pending `enqueue_sample()` raises `TaskEndedError` with
+    `log=None`, a `TaskSource` hears no report, the record never has
+    `abort_requested`, `eval()` returns no log for it and the display's task
+    total drops by one, as for an added task ended unstarted; and still
+    queued at a latched cancellation (with the waiter in a sibling attempt's
+    shielded cleanup);
   - in `next_tasks()`, a fed task's handle kept from its finished creator:
     `result()` returns the task's log at once and `enqueue_sample()` raises
     `TaskEndedError` (not its base `RuntimeError`) carrying that log;
@@ -1093,15 +1126,9 @@ test touched), with mockllm models; every test that waits is bounded with
     task's first sample sent while another task's `task_init` is held
     starts the task at once;
   - headroom: with `max_sandboxes=1`, a creator sample holding the only
-    sandbox sends a sample to a fed task using the same provider; the
-    warning naming `inspect ctl config --max-sandboxes` is logged once per
-    provider when the send starts with every permit in use, and the run
-    completes after that command raises the limit; a send with a free
-    permit logs nothing; the same with a fed task that has no task-level
-    sandbox, sent a sample whose own `sandbox` is Docker while its creator
-    holds the only Docker permit: the warning names `docker` and
-    `inspect ctl config --max-sandboxes N`, and raising the limit lets the
-    run complete.
+    sandbox sends a sample to a fed task using the same provider; the send
+    waits, and the run completes after `inspect ctl config --max-sandboxes
+    2` raises the limit, as the docs say.
 - `tests/test_eval_set.py`: with a rollout task the set does not request,
   a resumed `eval_set()`, and a second `retry_immediate=False` round, pass
   the log-directory check without `log_dir_allow_dirty=True`, take only the
@@ -1155,8 +1182,9 @@ test touched), with mockllm models; every test that waits is bounded with
     and an ordinary task with its own dataset that a solver in the same run
     adds with `turn_limit=100` takes the run's values, `turn_limit=5`
     included, as today; under a run-level `max_samples=2` a fed task that
-    sets `max_samples=3` runs with 3 and one that sets none takes its
-    model's pool default; under a run with `epochs=3` an ordinary added
+    sets `max_samples=3` runs with 3 and one that sets none runs with 2,
+    while with no run-level value one that sets none takes its model's pool
+    default; under a run with `epochs=3` an ordinary added
     task that sets `epochs=1` runs three epochs, as today; a run-level
     approval policy applies to a fed task that sets its own; each log's
     eval config records the values that applied;
@@ -1215,18 +1243,17 @@ a running worker's fed logs from archival ("Compatibility and migration").
 
 - `_eval/task/enqueue.py` (`TaskHandle`, the errors, `TaskAttempt` and
   `_attempt`, which replaces `_creator`, `result()` refusing a handle whose task is
-  not fed through it, the `max_sandboxes` warning naming its `inspect ctl
-  config` command, `RunQueue.cancel` closing a fed record's channel itself
-  in every phase but `ended`, `enqueue_task()` returning handles, passing its creator
+  not fed through it, `RunQueue.cancel` ending a queued fed record at once
+  with no log and closing a fed record's channel itself in `attempt`,
+  `enqueue_task()` returning handles, passing its creator
   and refusing a fed task outside an attempt or with `epochs` above 1),
   `_eval/task/sample_source.py` (`HandleChannel`, `samples_from_handle()`,
   the free `enqueue_sample()` refusal), `_eval/task/run.py` (attach and
   detach the channel where the `SampleEnqueuer` is registered and cleared,
   and mark that enqueuer as the channel's), `_eval/run.py`
   (`configure_task()` resolving a fed task's settings task-first,
-  `turn_limit` and `max_samples` included, skipping the run's
-  `max_samples`, and clearing its `epochs`, the run's epoch reducer, `limit`
-  and `sample_id`; `_attempt` set in `run_one`; the
+  `turn_limit` and `max_samples` included, and clearing its `epochs`, the
+  run's epoch reducer, `limit` and `sample_id`; `_attempt` set in `run_one`; the
   uncounted start step; channels closed with the creator's attempt; no
   retry, and `can_retry=False` on the `TaskCancel` that `start_attempt`
   creates, for fed tasks; `channel.close()` from the
@@ -1250,8 +1277,8 @@ a running worker's fed logs from archival ("Compatibility and migration").
   settings, resolved before the run's; and running the creator
   by name, `inspect eval search.py@search` and
   `eval_set("search.py@search", ...)`, when the rollout task shares its
-  file), `docs/parallelism.qmd` (a fed task's `max_samples` is its own or
-  its model's default, never the run's), `docs/reference`, and `_attempt` set to `None`
+  file), `docs/parallelism.qmd` (a fed task's own `max_samples` wins over
+  the run's; the headroom a waiting run needs), `docs/reference`, and `_attempt` set to `None`
   around each `TaskSource` callback call (`_eval/task/run.py`,
   `_eval/run.py`), where `_creator` is cleared today. Tests: those above.
 
@@ -1273,7 +1300,7 @@ creator's model (as is any task added inside an attempt), and its sent samples g
 token; and (2026-11-12) `samples_from_handle()` is the name, a fed task may
 be added from any code inside a running attempt, runs one epoch per sent
 sample, resolves its settings before the run's (except the oversight
-controls; the run's `max_samples` does not apply to it), does not decide
+controls), does not decide
 `eval_set()`'s result, runs
 in a `.json`-logged run as in any other (dropping the 2026-11-03 `.json`
 refusal, whose premise was the per-delivery marker dropped on 2026-11-04),
@@ -1306,9 +1333,8 @@ stops its rollouts with `cancel()` in an `except BaseException:` that
 re-raises, not in a `finally:`, which aborts the rollout task on a normal
 exit (replacing the `finally:` advice given with the 2026-11-09 decision);
 a fed task still starts on its
-first sample, at the cost of the empty-channel close rule and its
-`abort_requested` exception (the 2026-11-17 decision kept, with its cost
-corrected); and an added task's model controller is still created lazily,
+first sample, at the cost of the empty-channel close rule (the 2026-11-17
+decision kept); and an added task's model controller is still created lazily,
 with `--max-connections` retunes remembered and applied when a controller
 is created as a follow-up, rather than created when the task is added; and
 (2026-11-19) an ordinary task added from inside a running task keeps
@@ -1324,7 +1350,15 @@ brought compatibility work (`task_identifier()` pairing for a
 `ResolvedTask` added that way, `eval_retry()` replaying a recorded epoch
 pair and the run's fallback for tasks added during a retry, migration text
 for existing evals), while fed tasks are new and carry none of it. It can
-be revisited if a real need appears.
+be revisited if a real need appears. Also (2026-11-19): a fed task's
+`max_samples` falls back to the run's value like its other settings
+(replacing the 2026-11-12 rule that the run's value does not apply, made
+while a `Task` could not set its own); a fed task cancelled while queued
+ends at once with no log, like a handle never used, with no abort attempt
+(replacing the 2026-11-17 queued-cancel rule for fed records only, and with
+it the empty-channel close rule's `abort_requested` exception); and handle
+waits get no `max_sandboxes` warning, the docs stating the headroom
+instead.
 
 ## Not this design
 
