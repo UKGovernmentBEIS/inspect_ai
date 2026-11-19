@@ -611,12 +611,17 @@ _SANDBOX_SCAFFOLD_SCRIPT = (
     "    try:\n"
     "        print(urllib.request.urlopen(request).read().decode())\n"
     "        break\n"
+    "    except urllib.error.HTTPError:\n"
+    "        raise\n"
     "    except urllib.error.URLError:\n"
     "        if attempt == 29:\n"
     "            raise\n"
     "        time.sleep(0.5)\n"
 )
-"""Scaffold run in the container: one chat completion through the model proxy."""
+"""Scaffold run in the container: one chat completion through the model proxy.
+
+It retries only until the proxy accepts connections; an error response ends it.
+"""
 
 
 def _run_sandbox_eval_with_response_filter(

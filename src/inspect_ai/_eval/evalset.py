@@ -2,6 +2,7 @@ import contextlib
 import hashlib
 import logging
 import os
+import re
 import threading
 from collections.abc import Callable, Iterator, Sequence
 from collections.abc import Set as AbstractSet
@@ -11,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Set, TypeVar, cast
 
 import rich
 from pydantic import BaseModel
+from rich.markup import escape
 from rich.status import Status
 from shortuuid import uuid
 from tenacity import (
@@ -71,6 +73,7 @@ from inspect_ai._util.file import (
     filesystem,
 )
 from inspect_ai._util.json import to_json_safe
+from inspect_ai._util.log_layout import _SHARDS_SUFFIX
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
@@ -194,6 +197,59 @@ def _validate_sentinel(sentinel: SentinelSpec | None) -> None:
     # after task resolution, so names registered by task files resolve
     if sentinel is not None:
         resolve_sentinel_spec(sentinel)
+
+
+def _refuse_shard_companions(log_files: list[EvalLogInfo]) -> None:
+    """Refuse an eval set whose listed logs include shard logs.
+
+    `eval_set()` does not merge shards: no current caller needs it, and a
+    retry at startup would run samples outside a launcher's per-instance
+    placement (decision: Ransom with JJ Allaire, 2026-11-18).
+
+    Raises:
+        PrerequisiteError: A listed log is a shard log (see `_shard_companion`).
+    """
+    companions = {
+        companion
+        for info in log_files
+        if (companion := _shard_companion(info.name)) is not None
+    }
+    if companions:
+        raise PrerequisiteError(
+            "[bold]ERROR[/bold]: The log directory holds shards: "
+            f"{', '.join(escape(c) for c in sorted(companions))}. eval_set() "
+            "does not merge shards. Merge them with `inspect log merge-shards` "
+            "(or `merge_eval_log_shards()`). If samples failed or are missing, "
+            "retry each incomplete shard in its own numbered directory with "
+            "the same selection, run samples no shard selected as new shards, "
+            "and merge again. Then move the .shards directory out of the log "
+            "directory."
+        )
+
+
+def _shard_companion(name: str) -> str | None:
+    """The `<name>.shards` directory of a listed shard log, or `None`.
+
+    A log is a shard log when its parent directory is all ASCII digits and
+    the directory above it ends in `.shards`, or when its parent directory
+    ends in `.shards` (a stray file the merge refuses). Only the name's last
+    path components are read, split on slashes and backslashes, so the rule
+    does not depend on how a provider lists the log directory. It is broader
+    than the layout helper's `is_shard_path`: it also matches when the log
+    directory is a companion or a shard directory, and a companion nested
+    in a shard's ancillary directory (decision: Ransom, 2026-11-18).
+    """
+    parts = re.split(r"[/\\]", name)
+    if len(parts) >= 2 and parts[-2].endswith(_SHARDS_SUFFIX):
+        return _parent(name)
+    shard = parts[-2] if len(parts) >= 3 else ""
+    if shard.isascii() and shard.isdigit() and parts[-3].endswith(_SHARDS_SUFFIX):
+        return _parent(_parent(name))
+    return None
+
+
+def _parent(path: str) -> str:
+    return path[: max(path.rfind("/"), path.rfind("\\"))]
 
 
 def _overridden_selection(
@@ -1056,6 +1112,12 @@ def eval_set(
             status.stop()
             status = None
 
+    # refuse shards before the viewer and scan contexts read or write the
+    # directory; the first attempt pairs from this listing
+    listed = list_eval_logs(log_dir)
+    _refuse_shard_companions(listed)
+    first_listing: list[EvalLogInfo] | None = listed
+
     # function which will be called repeatedly to attempt to complete
     # the evaluations. for this purpose we will divide tasks into:
     #   - tasks with no log at all (they'll be attempted for the first time)
@@ -1086,7 +1148,13 @@ def eval_set(
         _validate_sentinel(sentinel)
 
         # list all logs currently in the log directory (update manifest if there are some)
-        all_logs = list_all_eval_logs(log_dir)
+        nonlocal first_listing
+        if first_listing is not None:
+            log_files = first_listing
+            first_listing = None
+        else:
+            log_files = list_eval_logs(log_dir)
+        all_logs = list_all_eval_logs(log_dir, log_files=log_files)
         if len(all_logs) > 0:
             write_log_dir_manifest(log_dir)
 
@@ -1817,9 +1885,22 @@ def return_last_value(retry_state: RetryCallState) -> list[EvalLog]:
 # list all eval logs
 # recursive=False and progress are used by inspect_flow
 def list_all_eval_logs(
-    log_dir: str, recursive: bool = True, progress: ReadEvalLogsProgress | None = None
+    log_dir: str,
+    recursive: bool = True,
+    progress: ReadEvalLogsProgress | None = None,
+    log_files: list[EvalLogInfo] | None = None,
 ) -> list[Log]:
-    log_files = list_eval_logs(log_dir, recursive=recursive)
+    """Read the headers of the logs in `log_dir`.
+
+    Args:
+        log_dir: Log directory.
+        recursive: List recursively.
+        progress: Progress reporter for the header reads.
+        log_files: Logs already listed from `log_dir`; when given, their
+            headers are read and the directory is not listed again.
+    """
+    if log_files is None:
+        log_files = list_eval_logs(log_dir, recursive=recursive)
     log_headers = read_eval_log_headers(log_files, progress)
     task_identifiers = [task_identifier(log_header, None) for log_header in log_headers]
     return [

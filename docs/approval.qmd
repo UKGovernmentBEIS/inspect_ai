@@ -230,6 +230,10 @@ For a sandbox bridge with [bridged tools](agent-bridge.qmd#bridged-tools), the d
 
 A [remote MCP server](tools-mcp.qmd#remote-mcp) (`execution="remote"`) has its tools called by the model provider during generation, so Inspect can't approve those calls. While an approval policy is active, generating with a remote MCP server raises an error instead of sending the server to the provider. This applies to any policy, including one that names other tools, since a tool call no policy matches is rejected. It also applies to policies passed to `react()`, `agent_bridge()` and `sandbox_agent_bridge()`. Use `execution="local"` to have the server's tool calls approved like any other.
 
+## Provider-Run Tools {#provider-run-tools}
+
+[Web search](tools-standard.qmd#sec-web-search) with a model's internal provider and [code execution](tools-standard.qmd#sec-code-execution) with a provider's native implementation are run by the model provider during generation. Approval policies don't review these calls, and an active policy doesn't prevent them. This also applies to web search and code execution [granted](agent-bridge.qmd#granted-capabilities) to a bridged agent with the `web_search` and `code_execution` options of `agent_bridge()` and `sandbox_agent_bridge()`. Web search through an external provider (such as Tavily or Exa) and code execution through the `python()` fallback are run by Inspect, so policies approve them like any other tool call.
+
 ## Custom Approvers
 
 Inspect includes two built-in approvers: `human` for interactive approval at the terminal and `auto` for automatically approving or rejecting specific tools. You can also create your own approvers that implement just about any scheme you can imagine.

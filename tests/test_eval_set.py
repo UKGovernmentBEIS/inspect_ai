@@ -835,6 +835,114 @@ def test_eval_set_unaddressed_task_is_complete_on_rerun(tmp_path: Path) -> None:
     assert {log.eval.task: basename(log.location) for log in logs} == first
 
 
+def _files_below(root: Path) -> set[Path]:
+    return {path.relative_to(root) for path in root.rglob("*")}
+
+
+@pytest.mark.parametrize("option", ["none", "embed_viewer", "scanner"])
+def test_eval_set_refuses_a_log_dir_holding_shards(tmp_path: Path, option: str) -> None:
+    options: dict[str, Any] = {}
+    if option == "embed_viewer":
+        options["embed_viewer"] = True
+    elif option == "scanner":
+        pytest.importorskip("inspect_scout")
+        from inspect_scout import Result, Transcript, scanner
+
+        @scanner(messages="all")
+        def echo() -> Any:
+            async def scan(transcript: Transcript) -> Result:
+                return Result(value=transcript.transcript_id)
+
+            return scan
+
+        options["scanner"] = [echo()]
+    log_dir = tmp_path / "my logs"
+    task = Task(name="foo", dataset=[Sample(id=i, input="hi") for i in (1, 2)])
+    companions = [
+        log_dir / "2026-10-16T10-00-00-00-00_foo_A.shards",
+        log_dir / "2026-10-16T10-00-00-00-00_foo_B.shards",
+    ]
+    # a shard in a numbered directory, and a stray log directly in a companion
+    for k, log_location in enumerate([companions[0] / "0", companions[1]]):
+        eval(
+            task,
+            model="mockllm/model",
+            sample_id=[k + 1],
+            log_dir=str(log_location),
+            display="none",
+        )
+    # an older attempt that cannot be read: nothing may read shard headers
+    (companions[0] / "0" / "2026-01-01T00-00-00-00-00_foo_old.eval").write_bytes(
+        b"not a log"
+    )
+    files = _files_below(log_dir)
+
+    with pytest.raises(PrerequisiteError, match="does not merge shards") as raised:
+        eval_set(
+            task,
+            log_dir=str(log_dir),
+            model="mockllm/model",
+            display="none",
+            **options,
+        )
+
+    for companion in companions:
+        # listed local names use forward slashes, also on Windows
+        assert companion.as_posix() in str(raised.value)
+    assert "inspect log merge-shards" in str(raised.value)
+    # no log, manifest, viewer or scan output; the eval set id comes first
+    assert _files_below(log_dir) - {Path(".eval-set-id")} == files
+
+
+def test_eval_set_retry_pass_lists_the_log_dir_again(tmp_path: Path) -> None:
+    runs: Counter[Any] = Counter()
+
+    @solver
+    def fail_sample_2_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            runs[state.sample_id] += 1
+            if state.sample_id == 2 and runs[2] == 1:
+                raise ValueError("sample 2 fails on the first pass")
+            return state
+
+        return solve
+
+    task = Task(
+        name="foo",
+        dataset=[Sample(id=i, input="hi") for i in (1, 2)],
+        solver=fail_sample_2_once(),
+    )
+
+    success, _ = eval_set(
+        task,
+        log_dir=str(tmp_path / "my logs"),
+        model="mockllm/model",
+        retry_attempts=2,
+        retry_wait=0.001,
+        # retry through eval_set's passes rather than inside eval()
+        retry_immediate=False,
+        display="none",
+    )
+
+    # the retry pass pairs with the failed log the first pass wrote (a stale
+    # listing would not hold it) and reuses sample 1
+    assert success
+    assert runs == {1: 1, 2: 2}
+
+
+def test_eval_set_without_shards_runs_and_resumes(tmp_path: Path) -> None:
+    task = Task(name="foo", dataset=[Sample(id=i, input="hi") for i in (1, 2)])
+    args: dict[str, Any] = dict(
+        log_dir=str(tmp_path / "my logs"), model="mockllm/model", display="none"
+    )
+
+    success, [first] = eval_set(task, **args)
+    success_again, [again] = eval_set(task, **args)
+
+    assert success and success_again
+    assert basename(again.location) == basename(first.location)
+
+
 def test_eval_set_unknown_task_raises_prerequisite_error() -> None:
     # when no tasks resolve (e.g. user passes a task spec referencing a
     # package that isn't installed), eval_set should fail fast with the same

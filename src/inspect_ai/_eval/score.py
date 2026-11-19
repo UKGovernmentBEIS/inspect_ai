@@ -61,8 +61,10 @@ from inspect_ai.log import (
     EvalLog,
 )
 from inspect_ai.log._condense import (
+    attachment_refs_from_object,
     attachment_state,
     escape_literal_event_refs,
+    resolve_event_calls,
     resolve_sample_attachments,
 )
 from inspect_ai.log._headline import headline_metric_ref, resolve_headline_metric
@@ -621,13 +623,23 @@ async def _run_score_task(
                         scorer=registry_unqualified_name(scorer),
                     )
 
-    # slice off only the newly added events; they are raw, so where the
-    # sample they join holds references their literal reference text must
-    # become attachments
-    new_events = transcript().events[len(resolved_sample.events) :]
-    if attachment_state(sample) == "condensed":
+    # slice off only the newly added events. They are raw except for model
+    # calls (scoring keeps error calls), which the scoring transcript condensed
+    # into its own attachments; bring both to the state of the sample they join
+    scoring_transcript = transcript()
+    new_events = list(scoring_transcript.events[len(resolved_sample.events) :])
+    if attachment_state(sample) == "full":
+        new_events = resolve_event_calls(new_events, scoring_transcript.attachments)
+    else:
         attachments = dict(sample.attachments)
-        new_events = escape_literal_event_refs(new_events, attachments)
+        if attachment_state(sample) == "condensed":
+            new_events = escape_literal_event_refs(new_events, attachments)
+        call_refs = attachment_refs_from_object(new_events)
+        attachments.update(
+            (hash, value)
+            for hash, value in scoring_transcript.attachments.items()
+            if hash in call_refs
+        )
         sample.attachments = attachments
 
     sample.scores = _get_updated_scores(sample, results, action=action)
