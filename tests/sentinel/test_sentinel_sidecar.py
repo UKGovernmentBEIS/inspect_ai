@@ -1297,7 +1297,7 @@ async def test_a_sample_begun_while_a_restarts_registration_is_answered_lost_not
     assert store.get("Tally:lookups") == 1
 
 
-async def test_a_completion_sent_while_the_task_is_being_registered_is_sent_again_by_the_next_call() -> (
+async def test_a_completion_sent_while_the_task_is_being_registered_is_sent_again_by_each_next_call() -> (
     None
 ):
     registering = [False]
@@ -1327,16 +1327,20 @@ async def test_a_completion_sent_while_the_task_is_being_registered_is_sent_agai
     async with anyio.create_task_group() as tg:
         tg.start_soon(sidecars.sidecar, other.api)
         await taken.wait()
-        # a sample completes its registration while that one is on its way:
-        # it may reach the sidecar first, and be lost to the one replacing it
-        await sidecars.complete_registration(sidecar, _sample(), "sample_123", 1)
+        # A sample completes its registration while that one is on its way:
+        # it may reach the sidecar first, and be lost to the one replacing
+        # it. So the sample's next call sends it again, without waiting for
+        # the answer.
+        for _ in range(2):
+            await sidecars.complete_registration(sidecar, _sample(), "sample_123", 1)
+        assert len(_registered(stand_in, "complete_registration")) == 2
         answered.set()
 
-    # so the sample's next call sends it again, and the one after doesn't
+    # as does its first call once the answer has arrived, and no call after
     for _ in range(2):
         await sidecars.complete_registration(sidecar, _sample(), "sample_123", 1)
 
-    assert len(_registered(stand_in, "complete_registration")) == 2
+    assert len(_registered(stand_in, "complete_registration")) == 3
 
 
 async def test_a_sample_is_ended_with_its_task_named() -> None:

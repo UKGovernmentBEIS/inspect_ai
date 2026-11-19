@@ -134,7 +134,7 @@ class TaskSidecars:
 
         A sidecar that no longer keeps the task's registration, as after it restarted or the registration expired, has the task registered again first. Each epoch and each retry of a sample completes its registration again, so a later one finds a sidecar that has lost the task, rather than being judged without the task's facts or refused.
 
-        The sidecar is told the sample's uuid, and holds the sample's facts while a run that named itself is in progress: it frees them when the last has ended. So a completion counts only for the registration of the task it was sent to. Once the eval has set about registering the task again, as for another sample that found it lost, an attempt completes its registration again before its next call, or the sidecar could free the facts under it when that other sample ends. This doesn't wait for the sidecar's answer to that registration, which may never arrive. A completion sent while a registration of the task is on its way may reach the sidecar before it, and be lost to it, so it counts for the call it was sent for and is sent again before the attempt's next. What an attempt sends again is what it first sent, as a sample's input and metadata may have changed since.
+        The sidecar is told the sample's uuid, and holds the sample's facts while a run that named itself is in progress: it frees them when the last has ended. So a completion counts only for the registration of the task it was sent to. Once the eval has set about registering the task again, as for another sample that found it lost, an attempt completes its registration again before its next call, or the sidecar could free the facts under it when that other sample ends. This doesn't wait for the sidecar's answer to that registration, which may never arrive. A completion sent while a registration of the task is on its way may reach the sidecar before it, and be lost to it, so it counts only for the call it was sent for: the attempt's next call sends it again, whether or not that registration is over by then. What an attempt sends again is what it first sent, as a sample's input and metadata may have changed since.
 
         Raises:
             SentinelProxyError: If the sidecar couldn't take the sample, or no longer kept the task and couldn't register it again.
@@ -198,12 +198,17 @@ class TaskSidecars:
         # to. A completion still on its way when the eval sets about
         # registering the task again is one the sidecar may have lost with
         # the task, so it is sent again. One sent while a registration of
-        # the task was on its way is sent again by the attempt's next call,
-        # once that registration is over.
+        # the task was on its way is sent again by the attempt's next call.
         async with completion.lock:
-            while completion.done is None or completion.done.sent_to != changes():
-                completion.done = _Completed(*await complete(completion.params))
-            return completion.done.fixed
+            done = completion.done
+            if sidecar.access is not None and sidecar.access.lock.locked():
+                # A registration of the task is on its way, and the sidecar
+                # may have taken it since this completion was sent, even one
+                # sent while it was on its way. This doesn't wait for it.
+                done = None
+            while done is None or done.sent_to != changes():
+                done = completion.done = _Completed(*await complete(completion.params))
+            return done.fixed
 
     def lost_monitor_state(self, sample_uuid: str, attempt_number: int) -> None:
         """Note that a sidecar lost an attempt's sample partway through, as on a restart, so the attempt's monitor state is never copied: what the sidecar holds for it began afresh."""
