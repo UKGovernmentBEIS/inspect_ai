@@ -1531,14 +1531,20 @@ async def test_bridged_agent_launch_is_not_known_work(
         await anyio.sleep_forever()
 
     class Process:
+        """A model proxy process that runs until killed and emits nothing."""
+
+        def __init__(self) -> None:
+            self._killed = anyio.Event()
+
         def __aiter__(self) -> Process:
             return self
 
         async def __anext__(self) -> Any:
-            await anyio.sleep_forever()
+            await self._killed.wait()
+            raise StopAsyncIteration
 
         async def kill(self) -> None:
-            pass
+            self._killed.set()
 
     class BridgeSandbox:
         _tools_user = None
