@@ -1,7 +1,9 @@
 import base64
+import binascii
 
 from inspect_ai._util.content import ContentImage
 from inspect_ai._util.images import as_data_uri, sniff_image_mime_type
+from inspect_ai.util import SandboxEnvironmentLimits
 from inspect_ai.util import sandbox as sandbox_env
 from inspect_ai.util._sandbox.identity import (
     sandbox_identity_cwd,
@@ -54,7 +56,16 @@ def view_image(
                 else f"Error reading: {file_path}"
             )
 
-        data = base64.b64decode(result.stdout)
+        if len(result.stdout) >= SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE:
+            raise ToolError(
+                f"{file_path} is too large to view: its base64 encoding exceeds "
+                f"the {SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE_STR} sandbox "
+                "output limit."
+            )
+        try:
+            data = base64.b64decode(result.stdout)
+        except binascii.Error as ex:
+            raise ToolError(f"{file_path} could not be decoded: {ex}") from ex
         mime_type = sniff_image_mime_type(data)
         if mime_type not in _SUPPORTED_MIME_TYPES:
             raise ToolError(f"{file_path} is not a PNG, JPEG, GIF or WebP image.")

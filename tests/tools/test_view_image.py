@@ -1,6 +1,7 @@
 import base64
 
 import pytest
+from test_helpers.sandbox import CannedSandbox
 from test_helpers.tool_call_utils import get_tool_call, get_tool_response
 from test_helpers.utils import skip_if_no_docker
 
@@ -9,8 +10,13 @@ from inspect_ai.dataset import Sample
 from inspect_ai.log import resolve_sample_attachments
 from inspect_ai.model import ChatMessageTool, ModelOutput, get_model
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
-from inspect_ai.tool import ContentImage, view_image
+from inspect_ai.tool import ContentImage, ToolError, view_image
 from inspect_ai.util import sandbox
+from inspect_ai.util._sandbox.context import (
+    sandbox_default_context_var,
+    sandbox_environments_context_var,
+)
+from inspect_ai.util._subprocess import ExecResult
 
 PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
 
@@ -79,6 +85,27 @@ def test_view_image_unreadable_path_is_a_tool_error(file_path: str) -> None:
     response = _run_view_image("plot.png", PNG_BYTES, file_path)
     assert response.error is not None
     assert file_path in response.error.message
+
+
+def test_view_image_over_output_limit_is_a_tool_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE", "64")
+    response = _run_view_image("plot.png", PNG_BYTES + b"\x00" * 100, "plot.png")
+    assert response.error is not None
+    assert "too large to view" in response.error.message
+
+
+async def test_view_image_undecodable_output_is_a_tool_error() -> None:
+    env = CannedSandbox.returning(ExecResult(True, 0, "not base64!\n", ""))
+    environments_token = sandbox_environments_context_var.set({"default": env})
+    default_token = sandbox_default_context_var.set("default")
+    try:
+        with pytest.raises(ToolError, match="could not be decoded"):
+            await view_image()(file_path="plot.png")
+    finally:
+        sandbox_default_context_var.reset(default_token)
+        sandbox_environments_context_var.reset(environments_token)
 
 
 @skip_if_no_docker
