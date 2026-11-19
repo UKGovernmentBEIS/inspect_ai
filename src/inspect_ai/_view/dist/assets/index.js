@@ -11110,22 +11110,6 @@ var printArray = (arr, size = 50) => {
 	const allItems = [...headItems, ...tailItems];
 	return envelope[0] + allItems.join(separator) + envelope[1];
 };
-// ../../packages/util/src/autosizeTextarea.ts
-function autosizeTextarea(el, config) {
-	const cs = getComputedStyle(el);
-	const fontSize = parseFloat(cs.fontSize);
-	const rawLineHeight = parseFloat(cs.lineHeight);
-	const lineHeight = Number.isFinite(rawLineHeight) ? rawLineHeight : fontSize * 1.4;
-	const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
-	const borderY = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
-	const minH = lineHeight * config.minRows + padY + borderY;
-	const maxH = lineHeight * config.maxRows + padY + borderY;
-	el.style.height = "auto";
-	const desired = el.scrollHeight + borderY;
-	const next = Math.min(maxH, Math.max(minH, desired));
-	el.style.height = `${next}px`;
-	el.style.overflowY = desired > maxH ? "auto" : "hidden";
-}
 // ../../packages/util/src/brand.ts
 /**
 * Branded types for nominal typing in TypeScript.
@@ -13376,9 +13360,6 @@ var ensureTrailingSlash = (path) => {
 					resolve(await task());
 				} catch (error) {
 					reject(error instanceof Error ? error : new Error(String(error)));
-				} finally {
-					this.runningCount--;
-					this.runNext();
 				}
 			});
 			if (this.runningCount < this.concurrentLimit) this.runNext();
@@ -13389,7 +13370,11 @@ var ensureTrailingSlash = (path) => {
 			const task = this.queue.shift();
 			if (task) {
 				this.runningCount++;
-				task();
+				const done = () => {
+					this.runningCount--;
+					this.runNext();
+				};
+				task().then(done, done);
 			}
 		}
 	}
@@ -13600,7 +13585,7 @@ var import_client = require_client();
 var json_parse_worker_default = new URL("json-parse.worker.js", import.meta.url).href;
 // src/client/jsonParseWorker.ts
 configureJsonParseWorker(json_parse_worker_default);
-// ../../node_modules/.pnpm/@tanstack+react-query@5.105.2_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
+// ../../node_modules/.pnpm/@tanstack+react-query@5.107.1_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
 /**
 * The context that `useQueryClient` reads from. `QueryClientProvider` is the normal way to set it.
 */
@@ -13649,7 +13634,7 @@ var QueryClientProvider = ({ client, children }) => {
 		children
 	});
 };
-// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.107.1/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
 var defaultTimeoutProvider = {
 	setTimeout: (callback, delay) => setTimeout(callback, delay),
 	clearTimeout: (timeoutId) => clearTimeout(timeoutId),
@@ -13801,7 +13786,7 @@ var timeoutManager = new TimeoutManager();
 function systemSetTimeoutZero(callback) {
 	setTimeout(callback, 0);
 }
-// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/utils.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.107.1/node_modules/@tanstack/query-core/build/modern/utils.js
 /**
 * @deprecated use `environmentManager.isServer()` instead.
 */
@@ -13926,7 +13911,7 @@ function hashQueryKeyByOptions(queryKey, options) {
 * ```
 */
 function hashKey(queryKey) {
-	return JSON.stringify(queryKey, (_, val) => isPlainObject$1(val) ? Object.keys(val).sort().reduce((result, key) => {
+	return JSON.stringify(queryKey, (_, val) => isPlainObject$2(val) ? Object.keys(val).sort().reduce((result, key) => {
 		result[key] = val[key];
 		return result;
 	}, {}) : val);
@@ -13951,7 +13936,7 @@ function replaceEqualDeep(a, b, depth = 0) {
 	if (a === b) return a;
 	if (depth > 500) return b;
 	const array = isPlainArray(a) && isPlainArray(b);
-	if (!array && !(isPlainObject$1(a) && isPlainObject$1(b))) return b;
+	if (!array && !(isPlainObject$2(a) && isPlainObject$2(b))) return b;
 	const aSize = (array ? a : Object.keys(a)).length;
 	const bItems = array ? b : Object.keys(b);
 	const bSize = bItems.length;
@@ -14001,7 +13986,7 @@ function isPlainArray(value) {
 * @param o - The value to check.
 * @returns `true` if `o` is a plain object.
 */
-function isPlainObject$1(o) {
+function isPlainObject$2(o) {
 	if (!hasObjectPrototype(o)) return false;
 	const objectPrototype = Object.getPrototypeOf(o);
 	const ctor = objectPrototype?.constructor;
@@ -14166,14 +14151,14 @@ function addConsumeAwareSignal(object, getSignal, onCancelled, internalSignal) {
 	});
 	return object;
 }
-// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/environmentManager.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.107.1/node_modules/@tanstack/query-core/build/modern/environmentManager.js
 var isServerFn = () => isServer$1;
 /**
 * Returns whether the current runtime should be treated as a server environment.
 * @returns `true` if the runtime is treated as a server.
 */
 var isServer = () => isServerFn();
-// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/subscribable.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.107.1/node_modules/@tanstack/query-core/build/modern/subscribable.js
 /**
 * The base class behind everything in Query that you can subscribe to: `QueryCache`, `MutationCache`,
 * the observers, and the `FocusManager`/`OnlineManager` behind `focusManager` and `onlineManager`.
@@ -14225,7 +14210,7 @@ var Subscribable = class {
 	*/
 	onUnsubscribe() {}
 };
-// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/focusManager.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.107.1/node_modules/@tanstack/query-core/build/modern/focusManager.js
 /**
 * The `FocusManager` manages the focus state within TanStack Query.
 *
@@ -14336,7 +14321,7 @@ var FocusManager = class extends Subscribable {
 * Singleton instance of {@link FocusManager}, used to manage and observe the focus state within TanStack Query.
 */
 var focusManager = new FocusManager();
-// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/notifyManager.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.107.1/node_modules/@tanstack/query-core/build/modern/notifyManager.js
 /**
 * Default scheduling function used by the notify manager.
 * Schedules the callback with the system's `setTimeout(callback, 0)`.
@@ -14462,7 +14447,7 @@ function createNotifyManager() {
 * Handles scheduling and batching callbacks in TanStack Query.
 */
 var notifyManager = createNotifyManager();
-// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/onlineManager.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.107.1/node_modules/@tanstack/query-core/build/modern/onlineManager.js
 /**
 * The `OnlineManager` manages the online state within TanStack Query. It can
 * be used to change the default event listeners or to manually change the
@@ -14558,7 +14543,7 @@ var OnlineManager = class extends Subscribable {
 * Singleton instance of {@link OnlineManager}, used to manage and observe the online state within TanStack Query.
 */
 var onlineManager = new OnlineManager();
-// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/retryer.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.107.1/node_modules/@tanstack/query-core/build/modern/retryer.js
 /**
 * The default `retryDelay`: doubles with every failure, starting at 1 second, up to 30 seconds.
 * @param failureCount - The number of failures so far.
@@ -14684,7 +14669,7 @@ function createRetryer(config) {
 			failureCount++;
 			config.onFail?.(failureCount, error);
 			sleep(delay).then(() => {
-				return canContinue() ? void 0 : pause(canContinue);
+				return isResolved() || canContinue() ? void 0 : pause(canContinue);
 			}).then(() => {
 				if (isRetryCancelled) reject(error);
 				else run();
@@ -14709,7 +14694,7 @@ function createRetryer(config) {
 		}
 	};
 }
-// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/removable.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.107.1/node_modules/@tanstack/query-core/build/modern/removable.js
 /**
 * The base class for cache entries that are garbage collected once nothing is using them —
 * `Query` and `Mutation` both extend it. `gcTime` controls how long an unused entry is kept.
@@ -14752,7 +14737,7 @@ var Removable = class {
 		}
 	}
 };
-// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.107.1/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
 /**
 * Creates the behavior that fetches the pages of an infinite query: the next or previous page for
 * `fetchNextPage`/`fetchPreviousPage`, or all pages again from the start on a refetch.
@@ -14874,7 +14859,7 @@ function hasPreviousPage(options, data) {
 	if (!data || !options.getPreviousPageParam) return false;
 	return getPreviousPageParam(options, data) != null;
 }
-// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/query.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.107.1/node_modules/@tanstack/query-core/build/modern/query.js
 /**
 * Represents a single cached query. A `Query` holds the query's key, options,
 * state (data/error/status), and the observers currently subscribed to it.
@@ -15068,11 +15053,12 @@ var Query = class extends Removable {
 		return this.state.dataUpdateCount + this.state.errorUpdateCount > 0;
 	}
 	/**
-	* Returns `true` if the query has at least one observer configured with
+	* Returns `true` if the query has data and at least one observer configured with
 	* `staleTime: 'static'`, meaning it is treated as never stale.
 	* @returns `true` if the query is static.
 	*/
 	isStatic() {
+		if (this.state.data === void 0) return false;
 		if (this.getObserversCount() > 0) return this.observers.some((observer) => resolveQueryValue(observer.options.staleTime, this) === "static");
 		return false;
 	}
@@ -15478,7 +15464,7 @@ function getDefaultState$1(options) {
 		fetchStatus: "idle"
 	};
 }
-// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/queryObserver.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.107.1/node_modules/@tanstack/query-core/build/modern/queryObserver.js
 /**
 * A `QueryObserver` watches a single query in the `QueryCache` and computes a
 * `QueryObserverResult` from its state, recomputing and notifying subscribers
@@ -15841,7 +15827,7 @@ var QueryObserver = class extends Subscribable {
 		if (this.#selectError) {
 			error = this.#selectError;
 			data = this.#selectResult;
-			errorUpdatedAt = Date.now();
+			errorUpdatedAt = prevResult?.error === error ? prevResult.errorUpdatedAt : Date.now();
 			status = "error";
 			isPlaceholderData = false;
 		}
@@ -15989,7 +15975,7 @@ function shouldFetchOptionally(query, prevQuery, options, prevOptions) {
 function isStale(query, options) {
 	return resolveQueryValue(options.enabled, query) !== false && query.isStaleByTime(resolveQueryValue(options.staleTime, query));
 }
-// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.107.1/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
 /**
 * An `InfiniteQueryObserver` extends `QueryObserver` to observe and switch
 * between infinite queries. It augments the base `QueryObserverResult` with
@@ -16116,7 +16102,7 @@ var InfiniteQueryObserver = class extends QueryObserver {
 		};
 	}
 };
-// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/mutation.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.107.1/node_modules/@tanstack/query-core/build/modern/mutation.js
 /**
 * Represents a single mutation attempt. A `Mutation` holds the mutation's
 * options, state (data/error/status), and the `MutationObserver`s currently
@@ -16424,7 +16410,7 @@ function getDefaultState() {
 		submittedAt: 0
 	};
 }
-// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/mutationCache.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.107.1/node_modules/@tanstack/query-core/build/modern/mutationCache.js
 /**
 * The `MutationCache` is the storage for mutations.
 *
@@ -16646,7 +16632,7 @@ var MutationCache = class extends Subscribable {
 function scopeFor(mutation) {
 	return mutation.options.scope?.id;
 }
-// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.107.1/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
 /**
 * Observes a single mutation and derives a `MutationObserverResult` from it.
 * A framework hook like `useMutation` creates one `MutationObserver` per hook
@@ -16837,7 +16823,7 @@ var MutationObserver$1 = class extends Subscribable {
 		});
 	}
 };
-// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/queryCache.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.107.1/node_modules/@tanstack/query-core/build/modern/queryCache.js
 /**
 * The `QueryCache` is the storage mechanism for TanStack Query. It stores all the data, meta
 * information, and state of the queries it contains.
@@ -17069,7 +17055,7 @@ var QueryCache = class extends Subscribable {
 		});
 	}
 };
-// ../../node_modules/.pnpm/@tanstack+query-core@5.105.2/node_modules/@tanstack/query-core/build/modern/queryClient.js
+// ../../node_modules/.pnpm/@tanstack+query-core@5.107.1/node_modules/@tanstack/query-core/build/modern/queryClient.js
 /**
 * `QueryClient` is used to interact with a cache of queries and mutations. It owns a
 * `QueryCache` and a `MutationCache` (creating default ones if none are passed in) and holds
@@ -17789,7 +17775,7 @@ var QueryClient = class {
 		this.#mutationCache.clear();
 	}
 };
-// ../../node_modules/.pnpm/@tanstack+react-query@5.105.2_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
+// ../../node_modules/.pnpm/@tanstack+react-query@5.107.1_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
 var IsRestoringContext = import_react.createContext(false);
 /**
 * If you are using `PersistQueryClientProvider`, you can also use the `useIsRestoring` hook alongside it to
@@ -17799,7 +17785,7 @@ var IsRestoringContext = import_react.createContext(false);
 */
 var useIsRestoring = () => import_react.useContext(IsRestoringContext);
 IsRestoringContext.Provider;
-// ../../node_modules/.pnpm/@tanstack+react-query@5.105.2_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
+// ../../node_modules/.pnpm/@tanstack+react-query@5.107.1_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
 /**
 * Creates the value shared through the boundary's context, which tracks whether a reset was
 * requested.
@@ -17859,7 +17845,7 @@ var QueryErrorResetBoundaryContext = import_react.createContext(createValue());
 * ```
 */
 var useQueryErrorResetBoundary = () => import_react.useContext(QueryErrorResetBoundaryContext);
-// ../../node_modules/.pnpm/@tanstack+react-query@5.105.2_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
+// ../../node_modules/.pnpm/@tanstack+react-query@5.107.1_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
 /**
 * Turns off `retryOnMount` for a query that throws its errors (with `suspense` or `throwOnError`),
 * unless the error boundary has been reset, so a remount doesn't retry the failed query before the
@@ -17895,7 +17881,7 @@ var useClearResetErrorBoundary = (errorResetBoundary) => {
 var getHasError = ({ result, errorResetBoundary, throwOnError, query, suspense }) => {
 	return result.isError && !errorResetBoundary.isReset() && !result.isFetching && query && (suspense && result.data === void 0 || shouldThrowError(throwOnError, [result.error, query]));
 };
-// ../../node_modules/.pnpm/@tanstack+react-query@5.105.2_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/suspense.js
+// ../../node_modules/.pnpm/@tanstack+react-query@5.107.1_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/suspense.js
 /**
 * Raises `staleTime` and a numeric `gcTime` to at least 1000ms when `suspense` is enabled, so a
 * component that remounts after suspending doesn't refetch right away or find the query garbage
@@ -17929,7 +17915,7 @@ var shouldSuspend = (defaultedOptions, result) => defaultedOptions?.suspense && 
 var fetchOptimistic = (defaultedOptions, observer, errorResetBoundary) => observer.fetchOptimistic(defaultedOptions).catch(() => {
 	errorResetBoundary.clearReset();
 });
-// ../../node_modules/.pnpm/@tanstack+react-query@5.105.2_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
+// ../../node_modules/.pnpm/@tanstack+react-query@5.107.1_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
 /**
 * Base implementation shared by `useQuery`, `useInfiniteQuery`, `useSuspenseQuery`, and
 * `useSuspenseInfiniteQuery`.
@@ -17975,11 +17961,11 @@ function useBaseQuery(options, Observer, queryClient) {
 	})) throw result.error;
 	return !defaultedOptions.notifyOnChangeProps ? observer.trackResult(result) : result;
 }
-// ../../node_modules/.pnpm/@tanstack+react-query@5.105.2_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/useQuery.js
+// ../../node_modules/.pnpm/@tanstack+react-query@5.107.1_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/useQuery.js
 function useQuery(options, queryClient) {
 	return useBaseQuery(options, QueryObserver, queryClient);
 }
-// ../../node_modules/.pnpm/@tanstack+react-query@5.105.2_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/useMutation.js
+// ../../node_modules/.pnpm/@tanstack+react-query@5.107.1_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/useMutation.js
 /**
 * Unlike queries, mutations are typically used to create/update/delete data or perform server side-effects.
 * `useMutation` is the hook for that.
@@ -18165,7 +18151,7 @@ function useMutation(options, queryClient) {
 		mutateAsync: result.mutate
 	};
 }
-// ../../node_modules/.pnpm/@tanstack+react-query@5.105.2_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
+// ../../node_modules/.pnpm/@tanstack+react-query@5.107.1_@types+react@19.3.0_react@19.3.1/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
 function useInfiniteQuery(options, queryClient) {
 	return useBaseQuery(options, InfiniteQueryObserver, queryClient);
 }
@@ -18703,7 +18689,7 @@ var AutocompleteInput = (t0) => {
 		if (isBrowseMode) {
 			let t8;
 			if ($[0] !== suggestions) {
-				t8 = suggestions.filter(_temp$117);
+				t8 = suggestions.filter(_temp$119);
 				$[0] = suggestions;
 				$[1] = t8;
 			} else t8 = $[1];
@@ -18835,7 +18821,7 @@ var AutocompleteInput = (t0) => {
 					e_1.stopPropagation();
 					onCommit?.();
 				} else if (e_1.key === "ArrowDown" || e_1.key === "ArrowUp") {
-					const hasOptions = suggestions.some(_temp2$67);
+					const hasOptions = suggestions.some(_temp2$68);
 					if (filteredSuggestions.length > 0 || hasOptions) {
 						e_1.preventDefault();
 						e_1.stopPropagation();
@@ -18854,7 +18840,7 @@ var AutocompleteInput = (t0) => {
 				case "ArrowUp":
 					e_1.preventDefault();
 					e_1.stopPropagation();
-					setHighlightedIndex(_temp3$45);
+					setHighlightedIndex(_temp3$46);
 					break bb138;
 				case "Tab":
 					if (highlightedIndex >= 0 && filteredSuggestions[highlightedIndex] !== void 0) {
@@ -19063,13 +19049,13 @@ var AutocompleteInput = (t0) => {
 	} else t30 = $[83];
 	return t30;
 };
-function _temp$117(s) {
+function _temp$119(s) {
 	return s !== null;
 }
-function _temp2$67(s_1) {
+function _temp2$68(s_1) {
 	return s_1 !== null;
 }
-function _temp3$45(prev) {
+function _temp3$46(prev) {
 	return Math.max(prev - 1, -1);
 }
 // ../../packages/react/src/hooks/onDemandModule.ts
@@ -19114,7 +19100,7 @@ var onDemandModule = (importer) => {
 			let cancelled = false;
 			module.load().then((loaded) => {
 				if (!cancelled) setValue(() => loaded);
-			}).catch(_temp$116);
+			}).catch(_temp$118);
 			return () => {
 				cancelled = true;
 			};
@@ -19136,7 +19122,7 @@ var onDemandModule = (importer) => {
 	(0, import_react.useEffect)(t2, t3);
 	return value;
 };
-function _temp$116(error) {
+function _temp$118(error) {
 	console.error("Unable to load module", error);
 }
 var ContentTrust_module_default = {
@@ -19735,7 +19721,7 @@ var Card$1 = (t0) => {
 				setCopied(true);
 				window.clearTimeout(timer.current);
 				timer.current = window.setTimeout(() => setCopied(false), confirmMs);
-			}).catch(_temp$115);
+			}).catch(_temp$117);
 		};
 		$[1] = confirmMs;
 		$[2] = t2;
@@ -19753,7 +19739,7 @@ var Card$1 = (t0) => {
 	} else t3 = $[5];
 	return t3;
 }
-function _temp$115(error) {
+function _temp$117(error) {
 	console.error("Failed to copy:", error);
 }
 var CopyButton_module_default = { copyButton: "_copyButton_1goi8_1" };
@@ -29062,8 +29048,7 @@ __decorate$5([r$2()], VscodeTextarea$1.prototype, "_value", void 0);
 __decorate$5([r$2()], VscodeTextarea$1.prototype, "_textareaPointerCursor", void 0);
 __decorate$5([r$2()], VscodeTextarea$1.prototype, "_shadow", void 0);
 VscodeTextarea$1 = __decorate$5([customElement("vscode-textarea")], VscodeTextarea$1);
-// ../../node_modules/.pnpm/@vscode-elements+react-elements@2.4.0_@types+react@19.3.0_@vscode+codicons@0.0.45_react_02e419efff47087d8cbea8401cb5f496/node_modules/@vscode-elements/react-elements/dist/components/VscodeTextarea.js
-var VscodeTextarea = o$7({
+o$7({
 	tagName: "vscode-textarea",
 	elementClass: VscodeTextarea$1,
 	react: import_react.default,
@@ -31602,13 +31587,13 @@ var usePrismHighlight = (containerRef, contentLength) => {
 					if (!cancelled) highlightCodeBlocks(container, highlightElement);
 				});
 				observer = new MutationObserver((mutations) => {
-					if (mutations.some(_temp2$66)) highlightCodeBlocks(container, highlightElement);
+					if (mutations.some(_temp2$67)) highlightCodeBlocks(container, highlightElement);
 				});
 				observer.observe(container, {
 					childList: true,
 					subtree: true
 				});
-			}).catch(_temp3$44);
+			}).catch(_temp3$45);
 			return () => {
 				cancelled = true;
 				observer?.disconnect();
@@ -31630,15 +31615,15 @@ var usePrismHighlight = (containerRef, contentLength) => {
 	}
 	(0, import_react.useLayoutEffect)(t0, t1);
 };
-function _temp$114(node) {
+function _temp$116(node) {
 	if (node instanceof Element) return node.querySelector("pre code") || node.matches("pre code");
 	return false;
 }
-function _temp2$66(mutation) {
-	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$114);
+function _temp2$67(mutation) {
+	if (mutation.type === "childList") return Array.from(mutation.addedNodes).some(_temp$116);
 	return false;
 }
-function _temp3$44(error) {
+function _temp3$45(error) {
 	console.error("Unable to load syntax highlighting", error);
 }
 var JsonPanel_module_default = {
@@ -32004,7 +31989,7 @@ var RichMarkdownDiv = /*#__PURE__*/ (0, import_react.forwardRef)((t0, ref) => {
 				(0, import_react.startTransition)(() => {
 					setRenderedHtml(applyPostProcess(sanitizedResult));
 				});
-			}).catch(_temp$113);
+			}).catch(_temp$115);
 			return () => {
 				cancel();
 			};
@@ -32099,7 +32084,7 @@ var MarkdownRenderQueue = class {
 			cancel
 		};
 	}
-	async processQueue() {
+	processQueue() {
 		if (this.activeCount >= this.maxConcurrent || this.queue.length === 0) return;
 		let queueTask;
 		while (this.queue.length > 0) {
@@ -32111,16 +32096,15 @@ var MarkdownRenderQueue = class {
 		}
 		if (!queueTask) return;
 		this.activeCount++;
-		try {
-			await queueTask.task();
-		} finally {
+		const done = () => {
 			this.activeCount--;
 			this.processQueue();
-		}
+		};
+		queueTask.task().then(done, done);
 	}
 };
 var renderQueue = new MarkdownRenderQueue(10);
-function _temp$113(error) {
+function _temp$115(error) {
 	console.error("Markdown rendering error:", error);
 }
 var NoContentsPanel_module_default = {
@@ -32407,53 +32391,74 @@ var panelStyle = {
 	} else t19 = $[30];
 	return t19;
 };
-// ../../packages/react/src/components/prepareSearchTerm.ts
+// ../../packages/react/src/components/findText.ts
+var WHITESPACE_RUN = / [ \t\n\r\f]+|[\t\n\r\f][ \t\n\r\f]*/g;
+var collapseRun = (run) => /[\n\r]/.test(run) ? "\n" : " ";
+var FOLDABLE = /(?![\0-\x7f])\p{CWCM}/gu;
+var folds = /* @__PURE__ */ new Map();
+var foldCodePoint = (char) => {
+	let folded = folds.get(char);
+	if (folded === void 0) {
+		const upper = char.toUpperCase();
+		const lower = (upper.length === char.length ? upper : char).toLowerCase();
+		folded = lower.length === char.length ? lower : "i";
+		folds.set(char, folded);
+	}
+	return folded;
+};
+var foldCase = (text) => /[^\0-\x7f]/.test(text) ? text.replaceAll("İ", "i").toLowerCase().replace(FOLDABLE, foldCodePoint) : text.toLowerCase();
 /**
-* Normalize a user-entered search term into the lower-cased variants the
-* extended-find subsystem matches against. Quoted/JSON-ish source text
-* appears with different escape conventions in different sources, so the
-* counter checks all variants.
-*/ function prepareSearchTerm(term) {
-	const lower = term.toLowerCase();
-	if (!/["\\:]/.test(term)) return { simple: lower };
-	return {
-		simple: lower,
-		unquoted: lower.replace(/"/g, ""),
-		jsonEscaped: JSON.stringify(lower).slice(1, -1)
-	};
-}
-/** The non-empty variants of `prepareSearchTerm`, for data-side matching. */ function searchVariants(term) {
-	const { simple, unquoted, jsonEscaped } = prepareSearchTerm(term);
-	return [
-		simple,
-		unquoted,
-		jsonEscaped
-	].filter((variant) => !!variant);
-}
-/**
-* Find every occurrence of any `variants` substring in `lowered`, deduped by
-* range so a JSON-quoted form `"foo"` matched by both `simple` and `unquoted`
-* counts as one occurrence (the longer variant wins).
-*/ function findVariantPositions(lowered, variants) {
-	const hits = [];
-	for (const v of variants) {
-		if (!v) continue;
+* Text as Find compares it: case folded, with each run of whitespace read as
+* one space, or as one line break if it has one, however the page renders
+* it. Pass `offsets` to get each character's index in `text`.
+*/ function normalizeFindText(text, offsets) {
+	if (offsets) {
 		let from = 0;
-		let p;
-		while ((p = lowered.indexOf(v, from)) !== -1) {
+		for (const run of text.matchAll(WHITESPACE_RUN)) {
+			for (let i = from; i <= run.index; i++) offsets.push(i);
+			from = run.index + run[0].length;
+		}
+		for (let i = from; i < text.length; i++) offsets.push(i);
+	}
+	return foldCase(text).replace(WHITESPACE_RUN, collapseRun);
+}
+/**
+* The normalized forms of `term` Find looks for. Quoted or escaped text
+* appears differently in JSON (stringified tool arguments) than as typed, so
+* a term with quotes, backslashes or colons also matches unquoted and
+* JSON-escaped.
+*/ function searchVariants(term) {
+	const simple = normalizeFindText(term);
+	if (!/["\\:]/.test(term)) return simple ? [simple] : [];
+	return [.../* @__PURE__ */ new Set([
+		simple,
+		normalizeFindText(simple.replace(/"/g, "")),
+		JSON.stringify(simple).slice(1, -1)
+	])].filter((variant) => variant.length > 0);
+}
+/**
+* Every occurrence of any of `variants` in normalized `text`, without
+* overlap. Where variants overlap (a JSON-quoted `"foo"` matched by both
+* `"foo"` and `foo`), the earliest, then longest, wins.
+*/ function findVariantHits(text, variants) {
+	const hits = [];
+	for (const variant of variants) {
+		let from = 0;
+		let start;
+		while ((start = text.indexOf(variant, from)) !== -1) {
+			from = start + variant.length;
 			hits.push({
-				pos: p,
-				len: v.length
+				start,
+				end: from
 			});
-			from = p + v.length;
 		}
 	}
-	hits.sort((a, b) => a.pos - b.pos || b.len - a.len);
+	if (variants.length > 1) hits.sort((a, b) => a.start - b.start || b.end - a.end);
 	const out = [];
 	let endOfLast = -1;
-	for (const h of hits) if (h.pos >= endOfLast) {
-		out.push(h.pos);
-		endOfLast = h.pos + h.len;
+	for (const hit of hits) if (hit.start >= endOfLast) {
+		out.push(hit);
+		endOfLast = hit.end;
 	}
 	return out;
 }
@@ -32519,10 +32524,10 @@ var panelStyle = {
 				const scroller_0 = findScrollableParent(container);
 				if (!scroller_0 || anchoredNatively(container, scroller_0)) return;
 				const viewportTop = scroller_0.getBoundingClientRect().top;
-				const grown = changes.reduce(_temp$112, 0);
+				const grown = changes.reduce(_temp$114, 0);
 				const row = container.closest("[data-index]");
 				if (row && row.getBoundingClientRect().bottom - grown <= viewportTop) return;
-				changes.sort(_temp2$65);
+				changes.sort(_temp2$66);
 				let grownAbove = 0;
 				let compensation = 0;
 				for (const { target, delta } of changes) {
@@ -32563,10 +32568,10 @@ var anchoredNatively = (container, scroller) => {
 	}
 	return true;
 };
-function _temp$112(sum, change) {
+function _temp$114(sum, change) {
 	return sum + change.delta;
 }
-function _temp2$65(a, b) {
+function _temp2$66(a, b) {
 	return a.target.getBoundingClientRect().top - b.target.getBoundingClientRect().top;
 }
 // ../../packages/react/src/hooks/useResizeObserver.ts
@@ -32708,11 +32713,11 @@ var lineHeight = (element) => {
 var TextChunks = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(5);
 	const { text } = t0;
-	const ref = useResizeObserver(_temp$111);
+	const ref = useResizeObserver(_temp$113);
 	useChildScrollAnchoring(ref, text);
 	let t1;
 	if ($[0] !== text) {
-		t1 = splitTextChunks(text).map(_temp2$64);
+		t1 = splitTextChunks(text).map(_temp2$65);
 		$[0] = text;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -32757,10 +32762,10 @@ var measureCharsPerLine = (element, width) => {
 	const charWidth = measureContext.measureText("0".repeat(100)).width / 100;
 	return charWidth > 0 ? Math.max(1, Math.floor(width / charWidth)) : kDefaultCharsPerLine;
 };
-function _temp$111(entry) {
+function _temp$113(entry) {
 	if (entry.target instanceof HTMLElement && entry.contentRect.width > 0 && entry.target.style.getPropertyValue(kCharsPerLine) === "") entry.target.style.setProperty(kCharsPerLine, String(measureCharsPerLine(entry.target, entry.contentRect.width)));
 }
-function _temp2$64(chunk, index) {
+function _temp2$65(chunk, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ChunkedText_module_default.chunk,
 		style: chunkSize(chunk.text.length, chunk.lines),
@@ -41379,7 +41384,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 				testElement.style.margin = "0";
 				testElement.style.padding = "0";
 				container.appendChild(testElement);
-				replaceMeasurementItems(testElement, segments.map(_temp$110));
+				replaceMeasurementItems(testElement, segments.map(_temp$112));
 				if (testElement.scrollWidth <= containerWidth) {
 					container.removeChild(testElement);
 					setTruncatedData({
@@ -41405,7 +41410,7 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 					replaceMeasurementItems(testElement, [
 						firstSegment.text,
 						"...",
-						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$63),
+						...segments.slice(segments.length - 1 - endCount, -1).map(_temp2$64),
 						lastSegment.text
 					]);
 					if (testElement.scrollWidth <= containerWidth) {
@@ -41443,10 +41448,10 @@ var useBreadcrumbTruncation = (segments, containerRef) => {
 	(0, import_react.useEffect)(t1, t2);
 	return truncatedData;
 };
-function _temp$110(segment) {
+function _temp$112(segment) {
 	return segment.text;
 }
-function _temp2$63(segment_0) {
+function _temp2$64(segment_0) {
 	return segment_0.text;
 }
 // ../../packages/react/src/hooks/useChromeNavOwnership.ts
@@ -42788,7 +42793,7 @@ var Tab = (t0) => {
 				"aria-controls": tabContentsId,
 				"aria-selected": isActive,
 				onClick: inAppLinkClick(tab.props.onSelected),
-				onKeyDown: _temp$109,
+				onKeyDown: _temp$111,
 				children: content
 			}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 				id: tabId,
@@ -42826,7 +42831,7 @@ var TabPanels = (t0) => {
 	const t2 = `${id}-content`;
 	let t3;
 	if ($[2] !== tabs) {
-		t3 = tabs.map(_temp2$62);
+		t3 = tabs.map(_temp2$63);
 		$[2] = tabs;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -42918,13 +42923,13 @@ var flattenChildren$1 = (children) => {
 		return [];
 	});
 };
-function _temp$109(e) {
+function _temp$111(e) {
 	if (e.key === " ") {
 		e.preventDefault();
 		e.currentTarget.click();
 	}
 }
-function _temp2$62(tab, index) {
+function _temp2$63(tab, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TabPanel, {
 		...tab.props,
 		index
@@ -42954,7 +42959,7 @@ var FindTargetContext = /*#__PURE__*/ (0, import_react.createContext)(null);
 	const ctx = (0, import_react.useContext)(FindTargetContext);
 	let t0;
 	if ($[0] !== ctx?.setTarget) {
-		t0 = ctx?.setTarget ?? _temp$108;
+		t0 = ctx?.setTarget ?? _temp$110;
 		$[0] = ctx?.setTarget;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -42987,7 +42992,7 @@ var FindTargetProvider = (t0) => {
 	} else t2 = $[4];
 	return t2;
 };
-function _temp$108() {}
+function _temp$110() {}
 // ../../packages/react/src/components/ExpandablePanel.tsx
 var kNestedToggleStep = 24;
 var PanelNestingContext = /*#__PURE__*/ (0, import_react.createContext)({
@@ -42999,8 +43004,7 @@ var PanelNestingContext = /*#__PURE__*/ (0, import_react.createContext)({
 * Whether the active find term, in any of the variants the search counter
 * matches, is in the element's text: a panel uses it to show content it
 * otherwise hides. The element's text may be hidden but must be mounted.
-*/ var collapseWhitespace = (text) => text.replace(/\s+/g, " ");
-var useContainsFindTarget = (contentRef) => {
+*/ var useContainsFindTarget = (contentRef) => {
 	const $ = (0, import_compiler_runtime.c)(5);
 	const findTarget = useFindTarget();
 	let t0;
@@ -43022,13 +43026,8 @@ var useContainsFindTarget = (contentRef) => {
 				setContainsFindTarget(false);
 				return;
 			}
-			const text = collapseWhitespace(root.textContent.toLowerCase());
-			const { simple, unquoted, jsonEscaped } = prepareSearchTerm(collapseWhitespace(findTarget.term));
-			setContainsFindTarget([
-				simple,
-				unquoted,
-				jsonEscaped
-			].some((variant) => !!variant && text.includes(variant)));
+			const text = normalizeFindText(root.textContent);
+			setContainsFindTarget(searchVariants(findTarget.term).some((variant) => text.includes(variant)));
 		};
 		$[2] = contentRef;
 		$[3] = findTarget;
@@ -44006,21 +44005,18 @@ var SKIPPED_TAGS = /* @__PURE__ */ new Set([
 	"TEXTAREA",
 	"SELECT"
 ]);
-var escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 var isInlineDisplay = (display) => display === "inline" || display === "contents";
-var collapseFor = (whiteSpace) => whiteSpace === "normal" || whiteSpace === "nowrap" ? "all" : whiteSpace === "pre-line" ? "spaces" : "none";
-var isCollapsible = (char, collapse) => collapse === "all" ? char === " " || char === "	" || char === "\n" || char === "\r" || char === "\f" : collapse === "spaces" && (char === " " || char === "	");
 /**
-* Every case-insensitive occurrence of `term` in the page text under `root`,
-* in document order. Skips text a reader can't find: `data-unsearchable`
+* Every occurrence of `term`, or of its other `searchVariants`, in the page
+* text under `root`, in document order. Text is compared as
+* `normalizeFindText` reads it, so the page agrees with counts from data. Skips text a reader can't find: `data-unsearchable`
 * subtrees, `user-select: none` (role labels, gutters), hidden elements and
 * non-text elements. Matches may cross element boundaries within one block
 * of text (syntax-highlight tokens, markdown emphasis), but never span two
-* blocks or a `<br>`. Whitespace matches as it renders: a run of spaces or a
-* line break in normal text reads as one space, as in the browser's find.
+* blocks or a `<br>`.
 */ function findTextMatches(root, term) {
-	if (!term) return [];
-	const pattern = new RegExp(escapeRegExp(term), "giu");
+	const variants = searchVariants(term);
+	if (variants.length === 0) return [];
 	const doc = root.ownerDocument;
 	const view = doc.defaultView;
 	if (!view) return [];
@@ -44059,21 +44055,13 @@ var isCollapsible = (char, collapse) => collapse === "all" ? char === " " || cha
 		return NodeFilter.FILTER_ACCEPT;
 	} });
 	const matches = [];
-	const collapses = /* @__PURE__ */ new Map();
-	const collapseOf = (el) => {
-		if (!el) return "all";
-		let collapse = collapses.get(el);
-		if (collapse === void 0) {
-			collapse = collapseFor(styleOf(el).whiteSpace);
-			collapses.set(el, collapse);
-		}
-		return collapse;
-	};
 	const flush = (run) => {
 		if (!run) return;
-		for (const match of run.chars.join("").matchAll(pattern)) {
-			const start = run.rawOffsets[match.index];
-			const end = run.rawOffsets[match.index + match[0].length - 1] + 1;
+		const offsets = [];
+		const text = normalizeFindText(run.nodes.map((node) => node.data).join(""), offsets);
+		for (const hit of findVariantHits(text, variants)) {
+			const start = offsets[hit.start];
+			const end = offsets[hit.end - 1] + 1;
 			const range = doc.createRange();
 			const [startNode, startOffset] = locate(run, start, false);
 			const [endNode, endOffset] = locate(run, end, true);
@@ -44102,37 +44090,18 @@ var isCollapsible = (char, collapse) => collapse === "all" ? char === " " || cha
 		}
 		if (!run) {
 			run = {
-				chars: [],
-				rawOffsets: [],
 				nodes: [],
 				starts: [],
-				rawLength: 0,
-				lastWasSpace: false
+				length: 0
 			};
 			runBlock = block;
 		}
-		appendText$1(run, node, collapseOf(parent));
+		run.starts.push(run.length);
+		run.nodes.push(node);
+		run.length += node.data.length;
 	}
 	flush(run);
 	return matches;
-}
-function appendText$1(run, node, collapse) {
-	run.starts.push(run.rawLength);
-	run.nodes.push(node);
-	const data = node.data;
-	for (let i = 0; i < data.length; i++) {
-		const char = data[i];
-		if (isCollapsible(char, collapse)) {
-			if (run.lastWasSpace) continue;
-			run.chars.push(" ");
-			run.lastWasSpace = true;
-		} else {
-			run.chars.push(char);
-			run.lastWasSpace = false;
-		}
-		run.rawOffsets.push(run.rawLength + i);
-	}
-	run.rawLength += data.length;
 }
 /**
 * The text node and offset for a raw position in a run. An end position on a
@@ -44818,7 +44787,7 @@ var MarkdownDivWithReferences = /*#__PURE__*/ (0, import_react.forwardRef)((prop
 	const [visibleKey, setVisibleKey, clearVisibleKey] = useProperty("popover", "visibleKey");
 	let t0;
 	if ($[0] !== references) {
-		t0 = new Map(references?.map(_temp$107));
+		t0 = new Map(references?.map(_temp$109));
 		$[0] = references;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -45020,7 +44989,7 @@ var findCiteLink = (target) => {
 	}
 	return emitted === 0 ? html : out + html.slice(emitted);
 }
-function _temp$107(r) {
+function _temp$109(r) {
 	return [r.id, r];
 }
 var NextPreviousNav_module_default = {
@@ -50166,7 +50135,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	let t4;
 	if ($[4] !== expandable) {
 		t4 = () => {
-			if (expandable) setExpanded(_temp$106);
+			if (expandable) setExpanded(_temp$108);
 		};
 		$[4] = expandable;
 		$[5] = t4;
@@ -50178,7 +50147,7 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 			Promise.resolve().then(() => navigator.clipboard.writeText(toClipboardJson(value))).then(() => {
 				setCopied(true);
 				setTimeout(() => setCopied(false), COPIED_FEEDBACK_MS);
-			}).catch(_temp2$61);
+			}).catch(_temp2$62);
 		};
 		$[6] = value;
 		$[7] = t5;
@@ -50276,11 +50245,11 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 					className: TreeNode_module_default.empty,
 					children: "empty"
 				}),
-				entries.slice(0, limit).map(_temp3$43),
+				entries.slice(0, limit).map(_temp3$44),
 				entries.length > limit && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 					type: "button",
 					className: TreeNode_module_default.showMore,
-					onClick: () => setLimit(_temp4$31),
+					onClick: () => setLimit(_temp4$33),
 					children: [
 						"Show",
 						" ",
@@ -50307,19 +50276,19 @@ var TreeNode$1 = /*#__PURE__*/ (0, import_react.memo)((t0) => {
 	return t6;
 });
 TreeNode$1.displayName = "TreeNode";
-function _temp$106(e) {
+function _temp$108(e) {
 	return !e;
 }
-function _temp2$61(error) {
+function _temp2$62(error) {
 	console.error("Failed to copy:", error);
 }
-function _temp3$43(entry) {
+function _temp3$44(entry) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TreeNode$1, {
 		name: entry.key,
 		value: entry.value
 	}, entry.id);
 }
-function _temp4$31(l) {
+function _temp4$33(l) {
 	return l + CHUNK_SIZE;
 }
 // src/client/storage/index.ts
@@ -50383,7 +50352,9 @@ var WorkQueue = class {
 			} catch (error) {
 				console.error("onProcessingChanged callback error:", error);
 			}
-			this.runWorker();
+			this.runWorker().catch((error) => {
+				console.error(`${this.options.name} worker error:`, error);
+			});
 		}
 	}
 	async runWorker() {
@@ -50577,7 +50548,6 @@ var FetchEngine = class {
 				const head = inputs[0];
 				if (head?.kind === "preview") this.onPreviewComplete(results, inputs);
 				else if (head?.kind === "details") this.onDetailsComplete(results, inputs);
-				return Promise.resolve();
 			}
 		});
 	}
@@ -50909,7 +50879,13 @@ var FetchEngine = class {
 		}
 		const waiter = deferred();
 		this._pendingFetches.set(key, waiter);
-		this.beginFetch(key, opts.priority, waiter, opts.fresh ?? false);
+		this.beginFetch(key, opts.priority, waiter, opts.fresh ?? false).catch((caught) => {
+			if (this._pendingFetches.get(key) === waiter) {
+				this._pendingFetches.delete(key);
+				this._activeSettles.delete(key);
+			}
+			waiter.reject(toError(caught));
+		});
 		return waiter.promise;
 	}
 	async beginFetch(key, priority, waiter, fresh) {
@@ -56881,20 +56857,22 @@ var newRow$1 = (handle) => ({
 	*/ async writeLogs(handles) {
 		const db = this.db;
 		const now = (/* @__PURE__ */ new Date()).toISOString();
-		const existingRecords = await db.logs.where("file_path").anyOf(handles.map((handle) => handle.name)).toArray();
-		const existingByPath = new Map(existingRecords.map((record) => [record.file_path, record]));
-		const records = handles.map((handle) => {
-			const existing = existingByPath.get(handle.name);
-			return existing ? {
-				...existing,
-				task: handle.task,
-				task_id: handle.task_id,
-				mtime: handle.mtime,
-				cached_at: now
-			} : toLogRecord(newRow$1(handle), void 0, now);
+		log$5.debug(`Upserting ${handles.length} log rows (identity tier)`);
+		await db.transaction("rw", db.logs, async () => {
+			const existingRecords = await db.logs.where("file_path").anyOf(handles.map((handle) => handle.name)).toArray();
+			const existingByPath = new Map(existingRecords.map((record) => [record.file_path, record]));
+			const records = handles.map((handle) => {
+				const existing = existingByPath.get(handle.name);
+				return existing ? {
+					...existing,
+					task: handle.task,
+					task_id: handle.task_id,
+					mtime: handle.mtime,
+					cached_at: now
+				} : toLogRecord(newRow$1(handle), void 0, now);
+			});
+			await db.logs.bulkPut(records);
 		});
-		log$5.debug(`Upserting ${records.length} log rows (identity tier)`);
-		await db.logs.bulkPut(records);
 	}
 	async readLogs(scope) {
 		try {
@@ -56932,26 +56910,30 @@ var newRow$1 = (handle) => ({
 		}
 	}
 	/** Merge a set of per-file row patches, creating listed-depth rows for
-	*  unknown files (e.g. single-file mode). Depth ratchets, never lowers. */ async mergeRows(patches) {
+	*  unknown files (e.g. single-file mode). Depth ratchets, never lowers.
+	*  The read and put share a transaction so a concurrent write to the same
+	*  rows can't land in between and be overwritten by the stale read. */ async mergeRows(patches) {
 		const db = this.db;
 		const now = (/* @__PURE__ */ new Date()).toISOString();
 		const files = Object.keys(patches);
-		const existing = await db.logs.where("file_path").anyOf(files).toArray();
-		const byPath = new Map(existing.map((record) => [record.file_path, record]));
-		const records = files.map((file) => {
-			const patch = patches[file] ?? {};
-			const current = byPath.get(file);
-			const base = current ?? toLogRecord(newRow$1({ name: file }), void 0, now);
-			return {
-				...base,
-				...patch,
-				depth: maxDepth(base.depth, patch.depth ?? base.depth),
-				file_path: file,
-				id: current?.id,
-				cached_at: now
-			};
+		await db.transaction("rw", db.logs, async () => {
+			const existing = await db.logs.where("file_path").anyOf(files).toArray();
+			const byPath = new Map(existing.map((record) => [record.file_path, record]));
+			const records = files.map((file) => {
+				const patch = patches[file] ?? {};
+				const current = byPath.get(file);
+				const base = current ?? toLogRecord(newRow$1({ name: file }), void 0, now);
+				return {
+					...base,
+					...patch,
+					depth: maxDepth(base.depth, patch.depth ?? base.depth),
+					file_path: file,
+					id: current?.id,
+					cached_at: now
+				};
+			});
+			await db.logs.bulkPut(records);
 		});
-		await db.logs.bulkPut(records);
 	}
 	async writeLogPreviews(previews) {
 		log$5.debug(`Upserting ${Object.keys(previews).length} log rows (previewed tier)`);
@@ -57486,20 +57468,44 @@ var namesInScope = (logDir, handles) => {
 	}
 	return true;
 };
+var retrievalFacts = (row) => ({
+	preview_fetch_error: row.preview_fetch_error,
+	preview_attempts: row.preview_attempts,
+	details_fetch_error: row.details_fetch_error,
+	details_attempts: row.details_attempts,
+	details_settled_seq: row.details_settled_seq
+});
 /**
 * Persist the listing identity tier and cache the resulting full row list.
-* The db write is a merge-upsert (rows keep depth/content) and the cache
-* holds the full re-read, so the full list is read back and returned for the
-* caller's continued sync logic.
+* The db write is a merge-upsert (rows keep depth/content), so the full list
+* is read back and returned for the caller's continued sync logic.
+*
+* A row the cache already holds keeps its cached content and only takes the
+* listing's identity: keyed writes land in the cache before their
+* transaction commits, so the read-back can predate a details or preview
+* write the cache already has. Retrieval facts still come from the
+* read-back: the collection's copy of them lags further (see
+* `mergeFetchStates`), though the read-back can also predate an in-flight
+* `writeFetchStates`.
 */ var writeListing = async (db, logDir, handles) => {
 	if (db && namesInScope(logDir, handles)) {
 		await db.writeLogs(handles);
 		await db.markScopeSynced(logDir);
 		const all = await db.readLogs({ prefix: logDir });
 		if (all) {
-			setRows(logDir, all);
+			const held = new Map(currentLogs(logDir).map((row) => [row.name, row]));
+			const listed = new Map(handles.map((handle) => [handle.name, handle]));
+			const rows = all.map((row) => {
+				const cached = held.get(row.name);
+				return cached ? {
+					...cached,
+					...listed.get(row.name),
+					...retrievalFacts(row)
+				} : row;
+			});
+			setRows(logDir, rows);
 			invalidateDatabaseLogsListings();
-			return all;
+			return rows;
 		}
 	}
 	setListing(logDir, handles);
@@ -58224,7 +58230,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	let t2;
 	if ($[3] !== demand || $[4] !== logDir || $[5] !== logFile) {
 		t1 = () => {
-			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$105);
+			if (logFile !== void 0) fetchLog(logDir, logFile, { passive: demand !== "active" }).catch(_temp$107);
 		};
 		t2 = [
 			logDir,
@@ -58313,7 +58319,7 @@ var readLogsListing = async (logDir, prefix, toRow, plan) => {
 	} else t0 = $[1];
 	return t0;
 };
-function _temp$105() {}
+function _temp$107() {}
 // src/log_data/pendingSamples.ts
 var kDefaultRefreshSeconds = 2;
 var pendingSamplesKey = (logDir, logFile) => [
@@ -58417,7 +58423,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 		t4 = {
 			queryKey: t2,
 			queryFn: t3,
-			refetchInterval: _temp$104,
+			refetchInterval: _temp$106,
 			refetchIntervalInBackground: true,
 			staleTime: 0,
 			refetchOnWindowFocus: false,
@@ -58430,7 +58436,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 	const result = useAsyncDataFromQuery(t4);
 	let t5;
 	if ($[14] !== enabled || $[15] !== result) {
-		t5 = enabled ? map(result, _temp2$60) : data(void 0);
+		t5 = enabled ? map(result, _temp2$61) : data(void 0);
 		$[14] = enabled;
 		$[15] = result;
 		$[16] = t5;
@@ -58446,7 +58452,7 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 	const pending = usePendingSamples(logDir, logFile);
 	let t0;
 	if ($[0] !== pending) {
-		t0 = map(pending, _temp3$42);
+		t0 = map(pending, _temp3$43);
 		$[0] = pending;
 		$[1] = t0;
 	} else t0 = $[1];
@@ -58457,13 +58463,13 @@ var logInfoSignature = (info) => `${info.size}:${info.etag ?? ""}`;
 * finalize decision). Returns
 * `undefined` when there's no resolved dir.
 */ var getPendingSamples = (logDir, logFile) => logDir === void 0 ? void 0 : queryClient.getQueryData(pendingSamplesKey(logDir, logFile)) ?? void 0;
-function _temp$104(query) {
+function _temp$106(query) {
 	return query.state.status === "error" ? false : pendingSamplesIntervalMs(query.state.data);
 }
-function _temp2$60(data) {
+function _temp2$61(data) {
 	return data ?? void 0;
 }
-function _temp3$42(data) {
+function _temp3$43(data) {
 	return data?.metrics;
 }
 // src/log_data/chunked/format.ts
@@ -59537,11 +59543,11 @@ var RowSpace = class {
 	}
 };
 // src/utils/attachments.ts
-var CONTENT_PROTOCOL$1 = "tc://";
-var ATTACHMENT_PROTOCOL$1 = "attachment://";
+var CONTENT_PROTOCOL = "tc://";
+var ATTACHMENT_PROTOCOL = "attachment://";
 var resolveString = (value, attachments, onFailedResolve) => {
-	const ref = value.startsWith(CONTENT_PROTOCOL$1) ? value.replace(CONTENT_PROTOCOL$1, ATTACHMENT_PROTOCOL$1) : value;
-	if (!ref.startsWith(ATTACHMENT_PROTOCOL$1)) return value;
+	const ref = value.startsWith(CONTENT_PROTOCOL) ? value.replace(CONTENT_PROTOCOL, ATTACHMENT_PROTOCOL) : value;
+	if (!ref.startsWith(ATTACHMENT_PROTOCOL)) return value;
 	const attachmentId = ref.slice(13);
 	const attachment = getOwn(attachments, attachmentId);
 	if (typeof attachment !== "string") {
@@ -59550,37 +59556,146 @@ var resolveString = (value, attachments, onFailedResolve) => {
 	}
 	return attachment;
 };
-var resolveValue = (value, attachments, onFailedResolve) => {
-	if (typeof value === "string") return resolveString(value, attachments, onFailedResolve);
-	if (Array.isArray(value)) {
-		let hasChanged = false;
-		const resolved = [];
-		for (const v of value) {
-			const r = resolveValue(v, attachments, onFailedResolve);
-			if (r !== v) hasChanged = true;
-			resolved.push(r);
-		}
-		return hasChanged ? resolved : value;
+var mapArray = (value, walk) => {
+	let hasChanged = false;
+	const resolved = [];
+	for (const v of value) {
+		const r = walk(v);
+		if (r !== v) hasChanged = true;
+		resolved.push(r);
 	}
-	if (typeof value === "object" && value !== null && !(value instanceof Date) && !(value instanceof RegExp)) {
-		let hasChanged = false;
-		const resolved = {};
-		for (const [key, v] of Object.entries(value)) {
-			const r = resolveValue(v, attachments, onFailedResolve);
-			resolved[key] = r;
-			if (r !== v) hasChanged = true;
-		}
-		return hasChanged ? resolved : value;
+	return hasChanged ? resolved : value;
+};
+var mapFields = (value, walk) => {
+	let hasChanged = false;
+	const resolved = {};
+	for (const [key, v] of Object.entries(value)) {
+		const r = walk(v, key);
+		resolved[key] = r;
+		if (r !== v) hasChanged = true;
 	}
+	return hasChanged ? resolved : value;
+};
+var str$1 = (value, resolve) => typeof value === "string" ? resolve(value) : value;
+var json = (value, resolve) => {
+	if (typeof value === "string") return resolve(value);
+	if (Array.isArray(value)) return mapArray(value, (v) => json(v, resolve));
+	if (isRecord(value)) return mapFields(value, (v) => json(v, resolve));
 	return value;
 };
-/**
-* Walks a value replacing attachment:// (and legacy tc://) references with
-* their content, leaving the value's shape untouched. TypeScript can't
-* express "same type, strings substituted", so the walk works in `unknown`
-* and this is where the shape is handed back.
-* Attachment values are untrusted; only own string entries resolve.
-*/ var resolveAttachments = (value, attachments, onFailedResolve) => resolveValue(value, attachments, onFailedResolve);
+var listOf = (walk) => (value, resolve) => Array.isArray(value) ? mapArray(value, (v) => walk(v, resolve)) : value;
+var fields$1 = (walks) => (value, resolve) => isRecord(value) ? mapFields(value, (v, key) => {
+	const walk = getOwn(walks, key);
+	return walk ? walk(v, resolve) : v;
+}) : value;
+var byKind = (discriminator, walks) => (value, resolve) => {
+	const kind = isRecord(value) ? value[discriminator] : void 0;
+	const walk = typeof kind === "string" ? getOwn(walks, kind) : void 0;
+	return walk ? walk(value, resolve) : value;
+};
+var mediaWalks = {
+	image: fields$1({ image: str$1 }),
+	audio: fields$1({ audio: str$1 }),
+	video: fields$1({ video: str$1 }),
+	document: fields$1({ document: str$1 })
+};
+var content$5 = byKind("type", {
+	...mediaWalks,
+	text: fields$1({ text: str$1 }),
+	reasoning: fields$1({ reasoning: str$1 }),
+	tool_use: fields$1({
+		arguments: json,
+		result: json,
+		error: str$1
+	}),
+	data: fields$1({ data: json })
+});
+var toolCall = fields$1({
+	arguments: json,
+	view: fields$1({ content: str$1 })
+});
+var textMessage = fields$1({ content: str$1 });
+var blocksMessage = fields$1({ content: listOf(content$5) });
+var assistantBlocksMessage = fields$1({
+	content: listOf(content$5),
+	tool_calls: listOf(toolCall)
+});
+var message$7 = (value, resolve) => {
+	if (!isRecord(value)) return value;
+	return (typeof value.content === "string" ? textMessage : value.role === "assistant" ? assistantBlocksMessage : blocksMessage)(value, resolve);
+};
+var messages$1 = listOf(message$7);
+var sampleInput = (value, resolve) => typeof value === "string" ? value : messages$1(value, resolve);
+var toolResultBlock = byKind("type", mediaWalks);
+var toolResult = (value, resolve) => Array.isArray(value) ? mapArray(value, (v) => toolResultBlock(v, resolve)) : toolResultBlock(value, resolve);
+var messageText$1 = (value) => {
+	if (!isRecord(value)) return;
+	if (typeof value.content === "string") return value.content;
+	if (!Array.isArray(value.content)) return;
+	return value.content.flatMap((c) => isRecord(c) && c.type === "text" && typeof c.text === "string" ? [c.text] : []).join("\n");
+};
+var firstChoiceText = (output) => {
+	const choices = output.choices;
+	const first = Array.isArray(choices) ? choices[0] : void 0;
+	return isRecord(first) ? messageText$1(first.message) : void 0;
+};
+var modelOutput = (value, resolve) => {
+	const walked = fields$1({ choices: listOf(fields$1({ message: message$7 })) })(value, resolve);
+	if (!isRecord(value) || !isRecord(walked) || typeof value.completion !== "string" || value.completion !== firstChoiceText(value)) return walked;
+	const completion = firstChoiceText(walked);
+	return completion === void 0 || completion === value.completion ? walked : {
+		...walked,
+		completion
+	};
+};
+var modelCall = fields$1({
+	request: json,
+	response: json
+});
+var changes = listOf(fields$1({ value: json }));
+var nestedToolEvent = fields$1({
+	arguments: json,
+	events: (value, resolve) => nestedEvents(value, resolve)
+});
+var nestedEvent = (value, resolve) => isRecord(value) && value.event === "tool" ? nestedToolEvent(value, resolve) : event$2(value, resolve);
+var nestedEvents = listOf(nestedEvent);
+var eventWalk = byKind("event", {
+	sample_init: fields$1({
+		sample: fields$1({ input: (value, resolve) => typeof value === "string" ? resolve(value) : messages$1(value, resolve) }),
+		state: json
+	}),
+	model: fields$1({
+		tools: listOf(fields$1({ description: str$1 })),
+		input: messages$1,
+		output: modelOutput,
+		call: modelCall
+	}),
+	state: fields$1({ changes }),
+	store: fields$1({ changes }),
+	subtask: fields$1({ events: nestedEvents }),
+	tool: fields$1({
+		arguments: json,
+		result: toolResult,
+		events: nestedEvents
+	}),
+	info: fields$1({ data: json }),
+	communication: fields$1({
+		send: fields$1({
+			record: fields$1({ content: str$1 }),
+			rejected: fields$1({ reason: str$1 })
+		}),
+		data: json
+	}),
+	swarm: fields$1({ data: json })
+});
+function event$2(value, resolve) {
+	return eventWalk(value, resolve);
+}
+var resolver = (walk) => (value, attachments, onFailedResolve) => walk(value, (ref) => resolveString(ref, attachments, onFailedResolve));
+var oneOrMany = (walk) => (value, resolve) => Array.isArray(value) ? listOf(walk)(value, resolve) : walk(value, resolve);
+/** Resolves an event or a list of events (`walk_events`). */ var resolveEventAttachments = resolver(oneOrMany(event$2));
+/** Resolves a chat message or a list of them (`walk_chat_messages`). */ var resolveMessageAttachments = resolver(oneOrMany(message$7));
+/** Resolves an `EvalSample.input`; a string input stays as written. */ var resolveInputAttachments = resolver(sampleInput);
 // src/log_data/sampleFetch.ts
 /**
 * The backend has no EvalSample for the sample (e.g. a running sample whose buffer
@@ -59603,12 +59718,12 @@ var resolveValue = (value, attachments, onFailedResolve) => {
 	sample.events = expandEvents(sample.events, sample.events_data ?? null);
 	sample.events_data = null;
 	const attachments = sample.attachments;
-	sample.input = resolveAttachments(sample.input, attachments);
-	sample.messages = resolveAttachments(sample.messages, attachments);
-	sample.events = resolveAttachments(sample.events, attachments);
+	sample.input = resolveInputAttachments(sample.input, attachments);
+	sample.messages = resolveMessageAttachments(sample.messages, attachments);
+	sample.events = resolveEventAttachments(sample.events, attachments);
 	if (sample.error_retries) sample.error_retries = sample.error_retries.map((retry) => ({
 		...retry,
-		events: resolveAttachments(retry.events, attachments)
+		events: resolveEventAttachments(retry.events, attachments)
 	}));
 	sample.attachments = {};
 	return sample;
@@ -60009,10 +60124,12 @@ function processEvents(sampleData, state, api, logFile) {
 				attachmentId,
 				available_attachment_count: Object.keys(state.attachments).length
 			};
-			if (api.log_message) api.log_message(logFile, `Unable to resolve attachment ${attachmentId}\n` + JSON.stringify(snapshot));
+			if (api.log_message) api.log_message(logFile, `Unable to resolve attachment ${attachmentId}\n` + JSON.stringify(snapshot)).catch((error) => {
+				console.warn("Unable to report attachment miss", error);
+			});
 			console.warn(`Unable to resolve attachment ${attachmentId}`, snapshot);
 		};
-		const resolvedEvent = resolveAttachments(resolvePoolRefs(resolveAttachments(event, state.attachments, reportAttachmentMiss), state), state.attachments, reportAttachmentMiss);
+		const resolvedEvent = resolveEventAttachments(resolvePoolRefs(resolveEventAttachments(event, state.attachments, reportAttachmentMiss), state), state.attachments, reportAttachmentMiss);
 		if (existingIndex !== void 0) state.events[existingIndex] = resolvedEvent;
 		else {
 			state.eventMapping[eventData.event_id] = state.events.length;
@@ -60097,7 +60214,7 @@ var mergeSampleSummaries = (logSamples, pendingSamples) => {
 		t3 = rows.data?.some((row_0) => row_0.logFile !== logKey) ? loading$2 : map(compose({
 			rows,
 			pending
-		}), _temp2$59);
+		}), _temp2$60);
 		$[8] = logKey;
 		$[9] = pending;
 		$[10] = rows;
@@ -60109,11 +60226,11 @@ var mergeSampleSummaries = (logSamples, pendingSamples) => {
 * Non-React snapshot of {@link useSampleSummaries} (for the running-sample
 * query's tick decisions). Empty when there's no resolved dir.
 */ var getSampleSummaries = async (logDir, logFile) => logDir === void 0 ? [] : mergeSampleSummaries(await readSettledSummaries(logDir, resolveLogKey(logDir, logFile)), getPendingSamples(logDir, logFile)?.samples ?? []);
-function _temp$103(row) {
+function _temp$105(row) {
 	return row.summary;
 }
-function _temp2$59(settled) {
-	return mergeSampleSummaries(settled.rows.map(_temp$103), settled.pending?.samples ?? []);
+function _temp2$60(settled) {
+	return mergeSampleSummaries(settled.rows.map(_temp$105), settled.pending?.samples ?? []);
 }
 // src/log_data/runningSampleQuery.ts
 var kRunningSampleIntervalMs = 2e3;
@@ -60251,7 +60368,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 			queryKey: t2,
 			queryFn: t3,
 			structuralSharing: false,
-			refetchInterval: _temp$102,
+			refetchInterval: _temp$104,
 			refetchIntervalInBackground: true,
 			gcTime: kSampleGcTimeMs,
 			refetchOnWindowFocus: false,
@@ -60263,7 +60380,7 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 	} else t4 = $[13];
 	return useAsyncDataFromQuery(t4);
 };
-function _temp$102(query) {
+function _temp$104(query) {
 	return query.state.status === "error" || query.state.data?.finalized === true ? false : query.state.data?.catchup === true ? kCatchupIntervalMs : kRunningSampleIntervalMs;
 }
 // src/log_data/sampleData.ts
@@ -60419,34 +60536,20 @@ var settledSampleData = (sample) => ({
 * downstream (decode walk, renderers) sees them — the UI never sees a ref
 * (design/large-samples.md, "Data-loading architecture"). Resolution is
 * per-chunk: refs are collected from the parsed chunk, the covering
-* attachment chunks fetched, and the existing `resolveAttachments`
-* substitution applied. ModelEvent `input_refs` message ranges are NOT
+* attachment chunks fetched, and the event or message resolver from
+* `utils/attachments` applied. ModelEvent `input_refs` message ranges are NOT
 * resolved here — they stay lazy (Confounder 1: the last event references
 * essentially the whole conversation).
-*/ var ATTACHMENT_PROTOCOL = "attachment://";
-var CONTENT_PROTOCOL = "tc://";
-var collectRefs = (value, into) => {
-	if (typeof value === "string") {
-		const ref = value.startsWith(CONTENT_PROTOCOL) ? value.replace(CONTENT_PROTOCOL, ATTACHMENT_PROTOCOL) : value;
-		if (ref.startsWith(ATTACHMENT_PROTOCOL)) {
-			const suffix = ref.slice(13);
-			if (/^\d+$/.test(suffix)) into.add(Number(suffix));
-		}
-		return;
-	}
-	if (Array.isArray(value)) {
-		for (const item of value) collectRefs(item, into);
-		return;
-	}
-	if (value !== null && typeof value === "object") for (const item of Object.values(value)) collectRefs(item, into);
-};
+*/
 /**
-* Substitute every attachment ref in `items` from the sample's attachments
-* sequence (fetches dedup through the shared chunk-byte store). `label`
-* names the batch in the read log.
-*/ var withAttachmentsResolved = async (items, chunked, label) => {
+* Substitute the attachment refs `resolve` finds in `items` from the
+* sample's attachments sequence (fetches dedup through the shared chunk-byte
+* store). `label` names the batch in the read log.
+*/ var withAttachmentsResolved = async (items, chunked, label, resolve) => {
 	const refs = /* @__PURE__ */ new Set();
-	collectRefs(items, refs);
+	for (const item of items) resolve(item, {}, (id) => {
+		if (/^\d+$/.test(id)) refs.add(Number(id));
+	});
 	if (refs.size === 0) return items;
 	log$3.info(`resolve ${refs.size} attachment ref${refs.size === 1 ? "" : "s"} for ${label}`);
 	const attachments = {};
@@ -60454,7 +60557,7 @@ var collectRefs = (value, into) => {
 		const [content] = await chunked.attachments.getRange(index, index + 1);
 		if (content !== void 0) attachments[String(index)] = content;
 	}));
-	return items.map((item) => resolveAttachments(item, attachments));
+	return items.map((item) => resolve(item, attachments));
 };
 /**
 * The sample's events reader with boundary normalization (#555) applied and
@@ -60466,7 +60569,7 @@ var collectRefs = (value, into) => {
 * entry would silently shift every later ordinal. Un-event-shaped entries
 * (impossible from our own chunker) pass through unchanged rather than
 * being dropped.
-*/ var resolvedEventsReader = (chunked) => chunked.events.withTransform((items, start) => withAttachmentsResolved(items.map((item) => normalizeEvent(item) ?? item), chunked, `events chunk ${start}`));
+*/ var resolvedEventsReader = (chunked) => chunked.events.withTransform((items, start) => withAttachmentsResolved(items.map((item) => normalizeEvent(item) ?? item), chunked, `events chunk ${start}`, resolveEventAttachments));
 // ../../packages/inspect-components/src/chat/messages.ts
 /** Whether an assistant message carries server-side tool calls (provider
 * executed `tool_use` content blocks) — these render as flush rows of the
@@ -61815,7 +61918,7 @@ var isRenderableImageDocument = (source, declaredMimeType) => {
 	const normalizedDeclared = normalizedImageMimeType(declaredMimeType);
 	return isRasterImageMimeType(normalizedSource) && normalizedSource === normalizedDeclared;
 };
-// ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.10/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
+// ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.11/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
 function getMeasurementKey(item) {
 	return typeof item === "object" ? item.key : item;
 }
@@ -61847,7 +61950,7 @@ function createLazyMeasurementsView(cache, flat) {
 		return Reflect.get(target, prop, receiver);
 	} });
 }
-// ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.10/node_modules/@tanstack/virtual-core/dist/esm/utils.js
+// ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.11/node_modules/@tanstack/virtual-core/dist/esm/utils.js
 function memo$9(getDeps, fn, opts) {
 	let deps = opts.initialDeps ?? [];
 	let result;
@@ -61880,7 +61983,7 @@ var debounce = (targetWindow, fn, ms) => {
 		targetWindow.clearTimeout(timeoutId);
 	} });
 };
-// ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.10/node_modules/@tanstack/virtual-core/dist/esm/scroll-classifier.js
+// ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.11/node_modules/@tanstack/virtual-core/dist/esm/scroll-classifier.js
 function classifyScrollEvent({ offset, isScrolling, elementMax, holdOffset, scrollOffset, pendingWrite, clampedMaxAtWrite }) {
 	var _a;
 	if (isScrolling && pendingWrite === null && offset === scrollOffset) return "spurious";
@@ -61919,7 +62022,7 @@ function flingCaught(samples) {
 	const from = samples[j];
 	return Math.abs(last.offset - from.offset) / (last.t - from.t) >= .05;
 }
-// ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.10/node_modules/@tanstack/virtual-core/dist/esm/ios-gesture.js
+// ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.11/node_modules/@tanstack/virtual-core/dist/esm/ios-gesture.js
 var _isIOSResult;
 var isIOSWebKit = () => {
 	if (_isIOSResult !== void 0) return _isIOSResult;
@@ -62023,7 +62126,7 @@ var IosGesture = class {
 		return this._touch;
 	}
 };
-// ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.10/node_modules/@tanstack/virtual-core/dist/esm/index.js
+// ../../node_modules/.pnpm/@tanstack+virtual-core@3.19.11/node_modules/@tanstack/virtual-core/dist/esm/index.js
 var getRect = (element) => {
 	const { clientWidth, clientHeight } = element;
 	return {
@@ -62131,9 +62234,12 @@ var measureElement = (element, entry, instance) => {
 	return element[instance.options.horizontal ? "offsetWidth" : "offsetHeight"];
 };
 var scrollWithAdjustments = (offset, { adjustments = 0, behavior }, instance) => {
-	var _a, _b;
-	(_b = (_a = instance.scrollElement) == null ? void 0 : _a.scrollTo) == null || _b.call(_a, {
-		[instance.options.horizontal ? "left" : "top"]: offset + adjustments,
+	var _a;
+	const { scrollElement, options } = instance;
+	const adjustedOffset = offset + adjustments;
+	const isRtlElement = options.horizontal && options.isRtl && scrollElement !== null && "ownerDocument" in scrollElement;
+	(_a = scrollElement == null ? void 0 : scrollElement.scrollTo) == null || _a.call(scrollElement, {
+		[options.horizontal ? "left" : "top"]: isRtlElement ? -adjustedOffset : adjustedOffset,
 		behavior
 	});
 };
@@ -63032,7 +63138,7 @@ var Virtualizer = class {
 			index = Math.max(0, Math.min(index, this.options.count - 1));
 			const size = this.getSize();
 			const scrollOffset = this.getScrollOffset();
-			const item = this.measurementsCache[index];
+			const item = this.getMeasurements()[index];
 			if (!item) return;
 			if (align === "auto") {
 				if (item.end >= scrollOffset + size - this.options.scrollPaddingEnd) align = "end";
@@ -63339,7 +63445,7 @@ function calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, flat) 
 		endIndex
 	};
 }
-// ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.25_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-virtual/dist/esm/index.js
+// ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.26_react-dom@19.3.1_react@19.3.1__react@19.3.1/node_modules/@tanstack/react-virtual/dist/esm/index.js
 var useIsomorphicLayoutEffect$1 = typeof document !== "undefined" ? import_react.useLayoutEffect : import_react.useEffect;
 function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, directDomUpdatesMode = "transform", ...options }) {
 	const rerender = import_react.useReducer((x) => x + 1, 0)[1];
@@ -63589,13 +63695,13 @@ function PaddingChunks(t0) {
 	} else t1 = $[2];
 	return t1;
 }
-var countMatchesByItem = (lowerTextsByItem, term) => {
+var countMatchesByItem = (normalizedTextsByItem, term) => {
 	if (term.length === 0) return [];
 	const variants = searchVariants(term);
 	const counts = [];
-	lowerTextsByItem.forEach((texts, item) => {
+	normalizedTextsByItem.forEach((texts, item) => {
 		let count = 0;
-		for (const lowerText of texts) count += findVariantPositions(lowerText, variants).length;
+		for (const text of texts) count += findVariantHits(text, variants).length;
 		if (count > 0) counts.push({
 			item,
 			count
@@ -64081,7 +64187,7 @@ function VirtualList({ persistenceKey, persistScroll = true, ref, id, className,
 		if (!findContext || !itemSearchText) return [];
 		return data.map((item) => {
 			const texts = itemSearchText(item);
-			return (Array.isArray(texts) ? texts : [texts]).map((t) => t.toLowerCase());
+			return (Array.isArray(texts) ? texts : [texts]).map((t) => normalizeFindText(t));
 		});
 	}, [
 		data,
@@ -64426,8 +64532,8 @@ var isNonEmptyObject = (v) => isRecord(v) && Object.keys(v).length > 0;
 	const depth = t1 === void 0 ? 0 : t1;
 	const baseId = id ?? "metadata-grid";
 	const allEntries = entryRecords(entries);
-	const scalars = allEntries.filter(_temp$101);
-	const groups = allEntries.filter(_temp2$58);
+	const scalars = allEntries.filter(_temp$103);
+	const groups = allEntries.filter(_temp2$59);
 	const [expanded, setExpanded] = (0, import_react.useState)(false);
 	const isCollapsible = maxRows != null && scalars.length > maxRows;
 	const visibleScalars = isCollapsible && !expanded ? scalars.slice(0, maxRows) : scalars;
@@ -64490,7 +64596,7 @@ var isNonEmptyObject = (v) => isRecord(v) && Object.keys(v).length > 0;
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
 			type: "button",
 			className: clsx(MetaDataGrid_module_default.toggleButton, "text-size-smallest"),
-			onClick: () => setExpanded(_temp3$41),
+			onClick: () => setExpanded(_temp3$42),
 			children: [expanded ? "less" : `${scalars.length - visibleScalars.length} more`, "..."]
 		})
 	});
@@ -64553,13 +64659,13 @@ var entryRecords = (entries) => {
 	});
 	else return entries;
 };
-function _temp$101(e) {
+function _temp$103(e) {
 	return !isNonEmptyObject(e.value) || isHtmlEscape(e.value);
 }
-function _temp2$58(e_0) {
+function _temp2$59(e_0) {
 	return isNonEmptyObject(e_0.value) && !isHtmlEscape(e_0.value);
 }
-function _temp3$41(prev) {
+function _temp3$42(prev) {
 	return !prev;
 }
 var RenderedContent_module_default = {
@@ -64605,7 +64711,7 @@ var isWebSearchValue = (v) => isRecord(v) && isOptionalString(v.query) && Array.
 				$[7] = entry;
 				$[8] = t3;
 			} else t3 = $[8];
-			const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$100).find(t3);
+			const renderer_0 = Object.keys(renderers).map((key) => renderers[key]).sort(_temp$102).find(t3);
 			if (renderer_0) {
 				const { rendered } = renderer_0.render(id, entry, renderOptions, references);
 				if (rendered !== void 0 && /*#__PURE__*/ (0, import_react.isValidElement)(rendered)) {
@@ -64833,7 +64939,7 @@ var isWebSearchValue = (v) => isRecord(v) && isOptionalString(v.query) && Array.
 	};
 	return contentRenderers;
 };
-function _temp$100(a, b) {
+function _temp$102(a, b) {
 	if (!a || !b) return 0;
 	return a.bucket - b.bucket;
 }
@@ -65316,7 +65422,7 @@ var WebSearchResults$1 = (t0) => {
 	}
 	let t3;
 	if ($[2] !== results) {
-		t3 = results.map(_temp$99);
+		t3 = results.map(_temp$101);
 		$[2] = results;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -65331,7 +65437,7 @@ var WebSearchResults$1 = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$99(result, index) {
+function _temp$101(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: clsx(WebSearchResults_module_default.result, "text-style-secondary"),
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
@@ -65644,7 +65750,7 @@ var MessageCitations = (t0) => {
 	} else t1 = $[0];
 	let t2;
 	if ($[1] !== citations) {
-		t2 = citations.map(_temp$98);
+		t2 = citations.map(_temp$100);
 		$[1] = citations;
 		$[2] = t2;
 	} else t2 = $[2];
@@ -65718,7 +65824,7 @@ var OtherCitation = (t0) => {
 	} else t1 = $[1];
 	return t1;
 };
-function _temp$98(citation, index) {
+function _temp$100(citation, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: index + 1 }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageCitation, { citation })] }, index);
 }
 var MessageContent_module_default = {
@@ -65956,7 +66062,7 @@ var TodoWriteInput = (t0) => {
 			t2 = clsx(TodoWriteInput_module_default.todoList);
 			$[5] = t2;
 		} else t2 = $[5];
-		t3 = todoItems.map(_temp$97);
+		t3 = todoItems.map(_temp$99);
 		$[0] = contents;
 		$[1] = parentRef;
 		$[2] = t1;
@@ -65981,7 +66087,7 @@ var TodoWriteInput = (t0) => {
 	} else t4 = $[9];
 	return t4;
 };
-function _temp$97(todo) {
+function _temp$99(todo) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
 		name: todo.status === "completed" ? "checkboxChecked" : "checkboxUnchecked",
 		className: "text-size-smallest"
@@ -66321,7 +66427,7 @@ var WebSearchResults = (t0) => {
 	const t1 = `${id}-output`;
 	let t2;
 	if ($[0] !== results) {
-		t2 = results.map(_temp$96);
+		t2 = results.map(_temp$98);
 		$[0] = results;
 		$[1] = t2;
 	} else t2 = $[1];
@@ -66502,7 +66608,7 @@ var maybeListTools = (content) => {
 };
 /** Shallow: the list below renders title and url, and skips entries lacking them. */ var isWebResult = (value) => isRecord(value) && typeof value["title"] === "string" && typeof value["url"] === "string";
 /** Shallow: the list below keys on name and renders description. */ var isToolInfo = (value) => isRecord(value) && typeof value["name"] === "string";
-function _temp$96(result, index) {
+function _temp$98(result, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", { children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ExternalLink, {
 		href: result.url,
 		title: result.url,
@@ -66999,7 +67105,7 @@ function asCoordinate(value) {
 	const { contents, annotation } = t0;
 	let t1;
 	if ($[0] !== contents) {
-		t1 = contents.findLastIndex(_temp$95);
+		t1 = contents.findLastIndex(_temp$97);
 		$[0] = contents;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -67173,7 +67279,7 @@ function renderHtmlAnnotation(annotation) {
 	}
 	return null;
 }
-function _temp$95(c) {
+function _temp$97(c) {
 	return c.type === "image" && isRenderableImageSource(c.image);
 }
 var customToolRendering_module_default = { submitView: "_submitView_1ru17_1" };
@@ -67197,7 +67303,7 @@ var ToolSearchView_module_default = {
 	const { namespaces } = t0;
 	let t1;
 	if ($[0] !== namespaces) {
-		t1 = namespaces.map(_temp2$57);
+		t1 = namespaces.map(_temp2$58);
 		$[0] = namespaces;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -67212,7 +67318,7 @@ var ToolSearchView_module_default = {
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$94(tool, toolIdx) {
+function _temp$96(tool, toolIdx) {
 	return tool.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("details", {
 		className: ToolSearchView_module_default.tool,
 		children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("summary", {
@@ -67227,7 +67333,7 @@ function _temp$94(tool, toolIdx) {
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("code", { children: tool.signature })
 	}, `tool-${toolIdx}`);
 }
-function _temp2$57(namespace, nsIdx) {
+function _temp2$58(namespace, nsIdx) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 		className: ToolSearchView_module_default.namespace,
 		children: [namespace.name ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
@@ -67236,7 +67342,7 @@ function _temp2$57(namespace, nsIdx) {
 		}), namespace.description ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 			className: ToolSearchView_module_default.namespaceDescription,
 			children: [" — ", namespace.description]
-		}) : null] }) : null, namespace.tools.map(_temp$94)]
+		}) : null] }) : null, namespace.tools.map(_temp$96)]
 	}, `ns-${nsIdx}`);
 }
 var ToolTitle_module_default = {
@@ -67417,7 +67523,7 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 	const normalizedContent = t6;
 	let t7;
 	if ($[8] !== normalizedContent) {
-		t7 = normalizedContent.find(_temp$93);
+		t7 = normalizedContent.find(_temp$95);
 		$[8] = normalizedContent;
 		$[9] = t7;
 	} else t7 = $[9];
@@ -67593,7 +67699,7 @@ var ToolCallView_module_default = { toolCallView: "_toolCallView_x6cus_1" };
 	const { contents } = t0;
 	let t1;
 	if ($[0] !== contents) {
-		t1 = contents.flatMap(_temp2$56).map(_temp3$40);
+		t1 = contents.flatMap(_temp2$57).map(_temp3$41);
 		$[0] = contents;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -67618,7 +67724,7 @@ var normalizeContent = (output) => {
 		}]
 	}];
 };
-function _temp$93(c) {
+function _temp$95(c) {
 	if (c.type === "tool") {
 		for (const t of c.content) if (t.type === "text") {
 			if (t.text) return true;
@@ -67626,10 +67732,10 @@ function _temp$93(c) {
 		return false;
 	} else return true;
 }
-function _temp2$56(c) {
+function _temp2$57(c) {
 	return c.type === "tool" ? c.content : [c];
 }
-function _temp3$40(item, i) {
+function _temp3$41(item, i) {
 	if (item.type === "text" && item.text) return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: item.text }, `md-${i}`);
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContent, { contents: [item] }, `content-${i}`);
 }
@@ -68109,7 +68215,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	const t16 = message.role === "tool" ? 30 : message.role === "assistant" ? 25 : 15;
 	let t17;
 	if ($[58] !== id || $[59] !== isNonSubagentTool || $[60] !== message || $[61] !== references || $[62] !== subagentNotifications || $[63] !== toolMarkdown || $[64] !== toolSearchNamespaces) {
-		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$92) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
+		t17 = isNonSubagentTool ? toolSearchNamespaces ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolSearchView, { namespaces: toolSearchNamespaces }) : toolMarkdown !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: toolMarkdown }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ToolOutput, { output: typeof message.content === "string" ? message.content : message.content.filter(_temp$94) }) : subagentNotifications !== void 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: subagentNotifications }) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)(MessageContents, {
 			message,
 			references
 		}, `${id}-contents`);
@@ -68185,7 +68291,7 @@ var ChatMessage = /*#__PURE__*/ (0, import_react.memo)(function ChatMessage(t0) 
 	}
 	return segments;
 };
-function _temp$92(c) {
+function _temp$94(c) {
 	return c.type === "text" || c.type === "image";
 }
 var RowSelectCheckbox_module_default = {
@@ -68288,7 +68394,7 @@ var RowSelectCheckbox_module_default = {
 			"aria-label": label,
 			title: label,
 			className: t2,
-			onMouseDown: _temp$91,
+			onMouseDown: _temp$93,
 			onClick: t3,
 			children: t4
 		});
@@ -68301,7 +68407,7 @@ var RowSelectCheckbox_module_default = {
 	} else t5 = $[12];
 	return t5;
 };
-function _temp$91(e) {
+function _temp$93(e) {
 	if (e.shiftKey) e.preventDefault();
 }
 var ChatMessageRow_module_default = {
@@ -68552,7 +68658,7 @@ var MessageLabel_module_default = {
 		viewKinds = $[18];
 		views = $[19];
 	}
-	const hasTools = viewKinds.some(_temp$90);
+	const hasTools = viewKinds.some(_temp$92);
 	if (useLabels || hasTools) {
 		let t2;
 		if ($[42] !== hasTools || $[43] !== highlightLabeled || $[44] !== highlightUserMessage || $[45] !== index || $[46] !== messageChip || $[47] !== resolvedMessage || $[48] !== viewChips || $[49] !== viewKinds || $[50] !== views) {
@@ -68715,7 +68821,7 @@ var ToolCallViewCompact = (t0) => {
 	} else t4 = $[5];
 	return t4;
 };
-function _temp$90(k) {
+function _temp$92(k) {
 	return k !== "message";
 }
 // ../../packages/inspect-components/src/chat/labelLength.ts
@@ -68827,13 +68933,13 @@ function _temp$90(k) {
 	return t6;
 };
 var GeneratingIndicator_module_default = {
-	bar: "_bar_1wkhg_1",
-	"gen-sweep": "_gen-sweep_1wkhg_1",
-	barLabelOnly: "_barLabelOnly_1wkhg_34",
-	label: "_label_1wkhg_38",
-	ell: "_ell_1wkhg_47",
-	"gen-ell": "_gen-ell_1wkhg_1",
-	attempt: "_attempt_1wkhg_64"
+	bar: "_bar_10b39_1",
+	"gen-sweep": "_gen-sweep_10b39_1",
+	barLabelOnly: "_barLabelOnly_10b39_34",
+	label: "_label_10b39_38",
+	ell: "_ell_10b39_47",
+	"gen-ell": "_gen-ell_10b39_1",
+	attempt: "_attempt_10b39_64"
 };
 // ../../packages/inspect-components/src/indicators/GeneratingIndicator.tsx
 var GeneratingIndicator = (t0) => {
@@ -68925,14 +69031,14 @@ function messageHasVisibleContent(message) {
 	});
 }
 var LoadingEventsIndicator_module_default = {
-	bar: "_bar_14x5r_1",
-	"le-sweep": "_le-sweep_14x5r_1",
-	compact: "_compact_14x5r_33",
-	spinner: "_spinner_14x5r_44",
-	"le-spin": "_le-spin_14x5r_1",
-	label: "_label_14x5r_55",
-	ell: "_ell_14x5r_68",
-	"le-ell": "_le-ell_14x5r_1"
+	bar: "_bar_wf27v_1",
+	"le-sweep": "_le-sweep_wf27v_1",
+	compact: "_compact_wf27v_33",
+	spinner: "_spinner_wf27v_44",
+	"le-spin": "_le-spin_wf27v_1",
+	label: "_label_wf27v_55",
+	ell: "_ell_wf27v_68",
+	"le-ell": "_le-ell_wf27v_1"
 };
 // ../../packages/inspect-components/src/indicators/LoadingEventsIndicator.tsx
 var LoadingEventsIndicator = (t0) => {
@@ -69153,7 +69259,7 @@ var kLoadMoreMarginRows = 20;
 	useListKeyboardNavigation(t5);
 	let t6;
 	if ($[8] !== rows) {
-		t6 = () => rows.map(_temp$89).filter(_temp2$55);
+		t6 = () => rows.map(_temp$91).filter(_temp2$56);
 		$[8] = rows;
 		$[9] = t6;
 	} else t6 = $[9];
@@ -69250,7 +69356,7 @@ var kLoadMoreMarginRows = 20;
 		$[33] = t11;
 	} else t11 = $[33];
 	const renderRow = t11;
-	const rowSearchText = _temp3$39;
+	const rowSearchText = _temp3$40;
 	if (rows.length === 0) {
 		if (backfilling) {
 			let t12;
@@ -69326,13 +69432,13 @@ var kLoadMoreMarginRows = 20;
 	} else t16 = $[54];
 	return t16;
 });
-function _temp$89(row) {
+function _temp$91(row) {
 	return row.resolved.message.id;
 }
-function _temp2$55(rowId) {
+function _temp2$56(rowId) {
 	return typeof rowId === "string";
 }
-function _temp3$39(item_0) {
+function _temp3$40(item_0) {
 	return messageSearchText(item_0.resolved);
 }
 // src/log_data/messageRows.ts
@@ -69418,7 +69524,7 @@ var kDefaultMessageRowOptions = messageRowOptions();
 		const label = `conversation [${lo}, ${hi})${resolve ? "" : " (raw)"}`;
 		const messages = (await Promise.all(ranges.map(async ([rangeLo, rangeHi], i) => {
 			const messages = await chunked.messages.getRange(rangeLo, rangeHi);
-			return resolve ? withAttachmentsResolved(messages, chunked, `${label} range ${i}`) : messages;
+			return resolve ? withAttachmentsResolved(messages, chunked, `${label} range ${i}`, resolveMessageAttachments) : messages;
 		}))).flat();
 		log$3.info(`read ${label}: ${messages.length} messages via ${ranges.length} range${ranges.length === 1 ? "" : "s"}`);
 		return messages;
@@ -69760,7 +69866,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 			queryKey: t4,
 			queryFn: t5,
 			initialPageParam: 0,
-			getNextPageParam: _temp$88,
+			getNextPageParam: _temp$90,
 			gcTime: kSampleGcTimeMs,
 			staleTime: Infinity,
 			retry: false,
@@ -69776,7 +69882,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	const pages = data?.pages;
 	let t7;
 	if ($[14] !== pages) {
-		t7 = pages?.flatMap(_temp2$54);
+		t7 = pages?.flatMap(_temp2$55);
 		$[14] = pages;
 		$[15] = t7;
 	} else t7 = $[15];
@@ -69784,7 +69890,7 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	let t8;
 	if ($[16] !== fetchNextPage || $[17] !== hasNextPage || $[18] !== isFetchingNextPage) {
 		t8 = () => {
-			if (hasNextPage && !isFetchingNextPage) fetchNextPage({ cancelRefetch: false }).catch(_temp3$38);
+			if (hasNextPage && !isFetchingNextPage) fetchNextPage({ cancelRefetch: false }).catch(_temp3$39);
 		};
 		$[16] = fetchNextPage;
 		$[17] = hasNextPage;
@@ -69884,13 +69990,13 @@ var kLoadingFeed = unpagedFeed(loading$2);
 	}
 	return t12;
 };
-function _temp$88(last) {
+function _temp$90(last) {
 	return last.nextCursor?.offset;
 }
-function _temp2$54(page) {
+function _temp2$55(page) {
 	return page.rows;
 }
-function _temp3$38() {}
+function _temp3$39() {}
 // src/log_data/sampleMessages.ts
 var kNoRows$1 = [];
 /**
@@ -70090,7 +70196,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	if ($[0] !== config) {
 		t0 = () => {
 			activateFetchEngine(config);
-			return _temp$87;
+			return _temp$89;
 		};
 		t1 = [config];
 		$[0] = config;
@@ -70103,7 +70209,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	(0, import_react.useEffect)(t0, t1);
 	return null;
 };
-function _temp$87() {
+function _temp$89() {
 	return deactivateFetchEngine();
 }
 // ../../node_modules/.pnpm/immer@11.2.9/node_modules/immer/dist/immer.mjs
@@ -70124,11 +70230,11 @@ var VALUE = "value";
 var isDraft = (value) => !!value && !!value[DRAFT_STATE];
 function isDraftable(value) {
 	if (!value) return false;
-	return isPlainObject(value) || isArray(value) || !!value[DRAFTABLE] || !!value[CONSTRUCTOR]?.[DRAFTABLE] || isMap(value) || isSet(value);
+	return isPlainObject$1(value) || isArray(value) || !!value[DRAFTABLE] || !!value[CONSTRUCTOR]?.[DRAFTABLE] || isMap(value) || isSet(value);
 }
 var objectCtorString = O[PROTOTYPE][CONSTRUCTOR].toString();
 var cachedCtorStrings = /* @__PURE__ */ new WeakMap();
-function isPlainObject(value) {
+function isPlainObject$1(value) {
 	if (!value || !isObjectish(value)) return false;
 	const proto = getPrototypeOf(value);
 	if (proto === null || proto === O[PROTOTYPE]) return true;
@@ -70187,7 +70293,7 @@ function shallowCopy(base, strict) {
 	if (isMap(base)) return new Map(base);
 	if (isSet(base)) return new Set(base);
 	if (isArray(base)) return Array[PROTOTYPE].slice.call(base);
-	const isPlain = isPlainObject(base);
+	const isPlain = isPlainObject$1(base);
 	if (strict === true || strict === "class_only" && !isPlain) {
 		const descriptors = O.getOwnPropertyDescriptors(base);
 		delete descriptors[DRAFT_STATE];
@@ -70992,7 +71098,7 @@ function enableMapSet() {
 	});
 }
 var produce = new Immer2().produce;
-// ../../node_modules/.pnpm/zustand@5.0.16_@types+react@19.3.0_immer@11.2.9_react@19.3.1_use-sync-external-store@1.7.0_react@19.3.1_/node_modules/zustand/esm/vanilla.mjs
+// ../../node_modules/.pnpm/zustand@5.1.0_@types+react@19.3.0_immer@11.2.9_react@19.3.1_use-sync-external-store@1.7.0_react@19.3.1_/node_modules/zustand/esm/vanilla.mjs
 var createStoreImpl = (createState) => {
 	let state;
 	const listeners = /* @__PURE__ */ new Set();
@@ -71020,7 +71126,7 @@ var createStoreImpl = (createState) => {
 	return api;
 };
 var createStore = ((createState) => createState ? createStoreImpl(createState) : createStoreImpl);
-// ../../node_modules/.pnpm/zustand@5.0.16_@types+react@19.3.0_immer@11.2.9_react@19.3.1_use-sync-external-store@1.7.0_react@19.3.1_/node_modules/zustand/esm/react.mjs
+// ../../node_modules/.pnpm/zustand@5.1.0_@types+react@19.3.0_immer@11.2.9_react@19.3.1_use-sync-external-store@1.7.0_react@19.3.1_/node_modules/zustand/esm/react.mjs
 var identity$1 = (arg) => arg;
 function useStore$1(api, selector = identity$1) {
 	const slice = import_react.useSyncExternalStore(api.subscribe, import_react.useCallback(() => selector(api.getState()), [api, selector]), () => selector(api.getInitialState()));
@@ -71034,7 +71140,7 @@ var createImpl = (createState) => {
 	return useBoundStore;
 };
 var create = ((createState) => createState ? createImpl(createState) : createImpl);
-// ../../node_modules/.pnpm/zustand@5.0.16_@types+react@19.3.0_immer@11.2.9_react@19.3.1_use-sync-external-store@1.7.0_react@19.3.1_/node_modules/zustand/esm/middleware.mjs
+// ../../node_modules/.pnpm/zustand@5.1.0_@types+react@19.3.0_immer@11.2.9_react@19.3.1_use-sync-external-store@1.7.0_react@19.3.1_/node_modules/zustand/esm/middleware.mjs
 var shouldDispatchFromDevtools = (api) => !!api.dispatchFromDevtools && typeof api.dispatch === "function";
 var trackedConnections = /* @__PURE__ */ new Map();
 var getTrackedConnectionState = (name) => {
@@ -71083,13 +71189,13 @@ function findCallerName(stack) {
 	return ((_b = v8StackLineRe.exec(callerLine)) == null ? void 0 : _b[1]) || ((_c = geckoStackLineRe.exec(callerLine)) == null ? void 0 : _c[1]);
 }
 var devtoolsImpl = (fn, devtoolsOptions = {}) => (set, get, api) => {
-	const { enabled, anonymousActionType, store, ...options } = devtoolsOptions;
+	const { enabled, anonymousActionType, store, actionCreators, ...options } = devtoolsOptions;
 	let extensionConnector;
 	try {
 		extensionConnector = (enabled != null ? enabled : true) && window.__REDUX_DEVTOOLS_EXTENSION__;
 	} catch (e) {}
 	if (!extensionConnector) return fn(set, get, api);
-	const { connection, ...connectionInformation } = extractConnectionInformation(store, extensionConnector, options);
+	let connection = void 0;
 	let isRecording = true;
 	api.setState = ((state, replace, nameOrAction) => {
 		const r = set(state, replace);
@@ -71122,6 +71228,17 @@ var devtoolsImpl = (fn, devtoolsOptions = {}) => (set, get, api) => {
 		isRecording = originalIsRecording;
 	};
 	const initialState = fn(api.setState, get, api);
+	const actionCreatorObjects = actionCreators && getActionCreatorObjects(initialState, actionCreators);
+	const connectionInformation = extractConnectionInformation(store, extensionConnector, {
+		...options,
+		actionCreators: actionCreatorObjects
+	});
+	connection = connectionInformation.connection;
+	const findActionCreator = (name) => {
+		const actionCreator = actionCreatorObjects == null ? void 0 : actionCreatorObjects.find((candidate) => candidate.name === name);
+		if (!actionCreator && actionCreators && store === void 0) console.error(`[zustand devtools middleware] Action type "${name}" not found in actionCreators`);
+		return actionCreator;
+	};
 	if (connectionInformation.type === "untracked") connection?.init(initialState);
 	else {
 		connectionInformation.stores[connectionInformation.store] = api;
@@ -71142,29 +71259,73 @@ var devtoolsImpl = (fn, devtoolsOptions = {}) => (set, get, api) => {
 		var _a;
 		const reviver = typeof options.serialize === "object" ? options.serialize.reviver : void 0;
 		switch (message.type) {
-			case "ACTION":
+			case "ACTION": {
 				if (typeof message.payload !== "string") {
-					console.error("[zustand devtools middleware] Unsupported action format");
-					return;
-				}
-				return parseJsonThen(message.payload, reviver, (action) => {
-					if (action.type === "__setState") {
-						if (store === void 0) {
-							setStateFromDevtools(action.state);
-							return;
-						}
-						if (Object.keys(action.state).length !== 1) console.error(`
-                    [zustand devtools middleware] Unsupported __setState action format.
-                    When using 'store' option in devtools(), the 'state' should have only one key, which is a value of 'store' that was passed in devtools(),
-                    and value of this only key should be a state object. Example: { "type": "__setState", "state": { "abc123Store": { "foo": "bar" } } }
-                    `);
-						const stateFromDevtools = action.state[store];
-						if (stateFromDevtools === void 0 || stateFromDevtools === null) return;
-						if (JSON.stringify(api.getState()) !== JSON.stringify(stateFromDevtools)) setStateFromDevtools(stateFromDevtools);
+					if (shouldDispatchFromDevtools(api)) {
+						console.error("[zustand devtools middleware] The action dropdown is not supported with the redux middleware. Dispatch a custom action in JSON format instead, e.g. { \"type\": \"increment\" }");
 						return;
 					}
-					if (shouldDispatchFromDevtools(api)) api.dispatch(action);
-				});
+					if (!actionCreators) {
+						console.error("[zustand devtools middleware] Unsupported action format");
+						return;
+					}
+					const actionCreator2 = findActionCreator(message.payload.name);
+					if (!actionCreator2) return;
+					const args2 = parseDropdownArgs(message.payload, reviver);
+					if (!args2) return;
+					return actionCreator2.func(...args2);
+				}
+				let action;
+				try {
+					action = JSON.parse(message.payload, reviver);
+				} catch (e) {
+					let errorMessage = `[zustand devtools middleware] Malformed JSON. When dispatching custom actions, please format the payload as a JSON string.
+              Examples:`;
+					if (shouldDispatchFromDevtools(api)) errorMessage += `
+              - { "type": "increment", "amount": 1 }
+              - { "type": "reset" }
+              `;
+					else errorMessage += `
+              - { "type": "increment" }
+              - { "type": "increment", "args": [1] }
+              If you have args with default values or want to be \`undefined\`, prefer using the object syntax so you can omit them.
+              - { "type": "increment", "args": { "amount": 1 } }
+              `;
+					console.error(errorMessage.replace(/\n\s+/g, "\n"));
+					return;
+				}
+				if (action.type === "__setState") {
+					if (store === void 0) {
+						if (!("state" in action)) {
+							console.warn(`
+                  [zustand devtools middleware] Calling __setState without a state property.
+                  This may not be what you intended, you should explicitly set the state you want to set.
+                  Example: { "type": "__setState", "state": { "foo": "bar" } }
+                  `.replace(/\n\s+/g, "\n"));
+							return;
+						}
+						setStateFromDevtools(action.state);
+						return;
+					}
+					if (Object.keys(action.state).length !== 1) console.error(`
+                [zustand devtools middleware] Unsupported __setState action format.
+                When using 'store' option in devtools(), the 'state' should have only one key, which is a value of 'store' that was passed in devtools(),
+                and value of this only key should be a state object. Example: { "type": "__setState", "state": { "abc123Store": { "foo": "bar" } } }
+                `.replace(/\n\s+/g, "\n"));
+					const stateFromDevtools = action.state[store];
+					if (stateFromDevtools === void 0 || stateFromDevtools === null) return;
+					if (JSON.stringify(api.getState()) !== JSON.stringify(stateFromDevtools)) setStateFromDevtools(stateFromDevtools);
+					return;
+				}
+				if (shouldDispatchFromDevtools(api)) {
+					api.dispatch(action);
+					return;
+				}
+				const actionCreator = findActionCreator(action.type);
+				if (!actionCreator) return;
+				const args = action.args;
+				return actionCreator.func(...Array.isArray(args) ? args : actionCreator.args.map((name) => args == null ? void 0 : args[name]));
+			}
 			case "DISPATCH":
 				switch (message.payload.type) {
 					case "RESET":
@@ -71220,6 +71381,92 @@ var parseJsonThen = (stringified, reviver, fn) => {
 	}
 	if (parsed !== void 0) fn(parsed);
 };
+function maskToRegex(mask) {
+	const escaped = mask.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*\*|\*/g, (wildcard) => wildcard === "**" ? ".*" : "[^.]*");
+	return new RegExp(`^${escaped}$`);
+}
+var isPlainObject = (value) => typeof value === "object" && value !== null && Object.getPrototypeOf(value) === Object.prototype;
+var getStateFunctions = (state, walked = /* @__PURE__ */ new Map()) => {
+	var _a;
+	if (!isPlainObject(state)) return [];
+	const known = walked.get(state);
+	if (known) return known;
+	walked.set(state, []);
+	const functions = [];
+	for (const key of Object.keys(state)) {
+		const value = (_a = Object.getOwnPropertyDescriptor(state, key)) == null ? void 0 : _a.value;
+		if (typeof value === "function") functions.push([key, value]);
+		else for (const [path, func] of getStateFunctions(value, walked)) functions.push([`${key}.${path}`, func]);
+	}
+	walked.set(state, functions);
+	return functions;
+};
+var sourceTokenRe = /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\/\*[\s\S]*?\*\/|\/\/.*|[\s\S]/g;
+var getParamNames = (func) => {
+	var _a, _b;
+	const tokens = ((_a = func.toString().match(sourceTokenRe)) != null ? _a : []).filter((token) => !/^\/[/*]/.test(token));
+	const arrowParam = (_b = /^(?:async\s+)?([^\s(=]+)\s*=>/.exec(tokens.join(""))) == null ? void 0 : _b[1];
+	if (arrowParam) return [arrowParam];
+	const params = [""];
+	let depth = 0;
+	let inDefaultValue = false;
+	for (const token of tokens.slice(tokens.indexOf("(") + 1)) {
+		if (depth === 0) {
+			if (token === ")") break;
+			if (token === ",") {
+				params.push("");
+				inDefaultValue = false;
+				continue;
+			}
+			if (token === "=") inDefaultValue = true;
+		}
+		if ("([{".includes(token)) depth++;
+		if (")]}".includes(token)) depth--;
+		if (!inDefaultValue) params[params.length - 1] += token;
+	}
+	return params.map((param) => param.trim()).filter((param) => param && !param.startsWith("..."));
+};
+var createActionCreatorObject = (name, func) => ({
+	name,
+	func,
+	args: getParamNames(func)
+});
+function getActionCreatorObjects(state, actionCreators) {
+	const actions = /* @__PURE__ */ new Map();
+	const matchers = Object.entries(actionCreators).map(([key, picked]) => ({
+		matcher: maskToRegex(key),
+		picked,
+		key
+	})).sort((a, b) => {
+		const aIsDoubleWildcard = a.key.includes("**");
+		const bIsDoubleWildcard = b.key.includes("**");
+		if (aIsDoubleWildcard !== bIsDoubleWildcard) return aIsDoubleWildcard ? -1 : 1;
+		const aIsSingleWildcard = a.key.includes("*") && !aIsDoubleWildcard;
+		if (aIsSingleWildcard !== (b.key.includes("*") && !bIsDoubleWildcard)) return aIsSingleWildcard ? -1 : 1;
+		return a.key.length - b.key.length;
+	});
+	for (const [name, func] of getStateFunctions(state)) for (const { matcher, picked } of matchers) if (matcher.test(name)) {
+		if (picked === false) {
+			actions.delete(name);
+			continue;
+		}
+		actions.set(name, createActionCreatorObject(name, func));
+	}
+	for (const [name, picked] of Object.entries(actionCreators)) if (typeof picked === "function") actions.set(name, createActionCreatorObject(name, picked));
+	return Array.from(actions.values());
+}
+var parseDropdownArgs = ({ args, rest }, reviver) => {
+	var _a;
+	const parse = (arg) => arg ? JSON.parse(arg, reviver) : void 0;
+	try {
+		const restArgs = (_a = parse(rest)) != null ? _a : [];
+		if (!Array.isArray(restArgs)) throw new Error("...rest is not an array");
+		return [...args.map(parse), ...restArgs];
+	} catch (e) {
+		console.error("[zustand devtools middleware] Could not parse the arguments from the action dropdown. Each one must be JSON, e.g. 5, \"foo\" or { \"by\": 5 }, and ...rest a JSON array.", e);
+		return;
+	}
+};
 function createJSONStorage(getStorage, options) {
 	let storage;
 	try {
@@ -71235,34 +71482,25 @@ function createJSONStorage(getStorage, options) {
 				return JSON.parse(str2, options == null ? void 0 : options.reviver);
 			};
 			const str = (_a = storage.getItem(name)) != null ? _a : null;
-			if (str instanceof Promise) return str.then(parse);
+			if (isPromiseLike(str)) return str.then(parse);
 			return parse(str);
 		},
 		setItem: (name, newValue) => storage.setItem(name, JSON.stringify(newValue, options == null ? void 0 : options.replacer)),
 		removeItem: (name) => storage.removeItem(name)
 	};
 }
+var isPromiseLike = (value) => typeof (value == null ? void 0 : value.then) === "function";
+var toSyncThenable = (value) => ({ then(onFulfilled) {
+	return onFulfilled ? toThenable(onFulfilled)(value) : this;
+} });
 var toThenable = (fn) => (input) => {
 	try {
 		const result = fn(input);
-		if (result instanceof Promise) return result;
-		return {
-			then(onFulfilled) {
-				return toThenable(onFulfilled)(result);
-			},
-			catch(_onRejected) {
-				return this;
-			}
-		};
-	} catch (e) {
-		return {
-			then(_onFulfilled) {
-				return this;
-			},
-			catch(onRejected) {
-				return toThenable(onRejected)(e);
-			}
-		};
+		return isPromiseLike(result) ? result : toSyncThenable(result);
+	} catch (error) {
+		return { then(_onFulfilled, onRejected) {
+			return onRejected ? toThenable(onRejected)(error) : this;
+		} };
 	}
 };
 var persistImpl = (config, baseOptions) => (set, get, api) => {
@@ -71318,7 +71556,7 @@ var persistImpl = (config, baseOptions) => (set, get, api) => {
 				if (typeof deserializedStorageValue.version === "number" && deserializedStorageValue.version !== options.version) {
 					if (options.migrate) {
 						const migration = options.migrate(deserializedStorageValue.state, deserializedStorageValue.version);
-						if (migration instanceof Promise) return migration.then((result) => [true, result]);
+						if (isPromiseLike(migration)) return migration.then((result) => [true, result]);
 						return [true, migration];
 					}
 					console.error(`State loaded from storage couldn't be migrated since no migrate function was provided`);
@@ -71338,7 +71576,7 @@ var persistImpl = (config, baseOptions) => (set, get, api) => {
 			stateFromStorage = get();
 			hasHydrated = true;
 			finishHydrationListeners.forEach((cb) => cb(stateFromStorage));
-		}).catch((e) => {
+		}).then(() => void 0, (e) => {
 			if (currentVersion !== hydrationVersion) return;
 			postRehydrationCallback?.(void 0, e);
 		});
@@ -71356,7 +71594,13 @@ var persistImpl = (config, baseOptions) => (set, get, api) => {
 			storage?.removeItem(options.name);
 		},
 		getOptions: () => options,
-		rehydrate: () => hydrate(),
+		rehydrate: () => {
+			try {
+				return Promise.resolve(hydrate());
+			} catch (error) {
+				return Promise.reject(error);
+			}
+		},
 		hasHydrated: () => hasHydrated,
 		onHydrate: (cb) => {
 			hydrationListeners.add(cb);
@@ -71375,7 +71619,7 @@ var persistImpl = (config, baseOptions) => (set, get, api) => {
 	return stateFromStorage || configResult;
 };
 var persist = persistImpl;
-// ../../node_modules/.pnpm/zustand@5.0.16_@types+react@19.3.0_immer@11.2.9_react@19.3.1_use-sync-external-store@1.7.0_react@19.3.1_/node_modules/zustand/esm/middleware/immer.mjs
+// ../../node_modules/.pnpm/zustand@5.1.0_@types+react@19.3.0_immer@11.2.9_react@19.3.1_use-sync-external-store@1.7.0_react@19.3.1_/node_modules/zustand/esm/middleware/immer.mjs
 var immerImpl = (initializer) => (set, get, store) => {
 	store.setState = (updater, replace, ...args) => {
 		return set(typeof updater === "function" ? produce(updater) : updater, replace, ...args);
@@ -71977,35 +72221,35 @@ var createSampleSlice = (set, _get, _store) => {
 	};
 };
 var SearchPanel_module_default = {
-	container: "_container_15vhv_1",
-	body: "_body_15vhv_8",
-	searchArea: "_searchArea_15vhv_15",
-	inputShell: "_inputShell_15vhv_23",
-	controlsRow: "_controlsRow_15vhv_33",
-	topRow: "_topRow_15vhv_40",
-	typeToggle: "_typeToggle_15vhv_47",
-	topActions: "_topActions_15vhv_52",
-	textarea: "_textarea_15vhv_58",
-	modeRow: "_modeRow_15vhv_65",
-	modeControls: "_modeControls_15vhv_71",
-	modeToggle: "_modeToggle_15vhv_77",
-	modeToggleActive: "_modeToggleActive_15vhv_100",
-	modelPill: "_modelPill_15vhv_105",
-	modelInputShell: "_modelInputShell_15vhv_123",
-	modelInput: "_modelInput_15vhv_123",
-	iconAction: "_iconAction_15vhv_144",
-	iconActionActive: "_iconActionActive_15vhv_166",
-	runButton: "_runButton_15vhv_171",
-	results: "_results_15vhv_192",
-	sectionHeader: "_sectionHeader_15vhv_202",
-	resultCard: "_resultCard_15vhv_213",
-	matchCount: "_matchCount_15vhv_221",
-	recentList: "_recentList_15vhv_226",
-	recentItem: "_recentItem_15vhv_232",
-	recentEmpty: "_recentEmpty_15vhv_247",
-	emptyState: "_emptyState_15vhv_253",
-	searchingText: "_searchingText_15vhv_263",
-	searchingElapsed: "_searchingElapsed_15vhv_267"
+	container: "_container_1idku_1",
+	body: "_body_1idku_8",
+	searchArea: "_searchArea_1idku_15",
+	inputShell: "_inputShell_1idku_23",
+	controlsRow: "_controlsRow_1idku_28",
+	topRow: "_topRow_1idku_35",
+	typeToggle: "_typeToggle_1idku_42",
+	topActions: "_topActions_1idku_47",
+	textarea: "_textarea_1idku_56",
+	modeRow: "_modeRow_1idku_86",
+	modeControls: "_modeControls_1idku_92",
+	modeToggle: "_modeToggle_1idku_98",
+	modeToggleActive: "_modeToggleActive_1idku_121",
+	modelPill: "_modelPill_1idku_126",
+	modelInputShell: "_modelInputShell_1idku_144",
+	modelInput: "_modelInput_1idku_144",
+	iconAction: "_iconAction_1idku_165",
+	iconActionActive: "_iconActionActive_1idku_187",
+	runButton: "_runButton_1idku_192",
+	results: "_results_1idku_213",
+	sectionHeader: "_sectionHeader_1idku_223",
+	resultCard: "_resultCard_1idku_234",
+	matchCount: "_matchCount_1idku_242",
+	recentList: "_recentList_1idku_247",
+	recentItem: "_recentItem_1idku_253",
+	recentEmpty: "_recentEmpty_1idku_268",
+	emptyState: "_emptyState_1idku_274",
+	searchingText: "_searchingText_1idku_284",
+	searchingElapsed: "_searchingElapsed_1idku_288"
 };
 // ../../packages/inspect-components/src/transcript-search/searchPanelState.ts
 var createInitialSearchPanelState = () => ({
@@ -72228,20 +72472,6 @@ var useCachedSearchResult = (t0) => {
 	return useQuery(t3);
 };
 // ../../packages/inspect-components/src/transcript-search/SearchPanel.tsx
-function hasStringValue$1(target) {
-	return target !== null && "value" in target && typeof target.value === "string";
-}
-function getInputValue(e) {
-	return hasStringValue$1(e.target) ? e.target.value : "";
-}
-var SEARCH_TEXTAREA_AUTOSIZE = {
-	minRows: 2,
-	maxRows: 10
-};
-function getInnerTextarea(el) {
-	const inner = el?.shadowRoot?.querySelector("textarea");
-	return inner instanceof HTMLTextAreaElement ? inner : null;
-}
 function isSearchType(value) {
 	return value === "llm" || value === "grep";
 }
@@ -72281,7 +72511,10 @@ var NOOP_MODEL_HISTORY = {
 	history: [],
 	record: () => {}
 };
-var SearchPanel = ({ scope, api, stateController, navigation, defaultModel, modelHistory = NOOP_MODEL_HISTORY, onClose }) => {
+var SearchPanel = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(127);
+	const { scope, api, stateController, navigation, defaultModel, modelHistory: t1, onClose } = t0;
+	const modelHistory = t1 === void 0 ? NOOP_MODEL_HISTORY : t1;
 	const { getMessageUrl, getEventUrl, getEventMessageUrl } = navigation;
 	const modelInputId = (0, import_react.useId)();
 	const queryClient = useQueryClient();
@@ -72290,323 +72523,574 @@ var SearchPanel = ({ scope, api, stateController, navigation, defaultModel, mode
 	const { query, searchId } = state.searches[searchType];
 	const grepOptions = state.searches.grep.grepOptions;
 	const model = state.searches.llm.model;
-	const createSearchMutation = useCreateSearch({ api });
-	const cachedSearchQuery = useCachedSearchResult({
-		api,
-		scope: buildSearchScope(scope),
-		searchId
-	});
+	let t2;
+	if ($[0] !== api) {
+		t2 = { api };
+		$[0] = api;
+		$[1] = t2;
+	} else t2 = $[1];
+	const createSearchMutation = useCreateSearch(t2);
+	let t3;
+	if ($[2] !== scope) {
+		t3 = buildSearchScope(scope);
+		$[2] = scope;
+		$[3] = t3;
+	} else t3 = $[3];
+	let t4;
+	if ($[4] !== api || $[5] !== searchId || $[6] !== t3) {
+		t4 = {
+			api,
+			scope: t3,
+			searchId
+		};
+		$[4] = api;
+		$[5] = searchId;
+		$[6] = t3;
+		$[7] = t4;
+	} else t4 = $[7];
+	const cachedSearchQuery = useCachedSearchResult(t4);
 	const [isRecentOpen, setIsRecentOpen] = (0, import_react.useState)(false);
-	const recentButtonRef = (0, import_react.useRef)(null);
+	const [recentButtonEl, setRecentButtonEl] = (0, import_react.useState)(null);
 	const loading = createSearchMutation.isPending || cachedSearchQuery.isFetching;
 	const error = createSearchMutation.error || cachedSearchQuery.error;
 	const currentSearch = cachedSearchQuery.data ?? null;
 	const hasSearched = !!searchId || createSearchMutation.isPending || !!createSearchMutation.error;
-	const clearSearchIdForCurrentType = (0, import_react.useCallback)(() => {
-		createSearchMutation.reset();
-		setState((prev) => ({
-			...prev,
-			searches: {
-				...prev.searches,
-				[prev.searchType]: {
-					...prev.searches[prev.searchType],
-					searchId: null
-				}
-			}
-		}));
-	}, [createSearchMutation, setState]);
+	let t5;
+	if ($[8] !== createSearchMutation || $[9] !== setState) {
+		t5 = () => {
+			createSearchMutation.reset();
+			setState(_temp$88);
+		};
+		$[8] = createSearchMutation;
+		$[9] = setState;
+		$[10] = t5;
+	} else t5 = $[10];
+	const clearSearchIdForCurrentType = t5;
 	const cacheKey = api.cacheKey;
-	const handleSubmit = (0, import_react.useCallback)((e) => {
-		e.preventDefault();
-		const text = query.trim();
-		if (!text || loading) return;
-		clearSearchIdForCurrentType();
-		const resolvedModel = searchType === "llm" ? (model.trim() || defaultModel?.trim()) ?? "" : "";
-		const request = buildSearchRequest({
-			grepOptions,
-			model: resolvedModel,
-			query: text,
-			scope,
-			searchType
-		});
-		createSearchMutation.mutate(request, { onSuccess: (response) => {
-			queryClient.setQueryData(searchQueryKeys.cachedResult({
-				cacheKey,
-				scope: buildSearchScope(scope),
-				searchId: response.id
-			}), response.result);
-			setState((prev_0) => ({
-				...prev_0,
+	let t6;
+	if ($[11] !== cacheKey || $[12] !== clearSearchIdForCurrentType || $[13] !== createSearchMutation || $[14] !== defaultModel || $[15] !== grepOptions || $[16] !== loading || $[17] !== model || $[18] !== modelHistory || $[19] !== query || $[20] !== queryClient || $[21] !== scope || $[22] !== searchType || $[23] !== setState) {
+		t6 = (e) => {
+			e.preventDefault();
+			const text = query.trim();
+			if (!text || loading) return;
+			clearSearchIdForCurrentType();
+			const resolvedModel = searchType === "llm" ? (model.trim() || defaultModel?.trim()) ?? "" : "";
+			const request = buildSearchRequest({
+				grepOptions,
+				model: resolvedModel,
+				query: text,
+				scope,
+				searchType
+			});
+			createSearchMutation.mutate(request, { onSuccess: (response) => {
+				queryClient.setQueryData(searchQueryKeys.cachedResult({
+					cacheKey,
+					scope: buildSearchScope(scope),
+					searchId: response.id
+				}), response.result);
+				setState((prev_0) => ({
+					...prev_0,
+					searches: {
+						...prev_0.searches,
+						[searchType]: {
+							...prev_0.searches[searchType],
+							searchId: response.id
+						}
+					}
+				}));
+				if (searchType === "llm" && resolvedModel) modelHistory.record(resolvedModel);
+			} });
+		};
+		$[11] = cacheKey;
+		$[12] = clearSearchIdForCurrentType;
+		$[13] = createSearchMutation;
+		$[14] = defaultModel;
+		$[15] = grepOptions;
+		$[16] = loading;
+		$[17] = model;
+		$[18] = modelHistory;
+		$[19] = query;
+		$[20] = queryClient;
+		$[21] = scope;
+		$[22] = searchType;
+		$[23] = setState;
+		$[24] = t6;
+	} else t6 = $[24];
+	const handleSubmit = t6;
+	const handleKeyDown = _temp2$54;
+	let t7;
+	if ($[25] !== createSearchMutation || $[26] !== setState) {
+		t7 = (search) => {
+			createSearchMutation.reset();
+			setIsRecentOpen(false);
+			setState((prev_1) => applyRecentSearch(prev_1, search));
+		};
+		$[25] = createSearchMutation;
+		$[26] = setState;
+		$[27] = t7;
+	} else t7 = $[27];
+	const handleSelectRecent = t7;
+	let t8;
+	if ($[28] !== createSearchMutation || $[29] !== setState) {
+		t8 = () => {
+			createSearchMutation.reset();
+			setState(_temp3$38);
+		};
+		$[28] = createSearchMutation;
+		$[29] = setState;
+		$[30] = t8;
+	} else t8 = $[30];
+	const handleNewSearch = t8;
+	let t9;
+	if ($[31] !== createSearchMutation || $[32] !== setState) {
+		t9 = (key) => {
+			createSearchMutation.reset();
+			setState((prev_2) => ({
+				...prev_2,
 				searches: {
-					...prev_0.searches,
-					[searchType]: {
-						...prev_0.searches[searchType],
-						searchId: response.id
+					...prev_2.searches,
+					grep: {
+						...prev_2.searches.grep,
+						grepOptions: {
+							...prev_2.searches.grep.grepOptions,
+							[key]: !prev_2.searches.grep.grepOptions[key]
+						},
+						searchId: null
 					}
 				}
 			}));
-			if (searchType === "llm" && resolvedModel) modelHistory.record(resolvedModel);
-		} });
-	}, [
-		cacheKey,
-		clearSearchIdForCurrentType,
-		createSearchMutation,
-		defaultModel,
-		grepOptions,
-		loading,
-		model,
-		modelHistory,
-		query,
-		queryClient,
-		scope,
-		searchType,
-		setState
-	]);
-	const handleKeyDown = (0, import_react.useCallback)((e_0) => {
-		if (e_0.key === "Enter" && !e_0.shiftKey) {
-			e_0.preventDefault();
-			e_0.currentTarget.closest("form")?.requestSubmit();
-		}
-	}, []);
-	const handleSelectRecent = (0, import_react.useCallback)((search) => {
-		createSearchMutation.reset();
-		setIsRecentOpen(false);
-		setState((prev_1) => applyRecentSearch(prev_1, search));
-	}, [createSearchMutation, setState]);
-	const handleNewSearch = (0, import_react.useCallback)(() => {
-		createSearchMutation.reset();
-		setState(() => createInitialSearchPanelState());
-	}, [createSearchMutation, setState]);
-	const toggleGrepOption = (0, import_react.useCallback)((key) => {
-		createSearchMutation.reset();
-		setState((prev_2) => ({
-			...prev_2,
-			searches: {
-				...prev_2.searches,
-				grep: {
-					...prev_2.searches.grep,
-					grepOptions: {
-						...prev_2.searches.grep.grepOptions,
-						[key]: !prev_2.searches.grep.grepOptions[key]
-					},
-					searchId: null
-				}
-			}
-		}));
-	}, [createSearchMutation, setState]);
-	const handleSearchTypeChange = (0, import_react.useCallback)((type) => {
-		setState((prev_3) => applySearchTypeChange(prev_3, type));
-	}, [setState]);
+		};
+		$[31] = createSearchMutation;
+		$[32] = setState;
+		$[33] = t9;
+	} else t9 = $[33];
+	const toggleGrepOption = t9;
+	let t10;
+	if ($[34] !== setState) {
+		t10 = (type) => {
+			setState((prev_3) => applySearchTypeChange(prev_3, type));
+		};
+		$[34] = setState;
+		$[35] = t10;
+	} else t10 = $[35];
+	const handleSearchTypeChange = t10;
 	const formRef = (0, import_react.useRef)(null);
-	const handleModelCommit = (0, import_react.useCallback)(() => {
-		formRef.current?.requestSubmit();
-	}, []);
-	const searchTextareaRef = (0, import_react.useRef)(null);
-	const handleSearchTextareaRef = (0, import_react.useCallback)((el) => {
-		searchTextareaRef.current = el;
-	}, []);
-	(0, import_react.useLayoutEffect)(() => {
-		const inner = getInnerTextarea(searchTextareaRef.current);
-		if (inner !== null) autosizeTextarea(inner, SEARCH_TEXTAREA_AUTOSIZE);
-	}, [query]);
-	const handleQueryInput = (0, import_react.useCallback)((e_1) => {
-		const value = getInputValue(e_1);
-		setState((prev_4) => ({
-			...prev_4,
-			searches: {
-				...prev_4.searches,
-				[prev_4.searchType]: {
-					...prev_4.searches[prev_4.searchType],
-					query: value
+	let t11;
+	if ($[36] === Symbol.for("react.memo_cache_sentinel")) {
+		t11 = () => {
+			formRef.current?.requestSubmit();
+		};
+		$[36] = t11;
+	} else t11 = $[36];
+	const handleModelCommit = t11;
+	let t12;
+	if ($[37] !== setState) {
+		t12 = (e_1) => {
+			const value = e_1.target.value;
+			setState((prev_4) => ({
+				...prev_4,
+				searches: {
+					...prev_4.searches,
+					[prev_4.searchType]: {
+						...prev_4.searches[prev_4.searchType],
+						query: value
+					}
 				}
-			}
-		}));
-	}, [setState]);
-	const handleModelChange = (0, import_react.useCallback)((value_0) => {
-		setState((prev_5) => ({
-			...prev_5,
-			searches: {
-				...prev_5.searches,
-				llm: {
-					...prev_5.searches.llm,
-					model: value_0
+			}));
+		};
+		$[37] = setState;
+		$[38] = t12;
+	} else t12 = $[38];
+	const handleQueryInput = t12;
+	let t13;
+	if ($[39] !== setState) {
+		t13 = (value_0) => {
+			setState((prev_5) => ({
+				...prev_5,
+				searches: {
+					...prev_5.searches,
+					llm: {
+						...prev_5.searches.llm,
+						model: value_0
+					}
 				}
-			}
-		}));
-	}, [setState]);
+			}));
+		};
+		$[39] = setState;
+		$[40] = t13;
+	} else t13 = $[40];
+	const handleModelChange = t13;
 	const didPrefillModelRef = (0, import_react.useRef)(false);
-	(0, import_react.useEffect)(() => {
-		if (didPrefillModelRef.current) return;
-		didPrefillModelRef.current = true;
-		const mostRecent = modelHistory.history[0];
-		if (model === "" && mostRecent !== void 0) handleModelChange(mostRecent);
-	}, [
-		model,
-		modelHistory.history,
-		handleModelChange
-	]);
-	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-		className: SearchPanel_module_default.container,
-		"data-unsearchable": true,
-		children: [
-			/*#__PURE__*/ (0, import_jsx_runtime.jsx)(SidebarHeader, {
-				icon: "search",
-				title: `Search: ${scope}`,
-				onClose
-			}),
-			/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-				className: SearchPanel_module_default.body,
+	let t14;
+	let t15;
+	if ($[41] !== handleModelChange || $[42] !== model || $[43] !== modelHistory.history) {
+		t14 = () => {
+			if (didPrefillModelRef.current) return;
+			didPrefillModelRef.current = true;
+			const mostRecent = modelHistory.history[0];
+			if (model === "" && mostRecent !== void 0) handleModelChange(mostRecent);
+		};
+		t15 = [
+			model,
+			modelHistory.history,
+			handleModelChange
+		];
+		$[41] = handleModelChange;
+		$[42] = model;
+		$[43] = modelHistory.history;
+		$[44] = t14;
+		$[45] = t15;
+	} else {
+		t14 = $[44];
+		t15 = $[45];
+	}
+	(0, import_react.useEffect)(t14, t15);
+	const t16 = `Search: ${scope}`;
+	let t17;
+	if ($[46] !== onClose || $[47] !== t16) {
+		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SidebarHeader, {
+			icon: "search",
+			title: t16,
+			onClose
+		});
+		$[46] = onClose;
+		$[47] = t16;
+		$[48] = t17;
+	} else t17 = $[48];
+	let t18;
+	if ($[49] === Symbol.for("react.memo_cache_sentinel")) {
+		t18 = [{
+			id: "llm",
+			label: "LLM"
+		}, {
+			id: "grep",
+			label: "Grep"
+		}];
+		$[49] = t18;
+	} else t18 = $[49];
+	let t19;
+	if ($[50] !== handleSearchTypeChange) {
+		t19 = (segmentId) => {
+			if (isSearchType(segmentId)) handleSearchTypeChange(segmentId);
+		};
+		$[50] = handleSearchTypeChange;
+		$[51] = t19;
+	} else t19 = $[51];
+	let t20;
+	if ($[52] !== searchType || $[53] !== t19) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: SearchPanel_module_default.typeToggle,
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SegmentedControl, {
+				selectedId: searchType,
+				segments: t18,
+				onSegmentChange: t19
+			})
+		});
+		$[52] = searchType;
+		$[53] = t19;
+		$[54] = t20;
+	} else t20 = $[54];
+	const t21 = isRecentOpen && SearchPanel_module_default.iconActionActive;
+	let t22;
+	if ($[55] !== t21) {
+		t22 = clsx(SearchPanel_module_default.iconAction, t21);
+		$[55] = t21;
+		$[56] = t22;
+	} else t22 = $[56];
+	let t23;
+	if ($[57] === Symbol.for("react.memo_cache_sentinel")) {
+		t23 = () => setIsRecentOpen(_temp4$32);
+		$[57] = t23;
+	} else t23 = $[57];
+	let t24;
+	if ($[58] === Symbol.for("react.memo_cache_sentinel")) {
+		t24 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "history" });
+		$[58] = t24;
+	} else t24 = $[58];
+	let t25;
+	if ($[59] !== isRecentOpen || $[60] !== t22) {
+		t25 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			ref: setRecentButtonEl,
+			type: "button",
+			className: t22,
+			onClick: t23,
+			title: "Recent searches",
+			"aria-label": "Recent searches",
+			"aria-expanded": isRecentOpen,
+			children: t24
+		});
+		$[59] = isRecentOpen;
+		$[60] = t22;
+		$[61] = t25;
+	} else t25 = $[61];
+	let t26;
+	if ($[62] === Symbol.for("react.memo_cache_sentinel")) {
+		t26 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "add" });
+		$[62] = t26;
+	} else t26 = $[62];
+	let t27;
+	if ($[63] !== handleNewSearch) {
+		t27 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: SearchPanel_module_default.iconAction,
+			onClick: handleNewSearch,
+			title: "New search",
+			"aria-label": "New search",
+			children: t26
+		});
+		$[63] = handleNewSearch;
+		$[64] = t27;
+	} else t27 = $[64];
+	let t28;
+	if ($[65] !== t25 || $[66] !== t27) {
+		t28 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: SearchPanel_module_default.topActions,
+			children: [t25, t27]
+		});
+		$[65] = t25;
+		$[66] = t27;
+		$[67] = t28;
+	} else t28 = $[67];
+	let t29;
+	if ($[68] !== t20 || $[69] !== t28) {
+		t29 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: SearchPanel_module_default.topRow,
+			children: [t20, t28]
+		});
+		$[68] = t20;
+		$[69] = t28;
+		$[70] = t29;
+	} else t29 = $[70];
+	const t30 = searchType === "grep" ? "Search for text..." : "Ask a question about this transcript...";
+	let t31;
+	if ($[71] !== handleQueryInput || $[72] !== query || $[73] !== t30) {
+		t31 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: SearchPanel_module_default.inputShell,
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("textarea", {
+				className: SearchPanel_module_default.textarea,
+				placeholder: t30,
+				value: query,
+				onChange: handleQueryInput,
+				onKeyDown: handleKeyDown,
+				spellCheck: false,
+				autoComplete: "off"
+			})
+		});
+		$[71] = handleQueryInput;
+		$[72] = query;
+		$[73] = t30;
+		$[74] = t31;
+	} else t31 = $[74];
+	let t32;
+	if ($[75] !== defaultModel || $[76] !== grepOptions || $[77] !== handleModelChange || $[78] !== model || $[79] !== modelHistory.history || $[80] !== modelInputId || $[81] !== searchType || $[82] !== toggleGrepOption) {
+		t32 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: SearchPanel_module_default.modeRow,
+			children: searchType === "grep" ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+				className: SearchPanel_module_default.modeControls,
 				children: [
-					/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("form", {
-						ref: formRef,
-						className: SearchPanel_module_default.searchArea,
-						onSubmit: handleSubmit,
-						children: [
-							/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-								className: SearchPanel_module_default.topRow,
-								children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-									className: SearchPanel_module_default.typeToggle,
-									children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SegmentedControl, {
-										selectedId: searchType,
-										segments: [{
-											id: "llm",
-											label: "LLM"
-										}, {
-											id: "grep",
-											label: "Grep"
-										}],
-										onSegmentChange: (segmentId) => {
-											if (isSearchType(segmentId)) handleSearchTypeChange(segmentId);
-										}
-									})
-								}), /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-									className: SearchPanel_module_default.topActions,
-									children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-										ref: recentButtonRef,
-										type: "button",
-										className: clsx(SearchPanel_module_default.iconAction, isRecentOpen && SearchPanel_module_default.iconActionActive),
-										onClick: () => setIsRecentOpen((prev_6) => !prev_6),
-										title: "Recent searches",
-										"aria-label": "Recent searches",
-										"aria-expanded": isRecentOpen,
-										children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "history" })
-									}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-										type: "button",
-										className: SearchPanel_module_default.iconAction,
-										onClick: handleNewSearch,
-										title: "New search",
-										"aria-label": "New search",
-										children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "add" })
-									})]
-								})]
-							}),
-							/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-								className: SearchPanel_module_default.inputShell,
-								children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(VscodeTextarea, {
-									ref: handleSearchTextareaRef,
-									className: SearchPanel_module_default.textarea,
-									placeholder: searchType === "grep" ? "Search for text..." : "Ask a question about this transcript...",
-									value: query,
-									onInput: handleQueryInput,
-									onKeyDown: handleKeyDown,
-									spellCheck: false,
-									autocomplete: "off"
-								})
-							}),
-							/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-								className: SearchPanel_module_default.controlsRow,
-								children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-									className: SearchPanel_module_default.modeRow,
-									children: searchType === "grep" ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-										className: SearchPanel_module_default.modeControls,
-										children: [
-											/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModeToggle, {
-												icon: "matchCase",
-												title: "Ignore Case",
-												active: grepOptions.ignoreCase,
-												onClick: () => toggleGrepOption("ignoreCase")
-											}),
-											/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModeToggle, {
-												icon: "matchRegex",
-												title: "Regex",
-												active: grepOptions.regex,
-												onClick: () => toggleGrepOption("regex")
-											}),
-											/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModeToggle, {
-												icon: "matchWholeWord",
-												title: "Whole Word",
-												active: grepOptions.wordBoundary,
-												onClick: () => toggleGrepOption("wordBoundary")
-											})
-										]
-									}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-										className: SearchPanel_module_default.modelPill,
-										children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-											className: SearchPanel_module_default.modelInputShell,
-											children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AutocompleteInput, {
-												id: modelInputId,
-												className: SearchPanel_module_default.modelInput,
-												placeholder: defaultModel ?? "e.g., openai/gpt-5.4",
-												value: model,
-												onChange: handleModelChange,
-												onCommit: handleModelCommit,
-												suggestions: modelHistory.history,
-												allowBrowse: modelHistory.history.length > 0,
-												required: true
-											})
-										})
-									})
-								}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-									type: "submit",
-									className: SearchPanel_module_default.runButton,
-									disabled: loading || !query.trim(),
-									children: "Run"
-								})]
-							})
-						]
+					/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModeToggle, {
+						icon: "matchCase",
+						title: "Ignore Case",
+						active: grepOptions.ignoreCase,
+						onClick: () => toggleGrepOption("ignoreCase")
 					}),
-					/*#__PURE__*/ (0, import_jsx_runtime.jsx)(LoadingBar, { loading }),
-					/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-						className: SearchPanel_module_default.results,
-						children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SearchResults, {
-							loading,
-							error,
-							hasSearched,
-							currentSearch,
-							scope,
-							searchType,
-							getMessageUrl,
-							getEventUrl,
-							getEventMessageUrl
-						})
+					/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModeToggle, {
+						icon: "matchRegex",
+						title: "Regex",
+						active: grepOptions.regex,
+						onClick: () => toggleGrepOption("regex")
+					}),
+					/*#__PURE__*/ (0, import_jsx_runtime.jsx)(ModeToggle, {
+						icon: "matchWholeWord",
+						title: "Whole Word",
+						active: grepOptions.wordBoundary,
+						onClick: () => toggleGrepOption("wordBoundary")
 					})
 				]
-			}),
-			/*#__PURE__*/ (0, import_jsx_runtime.jsx)(PopOver, {
-				id: `recent-searches-${api.cacheKey}`,
-				isOpen: isRecentOpen,
-				setIsOpen: setIsRecentOpen,
-				positionEl: recentButtonRef.current,
-				placement: "bottom-end",
-				offset: 2,
-				hoverDelay: -1,
-				closeOnMouseLeave: false,
-				showArrow: false,
-				styles: {
-					padding: 0,
-					width: "20rem",
-					maxWidth: "calc(100vw - 1rem)",
-					maxHeight: "60vh",
-					overflowY: "auto"
-				},
-				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecentSearches, {
-					api,
-					searchType,
-					onSelect: handleSelectRecent
+			}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+				className: SearchPanel_module_default.modelPill,
+				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+					className: SearchPanel_module_default.modelInputShell,
+					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AutocompleteInput, {
+						id: modelInputId,
+						className: SearchPanel_module_default.modelInput,
+						placeholder: defaultModel ?? "e.g., openai/gpt-5.4",
+						value: model,
+						onChange: handleModelChange,
+						onCommit: handleModelCommit,
+						suggestions: modelHistory.history,
+						allowBrowse: modelHistory.history.length > 0,
+						required: true
+					})
 				})
 			})
-		]
-	});
+		});
+		$[75] = defaultModel;
+		$[76] = grepOptions;
+		$[77] = handleModelChange;
+		$[78] = model;
+		$[79] = modelHistory.history;
+		$[80] = modelInputId;
+		$[81] = searchType;
+		$[82] = toggleGrepOption;
+		$[83] = t32;
+	} else t32 = $[83];
+	let t33;
+	if ($[84] !== loading || $[85] !== query) {
+		t33 = loading || !query.trim();
+		$[84] = loading;
+		$[85] = query;
+		$[86] = t33;
+	} else t33 = $[86];
+	let t34;
+	if ($[87] !== t33) {
+		t34 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "submit",
+			className: SearchPanel_module_default.runButton,
+			disabled: t33,
+			children: "Run"
+		});
+		$[87] = t33;
+		$[88] = t34;
+	} else t34 = $[88];
+	let t35;
+	if ($[89] !== t32 || $[90] !== t34) {
+		t35 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: SearchPanel_module_default.controlsRow,
+			children: [t32, t34]
+		});
+		$[89] = t32;
+		$[90] = t34;
+		$[91] = t35;
+	} else t35 = $[91];
+	let t36;
+	if ($[92] !== handleSubmit || $[93] !== t29 || $[94] !== t31 || $[95] !== t35) {
+		t36 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("form", {
+			ref: formRef,
+			className: SearchPanel_module_default.searchArea,
+			onSubmit: handleSubmit,
+			children: [
+				t29,
+				t31,
+				t35
+			]
+		});
+		$[92] = handleSubmit;
+		$[93] = t29;
+		$[94] = t31;
+		$[95] = t35;
+		$[96] = t36;
+	} else t36 = $[96];
+	let t37;
+	if ($[97] !== loading) {
+		t37 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(LoadingBar, { loading });
+		$[97] = loading;
+		$[98] = t37;
+	} else t37 = $[98];
+	let t38;
+	if ($[99] !== currentSearch || $[100] !== error || $[101] !== getEventMessageUrl || $[102] !== getEventUrl || $[103] !== getMessageUrl || $[104] !== hasSearched || $[105] !== loading || $[106] !== scope || $[107] !== searchType) {
+		t38 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: SearchPanel_module_default.results,
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(SearchResults, {
+				loading,
+				error,
+				hasSearched,
+				currentSearch,
+				scope,
+				searchType,
+				getMessageUrl,
+				getEventUrl,
+				getEventMessageUrl
+			})
+		});
+		$[99] = currentSearch;
+		$[100] = error;
+		$[101] = getEventMessageUrl;
+		$[102] = getEventUrl;
+		$[103] = getMessageUrl;
+		$[104] = hasSearched;
+		$[105] = loading;
+		$[106] = scope;
+		$[107] = searchType;
+		$[108] = t38;
+	} else t38 = $[108];
+	let t39;
+	if ($[109] !== t36 || $[110] !== t37 || $[111] !== t38) {
+		t39 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: SearchPanel_module_default.body,
+			children: [
+				t36,
+				t37,
+				t38
+			]
+		});
+		$[109] = t36;
+		$[110] = t37;
+		$[111] = t38;
+		$[112] = t39;
+	} else t39 = $[112];
+	const t40 = `recent-searches-${api.cacheKey}`;
+	let t41;
+	if ($[113] === Symbol.for("react.memo_cache_sentinel")) {
+		t41 = {
+			padding: 0,
+			width: "20rem",
+			maxWidth: "calc(100vw - 1rem)",
+			maxHeight: "60vh",
+			overflowY: "auto"
+		};
+		$[113] = t41;
+	} else t41 = $[113];
+	let t42;
+	if ($[114] !== api || $[115] !== handleSelectRecent || $[116] !== searchType) {
+		t42 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(RecentSearches, {
+			api,
+			searchType,
+			onSelect: handleSelectRecent
+		});
+		$[114] = api;
+		$[115] = handleSelectRecent;
+		$[116] = searchType;
+		$[117] = t42;
+	} else t42 = $[117];
+	let t43;
+	if ($[118] !== isRecentOpen || $[119] !== recentButtonEl || $[120] !== t40 || $[121] !== t42) {
+		t43 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PopOver, {
+			id: t40,
+			isOpen: isRecentOpen,
+			setIsOpen: setIsRecentOpen,
+			positionEl: recentButtonEl,
+			placement: "bottom-end",
+			offset: 2,
+			hoverDelay: -1,
+			closeOnMouseLeave: false,
+			showArrow: false,
+			styles: t41,
+			children: t42
+		});
+		$[118] = isRecentOpen;
+		$[119] = recentButtonEl;
+		$[120] = t40;
+		$[121] = t42;
+		$[122] = t43;
+	} else t43 = $[122];
+	let t44;
+	if ($[123] !== t17 || $[124] !== t39 || $[125] !== t43) {
+		t44 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: SearchPanel_module_default.container,
+			"data-unsearchable": true,
+			children: [
+				t17,
+				t39,
+				t43
+			]
+		});
+		$[123] = t17;
+		$[124] = t39;
+		$[125] = t43;
+		$[126] = t44;
+	} else t44 = $[126];
+	return t44;
 };
 var ModeToggle = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(10);
@@ -73014,6 +73498,30 @@ var SearchResult = (t0) => {
 	} else t3 = $[21];
 	return t3;
 };
+function _temp$88(prev) {
+	return {
+		...prev,
+		searches: {
+			...prev.searches,
+			[prev.searchType]: {
+				...prev.searches[prev.searchType],
+				searchId: null
+			}
+		}
+	};
+}
+function _temp2$54(e_0) {
+	if (e_0.key === "Enter" && !e_0.shiftKey) {
+		e_0.preventDefault();
+		e_0.currentTarget.closest("form")?.requestSubmit();
+	}
+}
+function _temp3$38() {
+	return createInitialSearchPanelState();
+}
+function _temp4$32(prev_6) {
+	return !prev_6;
+}
 function _temp5$16() {
 	return performance.now();
 }
@@ -73552,7 +74060,7 @@ function useRouteSelection(pathname) {
 	const { children } = t0;
 	const { pathname } = useLocation();
 	const { logFile, sample } = useRouteSelection(pathname);
-	useMirrorToStore(sample, _temp$86);
+	useMirrorToStore(sample, _temp$87);
 	let t1;
 	if ($[0] !== logFile || $[1] !== sample) {
 		t1 = {
@@ -73575,7 +74083,7 @@ function useRouteSelection(pathname) {
 	} else t2 = $[5];
 	return t2;
 }
-function _temp$86(handle) {
+function _temp$87(handle) {
 	return highlightSample(handle.id, handle.epoch, handle.logFile);
 }
 function useCurrentSelection() {
@@ -74997,7 +75505,7 @@ var kDefaultScorePanelSort = {
 * own default (typically `chips` for ≤ 6 scores, `grid` for 7+).
 */ var useScorePanelView = () => {
 	const $ = (0, import_compiler_runtime.c)(5);
-	const stored = useStore(_temp$85);
+	const stored = useStore(_temp$86);
 	const setPropertyValue = useStore(_temp2$53);
 	let t0;
 	if ($[0] !== setPropertyValue) {
@@ -75029,7 +75537,7 @@ var kDefaultScorePanelSort = {
 */ var useScorePanelSort = () => {
 	const $ = (0, import_compiler_runtime.c)(5);
 	const stored = useStore(_temp3$37);
-	const setPropertyValue = useStore(_temp4$30);
+	const setPropertyValue = useStore(_temp4$31);
 	let t0;
 	if ($[0] !== setPropertyValue) {
 		t0 = (sort) => {
@@ -75519,7 +76027,7 @@ var useLogsListing = () => {
 	} else t0 = $[3];
 	return t0;
 };
-function _temp$85(state) {
+function _temp$86(state) {
 	const value = state.app.propertyBags[kScorePanelViewBag]?.[kScorePanelViewKey];
 	return isScoreView(value) ? value : void 0;
 }
@@ -75530,7 +76038,7 @@ function _temp3$37(state) {
 	const value = state.app.propertyBags[kScorePanelSortBag]?.[kScorePanelSortKey];
 	return isScorePanelSortState(value) ? value : void 0;
 }
-function _temp4$30(state_0) {
+function _temp4$31(state_0) {
 	return state_0.appActions.setPropertyValue;
 }
 function _temp5$15(state) {
@@ -75841,7 +76349,7 @@ var FlowButton = () => {
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$84,
+			select: _temp$85,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -75850,7 +76358,7 @@ var FlowButton = () => {
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$84(flow) {
+function _temp$85(flow) {
 	return flow ?? void 0;
 }
 var ThemeToggle_module_default = {
@@ -76134,9 +76642,9 @@ var subscribe = (onChange) => {
 		$[0] = preference;
 		$[1] = t0;
 	} else t0 = $[1];
-	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$83);
+	return (0, import_react.useSyncExternalStore)(subscribe, t0, _temp$84);
 };
-function _temp$83() {
+function _temp$84() {
 	return false;
 }
 // src/state/selectedLogDetails.ts
@@ -76814,12 +77322,12 @@ var ApplicationNavbar = (t0) => {
 	const { currentPath, fnNavigationUrl, backUrl, homeUrl, bordered, children, breadcrumbsEnabled, loading: t1, viewerOptionsError } = t0;
 	const loadingProp = t1 === void 0 ? false : t1;
 	const [optionsEl, setOptionsEl] = (0, import_react.useState)(null);
-	const themePreference = useUserSettings(_temp$82);
+	const themePreference = useUserSettings(_temp$83);
 	const setThemePreference = useUserSettings(_temp2$52);
 	const isDark = useResolvedIsDark(themePreference);
 	const loading = useSelectedLogLoading() || loadingProp;
 	const isShowing = useStore(_temp3$36);
-	const setShowing = useStore(_temp4$29);
+	const setShowing = useStore(_temp4$30);
 	let t2;
 	if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
 		t2 = isVscode();
@@ -76908,7 +77416,7 @@ var ApplicationNavbar = (t0) => {
 	} else t8 = $[29];
 	return t8;
 };
-function _temp$82(s) {
+function _temp$83(s) {
 	return s.themePreference;
 }
 function _temp2$52(s_0) {
@@ -76917,7 +77425,7 @@ function _temp2$52(s_0) {
 function _temp3$36(state) {
 	return state.app.dialogs.options;
 }
-function _temp4$29(state_0) {
+function _temp4$30(state_0) {
 	return state_0.appActions.setShowingOptionsDialog;
 }
 var NavbarButton_module_default = {
@@ -77103,7 +77611,7 @@ var ViewSegmentedControl = (t0) => {
 		t2 = {
 			queryKey: t0,
 			queryFn: t1,
-			select: _temp$81,
+			select: _temp$82,
 			staleTime: Infinity
 		};
 		$[6] = t0;
@@ -77112,7 +77620,7 @@ var ViewSegmentedControl = (t0) => {
 	} else t2 = $[8];
 	return useAsyncDataFromQuery(t2);
 };
-function _temp$81(evalSet) {
+function _temp$82(evalSet) {
 	return evalSet ?? void 0;
 }
 // src/app/shared/gridUtils.ts
@@ -77219,7 +77727,7 @@ var ColumnSelectorPopover = (t0) => {
 		}
 		let t10;
 		if ($[13] !== columns) {
-			t10 = columns.filter(_temp$80);
+			t10 = columns.filter(_temp$81);
 			$[13] = columns;
 			$[14] = t10;
 		} else t10 = $[14];
@@ -77261,7 +77769,7 @@ var ColumnSelectorPopover = (t0) => {
 		t11 = () => {
 			onVisibilityChange({
 				...currentVisibility,
-				...Object.fromEntries(columnGroups.base.map(_temp4$28))
+				...Object.fromEntries(columnGroups.base.map(_temp4$29))
 			});
 		};
 		$[24] = columnGroups.base;
@@ -77539,7 +78047,7 @@ var ColumnSelectorPopover = (t0) => {
 	} else t31 = $[87];
 	return t31;
 };
-function _temp$80(col_0) {
+function _temp$81(col_0) {
 	return !isScoreField(getFieldKey(col_0));
 }
 function _temp2$51(col_1) {
@@ -77548,7 +78056,7 @@ function _temp2$51(col_1) {
 function _temp3$35(col_2) {
 	return [getFieldKey(col_2), true];
 }
-function _temp4$28(col_3) {
+function _temp4$29(col_3) {
 	return [getFieldKey(col_3), false];
 }
 function _temp5$14(col_4) {
@@ -84179,7 +84687,7 @@ var isConditionShaped = (value) => {
 	const t3 = `${columnId}-op${idSuffix}`;
 	let t4;
 	if ($[2] !== operatorOptions) {
-		t4 = operatorOptions.map(_temp$79);
+		t4 = operatorOptions.map(_temp$80);
 		$[2] = operatorOptions;
 		$[3] = t4;
 	} else t4 = $[3];
@@ -84437,7 +84945,7 @@ var ColumnFilterEditor = (t0) => {
 	} else t10 = $[32];
 	return t10;
 };
-function _temp$79(option) {
+function _temp$80(option) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("option", {
 		value: option,
 		children: OPERATOR_LABELS[option]
@@ -86876,7 +87384,7 @@ var LogListGrid = (t0) => {
 	const searchColumns = t10;
 	let t11;
 	if ($[26] !== searchColumns) {
-		t11 = searchColumns.map(_temp$78);
+		t11 = searchColumns.map(_temp$79);
 		$[26] = searchColumns;
 		$[27] = t11;
 	} else t11 = $[27];
@@ -86922,7 +87430,7 @@ var LogListGrid = (t0) => {
 	const { reset: resetMatches } = fileMatches;
 	let t14;
 	if ($[42] !== rows || $[43] !== searchColumns || $[44] !== showFind) {
-		t14 = showFind ? buildSearchIndex(rows.filter(_temp3$34), searchColumns, _temp4$27) : void 0;
+		t14 = showFind ? buildSearchIndex(rows.filter(_temp3$34), searchColumns, _temp4$28) : void 0;
 		$[42] = rows;
 		$[43] = searchColumns;
 		$[44] = showFind;
@@ -87161,7 +87669,7 @@ var LogListGrid = (t0) => {
 	} else t31 = $[107];
 	return t31;
 };
-function _temp$78(col_0) {
+function _temp$79(col_0) {
 	return col_0.id ?? "";
 }
 function _temp2$50(row_2) {
@@ -87170,7 +87678,7 @@ function _temp2$50(row_2) {
 function _temp3$34(row_3) {
 	return row_3.type !== "file";
 }
-function _temp4$27(row_4) {
+function _temp4$28(row_4) {
 	return row_4.id;
 }
 function _temp5$13(row_6) {
@@ -87287,7 +87795,7 @@ var kNoRows = [];
 	const $ = (0, import_compiler_runtime.c)(45);
 	const { overlayItems, scopeKey, getValue, getComparator, getFilterType, accessorsKey, listing } = t0;
 	const { gridStateByScope } = useLogsListing();
-	const overlayData = useKeyedMemo(overlayItems, _temp$77, _temp2$49, _temp3$33);
+	const overlayData = useKeyedMemo(overlayItems, _temp$78, _temp2$49, _temp3$33);
 	let t1;
 	if ($[0] !== overlayData) {
 		const folders = [];
@@ -87426,7 +87934,7 @@ var kNoRows = [];
 	} else t12 = $[44];
 	return t12;
 };
-function _temp$77(item) {
+function _temp$78(item) {
 	return item.id;
 }
 function _temp2$49(item_0) {
@@ -87600,7 +88108,7 @@ var LogsPanel = (t0) => {
 	const mode = t1 === void 0 ? "logs" : t1;
 	const [showColumnSelector, setShowColumnSelector] = (0, import_react.useState)(false);
 	const [columnButtonEl, setColumnButtonEl] = (0, import_react.useState)(null);
-	const showRetriedLogs = useUserSettings(_temp$76);
+	const showRetriedLogs = useUserSettings(_temp$77);
 	const setShowRetriedLogs = useUserSettings(_temp2$48);
 	const logDir = useLogDir();
 	const { gridStateByScope, patchGridState } = useLogsListing();
@@ -87826,7 +88334,7 @@ var LogsPanel = (t0) => {
 	const handleColumnVisibilityChange = t20;
 	let t21;
 	if ($[62] !== logItems) {
-		t21 = logItems.filter(_temp4$26);
+		t21 = logItems.filter(_temp4$27);
 		$[62] = logItems;
 		$[63] = t21;
 	} else t21 = $[63];
@@ -88060,7 +88568,7 @@ var appendPendingItems = (evalSet, tasksWithLogFiles, items) => {
 	items.push(...pendingTasks);
 	return items;
 };
-function _temp$76(state) {
+function _temp$77(state) {
 	return state.showRetriedLogs;
 }
 function _temp2$48(state_0) {
@@ -88069,7 +88577,7 @@ function _temp2$48(state_0) {
 function _temp3$32(state_1) {
 	return state_1.logs.listing.columnVisibility;
 }
-function _temp4$26(item_0) {
+function _temp4$27(item_0) {
 	return item_0.type === "pending-task";
 }
 function _temp5$12(prev) {
@@ -90745,89 +91253,89 @@ var inertData = (inputs) => ({
 	flush();
 };
 var ActivityChart_module_default = {
-	chart: "_chart_md8fn_6",
-	svg: "_svg_md8fn_14",
-	bandLabel: "_bandLabel_md8fn_22",
-	bandHeadline: "_bandHeadline_md8fn_27",
-	axisLine: "_axisLine_md8fn_33",
-	axisLabel: "_axisLabel_md8fn_37",
-	yTickLabel: "_yTickLabel_md8fn_42",
-	workingBlock: "_workingBlock_md8fn_49",
-	stallBracket: "_stallBracket_md8fn_53",
-	stallBracketRetry: "_stallBracketRetry_md8fn_59",
-	stallLabel: "_stallLabel_md8fn_65",
-	stallLabelRetry: "_stallLabelRetry_md8fn_70",
-	tokenSeries: "_tokenSeries_md8fn_81",
-	contextSeries: "_contextSeries_md8fn_88",
-	contextDot: "_contextDot_md8fn_95",
-	compactionDrop: "_compactionDrop_md8fn_100",
-	compactionLabel: "_compactionLabel_md8fn_105",
-	cursorLine: "_cursorLine_md8fn_113",
-	cursorPill: "_cursorPill_md8fn_120",
-	cursorPillText: "_cursorPillText_md8fn_125",
-	readoutDot: "_readoutDot_md8fn_133",
-	plotHit: "_plotHit_md8fn_141",
-	stallHit: "_stallHit_md8fn_146",
-	tokenLayer: "_tokenLayer_md8fn_152",
-	tokenLayerEdge: "_tokenLayerEdge_md8fn_158",
-	legendName: "_legendName_md8fn_165",
-	rowLabel: "_rowLabel_md8fn_172",
-	rowLabelMuted: "_rowLabelMuted_md8fn_177",
-	modelSpan: "_modelSpan_md8fn_181",
-	toolSpan: "_toolSpan_md8fn_185",
-	failedSpan: "_failedSpan_md8fn_190",
-	pendingSpan: "_pendingSpan_md8fn_195",
-	spanHovered: "_spanHovered_md8fn_201",
-	turnRect: "_turnRect_md8fn_209",
-	turnSeparator: "_turnSeparator_md8fn_228",
-	ghostSpan: "_ghostSpan_md8fn_235",
-	ghostLabel: "_ghostLabel_md8fn_242",
-	ghostAggregate: "_ghostAggregate_md8fn_251",
-	axisLabelMuted: "_axisLabelMuted_md8fn_259",
-	roleRow: "_roleRow_md8fn_265",
-	foldRow: "_foldRow_md8fn_270",
-	blockedThread: "_blockedThread_md8fn_276",
-	blockedLabel: "_blockedLabel_md8fn_282",
-	gutterCheckbox: "_gutterCheckbox_md8fn_289",
-	gutterCheckboxOn: "_gutterCheckboxOn_md8fn_295",
-	gutterCheck: "_gutterCheck_md8fn_289",
-	gutterExpand: "_gutterExpand_md8fn_307",
-	gutterName: "_gutterName_md8fn_312",
-	gutterModel: "_gutterModel_md8fn_317",
-	gutterHit: "_gutterHit_md8fn_322",
-	burstLabel: "_burstLabel_md8fn_328",
-	retryBadge: "_retryBadge_md8fn_333",
-	densityModel: "_densityModel_md8fn_339",
-	densityTool: "_densityTool_md8fn_343",
-	densityFailure: "_densityFailure_md8fn_347",
-	densityHit: "_densityHit_md8fn_353",
-	marker: "_marker_md8fn_361",
-	markerHit: "_markerHit_md8fn_368",
-	clusterBoxRect: "_clusterBoxRect_md8fn_377",
-	clusterBoxText: "_clusterBoxText_md8fn_383"
+	chart: "_chart_7cp9k_6",
+	svg: "_svg_7cp9k_14",
+	bandLabel: "_bandLabel_7cp9k_22",
+	bandHeadline: "_bandHeadline_7cp9k_27",
+	axisLine: "_axisLine_7cp9k_33",
+	axisLabel: "_axisLabel_7cp9k_37",
+	yTickLabel: "_yTickLabel_7cp9k_42",
+	workingBlock: "_workingBlock_7cp9k_49",
+	stallBracket: "_stallBracket_7cp9k_53",
+	stallBracketRetry: "_stallBracketRetry_7cp9k_59",
+	stallLabel: "_stallLabel_7cp9k_65",
+	stallLabelRetry: "_stallLabelRetry_7cp9k_70",
+	tokenSeries: "_tokenSeries_7cp9k_81",
+	contextSeries: "_contextSeries_7cp9k_88",
+	contextDot: "_contextDot_7cp9k_95",
+	compactionDrop: "_compactionDrop_7cp9k_100",
+	compactionLabel: "_compactionLabel_7cp9k_105",
+	cursorLine: "_cursorLine_7cp9k_113",
+	cursorPill: "_cursorPill_7cp9k_120",
+	cursorPillText: "_cursorPillText_7cp9k_125",
+	readoutDot: "_readoutDot_7cp9k_133",
+	plotHit: "_plotHit_7cp9k_141",
+	stallHit: "_stallHit_7cp9k_146",
+	tokenLayer: "_tokenLayer_7cp9k_152",
+	tokenLayerEdge: "_tokenLayerEdge_7cp9k_158",
+	legendName: "_legendName_7cp9k_165",
+	rowLabel: "_rowLabel_7cp9k_172",
+	rowLabelMuted: "_rowLabelMuted_7cp9k_177",
+	modelSpan: "_modelSpan_7cp9k_181",
+	toolSpan: "_toolSpan_7cp9k_185",
+	failedSpan: "_failedSpan_7cp9k_190",
+	pendingSpan: "_pendingSpan_7cp9k_195",
+	spanHovered: "_spanHovered_7cp9k_201",
+	turnRect: "_turnRect_7cp9k_209",
+	turnSeparator: "_turnSeparator_7cp9k_228",
+	ghostSpan: "_ghostSpan_7cp9k_235",
+	ghostLabel: "_ghostLabel_7cp9k_242",
+	ghostAggregate: "_ghostAggregate_7cp9k_251",
+	axisLabelMuted: "_axisLabelMuted_7cp9k_259",
+	roleRow: "_roleRow_7cp9k_265",
+	foldRow: "_foldRow_7cp9k_270",
+	blockedThread: "_blockedThread_7cp9k_276",
+	blockedLabel: "_blockedLabel_7cp9k_282",
+	gutterCheckbox: "_gutterCheckbox_7cp9k_289",
+	gutterCheckboxOn: "_gutterCheckboxOn_7cp9k_295",
+	gutterCheck: "_gutterCheck_7cp9k_289",
+	gutterExpand: "_gutterExpand_7cp9k_307",
+	gutterName: "_gutterName_7cp9k_312",
+	gutterModel: "_gutterModel_7cp9k_317",
+	gutterHit: "_gutterHit_7cp9k_322",
+	burstLabel: "_burstLabel_7cp9k_328",
+	retryBadge: "_retryBadge_7cp9k_333",
+	densityModel: "_densityModel_7cp9k_339",
+	densityTool: "_densityTool_7cp9k_343",
+	densityFailure: "_densityFailure_7cp9k_347",
+	densityHit: "_densityHit_7cp9k_353",
+	marker: "_marker_7cp9k_361",
+	markerHit: "_markerHit_7cp9k_368",
+	clusterBoxRect: "_clusterBoxRect_7cp9k_377",
+	clusterBoxText: "_clusterBoxText_7cp9k_383"
 };
 var ActivityTooltip_module_default = {
-	tooltip: "_tooltip_1y9z1_4",
-	header: "_header_1y9z1_21",
-	subject: "_subject_1y9z1_28",
-	statusFailed: "_statusFailed_1y9z1_36",
-	statusRejected: "_statusRejected_1y9z1_40",
-	timeLine: "_timeLine_1y9z1_44",
-	who: "_who_1y9z1_50",
-	swatch: "_swatch_1y9z1_58",
-	dot: "_dot_1y9z1_65",
-	glyph: "_glyph_1y9z1_74",
-	grid: "_grid_1y9z1_78",
-	key: "_key_1y9z1_86",
-	value: "_value_1y9z1_91",
-	mono: "_mono_1y9z1_98",
-	muted: "_muted_1y9z1_103",
-	ellipsis: "_ellipsis_1y9z1_107",
-	list: "_list_1y9z1_116",
-	listRow: "_listRow_1y9z1_122",
-	listRowHovered: "_listRowHovered_1y9z1_134",
-	note: "_note_1y9z1_138",
-	footer: "_footer_1y9z1_142"
+	tooltip: "_tooltip_16eu2_4",
+	header: "_header_16eu2_21",
+	subject: "_subject_16eu2_28",
+	statusFailed: "_statusFailed_16eu2_36",
+	statusRejected: "_statusRejected_16eu2_40",
+	timeLine: "_timeLine_16eu2_44",
+	who: "_who_16eu2_50",
+	swatch: "_swatch_16eu2_58",
+	dot: "_dot_16eu2_65",
+	glyph: "_glyph_16eu2_74",
+	grid: "_grid_16eu2_78",
+	key: "_key_16eu2_86",
+	value: "_value_16eu2_91",
+	mono: "_mono_16eu2_98",
+	muted: "_muted_16eu2_103",
+	ellipsis: "_ellipsis_16eu2_107",
+	list: "_list_16eu2_116",
+	listRow: "_listRow_16eu2_122",
+	listRowHovered: "_listRowHovered_16eu2_134",
+	note: "_note_16eu2_138",
+	footer: "_footer_16eu2_142"
 };
 // ../../packages/inspect-components/src/sample-activity/ActivityTooltip.tsx
 /** Stable identity for a hover target — the show-delay compares it. */ var hoverTargetKey = (target) => {
@@ -90955,7 +91463,7 @@ var Grid = (t0) => {
 	const { rows } = t0;
 	let t1;
 	if ($[0] !== rows) {
-		t1 = rows.slice(0, 4).map(_temp$75);
+		t1 = rows.slice(0, 4).map(_temp$76);
 		$[0] = rows;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -91837,7 +92345,7 @@ var MarkerBody = (t0) => {
 		} else t5 = $[11];
 		return t5;
 	}
-	const firstUuid = members.find(_temp4$25)?.uuid;
+	const firstUuid = members.find(_temp4$26)?.uuid;
 	const t1 = `${members.length} events`;
 	let t2;
 	if ($[12] !== head.time) {
@@ -92236,7 +92744,7 @@ var CurveBody = (t0) => {
 	} else t3 = $[43];
 	return t3;
 };
-function _temp$75(row) {
+function _temp$76(row) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ActivityTooltip_module_default.key,
 		children: row.key
@@ -92251,7 +92759,7 @@ function _temp2$47(m) {
 function _temp3$31(p) {
 	return p.value;
 }
-function _temp4$25(m) {
+function _temp4$26(m) {
 	return m.uuid !== void 0;
 }
 function _temp5$11(member, i) {
@@ -94103,10 +94611,10 @@ var ModelTokenTable = (t0) => {
 								(() => {
 									const cfg = model_configs?.[modelId];
 									const args = model_args?.[modelId];
-									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$74) : [];
+									const cfgEntries = cfg ? Object.entries(cfg).filter(_temp$75) : [];
 									const argEntries = args ? Object.entries(args).filter(_temp2$46) : [];
 									if (cfgEntries.length === 0 && argEntries.length === 0) return null;
-									const renderSection = _temp4$24;
+									const renderSection = _temp4$25;
 									return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 										className: ModelTokenTable_module_default.configSection,
 										children: [cfgEntries.length > 0 && renderSection("config", cfgEntries), argEntries.length > 0 && renderSection("args", argEntries)]
@@ -94218,7 +94726,7 @@ var ModelTokenTable = (t0) => {
 	} else t11 = $[37];
 	return t11;
 };
-function _temp$74(t0) {
+function _temp$75(t0) {
 	const [, v] = t0;
 	return v != null;
 }
@@ -94236,7 +94744,7 @@ function _temp3$30(t0) {
 		children: formatConfigValue(v_1, "null")
 	})] }, k_0);
 }
-function _temp4$24(label, entries) {
+function _temp4$25(label, entries) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 		className: ModelTokenTable_module_default.configSectionLabel,
 		children: label
@@ -94394,7 +94902,7 @@ var ModelUsagePanel = (t0) => {
 	let t7;
 	if ($[0] !== className || $[1] !== timing || $[2] !== usage) {
 		const categories = buildCategories(usage);
-		const composeTotal = categories.reduce(_temp$73, 0);
+		const composeTotal = categories.reduce(_temp$74, 0);
 		const total = usage.total_tokens || composeTotal;
 		const inputAll = (usage.input_tokens ?? 0) + (usage.input_tokens_cache_read ?? 0) + (usage.input_tokens_cache_write ?? 0);
 		const denom = inputAll + (visibleOutputTokens(usage) + (usage.reasoning_tokens ?? 0)) || total || 1;
@@ -94582,7 +95090,7 @@ var ModelUsagePanel = (t0) => {
 	} else t11 = $[40];
 	return t11;
 };
-function _temp$73(a, c) {
+function _temp$74(a, c) {
 	return a + c.value;
 }
 function _temp2$45(c_1) {
@@ -94753,27 +95261,27 @@ var buildConnectionLanes = (history, window, configuredMax) => {
 };
 /** Caps the guide can show in-window — the y-scale must cover them. */ var laneCapValues = (lane, retunes, windowEnd) => (retunes ?? []).filter((retune) => retune.timestamp <= windowEnd).map((retune) => capFromRetune(retune, lane.configuredMax)).filter((v) => typeof v === "number");
 var ConfigChangedChip_module_default = {
-	cell: "_cell_1etak_1",
-	effectiveValue: "_effectiveValue_1etak_8",
-	clearedValue: "_clearedValue_1etak_12",
-	noneValue: "_noneValue_1etak_16",
-	priorValue: "_priorValue_1etak_20",
-	chip: "_chip_1etak_25",
-	chipCleared: "_chipCleared_1etak_39",
-	diamond: "_diamond_1etak_45",
-	popover: "_popover_1etak_55",
-	popoverHeader: "_popoverHeader_1etak_60",
-	popoverKnob: "_popoverKnob_1etak_76",
-	popoverHeaderNote: "_popoverHeaderNote_1etak_80",
-	popoverBody: "_popoverBody_1etak_84",
-	popoverTransition: "_popoverTransition_1etak_92",
-	from: "_from_1etak_98",
-	to: "_to_1etak_102",
-	popoverGrid: "_popoverGrid_1etak_106",
-	popoverLabel: "_popoverLabel_1etak_118",
-	scopePill: "_scopePill_1etak_124",
-	timelineLink: "_timelineLink_1etak_135",
-	changeList: "_changeList_1etak_158"
+	cell: "_cell_w4uhv_1",
+	effectiveValue: "_effectiveValue_w4uhv_8",
+	clearedValue: "_clearedValue_w4uhv_12",
+	noneValue: "_noneValue_w4uhv_16",
+	priorValue: "_priorValue_w4uhv_20",
+	chip: "_chip_w4uhv_25",
+	chipCleared: "_chipCleared_w4uhv_39",
+	diamond: "_diamond_w4uhv_45",
+	popover: "_popover_w4uhv_55",
+	popoverHeader: "_popoverHeader_w4uhv_60",
+	popoverKnob: "_popoverKnob_w4uhv_76",
+	popoverHeaderNote: "_popoverHeaderNote_w4uhv_80",
+	popoverBody: "_popoverBody_w4uhv_84",
+	popoverTransition: "_popoverTransition_w4uhv_92",
+	from: "_from_w4uhv_98",
+	to: "_to_w4uhv_102",
+	popoverGrid: "_popoverGrid_w4uhv_106",
+	popoverLabel: "_popoverLabel_w4uhv_118",
+	scopePill: "_scopePill_w4uhv_124",
+	timelineLink: "_timelineLink_w4uhv_135",
+	changeList: "_changeList_w4uhv_158"
 };
 // ../../packages/inspect-components/src/config/ConfigChangedChip.tsx
 var formatTimestamp = (timestamp) => {
@@ -95243,7 +95751,7 @@ var ProvenanceGrid = (t0) => {
 	} else t4 = $[3];
 	let t5;
 	if ($[4] !== changes) {
-		t5 = changes.map(_temp$72);
+		t5 = changes.map(_temp$73);
 		$[4] = changes;
 		$[5] = t5;
 	} else t5 = $[5];
@@ -95290,7 +95798,7 @@ var ProvenanceGrid = (t0) => {
 	} else t9 = $[17];
 	return t9;
 };
-function _temp$72(change) {
+function _temp$73(change) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", { children: [
 		change.name,
 		" ",
@@ -95318,16 +95826,16 @@ function _temp$72(change) {
 	] }, `${change.config}-${change.name}`);
 }
 var ConnectionChange_module_default = {
-	transition: "_transition_1sx4b_1",
-	oldLimit: "_oldLimit_1sx4b_6",
-	arrowUp: "_arrowUp_1sx4b_10",
-	arrowDown: "_arrowDown_1sx4b_11",
-	newLimit: "_newLimit_1sx4b_23",
-	badge: "_badge_1sx4b_27",
-	badgeSlowStart: "_badgeSlowStart_1sx4b_36",
-	badgeSteadyUp: "_badgeSteadyUp_1sx4b_41",
-	badgeRateLimit: "_badgeRateLimit_1sx4b_46",
-	badgeManual: "_badgeManual_1sx4b_51"
+	transition: "_transition_ia7l5_1",
+	oldLimit: "_oldLimit_ia7l5_6",
+	arrowUp: "_arrowUp_ia7l5_10",
+	arrowDown: "_arrowDown_ia7l5_11",
+	newLimit: "_newLimit_ia7l5_23",
+	badge: "_badge_ia7l5_27",
+	badgeSlowStart: "_badgeSlowStart_ia7l5_36",
+	badgeSteadyUp: "_badgeSteadyUp_ia7l5_41",
+	badgeRateLimit: "_badgeRateLimit_ia7l5_46",
+	badgeManual: "_badgeManual_ia7l5_51"
 };
 // ../../packages/inspect-components/src/usage/ConnectionChange.tsx
 /** One wording per controller reason — shared by the badge here and the
@@ -95421,22 +95929,22 @@ var ConnectionReasonBadge = (t0) => {
 	return t4;
 };
 var ConnectionLogModal_module_default = {
-	table: "_table_136xr_1",
-	time: "_time_136xr_33",
-	limitHead: "_limitHead_136xr_38",
-	limit: "_limit_136xr_38",
-	noLimit: "_noLimit_136xr_47",
-	badge: "_badge_136xr_51",
-	badgeConfig: "_badgeConfig_136xr_60",
-	configRow: "_configRow_136xr_66",
-	rateLimitRow: "_rateLimitRow_136xr_70",
-	configDetail: "_configDetail_136xr_74",
-	subheader: "_subheader_136xr_80",
-	sharedBy: "_sharedBy_136xr_90",
-	filters: "_filters_136xr_94",
-	filterChip: "_filterChip_136xr_100",
-	filterChipActive: "_filterChipActive_136xr_111",
-	footerLink: "_footerLink_136xr_118"
+	table: "_table_8yqgg_1",
+	time: "_time_8yqgg_33",
+	limitHead: "_limitHead_8yqgg_38",
+	limit: "_limit_8yqgg_38",
+	noLimit: "_noLimit_8yqgg_47",
+	badge: "_badge_8yqgg_51",
+	badgeConfig: "_badgeConfig_8yqgg_60",
+	configRow: "_configRow_8yqgg_66",
+	rateLimitRow: "_rateLimitRow_8yqgg_70",
+	configDetail: "_configDetail_8yqgg_74",
+	subheader: "_subheader_8yqgg_80",
+	sharedBy: "_sharedBy_8yqgg_90",
+	filters: "_filters_8yqgg_94",
+	filterChip: "_filterChip_8yqgg_100",
+	filterChipActive: "_filterChipActive_8yqgg_111",
+	footerLink: "_footerLink_8yqgg_118"
 };
 // ../../packages/inspect-components/src/usage/ConnectionLogModal.tsx
 var ConnectionLogModal = (t0) => {
@@ -95451,7 +95959,7 @@ var ConnectionLogModal = (t0) => {
 			$[3] = retunes;
 			$[4] = t2;
 		} else t2 = $[4];
-		t1 = [...events.map(_temp$71), ...t2.map(_temp2$44)].sort(_temp3$29);
+		t1 = [...events.map(_temp$72), ...t2.map(_temp2$44)].sort(_temp3$29);
 		$[0] = events;
 		$[1] = retunes;
 		$[2] = t1;
@@ -95514,7 +96022,7 @@ var ConnectionLogModal = (t0) => {
 					shared_roles.length > 1 ? "shared" : "used",
 					" by",
 					" ",
-					shared_roles.map(_temp4$23)
+					shared_roles.map(_temp4$24)
 				]
 			}), showFilters && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 				className: ConnectionLogModal_module_default.filters,
@@ -95590,7 +96098,7 @@ var ConnectionLogModal = (t0) => {
 	} else t12 = $[35];
 	return t12;
 };
-function _temp$71(event) {
+function _temp$72(event) {
 	return {
 		kind: "controller",
 		time: event.timestamp,
@@ -95607,7 +96115,7 @@ function _temp2$44(retune) {
 function _temp3$29(a, b) {
 	return a.time - b.time || (a.kind === b.kind ? 0 : a.kind === "config" ? -1 : 1);
 }
-function _temp4$23(role, i) {
+function _temp4$24(role, i) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", { children: [i > 0 ? ", " : "", /*#__PURE__*/ (0, import_jsx_runtime.jsx)("b", { children: role })] }, role);
 }
 function _temp5$10(row_0, i_0) {
@@ -95662,33 +96170,33 @@ function _temp5$10(row_0, i_0) {
 	}, `controller-${i_0}`);
 }
 var ConnectionsView_module_default = {
-	grid: "_grid_13lh4_1",
-	headCell: "_headCell_13lh4_9",
-	cell: "_cell_13lh4_19",
-	lastRow: "_lastRow_13lh4_25",
-	modelCell: "_modelCell_13lh4_29",
-	modelName: "_modelName_13lh4_33",
-	roles: "_roles_13lh4_39",
-	roleChip: "_roleChip_13lh4_49",
-	avgCell: "_avgCell_13lh4_58",
-	avgValue: "_avgValue_13lh4_62",
-	rateLimits: "_rateLimits_13lh4_75",
-	actionsCell: "_actionsCell_13lh4_83",
-	actionLink: "_actionLink_13lh4_90",
-	chart: "_chart_13lh4_114",
-	svg: "_svg_13lh4_119",
-	series: "_series_13lh4_123",
-	baseline: "_baseline_13lh4_129",
-	capGuide: "_capGuide_13lh4_133",
-	rateLimitLine: "_rateLimitLine_13lh4_139",
-	retuneLine: "_retuneLine_13lh4_146",
-	retuneMarker: "_retuneMarker_13lh4_150",
-	chartLabel: "_chartLabel_13lh4_156",
-	legend: "_legend_13lh4_161",
-	legendItem: "_legendItem_13lh4_169",
-	legendDiamond: "_legendDiamond_13lh4_175",
-	legendRateLimit: "_legendRateLimit_13lh4_184",
-	legendGuide: "_legendGuide_13lh4_191"
+	grid: "_grid_1dytn_1",
+	headCell: "_headCell_1dytn_9",
+	cell: "_cell_1dytn_19",
+	lastRow: "_lastRow_1dytn_25",
+	modelCell: "_modelCell_1dytn_29",
+	modelName: "_modelName_1dytn_33",
+	roles: "_roles_1dytn_39",
+	roleChip: "_roleChip_1dytn_49",
+	avgCell: "_avgCell_1dytn_58",
+	avgValue: "_avgValue_1dytn_62",
+	rateLimits: "_rateLimits_1dytn_75",
+	actionsCell: "_actionsCell_1dytn_83",
+	actionLink: "_actionLink_1dytn_90",
+	chart: "_chart_1dytn_114",
+	svg: "_svg_1dytn_119",
+	series: "_series_1dytn_123",
+	baseline: "_baseline_1dytn_129",
+	capGuide: "_capGuide_1dytn_133",
+	rateLimitLine: "_rateLimitLine_1dytn_139",
+	retuneLine: "_retuneLine_1dytn_146",
+	retuneMarker: "_retuneMarker_1dytn_150",
+	chartLabel: "_chartLabel_1dytn_156",
+	legend: "_legend_1dytn_161",
+	legendItem: "_legendItem_1dytn_169",
+	legendDiamond: "_legendDiamond_1dytn_175",
+	legendRateLimit: "_legendRateLimit_1dytn_184",
+	legendGuide: "_legendGuide_1dytn_191"
 };
 // ../../packages/inspect-components/src/usage/roleAliases.ts
 /**
@@ -95803,7 +96311,7 @@ var ConnectionsView_module_default = {
 									children: model_0
 								}), roles.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
 									className: ConnectionsView_module_default.roles,
-									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$70)]
+									children: [roles.length > 1 ? "shared by" : "used by", roles.map(_temp$71)]
 								})]
 							}),
 							/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
@@ -96081,7 +96589,7 @@ var kBaselineY = 60;
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$70(role) {
+function _temp$71(role) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ConnectionsView_module_default.roleChip,
 		children: role
@@ -96278,46 +96786,46 @@ var buildArgsByRole = (evalSpec) => {
 	return finalize(acc);
 };
 var ActivityHistoryList_module_default = {
-	container: "_container_143e5_1",
-	filterRow: "_filterRow_143e5_7",
-	caption: "_caption_143e5_16",
-	filterPill: "_filterPill_143e5_28",
-	pillCount: "_pillCount_143e5_42",
-	pillEmpty: "_pillEmpty_143e5_46",
-	pillAll: "_pillAll_143e5_51",
-	pillSelected: "_pillSelected_143e5_55",
-	pillError: "_pillError_143e5_61",
-	pillLimit: "_pillLimit_143e5_67",
-	pillApproval: "_pillApproval_143e5_73",
-	pillInput: "_pillInput_143e5_79",
-	pillInterrupt: "_pillInterrupt_143e5_85",
-	pillCompaction: "_pillCompaction_143e5_91",
-	pillScore: "_pillScore_143e5_98",
-	search: "_search_143e5_151",
-	list: "_list_143e5_166",
-	empty: "_empty_143e5_175",
-	headerRow: "_headerRow_143e5_182",
-	row: "_row_143e5_183",
-	timeSort: "_timeSort_143e5_204",
-	byHeader: "_byHeader_143e5_220",
-	rowLast: "_rowLast_143e5_231",
-	rowSelected: "_rowSelected_143e5_235",
-	rowWash: "_rowWash_143e5_243",
-	washError: "_washError_143e5_247",
-	washLimit: "_washLimit_143e5_252",
-	washApproval: "_washApproval_143e5_257",
-	washInput: "_washInput_143e5_261",
-	washInterrupt: "_washInterrupt_143e5_266",
-	washCompaction: "_washCompaction_143e5_271",
-	washScore: "_washScore_143e5_276",
-	time: "_time_143e5_204",
-	kindCell: "_kindCell_143e5_289",
-	kindPill: "_kindPill_143e5_297",
-	event: "_event_143e5_311",
-	muted: "_muted_143e5_318",
-	mono: "_mono_143e5_322",
-	by: "_by_143e5_220",
-	openEvent: "_openEvent_143e5_339"
+	container: "_container_ftpuv_1",
+	filterRow: "_filterRow_ftpuv_7",
+	caption: "_caption_ftpuv_16",
+	filterPill: "_filterPill_ftpuv_28",
+	pillCount: "_pillCount_ftpuv_42",
+	pillEmpty: "_pillEmpty_ftpuv_46",
+	pillAll: "_pillAll_ftpuv_51",
+	pillSelected: "_pillSelected_ftpuv_55",
+	pillError: "_pillError_ftpuv_61",
+	pillLimit: "_pillLimit_ftpuv_67",
+	pillApproval: "_pillApproval_ftpuv_73",
+	pillInput: "_pillInput_ftpuv_79",
+	pillInterrupt: "_pillInterrupt_ftpuv_85",
+	pillCompaction: "_pillCompaction_ftpuv_91",
+	pillScore: "_pillScore_ftpuv_98",
+	search: "_search_ftpuv_151",
+	list: "_list_ftpuv_166",
+	empty: "_empty_ftpuv_175",
+	headerRow: "_headerRow_ftpuv_182",
+	row: "_row_ftpuv_183",
+	timeSort: "_timeSort_ftpuv_204",
+	byHeader: "_byHeader_ftpuv_220",
+	rowLast: "_rowLast_ftpuv_231",
+	rowSelected: "_rowSelected_ftpuv_235",
+	rowWash: "_rowWash_ftpuv_243",
+	washError: "_washError_ftpuv_247",
+	washLimit: "_washLimit_ftpuv_252",
+	washApproval: "_washApproval_ftpuv_257",
+	washInput: "_washInput_ftpuv_261",
+	washInterrupt: "_washInterrupt_ftpuv_266",
+	washCompaction: "_washCompaction_ftpuv_271",
+	washScore: "_washScore_ftpuv_276",
+	time: "_time_ftpuv_204",
+	kindCell: "_kindCell_ftpuv_289",
+	kindPill: "_kindPill_ftpuv_297",
+	event: "_event_ftpuv_311",
+	muted: "_muted_ftpuv_318",
+	mono: "_mono_ftpuv_322",
+	by: "_by_ftpuv_220",
+	openEvent: "_openEvent_ftpuv_339"
 };
 // ../../packages/inspect-components/src/sample-activity/ActivityHistoryList.tsx
 var kPillClass$1 = {
@@ -97558,7 +98066,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	const { toolDefinitions } = t0;
 	let t1;
 	if ($[0] !== toolDefinitions) {
-		t1 = toolDefinitions.map(_temp$69);
+		t1 = toolDefinitions.map(_temp$70);
 		$[0] = toolDefinitions;
 		$[1] = t1;
 	} else t1 = $[1];
@@ -97602,7 +98110,7 @@ var StoreSpecificRenderableTypes = [human_baseline_session];
 	} else t3 = $[5];
 	return t3;
 };
-function _temp$69(toolDefinition, idx) {
+function _temp$70(toolDefinition, idx) {
 	const name = toolDefinition.name;
 	const toolArgs = toolDefinition.parameters?.properties ? Object.keys(toolDefinition.parameters.properties) : [];
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Tool, {
@@ -97882,7 +98390,7 @@ var GoToTurnBar_module_default = {
 			} else if (prefillTurn !== void 0) setValue(String(prefillTurn));
 			openRef.current = true;
 			setOpen(true);
-			setFocusEpoch(_temp$68);
+			setFocusEpoch(_temp$69);
 		};
 		$[0] = t2;
 	} else t2 = $[0];
@@ -98068,7 +98576,7 @@ var GoToTurnBar_module_default = {
 	} else t14 = $[29];
 	return t14;
 });
-function _temp$68(epoch) {
+function _temp$69(epoch) {
 	return epoch + 1;
 }
 var TimelineSelector_module_default = {
@@ -98327,7 +98835,7 @@ var ToolCheckInset_module_default = {
 	} else t6 = $[14];
 	let t7;
 	if ($[15] !== scores) {
-		t7 = scores?.map(_temp$67);
+		t7 = scores?.map(_temp$68);
 		$[15] = scores;
 		$[16] = t7;
 	} else t7 = $[16];
@@ -98526,7 +99034,7 @@ var ToolCheckInset_module_default = {
 	label: ToolCheckInset_module_default.label,
 	mono: ToolCheckInset_module_default.mono
 };
-function _temp$67(score, i) {
+function _temp$68(score, i) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: ToolCheckInset_module_default.scores,
 		children: score
@@ -98679,7 +99187,7 @@ var decisionIcon$1 = (decision) => {
 	const [collapsed, setCollapsed] = useCollapsedState(`${chain[0].id}-approval-chain`, true);
 	const event = final.event;
 	const look = decisionLook(event.decision);
-	const escalated = chain.slice(0, -1).some(_temp$66);
+	const escalated = chain.slice(0, -1).some(_temp$67);
 	let t1;
 	if ($[0] !== chain.length || $[1] !== collapsed || $[2] !== setCollapsed) {
 		t1 = chain.length > 1 ? {
@@ -98745,7 +99253,7 @@ var decisionLook = (decision) => {
 		};
 	}
 };
-function _temp$66(n) {
+function _temp$67(n) {
 	return n.event.decision === "escalate";
 }
 function _temp2$42(node, index) {
@@ -98937,7 +99445,7 @@ var EventNavsPicker_module_default = {
 	let t3;
 	if ($[3] === Symbol.for("react.memo_cache_sentinel")) {
 		t2 = clsx("nav-link", "active", "text-style-label", "text-size-small", EventNavsPicker_module_default.trigger);
-		t3 = () => setOpen(_temp$65);
+		t3 = () => setOpen(_temp$66);
 		$[3] = t2;
 		$[4] = t3;
 	} else {
@@ -99045,7 +99553,7 @@ var EventNavsPicker_module_default = {
 	} else t12 = $[28];
 	return t12;
 };
-function _temp$65(v) {
+function _temp$66(v) {
 	return !v;
 }
 // ../../packages/inspect-components/src/transcript/event/EventNavs.tsx
@@ -99138,7 +99646,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t5 = $[10];
 	let t6;
 	if ($[11] !== navs) {
-		t6 = navs.map(_temp$64);
+		t6 = navs.map(_temp$65);
 		$[11] = navs;
 		$[12] = t6;
 	} else t6 = $[12];
@@ -99167,7 +99675,7 @@ var SWITCH_TOLERANCE = 4;
 	} else t8 = $[18];
 	return t8;
 };
-function _temp$64(nav_1) {
+function _temp$65(nav_1) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("li", {
 		className: "nav-item",
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
@@ -99838,7 +100346,7 @@ var Snapshot = (t0) => {
 	if ($[7] !== details.additional_files || $[8] !== details.files) {
 		t4 = details.files && details.files.length > 0 ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: CheckpointEventView_module_default.files,
-			children: [details.files.map(_temp$63), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			children: [details.files.map(_temp$64), details.additional_files ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 				className: CheckpointEventView_module_default.fileOverflow,
 				children: [
 					"+",
@@ -99993,7 +100501,7 @@ var CheckpointEventView = (t0) => {
 	} else t19 = $[32];
 	return t19;
 };
-function _temp$63(file) {
+function _temp$64(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 		className: CheckpointEventView_module_default.file,
 		children: file
@@ -100422,7 +100930,7 @@ var kMaxPreviewLength = 200;
 	const t12 = expanded ? details : void 0;
 	const t13 = "button";
 	const t14 = CommunicationEventView_module_default;
-	const t15 = parts.map(_temp$62);
+	const t15 = parts.map(_temp$63);
 	let t16;
 	if ($[17] !== expanded || $[18] !== t14.line || $[19] !== t15 || $[20] !== toggle) {
 		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
@@ -100533,7 +101041,7 @@ var firstLine = (text) => {
 	const line = text.slice(skipBlankPrefix(text)).split(/\r?\n/, 1)[0] ?? "";
 	return line.length > kMaxPreviewLength ? `${line.slice(0, kMaxPreviewLength)}…` : line;
 };
-function _temp$62(part, index) {
+function _temp$63(part, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: part.tone === "refused" ? CommunicationEventView_module_default.refused : part.tone === "secondary" ? "text-style-secondary" : void 0,
 		children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ContentText, { text: part.text })
@@ -101142,7 +101650,7 @@ var RetryChip = (t0) => {
 	let t7;
 	let t8;
 	if ($[12] === Symbol.for("react.memo_cache_sentinel")) {
-		t7 = () => setOpen(_temp$61);
+		t7 = () => setOpen(_temp$62);
 		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
 			name: "retry",
 			className: RetryChip_module_default.chipIcon
@@ -101269,19 +101777,19 @@ function formatAttemptDuration(event) {
 	const sec = attemptDurationSec(event);
 	return sec != null ? formatTime$1(sec) : null;
 }
-function _temp$61(v) {
+function _temp$62(v) {
 	return !v;
 }
 var StopReasonBadge_module_default = {
-	section: "_section_8yqw9_1",
-	header: "_header_8yqw9_5",
-	label: "_label_8yqw9_12",
-	badge: "_badge_8yqw9_16",
-	neutral: "_neutral_8yqw9_31",
-	amber: "_amber_8yqw9_36",
-	blue: "_blue_8yqw9_41",
-	rose: "_rose_8yqw9_46",
-	gray: "_gray_8yqw9_51"
+	section: "_section_1yqrk_1",
+	header: "_header_1yqrk_5",
+	label: "_label_1yqrk_12",
+	badge: "_badge_1yqrk_16",
+	neutral: "_neutral_1yqrk_31",
+	amber: "_amber_1yqrk_36",
+	blue: "_blue_1yqrk_41",
+	rose: "_rose_1yqrk_46",
+	gray: "_gray_1yqrk_51"
 };
 // ../../packages/inspect-components/src/transcript/event/StopReasonBadge.tsx
 var TONE_CLASS = {
@@ -101551,7 +102059,7 @@ var ModelEventView = (t0) => {
 	const callTime = event.output.time;
 	let t4;
 	if ($[6] !== event.output.choices) {
-		t4 = event.output.choices.map(_temp$60);
+		t4 = event.output.choices.map(_temp$61);
 		$[6] = event.output.choices;
 		$[7] = t4;
 	} else t4 = $[7];
@@ -102010,7 +102518,7 @@ var ProviderIds = (t0) => {
 	} else t4 = $[5];
 	let t5;
 	if ($[6] !== requestIds) {
-		t5 = requestIds.map(_temp4$22);
+		t5 = requestIds.map(_temp4$23);
 		$[6] = requestIds;
 		$[7] = t5;
 	} else t5 = $[7];
@@ -102301,7 +102809,7 @@ var withoutToolCallsIn = (message, toolEventIds) => {
 		tool_calls: toolCalls
 	};
 };
-function _temp$60(choice) {
+function _temp$61(choice) {
 	return choice.message;
 }
 function _temp2$41(m) {
@@ -102310,7 +102818,7 @@ function _temp2$41(m) {
 function _temp3$28(m_2) {
 	return m_2.role === "tool";
 }
-function _temp4$22(requestId, index) {
+function _temp4$23(requestId, index) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(ProviderIdRow, {
 		label: requestId.header,
 		id: requestId.id,
@@ -102482,7 +102990,7 @@ var SampleInitEventView = (t0) => {
 			const t3 = `event-${eventNode.id}`;
 			let t4;
 			if ($[8] !== event.sample.files) {
-				t4 = Object.keys(event.sample.files).map(_temp$59);
+				t4 = Object.keys(event.sample.files).map(_temp$60);
 				$[8] = event.sample.files;
 				$[9] = t4;
 			} else t4 = $[9];
@@ -102621,7 +103129,7 @@ var SampleInitEventView = (t0) => {
 	} else t11 = $[42];
 	return t11;
 };
-function _temp$59(file) {
+function _temp$60(file) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)("pre", {
 		className: SampleInitEventView_module_default.noMargin,
 		children: file
@@ -102644,7 +103152,7 @@ function _temp3$27(target) {
 var SampleLimitEventView = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(12);
 	const { eventNode, className } = t0;
-	const resolve_title = _temp$58;
+	const resolve_title = _temp$59;
 	const resolve_icon = _temp2$39;
 	const baseTitle = resolve_title(eventNode.event.type);
 	let t1;
@@ -102689,7 +103197,7 @@ var SampleLimitEventView = (t0) => {
 	} else t5 = $[11];
 	return t5;
 };
-function _temp$58(type) {
+function _temp$59(type) {
 	switch (type) {
 		case "custom": return "Custom Limit Exceeded";
 		case "time": return "Time Limit Exceeded";
@@ -104013,7 +104521,7 @@ var CheckDetail = (t0) => {
 		} else t7 = $[29];
 		t8 = scores ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: SentinelEventView_module_default.scoreGrid,
-			children: scores.map(_temp$57)
+			children: scores.map(_temp$58)
 		}) : null;
 		$[8] = effectTone;
 		$[9] = event.stage;
@@ -104365,7 +104873,7 @@ var decisionClass = (decision) => {
 		case "proceed": return SentinelEventView_module_default.proceed;
 	}
 };
-function _temp$57(t0) {
+function _temp$58(t0) {
 	const [dimension, value] = t0;
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
 		className: SentinelEventView_module_default.scoreName,
@@ -104396,7 +104904,7 @@ function _temp$57(t0) {
 	const text = t2;
 	let t3;
 	if ($[4] !== childNodes) {
-		t3 = childNodes.map(_temp$56);
+		t3 = childNodes.map(_temp$57);
 		$[4] = childNodes;
 		$[5] = t3;
 	} else t3 = $[5];
@@ -104462,7 +104970,7 @@ var summarize = (children) => {
 	if (children.length === 1) return "1 event";
 	else return `${children.length} events`;
 };
-function _temp$56(child) {
+function _temp$57(child) {
 	return child.id;
 }
 // ../../packages/inspect-components/src/transcript/state/StateDiffView.tsx
@@ -104518,7 +105026,7 @@ var DiffChildren = (t0) => {
 	} else t2 = $[1];
 	let t3;
 	if ($[2] !== entry.children) {
-		t3 = entry.children.map(_temp$55);
+		t3 = entry.children.map(_temp$56);
 		$[2] = entry.children;
 		$[3] = t3;
 	} else t3 = $[3];
@@ -104662,7 +105170,7 @@ var DiffValue = (t0) => {
 	} else t2 = $[3];
 	return t2;
 };
-function _temp$55(child) {
+function _temp$56(child) {
 	return /*#__PURE__*/ (0, import_jsx_runtime.jsx)(DiffRow, { child }, child.id);
 }
 var StateEventView_module_default = {
@@ -104915,7 +105423,7 @@ var SubtaskEventView = (t0) => {
 	} else t4 = $[17];
 	let t5;
 	if ($[18] !== childNodes) {
-		t5 = childNodes.map(_temp$54);
+		t5 = childNodes.map(_temp$55);
 		$[18] = childNodes;
 		$[19] = t5;
 	} else t5 = $[19];
@@ -105064,7 +105572,7 @@ var None = () => {
 	} else t0 = $[0];
 	return t0;
 };
-function _temp$54(child) {
+function _temp$55(child) {
 	return child.id;
 }
 function _temp2$38(val, index) {
@@ -107125,7 +107633,7 @@ var ToolEventView = (t0) => {
 	const notRun = t1;
 	let t2;
 	if ($[13] !== childNodes) {
-		const lastModel = childNodes.findLast(_temp$53);
+		const lastModel = childNodes.findLast(_temp$54);
 		t2 = lastModel ? eventNodeOf(lastModel, "model") : void 0;
 		$[13] = childNodes;
 		$[14] = t2;
@@ -107352,7 +107860,7 @@ var ToolEventView = (t0) => {
 	} else t21 = $[81];
 	return t21;
 };
-function _temp$53(e) {
+function _temp$54(e) {
 	return e.event.event === "model";
 }
 function _temp2$37(child) {
@@ -109272,182 +109780,411 @@ var RenderedEventNode = /*#__PURE__*/ (0, import_react.memo)(RenderedEventNodeIn
 * fully expanded, with the transcript's own renderer but without the list's
 * card/gutter chrome. Shared by the inspect and scout focus pages, which
 * supply their own loading/error chrome.
-*/ var FocusTurnView = ({ nav, eventId, header, className, onExit, exitHref, error }) => {
+*/ var FocusTurnView = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(92);
+	const { nav, eventId, header, className, onExit, exitHref, error } = t0;
 	const { scrollRef, listHandle, slice, checks, turnInfo, totalTurns, onPrev, onNext, canStepNext, canStepPrev, goToTurn, laneCrumbs, laneOptions, focusTab } = nav;
 	const [laneMenuOpen, setLaneMenuOpen] = (0, import_react.useState)(false);
-	const handleExit = (0, import_react.useMemo)(() => {
-		if (!onExit) return void 0;
-		let exited = false;
-		return () => {
-			if (exited) return;
-			exited = true;
-			onExit();
-		};
-	}, [onExit]);
-	useEventListener(handleExit ? document : null, "keydown", (e) => {
-		if (!(e.key === "Escape" || e.key === "f" && !e.metaKey && !e.ctrlKey && !e.altKey)) return;
-		if (isEditableTarget(document.activeElement)) return;
-		if (e.key === "Escape" && hasOpenPopover()) return;
-		e.preventDefault();
-		if (laneMenuOpen) {
-			setLaneMenuOpen(false);
-			return;
+	let t1;
+	bb0: {
+		if (!onExit) {
+			t1 = void 0;
+			break bb0;
 		}
-		handleExit?.();
-	});
-	(0, import_react.useEffect)(() => {
-		scrollRef.current?.scrollTo({ top: 0 });
-	}, [nav.resolvedEventId, scrollRef]);
-	const laneButtonRef = (0, import_react.useRef)(null);
+		let exited;
+		if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+			exited = false;
+			$[0] = exited;
+		} else exited = $[0];
+		let t2;
+		if ($[1] !== onExit) {
+			t2 = () => {
+				if (exited) return;
+				exited = true;
+				onExit();
+			};
+			$[1] = onExit;
+			$[2] = t2;
+		} else t2 = $[2];
+		t1 = t2;
+	}
+	const handleExit = t1;
+	let t2;
+	if ($[3] !== handleExit || $[4] !== laneMenuOpen) {
+		t2 = (e) => {
+			if (!(e.key === "Escape" || e.key === "f" && !e.metaKey && !e.ctrlKey && !e.altKey)) return;
+			if (isEditableTarget(document.activeElement)) return;
+			if (e.key === "Escape" && hasOpenPopover()) return;
+			e.preventDefault();
+			if (laneMenuOpen) {
+				setLaneMenuOpen(false);
+				return;
+			}
+			handleExit?.();
+		};
+		$[3] = handleExit;
+		$[4] = laneMenuOpen;
+		$[5] = t2;
+	} else t2 = $[5];
+	useEventListener(handleExit ? document : null, "keydown", t2);
+	let t3;
+	if ($[6] !== scrollRef) {
+		t3 = () => {
+			scrollRef.current?.scrollTo({ top: 0 });
+		};
+		$[6] = scrollRef;
+		$[7] = t3;
+	} else t3 = $[7];
+	let t4;
+	if ($[8] !== nav.resolvedEventId || $[9] !== scrollRef) {
+		t4 = [nav.resolvedEventId, scrollRef];
+		$[8] = nav.resolvedEventId;
+		$[9] = scrollRef;
+		$[10] = t4;
+	} else t4 = $[10];
+	(0, import_react.useEffect)(t3, t4);
+	const [laneButtonEl, setLaneButtonEl] = (0, import_react.useState)(null);
 	const showLanePicker = laneOptions.length > 1;
-	const eventCallbacks = (0, import_react.useMemo)(() => ({
-		getSelectedTab: (_eventNodeId, tabNames) => tabNames.includes(focusTab.tab) ? focusTab.tab : tabNames[0],
-		onSelectTab: (_eventNodeId, tabName) => focusTab.setTab(tabName),
-		onTabSelected: () => scrollRef.current?.scrollTo({ top: 0 })
-	}), [focusTab, scrollRef]);
-	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-		className: clsx(FocusTurnView_module_default.root, className),
-		children: [
-			header,
-			error && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
-				type: "button",
-				className: FocusTurnView_module_default.errorStrip,
-				onClick: () => goToTurn(totalTurns),
-				title: "Jump to the last turn (the error details render after it)",
-				children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-					className: FocusTurnView_module_default.errorStripLabel,
-					children: error.label
-				}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-					className: FocusTurnView_module_default.errorStripMessage,
-					children: error.message
-				})]
-			}),
-			/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-				className: clsx("text-size-smaller", FocusTurnView_module_default.focusBar),
-				children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-					className: FocusTurnView_module_default.crumbs,
-					children: laneCrumbs.map((crumb, i) => {
-						const isLast = i === laneCrumbs.length - 1;
-						const isPicker = i === 0 && showLanePicker;
-						return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [i > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
-							name: "chevronRight",
-							className: FocusTurnView_module_default.crumbSeparator
-						}), isPicker ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
-							ref: laneButtonRef,
-							type: "button",
-							className: TimelineSelector_module_default.selectorButton,
-							title: "Select agent",
-							"aria-label": `Select agent (current: ${crumb.label})`,
-							"aria-haspopup": "listbox",
-							"aria-expanded": laneMenuOpen,
-							onClick: () => setLaneMenuOpen((open) => !open),
-							children: [crumb.label, /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
-								name: "chevronDown",
-								className: TimelineSelector_module_default.chevron
-							})]
-						}) : isLast ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-							className: FocusTurnView_module_default.laneName,
-							children: crumb.label
-						}) : crumb.onSelect ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-							type: "button",
-							className: FocusTurnView_module_default.crumbButton,
-							title: `Go to ${crumb.label}`,
-							onClick: crumb.onSelect,
-							children: crumb.label
-						}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: crumb.label })] }, i);
-					})
-				}), /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-					className: FocusTurnView_module_default.controls,
-					children: [
-						turnInfo && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
-							className: FocusTurnView_module_default.turnLabel,
-							children: [
-								nav.followingLatest ? "following latest turn " : "turn ",
-								turnInfo.turnNumber,
-								"/",
-								turnInfo.totalTurns
-							]
-						}),
-						/*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-							type: "button",
-							className: FocusTurnView_module_default.button,
-							title: "Next turn (j)",
-							"aria-label": "Next turn",
-							disabled: !canStepNext,
-							onClick: onNext,
-							children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "chevronDown" })
-						}),
-						/*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-							type: "button",
-							className: FocusTurnView_module_default.button,
-							title: "Previous turn (k)",
-							"aria-label": "Previous turn",
-							disabled: !canStepPrev,
-							onClick: onPrev,
-							children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "chevronUp" })
-						}),
-						handleExit && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { className: FocusTurnView_module_default.divider }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(InAppLink, {
-							href: exitHref,
-							onNavigate: handleExit,
-							className: FocusTurnView_module_default.button,
-							title: "Exit focus mode (Esc or f)",
-							"aria-label": "Exit focus mode",
-							children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "focusExit" })
-						})] })
-					]
-				})]
-			}),
-			showLanePicker && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PopOver, {
-				id: "focus-lane-picker",
-				isOpen: laneMenuOpen,
-				setIsOpen: setLaneMenuOpen,
-				positionEl: laneButtonRef.current,
-				placement: "bottom-start",
-				hoverDelay: -1,
-				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-					className: clsx("text-size-smaller", FocusTurnView_module_default.laneMenu),
-					children: laneOptions.map((option, i) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: clsx(FocusTurnView_module_default.laneMenuItem, option.isCurrent && FocusTurnView_module_default.laneMenuItemCurrent),
-						style: { paddingLeft: `${.4 + option.depth * .9}em` },
-						onClick: () => {
-							option.onSelect();
-							setLaneMenuOpen(false);
-						},
-						children: option.label
-					}, i))
-				})
-			}),
-			/*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-				className: FocusTurnView_module_default.container,
-				ref: scrollRef,
-				children: /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(StickyScrollProvider, {
-					value: {
-						stickyTop: 0,
-						scrollRef
-					},
-					children: [totalTurns > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(GoToTurnBar, {
-						totalTurns,
-						onJump: goToTurn
-					}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptVirtualList, {
-						id: `event-${eventId}`,
-						listHandle,
-						eventNodes: slice,
-						scrollRef,
-						disableVirtualization: true,
-						relativeIndent: true,
-						eventCallbacks,
-						eventNodeContext: {
-							hasToolEvents: true,
-							...checks,
-							inputShownElsewhere: true
-						}
+	let t5;
+	let t6;
+	if ($[11] !== focusTab) {
+		t5 = (_eventNodeId, tabNames) => tabNames.includes(focusTab.tab) ? focusTab.tab : tabNames[0];
+		t6 = (_eventNodeId_0, tabName) => focusTab.setTab(tabName);
+		$[11] = focusTab;
+		$[12] = t5;
+		$[13] = t6;
+	} else {
+		t5 = $[12];
+		t6 = $[13];
+	}
+	let t7;
+	if ($[14] !== scrollRef) {
+		t7 = () => scrollRef.current?.scrollTo({ top: 0 });
+		$[14] = scrollRef;
+		$[15] = t7;
+	} else t7 = $[15];
+	let t8;
+	if ($[16] !== t5 || $[17] !== t6 || $[18] !== t7) {
+		t8 = {
+			getSelectedTab: t5,
+			onSelectTab: t6,
+			onTabSelected: t7
+		};
+		$[16] = t5;
+		$[17] = t6;
+		$[18] = t7;
+		$[19] = t8;
+	} else t8 = $[19];
+	const eventCallbacks = t8;
+	let t9;
+	if ($[20] !== className) {
+		t9 = clsx(FocusTurnView_module_default.root, className);
+		$[20] = className;
+		$[21] = t9;
+	} else t9 = $[21];
+	let t10;
+	if ($[22] !== error || $[23] !== goToTurn || $[24] !== totalTurns) {
+		t10 = error && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			className: FocusTurnView_module_default.errorStrip,
+			onClick: () => goToTurn(totalTurns),
+			title: "Jump to the last turn (the error details render after it)",
+			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: FocusTurnView_module_default.errorStripLabel,
+				children: error.label
+			}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+				className: FocusTurnView_module_default.errorStripMessage,
+				children: error.message
+			})]
+		});
+		$[22] = error;
+		$[23] = goToTurn;
+		$[24] = totalTurns;
+		$[25] = t10;
+	} else t10 = $[25];
+	let t11;
+	if ($[26] === Symbol.for("react.memo_cache_sentinel")) {
+		t11 = clsx("text-size-smaller", FocusTurnView_module_default.focusBar);
+		$[26] = t11;
+	} else t11 = $[26];
+	let t12;
+	if ($[27] !== laneCrumbs || $[28] !== laneMenuOpen || $[29] !== showLanePicker) {
+		let t13;
+		if ($[31] !== laneCrumbs.length || $[32] !== laneMenuOpen || $[33] !== showLanePicker) {
+			t13 = (crumb, i) => {
+				const isLast = i === laneCrumbs.length - 1;
+				const isPicker = i === 0 && showLanePicker;
+				return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [i > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
+					name: "chevronRight",
+					className: FocusTurnView_module_default.crumbSeparator
+				}), isPicker ? /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+					ref: setLaneButtonEl,
+					type: "button",
+					className: TimelineSelector_module_default.selectorButton,
+					title: "Select agent",
+					"aria-label": `Select agent (current: ${crumb.label})`,
+					"aria-haspopup": "listbox",
+					"aria-expanded": laneMenuOpen,
+					onClick: () => setLaneMenuOpen(_temp$53),
+					children: [crumb.label, /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, {
+						name: "chevronDown",
+						className: TimelineSelector_module_default.chevron
 					})]
-				})
+				}) : isLast ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+					className: FocusTurnView_module_default.laneName,
+					children: crumb.label
+				}) : crumb.onSelect ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+					type: "button",
+					className: FocusTurnView_module_default.crumbButton,
+					title: `Go to ${crumb.label}`,
+					onClick: crumb.onSelect,
+					children: crumb.label
+				}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { children: crumb.label })] }, i);
+			};
+			$[31] = laneCrumbs.length;
+			$[32] = laneMenuOpen;
+			$[33] = showLanePicker;
+			$[34] = t13;
+		} else t13 = $[34];
+		t12 = laneCrumbs.map(t13);
+		$[27] = laneCrumbs;
+		$[28] = laneMenuOpen;
+		$[29] = showLanePicker;
+		$[30] = t12;
+	} else t12 = $[30];
+	let t13;
+	if ($[35] !== t12) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: FocusTurnView_module_default.crumbs,
+			children: t12
+		});
+		$[35] = t12;
+		$[36] = t13;
+	} else t13 = $[36];
+	let t14;
+	if ($[37] !== nav.followingLatest || $[38] !== turnInfo) {
+		t14 = turnInfo && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+			className: FocusTurnView_module_default.turnLabel,
+			children: [
+				nav.followingLatest ? "following latest turn " : "turn ",
+				turnInfo.turnNumber,
+				"/",
+				turnInfo.totalTurns
+			]
+		});
+		$[37] = nav.followingLatest;
+		$[38] = turnInfo;
+		$[39] = t14;
+	} else t14 = $[39];
+	const t15 = !canStepNext;
+	let t16;
+	if ($[40] === Symbol.for("react.memo_cache_sentinel")) {
+		t16 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "chevronDown" });
+		$[40] = t16;
+	} else t16 = $[40];
+	let t17;
+	if ($[41] !== onNext || $[42] !== t15) {
+		t17 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: FocusTurnView_module_default.button,
+			title: "Next turn (j)",
+			"aria-label": "Next turn",
+			disabled: t15,
+			onClick: onNext,
+			children: t16
+		});
+		$[41] = onNext;
+		$[42] = t15;
+		$[43] = t17;
+	} else t17 = $[43];
+	const t18 = !canStepPrev;
+	let t19;
+	if ($[44] === Symbol.for("react.memo_cache_sentinel")) {
+		t19 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "chevronUp" });
+		$[44] = t19;
+	} else t19 = $[44];
+	let t20;
+	if ($[45] !== onPrev || $[46] !== t18) {
+		t20 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: FocusTurnView_module_default.button,
+			title: "Previous turn (k)",
+			"aria-label": "Previous turn",
+			disabled: t18,
+			onClick: onPrev,
+			children: t19
+		});
+		$[45] = onPrev;
+		$[46] = t18;
+		$[47] = t20;
+	} else t20 = $[47];
+	let t21;
+	if ($[48] !== exitHref || $[49] !== handleExit) {
+		t21 = handleExit && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", { className: FocusTurnView_module_default.divider }), /*#__PURE__*/ (0, import_jsx_runtime.jsx)(InAppLink, {
+			href: exitHref,
+			onNavigate: handleExit,
+			className: FocusTurnView_module_default.button,
+			title: "Exit focus mode (Esc or f)",
+			"aria-label": "Exit focus mode",
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "focusExit" })
+		})] });
+		$[48] = exitHref;
+		$[49] = handleExit;
+		$[50] = t21;
+	} else t21 = $[50];
+	let t22;
+	if ($[51] !== t14 || $[52] !== t17 || $[53] !== t20 || $[54] !== t21) {
+		t22 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: FocusTurnView_module_default.controls,
+			children: [
+				t14,
+				t17,
+				t20,
+				t21
+			]
+		});
+		$[51] = t14;
+		$[52] = t17;
+		$[53] = t20;
+		$[54] = t21;
+		$[55] = t22;
+	} else t22 = $[55];
+	let t23;
+	if ($[56] !== t13 || $[57] !== t22) {
+		t23 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t11,
+			children: [t13, t22]
+		});
+		$[56] = t13;
+		$[57] = t22;
+		$[58] = t23;
+	} else t23 = $[58];
+	let t24;
+	if ($[59] !== laneButtonEl || $[60] !== laneMenuOpen || $[61] !== laneOptions || $[62] !== showLanePicker) {
+		t24 = showLanePicker && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(PopOver, {
+			id: "focus-lane-picker",
+			isOpen: laneMenuOpen,
+			setIsOpen: setLaneMenuOpen,
+			positionEl: laneButtonEl,
+			placement: "bottom-start",
+			hoverDelay: -1,
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+				className: clsx("text-size-smaller", FocusTurnView_module_default.laneMenu),
+				children: laneOptions.map((option, i_0) => /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+					type: "button",
+					className: clsx(FocusTurnView_module_default.laneMenuItem, option.isCurrent && FocusTurnView_module_default.laneMenuItemCurrent),
+					style: { paddingLeft: `${.4 + option.depth * .9}em` },
+					onClick: () => {
+						option.onSelect();
+						setLaneMenuOpen(false);
+					},
+					children: option.label
+				}, i_0))
 			})
-		]
-	});
+		});
+		$[59] = laneButtonEl;
+		$[60] = laneMenuOpen;
+		$[61] = laneOptions;
+		$[62] = showLanePicker;
+		$[63] = t24;
+	} else t24 = $[63];
+	let t25;
+	if ($[64] !== scrollRef) {
+		t25 = {
+			stickyTop: 0,
+			scrollRef
+		};
+		$[64] = scrollRef;
+		$[65] = t25;
+	} else t25 = $[65];
+	let t26;
+	if ($[66] !== goToTurn || $[67] !== totalTurns) {
+		t26 = totalTurns > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(GoToTurnBar, {
+			totalTurns,
+			onJump: goToTurn
+		});
+		$[66] = goToTurn;
+		$[67] = totalTurns;
+		$[68] = t26;
+	} else t26 = $[68];
+	const t27 = `event-${eventId}`;
+	let t28;
+	if ($[69] !== checks) {
+		t28 = {
+			hasToolEvents: true,
+			...checks,
+			inputShownElsewhere: true
+		};
+		$[69] = checks;
+		$[70] = t28;
+	} else t28 = $[70];
+	let t29;
+	if ($[71] !== eventCallbacks || $[72] !== listHandle || $[73] !== scrollRef || $[74] !== slice || $[75] !== t27 || $[76] !== t28) {
+		t29 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TranscriptVirtualList, {
+			id: t27,
+			listHandle,
+			eventNodes: slice,
+			scrollRef,
+			disableVirtualization: true,
+			relativeIndent: true,
+			eventCallbacks,
+			eventNodeContext: t28
+		});
+		$[71] = eventCallbacks;
+		$[72] = listHandle;
+		$[73] = scrollRef;
+		$[74] = slice;
+		$[75] = t27;
+		$[76] = t28;
+		$[77] = t29;
+	} else t29 = $[77];
+	let t30;
+	if ($[78] !== t25 || $[79] !== t26 || $[80] !== t29) {
+		t30 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(StickyScrollProvider, {
+			value: t25,
+			children: [t26, t29]
+		});
+		$[78] = t25;
+		$[79] = t26;
+		$[80] = t29;
+		$[81] = t30;
+	} else t30 = $[81];
+	let t31;
+	if ($[82] !== scrollRef || $[83] !== t30) {
+		t31 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: FocusTurnView_module_default.container,
+			ref: scrollRef,
+			children: t30
+		});
+		$[82] = scrollRef;
+		$[83] = t30;
+		$[84] = t31;
+	} else t31 = $[84];
+	let t32;
+	if ($[85] !== header || $[86] !== t10 || $[87] !== t23 || $[88] !== t24 || $[89] !== t31 || $[90] !== t9) {
+		t32 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: t9,
+			children: [
+				header,
+				t10,
+				t23,
+				t24,
+				t31
+			]
+		});
+		$[85] = header;
+		$[86] = t10;
+		$[87] = t23;
+		$[88] = t24;
+		$[89] = t31;
+		$[90] = t9;
+		$[91] = t32;
+	} else t32 = $[91];
+	return t32;
 };
+function _temp$53(open) {
+	return !open;
+}
 // ../../packages/inspect-components/src/transcript/resolveMessageToEvent.ts
 /**
 * Resolves a message ID to the best matching event in a TimelineSpan tree.
@@ -109752,8 +110489,8 @@ var PRIORITY_MODEL_INPUT = 4;
 /**
 * Pairs each approval chain to its ToolEvent. A sample whose log records
 * `execution_id` (`recordsExecutionIds`) pairs by execution
-* (`pairToolApprovalsByExecution`); any other exactly as before the field
-* (`pairToolApprovalsLegacy`). Callers that render part of a sample pass the
+* (`pairToolApprovalsByExecution`); any other with the rules from before the
+* field (`pairToolApprovalsLegacy`). Callers that render part of a sample pass the
 * sample's answer, so every view of it pairs the same way.
 */ function pairToolApprovals(eventNodes, recordsExecutions = treeRecordsExecutionIds(eventNodes)) {
 	return recordsExecutions ? pairToolApprovalsByExecution(eventNodes) : pairToolApprovalsLegacy(eventNodes);
@@ -109774,6 +110511,7 @@ var PRIORITY_MODEL_INPUT = 4;
 	if (chain.length) result.push(chain);
 	return result;
 };
+/** The call ids a model output proposed, each once. */ var proposedIds = (node) => node.event.event === "model" ? [...new Set(node.event.output.choices.flatMap((choice) => (choice.message.tool_calls ?? []).map((call) => call.id)))] : [];
 /** Whether the decision that ended a chain kept its call from running. */ var chainStopped = (chain) => {
 	const last = chain.at(-1)?.event;
 	return !!last && last.decision !== "escalate" && approvalStopped(last);
@@ -109813,8 +110551,11 @@ var PRIORITY_MODEL_INPUT = 4;
 *   `BridgeOutputs`): it judged a call that never ran, though it approved.
 * - Each native attempt records its ToolEvent, a stopped one as failed, so a
 *   native ToolEvent takes the oldest chain still waiting for its id, and a
-*   stopped chain only when the ToolEvent failed. Approvals recorded after
-*   every ToolEvent of their id go to the last one when it is native.
+*   stopped chain only when the ToolEvent failed. Approvals that come after
+*   the last ToolEvent of their id go to it when it is native. Its timestamp
+*   is from before approval, so the timeline sorts it ahead of its approvals.
+*   A new proposal of the id ends that call, settling its waiting chains on
+*   the native ToolEvent recorded since the previous proposal.
 */ function pairToolApprovalsByExecution(eventNodes) {
 	const chains = /* @__PURE__ */ new Map();
 	/** By scope and `runIdOf`, the tools an approval's `execution_id` may name. */ const toolsOf = /* @__PURE__ */ new Map();
@@ -109825,18 +110566,33 @@ var PRIORITY_MODEL_INPUT = 4;
 	const order = /* @__PURE__ */ new Map();
 	const outputs = bridgeOutputs();
 	/** The output each approval with no `execution_id` judged a call of. */ const outputOf = /* @__PURE__ */ new Map();
+	/** Keys with a ToolEvent recorded since the last proposal of their id. */ const ranSinceProposal = /* @__PURE__ */ new Set();
 	const take = (key) => {
 		const queue = waiting.get(key) ?? [];
 		waiting.delete(key);
 		return splitChains(queue);
+	};
+	const append = (toolNodeId, nodes) => {
+		chains.set(toolNodeId, [...chains.get(toolNodeId) ?? [], ...nodes].sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)));
+	};
+	const settle = (key) => {
+		const tool = lastTool.get(key);
+		for (const chain of take(key)) if (tool && !isBridgeTool(tool.event) && (!chainStopped(chain) || toolFailed(tool.event))) append(tool.id, chain);
+		else unpaired.push(...chain);
 	};
 	const walk = (nodes, scope) => {
 		for (const n of nodes) {
 			if (order.has(n.id)) continue;
 			const at = order.size;
 			order.set(n.id, at);
-			if (n.event.event === "model") outputs.propose(scope, n.id, !!n.event.requested_model, n.event.output.choices.flatMap((choice) => (choice.message.tool_calls ?? []).map((call) => call.id)), at);
-			else if (n.event.event === "approval") {
+			if (n.event.event === "model") {
+				const ids = proposedIds(n);
+				for (const id of ids) {
+					const key = `${scope}\u0000${id}`;
+					if (ranSinceProposal.delete(key)) settle(key);
+				}
+				outputs.propose(scope, n.id, !!n.event.requested_model, ids, at);
+			} else if (n.event.event === "approval") {
 				const node = eventNodeOf(n, "approval");
 				const key = `${scope}\u0000${executionIdOf(n.event)}`;
 				if (n.event.execution_id != null) named.push({
@@ -109873,6 +110629,7 @@ var PRIORITY_MODEL_INPUT = 4;
 				if (tools) tools.push(tool);
 				else toolsOf.set(runKey, [tool]);
 				lastTool.set(key, tool);
+				if (!isBridgeTool(n.event)) ranSinceProposal.add(key);
 			} else if (isSentinelSpan(n) && n.event.event === "span_begin" && n.event.name === "sentinel_bridge") {
 				const step = buildSentinelStep(stepNodes(n));
 				if (step.stage === "tool_call" && step.executionId === void 0 && stopsCall(step)) {
@@ -109884,14 +110641,7 @@ var PRIORITY_MODEL_INPUT = 4;
 		}
 	};
 	walk(eventNodes, "");
-	const append = (toolNodeId, nodes) => {
-		chains.set(toolNodeId, [...chains.get(toolNodeId) ?? [], ...nodes].sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)));
-	};
-	for (const [key, queue] of waiting) {
-		const tool = lastTool.get(key);
-		for (const chain of splitChains(queue)) if (tool && !isBridgeTool(tool.event) && (!chainStopped(chain) || toolFailed(tool.event))) append(tool.id, chain);
-		else unpaired.push(...chain);
-	}
+	for (const key of waiting.keys()) settle(key);
 	for (const { node, key } of named) {
 		const runs = toolsOf.get(key) ?? [];
 		const [only, other] = runs.length > 1 && runs[0]?.event.execution_id != null ? runs.filter((run) => run.event.function === node.event.call.function) : runs;
@@ -109928,17 +110678,31 @@ var PRIORITY_MODEL_INPUT = 4;
 * escalations up to the decision that ends them, and is recorded before its
 * ToolEvent, so each ToolEvent takes the oldest chain still waiting for its
 * id; a call id reused by several calls pairs each call with its own chain.
-* Approvals recorded after every ToolEvent of their id go to the last one.
+* Approvals that come after the last ToolEvent of their id go to it. Its
+* timestamp is from before approval, so the timeline sorts it ahead of its
+* approvals. A new proposal of the id ends that call, settling its waiting
+* chains on the native ToolEvent recorded since the previous proposal; a
+* bridge's host run is stamped after its approvals.
 */ function pairToolApprovalsLegacy(eventNodes) {
 	const chains = /* @__PURE__ */ new Map();
 	const lastTool = /* @__PURE__ */ new Map();
 	const waiting = /* @__PURE__ */ new Map();
 	const seen = /* @__PURE__ */ new Set();
+	const ranSinceProposal = /* @__PURE__ */ new Set();
+	const settle = (callId) => {
+		const queue = waiting.get(callId);
+		const toolNodeId = lastTool.get(callId);
+		if (!toolNodeId || !queue?.length) return;
+		chains.set(toolNodeId, [...chains.get(toolNodeId) ?? [], ...queue]);
+		waiting.delete(callId);
+	};
 	const walk = (nodes) => {
 		for (const n of nodes) {
 			if (seen.has(n.id)) continue;
 			seen.add(n.id);
-			if (n.event.event === "approval") {
+			if (n.event.event === "model") {
+				for (const id of proposedIds(n)) if (ranSinceProposal.delete(id)) settle(id);
+			} else if (n.event.event === "approval") {
 				const queue = waiting.get(n.event.call.id) ?? [];
 				queue.push(eventNodeOf(n, "approval"));
 				waiting.set(n.event.call.id, queue);
@@ -109948,17 +110712,14 @@ var PRIORITY_MODEL_INPUT = 4;
 				const chain = queue.splice(0, end === -1 ? queue.length : end + 1);
 				if (chain.length) chains.set(n.id, chain);
 				lastTool.set(n.event.id, n.id);
+				if (!isBridgeTool(n.event)) ranSinceProposal.add(n.event.id);
 			}
 			if (n.children.length) walk(n.children);
 		}
 	};
 	walk(eventNodes);
-	const unpaired = [];
-	for (const [callId, queue] of waiting) {
-		const toolNodeId = lastTool.get(callId);
-		if (!toolNodeId) unpaired.push(...queue);
-		else if (queue.length) chains.set(toolNodeId, [...chains.get(toolNodeId) ?? [], ...queue]);
-	}
+	for (const callId of waiting.keys()) settle(callId);
+	const unpaired = [...waiting.values()].flat();
 	const toolApprovals = /* @__PURE__ */ new Map();
 	const hiddenApprovalIds = /* @__PURE__ */ new Set();
 	const approvalScrollRedirects = /* @__PURE__ */ new Map();
@@ -111867,7 +112628,7 @@ function useTranscriptTimeline(options) {
 	const hasTimeline = t16;
 	let t17;
 	if ($[57] !== visibleRows) {
-		t17 = visibleRows.some(_temp4$21);
+		t17 = visibleRows.some(_temp4$22);
 		$[57] = visibleRows;
 		$[58] = t17;
 	} else t17 = $[58];
@@ -112031,7 +112792,7 @@ function useTranscriptTimeline(options) {
 	} else t27 = $[106];
 	return t27;
 }
-function _temp4$21(row_3) {
+function _temp4$22(row_3) {
 	if (row_3.depth < 1) return false;
 	const rowSpan = row_3.spans[0];
 	if (!rowSpan) return false;
@@ -113740,96 +114501,163 @@ var SwimlaneRow = (t0) => {
 	} else t20 = $[79];
 	return t20;
 };
-var HeaderRow = ({ node, minimap, scrubberProgress, onScrub, onScrollToTop, breadcrumbs, onBreadcrumbSelect, timelineConfig, hiddenUtilityCount, multiTimeline, onToggleBranches, views }) => {
+var HeaderRow = (t0) => {
+	const $ = (0, import_compiler_runtime.c)(33);
+	const { node, minimap, scrubberProgress, onScrub, onScrollToTop, breadcrumbs, onBreadcrumbSelect, timelineConfig, hiddenUtilityCount, multiTimeline, onToggleBranches, views } = t0;
 	const hasBreadcrumbs = breadcrumbs && breadcrumbs.length > 1;
 	const rootDisplay = node.name === "solvers" ? "main" : node.name;
 	const [optionsOpen, setOptionsOpen] = (0, import_react.useState)(false);
-	const optionsButtonRef = (0, import_react.useRef)(null);
-	return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
-		className: TimelineSwimLanes_module_default.breadcrumbRow,
-		children: [
-			multiTimeline && multiTimeline.timelines.length > 1 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineSelector, {
-				timelines: multiTimeline.timelines,
-				activeIndex: multiTimeline.activeIndex,
-				onSelect: multiTimeline.setActive
-			}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-				className: TimelineSwimLanes_module_default.breadcrumbDivider,
-				children: "/"
-			})] }),
-			views && views.stack.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
-				type: "button",
-				className: TimelineSwimLanes_module_default.viewStackBack,
-				onClick: views.pop,
-				title: "Back to branch overview",
-				children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "chevronLeft" }), views.stack.at(-1).label]
-			}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-				className: TimelineSwimLanes_module_default.breadcrumbDivider,
-				children: "/"
-			})] }),
-			hasBreadcrumbs ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
-				className: TimelineSwimLanes_module_default.breadcrumbTrail,
-				children: breadcrumbs.map((segment, i) => {
-					const isLast = i === breadcrumbs.length - 1;
-					return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
-						className: TimelineSwimLanes_module_default.breadcrumbSegment,
-						children: [i > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-							className: TimelineSwimLanes_module_default.breadcrumbDivider,
-							children: "/"
-						}), isLast ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
-							className: TimelineSwimLanes_module_default.breadcrumbCurrent,
-							children: segment.label
-						}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-							type: "button",
-							className: TimelineSwimLanes_module_default.breadcrumbLink,
-							onClick: () => onBreadcrumbSelect?.(segment.key),
-							children: segment.label
-						})]
-					}, segment.key);
-				})
-			}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-				type: "button",
-				className: TimelineSwimLanes_module_default.breadcrumbCurrent,
-				onClick: onScrollToTop,
-				children: rootDisplay
-			}),
-			timelineConfig && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
-				ref: optionsButtonRef,
-				type: "button",
-				className: TimelineSwimLanes_module_default.optionsButton,
-				onClick: () => setOptionsOpen((prev) => !prev),
-				title: "Timeline options",
-				"aria-label": "Timeline options",
-				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "threeDots" })
-			}),
-			timelineConfig && !timelineConfig.includeUtility && (hiddenUtilityCount ?? 0) > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
-				type: "button",
-				className: TimelineSwimLanes_module_default.hiddenUtility,
-				onClick: () => timelineConfig.setIncludeUtility(true),
-				title: "Show utility agents",
-				children: [
-					hiddenUtilityCount,
-					" utility",
-					" ",
-					hiddenUtilityCount === 1 ? "agent" : "agents",
-					" hidden"
-				]
-			}),
-			minimap && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineMinimap, {
-				root: node,
-				mapping: minimap.mapping,
-				selection: minimap.selection,
-				scrubberProgress,
-				onScrub
-			}),
-			timelineConfig && onToggleBranches && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineOptionsPopover, {
-				isOpen: optionsOpen,
-				setIsOpen: setOptionsOpen,
-				positionEl: optionsButtonRef.current,
-				config: timelineConfig,
-				onToggleBranches
+	const [optionsButtonEl, setOptionsButtonEl] = (0, import_react.useState)(null);
+	let t1;
+	if ($[0] !== multiTimeline) {
+		t1 = multiTimeline && multiTimeline.timelines.length > 1 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineSelector, {
+			timelines: multiTimeline.timelines,
+			activeIndex: multiTimeline.activeIndex,
+			onSelect: multiTimeline.setActive
+		}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: TimelineSwimLanes_module_default.breadcrumbDivider,
+			children: "/"
+		})] });
+		$[0] = multiTimeline;
+		$[1] = t1;
+	} else t1 = $[1];
+	let t2;
+	if ($[2] !== views) {
+		t2 = views && views.stack.length > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			className: TimelineSwimLanes_module_default.viewStackBack,
+			onClick: views.pop,
+			title: "Back to branch overview",
+			children: [/*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "chevronLeft" }), views.stack.at(-1).label]
+		}), /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+			className: TimelineSwimLanes_module_default.breadcrumbDivider,
+			children: "/"
+		})] });
+		$[2] = views;
+		$[3] = t2;
+	} else t2 = $[3];
+	let t3;
+	if ($[4] !== breadcrumbs || $[5] !== hasBreadcrumbs || $[6] !== onBreadcrumbSelect || $[7] !== onScrollToTop || $[8] !== rootDisplay) {
+		t3 = hasBreadcrumbs ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+			className: TimelineSwimLanes_module_default.breadcrumbTrail,
+			children: breadcrumbs.map((segment, i) => {
+				const isLast = i === breadcrumbs.length - 1;
+				return /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("span", {
+					className: TimelineSwimLanes_module_default.breadcrumbSegment,
+					children: [i > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+						className: TimelineSwimLanes_module_default.breadcrumbDivider,
+						children: "/"
+					}), isLast ? /*#__PURE__*/ (0, import_jsx_runtime.jsx)("span", {
+						className: TimelineSwimLanes_module_default.breadcrumbCurrent,
+						children: segment.label
+					}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						className: TimelineSwimLanes_module_default.breadcrumbLink,
+						onClick: () => onBreadcrumbSelect?.(segment.key),
+						children: segment.label
+					})]
+				}, segment.key);
 			})
-		]
-	});
+		}) : /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: TimelineSwimLanes_module_default.breadcrumbCurrent,
+			onClick: onScrollToTop,
+			children: rootDisplay
+		});
+		$[4] = breadcrumbs;
+		$[5] = hasBreadcrumbs;
+		$[6] = onBreadcrumbSelect;
+		$[7] = onScrollToTop;
+		$[8] = rootDisplay;
+		$[9] = t3;
+	} else t3 = $[9];
+	let t4;
+	if ($[10] !== timelineConfig) {
+		t4 = timelineConfig && /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+			ref: setOptionsButtonEl,
+			type: "button",
+			className: TimelineSwimLanes_module_default.optionsButton,
+			onClick: () => setOptionsOpen(_temp4$21),
+			title: "Timeline options",
+			"aria-label": "Timeline options",
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "threeDots" })
+		});
+		$[10] = timelineConfig;
+		$[11] = t4;
+	} else t4 = $[11];
+	let t5;
+	if ($[12] !== hiddenUtilityCount || $[13] !== timelineConfig) {
+		t5 = timelineConfig && !timelineConfig.includeUtility && (hiddenUtilityCount ?? 0) > 0 && /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			className: TimelineSwimLanes_module_default.hiddenUtility,
+			onClick: () => timelineConfig.setIncludeUtility(true),
+			title: "Show utility agents",
+			children: [
+				hiddenUtilityCount,
+				" utility",
+				" ",
+				hiddenUtilityCount === 1 ? "agent" : "agents",
+				" hidden"
+			]
+		});
+		$[12] = hiddenUtilityCount;
+		$[13] = timelineConfig;
+		$[14] = t5;
+	} else t5 = $[14];
+	let t6;
+	if ($[15] !== minimap || $[16] !== node || $[17] !== onScrub || $[18] !== scrubberProgress) {
+		t6 = minimap && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineMinimap, {
+			root: node,
+			mapping: minimap.mapping,
+			selection: minimap.selection,
+			scrubberProgress,
+			onScrub
+		});
+		$[15] = minimap;
+		$[16] = node;
+		$[17] = onScrub;
+		$[18] = scrubberProgress;
+		$[19] = t6;
+	} else t6 = $[19];
+	let t7;
+	if ($[20] !== onToggleBranches || $[21] !== optionsButtonEl || $[22] !== optionsOpen || $[23] !== timelineConfig) {
+		t7 = timelineConfig && onToggleBranches && /*#__PURE__*/ (0, import_jsx_runtime.jsx)(TimelineOptionsPopover, {
+			isOpen: optionsOpen,
+			setIsOpen: setOptionsOpen,
+			positionEl: optionsButtonEl,
+			config: timelineConfig,
+			onToggleBranches
+		});
+		$[20] = onToggleBranches;
+		$[21] = optionsButtonEl;
+		$[22] = optionsOpen;
+		$[23] = timelineConfig;
+		$[24] = t7;
+	} else t7 = $[24];
+	let t8;
+	if ($[25] !== t1 || $[26] !== t2 || $[27] !== t3 || $[28] !== t4 || $[29] !== t5 || $[30] !== t6 || $[31] !== t7) {
+		t8 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+			className: TimelineSwimLanes_module_default.breadcrumbRow,
+			children: [
+				t1,
+				t2,
+				t3,
+				t4,
+				t5,
+				t6,
+				t7
+			]
+		});
+		$[25] = t1;
+		$[26] = t2;
+		$[27] = t3;
+		$[28] = t4;
+		$[29] = t5;
+		$[30] = t6;
+		$[31] = t7;
+		$[32] = t8;
+	} else t8 = $[32];
+	return t8;
 };
 var BarFill = (t0) => {
 	const $ = (0, import_compiler_runtime.c)(17);
@@ -114251,6 +115079,9 @@ function _temp2$35(m_0) {
 }
 function _temp3$24(l_1) {
 	return l_1.key;
+}
+function _temp4$21(prev) {
+	return !prev;
 }
 // ../../packages/inspect-components/src/transcript/hooks/useFocusLaneScope.ts
 /**
@@ -116465,8 +117296,8 @@ function recordRowEvents(agent, rowKey, out) {
 		const fields = extractEventFields(event);
 		let fieldIndex = 0;
 		for (const [fieldKey, text] of fields) {
-			const positions = findVariantPositions(text.toLowerCase(), variants);
-			for (let i = 0; i < positions.length; i++) out.push({
+			const hits = findVariantHits(normalizeFindText(text), variants);
+			for (let i = 0; i < hits.length; i++) out.push({
 				rowKey,
 				eventId: uuid,
 				fieldKey,
@@ -122678,6 +123509,15 @@ var ScannerResultDetailView_module_default = {
 	header: "_header_1c6v2_8",
 	section: "_section_1c6v2_12"
 };
+// ../../packages/scout-components/src/scanner-result-detail/transcriptExcerpts.ts
+var kExcerptLine = /^\[[ME]\d+\]: .*\*\*.+\*\*/;
+/**
+* Whether an explanation is only transcript excerpts. The sidebars that show
+* it sit beside that transcript, so they keep excerpts out of in-page Find,
+* which would otherwise count each match twice. Explanations a scanner writes
+* itself are the only copy of that text, so they stay searchable even where
+* they quote the transcript.
+*/ var isTranscriptExcerpts = (explanation) => explanation.split("\n").every((line) => line.trim() === "" || kExcerptLine.test(line));
 var ValidationResult_module_default = {
 	result: "_result_1202h_1",
 	"true": "_true_1202h_11",
@@ -123298,10 +124138,13 @@ function renderField(field, data, references, options, interactive, config, coll
 				heading: field.label ?? "Explanation",
 				open,
 				onToggle,
-				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Explanation, {
-					explanation: data.explanation,
-					references,
-					options
+				children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+					"data-unsearchable": isTranscriptExcerpts(data.explanation) || void 0,
+					children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Explanation, {
+						explanation: data.explanation,
+						references,
+						options
+					})
 				})
 			});
 		case "metadata": {
@@ -129945,71 +130788,6 @@ var EditButton = (t0) => {
 	} else t7 = $[7];
 	return t7;
 };
-var AutogrowText_module_default = { textarea: "_textarea_8mbr9_1" };
-// src/app/log-view/title-view/AutogrowText.tsx
-var AutogrowText = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(12);
-	const { value, onChange, disabled, maxHeightPx } = t0;
-	const ref = (0, import_react.useRef)(null);
-	let t1;
-	if ($[0] !== maxHeightPx) {
-		t1 = () => {
-			const el = ref.current;
-			if (!el) return;
-			let lastApplied = "";
-			const measure = () => {
-				el.style.height = "0px";
-				const target = maxHeightPx != null ? `${Math.min(el.scrollHeight, maxHeightPx)}px` : `${el.scrollHeight}px`;
-				if (target !== lastApplied) {
-					lastApplied = target;
-					el.style.height = target;
-				} else el.style.height = lastApplied;
-			};
-			measure();
-			const ro = new ResizeObserver(measure);
-			ro.observe(el);
-			return () => ro.disconnect();
-		};
-		$[0] = maxHeightPx;
-		$[1] = t1;
-	} else t1 = $[1];
-	let t2;
-	if ($[2] !== maxHeightPx || $[3] !== value) {
-		t2 = [value, maxHeightPx];
-		$[2] = maxHeightPx;
-		$[3] = value;
-		$[4] = t2;
-	} else t2 = $[4];
-	(0, import_react.useEffect)(t1, t2);
-	let t3;
-	if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
-		t3 = clsx("form-control", AutogrowText_module_default.textarea);
-		$[5] = t3;
-	} else t3 = $[5];
-	let t4;
-	if ($[6] !== onChange) {
-		t4 = (e) => onChange(e.target.value);
-		$[6] = onChange;
-		$[7] = t4;
-	} else t4 = $[7];
-	let t5;
-	if ($[8] !== disabled || $[9] !== t4 || $[10] !== value) {
-		t5 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("textarea", {
-			ref,
-			className: t3,
-			value,
-			onChange: t4,
-			disabled,
-			spellCheck: false,
-			rows: 1
-		});
-		$[8] = disabled;
-		$[9] = t4;
-		$[10] = value;
-		$[11] = t5;
-	} else t5 = $[11];
-	return t5;
-};
 // src/app/server/useUserInfo.ts
 /**
 * The server's best-effort identity (git `user.name`, else the OS login),
@@ -130544,19 +131322,20 @@ function formatEditError(err) {
 	return t35;
 };
 var EditMetadataDialog_module_default = {
-	tableScroll: "_tableScroll_1i84k_5",
-	table: "_table_1i84k_5",
-	empty: "_empty_1i84k_23",
-	row: "_row_1i84k_30",
-	rowDivider: "_rowDivider_1i84k_37",
-	rowNew: "_rowNew_1i84k_41",
-	key: "_key_1i84k_54",
-	value: "_value_1i84k_51",
-	remove: "_remove_1i84k_54",
-	addRow: "_addRow_1i84k_87",
-	addKeyInput: "_addKeyInput_1i84k_94",
-	typeSelect: "_typeSelect_1i84k_98",
-	addButton: "_addButton_1i84k_102"
+	tableScroll: "_tableScroll_168df_5",
+	table: "_table_168df_5",
+	empty: "_empty_168df_23",
+	row: "_row_168df_30",
+	rowDivider: "_rowDivider_168df_37",
+	rowNew: "_rowNew_168df_41",
+	key: "_key_168df_54",
+	value: "_value_168df_51",
+	valueInput: "_valueInput_168df_52",
+	remove: "_remove_168df_54",
+	addRow: "_addRow_168df_108",
+	addKeyInput: "_addKeyInput_168df_115",
+	typeSelect: "_typeSelect_168df_119",
+	addButton: "_addButton_168df_123"
 };
 // src/app/log-view/title-view/EditMetadataDialog.tsx
 var kNewTypes = [
@@ -130928,7 +131707,7 @@ var EditMetadataDialog = (t0) => {
 	return t16;
 };
 var MetaRow = (t0) => {
-	const $ = (0, import_compiler_runtime.c)(22);
+	const $ = (0, import_compiler_runtime.c)(25);
 	const { entry, first, onChange, onRemove, disabled } = t0;
 	const t1 = !first && EditMetadataDialog_module_default.rowDivider;
 	const t2 = entry.isNew && EditMetadataDialog_module_default.rowNew;
@@ -130955,63 +131734,76 @@ var MetaRow = (t0) => {
 		$[5] = t6;
 	} else t6 = $[5];
 	let t7;
-	if ($[6] !== disabled || $[7] !== entry.text || $[8] !== onChange) {
-		t7 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
+	if ($[6] === Symbol.for("react.memo_cache_sentinel")) {
+		t7 = clsx("form-control", EditMetadataDialog_module_default.valueInput);
+		$[6] = t7;
+	} else t7 = $[6];
+	let t8;
+	if ($[7] !== onChange) {
+		t8 = (e) => onChange(e.target.value);
+		$[7] = onChange;
+		$[8] = t8;
+	} else t8 = $[8];
+	let t9;
+	if ($[9] !== disabled || $[10] !== entry.text || $[11] !== t8) {
+		t9 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("div", {
 			className: EditMetadataDialog_module_default.value,
-			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)(AutogrowText, {
+			children: /*#__PURE__*/ (0, import_jsx_runtime.jsx)("textarea", {
+				className: t7,
 				value: entry.text,
-				onChange,
-				disabled
+				onChange: t8,
+				disabled,
+				spellCheck: false
 			})
 		});
-		$[6] = disabled;
-		$[7] = entry.text;
-		$[8] = onChange;
-		$[9] = t7;
-	} else t7 = $[9];
-	const t8 = `Remove ${entry.key}`;
-	const t9 = `Remove ${entry.key}`;
-	let t10;
-	if ($[10] === Symbol.for("react.memo_cache_sentinel")) {
-		t10 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "trash" });
-		$[10] = t10;
-	} else t10 = $[10];
-	let t11;
-	if ($[11] !== disabled || $[12] !== onRemove || $[13] !== t8 || $[14] !== t9) {
-		t11 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
+		$[9] = disabled;
+		$[10] = entry.text;
+		$[11] = t8;
+		$[12] = t9;
+	} else t9 = $[12];
+	const t10 = `Remove ${entry.key}`;
+	const t11 = `Remove ${entry.key}`;
+	let t12;
+	if ($[13] === Symbol.for("react.memo_cache_sentinel")) {
+		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)(Icon, { name: "trash" });
+		$[13] = t12;
+	} else t12 = $[13];
+	let t13;
+	if ($[14] !== disabled || $[15] !== onRemove || $[16] !== t10 || $[17] !== t11) {
+		t13 = /*#__PURE__*/ (0, import_jsx_runtime.jsx)("button", {
 			type: "button",
 			className: EditMetadataDialog_module_default.remove,
 			onClick: onRemove,
-			title: t8,
-			"aria-label": t9,
+			title: t10,
+			"aria-label": t11,
 			disabled,
-			children: t10
+			children: t12
 		});
-		$[11] = disabled;
-		$[12] = onRemove;
-		$[13] = t8;
-		$[14] = t9;
-		$[15] = t11;
-	} else t11 = $[15];
-	let t12;
-	if ($[16] !== entry.key || $[17] !== t11 || $[18] !== t3 || $[19] !== t6 || $[20] !== t7) {
-		t12 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
+		$[14] = disabled;
+		$[15] = onRemove;
+		$[16] = t10;
+		$[17] = t11;
+		$[18] = t13;
+	} else t13 = $[18];
+	let t14;
+	if ($[19] !== entry.key || $[20] !== t13 || $[21] !== t3 || $[22] !== t6 || $[23] !== t9) {
+		t14 = /*#__PURE__*/ (0, import_jsx_runtime.jsxs)("div", {
 			className: t3,
 			"data-meta-key": t4,
 			children: [
 				t6,
-				t7,
-				t11
+				t9,
+				t13
 			]
 		});
-		$[16] = entry.key;
-		$[17] = t11;
-		$[18] = t3;
-		$[19] = t6;
-		$[20] = t7;
-		$[21] = t12;
-	} else t12 = $[21];
-	return t12;
+		$[19] = entry.key;
+		$[20] = t13;
+		$[21] = t3;
+		$[22] = t6;
+		$[23] = t9;
+		$[24] = t14;
+	} else t14 = $[24];
+	return t14;
 };
 function _temp$28(t0) {
 	const [key, value] = t0;
@@ -156179,41 +156971,41 @@ var TaskTab = (t0) => {
 	return t23;
 };
 var HistoryList_module_default = {
-	container: "_container_1y1ui_1",
-	filterRow: "_filterRow_1y1ui_7",
-	caption: "_caption_1y1ui_16",
-	filterPill: "_filterPill_1y1ui_28",
-	pillCount: "_pillCount_1y1ui_42",
-	pillEmpty: "_pillEmpty_1y1ui_46",
-	pillAll: "_pillAll_1y1ui_51",
-	pillSelected: "_pillSelected_1y1ui_55",
-	pillConfig: "_pillConfig_1y1ui_61",
-	pillConnections: "_pillConnections_1y1ui_67",
-	pillLimits: "_pillLimits_1y1ui_73",
-	pillErrors: "_pillErrors_1y1ui_79",
-	pillCancels: "_pillCancels_1y1ui_86",
-	pillTags: "_pillTags_1y1ui_92",
-	pillRun: "_pillRun_1y1ui_98",
-	search: "_search_1y1ui_151",
-	list: "_list_1y1ui_166",
-	empty: "_empty_1y1ui_175",
-	headerRow: "_headerRow_1y1ui_182",
-	row: "_row_1y1ui_183",
-	timeSort: "_timeSort_1y1ui_204",
-	byHeader: "_byHeader_1y1ui_220",
-	rowLast: "_rowLast_1y1ui_230",
-	rowClickable: "_rowClickable_1y1ui_234",
-	rowSelected: "_rowSelected_1y1ui_238",
-	rowWash: "_rowWash_1y1ui_245",
-	time: "_time_1y1ui_204",
-	kindCell: "_kindCell_1y1ui_258",
-	kindPill: "_kindPill_1y1ui_266",
-	event: "_event_1y1ui_280",
-	muted: "_muted_1y1ui_287",
-	mono: "_mono_1y1ui_291",
-	by: "_by_1y1ui_220",
-	ordinalBox: "_ordinalBox_1y1ui_310",
-	openSample: "_openSample_1y1ui_327"
+	container: "_container_cycy9_1",
+	filterRow: "_filterRow_cycy9_7",
+	caption: "_caption_cycy9_16",
+	filterPill: "_filterPill_cycy9_28",
+	pillCount: "_pillCount_cycy9_42",
+	pillEmpty: "_pillEmpty_cycy9_46",
+	pillAll: "_pillAll_cycy9_51",
+	pillSelected: "_pillSelected_cycy9_55",
+	pillConfig: "_pillConfig_cycy9_61",
+	pillConnections: "_pillConnections_cycy9_67",
+	pillLimits: "_pillLimits_cycy9_73",
+	pillErrors: "_pillErrors_cycy9_79",
+	pillCancels: "_pillCancels_cycy9_86",
+	pillTags: "_pillTags_cycy9_92",
+	pillRun: "_pillRun_cycy9_98",
+	search: "_search_cycy9_151",
+	list: "_list_cycy9_166",
+	empty: "_empty_cycy9_175",
+	headerRow: "_headerRow_cycy9_182",
+	row: "_row_cycy9_183",
+	timeSort: "_timeSort_cycy9_204",
+	byHeader: "_byHeader_cycy9_220",
+	rowLast: "_rowLast_cycy9_230",
+	rowClickable: "_rowClickable_cycy9_234",
+	rowSelected: "_rowSelected_cycy9_238",
+	rowWash: "_rowWash_cycy9_245",
+	time: "_time_cycy9_204",
+	kindCell: "_kindCell_cycy9_258",
+	kindPill: "_kindPill_cycy9_266",
+	event: "_event_cycy9_280",
+	muted: "_muted_cycy9_287",
+	mono: "_mono_cycy9_291",
+	by: "_by_cycy9_220",
+	ordinalBox: "_ordinalBox_cycy9_310",
+	openSample: "_openSample_cycy9_327"
 };
 // src/app/log-view/tabs/timeline/OpenSampleLink.tsx
 /**
@@ -157160,66 +157952,66 @@ var timelineAxisTicks = (window, plotWidth) => {
 	return ticks;
 };
 var TimelineChart_module_default = {
-	chart: "_chart_1we23_1",
-	svg: "_svg_1we23_6",
-	bandLabel: "_bandLabel_1we23_13",
-	bandLabelModel: "_bandLabelModel_1we23_18",
-	activeSeries: "_activeSeries_1we23_22",
-	connectionsSeries: "_connectionsSeries_1we23_28",
-	limitGuide: "_limitGuide_1we23_34",
-	guideLabel: "_guideLabel_1we23_40",
-	rateLimitLine: "_rateLimitLine_1we23_45",
-	terminationDot: "_terminationDot_1we23_53",
-	termHitColumn: "_termHitColumn_1we23_57",
-	lineHit: "_lineHit_1we23_62",
-	crosshair: "_crosshair_1we23_66",
-	hoverDotActive: "_hoverDotActive_1we23_73",
-	hoverDotConnections: "_hoverDotConnections_1we23_78",
-	lineTooltip: "_lineTooltip_1we23_83",
-	axisLine: "_axisLine_1we23_97",
-	axisLabel: "_axisLabel_1we23_101",
-	yTickLabel: "_yTickLabel_1we23_106",
-	axisBreak: "_axisBreak_1we23_111",
-	postRunLabel: "_postRunLabel_1we23_117",
-	marker: "_marker_1we23_123",
-	markerLine: "_markerLine_1we23_128",
-	markerLineLog: "_markerLineLog_1we23_132",
-	markerLineActive: "_markerLineActive_1we23_137",
-	markerLineLogActive: "_markerLineLogActive_1we23_142",
-	markerDiamond: "_markerDiamond_1we23_147",
-	markerDiamondLog: "_markerDiamondLog_1we23_153",
-	markerDiamondActive: "_markerDiamondActive_1we23_159",
-	markerDiamondLogActive: "_markerDiamondLogActive_1we23_164",
-	markerDiamondText: "_markerDiamondText_1we23_169",
-	ordinalBoxRect: "_ordinalBoxRect_1we23_177",
-	ordinalBoxText: "_ordinalBoxText_1we23_182",
-	markerPostRun: "_markerPostRun_1we23_189",
-	markerActive: "_markerActive_1we23_195",
-	markerPopover: "_markerPopover_1we23_199",
-	markerPopoverHeader: "_markerPopoverHeader_1we23_211",
-	markerPopoverOrdinal: "_markerPopoverOrdinal_1we23_221",
-	markerPopoverTime: "_markerPopoverTime_1we23_237",
-	markerPopoverBody: "_markerPopoverBody_1we23_244",
-	markerPopoverEntry: "_markerPopoverEntry_1we23_251",
-	markerPopoverChange: "_markerPopoverChange_1we23_257",
-	markerPopoverMuted: "_markerPopoverMuted_1we23_266",
-	markerPopoverMeta: "_markerPopoverMeta_1we23_270",
-	markerPopoverLabel: "_markerPopoverLabel_1we23_283",
-	markerPopoverByline: "_markerPopoverByline_1we23_288",
-	samplePopover: "_samplePopover_1we23_294",
-	popoverHeader: "_popoverHeader_1we23_305",
-	popoverStatusDot: "_popoverStatusDot_1we23_316",
-	popoverSampleId: "_popoverSampleId_1we23_324",
-	popoverEpoch: "_popoverEpoch_1we23_328",
-	popoverStatusWord: "_popoverStatusWord_1we23_332",
-	popoverBody: "_popoverBody_1we23_337",
-	popoverInput: "_popoverInput_1we23_344",
-	popoverGrid: "_popoverGrid_1we23_353",
-	popoverLabel: "_popoverLabel_1we23_366",
-	popoverMore: "_popoverMore_1we23_372",
-	popoverError: "_popoverError_1we23_377",
-	popoverCallout: "_popoverCallout_1we23_385",
-	popoverOpen: "_popoverOpen_1we23_395"
+	chart: "_chart_1hl8c_1",
+	svg: "_svg_1hl8c_6",
+	bandLabel: "_bandLabel_1hl8c_13",
+	bandLabelModel: "_bandLabelModel_1hl8c_18",
+	activeSeries: "_activeSeries_1hl8c_22",
+	connectionsSeries: "_connectionsSeries_1hl8c_28",
+	limitGuide: "_limitGuide_1hl8c_34",
+	guideLabel: "_guideLabel_1hl8c_40",
+	rateLimitLine: "_rateLimitLine_1hl8c_45",
+	terminationDot: "_terminationDot_1hl8c_53",
+	termHitColumn: "_termHitColumn_1hl8c_57",
+	lineHit: "_lineHit_1hl8c_62",
+	crosshair: "_crosshair_1hl8c_66",
+	hoverDotActive: "_hoverDotActive_1hl8c_73",
+	hoverDotConnections: "_hoverDotConnections_1hl8c_78",
+	lineTooltip: "_lineTooltip_1hl8c_83",
+	axisLine: "_axisLine_1hl8c_97",
+	axisLabel: "_axisLabel_1hl8c_101",
+	yTickLabel: "_yTickLabel_1hl8c_106",
+	axisBreak: "_axisBreak_1hl8c_111",
+	postRunLabel: "_postRunLabel_1hl8c_117",
+	marker: "_marker_1hl8c_123",
+	markerLine: "_markerLine_1hl8c_128",
+	markerLineLog: "_markerLineLog_1hl8c_132",
+	markerLineActive: "_markerLineActive_1hl8c_137",
+	markerLineLogActive: "_markerLineLogActive_1hl8c_142",
+	markerDiamond: "_markerDiamond_1hl8c_147",
+	markerDiamondLog: "_markerDiamondLog_1hl8c_153",
+	markerDiamondActive: "_markerDiamondActive_1hl8c_159",
+	markerDiamondLogActive: "_markerDiamondLogActive_1hl8c_164",
+	markerDiamondText: "_markerDiamondText_1hl8c_169",
+	ordinalBoxRect: "_ordinalBoxRect_1hl8c_177",
+	ordinalBoxText: "_ordinalBoxText_1hl8c_182",
+	markerPostRun: "_markerPostRun_1hl8c_189",
+	markerActive: "_markerActive_1hl8c_195",
+	markerPopover: "_markerPopover_1hl8c_199",
+	markerPopoverHeader: "_markerPopoverHeader_1hl8c_211",
+	markerPopoverOrdinal: "_markerPopoverOrdinal_1hl8c_221",
+	markerPopoverTime: "_markerPopoverTime_1hl8c_237",
+	markerPopoverBody: "_markerPopoverBody_1hl8c_244",
+	markerPopoverEntry: "_markerPopoverEntry_1hl8c_251",
+	markerPopoverChange: "_markerPopoverChange_1hl8c_257",
+	markerPopoverMuted: "_markerPopoverMuted_1hl8c_266",
+	markerPopoverMeta: "_markerPopoverMeta_1hl8c_270",
+	markerPopoverLabel: "_markerPopoverLabel_1hl8c_283",
+	markerPopoverByline: "_markerPopoverByline_1hl8c_288",
+	samplePopover: "_samplePopover_1hl8c_294",
+	popoverHeader: "_popoverHeader_1hl8c_305",
+	popoverStatusDot: "_popoverStatusDot_1hl8c_316",
+	popoverSampleId: "_popoverSampleId_1hl8c_324",
+	popoverEpoch: "_popoverEpoch_1hl8c_328",
+	popoverStatusWord: "_popoverStatusWord_1hl8c_332",
+	popoverBody: "_popoverBody_1hl8c_337",
+	popoverInput: "_popoverInput_1hl8c_344",
+	popoverGrid: "_popoverGrid_1hl8c_353",
+	popoverLabel: "_popoverLabel_1hl8c_366",
+	popoverMore: "_popoverMore_1hl8c_372",
+	popoverError: "_popoverError_1hl8c_377",
+	popoverCallout: "_popoverCallout_1hl8c_385",
+	popoverOpen: "_popoverOpen_1hl8c_395"
 };
 // src/app/log-view/tabs/timeline/TimelineChart.tsx
 var kBandHeight = 84;
@@ -158581,16 +159373,16 @@ function _temp27(row) {
 	}) })] }, row.key);
 }
 var TimelineTab_module_default = {
-	container: "_container_fne0n_1",
-	pickerRow: "_pickerRow_fne0n_9",
-	caption: "_caption_fne0n_17",
-	bandChip: "_bandChip_fne0n_26",
-	bandChipOn: "_bandChipOn_fne0n_40",
-	bandChipNote: "_bandChipNote_fne0n_50",
-	legend: "_legend_fne0n_55",
-	legendItem: "_legendItem_fne0n_64",
-	legendDot: "_legendDot_fne0n_71",
-	legendRateLimit: "_legendRateLimit_fne0n_78"
+	container: "_container_g217z_1",
+	pickerRow: "_pickerRow_g217z_9",
+	caption: "_caption_g217z_17",
+	bandChip: "_bandChip_g217z_26",
+	bandChipOn: "_bandChipOn_g217z_40",
+	bandChipNote: "_bandChipNote_g217z_50",
+	legend: "_legend_g217z_55",
+	legendItem: "_legendItem_g217z_64",
+	legendDot: "_legendDot_g217z_71",
+	legendRateLimit: "_legendRateLimit_g217z_78"
 };
 // src/app/log-view/tabs/timeline/TimelineTab.tsx
 var useTimelineTab = (evalSpec, evalStats, evalStatus, configUpdates, logUpdates, earlyStopping) => {

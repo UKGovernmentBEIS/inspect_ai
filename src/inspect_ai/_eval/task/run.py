@@ -13,6 +13,7 @@ from typing import (
     Callable,
     Iterator,
     Literal,
+    Mapping,
     NamedTuple,
     Protocol,
     TypeAlias,
@@ -2871,9 +2872,13 @@ async def _task_run_sample_attempt(
         if sample_id is None:
             raise ValueError("sample must have id to run")
 
-        def on_sample_event(event: Event) -> None:
+        def on_sample_event_buffered(
+            event: Event, call_attachments: Mapping[str, str]
+        ) -> None:
             if logger:
-                logger.log_sample_event(sample_id, state.epoch, event)
+                logger.log_sample_event(sample_id, state.epoch, event, call_attachments)
+
+        def on_sample_event(event: Event) -> None:
             emit_sample_event(
                 eval_set_id=eval_set_id,
                 run_id=run_id,
@@ -2896,6 +2901,7 @@ async def _task_run_sample_attempt(
         )
         init_transcript(sample_transcript)
         init_subtask_store(state.store)
+        sample_transcript._subscribe_store(on_sample_event_buffered)
         sample_transcript._subscribe(on_sample_event)
         if scorers:
             init_scoring_context(scorers, Target(sample.target))
@@ -4423,8 +4429,7 @@ def _eval_retry_error(
 
     The events come from the transcript when it still holds them all, and
     otherwise from the sample buffer, with their attachments resolved, model
-    calls included. The buffer keeps literal reference text in model calls
-    as a reference, so those events can show attachment content in its place.
+    calls included.
     """
     from inspect_ai.event._model import ModelEvent
 

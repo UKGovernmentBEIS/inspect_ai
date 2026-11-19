@@ -65,10 +65,17 @@ from inspect_ai.log._log import (
     EvalSpec,
 )
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+from inspect_ai.log._recorders.buffer.types import Samples
 from inspect_ai.log._recorders.types import SampleEvent
+from inspect_ai.log._recover._reconstruct import reconstruct_events
 from inspect_ai.log._resolve import resolve_sample_events_data
 from inspect_ai.log._samples import set_active_model_event_call
-from inspect_ai.log._transcript import Transcript, _transcript, init_transcript
+from inspect_ai.log._transcript import (
+    Transcript,
+    _transcript,
+    init_transcript,
+    transcript,
+)
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -1412,9 +1419,15 @@ def _ref_echo(value: str) -> Tool:
 
 
 def _run_literal_eval(
-    log_dir: str, log_format: Literal["eval", "json"], literal: str
+    log_dir: str,
+    log_format: Literal["eval", "json"],
+    literal: str,
+    after: list[Solver] | None = None,
 ) -> str:
-    """Run a sample whose model reply and tool result are `literal`; return the log path."""
+    """Run a sample whose model reply and tool result are `literal`; return the log path.
+
+    `after` runs after the reply.
+    """
     model = get_model(
         "mockllm/model",
         custom_outputs=[
@@ -1431,7 +1444,7 @@ def _run_literal_eval(
                 ]
             )
         ],
-        solver=[use_tools(_ref_echo(literal)), generate()],
+        solver=[use_tools(_ref_echo(literal)), generate(), *(after or [])],
         scorer=match(),
     )
     [log] = inspect_eval(
@@ -1496,6 +1509,44 @@ def test_literal_reference_text_reads_back_as_written(
     stored = read_eval_log(log_file)
     assert stored.samples
     assert stored.samples[0].attachments[_LITERAL_KEY] == _LITERAL_SYSTEM_PROMPT
+
+    for resolve in (True, "core", "full"):
+        log = read_eval_log(log_file, resolve_attachments=resolve)
+        assert log.samples
+        sample = log.samples[0]
+        _assert_literals_read_back(sample, literal, calls=resolve != "core")
+        if resolve == "core":
+            _assert_literals_read_back(
+                resolve_sample_attachments(sample, "full"), literal
+            )
+
+
+@solver
+def _assert_events_evicted() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        assert transcript().history.resident_events_truncated
+        return state
+
+    return solve
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+@pytest.mark.parametrize("protocol", ["attachment://", "tc://"])
+def test_literal_reference_text_reads_back_from_bounded_transcript(
+    tmp_path: str,
+    monkeypatch: pytest.MonkeyPatch,
+    log_format: Literal["eval", "json"],
+    protocol: str,
+) -> None:
+    """The finished log takes evicted events from the sample buffer."""
+    import inspect_ai._eval.task.run as run_module
+
+    monkeypatch.setattr(run_module, "DEFAULT_RESIDENT_TAIL", 1)
+    monkeypatch.setenv("INSPECT_TRANSCRIPT_BOUNDED", "true")
+    literal = f"{protocol}{_LITERAL_KEY}"
+    log_file = _run_literal_eval(
+        str(tmp_path), log_format, literal, after=[_assert_events_evicted()]
+    )
 
     for resolve in (True, "core", "full"):
         log = read_eval_log(log_file, resolve_attachments=resolve)
@@ -2272,8 +2323,10 @@ async def test_subscribers_see_the_error_completion_of_a_call_with_literals(
     transcript._subscribe(record)
     buffer = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
     buffer.start_sample(EvalSampleSummary(id="s1", epoch=1, input="in", target="t"))
-    transcript._subscribe(
-        lambda e: buffer.log_events([SampleEvent(id="s1", epoch=1, event=e)])
+    transcript._subscribe_store(
+        lambda e, attachments: buffer.log_events(
+            [SampleEvent(id="s1", epoch=1, event=e)], attachments
+        )
     )
     token = _transcript.set(None)
     try:
@@ -2327,6 +2380,7 @@ async def test_subscribers_see_the_error_completion_of_a_call_with_literals(
     [buffered_event] = [e for e in buffered if isinstance(e, ModelEvent)]
     assert buffered_event.call is not None
     assert buffered_event.call.response == error_response
+    assert buffered_event.call.request == request
 
 
 def test_evicted_call_is_renotified_with_its_literals(tmp_path: Path) -> None:
@@ -2335,8 +2389,10 @@ def test_evicted_call_is_renotified_with_its_literals(tmp_path: Path) -> None:
     transcript = Transcript(log_model_api=True, bounded=True, resident_tail=1)
     buffer = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
     buffer.start_sample(EvalSampleSummary(id="s", epoch=1, input="in", target="t"))
-    transcript._subscribe(
-        lambda e: buffer.log_events([SampleEvent(id="s", epoch=1, event=e)])
+    transcript._subscribe_store(
+        lambda e, attachments: buffer.log_events(
+            [SampleEvent(id="s", epoch=1, event=e)], attachments
+        )
     )
     event = ModelEvent(
         model="m",
@@ -2381,3 +2437,76 @@ def test_evicted_call_is_renotified_with_its_literals(tmp_path: Path) -> None:
     transcript._event(InfoEvent(data="more activity"))
     assert transcript._condensed_calls == {}
     assert transcript._evicted_call_events == {}
+
+
+async def test_live_sample_data_keeps_literals_and_genuine_references(
+    tmp_path: Path,
+) -> None:
+    """The sample buffer stores literal reference text as attachments of its own.
+
+    It is given the run's events as the sample transcript gives them to
+    subscribers that keep their own attachment store. A reader that resolves
+    each reference once, as the viewer does with `get_sample_data`, reads
+    the literal back, and the pooled system prompt as its text.
+    """
+    literal = f"{ATTACHMENT_PROTOCOL}{_LITERAL_KEY}"
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", literal)],
+        memoize=False,
+    )
+    transcript = Transcript(log_model_api=True)
+    buffer = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    buffer.start_sample(
+        EvalSampleSummary(
+            id="s1", epoch=1, input=[ChatMessageUser(content=literal)], target="t"
+        )
+    )
+    transcript._subscribe_store(
+        lambda e, attachments: buffer.log_events(
+            [SampleEvent(id="s1", epoch=1, event=e)], attachments
+        )
+    )
+    token = _transcript.set(None)
+    try:
+        init_transcript(transcript)
+        await model.generate(
+            [
+                ChatMessageSystem(content=_LITERAL_SYSTEM_PROMPT),
+                ChatMessageUser(content=literal),
+            ]
+        )
+    finally:
+        _transcript.reset(token)
+
+    data = buffer.get_sample_data("s1", 1)
+    assert data is not None
+    attachments = {
+        attachment.hash: attachment.content for attachment in data.attachments
+    }
+    assert attachments[_LITERAL_KEY] == _LITERAL_SYSTEM_PROMPT
+    [event] = [
+        e
+        for e in resolve_events_attachments(
+            reconstruct_events(data), attachments, "full"
+        )
+        if isinstance(e, ModelEvent)
+    ]
+    assert [message.text for message in event.input] == [
+        _LITERAL_SYSTEM_PROMPT,
+        literal,
+    ]
+    assert event.output.message.text == literal
+    assert event.call is not None
+    request_messages = event.call.request["messages"]
+    assert isinstance(request_messages, list)
+    assert [
+        message["content"] for message in request_messages if isinstance(message, dict)
+    ] == [_LITERAL_SYSTEM_PROMPT, literal]
+    assert event.call.response == {"content": literal}
+
+    samples = buffer.get_samples()
+    assert isinstance(samples, Samples)
+    [summary] = samples.samples
+    assert isinstance(summary.input, list)
+    assert summary.input[0].text == literal
