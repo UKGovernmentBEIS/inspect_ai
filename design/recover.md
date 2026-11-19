@@ -206,7 +206,7 @@ Creates a new file alongside the original: `<name>-recovered.eval`. The original
 3. **Find and read from buffer DB:**
    - Locate DB at `inspect_data_dir("samplebuffer") / <log_dir_hash> / <filename>.*.db`
    - Use existing `SampleBufferDatabase(location, create=False)` to open it
-   - No buffer raises `RecoveryNotAvailable`, unless `allow_no_buffer=True`: the log is then recovered from its flushed samples alone (still refused while a live process on this host owns a buffer DB for it, or when the file it writes already exists)
+   - No buffer raises `RecoveryNotAvailable`, unless `allow_no_buffer=True`: the log is then recovered from its flushed samples alone (still refused while a live process on this host owns a buffer DB for it, or when the file it writes is already a finished log)
    - Read all remaining samples and their events
    - Distinguish completed vs in-progress samples (completed samples have `completed_at` set and scores populated)
 

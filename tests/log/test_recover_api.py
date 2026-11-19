@@ -990,6 +990,29 @@ async def test_recover_no_buffer_allowed_keeps_an_earlier_recovery(
     assert sorted(s.id for s in read_log.samples) == [1, 2]
 
 
+@pytest.mark.parametrize("output_name", ["test-recovered.eval", "recovered.zip"])
+async def test_recover_no_buffer_allowed_replaces_an_unfinished_output(
+    tmp_path: Path, output_name: str
+) -> None:
+    """The partial log an interrupted recovery left does not block the next attempt."""
+    eval_path = (tmp_path / "test.eval").as_posix()
+    output_path = (tmp_path / output_name).as_posix()
+    _write_crashed_eval(eval_path, samples=[_make_sample(1), _make_sample(2)])
+    _write_crashed_eval(output_path, samples=[_make_sample(1)])
+
+    await recover_eval_log_async(
+        eval_path,
+        output=output_path,
+        _db_dir=tmp_path / "bufferdb",
+        allow_no_buffer=True,
+    )
+
+    read_log = await read_eval_log_async(output_path, format="eval")
+    assert read_log.status == "error"
+    assert read_log.samples is not None
+    assert sorted(s.id for s in read_log.samples) == [1, 2]
+
+
 async def test_recover_no_buffer_allowed_refuses_a_live_run(tmp_path: Path) -> None:
     """A buffer DB owned by a running process means the eval has not ended."""
     eval_path = (tmp_path / "test.eval").as_posix()

@@ -194,8 +194,10 @@ def recover_eval_log(
             know has ended: a run on this host is detected by its buffer
             database, but a run elsewhere leaves no local trace. Such a
             recovery is refused when the file it writes (`output`, or
-            `<name>-recovered.eval`) already exists: that file may be an
-            earlier recovery that used a buffer since removed. Without a
+            `<name>-recovered.eval`) is already a finished log: that may be
+            an earlier recovery that used a buffer since removed. The partial
+            log of an interrupted recovery is replaced, along with any buffer
+            samples it holds. Without a
             buffer no sample is known to have been in progress, so
             `incomplete_max` never refuses, and `incomplete_action="error"`
             judges completeness from the flushed records alone, including
@@ -319,14 +321,19 @@ async def recover_eval_log_async(
             raise RecoveryNotAvailable(f"No sample buffer database found for {log}")
         if live_buffer_db_exists(log, db_dir=_db_dir):
             raise RecoveryNotAvailable(f"The eval for {log} is still running")
-        # an existing output may be an earlier recovery that used a buffer
-        # since removed, so it can hold more than the flushed samples
+        # a finished log at the output may be an earlier recovery that used a
+        # buffer since removed, so it can hold more than the flushed samples
+        # (the partial log of an interrupted recovery reads as "started")
         if filesystem(write_output).exists(write_output):
-            raise RecoveryNotAvailable(
-                f"No sample buffer found for {log} and {write_output} already "
-                "exists: not replacing it with a recovery from flushed samples "
-                "alone. Remove it to recover again."
+            existing_output = await read_eval_log_async(
+                write_output, header_only=True, format="eval"
             )
+            if existing_output.status != "started":
+                raise RecoveryNotAvailable(
+                    f"No sample buffer found for {log} and {write_output} is "
+                    "already a finished log: not replacing it with a recovery "
+                    "from flushed samples alone. Remove it to recover again."
+                )
         recovery_data = BufferRecoveryData()
 
     # Derive flushed sample keys for deduplication against buffer DB: the
