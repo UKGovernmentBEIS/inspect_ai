@@ -1306,6 +1306,11 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     prior_lookup_limit = anyio.Semaphore(PRIOR_LOOKUP_CONCURRENCY)
 
     # optionally page dataset to disk if it exceeds the memory budget
+    # whether the seed needs sandbox setup, read before paging so a paged
+    # dataset is not read back from disk to find out
+    seed_has_sandbox = sandbox is not None or any(
+        sample.sandbox is not None for sample in dataset
+    )
     sample_store = maybe_page_to_disk(dataset, config.max_dataset_memory)
 
     # release in-memory samples now that they're paged to disk
@@ -1542,9 +1547,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # not yet set up in the run). A setup error fails this attempt
             # like any task error. The samples are streamed, so a dataset
             # paged to disk is not held in memory again
-            if options.startup_sandboxes is not None and _has_sandbox(
-                sandbox, sample_store
-            ):
+            if options.startup_sandboxes is not None and seed_has_sandbox:
                 await options.startup_sandboxes(
                     sample_store[i] for i in range(len(sample_store))
                 )
@@ -4569,15 +4572,6 @@ def _seed_error_retries(sample: EvalSample) -> list[EvalRetryError]:
     if sample.error is not None and not _is_cancellation_error(sample.error):
         seed.append(_eval_retry_error_from_sample(sample))
     return seed
-
-
-def _has_sandbox(
-    sandbox: SandboxEnvironmentSpec | None, samples: Dataset | DiskSampleStore
-) -> bool:
-    """Whether the task or any of ``samples`` names a sandbox."""
-    return sandbox is not None or any(
-        samples[i].sandbox is not None for i in range(len(samples))
-    )
 
 
 def unwritten_task_log(logger: TaskLogger, ex: BaseException) -> EvalLog:

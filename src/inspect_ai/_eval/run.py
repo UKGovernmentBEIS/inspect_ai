@@ -118,6 +118,7 @@ from .task.sandbox import (
     resolve_sandbox,
     resolve_sandbox_for_task_and_sample,
 )
+from .task.task import Task
 from .task.task_source import TaskSource
 from .task.util import resolve_task_sample_ids, task_run_dir
 
@@ -718,6 +719,33 @@ async def _run_task(
     return TaskRunResult(result, task_cancel.cancel_type)
 
 
+async def _next_tasks(task_source: TaskSource) -> list[Task] | None:
+    """Await ``task_source.next_tasks()`` in a child task.
+
+    A cancellation of the run cancels the call and propagates. A cancellation
+    that no cancellation of the run caused (for example from an upstream task
+    the source awaits, cancelled on its own) would otherwise be absorbed by
+    the task screen, ending the run as if the source had finished, so it is
+    raised as a ``RuntimeError`` instead.
+    """
+    result: list[Task] | None = None
+    returned = False
+
+    async def pull() -> None:
+        nonlocal result, returned
+        result = await task_source.next_tasks()
+        returned = True
+
+    async with unwrap_exception_group(), anyio.create_task_group() as tg:
+        tg.start_soon(pull)
+    if not returned:
+        raise RuntimeError(
+            "TaskSource.next_tasks() raised a cancellation that no "
+            "cancellation of the run caused."
+        )
+    return result
+
+
 def _attempt_cancel(can_retry: bool) -> tuple[TaskCancel, anyio.CancelScope]:
     """A fresh cancel handle and cancel scope for one task attempt.
 
@@ -1181,7 +1209,7 @@ async def dispatch_tasks(
                         if source_done:
                             break
                         assert task_source is not None
-                        more = await task_source.next_tasks()
+                        more = await _next_tasks(task_source)
                         if not more:
                             source_done = True
                         elif queue.closed:

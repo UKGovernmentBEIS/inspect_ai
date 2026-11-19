@@ -6,10 +6,12 @@ design/task-dispatch.md). Here the trigger is usually a solver (the simplest
 in-run caller).
 """
 
+import contextlib
 import gc
+import types
 import weakref
 from pathlib import Path
-from typing import Any, Awaitable, Callable, ClassVar, Iterator
+from typing import Any, Awaitable, Callable, ClassVar, Iterator, cast
 
 import anyio
 import anyio.from_thread
@@ -17,13 +19,27 @@ import anyio.to_thread
 import pytest
 
 from inspect_ai import Epochs, Task, eval, eval_async, eval_set, task
+from inspect_ai._display import display
+from inspect_ai._display.core import active as active_display_module
+from inspect_ai._display.core.display import TaskError
+from inspect_ai._display.rich.display import RichDisplay
+from inspect_ai._display.textual.app import TaskScreenApp
+from inspect_ai._display.textual.display import TextualDisplay
 from inspect_ai._eval.loader import resolve_tasks
-from inspect_ai._eval.task.enqueue import TaskRecord, enqueue_task, get_run_queue
+from inspect_ai._eval.task.enqueue import (
+    RunQueue,
+    TaskRecord,
+    enqueue_task,
+    get_run_queue,
+)
 from inspect_ai._eval.task.log import TaskLogger
+from inspect_ai._eval.task.run import TaskRunOptions
 from inspect_ai._eval.task.store import DiskSampleStore
+from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.content import ContentImage
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
+from inspect_ai.log import EvalLog
 from inspect_ai.model import ChatMessageUser, get_model
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 from inspect_ai.util import SandboxEnvironmentConfigType, sandboxenv
@@ -748,3 +764,197 @@ async def test_setup_does_not_hold_a_paged_dataset_in_memory(
     # every sample was read for setup, and none of them is still held
     assert len(read) >= 20
     assert alive_during_setup == [0]
+
+
+@pytest.fixture
+def task_count_changes(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[int]]:
+    """Records every change to the displayed task total."""
+    init_display_type("none")
+    changes: list[int] = []
+    display_class = type(display())
+    update = display_class.update_task_count
+
+    def recording(self: Any, n: int) -> None:
+        changes.append(n)
+        update(self, n)
+
+    monkeypatch.setattr(display_class, "update_task_count", recording)
+    yield changes
+
+
+@pytest.mark.parametrize("init_failures,expected", [(99, [-1]), (1, [])])
+async def test_task_total_lowered_once_for_a_task_that_never_opened_its_row(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    task_count_changes: list[int],
+    init_failures: int,
+    expected: list[int],
+) -> None:
+    # a seed task whose log never starts ends before its display row opens,
+    # so it comes off the total once; one whose retry opens a row keeps it
+    init = TaskLogger.init
+    remaining = [init_failures]
+
+    async def failing_init(self: TaskLogger) -> None:
+        if self.eval.task == "B" and remaining[0] > 0:
+            remaining[0] -= 1
+            raise OSError("cannot start log")
+        await init(self)
+
+    monkeypatch.setattr(TaskLogger, "init", failing_init)
+    logs = await eval_async(
+        [_hook_task("A", _noop), _hook_task("B", _noop)],
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        task_retry_attempts=1,
+    )
+    statuses = {log.eval.task: log.status for log in logs}
+    assert statuses["B"] == ("error" if init_failures > 1 else "success")
+    assert task_count_changes == expected
+
+
+async def test_task_total_for_an_added_task_cancelled_while_queued(
+    tmp_path: Path, task_count_changes: list[int]
+) -> None:
+    async def add_and_cancel() -> None:
+        enqueue_task(_hook_task("child", _noop))
+        queue = get_run_queue()
+        assert queue is not None
+        queue.cancel(_record("child"))
+
+    logs = await eval_async(
+        _hook_task("parent", add_and_cancel),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_tasks=1,
+    )
+    [child] = [log for log in logs if log.eval.task == "child"]
+    assert child.status == "error"
+    # counted when added, taken off once when it ended without a row
+    assert task_count_changes == [1, -1]
+
+
+async def test_ending_a_record_twice_lowers_the_task_total_once(
+    task_count_changes: list[int],
+) -> None:
+    queue = RunQueue("run", lambda tasks: [], [])
+    queue.open(
+        lambda resolved, names: [
+            cast(TaskRunOptions, types.SimpleNamespace()) for _ in resolved
+        ],
+        task_retry_attempts=0,
+    )
+    [resolved] = resolve_tasks(
+        _hook_task("t", _noop), {}, get_model("mockllm/model"), None, None, None
+    )
+    [record] = queue.add([resolved], seed=True)
+    queue.screen_open = True
+    queue.end(record, None)
+    queue.end(record, None)
+    assert task_count_changes == [-1]
+
+
+@solver
+def raise_chained() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        try:
+            raise KeyError("inner cause")
+        except KeyError as ex:
+            raise ValueError("task failed") from ex
+
+    return solve
+
+
+@pytest.mark.parametrize("display_kind", ["rich", "textual"])
+async def test_ended_tasks_are_released_while_their_rows_are_held(
+    tmp_path: Path,
+    probe: type[DispatchProbeSandbox],
+    monkeypatch: pytest.MonkeyPatch,
+    display_kind: str,
+) -> None:
+    # the task screen holds every row for the whole run: a task that ended (by
+    # finishing, cancelled while queued, exhausting its retries on a task
+    # error, or failing sandbox setup) releases its Task and dataset while its
+    # row, with a failed task's rendered traceback, is still held
+    probe.failures["setup_fails"] = 99
+    task_refs: dict[str, weakref.ref[Task]] = {}
+    dataset_refs: dict[str, weakref.ref[Any]] = {}
+    alive: list[str] = []
+    rows: list[tuple[str, str]] = []
+
+    def add(name: str, **kwargs: Any) -> None:
+        task = Task(dataset=[Sample(input="x")], name=name, **kwargs)
+        task_refs[name] = weakref.ref(task)
+        dataset_refs[name] = weakref.ref(task.dataset)
+        enqueue_task(task)
+
+    async def creator() -> None:
+        queue = get_run_queue()
+        assert queue is not None
+        add("finishes", solver=[], sandbox=("dispatch_probe", "ok"))
+        add("cancelled_queued", solver=[])
+        queue.cancel(_record("cancelled_queued"))
+        add("task_error", solver=[raise_chained()])
+        add("setup_error", solver=[], sandbox=("dispatch_probe", "setup_fails"))
+        with anyio.fail_after(30):
+            for name in task_refs:
+                await _record(name).ended.wait()
+        gc.collect()
+        alive.extend(
+            name
+            for name in task_refs
+            if task_refs[name]() is not None or dataset_refs[name]() is not None
+        )
+        # the failed rows are still held, with their tracebacks
+        active = display()
+        held: list[Any]
+        if isinstance(active, TextualDisplay):
+            held = active.app._app_tasks
+        else:
+            assert isinstance(active, RichDisplay)
+            held = active.tasks
+        for row in held:
+            if isinstance(row.result, TaskError):
+                rows.append((row.profile.name, row.result.text))
+        # the successful setup stays registered for the run's cleanup
+        assert "task_cleanup:ok" not in probe.calls
+
+    async def run() -> list[EvalLog]:
+        return await eval_async(
+            _hook_task("creator", creator),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+            max_tasks=2,
+            task_retry_attempts=1,
+        )
+
+    if display_kind == "textual":
+        if current_async_backend() != "asyncio":
+            pytest.skip("the Textual app runs on asyncio")
+        app: TaskScreenApp[None] = TaskScreenApp()
+        textual = TextualDisplay()
+        # TextualDisplay.run_task_app sets this when it runs the app itself
+        setattr(textual, "app", app)
+        # the headless test driver cannot suspend the app around setup
+        monkeypatch.setattr(
+            TextualDisplay, "suspend_task_app", lambda self: contextlib.nullcontext()
+        )
+        monkeypatch.setattr(active_display_module, "_active_display", textual)
+        async with app.run_test():
+            logs = await run()
+    else:
+        logs = await run()
+    assert alive == []
+    statuses = {log.eval.task: log.status for log in logs}
+    assert statuses == {
+        "creator": "success",
+        "finishes": "success",
+        "cancelled_queued": "error",
+        "task_error": "error",
+        "setup_error": "error",
+    }
+    failed = dict(rows)
+    assert "KeyError: 'inner cause'" in failed["task_error (retry 1 of 1)"]
+    assert "ValueError: task failed" in failed["task_error (retry 1 of 1)"]
+    assert "task_init failed for setup_fails" in failed["setup_error (retry 1 of 1)"]
+    assert "task_cleanup:ok" in probe.calls

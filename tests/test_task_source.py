@@ -16,6 +16,7 @@ from typing import Any, Awaitable, Callable
 
 import anyio
 import pytest
+from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, TaskSource, eval, eval_async, task_source
 from inspect_ai._eval.loader import resolve_tasks
@@ -1202,3 +1203,28 @@ async def test_interrupted_retry_preparation_releases_the_attempts_log(
     assert logger.buffer_db is None
     with pytest.raises(RuntimeError, match="No log in progress"):
         logger.recorder.destination_written(logger.eval)
+
+
+@skip_if_trio  # an asyncio task cancelled on its own, outside the run
+async def test_next_tasks_cancelled_by_its_own_producer_fails_the_run(
+    tmp_path: Path,
+) -> None:
+    # a cancellation the run did not cause must not read as the source
+    # finishing: the run fails instead of returning its partial logs
+    import asyncio
+
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_task("seed")]
+
+        async def next_tasks(self) -> list[Task] | None:
+            producer = asyncio.create_task(asyncio.sleep(30))
+            await asyncio.sleep(0)
+            producer.cancel()
+            await producer  # raises CancelledError into next_tasks()
+            return None
+
+    init_display_type("none")
+    with anyio.fail_after(30):
+        with pytest.raises(RuntimeError, match="next_tasks"):
+            await eval_async(_Src(), model="mockllm/model", log_dir=str(tmp_path))
