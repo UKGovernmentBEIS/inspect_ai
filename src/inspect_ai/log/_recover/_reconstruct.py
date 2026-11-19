@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, MutableMapping
 from logging import getLogger
 from typing import Any, Literal, cast, get_args
 
@@ -26,6 +26,7 @@ from inspect_ai.event._score import ScoreEvent
 from inspect_ai.event._validate import validate_events
 from inspect_ai.log._condense import (
     WalkContext,
+    escape_literal_input_refs,
     resolve_attachment_fn,
     walk_json_value,
     walk_model_output,
@@ -183,20 +184,27 @@ def _limit_from_summary(summary: EvalSampleSummary) -> EvalSampleLimit | None:
 def dataset_sample_or_summary(
     summary: EvalSampleSummary,
     sample_init: SampleInitEvent | None,
-    attachments: Mapping[str, str],
+    attachments: MutableMapping[str, str],
 ) -> Sample | EvalSampleSummary:
     """Where a recovered sample's input, target and choices come from.
 
-    Shared by both recovery paths. The buffered summary is thinned
-    (`EvalSampleSummary.thin_data` truncates long text and drops images), so
-    prefer the dataset sample its `SampleInitEvent` recorded. The buffer stores
-    that event condensed. A message-list input stays condensed, like the
-    recovered messages, since the write path condenses it again as a sample
-    that holds references. The write path leaves a string input as it is, so
-    its reference is resolved here.
+    Shared by both recovery paths. The write path condenses a message-list
+    input again as a sample that holds references, and leaves a string input
+    as it is; the input returned is in the state each expects.
+
+    The buffered summary is thinned (`EvalSampleSummary.thin_data` truncates
+    long text and drops images), so prefer the dataset sample its
+    `SampleInitEvent` recorded. The buffer stores that event condensed: a
+    message-list input stays condensed, like the recovered messages, and a
+    string input's reference is resolved here. A sample interrupted before
+    it recorded the event (while its input media load) has only the summary,
+    which the buffer gives resolved: its literal reference text is stored as
+    attachments here.
     """
     if sample_init is None:
-        return summary
+        return summary.model_copy(
+            update={"input": escape_literal_input_refs(summary.input, attachments)}
+        )
     sample = sample_init.sample
     if isinstance(sample.input, str):
         return sample.model_copy(

@@ -1492,12 +1492,13 @@ async def _recover_sample(
     complete_kwargs: dict[str, Any] | None = None,
     before_crash: Callable[[SampleBufferDatabase], None] | None = None,
     call_attachments: dict[str, str] | None = None,
+    input: str | list[ChatMessage] = "hi",
 ) -> str:
     """Buffer a sample with `events`, crash, recover; the output path.
 
     `complete_kwargs` are the keyword arguments to `complete_sample` (by
     default no metadata). `call_attachments` are what the events' model
-    calls reference.
+    calls reference. `input` is the buffered summary's input.
     """
     eval_path = os.path.join(temp_dir, "store.eval")
     output_path = os.path.join(temp_dir, "store-recovered.eval")
@@ -1515,17 +1516,18 @@ async def _recover_sample(
     summary = EvalSampleSummary(
         id="s1",
         epoch=1,
-        input="hi",
+        input=input,
         target="reply",
         started_at=datetime.now(timezone.utc).isoformat(),
     )
     db_dir = os.path.join(temp_dir, "bufferdb")
     buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
     buffer.start_sample(summary)
-    buffer.log_events(
-        [SampleEvent(id="s1", epoch=1, event=event) for event in events],
-        call_attachments,
-    )
+    if events:
+        buffer.log_events(
+            [SampleEvent(id="s1", epoch=1, event=event) for event in events],
+            call_attachments,
+        )
     if completed:
         buffer.complete_sample(
             summary.model_copy(
@@ -1986,3 +1988,38 @@ async def test_recovery_keeps_literal_reference_text(
         message["content"] for message in request_messages if isinstance(message, dict)
     ] == [prompt, literal]
     assert model_event.call.response == {"content": literal}
+
+
+@pytest.mark.parametrize("protocol", ["attachment://", "tc://"])
+@pytest.mark.parametrize("buffer_kind", ["database", "filestore"])
+async def test_recovery_keeps_literal_reference_text_in_summary_input(
+    buffer_kind: str, protocol: str
+) -> None:
+    """A sample interrupted before it recorded its `SampleInitEvent` keeps literal input text.
+
+    A run opens the buffered sample before it loads the input's media and
+    records the event, so recovery takes the input from the buffered summary.
+    """
+    prompt = "You are a careful assistant who answers in full. " * 4
+    literal = f"{protocol}{mm3_hash(prompt)}"
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = await _recover_sample(
+                buffer_kind,
+                [],
+                temp_dir,
+                completed=False,
+                input=[
+                    ChatMessageSystem(content=prompt),
+                    ChatMessageUser(content=literal),
+                ],
+            )
+            recovered = await read_eval_log_async(output_path, resolve_attachments=True)
+
+    assert recovered.samples is not None
+    sample = recovered.samples[0]
+    assert sample.error is not None
+    assert isinstance(sample.input, list)
+    # the prompt was pooled in the buffer as a genuine reference
+    assert [message.text for message in sample.input] == [prompt, literal]

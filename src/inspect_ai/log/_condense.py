@@ -584,6 +584,30 @@ def escape_literal_refs(sample: EvalSample) -> EvalSample:
     )
 
 
+def escape_literal_input_refs(
+    input: str | list[ChatMessage], attachments: MutableMapping[str, str]
+) -> str | list[ChatMessage]:
+    """Store literal reference text in a raw message-list input as attachments.
+
+    For a raw input written with condensed messages (a recovered sample's
+    input taken from its buffered summary), which `condense_sample` would
+    otherwise take as references when a literal names one of the sample's
+    attachments. A string input is returned as it is, as condensing leaves it.
+
+    Args:
+       input: Raw sample input.
+       attachments: The sample's attachments, which the literals are added to.
+
+    Returns:
+       The input with its literal reference text stored as attachments.
+    """
+    return walk_input(
+        input,
+        _escape_refs_fn(attachments),
+        WalkContext(message_cache={}, only_core=True),
+    )
+
+
 def escape_literal_event_refs(
     events: Sequence[Event], attachments: MutableMapping[str, str]
 ) -> list[Event]:
