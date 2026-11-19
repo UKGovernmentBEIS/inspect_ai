@@ -493,7 +493,11 @@ Tool calls whose provider reuses one call id (for example Mistral) show without 
 
 In logs written before Inspect 0.3.292, replay shows the tool calls of an agent that used the Google API without a sentinel, but not their results.
 
-Replay doesn't attach the live sentinel's checks of bridged calls to these steps. To compare them, join the two downstream (e.g. in inspect_sentinel) by sample, step (`tool_call` or `tool_result`), the `uuid` of the model call that wrote the call, and call id. To find that model call for a recorded check, use log order: it is the latest bridged `ModelEvent` before the check whose output contains the check's call id. A person's decision at a live check still reaches the later steps of the conversation.
+Replay doesn't attach the live sentinel's checks of bridged calls to these steps. To compare them, join the two downstream (e.g. in inspect_sentinel) by sample, step (`tool_call` or `tool_result`), the `uuid` of the model call that wrote the call, and call id.
+
+For a check whose call id the bridge kept, find the model call that wrote it by log order: it is the latest bridged `ModelEvent` before the check whose output contains that id. This doesn't find the model call for a check recorded under a new id the bridge gave the call (e.g. a Mistral call under a reused `"null"` id), since no model call's output has that id.
+
+A person's decision at a live check still reaches the later steps of the conversation.
 
 A bridged call's steps are named by its model call's `uuid` and the call id (`<uuid>/<call id>`), so they never take the id of a native tool call. If one model response has two calls with the same id, replay skips both and logs a warning.
 
