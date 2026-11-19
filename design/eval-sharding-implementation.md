@@ -2231,7 +2231,8 @@ through eval's own task resolution.
    used by the merge (an option), designed
    in this PR, including what is verified before deleting and what a
    partial deletion leaves. Until it lands, the user removes
-   `<name>.shards/` by hand ("Removing shards"). Depends on 5.
+   `<name>.shards/` by hand ("Removing shards"). Depends on 5. Designed
+   in [`eval-sharding-deletion.md`](eval-sharding-deletion.md).
 
 PRs 5 and 6 each carry a CHANGELOG line; 1–4, 7 and 8 are internal or
 performance-only. Each PR reports its
