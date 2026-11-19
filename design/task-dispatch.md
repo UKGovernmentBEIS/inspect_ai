@@ -123,10 +123,13 @@ hides a problem):
   retry. `eval()` returns the log with the other logs, so an eval set or
   selection-mode worker that requested the task reports failure. Under
   `eval_set(retry_immediate=False)` the next round runs such a task again,
-  as it does a running task cancelled today.
+  as it does a running task cancelled today. (A task fed through a handle
+  and cancelled while queued ends at once with no log instead;
+  [task-handles.md](task-handles.md#tasks-fed-through-a-handle).)
 - `debug_errors=True` raises task errors at every `max_tasks`.
-- The control channel lists queued tasks and cancels, drains, pauses and
-  resumes them.
+- The control channel lists queued tasks and cancels and drains them.
+  `inspect ctl task pause` and `resume` of a queued task still answer "not
+  found", as today.
 
 Could change what an eval computes:
 
@@ -390,7 +393,8 @@ The design keeps these, and each section below says how:
 2. **Every task × model is one record, and every record ends exactly once**
    (`RunQueue.end`), with the log its last attempt returned, or `None` when
    dispatch ended first or, for a fed task, when its channel closed before
-   any sample was sent (task-handles.md, "Closing").
+   any sample was sent or it was cancelled while queued (task-handles.md,
+   "Closing" and "Cancelling").
 3. **A record is visible to the control channel from the moment it is
    added, and after it ends**: in the queued registry until one of its
    attempts first calls `register_eval`, then through its `EvalState`, as
@@ -654,7 +658,8 @@ when `abort_requested` is set, and schedules `run_one` with them. So a
 cancel of a record that has never registered sees one of two states only (a
 record with `reached == "registered"` takes the `cancel_task` route below
 first, whatever its phase). A record still `queued` has not been picked for
-its next attempt: it gets `abort_requested` and the uncounted start. A record
+its next attempt: it gets `abort_requested` and the uncounted start (a
+record fed through a handle instead ends at once, below). A record
 already picked for its current attempt, including one whose `run_one` has
 not yet run its first statement, is an attempt that has not registered: the cancel goes to the pair
 `start_attempt` stored on the record, the attempt aborts at `task_run`'s
@@ -667,8 +672,8 @@ the `TaskSource` runs inside `_run_task`, before the slot is released, so a
 `max_tasks=1` waits as it does today for any attempt that ends while holding
 the only slot. Only `run_one`
 (and `end_all()` after the group exits) ends a record in `attempt`:
-`end_unstarted()` and, in task-handles.md, the empty-channel close act on
-`queued` records only, so a scheduled `run_one` always has its attempt to
+`end_unstarted()` and, in task-handles.md, the empty-channel close and a
+fed record's cancel act on `queued` records only, so a scheduled `run_one` always has its attempt to
 run. A cancellation of the attempt group right after the pick does not skip
 `run_one`: an AnyIO task started with `start_soon` runs its synchronous
 body up to its first checkpoint even when its group is cancelled first
@@ -701,7 +706,8 @@ queued row and by a handle's `cancel()`, is synchronous:
   attempt or abandons a pending retry (the dispatcher drops it and the
   record ends with its stored log), exactly as `inspect ctl task cancel`
   does today.
-- `queued`, never registered: an attempt that aborts before it starts.
+- `queued`, never registered (a record fed through a handle excepted,
+  below): an attempt that aborts before it starts.
   `RunQueue.cancel` records the intent, `record.abort_requested = True`,
   and rings `wake`; it creates no `TaskCancel` or scope. The dispatcher
   starts the record on its next pass ("Start rule": a record with
@@ -728,13 +734,16 @@ queued row and by a handle's `cancel()`, is synchronous:
   closed"), so no retry is published and the record ends with that
   attempt's log. No case reports `retry_abandoned`, which stays the answer
   for a pending retry of a registered task only.
-- (task-handles.md) A record fed through a handle: after the route above
-  (so a queued record's `abort_requested` is already set), `RunQueue.cancel`
-  closes the record's sample channel itself, in the same synchronous call,
-  in every phase but `ended`, whether or not the route's directive applied:
-  once the attempt's `EvalState` is terminal while the record is still in
-  `attempt` (its `task_complete` running), `cancel_task` answers "task
-  already finished" without calling `apply`.
+- (task-handles.md) A record fed through a handle, which is never
+  retried: in `queued` it has never started, and `RunQueue.cancel` ends it
+  at once with no log (`RunQueue.end(record, None)`) instead of the route
+  above, so it never gets `abort_requested` (decision: Ransom, 2026-11-19).
+  In `attempt`, after the route above, `RunQueue.cancel` closes the
+  record's sample channel itself, in the same synchronous call, whether or
+  not the route's directive applied: once the attempt's `EvalState` is
+  terminal while the record is still in `attempt` (its `task_complete`
+  running), `cancel_task` answers "task already finished" without calling
+  `apply`.
 
 **Aborting an attempt that has not registered.** `start_attempt` creates
 the attempt's cancel scope and its `TaskCancel`, whose `apply` cancels that
@@ -837,7 +846,10 @@ twice is reported three times.
   ends the record with its earlier attempt's log) reports nothing; nor does
   an unregistered attempt aborted after `_run_task` returned: in each case
   the attempt whose log the record keeps was reported when it returned. A
-  record ended unstarted when dispatch ends is not reported, as today.
+  record ended unstarted when dispatch ends is not reported, as today, nor
+  is a record fed through a handle that ends before it starts (its channel
+  closed before any sample was sent, or cancelled while queued;
+  task-handles.md), since no attempt ran.
 
 The call keeps `notify_task_source`'s rules, as today: a callback exception
 is logged (propagated under `debug_errors`), and the tasks a callback
@@ -899,7 +911,7 @@ display and logger format.
 attempt calls `register_eval` (cancelled while queued, which aborts before it registers, a startup failure
 such as a failed `init()` or a bad adaptive setting with no retry left, an
 attempt aborted before it registered, a record ended unstarted, a fed task closed before
-any sample was sent) would otherwise vanish from the control channel when
+any sample was sent or cancelled while queued) would otherwise vanish from the control channel when
 it leaves the queued registry: `latest_eval_for_task` finds nothing, and a
 repeated cancel or drain answers 404. So `RunQueue.end`, in the same
 synchronous step and before removing the registry entry, calls today's
@@ -921,23 +933,22 @@ Textual displays count completed tasks from the rows attempts open. So a
 record that ends with `reached == "added"` (cancelled while queued, ended
 unstarted at the end of dispatch, aborted or failed in startup before its
 row opened, or, in task-handles.md, a fed task closed before any
-sample was sent) takes one off the total, once. A record whose row opened
+sample was sent or cancelled while queued) takes one off the total, once. A record whose row opened
 leaves the total unchanged, as today; an abort from `log_start()` on
 completes that row ("Aborting an attempt that has not registered").
 `RunQueue.end` calls `display().update_task_count(-1)` only while
 `queue.screen_open` is set: the dispatcher sets it on entering the body of
 `_run_task_screen`, after Textual's app has loaded and `task_screen(tasks)`
 has set the seed's total, and clears it when it leaves the screen. No
-record that should count ends outside that window: a cancel only requests
-an abort and the dispatcher, inside the screen, runs it; a fed task's
-channel is closed by attempt code, by `RunQueue.end` or (task-handles.md)
-by `RunQueue.cancel`, which a handle or a control-channel directive can
-call at any time, but `RunQueue.cancel` sets a queued record's
-`abort_requested` before it closes the channel, so that empty-channel close
-keeps the record queued for its abort attempt inside the screen (or for
-`end_unstarted()`), and closing a record already in `attempt` leaves its
-end to `run_one`; `end_unstarted()` runs in
-the dispatcher's `finally`, inside the screen. What ends outside it changes
+record that should count ends outside that window: a cancel of an
+ordinary queued record only requests an abort and the dispatcher, inside
+the screen, runs it, and `end_unstarted()` runs in the dispatcher's
+`finally`, inside the screen. A fed record (task-handles.md) can end while
+queued at any time, when its channel closes with no request or when a
+handle or a control-channel directive cancels it, but it is added only by
+an attempt, which runs inside the screen, and `end_unstarted()` ends it
+before the screen closes if nothing else has; a fed record already in
+`attempt` is left to `run_one`. What ends outside it changes
 no display: `end_all()` after the screen has closed, and every record when
 a failure came before the screen opened. The displays' counting is
 unchanged.
@@ -1213,7 +1224,8 @@ task id, and `EvalState`s persist across those calls.
   keeping its history. CLI selectors resolve queued tasks like running ones.
 - `_task_cancel_directive` looks in the registry first. A cancel or drain of
   a record that has not registered follows `RunQueue.cancel`, which
-  requests its abort, and returns `changed: true`, `task_queued: true`,
+  requests its abort (or, for a queued record fed through a handle, ends
+  it at once with no log), and returns `changed: true`, `task_queued: true`,
   `in_flight: 0` (and `queued: 0` for a drain, whose `queued` is a sample
   count); `dry_run` reports without acting. When the record is `queued`
   with `abort_requested` set, a repeated cancel or drain, dry runs
@@ -1229,20 +1241,18 @@ task id, and `EvalState`s persist across those calls.
   answers 409 ("task … has not
   started, so there are no samples for a resolution to apply to; use cancel
   or drain").
-- `pause_task` and `resume_task` (`_control/pause.py`) look in the registry
-  first, as the cancel directive does, and use `latest_eval_for_task` only
-  for a task the registry does not hold: under
-  `eval_set(retry_immediate=False)` a second round's queued record shares
-  its id with the first round's terminal `EvalState`, which would otherwise
-  answer "task already finished" to a pause and describe the old eval on a
-  resume. For a queued record they close or open the task's pause gate
-  (`_task_gate(task_id)`), which is
-  the gate the start rule checks: a paused queued task is skipped by the
-  dispatcher, which starts the tasks behind it, and starts after a resume
-  (the resume fires the dispatch wakers). The response describes the queued
-  task with its record's task name and model, `status: "queued"`, and
-  `dry_run` reports without acting. A gate closed while the task was queued
-  keeps holding its samples after it starts, as for a paused running task.
+- `pause_task` and `resume_task` (`_control/pause.py`) are unchanged
+  (decision: Ransom, 2026-11-19): they look a task up with
+  `latest_eval_for_task`, so for a queued task that has never registered
+  they answer 404, which the CLI shows as "Task '<id>' not found in this
+  process (it may have finished)", although `task list` shows the task as
+  queued; under `eval_set(retry_immediate=False)` they find the earlier
+  round's `EvalState` and answer for it, as today. An operator holds queued
+  tasks with `inspect ctl process pause` or cancels them. The start rule
+  still checks `task_dispatch_paused`, so a process or model pause, and a
+  task pause of a registered task's pending retry, hold a queued record as
+  today. Pausing a queued task can be added later without breaking anyone
+  ("Not this design").
 - `CONTROL_API_VERSION` increases by one.
 
 #### Tasks cancelled before they start under `eval_set()`
@@ -1638,7 +1648,9 @@ Public API:
 Logs: a task cancelled while queued is returned by `eval()` with today's
 abort error log ("Task cancelled by user (abort)") and no file (empty
 `location`), where today it would have run; one cancelled in its attempt
-before it registers ends with the same abort log.
+before it registers ends with the same abort log. A task fed through a
+handle and cancelled while queued ends with no log
+([task-handles.md](task-handles.md#tasks-fed-through-a-handle)).
 Code that reads `log.location` from `eval()`'s results gets an empty string
 for it, as it already can for a task whose log could not be written. No eval
 log schema, viewer type or config file changes here.
@@ -1657,9 +1669,10 @@ it is created; a bad adaptive setting on an added task ends that task with
 its error log instead of raising from `eval()`.
 
 Control channel: `GET /tasks` gains queued rows (`status: "queued"`); task
-cancel, drain, pause and resume accept queued tasks (`task_queued` in a
-cancel or drain result; a repeated one before the queued task's abort runs
-answers "cancel already requested (abort)"); a task that ended without
+cancel and drain accept queued tasks (`task_queued` in a cancel or drain
+result; a repeated one before the queued task's abort runs answers "cancel
+already requested (abort)"); task pause and resume of a queued task answer
+404, as today, though the task is now listed; a task that ended without
 starting stays listed as finished, and a repeated cancel or drain of it
 answers "task already finished";
 and `CONTROL_API_VERSION` increases. Older CLIs see an unknown status value.
@@ -1852,9 +1865,7 @@ test that waits on a run is bounded with `fail_after`.
 - `tests/test_enqueue_task.py` (live fixes): at `max_tasks=1`, a long seed
   task holds the only slot and a task it added waits behind it; `inspect
   ctl config --max-tasks 2` starts the added task while the seed task still
-  runs; a queued task paused with
-  `inspect ctl task pause` is skipped while the task behind it starts, and
-  starts after `inspect ctl task resume`.
+  runs.
 - `tests/test_enqueue_task.py` (loader exception): a solver's
   `enqueue_task("other_dir/tasks.py@name")`, whose module imports a sibling
   module and whose task reads a relative file at construction, adds and runs
@@ -1883,7 +1894,8 @@ test that waits on a run is bounded with `fail_after`.
   the run ending normally, on asyncio and trio: B cancelled, and in another
   run drained, while queued behind a running A, with `.eval` and `.json`
   logs (no location, no buffer database, no display row); B cancelled
-  while queued and paused (the cancel starts it anyway); B cancelled before the task
+  while queued and held by a process pause (`pause_process()`; the cancel
+  starts it anyway); B cancelled before the task
   screen opens (Textual's app load held on an event), counted once off the
   total; B a queued retry whose first attempt's log init failed, cancelled
   while it waits (two reports: the failed attempt and the aborted one); B
@@ -1931,12 +1943,8 @@ test that waits on a run is bounded with `fail_after`.
   `location`, no file, returned by `eval_async()`); a repeated cancel and
   drain before that pass, with and without `--dry-run`, answer
   `changed: false`, "cancel already requested (abort)"; `score`/`error`
-  answer 409; pause and resume of a queued task change its gate and report
-  `status: "queued"` with its model, and `--dry-run` changes nothing; under
-  `eval_set(retry_immediate=False)`, pause, resume and their `--dry-run` on a
-  second round's queued record whose first round left a terminal
-  `EvalState` act on and describe the queued record, which is skipped while
-  paused and starts after resume; a
+  answer 409; `inspect ctl task pause` of a listed queued task answers
+  "not found", as today, and the task starts when a slot is free; a
   cancel of a record in its attempt before `register_eval` aborts it, landing
   before `_run_task` enters the attempt's scope, while `logger.init()` is
   held and while `log_start()` is held, each ending the record with "Task
@@ -2059,8 +2067,13 @@ state in the single `eval_run`), so the setup fixes come first.
    `unwritten_task_log` with no location),
    `_eval/task/task_source.py` (the `task_complete` docstring, which says
    "A task finished", says that it is called once per attempt, a failed
-   one included, as `docs/task-source.qmd` already does, and drops "they
-   run after the current batch"),
+   one included, as `docs/task-source.qmd` already does; it, the module
+   docstring and the `sample_complete` docstring drop "they run after the
+   current batch, before the next `next_tasks()`" and say that returned
+   tasks start when a `max_tasks` slot is free, before the next
+   `next_tasks()` call), `docs/task-source.qmd` (the same fix in "Returning
+   follow-up tasks", which says returned tasks "run after the current
+   batch"),
    `_display/core/display.py` (`TaskError.from_exception`),
    `_display/core/results.py` and `_display/log/display.py` (rendering the
    snapshot; logging its text as `exc_snapshot`), `_util/logger.py`
@@ -2097,12 +2110,13 @@ state in the single `eval_run`), so the setup fixes come first.
    `_control/eval_state.py` and `RunQueue.end` (terminal identity through
    `register_completed_eval` for a record that ends without registering),
    `_control/cancel.py` (the registry first in `_task_cancel_directive`,
-   and the attempt's `attempt_cancel` answers), `_control/pause.py` (queued
-   pause and resume), `_control/state.py` (queued rows in `GET /tasks`),
+   and the attempt's `attempt_cancel` answers), `_control/state.py` (queued
+   rows in `GET /tasks`),
    `_control/__init__.py` (`CONTROL_API_VERSION`), `_cli/ctl/_task.py`;
    `design/ctl/task-drain.md` ("Out of scope"). Tests:
-   `test_task_cancel.py` and `_control/test_ctl.py` (listing, cancel,
-   drain, pause and resume of queued tasks through `inspect ctl`, repeated
+   `test_task_cancel.py` and `_control/test_ctl.py` (listing, cancel and
+   drain of queued tasks through `inspect ctl`, pause of one still
+   answering "not found", repeated
    directives, finished rows of records that never registered), and 3a's
    queued and unregistered cancels in `test_task_source.py` and
    `test_eval_set.py` made again through `inspect ctl`. Needs 3a.
@@ -2184,7 +2198,12 @@ place of the snapshot is withdrawn (decision: Ransom, 2026-11-19), because
 clearing a suspended frame on Python 3.11 and 3.12 finalizes a coroutine
 that may still be running (see
 [Alternatives considered](#alternatives-considered)); the frame-free
-snapshot stands.
+snapshot stands. Also (2026-11-19): `inspect ctl task pause` and `resume`
+of a queued task are left out of step 3b and answer 404 as today, and a
+task fed through a handle that is cancelled while queued ends at once with
+no log rather than through an abort attempt, narrowing the 2026-11-17
+queued-cancel decision to ordinary records
+([task-handles.md](task-handles.md#tasks-fed-through-a-handle)).
 
 ## Not this design
 
@@ -2216,6 +2235,14 @@ snapshot stands.
   Controllers stay lazy; nothing is created eagerly. The follow-up also
   specifies what the retune's answer and the logs record when it reaches
   no controller yet.
+- Pausing and resuming a queued task through `inspect ctl task pause` and
+  `resume` (decision: Ransom, 2026-11-19, deferred out of step 3b). It
+  needs `pause_task` and `resume_task` to look in the queued registry
+  first, with the registry winning over an earlier legacy round's
+  `EvalState` of the same id, a queued-shaped response with `--dry-run`,
+  and a pause gate closed while queued that keeps holding the task's
+  samples after it starts. No use case needs it: `inspect ctl process
+  pause` holds every queued task, and a cancel removes one.
 - A provider's own lookups in `sample_init` (a missing config's compose-file
   search) seeing the task directory.
 - A caller's own cancellation of `eval_async()` (for example
