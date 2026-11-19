@@ -245,8 +245,9 @@ and only one case is new:
   the merged log as recorded.
 - **Part way through the current attempts**, some shards have no
   attempt while others do: refused as vanished shards, as today. The
-  message gains "If a deletion of the shards was interrupted, merge
-  again with `delete_shards=True` (`--delete-shards`) to finish it."
+  message of a merge without the option gains "If a deletion of the
+  shards was interrupted, merge again with `delete_shards=True`
+  (`--delete-shards`) to finish it."
 
 A merge with the option finishes every case. In the third, the deleting
 rerun takes the existing no-shards path, which it also takes when the
@@ -258,7 +259,10 @@ Because the run has stayed untouched since the first `--delete-shards`
 call ("The quiescence requirement"), the merged log it keeps is the one
 that call's pass checked. In all three cases, deletion then deletes what
 remains. Any other difference (a changed shard, a new `<k>/`) is refused
-as today. A local lock left by a crash is reported,
+as today, with the existing vanished-shard advice (restore the files, or
+delete the rest of the shards directory by hand) and without the hint to
+rerun with the option, which the caller has already given and which
+cannot clear that state. A local lock left by a crash is reported,
 as for a crashed merge; the user deletes it and reruns.
 
 The rule needs no marker of a deletion in progress: the ledger and the
@@ -276,13 +280,19 @@ none beyond the classification the merge already makes.
   the shards. A failed check on the set to delete or a non-empty
   confirming listing raises `ShardSetError`, whose message says whether
   this call wrote the merged log and that the shards were not (or not
-  all) deleted; a storage error propagates as raised. Messages state
-  what must be corrected before retrying: an S3 name that S3 would read
-  as another key keeps `check_s3_location`'s advice to rename it, and a
-  merged log changed outside the merge keeps the existing advice to
-  delete and rebuild it. Transient failures (a storage error, a
-  cancellation) and an interrupted cleanup recommend running the merge
-  again with the option.
+  all) deleted. Messages state what must be corrected before retrying:
+  an S3 name that S3 would read as another key keeps
+  `check_s3_location`'s advice to rename it, a merged log changed
+  outside the merge keeps the existing advice to delete and rebuild it,
+  and a changed or new shard found by a deleting rerun keeps the
+  vanished-shard advice. A storage error during deletion propagates with
+  its type and message unchanged; the deletion module adds a note to it
+  (`BaseException.add_note`) saying the shards may be partly deleted and
+  to run the merge again with the option to finish. A cancellation
+  propagates unchanged; the docs say to rerun after an interruption.
+- **Command failures.** The command's error message includes the notes
+  of the exception it reports, so a failed delete is reported as
+  `storage_error` with the storage error's message and the rerun advice.
 - **Command report.** After the status line, `  shards: deleted <shards
   dir>` when `--delete-shards` was given.
 - **`--json`.** The result object is unchanged. Errors use the existing
@@ -327,7 +337,9 @@ and gains a "Removing shards" section after "Merging":
 >
 > Use it only on a finished run: no workers still running, no edits or
 > scoring of the merged log or shards, and no other merge of the run
-> until it returns. Something written to the run while the shards are
+> until it returns. Keep the merged log and its shards unchanged from
+> the first deleting call until cleanup succeeds, including between
+> retries. Something written to the run while the shards are
 > deleted can be lost, as when you delete them by hand. Deletion cannot
 > be undone, except from object versions on a versioned S3 bucket.
 >
@@ -489,8 +501,10 @@ No test needs network, Docker or a model provider.
 - `test_delete_shards_refuses_hand_removal_leaving_older_attempt`: a
   `<k>/` whose recorded current attempt was deleted while an older one
   was kept is refused as an attempt regression, nothing deleted.
-- `test_delete_shards_refuses_interrupted_deletion_with_changed_shard`:
-  one remaining shard changed; refused, nothing deleted.
+- `test_delete_shards_refuses_interrupted_deletion_with_changed_shard`,
+  parametrized over a remaining shard that changed and a new `<k>/`
+  that appeared: refused, nothing deleted, and the message gives the
+  vanished-shard advice and not the hint to rerun with the option.
 - `test_delete_shards_does_not_follow_symlinks` (local): a link in a
   `<k>/` to a directory outside is removed and its target is intact; a
   linked companion is refused before anything is written.
@@ -507,8 +521,12 @@ No test needs network, Docker or a model provider.
 - In `tests/test_eval_set.py`:
   `test_eval_set_accepts_log_dir_after_delete_shards`.
 - Command tests beside the existing `merge-shards` tests: the report line,
-  an unchanged `--json` result object, and `--delete-shards
-  --allow-incomplete` exiting 1 with kind `invalid_arguments`.
+  an unchanged `--json` result object, `--delete-shards
+  --allow-incomplete` exiting 1 with kind `invalid_arguments`, and a
+  failed delete (an injected storage error) exiting 1 with kind
+  `storage_error` and a message holding the storage error and the rerun
+  advice; the Python test of the same failure checks the exception type
+  is unchanged and carries the note.
 
 ## Implementation plan
 
@@ -518,8 +536,8 @@ interrupted-deletion case in `log/_shards/_api.py`; the vanished message
 in `log/_shards/_plan.py`; a recursive listing that includes S3
 directory markers if `AsyncFilesystem` has none (in
 `src/inspect_ai/_util/asyncfiles.py`, leaving existing listings
-unchanged); `--delete-shards` and the report line in
-`src/inspect_ai/_cli/log_merge_shards.py`; the refusal message in
+unchanged); `--delete-shards`, the report line and exception notes in
+the command's error message in `src/inspect_ai/_cli/log_merge_shards.py`; the refusal message in
 `src/inspect_ai/_eval/evalset.py`; `docs/sharding.qmd`
 ("Documentation"); the tests above.
 
