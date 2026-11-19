@@ -1685,6 +1685,7 @@ class Model:
             get_all_hooks,
         )
         from inspect_ai.hooks._legacy import send_telemetry_legacy
+        from inspect_ai.log._addonly import store_boundary
         from inspect_ai.log._refusal import report_refusal
         from inspect_ai.log._samples import (
             cleared_retry_wait,
@@ -1903,6 +1904,9 @@ class Model:
                 # begin_attempt may await the on_stream retry boundary,
                 # during which a concurrent call can reach a limit
                 _check_limits_before_dispatch()
+                # the response can compromise the process (eg. while the
+                # provider SDK parses it), so store what precedes the request
+                await store_boundary()
                 if idle_scope is not None:
                     assert stream_idle_timeout is not None
                     stream_observer.arm_stall_scope(idle_scope, stream_idle_timeout)

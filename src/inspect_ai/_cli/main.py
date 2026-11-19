@@ -15,6 +15,7 @@ from .log import log_command
 from .sandbox import sandbox_command
 from .score import score_command
 from .trace import trace_command
+from .validate import validate_command
 from .view import view_command
 
 
@@ -54,6 +55,7 @@ inspect.add_command(score_command)
 inspect.add_command(view_command)
 inspect.add_command(sandbox_command)
 inspect.add_command(trace_command)
+inspect.add_command(validate_command)
 
 
 def main() -> None:

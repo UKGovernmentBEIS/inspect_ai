@@ -107,6 +107,7 @@ from inspect_ai.log import (
     EvalStats,
     HeadlineMetric,
 )
+from inspect_ai.log._addonly import AddOnlyStoreError, init_sample_record_writer
 from inspect_ai.log._condense import (
     SampleSerializationError,
     condense_sample,
@@ -2879,6 +2880,14 @@ async def _task_run_sample_attempt(
         init_transcript(sample_transcript)
         init_subtask_store(state.store)
         sample_transcript._subscribe(on_sample_event)
+        sample_record_writer = (
+            logger.addonly.sample_writer(
+                logger.buffer_db, sample_id, state.epoch, attempt.number
+            )
+            if logger and logger.addonly and logger.buffer_db
+            else None
+        )
+        init_sample_record_writer(sample_record_writer)
         if scorers:
             init_scoring_context(scorers, Target(sample.target))
         init_sample_assistant_internal()
@@ -2928,6 +2937,11 @@ async def _task_run_sample_attempt(
             inner = inner_exception(ex) if isinstance(ex, Exception) else ex
             if isinstance(inner, SentinelFailure):
                 ex = decisive_sentinel_exception(inner.error)
+
+            # a failed add-only store write stops the eval: no retry, no score
+            if isinstance(inner, AddOnlyStoreError):
+                attempt = replace(attempt, retry_limit=len(attempt.errors))
+                score_on_error = False
 
             # a refused sample would be refused again, and never ran
             if isinstance(inner, SampleRefusedError):
@@ -3647,6 +3661,11 @@ async def _task_run_sample_attempt(
 
                 if not isinstance(outcome, _AttemptRetry):
                     reporter.progress()
+
+                    if sample_record_writer is not None:
+                        await sample_record_writer.close(
+                            results, failure.error.message if failure else None
+                        )
 
                     # a sample saved without being scored keeps its monitor
                     # state too, as in process, for `inspect score` to read

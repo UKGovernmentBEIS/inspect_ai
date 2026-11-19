@@ -3,7 +3,7 @@ import json
 from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeAlias
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Protocol, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, JsonValue
 
@@ -103,6 +103,51 @@ class CallPoolData(BaseModel):
     epoch: int
     hash: str
     data: str
+
+
+class BufferRowMarks(NamedTuple):
+    """Highest row id already read, per table, for one sample."""
+
+    events: int = 0
+    attachments: int = 0
+    message_pool: int = 0
+    call_pool: int = 0
+
+
+class BufferEventRow(BaseModel):
+    event_id: str
+    data: str
+
+
+class BufferAttachmentRow(BaseModel):
+    hash: str
+    content: str
+
+
+class BufferPoolRow(BaseModel):
+    key: str
+    """``msg_id`` for the message pool, ``hash`` for the call pool."""
+
+    data: str
+
+
+class BufferRows(BaseModel):
+    """One sample's buffer rows, in insertion order, in the buffer's own format."""
+
+    events: list[BufferEventRow] = []
+    attachments: list[BufferAttachmentRow] = []
+    message_pool: list[BufferPoolRow] = []
+    call_pool: list[BufferPoolRow] = []
+
+    def empty(self) -> bool:
+        return not (
+            self.events or self.attachments or self.message_pool or self.call_pool
+        )
+
+
+class SampleRowsAfter(NamedTuple):
+    rows: BufferRows
+    marks: BufferRowMarks
 
 
 class SampleData(BaseModel):
