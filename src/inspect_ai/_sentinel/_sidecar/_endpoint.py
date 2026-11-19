@@ -61,6 +61,8 @@ class EvalAccess:
     """Held while the eval registers, so a sidecar that lost the task is registered again once, not by every sample that finds it lost."""
     registrations: int = 0
     """How many registrations of the task the sidecar has taken."""
+    registrations_sent: int = 0
+    """How many registrations of the task the eval has set about sending, whether or not the sidecar's answer came back. The sidecar may have lost what a sample registered before the latest."""
 
     def credentials(self, method: str) -> dict[str, Any]:
         """The eval's id, and a signature of a call to a method made now, for the call's params."""

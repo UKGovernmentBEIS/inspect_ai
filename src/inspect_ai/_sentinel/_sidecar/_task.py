@@ -134,30 +134,20 @@ class TaskSidecars:
 
         A sidecar that no longer keeps the task's registration, as after it restarted or the registration expired, has the task registered again first. Each epoch and each retry of a sample completes its registration again, so a later one finds a sidecar that has lost the task, rather than being judged without the task's facts or refused.
 
-        The sidecar is told the sample's uuid, and holds the sample's facts while a run that named itself is in progress: it frees them when the last has ended. So a completion counts only for the registration of the task it was sent to. Once the task has been registered again, as by another sample that found it lost, an attempt completes its registration again before its next call, or the sidecar could free the facts under it when that other sample ends. What it sends again is what it first sent, as a sample's input and metadata may have changed since.
+        The sidecar is told the sample's uuid, and holds the sample's facts while a run that named itself is in progress: it frees them when the last has ended. So a completion counts only for the registration of the task it was sent to. Once the eval has set about registering the task again, as for another sample that found it lost, an attempt completes its registration again before its next call, or the sidecar could free the facts under it when that other sample ends. This doesn't wait for the sidecar's answer to that registration, which may never arrive. What an attempt sends again is what it first sent, as a sample's input and metadata may have changed since.
 
         Raises:
             SentinelProxyError: If the sidecar couldn't take the sample, or no longer kept the task and couldn't register it again.
         """
 
-        def registrations() -> int:
-            return sidecar.access.registrations if sidecar.access else 0
+        def registrations_sent() -> int:
+            return sidecar.access.registrations_sent if sidecar.access else 0
 
-        async def complete(sample: SampleFacts) -> tuple[bool, int]:
+        async def complete(params: dict[str, Any]) -> tuple[bool, int]:
             # the registrations the sidecar took before this call, so one
             # another sample makes meanwhile isn't made again
             registered = sidecar.access.registrations if sidecar.access else None
-            sent_to = registrations()
-            params = {
-                "task": self.facts.task,
-                "sample_uuid": sample_uuid,
-                "sample_id": sample.sample_id,
-                "sample_description": sample.sample_description,
-                "sample_input": to_jsonable_python(
-                    sample.sample_input, exclude_none=True
-                ),
-                "metadata": to_jsonable_python(sample.metadata),
-            }
+            sent_to = registrations_sent()
             try:
                 try:
                     result = await sidecar.eval_call("complete_registration", params)
@@ -169,7 +159,7 @@ class TaskSidecars:
                     # changes nothing for a sidecar that still keeps it, and
                     # another sample that already did so is not repeated.
                     await self._register(sidecar, unless_since=registered)
-                    sent_to = registrations()
+                    sent_to = registrations_sent()
                     result = await sidecar.eval_call("complete_registration", params)
                 return result.get("fixed") is True, sent_to
             except SidecarCallError as ex:
@@ -185,17 +175,35 @@ class TaskSidecars:
                     f"The sentinel sidecar at {sidecar.origin} couldn't register the sample {sample.sample_id!r} of the task {self.facts.task!r}: {ex}"
                 ) from ex
 
-        completion = self._completions.setdefault(sample_uuid, {}).setdefault(
-            (sidecar.origin, attempt), _Completion(sample)
-        )
+        completions = self._completions.setdefault(sample_uuid, {})
+        completion = completions.get((sidecar.origin, attempt))
+        if completion is None:
+            # serialized once, so what is sent again is what was first sent,
+            # whatever the sample's input and metadata have become since
+            completion = completions[(sidecar.origin, attempt)] = _Completion(
+                {
+                    "task": self.facts.task,
+                    "sample_uuid": sample_uuid,
+                    "sample_id": sample.sample_id,
+                    "sample_description": sample.sample_description,
+                    "sample_input": to_jsonable_python(
+                        sample.sample_input, exclude_none=True
+                    ),
+                    "metadata": to_jsonable_python(sample.metadata),
+                }
+            )
         # One at a time for the attempt: its calls made at once wait for the
         # one that sends, and a completion that raised is tried again by the
         # next. It is complete for the registration of the task it was sent
-        # to. A completion still on its way when the task is registered again
-        # is one the sidecar may have lost with the task, so it is sent again.
+        # to. A completion still on its way when the eval sets about
+        # registering the task again is one the sidecar may have lost with
+        # the task, so it is sent again.
         async with completion.lock:
-            while completion.done is None or completion.done.sent_to != registrations():
-                completion.done = _Completed(*await complete(completion.sample))
+            while (
+                completion.done is None
+                or completion.done.sent_to != registrations_sent()
+            ):
+                completion.done = _Completed(*await complete(completion.params))
             return completion.done.fixed
 
     def lost_monitor_state(self, sample_uuid: str, attempt_number: int) -> None:
@@ -432,6 +440,10 @@ class TaskSidecars:
         async with access.lock:
             if unless_since is not None and access.registrations != unless_since:
                 return
+            # Counted before it is sent: the sidecar may take a registration
+            # whose answer never arrives, and a sample's completion sent
+            # before it is then for a registration the sidecar replaced.
+            access.registrations_sent += 1
             params: dict[str, Any] = {
                 "eval_id": facts.eval_id,
                 "task": facts.task,
@@ -454,12 +466,16 @@ class TaskSidecars:
                     except SidecarCallError as ex:
                         if ex.code != UNKNOWN_TASK:
                             raise
-                        # the sidecar holds no token for the eval, as after a
-                        # restart, so it is sent the one the eval holds
+                        # The sidecar holds no token for the eval, as after a
+                        # restart, so it is sent the one the eval holds. What
+                        # it lost is noted first: it may take the token and
+                        # its answer never arrive, and an attempt that
+                        # completes its registration while the answer is on
+                        # its way began after the restart.
+                        self._lost_with_token(sidecar)
                         await sidecar.call(
                             "register_task", {**params, "token": access.token}
                         )
-                        self._lost_with_token(sidecar)
             except SidecarCallError as ex:
                 self._registration_failed(sidecar, ex)
             access.registrations += 1
@@ -499,15 +515,15 @@ class _Completed(NamedTuple):
     fixed: bool
     """Whether the sidecar's admin registered the task beforehand."""
     sent_to: int
-    """How many registrations of the task the sidecar had taken when the completion was sent."""
+    """How many registrations of the task the eval had set about sending when the completion was sent."""
 
 
 @dataclass
 class _Completion:
     """One attempt's registration of its sample at a sidecar."""
 
-    sample: SampleFacts
-    """The facts the attempt first sent, which a later send repeats."""
+    params: dict[str, Any]
+    """What the attempt first sent, as it was sent, which a later send repeats."""
     lock: anyio.Lock = field(default_factory=anyio.Lock)
     done: _Completed | None = None
     """The latest completion the sidecar took, or None before the first."""

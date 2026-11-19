@@ -93,6 +93,9 @@ class StandInSidecar:
     tokens: dict[str, str] = field(default_factory=dict)
     """The token kept for each eval, by its id, from its first registration. Clearing it is a restart that lost them."""
 
+    answer_after: anyio.Event | None = None
+    """Set by a method as it answers, to hold that answer until the event is set: the stand-in has taken the call, and its answer is slow to arrive."""
+
     now: float | None = None
     """The stand-in's clock, in seconds since the epoch, or None to read the real one."""
 
@@ -127,6 +130,9 @@ class StandInSidecar:
 
     async def _handle_async(self, request: httpx2.Request) -> httpx2.Response:
         response = self._handle(request)
+        after, self.answer_after = self.answer_after, None
+        if after is not None:
+            await after.wait()
         # held as a proxy holds a call while its sidecar judges
         hold = self._holds.pop(id(request), 0.0)
         if hold:

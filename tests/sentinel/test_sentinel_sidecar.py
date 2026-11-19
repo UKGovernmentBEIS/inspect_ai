@@ -1110,9 +1110,10 @@ async def test_a_completion_on_its_way_when_the_task_is_registered_again_is_sent
 
     def complete(_: dict[str, Any]) -> dict[str, Any]:
         if held:
-            # answered after another sample registered the task again: the
-            # sidecar may have lost this completion with the task it lost
-            held.pop().registrations += 1
+            # answered after the eval set about registering the task again,
+            # for another sample: the sidecar may have lost this completion
+            # with the task it lost
+            held.pop().registrations_sent += 1
         return {}
 
     stand_in = StandInSidecar(methods={"complete_registration": complete})
@@ -1132,16 +1133,23 @@ async def test_an_attempt_sends_again_what_it_first_sent() -> None:
     sidecars = TaskSidecars("auto", _FACTS)
     sidecar = await sidecars.sidecar(_model(stand_in).api)
     assert sidecar is not None and sidecar.access is not None
-    await sidecars.complete_registration(sidecar, _sample(), "sample_123", 1)
+    message = ChatMessageUser(content="File the report.")
+    sample = _sample()._replace(
+        sample_input=[message], metadata={"desk": {"city": "Tokyo"}}
+    )
+    await sidecars.complete_registration(sidecar, sample, "sample_123", 1)
 
     # The task is registered again, as when another of its models' endpoints
-    # is found at the same sidecar. The sample's metadata has changed since.
-    sidecar.access.registrations += 1
-    changed = _sample()._replace(metadata={"city": "Oslo"})
-    await sidecars.complete_registration(sidecar, changed, "sample_123", 1)
+    # is found at the same sidecar. The sample's input and metadata have
+    # changed since, in place.
+    sidecar.access.registrations_sent += 1
+    message.content = "Shred the report."
+    sample.metadata["desk"]["city"] = "Oslo"
+    await sidecars.complete_registration(sidecar, sample, "sample_123", 1)
 
     first, again = _registered(stand_in, "complete_registration")
     assert _unsigned(again) == _unsigned(first)
+    assert first["metadata"] == {"desk": {"city": "Tokyo"}}
 
 
 @pytest.mark.parametrize("restarted", [True, False])
@@ -1195,6 +1203,98 @@ async def test_an_attempt_a_restarted_sidecar_had_begun_judging_isnt_scored_on_w
     assert first.get("Tally:lookups") == (None if restarted else 1)
     # the sample that registered the task again had lost nothing
     assert other.get(MONITOR_STATE_COPY)["copied"] is True
+
+
+async def test_a_restart_whose_registrations_answer_is_lost_still_isnt_scored_on() -> (
+    None
+):
+    lose_answer = [False]
+
+    def register(params: dict[str, Any]) -> dict[str, Any]:
+        if lose_answer[0] and "token" in params:
+            # the sidecar takes the registration, and its answer never arrives
+            lose_answer[0] = False
+            stand_in.tokens[params["eval_id"]] = params["token"]
+            raise httpx2.ReadError("the connection was lost")
+        return {}
+
+    stand_in = StandInSidecar(
+        methods={
+            "register_task": register,
+            "sample_result": _kept({"Tally:lookups": 1}),
+        }
+    )
+    sidecars = TaskSidecars("required", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+    sidecars.called_through("sample_a", 1, sidecar)
+    await sidecars.complete_registration(sidecar, _sample(), "sample_a", 1)
+
+    # the sidecar restarts, and the sample that finds the task lost never
+    # hears that the sidecar took it again
+    stand_in.tokens.clear()
+    lose_answer[0] = True
+    with pytest.raises(SentinelProxyError, match="couldn't register the task"):
+        await sidecars.complete_registration(sidecar, _sample(2), "sample_b", 1)
+    # its retry finds the task registered, as does the first sample's next call
+    await sidecars.complete_registration(sidecar, _sample(2), "sample_b", 2)
+    await sidecars.complete_registration(sidecar, _sample(), "sample_a", 1)
+
+    # the first sample completed its registration again, for the sidecar that
+    # lost it, and isn't scored on what that sidecar holds since
+    completed = _registered(stand_in, "complete_registration")
+    assert [params["sample_uuid"] for params in completed][-2:] == [
+        "sample_b",
+        "sample_a",
+    ]
+    store = Store()
+    with pytest.raises(SentinelProxyError, match="lost the sample partway"):
+        await sidecars.copy_monitor_state("sample_a", 1, store)
+    assert store.get(MONITOR_STATE_COPY)["copied"] is False
+
+
+async def test_a_sample_begun_while_a_restarts_registration_is_answered_lost_nothing() -> (
+    None
+):
+    restarted = [False]
+    taken, answered = anyio.Event(), anyio.Event()
+
+    def register(params: dict[str, Any]) -> dict[str, Any]:
+        if restarted[0] and "token" in params:
+            # the sidecar takes the registration, and its answer is slow
+            taken.set()
+            stand_in.answer_after = answered
+        return {}
+
+    stand_in = StandInSidecar(
+        methods={
+            "register_task": register,
+            "sample_result": _kept({"Tally:lookups": 1}),
+        }
+    )
+    sidecars = TaskSidecars("required", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+    await sidecars.complete_registration(sidecar, _sample(), "sample_a", 1)
+    stand_in.tokens.clear()
+    restarted[0] = True
+
+    async with anyio.create_task_group() as tg:
+        # one sample finds the task lost, and registers it again
+        tg.start_soon(
+            sidecars.complete_registration, sidecar, _sample(2), "sample_b", 1
+        )
+        await taken.wait()
+        # another begins once the sidecar has the task again, before the
+        # eval hears so: all of it ran after the restart
+        sidecars.called_through("sample_c", 1, sidecar)
+        await sidecars.complete_registration(sidecar, _sample(3), "sample_c", 1)
+        answered.set()
+
+    store = Store()
+    await sidecars.copy_monitor_state("sample_c", 1, store)
+    assert store.get(MONITOR_STATE_COPY)["copied"] is True
+    assert store.get("Tally:lookups") == 1
 
 
 async def test_a_sample_is_ended_with_its_task_named() -> None:
