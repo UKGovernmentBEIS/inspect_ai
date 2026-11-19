@@ -36,9 +36,8 @@ _BACKPRESSURE_BUFFER_SIZE = 100 * 1024 * 1024  # 100 MiB
 _MAX_POLL_OUTPUT_BYTES = 1 * 1024 * 1024  # 1 MiB per poll response
 _WAIT_CHECK_INTERVAL_SECONDS = 0.05
 _OUTPUT_EXIT_WAIT_SECONDS = 0.1
-# Room added to each output buffer once the job is no longer running. A
-# leader leaves at most about 1.2 MiB unread at exit: a pipe of up to 1 MiB
-# (the default `fs.pipe-max-size`) and what asyncio has read ahead.
+# Room added to each output buffer once the job has ended. A leader leaves up
+# to about 1.2 MiB unread: a 1 MiB pipe (`fs.pipe-max-size`) plus read-ahead.
 _MAX_TAIL_BYTES = 4 * 1024 * 1024
 
 
@@ -492,14 +491,12 @@ class Job:
         buffers stay open while the tasks run, so output read after the leader
         exits is kept, and cancelling a task frees a put() that waits on a full
         buffer. A reader error is raised to the caller.
-
-        The buffers first get `_MAX_TAIL_BYTES` more room. A reader waiting on
-        a full buffer still holds the end of the output, and with the room it
-        reaches EOF instead of being cancelled.
         """
         readers = [t for t in (self._stdout_task, self._stderr_task) if not t.done()]
         if not readers:
             return
+        # A reader waiting on a full buffer holds the end of the output: give
+        # it room to reach EOF rather than cancel it.
         for buffer in (self._stdout_buffer, self._stderr_buffer):
             buffer.set_limit(_BACKPRESSURE_BUFFER_SIZE + _MAX_TAIL_BYTES)
         _, pending = await asyncio.wait(readers, timeout=1.0)

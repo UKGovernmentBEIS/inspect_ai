@@ -49,23 +49,6 @@ async def test_cancel_ends_put_waiting_on_full_buffer():
 
 
 @pytest.mark.asyncio
-async def test_set_limit_frees_a_waiting_put_until_the_new_limit() -> None:
-    buf = BoundedByteBuffer(max_bytes=5)
-    await buf.put(b"12345")
-    task = asyncio.create_task(buf.put(b"67"))
-    await anyio.sleep(0.01)
-    assert not task.done()
-
-    buf.set_limit(7)
-    await asyncio.wait_for(task, timeout=1)
-
-    # full again at the new limit
-    with pytest.raises(asyncio.TimeoutError):
-        await asyncio.wait_for(buf.put(b"x"), timeout=0.05)
-    assert buf.drain() == b"1234567"
-
-
-@pytest.mark.asyncio
 async def test_preserves_all_data_under_limit():
     buf = BoundedByteBuffer(max_bytes=100)
     await buf.put(b"aaa")

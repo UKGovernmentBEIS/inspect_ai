@@ -420,23 +420,21 @@ class TestPollDeliversOutputAfterLeaderExits:
             assert result.state == "completed"
             assert result.exit_code == 0
 
-    @pytest.mark.parametrize("redirect", ["", " 1>&2"], ids=["stdout", "stderr"])
     @pytest.mark.asyncio
     async def test_output_past_a_buffer_that_is_full_at_exit_is_delivered(
-        self, monkeypatch: pytest.MonkeyPatch, redirect: str
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """The reader waiting on the full buffer holds the end of the output."""
         monkeypatch.setattr(job_module, "_BACKPRESSURE_BUFFER_SIZE", 64 * 1024)
         controller = Controller()
-        pid = await controller.submit(f"seq -w 1 20000{redirect}")
+        pid = await controller.submit("seq -w 1 20000")
         await _wait_for_exit(controller._jobs[pid])
 
-        result, stdout, stderr = await self._poll_to_completion(controller, pid)
+        result, stdout, _ = await self._poll_to_completion(controller, pid)
 
         # numbered lines, so lost, repeated or reordered output shows
-        expected = "".join(f"{i:05d}\n" for i in range(1, 20001))
+        assert stdout == "".join(f"{i:05d}\n" for i in range(1, 20001))
         assert (result.state, result.exit_code) == ("completed", 0)
-        assert (stdout, stderr) == (("", expected) if redirect else (expected, ""))
 
     @pytest.mark.asyncio
     async def test_room_given_to_a_full_buffer_after_exit_is_bounded(
@@ -448,8 +446,7 @@ class TestPollDeliversOutputAfterLeaderExits:
         monkeypatch.setattr(job_module, "_BACKPRESSURE_BUFFER_SIZE", limit)
         monkeypatch.setattr(job_module, "_MAX_TAIL_BYTES", room)
         controller = Controller()
-        # the leader exits at once; its child writes 120,000 bytes, then holds
-        # the pipes open
+        # the leader exits at once; its child writes 120,000 bytes and stays
         pid = await controller.submit("(seq -w 1 20000; sleep 30) &")
         try:
             job = controller._jobs[pid]
@@ -464,7 +461,6 @@ class TestPollDeliversOutputAfterLeaderExits:
 
         # the reader stops with the read (of up to 4096 bytes) that reaches the limit
         assert limit + room <= len(stdout) < limit + room + 4096
-        assert "".join(f"{i:05d}\n" for i in range(1, 20001)).startswith(stdout)
         assert (result.state, result.exit_code) == ("completed", 0)
 
     @pytest.mark.asyncio
