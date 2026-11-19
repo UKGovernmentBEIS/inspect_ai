@@ -495,7 +495,11 @@ In logs written before Inspect 0.3.292, replay shows the tool calls of an agent 
 
 Replay doesn't attach the live sentinel's checks of bridged calls to these steps. To compare them, join the two downstream (e.g. in inspect_sentinel) by sample, step (`tool_call` or `tool_result`), the `uuid` of the model call that wrote the call, and call id.
 
-For a check whose call id the bridge kept, find the model call that wrote it by log order: it is the latest bridged `ModelEvent` before the check whose output contains that id. This doesn't find the model call for a check recorded under a new id the bridge gave the call (e.g. a Mistral call under a reused `"null"` id), since no model call's output has that id.
+For a check whose call id the bridge kept, find the model call that wrote it within the check's conversation (`SentinelEvent.conversation`): it is the latest bridged `ModelEvent` in that conversation before the check whose output contains that id. Without the conversation, a check can join the wrong model call when agents running at the same time propose calls under the same id (e.g. Mistral's `"null"`).
+
+A `ModelEvent`'s conversation is the `id` of the innermost agent span that holds it, or the sample's `uuid` if no agent span holds it. To find that span, follow the event's `span_id` through each `SpanBeginEvent`'s `parent_id` to the first span whose `type` is `"agent"`. Live checks record their conversation this way, and replay uses it unless you pass it a stored timeline.
+
+This lookup doesn't find the model call for a check recorded under a new id the bridge gave the call (e.g. a Mistral call under a reused `"null"` id), since no model call's output has that id.
 
 A person's decision at a live check still reaches the later steps of the conversation.
 
