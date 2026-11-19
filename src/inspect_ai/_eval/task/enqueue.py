@@ -14,9 +14,10 @@ to the wrong run.
 from __future__ import annotations
 
 import logging
+from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Callable, Literal
+from typing import TYPE_CHECKING, Callable, Iterator, Literal
 
 import anyio
 import anyio.lowlevel
@@ -29,6 +30,7 @@ if TYPE_CHECKING:
     from inspect_ai._eval.task.run import TaskRunOptions
     from inspect_ai._eval.task.tasks import Tasks
     from inspect_ai.log import EvalLog
+    from inspect_ai.model import Model
 
 logger = logging.getLogger(__name__)
 
@@ -305,6 +307,54 @@ def _require_run_loop(queue: RunQueue) -> None:
 _run_queue: ContextVar[RunQueue | None] = ContextVar("run_queue", default=None)
 
 
+@dataclass
+class _CreatorAttempt:
+    """The running attempt's model, marked ended when the attempt exits.
+
+    Shared by reference with every context copied from the attempt, so a
+    background coroutine that outlives its attempt sees it end.
+    """
+
+    model: Model
+    ended: bool = False
+
+
+# The task attempt running in this context: set for the duration of each
+# attempt and cleared around TaskSource callbacks, so `creator_model()` is
+# `None` outside a running task. Tasks added inside an attempt resolve once,
+# under its model. `active_model()` can't stand in for
+# it: outside an attempt it still holds the last run model that up-front task
+# resolution activated. Temporary: the task handles design's `_attempt`
+# ContextVar (set by `run_one` around the attempt, cleared in TaskSource
+# callbacks) replaces it.
+_creator: ContextVar[_CreatorAttempt | None] = ContextVar(
+    "enqueue_creator", default=None
+)
+
+
+@contextmanager
+def creator_model_scope(model: Model | None) -> Iterator[None]:
+    """Run the scope as a task attempt on ``model``, or (``None``) as outside any attempt.
+
+    An attempt's scope ends on every exit, including errors and cancellation;
+    clearing it (``None``) leaves the enclosing attempt running.
+    """
+    attempt = _CreatorAttempt(model) if model is not None else None
+    token = _creator.set(attempt)
+    try:
+        yield
+    finally:
+        if attempt is not None:
+            attempt.ended = True
+        _creator.reset(token)
+
+
+def creator_model() -> Model | None:
+    """The model of the task attempt running in this context, if it has not ended."""
+    attempt = _creator.get()
+    return attempt.model if attempt is not None and not attempt.ended else None
+
+
 def bind_run_queue(queue: RunQueue) -> Token[RunQueue | None]:
     """Install ``queue`` as the active one; returns a token to restore with."""
     return _run_queue.set(queue)
@@ -323,9 +373,14 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:
     """Add one or more tasks to the running eval.
 
     The tasks run in this process under the current run's ``run_id`` (a fresh
-    ``eval_id``/``task_id`` each, their own log files), resolved against the
-    run's models and config. An added task starts as soon as a ``max_tasks``
-    slot is free.
+    ``eval_id``/``task_id`` each, their own log files). An added task starts as
+    soon as a ``max_tasks`` slot is free.
+
+    Called from inside a running task (a solver, scorer, tool or other code
+    the task runs), the tasks are added once, under that task's model.
+    Called anywhere else, including from a ``TaskSource`` callback, they are
+    added once per model of the run. A task that sets its own ``model`` keeps
+    it. Model roles and generate config come from the run.
 
     Sample selectors that name a task (``task:id``) resolve when the task is
     added, against the tasks added so far, so tasks whose selectors name each
@@ -342,7 +397,9 @@ def enqueue_task(tasks: "Tasks", *, run_id: str | None = None) -> None:
     Raises:
         RuntimeError: If no eval is currently running in this process,
             ``run_id`` doesn't match the active run, the run has stopped
-            starting tasks, or the call is made off the run's event loop.
+            starting tasks, the call is made off the run's event loop, or a
+            task is a placeholder that eval-set selection pruning left in
+            place of a task it did not build.
         ValueError: If the tasks can't be resolved, or a task id is already
             in the run.
         PrerequisiteError: If a task's configuration or sample selection is

@@ -1,8 +1,7 @@
-from pydantic import JsonValue
 from rich.prompt import Prompt
 
 from inspect_ai._util.transcript import transcript_panel
-from inspect_ai.tool._tool_call import ToolCallView
+from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.util._console import input_screen
 
 from .._approval import Approval, ApprovalDecision
@@ -19,13 +18,13 @@ def console_approval(
     message: str,
     view: ToolCallView,
     choices: list[ApprovalDecision],
-    arguments: dict[str, JsonValue] | None = None,
+    call: ToolCall,
 ) -> Approval:
     with input_screen(width=None) as console:
         console.print(
             transcript_panel(
                 title="Approve Tool",
-                content=render_tool_approval(message, view, arguments),
+                content=render_tool_approval(message, view, call.arguments, call),
             )
         )
 

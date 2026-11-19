@@ -21,6 +21,8 @@ from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import (
     clear_eval_retry_pending,
+    get_eval_state,
+    latest_eval_for_task,
     mark_eval_retry_pending,
     task_retry_abandoned,
 )
@@ -97,7 +99,7 @@ from .loader import (
     as_solver_spec,
     solver_from_spec,
 )
-from .task.enqueue import RunQueue, TaskRecord
+from .task.enqueue import RunQueue, TaskRecord, creator_model_scope
 from .task.log import TaskLogger
 from .task.resolved import ResolvedTask
 from .task.run import (
@@ -615,7 +617,10 @@ async def _run_task(
                     error_after_write = False
                     with task_scope:
                         try:
-                            result = await task_run(options, task_cancel=task_cancel)
+                            with creator_model_scope(options.model):
+                                result = await task_run(
+                                    options, task_cancel=task_cancel
+                                )
                         except TaskRetryAbandonedError:
                             # abandoned at attempt start (a drain/cancel
                             # stamped the retry-abandoned registry between
@@ -733,7 +738,9 @@ async def _next_tasks(task_source: TaskSource) -> list[Task] | None:
 
     async def pull() -> None:
         nonlocal result, returned
-        result = await task_source.next_tasks()
+        # a TaskSource callback runs outside any task attempt
+        with creator_model_scope(None):
+            result = await task_source.next_tasks()
         returned = True
 
     async with unwrap_exception_group(), anyio.create_task_group() as tg:
@@ -744,6 +751,20 @@ async def _next_tasks(task_source: TaskSource) -> list[Task] | None:
             "cancellation of the run caused."
         )
     return result
+
+
+def _clear_retry_pending(result: EvalLog, task_id: str) -> None:
+    """Unwind the retry-pending flag once no retry follows an attempt.
+
+    An attempt that ended before it registered (its log init, prior-log seed
+    or log_start failed) has no flag of its own: the flag stands on the
+    task's latest registered attempt.
+    """
+    registered = get_eval_state(result.eval.eval_id)
+    if registered is None:
+        registered = latest_eval_for_task(task_id)
+    if registered is not None:
+        clear_eval_retry_pending(registered.eval_id)
 
 
 def _attempt_cancel(can_retry: bool) -> tuple[TaskCancel, anyio.CancelScope]:
@@ -1085,7 +1106,9 @@ async def dispatch_tasks(
                                 # dispatch ended, or the attempt was aborted,
                                 # while reinit() ran: no retry, and the re-mark
                                 # above is unwound
-                                clear_eval_retry_pending(result.eval.eval_id)
+                                _clear_retry_pending(
+                                    result, options.logger.eval.task_id
+                                )
                             else:
                                 retry_attempt = (
                                     queue.task_retry_attempts
@@ -1109,7 +1132,7 @@ async def dispatch_tasks(
                             # never marked, and one abandoned during the log write
                             # was already cleared by the directive; this is a no-op
                             # then)
-                            clear_eval_retry_pending(result.eval.eval_id)
+                            _clear_retry_pending(result, options.logger.eval.task_id)
 
                         # Retry source selection needs the recorder's write state.
                         # Once no retry follows, release any unfinished entry even

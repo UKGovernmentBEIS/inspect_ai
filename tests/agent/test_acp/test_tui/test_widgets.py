@@ -1754,6 +1754,35 @@ async def test_approval_content_renders_diff_content_variant() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
+async def test_approval_content_shows_a_long_argument_whole() -> None:
+    """An approval card does not clip a long argument without a note."""
+    from inspect_ai.agent._acp.tui.widgets.tool_call import _ApprovalContent
+    from inspect_ai.approval._human.acp import _build_request
+    from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
+
+    # a tool's own view, so the card ends with the call's arguments
+    value = "x" * 11_000 + "TAIL"
+    call = ToolCall(id="tc-1", function="note", arguments={"text": value})
+    view = ToolCallView(call=ToolCallContent(format="markdown", content="A note."))
+    req = _build_request(
+        session_id="sid", call=call, view=view, choices=["approve", "reject"]
+    )
+    state = ToolCallState(tool_call_id="tc-1", title="note", status="pending")
+    state.pending_approval = _pending_approval(req)
+
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        section = app.query_one(_ApprovalContent)
+        shown = " ".join(
+            str(getattr(s.content, "markup", s.content))
+            for s in section.query(".body-content")
+        )
+        assert f"{value}'" in shown
+
+
+@skip_if_trio
+@pytest.mark.anyio
 async def test_approval_content_renders_terminal_content_variant() -> None:
     """A ``TerminalToolCallContent`` block in the request renders as terminal placeholder."""
     from acp.schema import TerminalToolCallContent

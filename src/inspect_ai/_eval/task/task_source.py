@@ -72,9 +72,10 @@ class TaskSource:
 
         ``sample`` is the completed sample and ``task`` is the task it ran under
         (the sample alone doesn't identify its task). Return a list of tasks to
-        add to the run (equivalent to calling ``enqueue_task`` with them): they
-        start when a ``max_tasks`` slot is free, before the next
-        ``next_tasks()`` call. Return ``None`` (the default) to add nothing.
+        add to the run (like ``enqueue_task`` called outside a running task:
+        once per run model): they start when a ``max_tasks`` slot is free,
+        before the next ``next_tasks()`` call. Return ``None`` (the default) to
+        add nothing.
 
         Fires for every sample the task logs, including one cancelled
         individually by an operator (its ``error`` is then the cancellation,
@@ -98,9 +99,9 @@ class TaskSource:
         queued under. Nothing about the run reached the log (no
         ``EvalSample`` exists, and the sample is absent from the log passed
         to ``task_complete``), so unlike :meth:`sample_complete` there is no
-        result to deliver. Return a list of tasks to add to the run
-        (equivalent to calling ``enqueue_task`` with them) or ``None`` (the
-        default) to add nothing.
+        result to deliver. Return a list of tasks to add to the run (like
+        ``enqueue_task`` called outside a running task: once per run model) or
+        ``None`` (the default) to add nothing.
 
         Fires when an operator cancels a sample still waiting in the queue
         (``inspect ctl sample cancel --action cancel``), when a cancel lands
@@ -126,9 +127,10 @@ class TaskSource:
         log, it is an error log that was not written (its ``location`` may
         name a file that does not exist, or be empty).
 
-        Return a list of tasks to add to the run (like ``enqueue_task``): they
-        start when a ``max_tasks`` slot is free, before the next
-        ``next_tasks()`` call. Return ``None`` (the default) to add nothing.
+        Return a list of tasks to add to the run (like ``enqueue_task`` called
+        outside a running task: once per run model): they start when a
+        ``max_tasks`` slot is free, before the next ``next_tasks()`` call.
+        Return ``None`` (the default) to add nothing.
         """
         return None
 

@@ -152,7 +152,9 @@ def spawn_followup():
     return solve
 ```
 
-Enqueued tasks run under the current run id, resolved against the run's models and config, and start when a `max_tasks` slot is free, like tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running, and raises at the call for a configuration or sample selection error. Sample selectors that name a task (`task:id`) resolve when the task is added, so tasks whose selectors name each other must be added in one call. Call `enqueue_task()` on the run's event loop; from a worker thread, use `anyio.from_thread.run_sync(lambda: enqueue_task(...))`.
+Enqueued tasks run under the current run id and start when a `max_tasks` slot is free, like tasks returned from `sample_complete` / `task_complete`. `enqueue_task()` raises if no eval is running, and raises at the call for a configuration or sample selection error. Sample selectors that name a task (`task:id`) resolve when the task is added, so tasks whose selectors name each other must be added in one call. Call `enqueue_task()` on the run's event loop; from a worker thread, use `anyio.from_thread.run_sync(lambda: enqueue_task(...))`.
+
+Called from inside a running task (a solver, scorer or tool), `enqueue_task()` adds the tasks once, under that task's model. Called anywhere else, including from a `TaskSource` callback, it adds them once per model of the run, as for tasks the callbacks return. A task that sets its own `model` keeps it. Model roles and generate config come from the run.
 
 ## Concurrency
 
