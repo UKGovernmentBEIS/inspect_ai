@@ -2354,9 +2354,10 @@ under trio with `--runtrio`.
     first;
   - through `_run_bridged_agent()` (a one-sample eval with a served scaffold,
     no Docker), overlapping generations that reach a `run()` cost limit and
-    then an outer `run()` token limit (`outer_limit`) propagate from the
-    inner `run()` (the token limit is not its own) and are returned by the
-    outer `run()` as one error holding both, primary fields the token
+    then an outer `run()` token limit (`outer_limit`) propagate from both:
+    the inner `run()` does not own the token limit, and the outer `run()`,
+    which entered only a token limit, does not own the cost limit. The
+    sample ends on one error holding both, primary fields the token
     limit's; the same with the sample's token limit in place of the outer
     `run()`'s ends the sample on it;
   - the message limit is not lost behind an inner owner's budget: a bridged
