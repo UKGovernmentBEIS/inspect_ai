@@ -206,7 +206,7 @@ Creates a new file alongside the original: `<name>-recovered.eval`. The original
 3. **Find and read from buffer DB:**
    - Locate DB at `inspect_data_dir("samplebuffer") / <log_dir_hash> / <filename>.*.db`
    - Use existing `SampleBufferDatabase(location, create=False)` to open it
-   - No buffer raises `RecoveryNotAvailable`, unless `allow_no_buffer=True`: the log is then recovered from its flushed samples alone (still refused while a live process on this host owns a buffer DB for it)
+   - No buffer raises `RecoveryNotAvailable`, unless `allow_no_buffer=True`: the log is then recovered from its flushed samples alone (still refused while a live process on this host owns a buffer DB for it, or when the file it writes already exists)
    - Read all remaining samples and their events
    - Distinguish completed vs in-progress samples (completed samples have `completed_at` set and scores populated)
 
@@ -223,7 +223,7 @@ Creates a new file alongside the original: `<name>-recovered.eval`. The original
    - Write consolidated `summaries.json`
    - Write `header.json` with:
      - `status = "error"` (or the caller's `status`, e.g. `"cancelled"`; `"success"` when `incomplete_action="error"` finalizes it)
-     - `error` = `EvalError` indicating crash recovery (or the caller's `error_message`; none for `"cancelled"` without one)
+     - `error` = `EvalError` indicating crash recovery (or the caller's `error_message`); none for `"cancelled"`
      - `log_updates` = the crashed log's, plus the caller's `log_update`
      - `results` = computed from all completed samples (re-run score reduction/aggregation)
      - `stats` = computed from all samples
@@ -279,7 +279,7 @@ This mirrors the streaming pattern already used by `ZipLogFile` during eval exec
 
 ### Edge Cases
 
-- **No buffer DB found**: Recover what's in the `.eval` file only (flushed samples). Warn that unflushed samples are lost.
+- **No buffer found**: Raise `RecoveryNotAvailable`. With `allow_no_buffer=True`, recover what's in the `.eval` file only (flushed samples).
 - **Buffer DB has no additional samples**: Just finalize the `.eval` file with proper header/summaries.
 - **Multiple buffer DBs** (from retried evals): Use the most recent one (by file modification time or PID).
 - **`.eval` file has no samples at all** (crash before first flush): All data comes from buffer DB.

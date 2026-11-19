@@ -139,9 +139,9 @@ async def write_recovered_eval_log(
             (`resolve_log_metrics()`), or `None` to write the log without
             results.
         status: Status of the log when it is not finalized as "success".
-        error_message: Message of the log's `EvalError`, which then has an
-            empty traceback (default: "Eval recovered from crash" for status
-            "error", no error for "cancelled").
+        error_message: Message of the `EvalError` of a log with status
+            "error", which then has an empty traceback (default: "Eval
+            recovered from crash"). A "cancelled" log has no error.
         completed_at: `stats.completed_at` of the log (default: now).
         log_update: Appended to the crashed log's `log_updates`.
         has_buffer: Whether a sample buffer was found for the log. Without
@@ -347,7 +347,7 @@ async def write_recovered_eval_log(
             logger.warning(
                 "Recovered log not finalized: every expected sample is final "
                 "but metrics could not be recomputed, so the log keeps status "
-                "'error' and a retry will re-run the samples resolved during "
+                f"'{status}' and a retry will re-run the samples resolved during "
                 "recovery."
             )
 
@@ -357,16 +357,14 @@ async def write_recovered_eval_log(
         final_status = "success"
     else:
         final_status = status
-        # Only the default error describes the recovery, and its text names
-        # the buffer, so it is left out when there was none.
-        traceback = ""
-        if status == "error" and error_message is None:
-            error_message = "Eval recovered from crash"
-            if has_buffer:
-                traceback = (
-                    "Eval process crashed; log recovered from sample buffer database.\n"
-                )
-        if error_message is not None:
+        if status == "error":
+            # Only the default error describes the recovery, and its text names
+            # the buffer, so it is left out when there was none.
+            traceback = ""
+            if error_message is None:
+                error_message = "Eval recovered from crash"
+                if has_buffer:
+                    traceback = "Eval process crashed; log recovered from sample buffer database.\n"
             error = EvalError(
                 message=error_message, traceback=traceback, traceback_ansi=traceback
             )

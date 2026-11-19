@@ -682,7 +682,8 @@ def test_recovery_untrusted_metrics_warn_recovers_without_results(
     with caplog.at_level(logging.WARNING, logger="inspect_ai"):
         recovered = recover_eval_log(path.as_posix(), untrusted_metrics="warn")
 
-    assert recovered.location is not None and Path(recovered.location).exists()
+    assert Path(recovered.location) == path.with_name(f"{path.stem}-recovered.eval")
+    assert Path(recovered.location).exists()
     assert recovered.results is None
     assert any("Unable to recompute metrics" in r.message for r in caplog.records)
     assert _imported(imports) == [] and untrusted_models == []

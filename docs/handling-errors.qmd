@@ -245,4 +245,4 @@ log = recover_eval_log(
 log = recover_eval_log("path/to/crashed.eval", allow_no_buffer=True)
 ```
 
-Pass it only for a log whose run you know has ended. Inspect cannot detect a run that is still going on another machine, and a log recovered while its run is still writing lacks the samples written afterwards.
+Pass it only for a log whose run you know has ended. Inspect cannot detect a run that is still going on another machine, and a log recovered while its run is still writing lacks the samples written afterwards. A recovery without a buffer is refused when the file it writes (`output`, or `<name>-recovered.eval`) already exists; remove that file to recover again.

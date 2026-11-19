@@ -86,6 +86,8 @@ async def read_crashed_eval_log(location: str) -> CrashedEvalLog:
         header: EvalLog | None = None
         if HEADER_JSON in entry_names:
             data = await _read_member_json(reader, HEADER_JSON)
+            if not isinstance(data, dict):
+                raise ValueError(f"Log is invalid ({HEADER_JSON} is not a JSON object)")
             if data.get("status") != "started":
                 raise ValueError(
                     f"Log is not crashed ({HEADER_JSON} has status "

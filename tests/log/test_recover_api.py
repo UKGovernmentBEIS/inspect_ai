@@ -541,17 +541,19 @@ async def test_recover_incomplete_action_error_missing_samples_stays_error() -> 
             assert "terminated by operator during recovery" in resolved.error.message
 
 
+@pytest.mark.parametrize("status", ["error", "cancelled"])
 async def test_recover_incomplete_action_error_metrics_failure_stays_error(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
+    status: Literal["error", "cancelled"],
 ) -> None:
     """A metrics recompute failure blocks finalization and says so.
 
     Every expected sample is final, but without recomputed results the log
     would fail eval_set's completeness predicate, so it keeps status
-    'error'. Unlike the missing-samples case this leaves nothing to run, so
-    the reason is reported distinctly (stats + warning) rather than looking
-    like missing samples.
+    'error' (or the caller's `status`). Unlike the missing-samples case this
+    leaves nothing to run, so the reason is reported distinctly (stats +
+    warning) rather than looking like missing samples.
     """
     from inspect_ai._eval.task import results as task_results
 
@@ -581,15 +583,17 @@ async def test_recover_incomplete_action_error_metrics_failure_stays_error(
                     _db_dir=db_dir,
                     incomplete_action="error",
                     _stats=stats,
+                    status=status,
                 )
 
-            assert log.status == "error"
+            assert log.status == status
             assert log.results is None
             assert stats.sample_count == 4
             assert stats.not_finalized_reason == "metrics could not be recomputed"
             assert any(
                 "not finalized" in r.message
                 and "metrics could not be recomputed" in r.message
+                and f"keeps status '{status}'" in r.message
                 for r in caplog.records
             )
 
@@ -966,6 +970,26 @@ async def test_recover_no_buffer_allowed_uses_flushed_samples(tmp_path: Path) ->
     assert sorted(s.id for s in read_log.samples) == [1, 2]
 
 
+async def test_recover_no_buffer_allowed_keeps_an_earlier_recovery(
+    tmp_path: Path,
+) -> None:
+    """Without a buffer, recovery does not replace the log an earlier recovery wrote."""
+    eval_path = (tmp_path / "test.eval").as_posix()
+    output_path = (tmp_path / "test-recovered.eval").as_posix()
+    db_dir = (tmp_path / "bufferdb").as_posix()
+    _write_crashed_eval(eval_path, samples=[_make_sample(1)])
+    _create_buffer_db(eval_path, completed_ids=[2], in_progress_ids=[], db_dir=db_dir)
+    # the first recovery uses the buffer and then removes it
+    await recover_eval_log_async(eval_path, _db_dir=db_dir, allow_no_buffer=True)
+
+    with pytest.raises(RecoveryNotAvailable, match="not replacing"):
+        await recover_eval_log_async(eval_path, _db_dir=db_dir, allow_no_buffer=True)
+
+    read_log = await read_eval_log_async(output_path)
+    assert read_log.samples is not None
+    assert sorted(s.id for s in read_log.samples) == [1, 2]
+
+
 async def test_recover_no_buffer_allowed_refuses_a_live_run(tmp_path: Path) -> None:
     """A buffer DB owned by a running process means the eval has not ended."""
     eval_path = (tmp_path / "test.eval").as_posix()
@@ -1018,13 +1042,42 @@ async def test_recover_unreadable_log_names_the_log_and_reason(tmp_path: Path) -
     assert str(excinfo.value.__cause__) in str(excinfo.value)
 
 
+async def test_recover_refuses_header_that_is_not_an_object(tmp_path: Path) -> None:
+    """A header.json holding something other than an object is refused, not a crash."""
+    eval_path = (tmp_path / "test.eval").as_posix()
+    _write_crashed_eval(eval_path, samples=[_make_sample(1)])
+    with ZipFile(eval_path, "a") as zf:
+        zf.writestr(HEADER_JSON, "[]")
+
+    with pytest.raises(RecoveryNotAvailable, match="not a JSON object"):
+        await recover_eval_log_async(eval_path, _db_dir=tmp_path / "bufferdb")
+
+
+async def test_recover_rejects_error_message_with_cancelled(tmp_path: Path) -> None:
+    """A cancelled log has no error, so a message for one is refused up front."""
+    eval_path = (tmp_path / "test.eval").as_posix()
+    output_path = tmp_path / "test-recovered.eval"
+    _write_crashed_eval(eval_path, samples=[_make_sample(1)])
+
+    with pytest.raises(ValueError, match="error_message"):
+        await recover_eval_log_async(
+            eval_path,
+            output=output_path.as_posix(),
+            _db_dir=tmp_path / "bufferdb",
+            allow_no_buffer=True,
+            status="cancelled",
+            error_message="Run killed",
+        )
+
+    assert not output_path.exists()
+
+
 @pytest.mark.parametrize(
     "status,error_message,expected_message",
     [
         ("error", None, "Eval recovered from crash"),
         ("error", "Run killed", "Run killed"),
         ("cancelled", None, None),
-        ("cancelled", "Run killed", "Run killed"),
     ],
 )
 async def test_recover_status_and_error_message(
@@ -1059,8 +1112,11 @@ async def test_recover_status_and_error_message(
         assert bool(read_log.error.traceback) == (error_message is None)
 
 
+@pytest.mark.parametrize(
+    "status,error_message", [("cancelled", None), ("error", "Run killed")]
+)
 async def test_recover_finalized_ignores_status_and_error_message(
-    tmp_path: Path,
+    tmp_path: Path, status: Literal["error", "cancelled"], error_message: str | None
 ) -> None:
     """A log finalized by incomplete_action="error" is "success", without error."""
     eval_path = (tmp_path / "test.eval").as_posix()
@@ -1074,8 +1130,8 @@ async def test_recover_finalized_ignores_status_and_error_message(
         output=output_path,
         _db_dir=db_dir,
         incomplete_action="error",
-        status="cancelled",
-        error_message="Run killed",
+        status=status,
+        error_message=error_message,
     )
 
     read_log = await read_eval_log_async(output_path, header_only=True)

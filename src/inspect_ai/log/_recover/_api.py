@@ -192,13 +192,20 @@ def recover_eval_log(
             from its flushed samples alone instead of raising
             `RecoveryNotAvailable`. Pass it only for a log whose run you
             know has ended: a run on this host is detected by its buffer
-            database, but a run elsewhere leaves no local trace.
+            database, but a run elsewhere leaves no local trace. Such a
+            recovery is refused when the file it writes (`output`, or
+            `<name>-recovered.eval`) already exists: that file may be an
+            earlier recovery that used a buffer since removed. Without a
+            buffer no sample is known to have been in progress, so
+            `incomplete_max` never refuses, and `incomplete_action="error"`
+            judges completeness from the flushed records alone, including
+            records a retry inherited from the attempt before it.
         status: Status of the recovered log unless `incomplete_action="error"`
             finalizes it with `status="success"`.
-        error_message: Message of the recovered log's `EvalError`, which then
-            has an empty traceback. Defaults to "Eval recovered from crash"
-            with `status="error"`; with `status="cancelled"` the log has no
-            error unless a message is given.
+        error_message: Message of the recovered log's `EvalError` with
+            `status="error"` (default: "Eval recovered from crash"). A given
+            message has an empty traceback. Not accepted with
+            `status="cancelled"`: a cancelled log has no error.
         completed_at: Completion time recorded in `stats.completed_at`
             (default: now).
         log_update: Appended to the recovered log's `log_updates`, e.g. to
@@ -211,7 +218,8 @@ def recover_eval_log(
         RecoveryNotAvailable: There is nothing to recover.
         RecoveryThresholdExceeded: More samples were in progress than
             `incomplete_max` allows.
-        ValueError: `incomplete_max` is negative.
+        ValueError: `incomplete_max` is negative, or `error_message` is given
+            with `status="cancelled"`.
         LookupError: Without `trust_log` (and with `untrusted_metrics="raise"`),
             a metric or epoch reducer is not registered. Raised before anything
             is written.
@@ -262,6 +270,10 @@ async def recover_eval_log_async(
 ) -> EvalLog:
     """Async implementation of recover_eval_log."""
     incomplete_max = resolve_incomplete_max(incomplete_action, incomplete_max)
+    if status == "cancelled" and error_message is not None:
+        raise ValueError(
+            "error_message requires status='error': a cancelled log has no error."
+        )
 
     # Step 1: Read the crashed .eval file metadata
     try:
@@ -307,6 +319,14 @@ async def recover_eval_log_async(
             raise RecoveryNotAvailable(f"No sample buffer database found for {log}")
         if live_buffer_db_exists(log, db_dir=_db_dir):
             raise RecoveryNotAvailable(f"The eval for {log} is still running")
+        # an existing output may be an earlier recovery that used a buffer
+        # since removed, so it can hold more than the flushed samples
+        if filesystem(write_output).exists(write_output):
+            raise RecoveryNotAvailable(
+                f"No sample buffer found for {log} and {write_output} already "
+                "exists: not replacing it with a recovery from flushed samples "
+                "alone. Remove it to recover again."
+            )
         recovery_data = BufferRecoveryData()
 
     # Derive flushed sample keys for deduplication against buffer DB: the
