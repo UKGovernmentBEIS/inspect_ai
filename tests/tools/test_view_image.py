@@ -103,6 +103,7 @@ def test_view_image_timeout_is_enforced() -> None:
     response = _run_view_image("plot.png", PNG_BYTES, "/dev/zero", timeout=1)
     assert response.error is not None
     assert response.error.type == "timeout"
+    assert "AAAA" not in str(response.content)
 
 
 def test_view_image_data_not_logged_when_log_images_false(tmp_path: Path) -> None:
@@ -182,3 +183,7 @@ def test_view_image_docker() -> None:
     for file_path in ["plot.png/x", "/dev/null"]:
         response = _run_view_image("plot.png", PNG_BYTES, file_path, "docker")
         assert response.error is not None
+    response = _run_view_image("plot.png", PNG_BYTES, "/dev/zero", "docker", 2)
+    assert response.error is not None
+    assert response.error.type == "timeout"
+    assert "AAAA" not in str(response.content)

@@ -64,6 +64,8 @@ def view_image(
                 )
             except OutputLimitExceededError as ex:
                 raise _too_large_error(file_path) from ex
+            except TimeoutError as ex:
+                raise TimeoutError(f"Timed out reading {file_path}") from ex
         if not result.success:
             raise ToolError(
                 result.stderr.strip()
