@@ -23,6 +23,8 @@ class BoundedByteBuffer:
         self._buf = bytearray()
         self._has_space = asyncio.Event()
         self._has_space.set()
+        self.total = 0
+        """Bytes put in all, including those drained since."""
 
     def __len__(self) -> int:
         """Return the number of buffered bytes."""
@@ -36,6 +38,7 @@ class BoundedByteBuffer:
             self._has_space.clear()
             await self._has_space.wait()
         self._buf.extend(data)
+        self.total += len(data)
 
     def drain(self, max_bytes: int | None = None) -> bytes:
         """Return buffered data and remove it from the buffer.

@@ -36,6 +36,11 @@ _BACKPRESSURE_BUFFER_SIZE = 100 * 1024 * 1024  # 100 MiB
 _MAX_POLL_OUTPUT_BYTES = 1 * 1024 * 1024  # 1 MiB per poll response
 _WAIT_CHECK_INTERVAL_SECONDS = 0.05
 _OUTPUT_EXIT_WAIT_SECONDS = 0.1
+# How long the readers get to reach EOF once the job is no longer running.
+_READER_GRACE_SECONDS = 1.0
+# Output read after the exit is first seen, past which a poll no longer leaves
+# the readers running: more than a leader can leave unread in its pipes.
+_MAX_TAIL_BYTES = 4 * 1024 * 1024
 
 
 def _leader_handle(process: AsyncIOProcess) -> psutil.Process | None:
@@ -183,6 +188,7 @@ class Job:
         self._retired = False
         # Termination started by the first kill(); later kills wait for it.
         self._termination: asyncio.Task[None] | None = None
+        self._read_at_exit: int | None = None
 
         # Start background read tasks
         self._stdout_task = asyncio.create_task(
@@ -239,7 +245,7 @@ class Job:
         # a later poll finishes the drain so its output is not lost. Once the
         # readers are done this does nothing.
         if self._state != "running":
-            await self._wait_for_readers()
+            await self._wait_for_readers(reply=True)
 
         # Always limit per-poll output to keep JSON-RPC responses small. While
         # output remains past the limit, report running so the client polls
@@ -249,7 +255,9 @@ class Job:
             final=False, max_bytes=_MAX_POLL_OUTPUT_BYTES
         )
         reported_state = self._state
-        if reported_state != "running" and self._has_output:
+        # Readers still running here were left so by a full reply: more is coming.
+        readers_done = self._stdout_task.done() and self._stderr_task.done()
+        if reported_state != "running" and (self._has_output or not readers_done):
             reported_state = "running"
         elif reported_state != "running":
             tail_stdout, tail_stderr = self._drain_buffers(final=True)
@@ -480,8 +488,15 @@ class Job:
         """Clean up resources. Called after job is removed from controller."""
         await self._wait_for_readers()
 
-    async def _wait_for_readers(self) -> None:
-        """Wait up to 1 s for the read tasks to reach EOF, then cancel any left.
+    async def _wait_for_readers(self, *, reply: bool = False) -> None:
+        """Wait up to `_READER_GRACE_SECONDS` for the read tasks to reach EOF, then cancel any left.
+
+        For a poll's `reply`, the wait ends as soon as a full reply is
+        buffered, leaving the readers running: sending that reply frees the
+        space a reader blocked on a full buffer needs, so output larger than
+        the buffer is not cut off. This stops once the readers have taken
+        `_MAX_TAIL_BYTES` since the first call, so a child that keeps writing
+        cannot hold the job open.
 
         Only the tasks still running when called are awaited, so a repeated
         call does not re-raise an error an earlier call already handled. The
@@ -492,7 +507,31 @@ class Job:
         readers = [t for t in (self._stdout_task, self._stderr_task) if not t.done()]
         if not readers:
             return
-        _, pending = await asyncio.wait(readers, timeout=1.0)
+        read = self._stdout_buffer.total + self._stderr_buffer.total
+        if self._read_at_exit is None:
+            self._read_at_exit = read
+        deadline = time.monotonic() + _READER_GRACE_SECONDS
+        pending = set(readers)
+        while reply and pending:
+            read = self._stdout_buffer.total + self._stderr_buffer.total
+            if read - self._read_at_exit >= _MAX_TAIL_BYTES:
+                break
+            # checked again after the last wait, so a reply that filled during
+            # it is sent rather than cut off
+            if (
+                max(len(self._stdout_buffer), len(self._stderr_buffer))
+                >= _MAX_POLL_OUTPUT_BYTES
+            ):
+                return
+            if (remaining := deadline - time.monotonic()) <= 0:
+                break
+            _, pending = await asyncio.wait(
+                pending, timeout=min(_WAIT_CHECK_INTERVAL_SECONDS, remaining)
+            )
+        if pending:
+            _, pending = await asyncio.wait(
+                pending, timeout=max(deadline - time.monotonic(), 0.0)
+            )
         for task in pending:
             task.cancel()
         await asyncio.gather(*readers)
