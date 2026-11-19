@@ -389,6 +389,61 @@ def test_task_source_additions_resolve_per_run_model() -> None:
     assert _child_models(logs, "returned_by_next_tasks") == models
 
 
+def test_sample_abandoned_additions_resolve_per_run_model() -> None:
+    # sample_abandoned runs inside the creator's attempt, like
+    # sample_complete; tasks it returns or enqueues still resolve once per run
+    # model. Each seed (one per model) cancels its parked sibling sample.
+    from inspect_ai._control.cancel import cancel_sample
+    from inspect_ai.log._samples import sample_active
+
+    def added(name: str) -> Task:
+        return Task(dataset=[Sample(input="hi", target="ok")], solver=[], name=name)
+
+    async def on_abandoned(sample: Sample, epoch: int, task: Task) -> list[Task]:
+        enqueue_task(added("enqueued_in_sample_abandoned"))
+        return [added("returned_by_sample_abandoned")]
+
+    @solver
+    def cancel_parked_sibling() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            active = sample_active()
+            assert active is not None
+            parked = "b" if state.sample_id == "a" else "a"
+            with anyio.fail_after(60):
+                while True:
+                    probe = await cancel_sample(
+                        active.eval_id, parked, 1, action="cancel", dry_run=True
+                    )
+                    if probe is not None and probe.get("status") == "cancelled":
+                        break
+                    await anyio.sleep(0.01)
+            result = await cancel_sample(active.eval_id, parked, 1, action="cancel")
+            assert result is not None
+            assert result["ok"] is True and result["changed"] is True
+            return state
+
+        return solve
+
+    source = TaskSource.from_tasks(
+        [
+            Task(
+                dataset=[Sample(id="a", input="x"), Sample(id="b", input="x")],
+                solver=cancel_parked_sibling(),
+                name="seed",
+            )
+        ],
+        sample_abandoned=on_abandoned,
+    )
+    models = ["mockllm/model", "mockllm/model2"]
+    logs = eval(tasks=source, model=models, display="none", max_samples=1)
+
+    assert all(log.status == "success" for log in logs)
+    # two seed attempts each abandon one sample, each addition once per run model
+    per_seed = sorted(models * 2)
+    assert _child_models(logs, "enqueued_in_sample_abandoned") == per_seed
+    assert _child_models(logs, "returned_by_sample_abandoned") == per_seed
+
+
 def test_resolve_enqueued_tasks_outside_attempt_resolves_per_run_model() -> None:
     models = [get_model("mockllm/model"), get_model("mockllm/model2")]
     resolved_child = resolve_tasks(child(), {}, models[0], None, None, None)[0]
