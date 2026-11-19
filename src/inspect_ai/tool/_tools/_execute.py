@@ -6,14 +6,7 @@ from inspect_ai.util._sandbox.identity import (
 )
 
 from .._tool import Tool, tool
-from .._tool_call import (
-    ToolCall,
-    ToolCallContent,
-    ToolCallView,
-    ToolCallViewer,
-    shows_arguments,
-    tool_call_code_block,
-)
+from .._tool_call import ToolCall, ToolCallContent, ToolCallView, ToolCallViewer
 from .._tool_def import ToolDef
 
 
@@ -24,20 +17,14 @@ def code_viewer(
     title = title or language
 
     def viewer(tool_call: ToolCall) -> ToolCallView:
-        # a placeholder, so the surfaces fill in the code as written (code
-        # embedded here would have its own `{{...}}` text substituted)
-        if tool_call.arguments.get(code_param, None):
-            code = f"{{{{{code_param}}}}}"
-        else:
-            code = tool_call.function
+        code = tool_call.arguments.get(code_param, None)
+        code = str(code or tool_call.function).strip()
         call = ToolCallContent(
             title=title,
             format="markdown",
-            content=tool_call_code_block(tool_call, code, language),
+            content=f"```{language}\n" + code + "\n```\n",
         )
-        return ToolCallView(
-            call=shows_arguments(call, set(tool_call.arguments) <= {code_param})
-        )
+        return ToolCallView(call=call)
 
     return viewer
 

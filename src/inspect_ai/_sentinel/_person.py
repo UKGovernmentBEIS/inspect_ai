@@ -40,9 +40,7 @@ from inspect_ai.tool._tool_call import (
     ToolCall,
     ToolCallContent,
     ToolCallView,
-    arguments_shown,
     default_tool_call_viewer,
-    shows_arguments,
     substitute_tool_call_content,
 )
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
@@ -117,10 +115,7 @@ def human_view(
                 format="text",
                 content=f"Escalated by\n\n{escalated}\n\n{view.call.content}",
             )
-        view = ToolCallView(
-            context=view.context,
-            call=shows_arguments(call, arguments_shown(view.call)),
-        )
+        view = ToolCallView(context=view.context, call=call)
     if result is not None:
         view = view_with_result(view, result)
     return view
@@ -173,11 +168,8 @@ def held_call_view(
     if escaped.escaped:
         shown.append(f"**{_ESCAPED_NOTICE}**")
     return ToolCallView(
-        call=shows_arguments(
-            ToolCallContent(
-                title=title, format="markdown", content="\n\n".join([*shown, *made])
-            ),
-            arguments_shown(view.call),
+        call=ToolCallContent(
+            title=title, format="markdown", content="\n\n".join([*shown, *made])
         )
     )
 
@@ -717,9 +709,9 @@ def _call_markdown(
     The content is what the transcript shows (`ToolCall.view`, which
     `Model.generate` sets from the tool's viewer, or the default rendering),
     with the call's placeholders filled in (see `_contained`). `text_label`
-    labels the block of content that has no language of its own. A view not
-    marked as showing every argument is followed by the call's arguments, as
-    a call's own approval shows them (see `arguments_view`).
+    labels the block of content that has no language of its own. A view other
+    than the call's default view is followed by the call's arguments, as a
+    call's own approval shows them (see `arguments_view`).
     """
     view = call.view or cast(ToolCallContent, default_tool_call_viewer(call).call)
     content = substitute_tool_call_content(view, call.arguments)

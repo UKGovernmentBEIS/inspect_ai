@@ -10,7 +10,6 @@ from inspect_ai.tool._tool_call import (
     ToolCall,
     ToolCallContent,
     ToolCallView,
-    arguments_shown,
     default_tool_call_viewer,
     substitute_tool_call_content,
 )
@@ -23,18 +22,24 @@ HUMAN_ESCALATED = "Human operator escalated the tool call approval."
 
 
 def arguments_view(call: ToolCall, view: ToolCallView) -> ToolCallContent | None:
-    """The default view of `call`, to show beneath `view` unless it shows it all.
+    """The default view of `call`, to show beneath `view` unless it is that view.
 
     A tool's own viewer writes Markdown that a renderer may show only part of,
     so the person approving the call also sees every argument as a Python
-    literal, in a block of its own that the view cannot affect. Views that
-    show every argument as written are marked (`shows_arguments`), and a call
-    with no arguments needs no such block.
+    literal, in a block of its own that the view cannot affect. The block is
+    left out when the view's content is the call's default view, and for a
+    call with no arguments.
     """
-    if not call.arguments or arguments_shown(view.call):
+    if not call.arguments:
         return None
     content = default_tool_call_viewer(call).call
     if content is None:
+        return None
+    if (
+        view.call is not None
+        and view.call.format == content.format
+        and view.call.content == content.content
+    ):
         return None
     return content.model_copy(update={"title": "Arguments"})
 
@@ -93,7 +98,7 @@ def render_tool_approval(
         add_view_content(view.call)
         renderables.append(Text())
 
-    # every argument, when the view may not show them all
+    # every argument, unless the view is the call's default view
     if all_arguments:
         if message or view.context or view.call:
             renderables.append(Rule("", style="#282c34", align="left", characters="․"))

@@ -51,12 +51,7 @@ from inspect_ai.approval._human.acp import (
 )
 from inspect_ai.approval._human.approver import human_approver
 from inspect_ai.log._samples import ActiveSample, PendingInteraction
-from inspect_ai.tool._tool_call import (
-    ToolCall,
-    ToolCallContent,
-    ToolCallView,
-    shows_arguments,
-)
+from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1431,7 +1426,7 @@ def test_format_view_content_escapes_the_title() -> None:
     assert not {"html_block", "html_inline"} & _markdown_token_types(formatted.content)
 
 
-def test_build_request_keeps_the_command_in_one_code_block() -> None:
+def test_build_request_shows_the_whole_command_beneath_the_bash_view() -> None:
     from markdown_it import MarkdownIt
 
     from inspect_ai.tool._tools._execute import code_viewer
@@ -1444,10 +1439,42 @@ def test_build_request_keeps_the_command_in_one_code_block() -> None:
         view=code_viewer("bash", "command")(call),
         choices=["approve", "reject"],
     )
-    text = "\n".join(_texts(req.tool_call.content))
-    assert not {"html_block", "html_inline"} & _markdown_token_types(text)
-    fences = [t for t in MarkdownIt("commonmark").parse(text) if t.type == "fence"]
-    assert [fence.content for fence in fences] == [f"{command}\n"]
+    # the bash view can hide lines; the arguments block shows the command whole
+    arguments = _texts(req.tool_call.content)[-1]
+    assert not {"html_block", "html_inline"} & _markdown_token_types(arguments)
+    fences = [t for t in MarkdownIt("commonmark").parse(arguments) if t.type == "fence"]
+    assert [fence.content for fence in fences] == [f"bash(command={command!r})\n"]
+
+
+def test_build_request_shows_arguments_beneath_an_edited_inspect_view() -> None:
+    # a custom viewer that cuts the bash view down to the command's first line
+    from inspect_ai.tool._tools._execute import code_viewer
+
+    call = _make_call(arguments={"command": "ls\nrm -rf /tmp/data"})
+    view = code_viewer("bash", "command")(call)
+    assert view.call is not None
+    view = ToolCallView(
+        call=view.call.model_copy(update={"content": "```bash\nls\n```"})
+    )
+    req = _build_request(
+        session_id="s1", call=call, view=view, choices=["approve", "reject"]
+    )
+    texts = _texts(req.tool_call.content)
+    assert texts[-1].startswith("**Arguments**")
+    assert "rm -rf /tmp/data" in texts[-1]
+
+
+def test_build_request_shows_no_arguments_block_beneath_the_default_view() -> None:
+    from inspect_ai.tool._tool_call import default_tool_call_viewer
+
+    call = _make_call()
+    req = _build_request(
+        session_id="s1",
+        call=call,
+        view=default_tool_call_viewer(call),
+        choices=["approve", "reject"],
+    )
+    assert _texts(req.tool_call.content) == ["```python\nbash(command='ls -la')\n```\n"]
 
 
 def test_build_request_shows_arguments_beneath_a_custom_view() -> None:
@@ -1523,10 +1550,9 @@ def test_build_request_shows_placeholder_text_as_written() -> None:
         view=code_viewer("bash", "command")(call),
         choices=["approve", "reject"],
     )
-    # the bash view; `path` is then shown in the arguments block
-    text = _texts(req.tool_call.content)[0]
-    assert command in text
-    assert "/etc/passwd" not in text
+    # the bash view fills in the placeholders; the arguments block does not
+    arguments = _texts(req.tool_call.content)[-1]
+    assert "command='echo {\\x7bcommand}} {\\x7bpath}}'" in arguments
 
 
 def test_separator_block_is_horizontal_rule_markdown() -> None:
@@ -1569,9 +1595,7 @@ def test_build_request_inserts_separator_between_context_and_call() -> None:
         context=ToolCallContent(
             title="Context", format="markdown", content="context body"
         ),
-        call=shows_arguments(
-            ToolCallContent(title="Call", format="markdown", content="call body")
-        ),
+        call=ToolCallContent(title="Call", format="markdown", content="call body"),
     )
     req = _build_request(
         session_id="s1",
@@ -1580,19 +1604,19 @@ def test_build_request_inserts_separator_between_context_and_call() -> None:
         choices=["approve"],
     )
     texts = _texts(req.tool_call.content)
-    # Expect: [context, separator, call] in order.
-    assert len(texts) == 3
+    # Expect: [context, separator, call, separator, arguments] in order.
+    assert len(texts) == 5
     assert "context body" in texts[0]
     assert "---" in texts[1]
     assert "call body" in texts[2]
+    assert "---" in texts[3]
+    assert texts[4].startswith("**Arguments**")
 
 
 def test_build_request_omits_separator_when_one_half_missing() -> None:
     """Only one view half present → no separator block."""
     view = ToolCallView(
-        call=shows_arguments(
-            ToolCallContent(title="Call", format="markdown", content="call body")
-        ),
+        call=ToolCallContent(title="Call", format="markdown", content="call body"),
     )
     req = _build_request(
         session_id="s1",
@@ -1601,19 +1625,19 @@ def test_build_request_omits_separator_when_one_half_missing() -> None:
         choices=["approve"],
     )
     texts = _texts(req.tool_call.content)
-    # Just the call block; no separator.
-    assert len(texts) == 1
+    # The call block, then the arguments; no separator before the call.
+    assert len(texts) == 3
     assert "call body" in texts[0]
     assert "---" not in texts[0]
+    assert texts[1] == "---"
+    assert texts[2].startswith("**Arguments**")
 
 
 def test_build_request_fences_plain_text_view_content() -> None:
     """``view.format == "text"`` content is wrapped in a fenced code block."""
     view = ToolCallView(
-        call=shows_arguments(
-            ToolCallContent(
-                title=None, format="text", content="raw\n  preserve indent\n"
-            )
+        call=ToolCallContent(
+            title=None, format="text", content="raw\n  preserve indent\n"
         ),
     )
     req = _build_request(
@@ -1623,7 +1647,7 @@ def test_build_request_fences_plain_text_view_content() -> None:
         choices=["approve"],
     )
     texts = _texts(req.tool_call.content)
-    assert len(texts) == 1
+    assert len(texts) == 3
     assert texts[0].startswith("```\n")
     assert "  preserve indent" in texts[0]
 
@@ -1649,13 +1673,15 @@ def test_build_request_markdown_snapshot_for_typical_bash_approval() -> None:
         view=code_viewer("bash", "command")(call),
         choices=["approve", "reject"],
     )
-    # One block — just the formatted view call. No assistant message.
+    # The formatted view call, then the call's arguments. No assistant message.
     texts = _texts(req.tool_call.content)
-    assert len(texts) == 1
-    assert "**Assistant**" not in texts[0]
-    assert "I want to list files." not in texts[0]
+    assert len(texts) == 3
+    assert "**Assistant**" not in "\n".join(texts)
+    assert "I want to list files." not in "\n".join(texts)
     assert texts[0].startswith("**bash**\n\n")
     assert "```bash\nls -la\n```" in texts[0]
+    assert texts[1] == "---"
+    assert texts[2] == "**Arguments**\n\n```python\nbash(command='ls -la')\n```\n"
     # No protocol extension: no `_meta` keys on any block.
     for block in req.tool_call.content or []:
         assert block.field_meta is None, (

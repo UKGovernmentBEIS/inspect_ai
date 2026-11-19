@@ -13,7 +13,7 @@ from inspect_ai.approval._apply import apply_tool_approval
 from inspect_ai.approval._approval import Approval
 from inspect_ai.approval._human.util import render_tool_approval
 from inspect_ai.dataset import Sample
-from inspect_ai.model import ModelOutput, get_model
+from inspect_ai.model import ChatMessageAssistant, ModelOutput, get_model
 from inspect_ai.model._call_tools import tool_call_view
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import bash
@@ -239,20 +239,40 @@ def _render_approval(
     return buffer.getvalue()
 
 
-def _assert_shows_every_line(rendered: str, text: str) -> None:
-    for line in text.splitlines():
-        assert line.strip() in rendered, f"{line!r} is not shown"
+def _agent_viewer() -> ToolCallViewer:
+    from inspect_ai.agent._deepagent.agent_tool import agent_tool
+    from inspect_ai.agent._deepagent.subagent import subagent
+
+    viewer = tool_def_fields(
+        agent_tool(
+            subagents=[
+                subagent(name="research", description="Research.", prompt="R."),
+                subagent(name="general", description="General.", prompt="G."),
+            ]
+        )
+    ).viewer
+    assert viewer is not None
+    return viewer
 
 
 @pytest.mark.parametrize("code", _HIDING + _BACKTICKS)
-@pytest.mark.parametrize("language,param", [("bash", "command"), ("python", "code")])
-def test_code_view_shows_every_line(code: str, language: str, param: str) -> None:
-    call = ToolCall(id="1", function=language, arguments={param: code})
-    view = code_viewer(language, param)(call)
-    rendered = _render_approval(view, call.arguments)
-    _assert_shows_every_line(rendered, code)
-    # the view's own fence is not shown as text
-    assert rendered.count("```") == code.count("```")
+@pytest.mark.parametrize(
+    "viewer,param",
+    [
+        (code_viewer("bash", "command"), "command"),
+        (code_viewer("python", "code"), "code"),
+        (think_tool_viewer(), "thought"),
+        (_agent_viewer(), "prompt"),
+    ],
+)
+def test_approval_of_an_inspect_view_shows_every_argument(
+    code: str, viewer: ToolCallViewer, param: str
+) -> None:
+    # the tool's own view can hide lines; the arguments block shows them all
+    call = ToolCall(id="1", function="tool", arguments={param: code})
+    rendered = _render_approval(viewer(call), call.arguments, call)
+    assert "Arguments" in rendered
+    assert f"tool({param}={code!r})" in rendered
 
 
 @pytest.mark.parametrize("value", _HIDING + _BACKTICKS)
@@ -272,31 +292,6 @@ def test_default_view_shows_strings_as_literals() -> None:
     view = default_tool_call_viewer(call)
     rendered = _render_approval(view, call.arguments)
     assert """f(x="a', y='b")""" in rendered
-
-
-@pytest.mark.parametrize("value", _HIDING + _BACKTICKS)
-def test_agent_view_shows_every_line(value: str) -> None:
-    from inspect_ai.agent._deepagent.agent_tool import agent_tool
-    from inspect_ai.agent._deepagent.subagent import subagent
-
-    viewer = tool_def_fields(
-        agent_tool(
-            subagents=[
-                subagent(name="research", description="Research.", prompt="R."),
-                subagent(name="general", description="General.", prompt="G."),
-            ]
-        )
-    ).viewer
-    assert viewer is not None
-    arguments = {
-        "subagent_type": "research",
-        "task_description": f"Summarize\n{value}",
-        "prompt": f"Read the repo.\n{value}\nThen report.",
-    }
-    view = viewer(ToolCall(id="1", function="agent", arguments=arguments))
-    rendered = _render_approval(view, arguments)
-    _assert_shows_every_line(rendered, arguments["task_description"])
-    _assert_shows_every_line(rendered, arguments["prompt"])
 
 
 def test_default_view_shows_argument_names_literally() -> None:
@@ -351,31 +346,53 @@ def test_approval_shows_arguments_beneath_a_custom_view() -> None:
     assert f"note(notes={notes!r})" in rendered
 
 
-def test_approval_shows_no_arguments_block_for_inspect_views() -> None:
-    from inspect_ai.agent._deepagent.agent_tool import agent_tool
-    from inspect_ai.agent._deepagent.subagent import subagent
+def _first_line_only(view: ToolCallView, edit: str) -> ToolCallView:
+    # a custom viewer that cuts a built-in view down to the command's first line
+    assert view.call is not None
+    first = view.call.content.split("\n")[:2]
+    content = "\n".join([*first, "```"])
+    if edit == "copy":
+        return ToolCallView(call=view.call.model_copy(update={"content": content}))
+    view.call.content = content
+    return view
 
-    agent_viewer = tool_def_fields(
-        agent_tool(subagents=[subagent(name="r", description="R.", prompt="R.")])
-    ).viewer
-    assert agent_viewer is not None
-    calls: list[tuple[ToolCallViewer | None, dict[str, Any]]] = [
-        (code_viewer("bash", "command"), {"command": "ls"}),
-        (code_viewer("python", "code"), {"code": "print(1)"}),
-        (think_tool_viewer(), {"thought": "hmm"}),
-        (agent_viewer, {"prompt": "Go.", "task_description": "Do", "background": True}),
-        (None, {"path": "/tmp/x"}),
-        (_raising_viewer, {"path": "/tmp/x"}),
-    ]
-    for viewer, arguments in calls:
-        call = ToolCall(id="1", function="tool", arguments=arguments)
-        view = resolve_tool_call_view(call, viewer)
-        assert "Arguments" not in _render_approval(view, arguments, call)
 
-    # a call with an argument the view does not show gets the block
-    call = ToolCall(id="1", function="bash", arguments={"command": "ls", "x": 1})
-    view = code_viewer("bash", "command")(call)
-    assert "Arguments" in _render_approval(view, call.arguments, call)
+@pytest.mark.parametrize("edit", ["copy", "assign"])
+@pytest.mark.parametrize("builtin", ["bash", "default"])
+def test_approval_shows_arguments_beneath_an_edited_inspect_view(
+    edit: str, builtin: str
+) -> None:
+    call = ToolCall(
+        id="1", function="bash", arguments={"command": "ls\nrm -rf /tmp/data"}
+    )
+    view = (
+        tool_def_fields(bash()).viewer
+        if builtin == "bash"
+        else default_tool_call_viewer
+    )
+    assert view is not None
+    edited = _first_line_only(view(call), edit)
+    rendered = _render_approval(edited, call.arguments, call)
+    assert "Arguments" in rendered
+    assert "rm -rf /tmp/data" in rendered
+
+
+@pytest.mark.parametrize("viewer_fails", [False, True])
+def test_approval_shows_no_arguments_block_beneath_the_default_view(
+    viewer_fails: bool,
+) -> None:
+    call = ToolCall(id="1", function="tool", arguments={"path": "/tmp/x"})
+    view = resolve_tool_call_view(call, _raising_viewer if viewer_fails else None)
+    assert "Arguments" not in _render_approval(view, call.arguments, call)
+
+
+def test_default_view_equals_its_round_trip() -> None:
+    # nothing but the view's fields is kept on it, so a message holding it
+    # compares equal after serialization (bridge filters rely on this)
+    call = ToolCall(id="1", function="tool", arguments={"path": "/tmp/x"})
+    call.view = default_tool_call_viewer(call).call
+    message = ChatMessageAssistant(content="", tool_calls=[call])
+    assert ChatMessageAssistant.model_validate(message.model_dump()) == message
 
 
 @pytest.mark.parametrize(
@@ -386,17 +403,16 @@ def test_approval_shows_no_arguments_block_for_inspect_views() -> None:
         (think_tool_viewer(), "thought"),
     ],
 )
-def test_view_shows_placeholder_text_as_written(
+def test_approval_shows_placeholder_text_as_written(
     viewer: ToolCallViewer, param: str
 ) -> None:
-    # the surfaces fill in `{{param}}` placeholders after the viewer runs, so
-    # an argument holding one must be shown as written
+    # the surfaces fill in `{{param}}` placeholders in a view, so the arguments
+    # block shows an argument holding one as written
     value = f"echo {{{{{param}}}}} {{{{other}}}}"
     arguments = {param: value, "other": "/etc/passwd"}
-    view = viewer(ToolCall(id="1", function="tool", arguments=arguments))
-    rendered = _render_approval(view, arguments)
-    assert value in rendered
-    assert "/etc/passwd" not in rendered
+    call = ToolCall(id="1", function="tool", arguments=arguments)
+    rendered = _render_approval(viewer(call), arguments, call)
+    assert f"{param}='echo {{\\x7b{param}}}}} {{\\x7bother}}}}'" in rendered
 
 
 @pytest.mark.parametrize("viewer_fails", [False, True])

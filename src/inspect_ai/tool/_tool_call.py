@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from logging import getLogger
 from typing import Any, Callable, Literal
 
-from pydantic import BaseModel, Field, JsonValue, PrivateAttr, field_validator
+from pydantic import BaseModel, Field, JsonValue, field_validator
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing_extensions import TypedDict
 
@@ -23,9 +23,6 @@ class ToolCallContent(BaseModel):
 
     content: str = Field(default_factory=str)
     """Text or markdown content."""
-
-    _shows_arguments: bool = PrivateAttr(default=False)
-    # whether the content shows every argument of its call (see shows_arguments)
 
 
 class ToolCallView(BaseModel):
@@ -157,32 +154,12 @@ def default_tool_call_viewer(call: ToolCall) -> ToolCallView:
     code = format_function_call(
         call.function, call.arguments, literal_strings=True
     ).replace("{{", "{\\x7b")
+    fence = safe_code_fence(code)
     return ToolCallView(
-        call=shows_arguments(
-            ToolCallContent(
-                format="markdown", content=tool_call_code_block(call, code, "python")
-            )
+        call=ToolCallContent(
+            format="markdown", content=f"{fence}python\n{code}\n{fence}\n"
         )
     )
-
-
-def shows_arguments(content: ToolCallContent, shown: bool = True) -> ToolCallContent:
-    """Mark `content` as showing every argument of its call as written, or not.
-
-    A tool's own Markdown view may not show all of its call, so the approval
-    surfaces show the default view of the call beneath any view not marked.
-    Inspect's own viewers mark the views that show every argument.
-
-    Returns:
-        `content`, marked.
-    """
-    content._shows_arguments = shown
-    return content
-
-
-def arguments_shown(content: ToolCallContent | None) -> bool:
-    """Whether `content` is marked as showing every argument (see `shows_arguments`)."""
-    return content is not None and content._shows_arguments
 
 
 def viewer_failed_view(call: ToolCall) -> ToolCallView:
@@ -193,23 +170,6 @@ def viewer_failed_view(call: ToolCall) -> ToolCallView:
             f"The viewer for '{call.function}' failed; showing the call's arguments"
         )
     return view
-
-
-def tool_call_code_block(call: ToolCall, code: str, language: str = "") -> str:
-    """`code` as a fenced code block that `code` and the call's arguments cannot close.
-
-    The approval surfaces fill `{{param}}` placeholders in a view from the
-    call's arguments after the viewer runs, so the fence is also longer than
-    any backtick run in an argument.
-
-    Args:
-        call: The call the view is of.
-        code: The text to show, often an argument or built from them.
-        language: The block's language, for syntax highlighting.
-    """
-    arguments = "\n".join(str(value) for value in call.arguments.values())
-    fence = safe_code_fence(f"{code}\n{arguments}")
-    return f"{fence}{language}\n{code}\n{fence}\n"
 
 
 def substitute_tool_call_content(
@@ -230,13 +190,10 @@ def substitute_tool_call_content(
 
         return re.sub(r"\{\{(\w+)\}\}", _sub, text)
 
-    return shows_arguments(
-        ToolCallContent(
-            title=_replace(content.title) if content.title else content.title,
-            format=content.format,
-            content=_replace(content.content),
-        ),
-        arguments_shown(content),
+    return ToolCallContent(
+        title=_replace(content.title) if content.title else content.title,
+        format=content.format,
+        content=_replace(content.content),
     )
 
 

@@ -1,12 +1,5 @@
 from .._tool import Tool, tool
-from .._tool_call import (
-    ToolCall,
-    ToolCallContent,
-    ToolCallView,
-    ToolCallViewer,
-    shows_arguments,
-    tool_call_code_block,
-)
+from .._tool_call import ToolCall, ToolCallContent, ToolCallView, ToolCallViewer
 from .._tool_def import ToolDef
 
 
@@ -47,14 +40,9 @@ def think(
 
 def think_tool_viewer() -> ToolCallViewer:
     def viewer(tool_call: ToolCall) -> ToolCallView:
-        # a placeholder, so the surfaces fill in the thought as written
-        thought = "{{thought}}" if "thought" in tool_call.arguments else ""
         call = ToolCallContent(
-            format="markdown",
-            content=tool_call_code_block(tool_call, thought, "markdown"),
+            format="markdown", content=tool_call.arguments.get("thought", "")
         )
-        return ToolCallView(
-            call=shows_arguments(call, set(tool_call.arguments) <= {"thought"})
-        )
+        return ToolCallView(call=call)
 
     return viewer

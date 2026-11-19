@@ -350,8 +350,8 @@ def _tool_call_update(
         content_blocks.append(_separator_block())
     if call_blocks:
         content_blocks.extend(call_blocks)
-    # every argument, in a block of its own, when the view may not show them
-    # all (see arguments_view)
+    # every argument, in a block of its own, unless the view is the call's
+    # default view (see arguments_view)
     all_arguments = arguments_view(call, view)
     arguments_blocks = (
         content_blocks_from_view(_format_view_content_as_markdown(all_arguments))
