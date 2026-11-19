@@ -1,7 +1,7 @@
 """Client for the add-only store: an S3 bucket that refuses overwrites.
 
 PROTOTYPE (tamper-evident eval logs, step 1). See
-docs/prototype-tamper-evident-logs-findings.md.
+design/prototype-tamper-evident-logs-findings.md.
 """
 
 import os

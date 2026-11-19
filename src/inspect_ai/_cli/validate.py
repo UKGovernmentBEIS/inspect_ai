@@ -1,7 +1,6 @@
 """PROTOTYPE: `inspect validate` (tamper-evident eval logs, step 1)."""
 
 import click
-from rich import print as r_print
 
 from inspect_ai._util.error import PrerequisiteError
 
@@ -33,11 +32,10 @@ def validate_command(log_dir: str, store: str, verbose: bool) -> None:
     report = validate_store(store, log_dir)
     if verbose:
         for record in report.records:
-            r_print(f"{record.arrival.isoformat()}  {record.key}")
+            click.echo(f"{record.arrival.isoformat()}  {record.key}")
     for finding in report.findings:
-        r_print(
-            f"[red]{finding.kind}[/red] "
-            f"{finding.key or finding.eval_id or ''}: {finding.message}"
+        click.echo(
+            f"{finding.kind} {finding.key or finding.eval_id or ''}: {finding.message}"
         )
     summary = (
         f"{len(report.evals)} eval(s), {report.samples_compared} sample(s) "
@@ -45,7 +43,7 @@ def validate_command(log_dir: str, store: str, verbose: bool) -> None:
     )
     if not report.passed:
         raise PrerequisiteError(summary)
-    r_print(
+    click.echo(
         f"{summary} The .eval files match the add-only store. This does not "
         "show that the run was honest."
     )

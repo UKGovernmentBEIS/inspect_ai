@@ -22,10 +22,10 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.scorer import includes
-from inspect_ai.tool import Tool, ToolCall, ToolChoice, ToolInfo, tool
+from inspect_ai.tool import Tool, ToolCall, ToolChoice, ToolInfo, tool, tool_with
 
 
-@tool
+@tool(parallel=True)
 def add() -> Tool:
     async def execute(x: int, y: int) -> int:
         """Add two numbers.
@@ -53,7 +53,7 @@ def note() -> Tool:
     return execute
 
 
-@tool
+@tool(parallel=True)
 def lookup() -> Tool:
     async def execute(query: str) -> str:
         """Look something up.
@@ -137,7 +137,7 @@ def agent_task(epochs: int = 1, samples: int = 2) -> Task:
         ],
         solver=react(
             prompt="You are the main agent.",
-            tools=[add(), note(), as_tool(researcher)],
+            tools=[add(), note(), tool_with(as_tool(researcher), parallel=True)],
         ),
         scorer=includes(),
         epochs=epochs,

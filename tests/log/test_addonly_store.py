@@ -3,7 +3,7 @@
 Runs real evals (mockllm, react agents, parallel and serial tool stages, a
 sub-agent used as a tool, two sub-agents at once, streamed output) with the
 add-only store on, then validates the store and the .eval files.
-See docs/prototype-tamper-evident-logs-findings.md.
+See design/prototype-tamper-evident-logs-findings.md.
 """
 
 import json
@@ -15,6 +15,7 @@ from typing import Any
 
 import anyio
 import pytest
+from click.testing import CliRunner
 from test_helpers.addonly_agents import (
     agent_task,
     run,
@@ -24,6 +25,7 @@ from test_helpers.addonly_agents import (
 from test_helpers.addonly_moto import BUCKET, MotoStore, moto_addonly_store
 
 from inspect_ai import Task, eval
+from inspect_ai._cli.validate import validate_command
 from inspect_ai._util.registry import _registry
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
@@ -190,6 +192,27 @@ def test_edit_eval_file_detected(evalhost_env: MotoStore, tmp_path: Path) -> Non
     report = validate(evalhost_env, tmp_path)
     mismatches = [f for f in report.findings if f.kind == "event_mismatch"]
     assert len(mismatches) == 1 and "result" in mismatches[0].message
+
+
+def test_validate_cli(
+    evalhost_env: MotoStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    log = run(agent_task(samples=1), tmp_path)
+    for key, value in evalhost_env.env(evalhost_env.validator).items():
+        monkeypatch.setenv(key, value)
+    evalhost_env.require_if_none_match_policy()
+    try:
+        args = [str(tmp_path), "--store", evalhost_env.url]
+        passed = CliRunner().invoke(validate_command, args)
+        assert passed.exit_code == 0, passed.output
+        assert "1 sample(s) compared, 0 finding(s)" in passed.output
+
+        Path(log.location).unlink()
+        failed = CliRunner().invoke(validate_command, args)
+        assert failed.exit_code != 0
+        assert "missing_eval_file" in failed.output
+    finally:
+        evalhost_env.client(evalhost_env.admin).delete_bucket_policy(Bucket=BUCKET)
 
 
 def test_overwrite_and_forged_record_detected(
