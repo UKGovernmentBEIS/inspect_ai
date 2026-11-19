@@ -1410,8 +1410,14 @@ The sample's time limit (a cancel scope around the solvers) and working limit
 by cancellation, which the runtime cannot hold.
 
 Message limits are per conversation: a sample message limit reached in a
-member's own conversation (one with no message limit of its own) is raised
-there like any other foreign error, and reaches the runtime the same way.
+member's own conversation (one with no message limit of its own), outside a
+tool or handoff, is raised there like any other foreign error, and reaches
+the runtime the same way. Inside a tool or handoff it keeps today's
+handling: a message limit error raised in a tool's own conversation stays a
+tool error or handoff message, whichever node raised it, even an inherited
+sample node ("Ownership", message limits), so the calling agent or runtime
+receives that reply and can continue; guarantee 1's delivery covers token,
+cost and turn limits only.
 
 ### Unpriced models
 
@@ -2263,8 +2269,8 @@ Each step is one PR, in this order. Each keeps the suite green.
    escaping group, and `check_own_limits()` over the sample's roots after
    the sample task group has joined when the solvers returned, skipped
    when the attempt is `resume_for_scoring`.
-   Tests: the owner-exit cases, which need these checks: `run()` and
-   sentinel tests in `tests/util/test_limit.py`, the runner's reduction
+   Tests: the owner-exit cases, which need these checks: the `run()` and
+   `apply_limits()` tests in `tests/util/test_limit.py`, the runner's reduction
    in `tests/test_eval.py`,
    `tests/agent/test_agent_overflow_compaction.py`,
    the live-override sample outcomes in `tests/_control/test_limits.py`,
@@ -2283,8 +2289,10 @@ Each step is one PR, in this order. Each keeps the suite green.
    `src/inspect_ai/agent/_bridge/sandbox/types.py`:
    `SandboxAgentBridge.keep_limit()` (outermost by `_outer_than()`, from
    step 1) and the `generation_limit` docstring.
-   Tests: `tests/agent/test_agent_execute.py`,
-   `tests/agent/test_agent_handoff.py`, `tests/tools/test_tools_bridge.py`.
+   Tests: `tests/tools/test_call_tools.py` (the native-tool reduction),
+   `tests/agent/test_agent_execute.py` (the `as_tool()` and handoff cases),
+   `tests/tools/test_tools_bridge.py`; the existing handoff tests in
+   `tests/agent/test_agent_handoff.py` stay as regression coverage.
 5. **The bridge.** `src/inspect_ai/agent/_bridge/sandbox/service.py`: entry
    simplification (the separate turn check goes; the kept-limit branch
    stays, after the pre-dispatch check), `_first_control` outermost and
