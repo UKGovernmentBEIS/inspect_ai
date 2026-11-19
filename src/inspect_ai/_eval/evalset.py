@@ -695,8 +695,10 @@ def eval_set(
         )
         run_ids.update(log.eval.run_id for log in results)
 
-        # check for cancelled
-        if evals_cancelled(results):
+        # check for cancelled: a cancelled log, or a requested task with no
+        # log (it was still queued when the run was cancelled)
+        returned = {log.eval.task_id for log in results}
+        if evals_cancelled(results) or any(task.id not in returned for task in tasks):
             raise KeyboardInterrupt
 
         # return results

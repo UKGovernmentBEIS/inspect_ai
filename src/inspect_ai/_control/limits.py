@@ -781,7 +781,7 @@ def _apply_process_knobs(
     keyword ``clear``, remove) process-wide live overrides —
     always adjustable, since the override layer exists regardless of what
     any task's launch config specifies (for ``max_tasks``, a set landing
-    while no dispatcher is live — e.g. during a batch's startup before its
+    while no dispatcher is live — e.g. during a run's startup before its
     dispatcher registers — still governs every later dispatch decision in
     the run; skip-and-warn would silently drop it).
     """
@@ -993,7 +993,7 @@ def _apply_process_knobs(
     # The max_tasks view (re-read after applying, like the others). `limit`
     # is the effective dispatch cap (override ?? launch); `launch` /
     # `in_flight` / `pending` are None when no dispatcher is live (during
-    # batch startup, between `enqueue_task`-driven batches) — a set still
+    # run startup, between legacy eval-set retry passes) — a set still
     # applies then, hence `adjustable` is unconditionally True. After a
     # lowering, `in_flight` may exceed `limit` until it drains (never
     # preempts).

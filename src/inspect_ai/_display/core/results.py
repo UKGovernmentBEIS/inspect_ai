@@ -7,7 +7,6 @@ from rich.table import Table
 from rich.text import Text
 
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe
-from inspect_ai._util.rich import rich_traceback
 from inspect_ai.log import EvalStats
 from inspect_ai.log._log import EvalScore
 from inspect_ai.model._model_output import ModelUsage
@@ -203,7 +202,7 @@ def task_result_error(profile: TaskProfile, error: TaskError) -> RenderableType:
     return task_panel(
         profile=profile,
         show_model=True,
-        body=rich_traceback(error.exc_type, error.exc_value, error.traceback),
+        body=error.rendered,
         subtitle=None,
         footer=task_interrupted(profile, error.samples_completed),
         log_location=profile.log_location,

@@ -28,6 +28,7 @@ from .constants import (
     ALL_LOG_LEVELS,
     DEFAULT_LOG_LEVEL,
     DEFAULT_LOG_LEVEL_TRANSCRIPT,
+    EXC_SNAPSHOT,
     HTTP,
     HTTP_LOG_LEVEL,
     PKG_NAME,
@@ -99,6 +100,12 @@ class LogHandler(RichHandler):
 
     @override
     def emit(self, record: LogRecord) -> None:
+        # a failed task's error is logged as a text snapshot rather than an
+        # exc_info tuple (see TaskError); Formatter.format appends exc_text
+        snapshot = getattr(record, EXC_SNAPSHOT, None)
+        if snapshot and not record.exc_info and not record.exc_text:
+            record.exc_text = snapshot
+
         # write to stderr if we are at or above the threshold
         if record.levelno >= self.display_level and self.display_level != NOTSET:
             self.emit_display(record)
@@ -262,6 +269,8 @@ def json_log_record(record: LogRecord) -> dict[str, object]:
     }
     if record.exc_info:
         payload["exc_info"] = Formatter().formatException(record.exc_info)
+    elif snapshot := getattr(record, EXC_SNAPSHOT, None):
+        payload["exc_info"] = snapshot
     if record.stack_info:
         payload["stack_info"] = record.stack_info
     return payload

@@ -15,7 +15,6 @@ from inspect_ai._eval.loader import resolve_task_sandbox
 from inspect_ai._eval.run import SandboxManager
 from inspect_ai._eval.task.constants import TASK_RUN_DIR_ATTR
 from inspect_ai._eval.task.sandbox import TaskSandboxEnvironment
-from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalConfig, EvalSample
 from inspect_ai.model import ModelOutput
@@ -612,9 +611,13 @@ async def test_non_docker_task_init_environment_is_refused(dirs: Dirs) -> None:
     )
 
     with anyio.fail_after(60):
-        with pytest.raises(PrerequisiteError, match="task_init_environment"):
-            await eval_async(task, model="mockllm/model")
+        [log] = await eval_async(task, model="mockllm/model")
 
+    # setup runs in the task's attempt, so the refusal ends that task
+    assert log.status == "error"
+    assert log.error is not None
+    assert "PrerequisiteError" in log.error.traceback
+    assert "task_init_environment" in log.error.message
     assert ProbeState.hooks("task_init") == []
     assert PROBE_VAR not in os.environ
 
@@ -1208,6 +1211,13 @@ def test_setup_bindings_sample_starts_during_other_task_setup(tmp_path: Path) ->
             if self._produced:
                 return None
             self._produced = True
+            # each task sets up its sandboxes in its own attempt: wait for the
+            # other task's setup of A (A's task_init records its call and
+            # returns with no await between), so this setup, which blocks
+            # until a sample of A starts, cannot take the setup lock first
+            if not _calls("task_init", "A"):
+                with anyio.fail_after(10):
+                    await _bindings_event("A").wait()
             return [Sample(input="blocked")]
 
     later = Task(

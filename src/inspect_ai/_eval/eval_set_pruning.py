@@ -58,7 +58,7 @@ progress, a `@task` call comes from code the run is executing (a solver, tool,
 scorer, hook, or `TaskSource` building a task to add with `enqueue_task()`),
 not from resolving the eval set. Such a task is not in the selection, and
 pruning it would hand the run an empty placeholder to execute. So nothing is
-pruned while the run's task enqueuer is bound; see `prune_task_call`.
+pruned while the run's task queue is bound; see `prune_task_call`.
 
 **What this assumes of a definition, and cannot check.** Skipping a task body
 skips its side effects. The definition itself still executes in full, so
@@ -97,7 +97,7 @@ from inspect_ai._util.registry import extract_named_params
 
 from .eval_set_manifest import task_args_hash
 from .eval_set_selection import INSPECT_EVAL_SET_SELECTION
-from .task.enqueue import get_task_enqueuer
+from .task.enqueue import get_run_queue
 
 INSPECT_EVAL_SET_NO_PRUNE = "INSPECT_EVAL_SET_NO_PRUNE"
 """Set to disable early pruning. The escape hatch for a suspected pruning bug: a run can be compared with and without it without downgrading inspect, and a difference in *results* is a bug report — there should never be one."""
@@ -302,10 +302,10 @@ def prune_task_call(
     """
     if _constructing:
         return False
-    # The worker resolves its selection before the run binds its enqueuer. Threads
+    # The worker resolves its selection before the run binds its task queue. Threads
     # see the binding only with a copy of the run's context (`anyio.to_thread`,
     # `asyncio.to_thread`), not a bare `threading.Thread` or `ThreadPoolExecutor`.
-    if get_task_enqueuer() is not None:
+    if get_run_queue() is not None:
         return False
     if not _pruner.active():
         return False

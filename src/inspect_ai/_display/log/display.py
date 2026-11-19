@@ -3,6 +3,7 @@ import logging
 from typing import AsyncIterator, Callable, Coroutine, Iterator
 
 from inspect_ai._util._async import run_coroutine, run_main
+from inspect_ai._util.constants import EXC_SNAPSHOT
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.log import EvalStats
@@ -129,11 +130,7 @@ class LogDisplay(Display):
         elif isinstance(task.result, TaskError):
             logging.error(
                 f"{title} failed ({task.result.samples_completed}/{task.profile.samples} logged)",
-                exc_info=(
-                    task.result.exc_type,
-                    task.result.exc_value,
-                    task.result.traceback,
-                ),
+                extra={EXC_SNAPSHOT: task.result.text},
                 stacklevel=4,
             )
         elif isinstance(task.result, TaskSuccess):

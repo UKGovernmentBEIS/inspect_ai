@@ -1,18 +1,21 @@
-"""Tests for driving a running eval from a `TaskSource` (batch-at-a-time).
+"""Tests for driving a running eval from a `TaskSource`.
 
-The source seeds the run with `initial_tasks()`, observes each batch's results
-via `sample_complete` / `task_complete`, and produces the next batch from
-`next_tasks()` until it returns `None` — all under one run_id.
+The source seeds the run with `initial_tasks()`, observes results via
+`sample_complete` / `task_complete`, and produces the next batch from
+`next_tasks()` (called when no task is queued or running) until it returns
+`None` — all under one run_id.
 """
 
 from pathlib import Path
+from typing import Any, Awaitable, Callable
 
 import anyio
 import pytest
 
 from inspect_ai import Task, TaskSource, eval, eval_async, task_source
 from inspect_ai._eval.loader import resolve_tasks
-from inspect_ai._eval.task.enqueue import enqueue_task
+from inspect_ai._eval.task.enqueue import TaskRecord, enqueue_task, get_run_queue
+from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, EvalSample
 from inspect_ai.model import get_model
@@ -678,3 +681,285 @@ def test_task_source_name_rejected_outside_eval() -> None:
         resolve_tasks(
             "decorated_generations", {}, get_model("mockllm/model"), None, None, None
         )
+
+
+# -- one queue, one dispatcher (design/task-dispatch.md) -----------------------
+
+
+def _hook_task(name: str, hook: Callable[[], Awaitable[None]]) -> Task:
+    @solver
+    def run_hook() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            await hook()
+            return state
+
+        return solve
+
+    return Task(dataset=[Sample(input="x")], solver=[run_hook()], name=name)
+
+
+async def _noop() -> None:
+    pass
+
+
+def _record(name: str) -> TaskRecord:
+    queue = get_run_queue()
+    assert queue is not None
+    return next(r for r in queue.records if r.task == name)
+
+
+async def test_task_added_while_next_tasks_blocks_starts_first(tmp_path: Path) -> None:
+    started: list[str] = []
+
+    def recording(name: str) -> Task:
+        async def record() -> None:
+            started.append(name)
+
+        return _hook_task(name, record)
+
+    class _Src(TaskSource):
+        calls = 0
+
+        def initial_tasks(self) -> list[Task]:
+            return [recording("seed")]
+
+        async def next_tasks(self) -> list[Task] | None:
+            self.calls += 1
+            if self.calls > 1:
+                return None
+            # a task added while the call blocks waits for it to return
+            enqueue_task(recording("added"))
+            await anyio.sleep(0)
+            assert _record("added").phase == "queued"
+            return [recording("returned")]
+
+    init_display_type("none")
+    logs = await eval_async(
+        _Src(), model="mockllm/model", max_tasks=1, log_dir=str(tmp_path)
+    )
+    assert started == ["seed", "added", "returned"]
+    assert [log.eval.task for log in logs] == ["seed", "added", "returned"]
+
+
+async def test_next_tasks_empty_list_ends_the_source(tmp_path: Path) -> None:
+    class _Src(TaskSource):
+        calls = 0
+
+        def initial_tasks(self) -> list[Task]:
+            return [_task("seed")]
+
+        async def next_tasks(self) -> list[Task] | None:
+            self.calls += 1
+            return []
+
+    source = _Src()
+    init_display_type("none")
+    logs = await eval_async(source, model="mockllm/model", log_dir=str(tmp_path))
+    assert [log.eval.task for log in logs] == ["seed"]
+    assert source.calls == 1
+
+
+class _WaitForReports(TaskSource):
+    """Seeds tasks and returns from next_tasks() only once each has been reported."""
+
+    def __init__(self, seed: list[Task], reports_needed: int) -> None:
+        self.seed = seed
+        self.reports: list[EvalLog] = []
+        self.reports_needed = reports_needed
+        self._done: anyio.Event | None = None
+
+    def initial_tasks(self) -> list[Task]:
+        return self.seed
+
+    def done(self) -> anyio.Event:
+        if self._done is None:
+            self._done = anyio.Event()
+        return self._done
+
+    async def task_complete(self, log: EvalLog) -> list[Task] | None:
+        self.reports.append(log)
+        if len(self.reports) >= self.reports_needed:
+            self.done().set()
+        return None
+
+    async def next_tasks(self) -> list[Task] | None:
+        with anyio.fail_after(20):
+            await self.done().wait()
+        return None
+
+
+@pytest.mark.parametrize("retries", [0, 2])
+async def test_every_attempt_is_reported_including_failed_log_init(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, retries: int
+) -> None:
+    init = TaskLogger.init
+
+    async def failing_init(self: TaskLogger) -> None:
+        if self.eval.task == "B":
+            raise OSError("cannot start log")
+        await init(self)
+
+    monkeypatch.setattr(TaskLogger, "init", failing_init)
+    source = _WaitForReports([_task("A"), _task("B")], reports_needed=retries + 2)
+    init_display_type("none")
+    logs = await eval_async(
+        source,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        task_retry_attempts=retries,
+    )
+    b_reports = [log for log in source.reports if log.eval.task == "B"]
+    assert len(b_reports) == retries + 1
+    assert all(
+        log.status == "error"
+        and log.error is not None
+        and "cannot start log" in log.error.message
+        for log in b_reports
+    )
+    by_task = {log.eval.task: log for log in logs}
+    assert by_task["A"].status == "success"
+    assert by_task["B"].status == "error"
+
+
+@pytest.mark.parametrize("failure", ["header", "final"])
+async def test_attempt_whose_log_storage_failed_is_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    method = "log_start" if failure == "header" else "log_finish"
+    original = getattr(TaskLogger, method)
+
+    async def failing(self: TaskLogger, *args: Any, **kwargs: Any) -> Any:
+        if self.eval.task == "B":
+            raise OSError(f"{method} failed")
+        return await original(self, *args, **kwargs)
+
+    monkeypatch.setattr(TaskLogger, method, failing)
+    source = _WaitForReports([_task("A"), _task("B")], reports_needed=2)
+    init_display_type("none")
+    logs = await eval_async(source, model="mockllm/model", log_dir=str(tmp_path))
+    [b_report] = [log for log in source.reports if log.eval.task == "B"]
+    [b_log] = [log for log in logs if log.eval.task == "B"]
+    assert b_report.status == "error"
+    assert b_report.error is not None
+    assert f"{method} failed" in b_report.error.message
+    assert b_report.error.message == (b_log.error.message if b_log.error else None)
+
+
+async def test_cancel_of_queued_task_aborts_it_before_it_starts(
+    tmp_path: Path,
+) -> None:
+    async def cancel_b() -> None:
+        queue = get_run_queue()
+        assert queue is not None
+        b = _record("B")
+        assert b.phase == "queued"
+        queue.cancel(b)
+        assert b.abort_requested
+
+    source = _WaitForReports(
+        [_hook_task("A", cancel_b), _hook_task("B", _noop)], reports_needed=2
+    )
+    init_display_type("none")
+    logs = await eval_async(
+        source,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_tasks=1,
+        task_retry_attempts=1,
+    )
+    by_task = {log.eval.task: log for log in logs}
+    assert by_task["A"].status == "success"
+    b = by_task["B"]
+    assert b.status == "error"
+    assert b.error is not None
+    assert "Task cancelled by user (abort)" in b.error.message
+    assert b.location == ""
+    # reported once, never retried, and no log file was created for it
+    assert [log.eval.task for log in source.reports].count("B") == 1
+    assert len(list(tmp_path.glob("*_B_*"))) == 0
+
+
+async def test_cancel_of_attempt_before_it_registers_aborts_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    init = TaskLogger.init
+    init_entered = anyio.Event()
+
+    async def held_init(self: TaskLogger) -> None:
+        if self.eval.task == "B":
+            init_entered.set()
+            await anyio.sleep_forever()
+        await init(self)
+
+    async def cancel_b() -> None:
+        with anyio.fail_after(10):
+            await init_entered.wait()
+        b = _record("B")
+        assert b.phase == "attempt"
+        assert b.reached == "added"
+        queue = get_run_queue()
+        assert queue is not None
+        queue.cancel(b)
+
+    monkeypatch.setattr(TaskLogger, "init", held_init)
+    source = _WaitForReports([_hook_task("A", cancel_b), _hook_task("B", _noop)], 2)
+    init_display_type("none")
+    logs = await eval_async(
+        source,
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_tasks=2,
+        task_retry_attempts=1,
+    )
+    [b] = [log for log in logs if log.eval.task == "B"]
+    assert b.status == "error"
+    assert b.error is not None
+    assert "Task cancelled by user (abort)" in b.error.message
+    assert [log.eval.task for log in source.reports].count("B") == 1
+
+
+async def test_next_tasks_error_ends_the_run(tmp_path: Path) -> None:
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_task("seed")]
+
+        async def next_tasks(self) -> list[Task] | None:
+            raise ValueError("source failed")
+
+    init_display_type("none")
+    with pytest.raises(ValueError, match="source failed"):
+        await eval_async(_Src(), model="mockllm/model", log_dir=str(tmp_path))
+
+
+async def test_source_returns_after_the_run_stopped_are_dropped(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    started = anyio.Event()
+
+    async def block() -> None:
+        started.set()
+        await anyio.sleep_forever()
+
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_hook_task("A", block)]
+
+        async def task_complete(self, log: EvalLog) -> list[Task] | None:
+            # no checkpoint: the follow-up is returned however the run ended
+            return [_task("follow_up")]
+
+    init_display_type("none")
+    with anyio.CancelScope() as scope:
+
+        async def cancel_when_started() -> None:
+            with anyio.fail_after(10):
+                await started.wait()
+            scope.cancel()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(cancel_when_started)
+            await eval_async(_Src(), model="mockllm/model", log_dir=str(tmp_path))
+
+    logs = list(tmp_path.glob("*.eval"))
+    assert len(logs) == 1
+    assert "follow-up" not in logs[0].name and "follow_up" not in logs[0].name

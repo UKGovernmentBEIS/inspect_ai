@@ -6,9 +6,12 @@ from types import TracebackType
 from typing import Any
 
 import pytest
+import rich.console
 
+from inspect_ai._util.constants import EXC_SNAPSHOT
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.logger import LogHandler, logger_display_format
+from inspect_ai._util.logger import LoggerFormat, LogHandler, logger_display_format
+from inspect_ai._util.trace import TraceFormatter
 
 
 def log_record(
@@ -140,3 +143,114 @@ def test_plain_logger_format_escapes_newlines_in_exception(
     assert output.count("\n") == 1
     assert "\\n" in output
     assert "ValueError: boom" in output
+
+
+def snapshot_record(exc_info: Any) -> LogRecord:
+    """A record carrying a failed task's error as LogDisplay logs it."""
+    from inspect_ai._display.core.display import TaskError
+
+    snapshot = TaskError.from_exception(0, *exc_info)
+    record = log_record("failed")
+    setattr(record, EXC_SNAPSHOT, snapshot.text)
+    return record
+
+
+def chained_exc_info() -> Any:
+    try:
+        try:
+            raise KeyError("inner")
+        except KeyError as ex:
+            raise ValueError("boom") from ex
+    except ValueError:
+        return sys.exc_info()
+
+
+@pytest.mark.parametrize("logger_format", ["plain", "json"])
+def test_logger_format_renders_exc_snapshot_like_exc_info(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, logger_format: LoggerFormat
+) -> None:
+    monkeypatch.setenv("INSPECT_TRACE_LEVEL", "info")
+    exc_info = chained_exc_info()
+
+    def emitted(record: LogRecord) -> str:
+        stream = io.StringIO()
+        handler = LogHandler(
+            capture_levelno=INFO,
+            display_levelno=INFO,
+            transcript_levelno=0,
+            trace_dir=tmp_path,
+            logger_format=logger_format,
+            display_stream=stream,
+        )
+        handler.emit(record)
+        return stream.getvalue()
+
+    from_snapshot = emitted(snapshot_record(exc_info))
+    from_exc_info = emitted(log_record("failed", exc_info=exc_info))
+    assert "KeyError: 'inner'" in from_snapshot
+    if logger_format == "json":
+        snapshot_payload = json.loads(from_snapshot)
+        exc_info_payload = json.loads(from_exc_info)
+        assert snapshot_payload["msg"] == "failed"
+        assert snapshot_payload["exc_info"] == exc_info_payload["exc_info"]
+    else:
+        # the timestamp prefix differs between the two records
+        assert from_snapshot.split(" - ", 1)[1] == from_exc_info.split(" - ", 1)[1]
+
+
+def test_trace_formatter_omits_exc_snapshot() -> None:
+    formatter = TraceFormatter()
+    exc_info = chained_exc_info()
+
+    snapshot = snapshot_record(exc_info)
+    setattr(snapshot, "unrelated", "kept")
+    plain = log_record("failed", exc_info=exc_info)
+    setattr(plain, "unrelated", "kept")
+
+    snapshot_json = json.loads(formatter.format(snapshot))
+    plain_json = json.loads(formatter.format(plain))
+    snapshot_json.pop("timestamp")
+    plain_json.pop("timestamp")
+    assert EXC_SNAPSHOT not in snapshot_json
+    assert snapshot_json == plain_json
+    assert snapshot_json["unrelated"] == "kept"
+
+
+def test_task_error_snapshot_holds_no_frames() -> None:
+    """A failed task's display row keeps no frame, so the task's locals are freed."""
+    import gc
+    import weakref
+
+    from inspect_ai._display.core.display import TaskError
+    from inspect_ai._util.rich import rich_traceback
+
+    class Dataset:
+        pass
+
+    def run_task(dataset: Dataset) -> None:
+        raise ValueError("task failed")
+
+    dataset = Dataset()
+    dataset_ref = weakref.ref(dataset)
+    exc_info: Any = None
+    try:
+        run_task(dataset)
+    except ValueError:
+        exc_info = sys.exc_info()
+    expected = rich_traceback(*exc_info)
+    snapshot = TaskError.from_exception(3, *exc_info)
+    del exc_info, dataset
+    gc.collect()
+
+    assert dataset_ref() is None
+    assert snapshot.samples_completed == 3
+    assert snapshot.exc_type is ValueError
+    assert "ValueError: task failed" in snapshot.text
+    assert not snapshot.text.endswith("\n")
+
+    def render(renderable: Any) -> str:
+        console = rich.console.Console(width=120, record=True, file=io.StringIO())
+        console.print(renderable)
+        return console.export_text()
+
+    assert render(snapshot.rendered) == render(expected)

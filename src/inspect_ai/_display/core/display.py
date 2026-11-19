@@ -1,5 +1,6 @@
 import contextlib
 from dataclasses import dataclass, field
+from traceback import format_exception
 from types import TracebackType
 from typing import (
     Any,
@@ -18,7 +19,7 @@ from typing import (
 import anyio
 import rich
 from pydantic import BaseModel, Field, field_validator
-from rich.console import Console
+from rich.console import Console, RenderableType
 
 from inspect_ai.log import EvalConfig, EvalResults, EvalStats
 from inspect_ai.model import GenerateConfig, ModelName
@@ -143,10 +144,39 @@ class TaskProfile:
 
 @dataclass
 class TaskError:
+    """A failed task's error, kept as a snapshot that holds no exception or frame.
+
+    The task screen keeps each row's result for the whole run, so a live
+    traceback would keep the failed task's locals (its dataset among them)
+    alive until the run ends.
+    """
+
     samples_completed: int
     exc_type: Type[Any]
-    exc_value: BaseException
-    traceback: TracebackType | None
+    rendered: RenderableType
+    """The traceback as Rich renders it."""
+    text: str
+    """The traceback as ``logging.Formatter.formatException`` formats it."""
+
+    @staticmethod
+    def from_exception(
+        samples_completed: int,
+        exc_type: Type[Any],
+        exc_value: BaseException,
+        traceback: TracebackType | None,
+    ) -> "TaskError":
+        """Snapshot an exception and its traceback."""
+        from inspect_ai._util.rich import rich_traceback
+
+        text = "".join(format_exception(exc_type, exc_value, traceback))
+        if text.endswith("\n"):
+            text = text[:-1]
+        return TaskError(
+            samples_completed=samples_completed,
+            exc_type=exc_type,
+            rendered=rich_traceback(exc_type, exc_value, traceback),
+            text=text,
+        )
 
 
 @dataclass
