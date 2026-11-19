@@ -4951,3 +4951,24 @@ def test_eval_set_retries_task_whose_sandbox_setup_failed(tmp_path: Path) -> Non
         "no_sandbox": "success",
     }
     assert _FlakySetupSandbox.task_init_calls == 2
+
+
+def test_eval_set_run_missing_a_requested_task_is_cancelled(
+    tmp_path: Path,
+) -> None:
+    # a requested task with no log was still queued when its run was
+    # cancelled (dispatch ended before it started), so the eval set stops as
+    # it does for a cancelled log
+    from inspect_ai._eval import evalset as evalset_module
+
+    def run_without_logs(*args: Any, **kwargs: Any) -> list[EvalLog]:
+        return []
+
+    with patch.object(evalset_module, "eval", run_without_logs):
+        with pytest.raises(KeyboardInterrupt):
+            eval_set(
+                Task(dataset=[Sample(input="x")], name="queued_at_cancel"),
+                log_dir=str(tmp_path),
+                model="mockllm/model",
+                display="none",
+            )

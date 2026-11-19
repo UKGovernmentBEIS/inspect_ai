@@ -100,11 +100,7 @@ class LogHandler(RichHandler):
 
     @override
     def emit(self, record: LogRecord) -> None:
-        # a failed task's error is logged as a text snapshot rather than an
-        # exc_info tuple (see TaskError); Formatter.format appends exc_text
-        snapshot = getattr(record, EXC_SNAPSHOT, None)
-        if snapshot and not record.exc_info and not record.exc_text:
-            record.exc_text = snapshot
+        exc_snapshot_filter(record)
 
         # write to stderr if we are at or above the threshold
         if record.levelno >= self.display_level and self.display_level != NOTSET:
@@ -256,6 +252,20 @@ def logger_display_format(env_prefix: str = "INSPECT") -> LoggerFormat:
             "Logger format must be one of rich, plain, json"
         )
     return cast(LoggerFormat, logger_format)
+
+
+def exc_snapshot_filter(record: LogRecord) -> bool:
+    """Set a record's ``exc_text`` from its exception snapshot, if it has one.
+
+    A failed task's error is logged as a text snapshot rather than an
+    ``exc_info`` tuple (see ``TaskError``). ``logging.Formatter.format``
+    appends ``exc_text``, so every handler shows the traceback as it would
+    for ``exc_info``. Usable as a logging filter: it always returns ``True``.
+    """
+    snapshot = getattr(record, EXC_SNAPSHOT, None)
+    if snapshot and not record.exc_info and not record.exc_text:
+        record.exc_text = snapshot
+    return True
 
 
 def json_log_record(record: LogRecord) -> dict[str, object]:

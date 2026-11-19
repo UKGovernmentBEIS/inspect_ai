@@ -11,6 +11,7 @@ from typing import (
     Any,
     Awaitable,
     Callable,
+    Iterable,
     Iterator,
     Literal,
     NamedTuple,
@@ -824,7 +825,7 @@ class TaskRunOptions:
     initial_role_usage: dict[str, ModelUsage] | None = field(default=None)
     task_source: "TaskSource | None" = field(default=None)
     """Run-level task source notified as this task's samples/task complete."""
-    startup_sandboxes: Callable[[list[Sample]], Awaitable[None]] | None = field(
+    startup_sandboxes: Callable[[Iterable[Sample]], Awaitable[None]] | None = field(
         default=None
     )
     """Run-level incremental sandbox startup for samples a SampleSource adds."""
@@ -1537,12 +1538,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
             # set up the seed samples' sandboxes (task_init for configurations
             # not yet set up in the run). A setup error fails this attempt
-            # like any task error
+            # like any task error. The samples are streamed, so a dataset
+            # paged to disk is not held in memory again
             if options.startup_sandboxes is not None and _has_sandbox(
                 sandbox, sample_store
             ):
                 await options.startup_sandboxes(
-                    [sample_store[i] for i in range(len(sample_store))]
+                    sample_store[i] for i in range(len(sample_store))
                 )
 
             # publish the interim-scoring capability (the task's scorers and

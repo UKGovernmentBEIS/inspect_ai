@@ -6,6 +6,8 @@ design/task-dispatch.md). Here the trigger is usually a solver (the simplest
 in-run caller).
 """
 
+import gc
+import weakref
 from pathlib import Path
 from typing import Any, Awaitable, Callable, ClassVar, Iterator
 
@@ -18,6 +20,7 @@ from inspect_ai import Epochs, Task, eval, eval_async, eval_set, task
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.enqueue import TaskRecord, enqueue_task, get_run_queue
 from inspect_ai._eval.task.log import TaskLogger
+from inspect_ai._eval.task.store import DiskSampleStore
 from inspect_ai._util.content import ContentImage
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
@@ -266,6 +269,7 @@ class DispatchProbeSandbox(LocalSandboxEnvironment):
     started: ClassVar[dict[str, anyio.Event]] = {}
     hold: ClassVar[dict[str, anyio.Event]] = {}
     failures: ClassVar[dict[str, int]] = {}
+    on_task_init: ClassVar[Callable[[], None] | None] = None
 
     @classmethod
     def reset(cls) -> None:
@@ -273,6 +277,7 @@ class DispatchProbeSandbox(LocalSandboxEnvironment):
         cls.started = {}
         cls.hold = {}
         cls.failures = {}
+        cls.on_task_init = None
 
     @classmethod
     async def task_init(
@@ -280,6 +285,8 @@ class DispatchProbeSandbox(LocalSandboxEnvironment):
     ) -> None:
         key = str(config)
         cls.calls.append(f"task_init:{key}")
+        if cls.on_task_init is not None:
+            cls.on_task_init()
         if key in cls.started:
             cls.started[key].set()
         if key in cls.hold:
@@ -701,3 +708,43 @@ async def test_debug_errors_raise_at_every_max_tasks(tmp_path: Path) -> None:
             max_tasks=2,
             debug_errors=True,
         )
+
+
+async def test_setup_does_not_hold_a_paged_dataset_in_memory(
+    tmp_path: Path,
+    probe: type[DispatchProbeSandbox],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # the seed samples are streamed to sandbox setup, so samples read back from
+    # a dataset paged to disk are freed while task_init runs
+    read: list[weakref.ref[Sample]] = []
+    alive_during_setup: list[int] = []
+    getitem = DiskSampleStore.__getitem__
+
+    def tracking_getitem(self: DiskSampleStore, index: int) -> Sample:
+        sample = getitem(self, index)
+        read.append(weakref.ref(sample))
+        return sample
+
+    def count_alive() -> None:
+        gc.collect()
+        alive_during_setup.append(sum(1 for ref in read if ref() is not None))
+
+    monkeypatch.setattr(DiskSampleStore, "__getitem__", tracking_getitem)
+    probe.on_task_init = count_alive
+
+    logs = await eval_async(
+        Task(
+            dataset=[Sample(id=i, input="x" * 1000) for i in range(1, 21)],
+            solver=[],
+            sandbox=("dispatch_probe", "paged"),
+            name="paged",
+        ),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        max_dataset_memory=0,
+    )
+    assert logs[0].status == "success"
+    # every sample was read for setup, and none of them is still held
+    assert len(read) >= 20
+    assert alive_during_setup == [0]

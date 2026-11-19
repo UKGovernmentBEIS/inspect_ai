@@ -10,7 +10,12 @@ import rich.console
 
 from inspect_ai._util.constants import EXC_SNAPSHOT
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.logger import LoggerFormat, LogHandler, logger_display_format
+from inspect_ai._util.logger import (
+    LoggerFormat,
+    LogHandler,
+    exc_snapshot_filter,
+    logger_display_format,
+)
 from inspect_ai._util.trace import TraceFormatter
 
 
@@ -254,3 +259,54 @@ def test_task_error_snapshot_holds_no_frames() -> None:
         return console.export_text()
 
     assert render(snapshot.rendered) == render(expected)
+
+
+def test_failed_task_traceback_reaches_an_application_handler() -> None:
+    """A handler installed before Inspect's formats the failed task's traceback."""
+    import logging
+
+    from inspect_ai._display.core.display import (
+        TaskError,
+        TaskProfile,
+        TaskWithResult,
+    )
+    from inspect_ai._display.log.display import LogDisplay
+    from inspect_ai.log import EvalConfig
+    from inspect_ai.model import GenerateConfig, ModelName
+
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    root = logging.getLogger()
+    root.addHandler(handler)
+    previous_level = root.level
+    root.setLevel(logging.ERROR)
+    try:
+        profile = TaskProfile(
+            name="task",
+            file=None,
+            model=ModelName("mockllm/model"),
+            agent=None,
+            dataset="dataset",
+            scorer="scorer",
+            samples=1,
+            steps=1,
+            eval_config=EvalConfig(),
+            task_args={},
+            generate_config=GenerateConfig(),
+            tags=None,
+            log_location="log.eval",
+            task_id="task-id",
+            task_cancel=None,
+        )
+        error = TaskError.from_exception(0, *chained_exc_info())
+        LogDisplay()._log_result(TaskWithResult(profile, error))
+    finally:
+        root.removeHandler(handler)
+        root.setLevel(previous_level)
+
+    output = stream.getvalue()
+    assert "failed (0/1 logged)" in output
+    assert "ValueError: boom" in output
+    assert "KeyError: 'inner'" in output
+    # the filter is installed only for the failed task's record
+    assert exc_snapshot_filter not in root.filters

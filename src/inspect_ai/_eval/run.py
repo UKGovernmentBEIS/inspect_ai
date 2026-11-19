@@ -419,9 +419,9 @@ async def eval_run(
                 # each attempt sets up its seed samples' sandboxes, and a
                 # SampleSource task's feeder those of the samples it adds;
                 # the dict caches this task's metadata-free resolutions
-                startup_sandboxes: Callable[[list[Sample]], Awaitable[None]] | None = (
-                    None
-                )
+                startup_sandboxes: (
+                    Callable[[Iterable[Sample]], Awaitable[None]] | None
+                ) = None
                 if run_samples:
                     startup_sandboxes = functools.partial(
                         sandbox_manager.start_for_samples, resolved_task, {}
@@ -1264,7 +1264,7 @@ class SandboxManager:
         self,
         task: ResolvedTask,
         cache: dict[SandboxEnvironmentSpec, TaskSandboxEnvironment],
-        samples: list[Sample],
+        samples: Iterable[Sample],
     ) -> None:
         """Initialize the sandboxenvs of a task's samples before they run.
 

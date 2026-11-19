@@ -6,6 +6,9 @@ The source seeds the run with `initial_tasks()`, observes results via
 `None` — all under one run_id.
 """
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
@@ -17,7 +20,7 @@ from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.enqueue import TaskRecord, enqueue_task, get_run_queue
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai.dataset import Sample
-from inspect_ai.log import EvalLog, EvalSample
+from inspect_ai.log import EvalLog, EvalSample, list_eval_logs, read_eval_log_async
 from inspect_ai.model import get_model
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 from inspect_ai.util._display import init_display_type
@@ -963,3 +966,111 @@ async def test_source_returns_after_the_run_stopped_are_dropped(
     logs = list(tmp_path.glob("*.eval"))
     assert len(logs) == 1
     assert "follow-up" not in logs[0].name and "follow_up" not in logs[0].name
+
+
+class _BlockingNextTasks(TaskSource):
+    """Seeds one task; next_tasks() then blocks until the run is cancelled."""
+
+    def __init__(self) -> None:
+        self._entered: anyio.Event | None = None
+
+    def entered(self) -> anyio.Event:
+        if self._entered is None:
+            self._entered = anyio.Event()
+        return self._entered
+
+    def initial_tasks(self) -> list[Task]:
+        return [_task("seed")]
+
+    async def next_tasks(self) -> list[Task] | None:
+        self.entered().set()
+        await anyio.sleep_forever()
+        return None
+
+
+@pytest.mark.parametrize("max_tasks", [1, 2])
+async def test_cancellation_while_next_tasks_blocks_keeps_completed_logs(
+    tmp_path: Path, max_tasks: int
+) -> None:
+    source = _BlockingNextTasks()
+    init_display_type("none")
+    with anyio.fail_after(30):
+        with anyio.CancelScope() as scope:
+
+            async def cancel_when_blocked() -> None:
+                await source.entered().wait()
+                scope.cancel()
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(cancel_when_blocked)
+                await eval_async(
+                    source,
+                    model="mockllm/model",
+                    max_tasks=max_tasks,
+                    log_dir=str(tmp_path),
+                )
+
+    assert scope.cancel_called
+    [info] = list_eval_logs(str(tmp_path))
+    log = await read_eval_log_async(info.name)
+    assert (log.eval.task, log.status) == ("seed", "success")
+
+
+_SIGINT_WHILE_NEXT_TASKS_BLOCKS = """
+import signal
+import sys
+import tempfile
+
+import anyio
+from inspect_ai import Task, TaskSource, eval
+from inspect_ai.dataset import Sample
+from inspect_ai.log import list_eval_logs, read_eval_log
+
+
+class Source(TaskSource):
+    def initial_tasks(self):
+        return [Task(dataset=[Sample(input="x")], name="seed")]
+
+    async def next_tasks(self):
+        signal.raise_signal(signal.SIGINT)
+        await anyio.sleep(30)
+        return None
+
+
+for max_tasks in (1, 2):
+    log_dir = tempfile.mkdtemp()
+    try:
+        logs = eval(
+            Source(),
+            model="mockllm/model",
+            max_tasks=max_tasks,
+            display="none",
+            log_dir=log_dir,
+        )
+        outcome = "returned " + ",".join(log.status for log in logs)
+    except KeyboardInterrupt:
+        outcome = "KeyboardInterrupt"
+    on_disk = ",".join(read_eval_log(info.name).status for info in list_eval_logs(log_dir))
+    print(f"max_tasks={max_tasks}: {outcome}; on disk {on_disk}")
+"""
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_sigint_while_next_tasks_blocks_keeps_completed_logs(backend: str) -> None:
+    # a Ctrl-C while next_tasks() blocks is handled like one during a task:
+    # eval() returns the logs on asyncio, and on trio run_main raises
+    # KeyboardInterrupt after the run has written them
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", _SIGINT_WHILE_NEXT_TASKS_BLOCKS],
+        env={**os.environ, "INSPECT_ASYNC_BACKEND": backend},
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    outcome = "returned success" if backend == "asyncio" else "KeyboardInterrupt"
+    lines = [line for line in result.stdout.splitlines() if line.startswith("max_")]
+    assert lines == [
+        f"max_tasks=1: {outcome}; on disk success",
+        f"max_tasks=2: {outcome}; on disk success",
+    ], result.stdout + result.stderr
