@@ -929,11 +929,10 @@ buffers the task, now raises `RuntimeError`, and the worker calls
 `anyio.from_thread.run_sync(lambda: enqueue_task(...))` instead
 ([task-dispatch.md](task-dispatch.md#compatibility-and-migration)). New
 `TaskHandle`,
-`TaskEndedError`, `SampleAbandonedError` and `samples_from_handle`. Existing `SampleSource` tasks, and every ordinary task added with `enqueue_task()`, are unchanged: only a task fed through a handle ignores
+`TaskEndedError`, `SampleAbandonedError` and `samples_from_handle`. Existing `SampleSource` tasks, and every ordinary task added with `enqueue_task()`, keep their settings resolution and filtering: only a task fed through a handle ignores
 the run's `--limit`, `--sample-id` and `--epochs` (with the run's epoch
 reducer) and the run's `max_samples`, resolves its settings before the
-run's, runs once under its
-creator's model, is exempt from `max_tasks` and is left out of
+run's, is exempt from `max_tasks` and is left out of
 `eval_set()`'s result and the eval set's log-directory check.
 
 inspect_flow's Delta store and inspect_steward's log observation and
