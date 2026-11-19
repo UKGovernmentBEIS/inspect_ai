@@ -1175,6 +1175,7 @@ async def test_an_attempt_a_restarted_sidecar_had_begun_judging_isnt_scored_on_w
     assert sidecar is not None
     sidecars.called_through("sample_a", 1, sidecar)
     await sidecars.complete_registration(sidecar, _sample(), "sample_a", 1)
+    sidecars.request_sent("sample_a", 1, sidecar)
     if restarted:
         # the sidecar loses the eval's token, and with it all it held of the
         # eval: the monitor state of the first sample's calls it had judged
@@ -1229,6 +1230,7 @@ async def test_a_restart_whose_registrations_answer_is_lost_still_isnt_scored_on
     assert sidecar is not None
     sidecars.called_through("sample_a", 1, sidecar)
     await sidecars.complete_registration(sidecar, _sample(), "sample_a", 1)
+    sidecars.request_sent("sample_a", 1, sidecar)
 
     # the sidecar restarts, and the sample that finds the task lost never
     # hears that the sidecar took it again
@@ -1341,6 +1343,120 @@ async def test_a_completion_sent_while_the_task_is_being_registered_is_sent_agai
         await sidecars.complete_registration(sidecar, _sample(), "sample_123", 1)
 
     assert len(_registered(stand_in, "complete_registration")) == 3
+
+
+async def test_a_restart_loses_the_sample_whose_request_was_sent_and_not_the_one_waiting_to_send() -> (
+    None
+):
+    stand_in = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 1})})
+    sidecars = TaskSidecars("required", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+    # two samples complete their registrations. One's request is sent, and
+    # the other waits for a connection.
+    for sample_uuid in ["sample_sent", "sample_waiting"]:
+        sidecars.called_through(sample_uuid, 1, sidecar)
+        await sidecars.complete_registration(sidecar, _sample(), sample_uuid, 1)
+    sidecars.request_sent("sample_sent", 1, sidecar)
+
+    # the sidecar restarts, and another sample registers the task again
+    stand_in.tokens.clear()
+    await sidecars.complete_registration(sidecar, _sample(2), "sample_b", 1)
+    # the waiting sample has its connection: its registration is sent again,
+    # as it was first sent, before its first request
+    await sidecars.complete_registration(sidecar, _sample(), "sample_waiting", 1)
+    sidecars.request_sent("sample_waiting", 1, sidecar)
+
+    completed = [
+        params
+        for params in _registered(stand_in, "complete_registration")
+        if params["sample_uuid"] == "sample_waiting"
+    ]
+    assert len(completed) == 2
+    assert _unsigned(completed[1]) == _unsigned(completed[0])
+    # what the sidecar held of the sample it had begun judging is incomplete
+    sent, waiting = Store(), Store()
+    with pytest.raises(SentinelProxyError, match="lost the sample partway"):
+        await sidecars.copy_monitor_state("sample_sent", 1, sent)
+    assert sent.get(MONITOR_STATE_COPY)["copied"] is False
+    # all the sidecar judged of the waiting sample came after the restart
+    await sidecars.copy_monitor_state("sample_waiting", 1, waiting)
+    assert waiting.get(MONITOR_STATE_COPY)["copied"] is True
+    assert waiting.get("Tally:lookups") == 1
+
+
+def test_a_call_that_waited_for_a_connection_through_a_restart_registers_again_before_it_is_sent() -> (
+    None
+):
+    stand_in = StandInSidecar(methods={"sample_result": _kept({"Tally:lookups": 1})})
+
+    @solver
+    def calls_through_a_restart() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            model = get_model()
+            sidecars = task_sidecars()
+            assert sidecars is not None
+            sidecar = await sidecars.sidecar(model.api)
+            assert sidecar is not None
+            # the sample's first call completes its registration
+            await model.generate("Hi.")
+            # its next holds the model's one connection, its reply slow
+            answered = anyio.Event()
+            stand_in.answer_after = answered
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(model.generate, "Hello.")
+                while len(stand_in.model_calls) < 2:
+                    await anyio.sleep(0.01)
+                # and another waits for the connection, its registration
+                # complete as far as it knows
+                tg.start_soon(model.generate, "Bye.")
+                await anyio.wait_all_tasks_blocked()
+                # the sidecar restarts, and another sample registers the
+                # task again
+                stand_in.tokens.clear()
+                await sidecars.complete_registration(sidecar, _sample(2), "other", 1)
+                answered.set()
+            return state
+
+        return solve
+
+    task = Task(
+        dataset=[Sample(input="Hi.", id=1)],
+        solver=calls_through_a_restart(),
+        scorer=_reads_monitor_state(),
+    )
+
+    [log] = eval(
+        task,
+        model=_model(stand_in),
+        sentinel_proxy="auto",
+        max_connections=1,
+        display="none",
+    )
+
+    assert log.samples is not None
+    [sample] = log.samples
+    # the waiting call sent the sample's registration again once it had the
+    # connection, before its request
+    endpoint = "/sentinel/v1"
+    sent = [
+        "model"
+        if r.url.path != endpoint
+        else json.loads(r.content)["params"]["sample_uuid"] != "other"
+        for r in stand_in.requests
+        if r in stand_in.model_calls
+        or (
+            r.url.path == endpoint
+            and json.loads(r.content)["method"] == "complete_registration"
+        )
+    ]
+    assert sent == [True, "model", "model", False, False, True, "model"]
+    # a request of the sample was sent before the restart, so what the
+    # sidecar holds of it since isn't copied, and the sample isn't scored
+    marker = sample.store[MONITOR_STATE_COPY]
+    assert marker["copied"] is False
+    assert "lost the sample partway" in marker["reason"]
+    assert sample.error is not None and "isn't scored" in sample.error.message
 
 
 async def test_a_sample_is_ended_with_its_task_named() -> None:

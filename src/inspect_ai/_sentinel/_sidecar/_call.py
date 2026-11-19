@@ -17,6 +17,7 @@ from ._task import SampleFacts, TaskSidecars, attempt_number, task_sidecars
 if TYPE_CHECKING:
     from inspect_ai.log._samples import ActiveSample
     from inspect_ai.model._model import Model
+    from inspect_ai.solver._task_state import TaskState
 
 logger = getLogger(__name__)
 
@@ -49,6 +50,23 @@ class SidecarCall(NamedTuple):
         headers = {**(config.extra_headers or {}), INSPECT_CONTEXT: self.header}
         return config.model_copy(update={"extra_headers": headers})
 
+    async def registration_current(self) -> None:
+        """Complete the sample's registration again if the sidecar may have lost it since `sidecar_call`, once the call has its connection.
+
+        The wait for a connection can be long. A sidecar that restarted meanwhile, and that another sample registered the task with again, would otherwise get the call's request without the sample's facts. What is sent again is what the attempt first sent.
+
+        Raises:
+            SentinelProxyError: If the sidecar couldn't take the sample.
+        """
+        from inspect_ai.log._samples import sample_active
+        from inspect_ai.solver._task_state import sample_state
+
+        sidecars = task_sidecars()
+        active = sample_active()
+        state = sample_state()
+        if sidecars is not None and active is not None and state is not None:
+            await _complete_registration(sidecars, self.sidecar, active, state)
+
 
 async def sidecar_call(model: "Model") -> SidecarCall | None:
     """The sidecar an agent call goes through, with the sample's registration complete, or None for a call no sidecar judges.
@@ -75,16 +93,8 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
         return None
 
     sidecars.called_through(active.sample_uuid, attempt_number(active), sidecar)
-    registered_beforehand = await sidecars.complete_registration(
-        sidecar,
-        SampleFacts(
-            sample_id=state.sample_id,
-            sample_description=active.sample.description,
-            sample_input=state.input,
-            metadata=state.metadata,
-        ),
-        active.sample_uuid,
-        attempt_number(active),
+    registered_beforehand = await _complete_registration(
+        sidecars, sidecar, active, state
     )
     # signed as each try is sent, so the eval log records it unsigned
     header = json.dumps(
@@ -106,6 +116,22 @@ async def sidecar_call(model: "Model") -> SidecarCall | None:
         }
     )
     return SidecarCall(sidecar, header, sidecars.mode, registered_beforehand)
+
+
+async def _complete_registration(
+    sidecars: TaskSidecars, sidecar: Sidecar, active: "ActiveSample", state: "TaskState"
+) -> bool:
+    return await sidecars.complete_registration(
+        sidecar,
+        SampleFacts(
+            sample_id=state.sample_id,
+            sample_description=active.sample.description,
+            sample_input=state.input,
+            metadata=state.metadata,
+        ),
+        active.sample_uuid,
+        attempt_number(active),
+    )
 
 
 def sign_context(headers: MutableMapping[str, str], url: str) -> None:

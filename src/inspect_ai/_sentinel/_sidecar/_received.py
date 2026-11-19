@@ -493,6 +493,22 @@ def report_sent(request_id: str) -> None:
     if received is not None and received.request_id == request_id:
         received.sent = True
         received.try_sent_at = sample_clock()
+        _note_sent(received)
+
+
+def _note_sent(received: ReceivedCall) -> None:
+    # the sidecar may judge the attempt from here on, so a restart after
+    # this loses the attempt's monitor state
+    from inspect_ai.log._samples import sample_active
+
+    from ._task import attempt_number, task_sidecars
+
+    sidecars = task_sidecars()
+    active = sample_active()
+    if sidecars is not None and active is not None and received.sidecar is not None:
+        sidecars.request_sent(
+            active.sample_uuid, attempt_number(active), received.sidecar
+        )
 
 
 def record_send(received: ReceivedCall) -> None:

@@ -101,6 +101,9 @@ class TaskSidecars:
         # the models each attempt at a sample called with no sidecar behind
         # them, by the sample's uuid, so each is noted in its transcript once
         self._unjudged: dict[str, set[tuple[int, str]]] = {}
+        # the attempts at each sample a request of which was sent to a
+        # sidecar, by the sample's uuid, as the sidecar's origin and the attempt
+        self._sent: dict[str, set[tuple[str, int]]] = {}
         # the attempts at each sample whose monitor state a sidecar lost, by
         # the sample's uuid
         self._lost: dict[str, set[int]] = {}
@@ -214,6 +217,12 @@ class TaskSidecars:
         """Note that a sidecar lost an attempt's sample partway through, as on a restart, so the attempt's monitor state is never copied: what the sidecar holds for it began afresh."""
         self._lost.setdefault(sample_uuid, set()).add(attempt_number)
 
+    def request_sent(
+        self, sample_uuid: str, attempt_number: int, sidecar: Sidecar
+    ) -> None:
+        """Note that a request of an attempt at a sample is being sent to a sidecar, which may have begun judging the attempt from then on, whether or not its reply arrives."""
+        self._sent.setdefault(sample_uuid, set()).add((sidecar.origin, attempt_number))
+
     def note_unjudged(self, sample_uuid: str, attempt_number: int, model: str) -> bool:
         """Note that an attempt at a sample called a model with no sidecar behind it; whether this is the attempt's first such call to the model."""
         noted = self._unjudged.setdefault(sample_uuid, set())
@@ -242,6 +251,7 @@ class TaskSidecars:
         """
         through = self._through.pop(sample_uuid, {}).values()
         self._completions.pop(sample_uuid, None)
+        self._sent.pop(sample_uuid, None)
         self._unjudged.pop(sample_uuid, None)
         self._lost.pop(sample_uuid, None)
         if not tell:
@@ -493,13 +503,14 @@ class TaskSidecars:
         # the eval with it, as on a restart: the monitor state of each attempt
         # it had begun judging. Such an attempt completes its registration
         # again and goes on, so nothing else would say what it lost. An
-        # attempt is taken as begun once its registration was complete, which
-        # its first judged call follows at once. A task's registration that
-        # expired alone loses none of this, and isn't told apart here: the
-        # sidecar took that registration signed.
-        for sample_uuid, completions in self._completions.items():
-            for (origin, attempt), completion in completions.items():
-                if origin == sidecar.origin and completion.done is not None:
+        # attempt is taken as begun once a request of it was sent. One that
+        # had only completed its registration, as while it waits for a
+        # connection, lost nothing: all the sidecar judges of it comes after.
+        # A task's registration that expired alone loses none of this, and
+        # isn't told apart here: the sidecar took that registration signed.
+        for sample_uuid, sent in self._sent.items():
+            for origin, attempt in sent:
+                if origin == sidecar.origin:
                     self.lost_monitor_state(sample_uuid, attempt)
 
     def access(self, origin: str) -> EvalAccess | None:

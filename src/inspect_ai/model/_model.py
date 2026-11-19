@@ -1141,6 +1141,9 @@ class Model:
         event: BaseModel | None = None
         try:
             async with self._connection_concurrency(config) as connection:
+                if through_sidecar is not None:
+                    # the wait for a connection may have been long
+                    await through_sidecar.registration_current()
                 # generate
                 with (
                     receiving_call(
