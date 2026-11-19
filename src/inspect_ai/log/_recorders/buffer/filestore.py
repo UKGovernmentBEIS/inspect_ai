@@ -1,5 +1,6 @@
 import hashlib
 import os
+import re
 import tempfile
 from collections.abc import Iterable, Iterator
 from contextlib import AbstractContextManager
@@ -289,13 +290,15 @@ class SampleBufferFilestore(SampleBuffer):
         self, id: str | int, epoch: int, metadata_hash: str, metadata: bytes
     ) -> None:
         self._write_bytes(
-            self._sample_metadata_file(id, epoch, metadata_hash), metadata
+            self._sample_sidecar_file("metadata", id, epoch, metadata_hash), metadata
         )
 
     def write_sample_store(
         self, id: str | int, epoch: int, store_hash: str, store: bytes
     ) -> None:
-        self._write_bytes(self._sample_store_file(id, epoch, store_hash), store)
+        self._write_bytes(
+            self._sample_sidecar_file("store", id, epoch, store_hash), store
+        )
 
     def read_manifest(self) -> Manifest | None:
         try:
@@ -328,7 +331,8 @@ class SampleBufferFilestore(SampleBuffer):
             return sample.summary.metadata
         try:
             with open_file(
-                self._sample_metadata_file(id, epoch, sample.metadata_hash), "rb"
+                self._sample_sidecar_file("metadata", id, epoch, sample.metadata_hash),
+                "rb",
             ) as f:
                 contents = f.read()
             actual_hash = hashlib.sha256(contents).hexdigest()
@@ -362,7 +366,7 @@ class SampleBufferFilestore(SampleBuffer):
             return {}
         try:
             with open_file(
-                self._sample_store_file(id, epoch, sample.store_hash), "rb"
+                self._sample_sidecar_file("store", id, epoch, sample.store_hash), "rb"
             ) as f:
                 contents = f.read()
             if hashlib.sha256(contents).hexdigest() != sample.store_hash:
@@ -637,17 +641,19 @@ class SampleBufferFilestore(SampleBuffer):
     def _manifest_file(self) -> str:
         return f"{self._dir}{MANIFEST}"
 
-    def _sample_metadata_file(
-        self, id: str | int, epoch: int, metadata_hash: str
+    def _sample_sidecar_file(
+        self,
+        kind: Literal["metadata", "store"],
+        id: str | int,
+        epoch: int,
+        content_hash: str,
     ) -> str:
+        """Build a sidecar path only from the canonical digests used on disk."""
+        if not re.fullmatch(r"[0-9a-f]{64}", content_hash):
+            raise ValueError(f"Invalid SHA-256 digest for sample {kind}")
         key = to_json_str_safe([str(id), epoch]).encode("utf-8")
         digest = hashlib.sha256(key).hexdigest()
-        return f"{self._dir}metadata.{digest}.{metadata_hash}.json"
-
-    def _sample_store_file(self, id: str | int, epoch: int, store_hash: str) -> str:
-        key = to_json_str_safe([str(id), epoch]).encode("utf-8")
-        digest = hashlib.sha256(key).hexdigest()
-        return f"{self._dir}store.{digest}.{store_hash}.json"
+        return f"{self._dir}{kind}.{digest}.{content_hash}.json"
 
 
 async def cleanup_sample_buffer_filestores(log_dir: str) -> None:

@@ -267,7 +267,11 @@ async def _anthropic(mangle: bool) -> None:
             )
 
 
-async def _google(mangle: bool) -> None:
+async def _google(
+    mangle: bool,
+    rebuild: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+) -> None:
+    """A Google SDK scaffold; `rebuild` changes each reply it sends back."""
     from google.genai import types
 
     client = genai.Client(api_key="inspect")
@@ -297,6 +301,8 @@ async def _google(mangle: bool) -> None:
         )
         if mangle:
             content = _mangle(content)
+        if rebuild is not None:
+            content = rebuild(content)
         contents.append(content)
         calls = [
             part.function_call.name
@@ -417,9 +423,8 @@ def test_bridge_keeps_message_ids(
     tmp_path: Path,
 ) -> None:
     log = _run(scaffold_agent(dialect, mangle), tmp_path, log_format)
-    # Google rebuilds tool call ids, so the reply calling a tool comes back
-    # changed; the mangling scaffold changes both replies it sends back
-    edits = 2 if mangle else 1 if dialect == "google" else 0
+    # the mangling scaffold changes both replies it sends back
+    edits = 2 if mangle else 0
     for logged in [log, read_eval_log(log.location)]:
         # the scaffold's own system message comes first, so its first request
         # doesn't start with the sample's conversation
@@ -1532,8 +1537,10 @@ def test_compacted_identical_google_calls_never_link_another_calls_result(
 ) -> None:
     """Ten equal Google calls with equal results, compacted to the last nine, link no wrong result.
 
-    Google re-derives equal call ids, so nothing places the retained calls:
-    they get new ids, and the latest call's host result stays unlinked.
+    Each call is handed over and sent back under its own id, so each
+    retained reply that was in an earlier request keeps the id it had there.
+    The latest reply was in none: it gets a new id, and its call's host
+    result stays unlinked.
     """
     host_events: list[ToolEvent] = []
 
@@ -1601,9 +1608,10 @@ def test_compacted_identical_google_calls_never_link_another_calls_result(
     assert log.status == "success", log.error
     assert log.samples
     events = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
-    reply_ids = {event.output.message.id for event in events[:10]}
-    compacted = events[10].input
-    assert not {m.id for m in compacted if m.role == "assistant"} & reply_ids
+    reply_ids = [event.output.message.id for event in events[:10]]
+    compacted = [m.id for m in events[10].input if m.role == "assistant"]
+    assert compacted[:-1] == reply_ids[1:-1]
+    assert compacted[-1] not in reply_ids
     assert host_events[-1].message_id is None
     assert all(event.message_id is not None for event in host_events[:-1])
 
@@ -1884,7 +1892,7 @@ def test_google_reply_with_non_string_argument_keys_keeps_its_id(
     assert log.samples
     first, second = [e for e in log.samples[0].events if isinstance(e, ModelEvent)]
     returned = second.input[1]
-    assert returned.id == edited_id(first.output.message.id, returned)
+    assert returned.id == first.output.message.id
 
 
 async def test_resumed_bridge_keeps_the_main_threads_id() -> None:
@@ -2405,7 +2413,113 @@ async def test_google_reply_calling_a_name_with_a_lone_surrogate_is_returned(
             await client.aio.models.generate_content(model="inspect", contents=contents)
 
     returned = bridge.state.messages[1]
-    assert returned.id == edited_id(first.id or "", returned)
+    assert returned.id == first.id
+
+
+async def test_google_sdk_results_answer_their_own_identical_calls() -> None:
+    """Without a sentinel, a Google SDK client's results each answer the call whose id they carry.
+
+    The model calls the same tool with the same arguments twice. The client
+    sends the reply back as the SDK gives it, and the results, under their
+    calls' ids, in reverse order.
+    """
+    from google.genai import types
+
+    calls = [
+        ToolCall(id=call_id, function="read", arguments={"path": "a.txt"})
+        for call_id in ("call_1", "call_2")
+    ]
+    bridge = AgentBridge(AgentState(messages=[]))
+    client = genai.Client(api_key="inspect")
+    contents: list[dict[str, Any]] = [{"role": "user", "parts": [{"text": PROMPT}]}]
+    with _active_mock_model(
+        ModelOutput.from_message(ChatMessageAssistant(content="", tool_calls=calls)),
+        ModelOutput.from_content("mockllm/model", "Done."),
+    ):
+        with _serving(bridge):
+            response = await client.aio.models.generate_content(
+                model="inspect", contents=contents
+            )
+            assert response.candidates and response.candidates[0].content
+            reply = response.candidates[0].content
+            handed = [
+                part.function_call
+                for part in reply.parts or []
+                if part.function_call is not None
+            ]
+            assert [call.id for call in handed] == ["call_1", "call_2"]
+            results = [
+                types.Part(
+                    function_response=types.FunctionResponse(
+                        id=call.id,
+                        name=call.name,
+                        response={"output": f"result of {call.id}"},
+                    )
+                ).model_dump(exclude_none=True, by_alias=True)
+                for call in reversed(handed)
+            ]
+            contents += [
+                reply.model_dump(exclude_none=True, by_alias=True),
+                {"role": "user", "parts": results},
+            ]
+            await client.aio.models.generate_content(model="inspect", contents=contents)
+
+    assistant = bridge.state.messages[1]
+    assert isinstance(assistant, ChatMessageAssistant)
+    assert [call.id for call in assistant.tool_calls or []] == ["call_1", "call_2"]
+    answers = [m for m in bridge.state.messages if isinstance(m, ChatMessageTool)]
+    assert [m.tool_call_id for m in answers] == ["call_2", "call_1"]
+    for answer in answers:
+        assert f"result of {answer.tool_call_id}" in answer.text
+
+
+def _without_call_ids(content: dict[str, Any]) -> dict[str, Any]:
+    """A Google reply as a scaffold that rebuilds its calls from name and arguments sends it back."""
+    return {
+        **content,
+        "parts": [
+            {
+                **part,
+                "functionCall": {
+                    key: value
+                    for key, value in part["functionCall"].items()
+                    if key != "id"
+                },
+            }
+            if "functionCall" in part
+            else part
+            for part in content["parts"]
+        ],
+    }
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_google_scaffold_dropping_call_ids_keeps_message_ids(
+    log_format: Literal["eval", "json"], tmp_path: Path
+) -> None:
+    """A Google scaffold that sends calls back without their ids keeps the reply as an edit of it.
+
+    The call comes back under the id derived from it, so the reply calling
+    the tool is its derived edit, as it was before the bridge handed ids
+    over.
+    """
+
+    @agent
+    def dropping_ids() -> Agent:
+        async def execute(state: AgentState) -> AgentState:
+            store().set("input_id", state.messages[0].id)
+            async with agent_bridge(state) as bridge:
+                await _google(mangle=False, rebuild=_without_call_ids)
+                return bridge.state
+
+        return execute
+
+    log = _run(dropping_ids(), tmp_path, log_format)
+    for logged in [log, read_eval_log(log.location)]:
+        assert (
+            assert_ids_agree(logged, model_calls=3, edits="derived", input_prompt=False)
+            == 1
+        )
 
 
 class _CountingList(list[str]):
