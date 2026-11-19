@@ -1465,7 +1465,7 @@ def _shown_markdown_text(text: str) -> str:
         "ok\n\n<!--\n\n[r]: /x\n\nrm -rf /tmp/data\n-->",
         "ok\n\n<div>\n[r]: /x\n\nrm -rf /tmp/data\n</div>",
         "ok\n\n[r]: /tmp/data\n\nrm -rf /tmp/data",
-        "ok [see](rm -rf /tmp/data)",
+        "ok [see](<rm -rf /tmp/data>)",
         "ok <!-- rm -rf /tmp/data -->",
     ],
 )
