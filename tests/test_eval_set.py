@@ -1466,6 +1466,34 @@ def test_task_identifier_with_token_limit_type():
     )
 
 
+def test_task_max_samples_not_in_task_identifier(tmp_path: Path) -> None:
+    model = get_model("mockllm/model")
+
+    def identifier(max_samples: int | None) -> str:
+        task = task_with(hello_world(), max_samples=max_samples)
+        resolved = resolve_tasks([task], {}, model, None, None, None)[0]
+        return task_identifier(
+            resolved, EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+        )
+
+    assert identifier(None) == identifier(2) == identifier(3)
+
+    # a completed task is not re-run when only its max_samples changes
+    log_dir = str(tmp_path)
+    success, logs = eval_set(
+        task_with(hello_world(), max_samples=2), log_dir=log_dir, model=model
+    )
+    assert success
+    assert logs[0].eval.config.max_samples == 2
+    assert task_identifier(logs[0], None) == identifier(3)
+    success, logs = eval_set(
+        task_with(hello_world(), max_samples=3), log_dir=log_dir, model=model
+    )
+    assert success
+    assert logs[0].eval.config.max_samples == 2
+    assert len(list_all_eval_logs(log_dir)) == 1
+
+
 def test_task_identifier_with_redacted_model_args():
     model1 = get_model(
         "mockllm/model", api_key="secret", aws_key="secret2", other_arg="value1"
