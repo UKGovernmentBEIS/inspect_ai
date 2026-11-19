@@ -112,7 +112,7 @@ def gemini_thinking_only(family: str, latest: bool) -> bool:
     """
     name = _model_segment(family)
     return gemini_has_thinking_config(family, latest) and (
-        "-pro" in name or _is_gemini_4_xhigh_model(family)
+        "-pro" in name or _is_gemini_4_hydrogen_or_neon(family)
     )
 
 
@@ -133,7 +133,7 @@ def gemini_supports_minimal_thinking(family: str) -> bool:
     return low <= version < high
 
 
-def _is_gemini_4_xhigh_model(family: str) -> bool:
+def _is_gemini_4_hydrogen_or_neon(family: str) -> bool:
     """Gemini 4 Hydrogen or Neon, which accept XHIGH and keep thinking at budget 0."""
     name = _model_segment(family)
     return "gemini-4-hydrogen" in name or "gemini-4-neon" in name
@@ -147,7 +147,7 @@ def gemini_supports_xhigh_thinking(family: str) -> bool:
     get `high` rather than risk one.
     https://aistudio.google.com/docs/thinking
     """
-    return _is_gemini_4_xhigh_model(family)
+    return _is_gemini_4_hydrogen_or_neon(family)
 
 
 def gemini_thinking_level(

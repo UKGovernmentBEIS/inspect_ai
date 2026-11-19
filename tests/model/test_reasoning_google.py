@@ -45,11 +45,11 @@ def test_google_reasoning_effort():
     check_for_reasoning(log)
 
 
-GEMINI_4_XHIGH_MODELS = ["google/gemini-4-hydrogen", "google/gemini-4-neon"]
+GEMINI_4_HYDROGEN_NEON = ["google/gemini-4-hydrogen", "google/gemini-4-neon"]
 GEMINI_4_MODELS = [
     "google/gemini-4-argon",
     "google/gemini-4-carbon",
-    *GEMINI_4_XHIGH_MODELS,
+    *GEMINI_4_HYDROGEN_NEON,
 ]
 
 
@@ -92,7 +92,7 @@ def test_google_gemini_4_reasoning_effort_none(model: str) -> None:
 
 
 @skip_if_no_google
-@pytest.mark.parametrize("model", GEMINI_4_XHIGH_MODELS)
+@pytest.mark.parametrize("model", GEMINI_4_HYDROGEN_NEON)
 def test_google_gemini_4_reasoning_effort_xhigh(model: str) -> None:
     task = Task(dataset=[Sample(input="Solve 3*x^3-5*x=1")])
     log = eval(task, model=model, reasoning_effort="xhigh")[0]
@@ -101,7 +101,7 @@ def test_google_gemini_4_reasoning_effort_xhigh(model: str) -> None:
 
 
 @skip_if_no_google
-@pytest.mark.parametrize("model", GEMINI_4_XHIGH_MODELS)
+@pytest.mark.parametrize("model", GEMINI_4_HYDROGEN_NEON)
 def test_google_gemini_4_thinking_only_reasoning_effort_none(model: str) -> None:
     # these models ignore thinking_budget=0, so none leaves thinking on
     task = Task(dataset=[Sample(input="Solve 3*x^3-5*x=1")])
