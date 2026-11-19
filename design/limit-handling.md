@@ -22,9 +22,9 @@ that kind from the calls in the block: approval, review and sentinel calls,
 which suspend token, turn and cost limits, neither charge nor check them,
 and skip the sandbox bridge's refusal, as they do today.
 
-The limit nodes' own state, not the errors they raise, is the record of what
-happened. Once reached, a limit refuses every later model call dispatched in
-its scope.
+For token, cost and turn limits, the limit nodes' own state, not the errors
+they raise, is the record of what happened. Once reached, such a limit
+refuses every later model call dispatched in its scope.
 Under a cost limit, a call to a model with no price of its own is refused
 before dispatch. Failed attempts, calls cancelled in flight and responses
 that report no usage are not charged, as today, so they can take spend past
@@ -33,8 +33,8 @@ design. A limit error that reaches its owner stands. When
 none does, each owner checks its own limits when it ends normally: an
 `apply_limits()` scope the limits it entered, and the sample its own limits
 once all of its work, background cleanup included, has finished (except on
-a resume for scoring). So, within a running attempt, a limit error that some handler
-catches and drops is not lost: it comes back at the next refused call, or at
+a resume for scoring). So, within a running attempt, a token, cost or turn
+limit error that some handler catches and drops is not lost: it comes back at the next refused call, or at
 its owner's exit. Three exceptions remain. A plain `with token_limit()`,
 `cost_limit()` or `turn_limit()` block has no exit check, so a limit
 swallowed inside it is lost if no later call in the block meets it.
@@ -44,7 +44,10 @@ checkpoint resume: checkpoints store
 usage but not the mark of a limit that refused a call, and the restore
 assigns the stored usage, so a resumed sample can lose such a refusal, and
 a limit that work before the restore reached and swallowed can be reopened
-by it.
+by it. Message limits are outside this: a message limit checks one
+conversation's length and keeps no state, so a swallowed message limit
+error is not recovered, and a shorter conversation under the same limit
+can still dispatch.
 
 Together these rules let a runtime that runs several agents catch the sample's
 limit error, stop its agents in an orderly way, and re-raise the error.
@@ -1500,14 +1503,27 @@ cost and turn limits only. That reply is given only when the message limit
 decides the tool's error: a token, cost or turn limit raised in the same
 group, or reached by a bridge inside the tool, decides instead (rule 4).
 A foreign one then reaches the runtime as guarantee 1 says; an owned one
-is handled by its owner (a tool error, or `run()` returning it), and the
-message limit that lost to it is not delivered or recorded at all. The
-same holds outside a tool: a member's conversation that reaches the sample
-message limit in the same bridged requests as the member's own `run()`
-budget limit ends on that budget limit, which `run()` returns, and the
-runtime sees no message limit error. The sample can then complete with no
-recorded limit, unless a later call reaches the message limit in its own
-conversation (decision: Ransom, 2026-11-19).
+is handled by its owner. Whether the message limit that lost goes with it
+depends on whether an earlier reduction already discarded it:
+
+- When the errors have already been reduced to the one budget error, the
+  message limit is gone. That is the bridge's case: its kept limit is the
+  budget limit (rule 8), so a bridged agent raises that one bare error. If
+  it is owned, its owner handles it (a tool error, or `run()` returning
+  it), and the message limit is neither delivered nor recorded. So a
+  member whose bridged requests reach both the sample message limit and
+  the member's own `run()` budget limit ends on that budget limit, which
+  `run()` returns, and the runtime sees no message limit error. The sample
+  can then complete with no recorded limit, unless a later call reaches the
+  message limit in its own conversation (decision: Ransom, 2026-11-19).
+- When a native group still holds the message limit's error beside the
+  budget error, the message leaf is foreign to an inner `run()` (it
+  belongs to the sample), so the group is not a covered exit ("Precedence")
+  and `run()` propagates it unchanged instead of returning its budget
+  error. A tool's reduction picks the budget error (rule 4); a runtime that
+  receives the group can inspect or filter the message leaf; a group that
+  reaches the sample runner is recorded as the budget limit
+  (`first_or_outermost_limit()`).
 
 ### Unpriced models
 
@@ -2006,9 +2022,12 @@ documented. Behaviour changes:
   records zero, so a cost limit does not bound a priced model whose
   provider omits usage. A separate design covers it ("Not this design").
 - **`apply_limits()`**, with `catch_errors=True` (`run()`), catches its own
-  limit raised in an exception group (when every limit in it is its own or
-  a descendant's; any other leaf, including a sourceless `custom` limit,
-  propagates the group as today); with `catch_errors=False` such a group
+  limit raised in an exception group when both hold: every leaf is its own
+  limit or a descendant's (any other leaf, including a sourceless `custom`
+  limit or an enclosing message limit, propagates the group as today), and
+  the limit that decides under rule 4 is one of its own (a group of its own
+  message limit and a descendant's token, cost or turn limit propagates,
+  since the descendant's limit decides); with `catch_errors=False` such a group
   propagates unchanged, as today,
   and at normal exit raises one of its own limits that is exceeded, or
   reached after it refused a call; it does not check enclosing limits. `run()` therefore returns `(state, error)` in these cases
