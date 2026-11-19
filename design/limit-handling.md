@@ -43,17 +43,16 @@ none does, each owner checks its own limits when it ends normally: an
 `apply_limits()` scope the limits it entered, and the sample its own limits
 once all of its work, background cleanup included, has finished (except on
 a resume for scoring). So, within a running attempt, a token, cost or turn
-limit error that some handler catches and drops is not lost: it comes back at the next refused call, or at
-its owner's exit. Three exceptions remain. A plain `with token_limit()`,
+limit error that some handler catches and drops is not lost: it comes back at the next refused call, or, if
+the limit is exceeded, at its owner's exit. Four exceptions remain. A
+limit at exactly its budget whose refusal was swallowed, with no later
+call, is not recorded at its owner's exit, as today. A plain `with token_limit()`,
 `cost_limit()` or `turn_limit()` block has no exit check, so a limit
 swallowed inside it is lost if no later call in the block meets it.
 Background work that keeps running after the `run()` that started it has
-returned can likewise swallow that scope's limit after its exit check. And a
-checkpoint resume: checkpoints store
-usage but not the mark of a limit that refused a call, and the restore
-assigns the stored usage, so a resumed sample can lose such a refusal, and
-a limit that work before the restore reached and swallowed can be reopened
-by it. Message limits are outside this: a message limit checks one
+returned can likewise swallow that scope's limit after its exit check. And
+a checkpoint restore assigns the stored usage, so a limit that work before
+the restore reached and swallowed can be reopened by it. Message limits are outside this: a message limit checks one
 conversation's length and keeps no state, so a swallowed message limit
 error is not recovered, and a shorter conversation under the same limit
 can still dispatch.
@@ -405,8 +404,7 @@ tokens per call, run against this branch's base):
 7. **Each owner checks its own limits at exit.** A limit error that
    reaches its owner stands. When an `apply_limits()` scope ends normally,
    Inspect checks the token, cost and turn limits that scope entered, and
-   no others. A limit raises there if it is exceeded, or if it is reached
-   and has already raised at that budget (a call it refused). The sample
+   no others, and raises those that are exceeded. The sample
    does the same for its own limits once its task group has finished, when
    its solvers returned normally and the attempt is not a resume for
    scoring. An enclosing limit is left to its own owner.
@@ -430,17 +428,17 @@ does not try to carry every limit error intact through every handler that
 can catch one (a fallback, a hook, a first-error reduction, a cancelled
 delivery). A swallowed limit error costs time, not budget: the next call
 under the limit is refused before dispatch, and if no limit error reaches
-the limit's owner, that owner's exit check finds it. A plain `with token_limit()`
+the limit's owner, that owner's exit check finds it if it is exceeded. A plain `with token_limit()`
 block has no owner but its author and no exit check, so its limit is found
 only by a call made while the block is open ("The owner's exit check").
 Background work that keeps running after the `run()` or `apply_limits()`
 scope that started it has returned can swallow that scope's limit after its
 exit check, and nothing finds it then ("Background work that outlives its
-owner"). That holds within one attempt, up to its checkpoint restore: a checkpoint
-resume keeps usage but drops the mark of a limit that refused a call, and
-its assigning restore can reopen a limit that work before it reached and
-swallowed ("Checkpoints", "Limits swallowed before a checkpoint
-restore"). An unpriced-model refusal (rule 9) is not a limit
+owner"). A limit reached exactly, not exceeded, whose refusal was
+swallowed with no later call under it is not found at exit either ("What
+raises at exit"). That holds within one attempt, up to its checkpoint
+restore: the assigning restore can reopen a limit that work before it
+reached and swallowed ("Limits swallowed before a checkpoint restore"). An unpriced-model refusal (rule 9) is not a limit
 error, and nothing marks it: a handler that swallows one and calls the model
 again is refused again, with nothing spent ("Unpriced models"). Where
 Inspect's own
@@ -509,21 +507,12 @@ order sets their rank, which matters only for the primary fields.
   at or past its budget (`>=`). One node raises its own error; several
   raise their combined error. Each node that raises emits its
   `SampleLimitEvent`, as today, where today a check stops at the first.
-- **The refusal mark.** At an owner's exit, a token, cost or turn limit
-  at exactly its budget counts only if it refused a call at its current
-  budget since the attempt started or its counters were last restored.
-  How that is recorded is the implementation's choice. The tests that pin
-  it are the retuned `run()` limits and the sample limits retuned through
-  `state.token_limit` and `state.cost_limit` (`tests/util/test_limit.py`),
-  the live-override case (`tests/_control/test_limits.py`) and the
-  turn-root restore cases (`tests/checkpoint/test_sample_runtime.py`).
-  inspect_swarm's token, cost and turn `_check_self()` overrides take part
-  in the check, so their refusals count too; a node whose limit is `None`
-  (an inspect_swarm lever) is never reached by count. Message limits have
-  no such record.
+- inspect_swarm's token, cost and turn `_check_self()` overrides take
+  part in the check; a node whose limit is `None` (an inspect_swarm lever)
+  is never reached by count.
 - **The owner's exit check** (rule 7) raises each of the owner's own token,
-  cost and turn nodes that is exceeded, or reached and counting by the
-  refusal mark; several raise their combined error.
+  cost and turn nodes that is exceeded; several raise their combined
+  error.
 - **Where it runs.** Every model call records, then checks once, where
   its accounting runs today (`src/inspect_ai/model/_model.py`):
   - A generation records its usage and its turn, then checks, in the
@@ -696,7 +685,7 @@ budget, so a tool error is the right outcome and the calling agent can
 recover. Rule 3's promise that a reached limit comes back at the next call
 does not apply to a message limit: the next call in a shorter conversation
 under the same node is not refused. That is why message limits stay out of
-the refusal mark and the owners' exit checks, and why a tool or handoff
+the owners' exit checks, and why a tool or handoff
 owns every message limit raised in its call. It is not a reason to let a
 message limit hide a spent budget: when a message limit and a foreign
 token, cost or turn limit meet in one tool's error, the tool does not own
@@ -945,16 +934,19 @@ Background deepagent subagents already read the scope after their block
 propagates.
 
 **What raises at exit.** Each of the owner's own nodes raises if it is
-exceeded (`> limit`), or if it is reached (`== limit`) and counts by the
-refusal mark ("Recording and checking"). So a sample that used exactly its
-token budget, or took exactly its N turns, and returned without trying
-another call, is not recorded as limited; a sample in which a call was
-refused at exactly the limit is. That second case is where the refusal's
-error was lost on its way to the owner: a bridged request refused at the
-sample's budget and kept, then a hard stop that cancels the bridge before
-the kept limit is delivered; or a runtime that dropped the error. A budget
-changed by a `limit` setter or a live override
-(`set_sample_limit_override()`) is judged by the budget in force at exit.
+exceeded (`> limit`), judged by the budget in force at exit. A sample that
+used exactly its token budget, or took exactly its N turns, and returned is
+not recorded as limited.
+
+The accepted loss: a limit at exactly its budget whose refusal was
+swallowed, with no later call under it, is not recorded at its owner's
+exit, as today. That is mainly a turn limit's refusal of the (N+1)th
+generation caught by user code, and the rare inspect_swarm race in which
+a bridged member's kept refusal at the sample's turn budget is cut off by
+a hard stop before the bridge unwinds. Spend stays bounded: the reached
+limit refuses every later call under it (decision: Ransom, 2026-11-19:
+"if someone swallows a turn refusal I'm not too worried that it is
+unrecorded").
 
 **Plain `with` blocks.** A `with token_limit(...)`, `cost_limit(...)` or
 `turn_limit(...)` block entered directly, not through `apply_limits()` or
@@ -1040,9 +1032,7 @@ other work before the cache) per retry, which the counters do not keep.
 No caller does this today: ReAct and the inspect_swe CLI agents enter once
 and let a failed entry escape, and an ordinary sample retry builds a fresh
 setup (`run.py:3130`). Spend is bounded by the caller's retries (decision:
-Ransom, 2026-11-18). The restore also
-clears the root's refusal mark ("Checkpoints"), so a refusal before
-the restore is part of the same loss. Model work before the restore is not
+Ransom, 2026-11-18). Model work before the restore is not
 refused: solvers before the agent run again on every resume, so refusing
 them would fail ordinary resumes.
 
@@ -1100,8 +1090,7 @@ retry, and inspect_swarm's member limits restored with
 
 ### Checkpoints
 
-The checkpoint payload is unchanged, and does not store the refusal
-mark (decision: Ransom, 2026-11-16). A checkpoint stores the sample roots'
+The checkpoint payload is unchanged. A checkpoint stores the sample roots'
 usage, and a normal resume restores it into the roots and checks them:
 `dump_sample_runtime()` writes the token usage, cost and turns
 (`src/inspect_ai/util/_checkpoint/sample_runtime.py:47-96`), the
@@ -1124,18 +1113,10 @@ checkpointer entry that fails part-way and is entered again sets the same
 values. Work the attempt charged before the restore is overwritten; what
 that loses is under "Limits swallowed before a checkpoint restore".
 
-A restored root counts only refusals made after the restore (the
-guarantee under "Recording and checking"); a root the payload does not
-assign keeps its counter and what it refused.
-
-The roots of a resumed attempt carry no refusal mark from the
-previous attempt, so the exit check's handling of a limit reached exactly
-holds within one attempt. A limit that refused a call
-at exactly its budget is restored at that usage, so any further call is
-refused by the pre-dispatch check (`>=`), which raises it and sets the refusal mark
-again, with nothing spent. If the resumed sample makes no further call and
-returns, it is not recorded as limited, as for a sample that used exactly
-its budget.
+A limit restored at exactly its budget refuses any further call before
+dispatch (`>=`), with nothing spent; a resumed sample that makes no further
+call and returns is not recorded as limited, as for a sample that used
+exactly its budget.
 
 Only the sample's roots are stored: scoped limits (`run()`, a swarm's
 nodes) are re-entered fresh by the resumed agents, as their usage is today.
@@ -1203,14 +1184,17 @@ order, of which only the limit handling changes:
   applies only when the bridge has kept a limit: with nothing kept, an
   agent that unwinds with a group led by an ordinary error (an
   `ExceptionGroup` of a `RuntimeError` and a limit error) still fails with
-  that ordinary error, as today. If the agent is cancelled first, the kept
-  limits are not raised there. Each token, cost or turn node among them
-  raised when it was reached, so it carries the refusal mark. It refuses every later call under it (rule
-  3), and when no other limit error reaches its owner, rule 7 raises it
-  when that owner ends normally: the `apply_limits()` scope that entered
-  it, or the sample's exit check when the solvers return, whether the limit is exceeded or was
-  reached exactly by a refused request: for example a swarm that
-  hard-stopped the member and then returned.
+  that ordinary error, as today, while a group led by a limit keeps every
+  limit in it, as their combined error, where today the fallback
+  (`bridge.py:373`) keeps only the first leaf: an owned cost error and a
+  foreign message error both leave `run()`. If the agent is cancelled
+  first, the kept limits are not raised there. Each token, cost or turn
+  limit among them refuses every later call under it (rule 3), and when
+  no other limit error reaches its owner, rule 7 raises it when that owner
+  ends normally, if it is exceeded: the `apply_limits()` scope that
+  entered it, or the sample's exit check when the solvers return. A kept
+  limit reached exactly by a refused request and then cut off by a hard
+  stop is the accepted loss under "What raises at exit".
 - A refused unpriced model (`UnmeteredCallError`, see "Unpriced models")
   in a bridged generation fails the sample through `bridge.request_fail()`,
   so the sample fails with the error's message. It goes through the
@@ -1285,8 +1269,7 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    returns normally, the limit is then reached, and its error comes with
    the next call, which is refused before dispatch (`>=`). If no call follows, nothing
    raises and the sample ends normally, as a sample that used exactly its
-   budget does (rule 7 records a reached limit at exit only after it
-   refused a call). For a bridged agent the error arrives when the agent's
+   budget does (rule 7 records only an exceeded limit at exit). For a bridged agent the error arrives when the agent's
    CLI exits. If a handler on the way swallows it (a fallback, a hook,
    `tg_collect()` keeping another error), it arrives instead at the next
    call any agent makes under the sample, which is refused with it
@@ -1336,9 +1319,10 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
 4. **Losing it is not silent.** When the solvers return normally (on
    any attempt but a resume for scoring, and with the restore exception
    below), the sample's exit check records
-   the sample limits that count at exit (rule 7), combined: each one that
-   is exceeded, or reached exactly after refusing a call. That covers a runtime, or a bridged agent
-   cancelled before its CLI exited, that drops the error. It runs after
+   the sample limits that are exceeded at exit (rule 7), combined. That
+   covers a runtime, or a bridged agent cancelled before its CLI exited,
+   that drops the error of an exceeded limit; a limit reached exactly whose
+   refusal was dropped is the accepted loss under "What raises at exit". It runs after
    background cleanup, so usage recorded there counts. A limit error that
    reaches the runner is recorded as it is: it can leave out a sample
    limit that counts when a limit is pushed over in
@@ -1363,11 +1347,7 @@ lifetime and its errors keep reaching the sample runner. The guarantees below ar
    all (rule 5).
 
 Guarantees 1, 2 and 4 rest on node state, which lives for one attempt
-and which a checkpoint restore overwrites. A checkpoint resume restores
-usage but not the refusal mark (it clears a mark set earlier in the
-attempt), so a refusal at exactly the budget from before the checkpoint is
-not carried into the resumed attempt ("Checkpoints"). And because the
-restore assigns the stored usage, a limit that work before the restore
+and which a checkpoint restore overwrites. Because the restore assigns the stored usage, a limit that work before the restore
 (startup hooks, solvers before the agent) reached and swallowed can be
 reopened by it ("Limits swallowed before a checkpoint restore").
 
@@ -1531,7 +1511,7 @@ raises at the next dispatch.
   today; they are checked only when a checkpoint is restored, which can
   fail the resume on one (see "Not this design").
 - **Message.** Ranked by its entry number, with its own check,
-  and out of the refusal mark and the owners' exit checks. In a combined
+  and out of the owners' exit checks. In a combined
   error it ranks after every token, cost and turn limit (rule 4); a tool or
   handoff owns every message limit raised in its call ("Precedence" says
   why).
@@ -1568,8 +1548,7 @@ each of these interactions as a case of its own. Under the rules above they beco
   it, since a budget ranks first; the message limit is still in `limits`.
   A kept sample limit lost to a
   cancellation before the CLI exits is recorded by the sample's exit check
-  when the solvers return, whether it was exceeded or reached exactly by a
-  refused request (rule 7).
+  when the solvers return, if it is exceeded (rule 7).
 - **Promotions.** A retry or in-flight request that reaches an enclosing
   swarm limit after a member limit was kept adds it to the kept limits;
   that is rule 8 itself, so it needs no separate case.
@@ -1600,8 +1579,7 @@ What the swarm must change:
   (`inspect_swarm/src/inspect_swarm/_budget.py:606`) takes the new
   `raise_for_equal` argument, before or with the Inspect change that passes
   it (implementation plan, step 1). Its token and cost `_check_self()`
-  overrides take part in the check, so they set the refusal mark;
-  its message `check()` and its `record()` overrides are called directly,
+  overrides take part in the check; its message `check()` and its `record()` overrides are called directly,
   as today.
 - **Ownership over every limit.** Its member wrapper classifies an
   escaping limit error by its `source` (`classify_errors()`, `_member.py:809`), and
@@ -1717,10 +1695,14 @@ runner's own outcome (an operator interrupt, a resume for scoring) stands.
 The two owner sites cover what Inspect relies on; a plain block's limit is
 found while the block is open ("Plain `with` blocks").
 
-**A non-strict exit check (`>=` for every node).** It would catch a refusal
-at exactly the budget without a mark, but would also record as limited every
-sample that used exactly its budget, or took exactly its N turns, and
-returned. The refusal mark separates the two.
+**A non-strict exit check (`>=` for every node).** It would catch a
+swallowed refusal at exactly the budget, but would also record as limited
+every sample that used exactly its budget, or took exactly its N turns,
+and returned. Recording such a refusal separately needs a per-node record
+of the budget each node refused at, kept across retuned budgets, live
+overrides and checkpoint restores; the loss it would close is a refusal
+user code swallowed with no later call, which is accepted instead
+(decision: Ransom, 2026-11-19).
 
 **Carry every limit error intact to its owner.** Make each
 handler that can catch one (fallbacks around compaction, hooks, first-error
@@ -1732,9 +1714,10 @@ nodes the record instead, so within one attempt a handler that swallows a
 limit error delays it by at most one call and cannot lose it, except in
 a plain `with` block, which has no exit check ("Plain `with` blocks"), in
 background work that swallows a scope's limit after that scope's exit
-check ("Background work that outlives its owner"), and across a checkpoint
-restore, which drops the refusal mark and can
-reopen a limit swallowed before it ("Checkpoints", "Limits swallowed
+check ("Background work that outlives its owner"), for a limit reached
+exactly whose refusal was swallowed with no later call ("What raises at
+exit"), and across a checkpoint restore, which can reopen a limit
+swallowed before it ("Checkpoints", "Limits swallowed
 before a checkpoint restore").
 Inspect still changes its own handlers where that decides *which owner*
 handles the error and that it sees every limit in it (rules 4, 6 and 8),
@@ -1748,11 +1731,6 @@ recorded limit differs, but each review of it found another exit
 path to cover (owned errors, descendants' errors, time limits, which have no
 entry number). An error that reaches its owner stands (decision: Ransom,
 2026-11-16).
-
-**Store the refusal mark in checkpoints.** An optional payload key would carry the
-mark across a resume, so a resumed sample that returns without another call
-is still recorded as limited after a refusal at exactly its budget. The key
-was cut (decision: Ransom, 2026-11-16).
 
 **Raise a monitor's limit bare from the sentinel wrapper.** With token,
 turn and cost suspended for monitors, a monitor can reach only a message limit, which keeps today's
@@ -1946,7 +1924,7 @@ documented. Behaviour changes:
   today it raises; `run(limits=None)`, which
   returns only the state, catches nothing, as today. With `catch_errors=False` a
   group propagates unchanged, as today. At normal exit it raises its own
-  limits that are exceeded, or reached after they refused a call, combined;
+  limits that are exceeded, combined;
   it does not check enclosing limits. `run()` therefore returns
   `(state, error)` in these cases where today it raises or returns
   `(state, None)`. A limit error that escapes its body is handled as it is
@@ -1972,11 +1950,10 @@ documented. Behaviour changes:
   already-exceeded token or cost limit is still served, and now raises that
   limit after it (the check that follows every generation), where today it
   returns. Under a limit only reached, not exceeded, it returns as today.
-- **A refusal counts only at the budget it was refused at.** After a node
-  is retuned (`state.token_limit`, `state.cost_limit`, a node's `limit`, or
-  a live `inspect ctl` override of the sample's token limit, set or
-  cleared), the exit check judges it by the budget then in force; an
-  earlier refusal at a lower budget does not make it count at equality.
+- **A swallowed refusal at exactly the budget is still unrecorded.** As
+  today, a limit at exactly its budget whose refusal user code swallowed,
+  with no later call, is not recorded at its owner's exit; only an
+  exceeded limit is ("What raises at exit").
 - **Plain `with` blocks keep no exit check.** As today, a limit reached in
   a plain `with token_limit()` block whose error a handler inside the block
   swallowed is lost if no further call under the block follows; deliberate
@@ -2023,16 +2000,12 @@ documented. Behaviour changes:
   bridge's `_refuse_after_a_recorded_limit()`. `_TurnLimit._check_self()` gains a parameter. Token, cost,
   turn and message nodes gain an entry number and the scope marker
   current at their entry (a ContextVar each call or scope sets, inherited
-  by the tasks started inside it), and token, cost and turn nodes a
-  refusal mark; `restore_sample_runtime()` clears
-  the mark on the roots it assigns. `record_turn()` no longer checks,
+  by the tasks started inside it). `record_turn()` no longer checks,
   and is called from the inner generation. `SandboxAgentBridge` keeps
   every limit reached, and `generation_limit` holds their combined error. inspect_swarm is the only known user of
   these classes (above).
 - **Persisted data and the viewer.** The checkpoint sample-runtime payload
-  is unchanged and does not store the refusal mark, so a resumed sample
-  that returns without another call after a refusal at exactly its budget
-  is not recorded as limited ("Checkpoints"). `EvalSampleLimit`, `SampleLimitEvent` and `EvalConfig` limit fields keep
+  is unchanged. `EvalSampleLimit`, `SampleLimitEvent` and `EvalConfig` limit fields keep
   their shapes, and old logs read the same; a check that raises several
   nodes records one `SampleLimitEvent` for each. Log recovery is unchanged
   and takes the last limit event of the recorded type, so when several
@@ -2093,7 +2066,7 @@ under trio with `--runtrio`.
   - one call crossing an inner token limit and an outer cost limit raises
     one `LimitExceededError` whose primary fields are the cost limit's and
     whose `limits` are `[cost, token]`, each node with its own
-    `SampleLimitEvent` and refusal mark; the reverse nesting puts the
+    `SampleLimitEvent`; the reverse nesting puts the
     token limit first; a call crossing one limit raises that node's error,
     whose `limits` is `[itself]`;
   - a turn limit outer to a token limit ranks first;
@@ -2191,19 +2164,11 @@ under trio with `--runtrio`.
   limit exceeded and swallowed inside the
   agent is returned as `(state, error)` by the exit check (the return path
   of `run()`); an owned limit reached exactly and swallowed after a refused
-  call is returned; an owned limit reached exactly with no refused call
-  returns `(state, None)`; a sample limit swallowed inside the agent does
+  call returns `(state, None)` (the accepted loss); a sample limit swallowed inside the agent does
   not leave `run()` at its exit (`run()` returns `(state, None)`), the
   caller's next model call is refused with it, and if the solver instead
   returns, the sample is recorded as limited by it; a synchronous deepagent
   subagent's swallowed limit is reported as its result;
-  - retuned limits: a `run()` token limit that raised at 10, retuned to 20
-    through its `limit` setter, that ends at exactly 20 without a refusal at
-    20 returns `(state, None)`; the same limit refused at 20 returns its
-    error; a sample whose token limit, and separately cost limit, is refused
-    at 10, lowered through `state.token_limit` (or `state.cost_limit`) to 5,
-    where the setter's check raises and is caught, and restored to 10, ends
-    at exactly 10 recorded as limited;
   - plain blocks: inside `with token_limit(n)`, after a call exceeds the
     block's limit and the error is caught inside the block, a further call
     made inside the block is refused with that limit; a catch inside the
@@ -2215,30 +2180,13 @@ under trio with `--runtrio`.
     `apply_limits([time_limit(60), token_limit(10)])` scope, and one with a
     `working_limit(60)`, whose body stays under budget returns normally (the
     exit check skips the time and working limits);
-- `tests/_control/test_limits.py`, live overrides and the exit check: a
-  sample whose root token limit is refused at 10, then given an override
-  of 20 through `set_sample_limit_override()`, has a call refused at 20
-  (a fresh refusal at the new budget) and returns: it is recorded as
-  limited by its token limit.
 - `tests/checkpoint/test_sample_runtime.py`: the payload is unchanged
   (no new keys); after a dump and normal restore of a token root that
   refused a call at exactly its budget, the next call is refused before
   dispatch; after a scoring-only restore of spent token, cost and turn
   roots, `as_solver(react(...))` returns normally with no model call and
   the sample is scored and not recorded as limited (the no-call control),
-  on asyncio and Trio;
-  - the restore clears the mark, for the turn root, on asyncio and Trio: a
-    turn root refused at 20 by a sample-start hook (error caught), lowered
-    to 10 and restored to 0 has its refusal mark cleared; a generation that
-    then reaches exactly 10 followed by a refused one, with the solver
-    returning, records the sample as limited by its turn limit; the same
-    with the budget lowered in `on_resume` after the restore; without the
-    refused generation (exactly 10 used) the sample is not recorded as
-    limited; a control with the budget left at 20 and a fresh refusal at
-    20 after the restore is recorded as limited;
-  - a unit test that `restore_sample_runtime()` clears the refusal mark on
-    each of the token, cost and turn roots it assigns, and leaves the mark
-    of a root whose key the payload lacks.
+  on asyncio and Trio.
 - `tests/agent/test_agent_execute.py`: a sample token limit reached inside an
   `as_tool()` agent ends the sample with `limit.type == "token"` and no
   further generation; `as_tool()`'s own token limit is still a tool error;
@@ -2268,10 +2216,10 @@ under trio with `--runtrio`.
   `test_a_group_of_sentinel_limits_keeps_its_first_limit`
   (`tests/sentinel/test_sentinel_dispatch.py:3331`) stays as it is.
 - `tests/test_eval.py` (or the existing sample-limit tests): a solver that
-  swallows a sample token limit and returns is recorded as limited; a solver
-  whose call was refused at exactly the sample token budget, which swallows
-  the refusal and returns, is recorded as limited; a solver that uses exactly
-  the budget and returns is not; a solver that catches the limit and raises
+  swallows an exceeded sample token limit and returns is recorded as
+  limited; a solver whose call was refused at exactly the sample token
+  budget, which swallows the refusal and returns, is not (the accepted
+  loss); a solver that uses exactly the budget and returns is not; a solver that catches the limit and raises
   `state.token_limit` is not; a resume for scoring over a spent budget is
   not; a sample with a cost limit whose solver calls an unpriced model fails
   with `UnmeteredCallError`;
@@ -2288,8 +2236,7 @@ under trio with `--runtrio`.
     `anyio.Event`, never a sleep): a `background()` worker makes a priced
     call in its cancellation cleanup after `plan()` returns, exceeds the
     sample cost limit, catches the error and returns: the sample ends on the
-    cost limit; the same with a cleanup call refused at exactly the budget;
-    `plan()` raises a
+    cost limit; `plan()` raises a
     `RuntimeError` while a worker's cleanup exceeds a sample limit: the
     sample errors as today; an operator interrupt with an exceeded sample
     limit keeps its operator outcome.
@@ -2315,7 +2262,11 @@ under trio with `--runtrio`.
     still decide ahead of the limits, as today; with no kept limit, an
     agent that unwinds with `ExceptionGroup([RuntimeError(...),
     owned_limit_error])` still fails with the `RuntimeError`, and `run()`
-    does not return the limit;
+    does not return the limit; with no kept limit, an agent inside
+    `run(limits=[cost_limit(...)])` that unwinds with a group of that cost
+    limit's error and the sample `message_limit()`'s keeps both: their
+    combined error propagates through `run()` (the message limit is not
+    its own), where today the bridge keeps only the first leaf;
   - a bridge inside a tool, end to end: an `as_tool()` agent whose body
     sends two bridged requests at once, one whose prompt reaches the
     sample's `message_limit(2)` and one whose priced usage takes a
@@ -2356,9 +2307,9 @@ under trio with `--runtrio`.
     inside a task group (the error in a single group and in a nested
     group), where the scaffold handles the error reply and returns
     normally; the sample still fails through `request_fail()`;
-  - a kept sample token limit reached exactly by a refused request, then a
-    cancellation of the bridged agent before delivery and a normal return
-    from the solver, ends the sample on the token limit;
+  - a kept sample token limit exceeded by a request, then a cancellation
+    of the bridged agent before delivery and a normal return from the
+    solver, ends the sample on the token limit;
   - a request after a reached turn limit makes no generation;
   - the dispatch guard's tests go with it:
     `test_nested_dispatch_guard_keeps_the_enclosing_check` is deleted, and
@@ -2367,12 +2318,10 @@ under trio with `--runtrio`.
     its own, and a suspended call still runs) with a reached turn node in
     place of a sourceless kept error, since node state now does the
     refusing;
-  - the kept-limit entry refusal holds under suspension: with the bridge's
-    service task started inside `suspend_token_limit()`, and again inside
-    `suspend_limits()`, a request whose three-message prompt reaches
-    `message_limit(2)` keeps the message limit, and a fresh request with a
-    one-message prompt gets the kept limit's error reply with no provider
-    call; the same with no suspension; a newly reached outer token limit at
+  - the kept-limit entry refusal: a request whose three-message prompt
+    reaches `message_limit(2)` keeps the message limit, and a fresh request
+    with a one-message prompt gets the kept limit's error reply with no
+    provider call; a newly reached outer token limit at
     the next request's entry joins the kept limit, and the reply's primary
     fields are the token limit's;
   - a host tool whose model call reaches the sample limit after a member
@@ -2414,23 +2363,17 @@ Each step is one PR, in this order. Each keeps the suite green.
    4), the rank, `LimitExceededError.limits` and its constructor
    argument, combined errors, the check and the owner's exit check
    raising every node that raises (skipping suspended kinds, cost
-   included, as the per-kind checks do), recording without a check, the
-   refusal mark, turn limits refusing at equality before dispatch,
+   included, as the per-kind checks do), recording without a check, turn
+   limits refusing at equality before dispatch,
    `record_turn` recording only,
    the affine grammar and non-negative weights in `_compile_token_formula()`,
    with metering from the reduced coefficients.
-   `src/inspect_ai/util/_checkpoint/sample_runtime.py`:
-   `restore_sample_runtime()` clears the refusal mark of each root whose
-   counter it assigns (no payload change).
    `src/inspect_ai/model/_model.py`: each model call recording, then
    running the check once, where its accounting runs today
    (generation, cache hit, native compaction, sidecar recovery), and the
    pre-dispatch check.
    Tests: the node-level cases in `tests/util/test_limit*.py` (entry numbers,
-   combined errors, recording, pre-dispatch refusal, the refusal mark
-   across setters and overrides), and in
-   `tests/checkpoint/test_sample_runtime.py` that a restore clears the mark
-   of each root it assigns.
+   combined errors, recording, pre-dispatch refusal).
 2. **Unpriced models.** `_limit.py`: `UnmeteredCallError`. `_model.py`:
    the unpriced check in `_check_limits_before_dispatch(model)` and the
    model passed by `generate()`'s and compaction's per-attempt calls;
@@ -2453,11 +2396,8 @@ Each step is one PR, in this order. Each keeps the suite green.
    Tests: the owner-exit cases, which need these checks: the `run()` and
    `apply_limits()` tests in `tests/util/test_limit.py`, the runner's reduction
    in `tests/test_eval.py`,
-   `tests/agent/test_agent_overflow_compaction.py`,
-   the live-override sample outcomes in `tests/_control/test_limits.py`,
-   and the restore and scoring-resume outcomes in
-   `tests/checkpoint/test_sample_runtime.py` (the checkpoint change is in
-   step 1).
+   `tests/agent/test_agent_overflow_compaction.py`, and the restore and
+   scoring-resume outcomes in `tests/checkpoint/test_sample_runtime.py`.
 4. **Ownership in tools.** `_call_tools.py`: `decisive_tool_exception`
    returning the combined error of a group's limits
    (`decisive_sentinel_exception` is unchanged), the call leaf and the
