@@ -10,8 +10,8 @@ the `Task` the caller passes,
 records which shard attempts the merged log holds, and publishes it with a
 guard against overlapping merges. The merge does not delete shards; the
 user removes the shards directory once the merged log is checked.
-`eval_set()` runs the same merge at startup and then resumes the task from
-the merged log like any other. A merge command, `inspect log
+`eval_set()` does not merge shards: it refuses a log directory that holds
+a shards directory ("Eval-set integration"). A merge command, `inspect log
 merge-shards`, follows as its own step (5b), designed and then built
 after PR 5. The work is split into nine PRs plus that step, the first
 four of them landed, and shares its layout and directory-walk helpers with
@@ -37,9 +37,11 @@ the two implementations share.
 
 The parent design fixes the direction: shards are ordinary `.eval` files in
 `<dir>/<name>.shards/<k>/`, a trusted incremental merge writes the canonical
-log `<dir>/<name>.eval`, and `eval_set()` runs the merge at startup. It
-leaves the API signatures, the ledger's exact shape and the order of work to
-this document, and two implementation efforts have already started against
+log `<dir>/<name>.eval`, run through a Python API or CLI. `eval_set()`
+does not merge: it refuses a log directory that holds a companion
+("Eval-set integration" here and in the parent). The parent leaves the
+API signatures, the ledger's exact shape and the order of work to this
+document, and two implementation efforts have already started against
 it: the layout helpers (meridianlabs-ai/inspect_ai#530, since landed as
 UKGovernmentBEIS/inspect_ai#5541) and ctl log-dir mode
 (meridianlabs-ai/inspect_ai#528, steps 1–2 since landed as
@@ -86,7 +88,7 @@ Non-goals:
   limitation this leaves.
 - Shard deletion in PR 5 (decision: Ransom, 2026-11-03). The merge reads
   the shards and writes the merged log; the user removes the shards
-  directory by hand. Deletion through Inspect is its own PR after PR 6,
+  directory by hand. Deletion through Inspect is its own PR,
   with one rule designed then ("Implementation plan").
 - Rebuilding metric, reducer or scorer code from what a log records
   (decision: Ransom, 2026-11-03). The results come from the caller's task
@@ -388,10 +390,10 @@ Parameters:
   A `.eval` argument named `<name>-recovered.eval` raises `ValueError`
   before anything is read, naming `<name>.eval` and the companion as the
   arguments to pass: `eval_shards_dir` maps it to the same
-  `<name>.shards/` as `<name>.eval`, while eval-set discovery and
-  `eval_log_for_shards_dir` always write `<name>.eval`, so merging into it
-  would put a second merged log, with its own ledger and the same
-  `task_id`, beside the one the next startup merge writes. Refusing is
+  `<name>.shards/` as `<name>.eval`, while `eval_log_for_shards_dir` always
+  writes `<name>.eval`, so merging into it would put a second merged log,
+  with its own ledger and the same `task_id`, beside the one a merge of the
+  companion writes. Refusing is
   chosen over silently writing `<name>.eval` instead, because the caller
   named a different output file.
 - `task`: the `Task` the shards ran, built as the caller passed it to
@@ -452,8 +454,7 @@ attempt exists), `TypeError` (`task` is not a `Task`), `ValueError`
 Trust (decision: Ransom, 2026-11-03): the merge computes results only with
 the task the caller passes and never rebuilds metric, reducer or scorer
 code from what a log records. The caller passes that code as the `Task`
-it ran. The launcher and the `eval_set()` startup merge (PR 6) already
-hold the task. Parent "Trust": the merge runs only as a trusted
+it ran. The launcher already holds the task. Parent "Trust": the merge runs only as a trusted
 step; no reader path calls it.
 
 #### The `EvalSpec.shards` field
@@ -540,7 +541,7 @@ count (a reader that shows it counts the `.eval` files in `<k>/`) and no
 
 `EvalSpec` gains `shards: EvalShards | None = Field(default=None)` with the
 docstring "Shards merged into this log (merged logs only)." Absent on every
-unsharded log and on shards; its presence is how `eval_set()` and ctl
+unsharded log and on shards; its presence is how `eval_retry` and ctl
 log-dir mode recognise a merged log.
 
 Choices the parent left open:
@@ -578,7 +579,7 @@ Choices the parent left open:
   per-sample content is the list an ordinary header has,
   `dataset.sample_ids`; `config.sample_id` is left unset. At 10,000 samples and 5 epochs an
   exact-key ledger would add about 50,000 objects (about 2 MB for short
-  ids) to `header.json`, which every `eval_set()` listing,
+  ids) to `header.json`, which every eval-set listing,
   `read_eval_log_headers` call and viewer log list would parse.
 - **Recorded selection: the ids in `dataset.sample_ids`, the form in a
   scalar.** The merge writes the selection it merged against as:
@@ -607,10 +608,8 @@ Choices the parent left open:
   ordinary retry (the whole dataset, reusing prior records by `(id, epoch)`
   under the existing stability checks, `src/inspect_ai/_eval/task/run.py:3625`)
   runs exactly the right samples. For `"ids"` and `"count"` it raises
-  `ValueError` before any sample runs, naming the log and the ways to
-  finish the run: `eval_set()` over the directory with the same selection
-  (which seeds its retry from the merged log, "No recovery of merged
-  logs"), or re-running the incomplete shards and merging again. Why not
+  `ValueError` before any sample runs, naming the log and the way to
+  finish the run: re-running the incomplete shards and merging again. Why not
   pass the recorded ids as the retry's subset: the retry selects with
   patterns, not exact keys. `sample_id_filter` normalises digit strings to
   integers and applies `fnmatch` (`src/inspect_ai/_eval/task/util.py:56`,
@@ -627,20 +626,6 @@ Choices the parent left open:
   merged log over the whole dataset, which may run samples outside the
   selection; Ransom accepts that boundary (2026-09-29: "Fine with older
   Inspect version not knowing about shards"). Files: `_eval/eval.py` (PR 5).
-
-  **This refuses every merged log `eval_set()` writes.** Its startup merge
-  always passes the eval set's selection as ids (`selected_sample_ids`,
-  "Eval-set integration" step 4), even when that selection is the whole
-  dataset, so the log records `"ids"`. `eval_retry` therefore refuses an
-  eval-set merged log, whole-dataset runs included, and the message points
-  to `eval_set()` over the same directory, which is how an eval set's run
-  is finished anyway. The alternative, passing no selection when the eval
-  set covers the whole dataset so that the log records `"none"`, was not
-  taken: with no selection the merge uses the recorded one, so an eval set
-  could no longer replace a narrower selection recorded by an earlier
-  launcher merge; and an id selection that covers the whole dataset is already
-  refused (Ransom, 2026-09-29). The sharding docs (PR 5) and the eval-sets
-  note (PR 6) state the restriction.
 - **`size`, `etag`, `mtime`** are what `FileInfo` carries
   (`src/inspect_ai/_util/file.py:195`); change detection compares ETags when
   both sides have one and `(size, mtime)` otherwise.
@@ -930,8 +915,7 @@ the merged header, the unchanged ones:
   Ids outside the selection mean either a selection that is too narrow or
   a stray or mislabelled shard; the merge cannot tell which, and a merged
   log never holds records outside its recorded selection, so it refuses
-  either way. `eval_set()` reports this case with its own advice
-  ("Eval-set integration").
+  either way.
 
 The error message names the offending shard files and the differing field.
 
@@ -1294,8 +1278,8 @@ user has checked the merged log, they remove `<name>.shards/` by hand
 shard attempt and return the merged log as it is (step 10). Removing only
 some shard directories makes later merges refuse until the rest is
 removed or the files are restored ("Validation"). Shard deletion through
-Inspect, by the merge or by eval-set retry cleanup, is a later PR, after
-PR 6, with one rule designed then ("Implementation plan").
+Inspect is a later PR, with one rule designed then ("Implementation
+plan").
 
 S3 names. The S3 helpers take a URL's bucket and key with `urlparse`,
 which drops a `#` or `?` and the text after it, removes tab, CR and LF,
@@ -1315,18 +1299,18 @@ directory listed itself, which would hide the key from the merge.
 
 **The viewer is not a deleter.** `/log-delete` is unchanged (decision:
 Ransom, 2026-09-24): deleting a merged log in the viewer deletes only that
-file. Its `<name>.shards/` companion remains, and the next `eval_set()`
-startup merge over the directory rebuilds the merged log from it. Until
-then the viewer lists the shards again, since no merged log covers them
+file. Its `<name>.shards/` companion remains, and the next merge of it
+rebuilds the merged log. Until then the viewer lists the shards again, since no merged log covers them
 (#5591). To remove a sharded run for good, delete the companion directory
 as well. This is a documented limitation of Step 1, stated in the sharding
 docs.
 
 Compatibility boundary for ancillary output: Step 1 does not merge
 per-shard scan results or checkpoints. Scan rows written by workers stay in
-their `<k>/scans/` until the companion is removed; an `eval_set()` with
-scanners over the parent directory looks under `<dir>/scans/` and scans
-the merged log's samples there again.
+their `<k>/scans/` until the companion is removed. `eval_set()` refuses
+the parent directory while the companion is there; once it is moved out,
+an eval set with scanners looks under `<dir>/scans/` and scans the merged
+log's samples there again.
 
 #### Cancellation and concurrency
 
@@ -1479,164 +1463,58 @@ is guarded.
 
 ### Eval-set integration
 
-Changes in `src/inspect_ai/_eval/evalset.py`; none in selection mode, which
-never scans the directory.
+`eval_set()` does not merge shards. It refuses a log directory that holds
+a `<name>.shards/` companion (decision: Ransom with JJ Allaire,
+2026-11-18). No current caller needs a merge at startup, and a retry at
+startup would run samples outside a launcher's per-instance placement: a
+launcher that runs one sample per instance retries a failed sample's shard
+in its own `<k>/` and merges with the API or `inspect log merge-shards`.
 
-**Startup merge.** In `try_eval`, before the directory is read for pairing:
+In `src/inspect_ai/_eval/evalset.py`, `eval_set()` lists the directory
+with `list_eval_logs` and checks those names before the embedded viewer
+and scanner contexts enter, since both read log headers and write output.
+The first `try_eval` attempt passes that listing to
+`list_all_eval_logs(log_dir, log_files=...)` for the header reads. The
+check runs once, at startup, in both retry modes (decision: Ransom,
+2026-11-18): with the default `retry_immediate=True` there is one
+`try_eval` call, and the legacy `retry_immediate=False` passes list the
+directory again for pairing without checking it again. A launcher writes
+shards before an eval set runs over the parent directory; shards that
+appear while an eval set is running are not supported (the viewer's and
+scanners' teardown read every listed log, which would mask a refusal
+there). So the check adds no listing
+and reads no header of its own, and the eval set reads no shard header
+for pairing (decision: Ransom, 2026-11-18). The listing itself keeps its
+existing best-effort header read for a log whose file name does not parse
+(`log_file_info`), shard logs included; launcher-named shards with the
+default timestamped names do not need it. It recognises a shard log by
+its own listed name (decision: Ransom, 2026-11-18). A listed log is a
+shard log when its parent directory name is all ASCII digits and the
+directory above that ends in `.shards`, or when its parent directory name
+itself ends in `.shards` (a stray file the merge would refuse). Only the
+name's last two path components are read, split on `/` and `\`; every
+provider lists those the same way, so no form of the log directory is
+compared and the check itself opens no filesystem. If any listed log is a
+shard log, it raises `PrerequisiteError` before pairing, the manifest
+write, viewer or scan output, or any run. The eval set ID comes first, so
+a first run in a refused directory can leave an `.eval-set-id` file. The
+message names each `.shards` directory found that way and says that `eval_set()` does
+not merge shards, to merge them with `inspect log merge-shards` (or the
+Python API), and, if samples failed or are missing, to retry each
+incomplete shard in its own `<k>/` with the same selection (a new shard
+selecting the same samples would overlap it, which the merge refuses), run
+samples no shard selected as new shards and merge again; then to move the
+`.shards` directory out of the log directory.
 
-1. Build `eval_set_args` and `all_tasks` (identifiers) first; they are
-   pure and today are built just after the listing (`:1047`, `:1083`).
-2. `list_eval_logs(log_dir)` once. Every listed file for which
-   `is_shard_path(log_dir, name)` is true (shared helper) marks a
-   companion: the path up to the first component below `log_dir` that ends
-   in `.shards`. Collect the distinct companions. A log nested deeper in a
-   companion (inside a shard's ancillary directory, including a companion
-   nested there) is an ordinary log: it marks no companion and takes part
-   in pairing like any other log. A companion with no log file left
-   (for example only `.buffer/` objects or checkpoint directories after an
-   interrupted deletion) is not found, and
-   needs no merge.
-3. For each companion (4 at a time, one `AsyncFilesystem` scope), read one
-   header, compute its identifier and find the resolved task with it. The
-   header is the merged log's when it is in the step 2 listing; otherwise
-   that of the first attempt the listing holds for the companion: the
-   `.eval` files directly in a `<k>/` whose name does not start with `.`,
-   taking `<k>/` in `list_shard_set`'s shard order and the current attempt
-   in it by `attempt_sort_key` (a running attempt's header synthesised
-   from `_journal/start.json`, as in the merge's step 6). A `<k>/` with no
-   attempt (only `scans/` or
-   `.buffer/`) is passed over, so a later shard identifies the companion.
-   Any attempt serves, since the merge refuses shards whose identifiers
-   differ. A companion with neither a merged log nor an attempt was marked
-   in step 2 only by stray files; it stops `eval_set()` with
-   `PrerequisiteError` before any task runs, naming the companion and its
-   stray files, the outcome its merge would have ("stray files", step 5),
-   rather than being skipped, since nothing can tell which task it belongs
-   to. A companion matching no task is left alone with a warning, like any
-   other log that belongs to no task in the set.
-4. Merge it with `allow_incomplete=True` and the selection
-   `selected_sample_ids(task.task.dataset, limit, sample_id, task.task.name,
-   task_names)`, a new sibling of `samples_selected` in
-   `eval_set_manifest.py` that returns the ids `slice_dataset` would select
-   (same unset-id rule). The eval set's selection is the intended selection,
-   so an eval set run over a sharded subset without the subset's
-   `sample_id` treats the rest of the dataset as missing and runs it, which
-   is what an eval set means. A selection *narrower* than what the shards
-   hold is refused, and so is an empty one (decision: Ransom, 2026-10-09:
-   "Empty selection doesn't make sense from a user standpoint - error is
-   ok. And I'd rather be strict here."):
-   - **Empty.** When `selected_sample_ids` returns no ids (for example
-     `sample_id` given only as `task:id` selectors naming other tasks, so
-     the narrowing in `resolve_task_sample_ids` leaves nothing for this
-     task), the companion is not merged: `eval_set()` stops with
-     `PrerequisiteError` before any task runs, whether or not the shards
-     hold samples yet. Today such a task counts as complete
-     (`log_samples_complete` with nothing planned); for a sharded task that
-     would silently ignore its shards. The message names the task and the
-     companion, says the eval set selects no samples of the task while
-     `<name>.shards/` holds its shards, and says to include the task's
-     samples in `sample_id` (or drop the selection), or to remove the task
-     from the eval set, or to move `<name>.eval` and `<name>.shards/` out of
-     the log directory.
-   - **Narrower.** When the shards hold ids the selection does not include
-     (a `limit` or `sample_id` smaller than the sharded run), the merge
-     raises `ShardSelectionError` ("Validation") and `eval_set()` stops as
-     in step 5, with the advice below rather than the generic one. Nothing
-     is skipped: merging only the selected part, or leaving the companion
-     out, would make the merged log disagree with its shards or leave
-     shards unmerged.
-5. **A refused startup merge stops `eval_set()` with `PrerequisiteError`,
-   in every case** (decision: Ransom, 2026-09-24: "yes, PrerequisiteError
-   in all cases"). Nothing warns and continues, including a lost S3
-   publish race. Every exception a startup merge raises is re-raised as a
-   `PrerequisiteError` (the original chained as its cause) before any task
-   runs; cancellation propagates unchanged. `ShardSetIncomplete` cannot
-   occur (`allow_incomplete=True`). An empty selection is refused before
-   the merge (step 4) with the same kind of message. The message names the companion
-   (`<dir>/<name>.shards/`), the cause as the merge reported it, and what to
-   do next:
-
-   | Cause | Raised by the merge as | What the message tells the user to do |
-   |---|---|---|
-   | Invalid shard set: mismatched identifier, scorers, metrics, dataset size, epochs, reducer or format version; overlapping shard selections; a shard with no recorded selection or holding samples outside it (a `SampleSource` task); a shard whose selection changed across attempts; a shard holding samples a drain or cancel left unresolved; a shard directory not named with digits; an attempt file name with a backslash; an entry the listing would hide (a key with an empty path component); stray files; chunked-shape samples | `ShardSetError` | fix the shards named in the message (remove or move the offending files; for a changed selection, move the new attempt to its own `<k>/` or delete `<name>.eval`), then re-run |
-   | The eval set's selection is narrower than what the shards hold | `ShardSelectionError` | the message says the selection is narrower than the shards and lists up to ten held ids outside it with the total; widen `sample_id` or `limit` to include every sharded sample (or drop the selection for the whole dataset), or remove the task from the eval set, or move `<name>.eval` and `<name>.shards/` out of the log directory; if the ids are not ones the run should hold, remove the shard named as holding them; then re-run |
-   | Merged log does not match its ledger (its samples were changed outside the merge) | `ShardSetError` | delete `<name>.eval` so the next merge rebuilds it from the shards, then re-run |
-   | Vanished shard (shard files deleted by hand after they were merged) | `ShardSetError` | delete the rest of `<name>.shards/` by hand, or restore the files, then re-run |
-   | Attempt regression (a shard's current attempt deleted by hand while an older attempt was kept) | `ShardSetError` | restore the deleted attempt; or delete `<name>.shards/` by hand to keep the merged log as it is; or delete `<name>.eval` to rebuild it from the attempts now present; then re-run |
-   | An ordinary `<name>.eval` (no `eval.shards` field) where the merged log belongs | `ShardSetError` | move or rename that log, or the companion, then re-run |
-   | Local merge lock held (`<name>.merge.lock`), including one left by a crashed merge | `WriteConflictError` | wait for the other merge to finish and re-run; if no merge is running (the lock's `pid`/`host` shown in the message), delete the lock file and re-run |
-   | Lost S3 publish race (another merge published first, or the merged log changed during the pass) | `WriteConflictError` | re-run once the other merge has finished; the merge is idempotent |
-   | Anything else (a storage or transport error) | the original exception | the cause is in the message and the chained exception; fix it and re-run |
-6. If any merge wrote, list again; otherwise reuse the listing.
-
-**Shard skip before header reads.** `list_all_eval_logs` gains
-`skip_shards: bool = False`, which drops `is_shard_path(log_dir, name)`
-files before `read_eval_log_headers`: every attempt and stray file of a
-companion, and nothing else. A log nested deeper in a companion stays in
-the listing as an ordinary log, so the skip never hides a log that the
-shard walk does not report. Both eval-set call sites (startup and
-`cleanup_older_eval_logs`) pass `True`; `inspect_flow`'s callers keep the
-default. The startup path in step 2 applies the same filter to the listing
-it already holds.
-
-**Completeness.** `log_samples_complete` gains a branch for a log with
-`eval.shards`: complete when `status == "success"` (already required by the
-caller), epochs are unchanged (the existing `epochs_changed` check), and
-the log's `eval.dataset.sample_ids`, as a set of `str(id)`, equals the
-planned selection (`selected_sample_ids`). The count comparison is not used
-for such logs, and no key list is needed: the merge writes `success` only
-when the held keys are the recorded selection times every epoch, and on a
-`success` log `dataset.sample_ids` is the selection's ids in every form of
-selection ("Recorded selection": the ids themselves, or the held ids,
-which then are the whole selection). After a successful startup merge this
-agrees with the merged status, since the startup merge records the eval
-set's own selection; the branch keeps the rule right on its own, for
-example for a merged log last written by a launcher's merge with a
-different selection.
-
-**No recovery of merged logs.** `_recover_crashed_log` returns its inputs
-unchanged when `eval_log.eval.shards` is set, so neither call site recovers
-a `started` merged log (which has no buffer; the startup merge has already
-brought it up to date). The retry then seeds from the merged log and re-runs
-the missing samples as an ordinary unsharded log (parent).
-
-**Retry cleanup.** Until the shard-deletion PR (PR 9, "Implementation
-plan"), retry cleanup never removes a merged log or its companion; ordinary
-logs are cleaned as today (decision: Ransom, 2026-11-03). The user removes
-a superseded merged log and its shards by hand, and the docs say so. In
-`latest_completed_task_eval_logs`, for each `task_id` group, with `M` the
-logs carrying `eval.shards` and `U` the rest:
-
-- **`M` non-empty and some log in `U` is `success`** (an unsharded retry
-  of a merged log succeeded): the latest log is chosen from `U` alone, by
-  mtime, exactly as today's rule orders any group, so a `success`
-  unsharded log is preferred over a merged log whatever their mtimes.
-  Every log in `M` is never the latest and is kept, with its companion.
-  Logs in `U` other than the latest are removed by today's rule
-  (UKGovernmentBEIS/inspect_ai#5396): every non-`started` log, and a
-  `started` one only when its `eval.run_id` is in `owned_run_ids` and its
-  buffer has shut down, with its buffers. One exception: the newest
-  `success` log in `U` is kept even when it is not the latest. While `M`
-  remains, it is the evidence that `M` is superseded; without it, the next
-  classification would fall into the branch below, pick a log of `M` by
-  mtime, and remove the newer unsharded attempt.
-- **Otherwise** the group is ordered and cleaned as today, except that a
-  log of `M` is never removed: a merged log's `run_id` is minted by the
-  merge, so today's rule already keeps a non-latest `started` merged log,
-  and a non-latest merged log of any other status is kept too.
-
-So the ordering among unsharded attempts never changes. The case that rules
-out a sort key promoting unsharded successes: a merged log `M`, an older
-unsharded `success` `S`, and a newer unsharded `error` `E` holding more
-samples (for example after the epochs were raised). Today's order over `U`
-makes `E` latest; `S` is kept as the newest `success`, and `M` stays with
-its companion, so the next pass again makes `E` latest and removes nothing
-it should not.
-
-`latest_completed_task_eval_logs` keeps its `owned_run_ids` parameter and
-both callers keep passing the run ids they pass today (`list_latest_eval_logs`
-from `try_eval`, `:1130`, and the final sweep, `:1216`); the new branch
-reads only the logs' `eval.shards` and statuses.
+The rule is broader than `is_shard_path`, deliberately. It also refuses an
+eval set run on a numbered shard directory itself or on a `<name>.shards`
+directory itself, and a log directory holding a companion nested inside a
+shard's ancillary directory (such as `scans/`). `log_dir_allow_dirty=True`
+does not bypass the refusal, including for companions of tasks outside
+the eval set, which a dirty directory used to ignore: move those companions
+out or use a separate log directory. Selection mode is unchanged: it never
+scans the directory. With the companion moved out, the merged log is an
+ordinary log of the eval set.
 
 ### Scale items
 
@@ -1681,7 +1559,7 @@ Two PRs after the merge core, each with the measurement that justifies it:
 | `log_basename`, `eval_shards_dir`, `eval_log_for_shards_dir`, `eval_log_name` (`src/inspect_ai/_util/log_layout.py`) | #530, landed (UKGovernmentBEIS/inspect_ai#5541) | the `<name>.eval` / `<name>.shards/` pair, `<name>` minting by launchers | mapping `X.shards/` to its merged log (its "Logical tasks") |
 | `AsyncFilesystem.list_dir(base) -> DirListing(files: list[FileInfo], dirs: list[str])` | #528, landed (UKGovernmentBEIS/inspect_ai#5542) | listing `<name>.shards/` and each `<k>/` | the delimited walk |
 | `ZipEntry.crc32` and `AsyncZipReader(verify_crc=True)` / `ZipCrcError` | #528, landed (UKGovernmentBEIS/inspect_ai#5542) | consistent shard reads; raw copy | consistent member reads |
-| `list_shard_set`, `attempt_sort_key`, `is_shard_path` (`src/inspect_ai/log/_shards/_walk.py`) | PR 3, landed (UKGovernmentBEIS/inspect_ai#5622); ctl's step 4 adds `unlisted_dirs` | steps 4–5; the eval-set skip and companion discovery | its step 4 (shard aggregation) calls these instead of re-implementing the rules |
+| `list_shard_set`, `attempt_sort_key`, `is_shard_path` (`src/inspect_ai/log/_shards/_walk.py`) | PR 3, landed (UKGovernmentBEIS/inspect_ai#5622); ctl's step 4 adds `unlisted_dirs` | steps 4–5 | its step 4 (shard aggregation) calls these instead of re-implementing the rules |
 | `merged_log_task_id(name, *, task, model) -> str` (`src/inspect_ai/_util/log_layout.py`, beside `eval_log_name`) | PR 5, or ctl's step 4 if it lands first | the merged log's `task_id` at the first merge ("The merged log's `task_id`") | the `task_id` of a shard set whose merged log does not exist yet, so it folds with the same retries as the merged log will |
 | `EvalShards`, `EvalShardEntry` and the recorded selection ("The `EvalSpec.shards` field") | PR 2 below | writing the field | its step 6: totals from the recorded selection; a cold start of the one-row-per-task `task list` row (not sample rows or per-sample reads) from the merged `summaries.json` only for a complete `success` snapshot whose shards are all unchanged and each hold their whole selection (`samples == selected × epochs`), otherwise the shards; `--shards` rows read every shard |
 
@@ -1713,9 +1591,8 @@ The shard-set rules, one implementation for both consumers:
   first, numerically, then the rest by name; a `<k>/` with nothing in it
   is left out, while one holding only ancillary entries (for example the
   checkpoint directories an interrupted deletion leaves) is kept with no
-  attempts. The merge, eval-set and ctl all treat such a `<k>/` as no
-  shard (no ledger entry, never the template, no shard row; eval-set passes over
-  it when it reads a companion's header) and a companion with no
+  attempts. The merge and ctl both treat such a `<k>/` as no
+  shard (no ledger entry, never the template, no shard row) and a companion with no
   attempt in any `<k>/` as holding no shard set; the merge also refuses
   one with stray files rather than counting it as gone ("The merge" step
   5; ctl's "Logical tasks"). `stray` holds every log file the walk sees that is not an
@@ -1775,14 +1652,14 @@ The shard-set rules, one implementation for both consumers:
 Ransom, 2026-10-05). A log in a shard's ancillary directory (for example
 `run.shards/0/scans/<file>.eval`), or deeper than a dot-directory of the
 companion, is not a shard path, so no consumer drops it unreported:
-eval-set keeps it in pairing and header reads, ctl log-dir mode lists it as
+ctl log-dir mode lists it as
 an ordinary log by descending `unlisted_dirs` (its "Walking the
 directory") and the merge ignores it. Removing the enclosing companion
 removes it with everything else. A companion nested in
 an ancillary directory follows
 the same rule: from a root above the outer companion its logs are
 ordinary logs, and from a root that is the outer companion or a directory
-inside it, it is a shard set. Given the same root, eval-set and ctl
+inside it, it is a shard set. Given the same root, the merge and ctl
 therefore agree on which files are shard attempts, which are stray and
 which are ordinary logs.
 
@@ -1866,17 +1743,18 @@ PR 2. Neither depends on the merge.
   effect) would survive a pattern change between a merge and a rebuild.
   Not taken (Ransom, 2026-10-13): the pattern is almost certain never to
   change, and compatibility code can be written if it does.
-- **Skip a companion the eval set's selection does not cover** (merge only
-  the selected part, or leave the companion out, when the selection is
-  narrower than the shards or empty). Rejected (Ransom, 2026-10-09: "I'd
-  rather be strict here"): the merged log would disagree with its shards,
-  or the shards would sit unmerged while the task counts as complete; a
-  `PrerequisiteError` that says what to change is clearer.
+- **Merge at `eval_set()` startup**, then resume the task from the merged
+  log with an ordinary unsharded retry. Built and reviewed, then cut
+  (decision: Ransom with JJ Allaire, 2026-11-18): no current caller needs
+  it, and the retry runs samples outside a launcher's per-instance
+  placement. It also needed its own rules for ranking, completeness,
+  retry cleanup and selection of merged logs. `eval_set()` refuses a
+  directory holding a companion instead ("Eval-set integration").
 - **A broad shard-path rule** (`is_shard_path` true for any path with a
   directory component ending in `.shards`). Simpler to state, but `list_shard_set` never lists below a
   `<k>/`, so a log nested in an ancillary directory (`<k>/scans/...`, or a
-  companion nested there) would be skipped by eval-set and reported by
-  nothing. Rejected (Ransom, 2026-10-05) for the rule matching the walk
+  companion nested there) would be hidden from the walk's consumers.
+  Rejected (Ransom, 2026-10-05) for the rule matching the walk
   ("Code shared with ctl log-dir mode"). Descending ancillary directories
   in the walk instead would make the merge list scan and checkpoint trees
   it never uses.
@@ -1900,11 +1778,6 @@ PR 2. Neither depends on the merge.
 - **Directory-wide merge.** The API takes one merged log. A
   caller with a directory can list companions itself; a second public
   entry point now is surface without a caller.
-- **Warn and continue when the startup merge refuses a companion**,
-  including only for a lost S3 publish race. Lets an eval set run, but then
-  it pairs against a stale merged log or re-runs the task from scratch while
-  the shards sit unmerged, which is the silent coercion AGENTS.md rules out.
-  Rejected (Ransom, 2026-09-24): `PrerequisiteError` in all cases.
 
 ## Compatibility and migration
 
@@ -1943,8 +1816,8 @@ today.
   affected shards. No producer, serializer or log-format change, and no
   detection.
 - **`eval_retry` of a merged log** is refused unless it was merged with
-  no selection (`"none"`), which excludes every merged log `eval_set()`
-  writes; `eval_set()` over the directory finishes those. An older Inspect
+  no selection (`"none"`); re-running the incomplete shards and merging
+  again finishes the others. An older Inspect
   retries any merged log over the whole dataset ("`eval_retry` of a
   merged log"). `.json` logs and chunked-shape samples are not supported as
   shards, and neither are shards of a `SampleSource` task or shards whose
@@ -1964,28 +1837,27 @@ today.
   `ShardSelectionError`, `ShardSetIncomplete`, `EvalShards`,
   `EvalShardEntry` in `inspect_ai.log`,
   listed in a "Sharding" section of `docs/reference/inspect_ai.log.qmd`.
-  `list_all_eval_logs` (internal, but imported by `inspect_flow`) gains a
-  keyword argument whose default keeps its behaviour.
-- **Eval sets.** Behaviour changes only for task groups that contain a
-  merged log: startup merges, shards skipped before header reads (attempts
-  and stray files only; a log nested deeper in a companion is listed and
-  read as today), merged
-  logs classified by their status and recorded selection, not recovered, and, once an
-  unsharded retry succeeds, never chosen as latest. Retry cleanup leaves a
-  merged log and its companion in place until PR 9 (decision: Ransom,
-  2026-11-03); the user removes them. Ordering among
-  unsharded attempts and the
-  `owned_run_ids` rule for unsharded `started` logs are unchanged. A
-  directory whose companion the startup merge refuses (for any reason,
-  including a held lock, a lost S3 race, or an eval-set selection narrower
-  than the shards hold), or whose task the eval set selects no samples of,
-  now stops `eval_set()` with `PrerequisiteError` naming the companion, the
-  cause and the next step, before any task runs. Today an eval set whose
-  `sample_id` names only other tasks treats such a task as complete.
+  `list_all_eval_logs` (internal, but imported by `inspect_flow`) gains an
+  optional `log_files` argument whose default keeps its behaviour.
+- **Eval sets.** `eval_set()` now stops with `PrerequisiteError`, before
+  pairing or running (it may already have written `.eval-set-id`), when a
+  listed log is a shard log by its name ("Eval-set integration"): in a numbered
+  directory under a `.shards` directory, or directly in a `.shards`
+  directory. That includes an eval set run on a shard directory or a
+  companion itself. Today it pairs a shard attempt of one of its tasks as
+  an ordinary log of that task, refusing a dirty directory unless
+  `log_dir_allow_dirty=True`, and ignores other tasks' shard logs under
+  `log_dir_allow_dirty=True`. `log_dir_allow_dirty=True` does not bypass
+  the refusal, including for companions of tasks outside the eval set:
+  users move those companions out or use a separate log directory. Users
+  merge the shards and move the companion out first. An eval set over a
+  directory with no shard logs behaves as before, and selection mode is
+  unchanged.
 - **Scan results and checkpoints written by workers** stay in their
   `<k>/` until the companion is removed; Step 1 neither merges nor
-  relocates them, and an eval set with scanners over the parent
-  directory scans the merged log's samples again under `<dir>/scans/`.
+  relocates them. Once the companion is moved out, an eval set with
+  scanners over the parent directory scans the merged log's samples again
+  under `<dir>/scans/`.
 - **The merged log's `task_id`** is the id in `<name>`'s `{id}` slot when
   the file name pattern lets it be read back, else derived from `<name>`;
   with a custom `INSPECT_EVAL_LOG_FILE_PATTERN` that has no `{id}` or puts
@@ -2002,8 +1874,8 @@ today.
   shards stay visible; a pass that writes nothing leaves the mtime as it
   was. Limitation: deleting a
   merged log in the viewer deletes only that file; its `<name>.shards/`
-  companion remains, its shards show again, and the next `eval_set()`
-  startup merge rebuilds the merged log. To remove a sharded run for
+  companion remains, its shards show again, and the next merge of the
+  companion rebuilds the merged log. To remove a sharded run for
   good, delete the companion directory as well. The sharding docs (PR 5)
   say so.
 - **`AsyncFilesystem`.** New `get_file_if_match` and
@@ -2032,7 +1904,7 @@ today.
   `<name>.eval` without the field.
 - **Code execution.** The merge is a read operation in the trust model of
   [`malicious-log-code-execution.md`](malicious-log-code-execution.md)
-  (decision: Ransom, 2026-11-04). Like `eval_set()`, it takes its task from
+  (decision: Ransom, 2026-11-04). Like `eval()`, it takes its task from
   the caller, and the logs supply only samples. It runs only the `Task`
   object the caller passes and never loads code a log names: no metric,
   reducer or scorer is rebuilt from the log, and a score key no declared
@@ -2042,8 +1914,8 @@ today.
   and reducers run in the caller's model context. It has no `trust_log`
   parameter. If a metric that needs the shards' model turns up, opting in
   with `trust_log=True` would be the consistent extension. The merge runs
-  only in trusted steps (the API, called by a launcher or by hand, and
-  `eval_set()` startup). No reader path (viewer server,
+  only in trusted steps (the API or the merge command, called by a
+  launcher or by hand). No reader path (viewer server,
   `read_eval_log*`, dataframes, ctl log-dir mode) calls it.
 - **Viewer.** No change to the viewer server; its delete endpoint still
   authorizes and deletes only the requested file, so the new companion
@@ -2220,59 +2092,16 @@ Per PR (numbers from "Implementation plan"):
      the merge dispatches a thread outside `_owned.py`; a failed shard
      read fails the merge with its error, and a sample that does not
      validate fails it at once;
-6. **Eval-set integration.** `tests/test_eval_set.py`: `log_samples_complete`
-   on a `success` merged log is true when its `dataset.sample_ids` equals the
-   eval set's selection (for each recorded form: ids, count, neither) and
-   false for a different selection or changed epochs; startup over a
-   complete shard set pairs only the merged log and runs nothing; over an
-   incomplete set writes a `started` merged log that the set resumes
-   (missing samples run once, unsharded); an `error` shard set is retried
-   seeded from the merged log; a `started` merged log is not recovered
-   (spy on `recover_eval_log`); after a successful retry with
-   `retry_cleanup`, the merged log (`started` and `error` cases) and its
-   companion stay, the unsharded `success` is the latest even when the
-   merged log has the newer mtime, and a second startup re-merges nothing
-   new; the three-attempt case (merged log, older unsharded `success`,
-   newer unsharded `error`) keeps the newer `error` as latest, keeps the
-   older `success` and the merged log with its companion, and removes
-   nothing else; a group without a merged log orders and cleans exactly as
-   before; a non-latest merged log of each status is kept with its
-   companion; an owned unsharded `started` log in `U` is removed with its
-   buffers and an unowned one is kept (the #5396 rule); a viewer deletion
-   of a merged log (the unchanged `/log-delete`) leaves the companion, and
-   the next startup rebuilds the merged log (the documented limitation);
-   with `retry_cleanup=False` everything stays; no shard
-   header is read outside the merge (spy on `read_eval_log_headers`
-   inputs), while an ordinary log nested in a shard's `scans/` directory is
-   kept in the listing and has its header read like any other log, and
-   marks no companion; a startup merge refusal stops `eval_set()` with
-   `PrerequisiteError` before any task runs, asserted once per category
-   (each with the companion path, the cause and the next step in the
-   message, and the original exception as `__cause__`): a mismatched
-   identifier, overlapping ids, a stray file, a chunked-shape sample, a
-   vanished shard, an attempt regression, an ordinary `<name>.eval` in the
-   way, a held local lock and a stale one, a lost S3 publish race on
-   `mock_s3` (a second merge published between the pass's read and its
-   publish), and a storage error from the listing;
-   `selected_sample_ids` equals `slice_dataset`'s ids for `limit`,
-   `sample_id` and unset-id datasets; a selection-mode worker does not merge;
-   a companion holding only a stray `.eval` (no merged log, no attempt)
-   stops `eval_set()` with `PrerequisiteError` naming the stray file before
-   any task runs, and a companion whose first `<k>/` holds only `scans/`
-   is matched to its task from the attempt in a later `<k>/`;
-   an eval set over the whole dataset writes a merged log with `selection`
-   `"ids"`, and `eval_retry` of it (left `started` by an incomplete shard
-   set) raises `ValueError` naming `eval_set()` and runs no sample;
-   selections that do not cover the shards: an eval set with a `sample_id`
-   and, separately, a `limit` narrower than the ids the shards hold stops
-   with `PrerequisiteError` before any task runs, the message saying the
-   selection is narrower than the shards, naming ids outside it and the
-   ways to proceed, with `ShardSelectionError` as `__cause__` and the
-   merged log unchanged; an eval set whose `sample_id` holds only
-   `task:id` selectors for another task in the set (an empty selection for
-   the sharded task) stops with `PrerequisiteError` naming the task and
-   companion, both when its shards hold samples and when they hold none
-   yet, without calling the merge (a spy).
+6. **Eval-set integration.** `tests/test_eval_set.py`: an eval set over a
+   log directory (with a space in its path) holding two companions stops
+   with `PrerequisiteError` naming both and `inspect log merge-shards`,
+   and writes no log, manifest, viewer or scan output, also with
+   `embed_viewer=True` or a scanner (one shard in a numbered directory,
+   an unreadable older attempt beside it, one stray log directly in a
+   companion); an eval set over a directory with no shard logs runs and,
+   run again, finds its log complete; a legacy retry pass
+   (`retry_immediate=False`) lists the directory again and continues from
+   the failed log the first pass wrote.
 7. **Streaming recomputation.** `tests/log/test_shards.py`: peak memory
    (`tracemalloc`) of a merge over shards with large transcripts and small
    scores does not grow with transcript size; with large score metadata,
@@ -2309,7 +2138,7 @@ Ransom, 2026-09-24).
 | 6 eval-set integration | 5, 5b | 7 |
 | 7 streaming recomputation | 5 | 6 |
 | 8 raw member copy | 5, 7 | 6 |
-| 9 shard deletion | 6 | 7, 8 |
+| 9 shard deletion | 5 | 6, 7, 8 |
 
 1. **Layout and naming helpers** (#530): landed as
    UKGovernmentBEIS/inspect_ai#5541. `src/inspect_ai/_util/log_layout.py`
@@ -2355,12 +2184,12 @@ Ransom, 2026-09-24).
    `limit` selections, fixed per `<k>/`; no `SampleSource` tasks) and the harness notes from the
    parent, merging from Python with the `Task` the shards ran (a shell
    launcher runs a short Python step), removing shards by hand, and the
-   limitations: `eval_retry` refuses a merged log merged with a selection
-   (every one `eval_set()` writes), `INSPECT_EVAL_LOG_FILE_PATTERN` must not
+   limitations: `eval_retry` refuses a merged log merged with a selection,
+   `INSPECT_EVAL_LOG_FILE_PATTERN` must not
    change while a companion exists, and a viewer delete of a merged log
    leaves its companion,
-   whose shards the viewer lists again until the next eval set re-merges
-   them). Depends on 1–4, all landed. Files as listed
+   whose shards the viewer lists again until the companion is merged
+   again). Depends on 1–4, all landed. Files as listed
    plus `log/__init__.py`, `_eval/eval.py`,
    `_util/log_layout.py`, `tests/log/test_log_filename.py`,
    `_control/log_dir/snapshot.py` (ctl keys a shard set with no readable
@@ -2382,17 +2211,12 @@ Designed in [`eval-sharding-merge-cli.md`](eval-sharding-merge-cli.md):
 the command takes `inspect eval`'s task options and resolves the task
 through eval's own task resolution.
 
-6. **Eval-set integration.** Startup merge, `selected_sample_ids`,
-   `skip_shards`, completeness branch, no recovery of merged logs, cleanup
-   ordering that keeps merged logs and their companions in place until
-   PR 9, `docs/eval-sets.qmd` note (including that a superseded merged log
-   and its shards stay until the user removes them,
-   that `eval_retry` refuses an eval set's merged log, and that an eval
-   set whose selection is narrower than its shards, or empty, stops),
-   CHANGELOG entry. Depends on 5 and 5b. Builds on the `owned_run_ids` cleanup
-   landed by #5396. Files:
-   `_eval/evalset.py`, `_eval/eval_set_manifest.py`, `docs/eval-sets.qmd`,
-   `CHANGELOG.md`, `tests/test_eval_set.py`.
+6. **Eval-set integration.** `eval_set()` refuses a log directory that
+   holds a companion ("Eval-set integration"), with a `docs/eval-sets.qmd`
+   note and a note in `docs/sharding.qmd` giving the workflow (merge,
+   retry incomplete shards in place, move the companion out). Depends on 5
+   and 5b. Files: `_eval/evalset.py`, `docs/eval-sets.qmd`,
+   `docs/sharding.qmd`, `tests/test_eval_set.py`.
 7. **Streaming recomputation.** Include-only score extraction, keeping
    the `sample_init` event's data and the invalidation marker, and the
    memory tests. Depends on 5. Files: `log/_shards/_write.py`,
@@ -2404,10 +2228,10 @@ through eval's own task resolution.
    `_util/zipfile.py`, `log/_shards/_write.py`, `tests/util/test_zipfile.py`,
    `tests/log/test_shards.py`.
 9. **Shard deletion.** One rule for removing a merged log's companion,
-   used by the merge (an option) and by eval-set retry cleanup, designed
+   used by the merge (an option), designed
    in this PR, including what is verified before deleting and what a
    partial deletion leaves. Until it lands, the user removes
-   `<name>.shards/` by hand ("Removing shards"). Depends on 6.
+   `<name>.shards/` by hand ("Removing shards"). Depends on 5.
 
 PRs 5 and 6 each carry a CHANGELOG line; 1–4, 7 and 8 are internal or
 performance-only. Each PR reports its
@@ -2415,17 +2239,13 @@ performance-only. Each PR reports its
 
 ## Open questions
 
-None. Resolved by Ransom on 2026-09-24: Step 1 makes no viewer changes, and a refused startup merge
-stops `eval_set()` with `PrerequisiteError` in all cases ("Eval-set
-integration"). Resolved by Ransom on 2026-09-29: the merged header carries
+None. Resolved by Ransom on 2026-09-24: Step 1 makes no viewer changes.
+Resolved by Ransom on 2026-09-29: the merged header carries
 no per-sample data beyond `dataset.sample_ids` (a count and digest per
 shard, attribution by id, the selection in the ordinary header fields).
 This document decides the one case that left open: a shard with no usable
 selection (a `SampleSource` task, or no `sample_ids`) is refused, not
-merged by a fallback ("Validation"). Resolved by Ransom on 2026-10-09:
-an eval set whose selection is narrower than what
-its shards hold, or empty, stops with `PrerequisiteError` ("Eval-set
-integration"). Resolved by Ransom on 2026-10-13: the merged log's
+merged by a fallback ("Validation"). Resolved by Ransom on 2026-10-13: the merged log's
 `task_id` is stable only while the file name pattern is unchanged, with
 no pattern-independent check ("The merged log's `task_id`"). Resolved
 by Ransom on 2026-10-21: a torn shard read fails the merge instead of
@@ -2435,6 +2255,9 @@ PR 9. Resolved by Ransom on 2026-11-04: the merge takes only a built
 `Task`; the merge CLI is step 5b. Resolved by Ransom on 2026-11-04: the
 merge builds no model provider from shard log values and runs metrics and
 reducers in the caller's model context ("Results", "Security").
+Resolved by Ransom with JJ Allaire on 2026-11-18: `eval_set()` does not
+merge shards and refuses a log directory that holds a companion
+("Eval-set integration").
 
 Stale local locks are report-only, as the parent's test list requires; a
 same-host dead-pid check can be added if crashed merges turn out to happen.
@@ -2444,9 +2267,11 @@ same-host dead-pid check can be added if crashed merges turn out to happen.
 - A viewer delete that also removes a merged log's `<name>.shards/`
   companion, with per-object authorization (removed from Step 1 by
   Ransom, 2026-09-24); until then the viewer deletes only the log and the
-  next `eval_set()` startup rebuilds it.
-- Shard deletion through Inspect, by the merge or by eval-set retry
-  cleanup: PR 9, after PR 6, designs one rule ("Implementation plan").
+  next merge of the companion rebuilds it.
+- Shard deletion through Inspect: PR 9 designs one rule ("Implementation
+  plan").
+- Merging shards at `eval_set()` startup (cut by Ransom with JJ Allaire,
+  2026-11-18; "Alternatives considered").
 
 - An exact-key sample selection for `eval_retry` (and `--sample-id`
   generally): the current selector matches normalised patterns, which is

@@ -29,7 +29,7 @@ from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
-    ExecRemoteProcess,
+    ExecOutput,
     ExecRemoteStreamingOptions,
     ExecStderr,
     ExecStdout,
@@ -58,6 +58,12 @@ _PEER_USER_ENV = f"{MODEL_SERVICE.upper()}_PEER_USER"
 
 # Printed by the model proxy (inspect_sandbox_tools/_agent_bridge/proxy.py).
 _LISTENING_PREFIX = "model_proxy: listening on "
+
+_PROXY_STDERR_TAIL_CHARS = 64 * 1024
+"""Characters of the model proxy's latest stderr kept for its error messages."""
+
+_PROXY_STDERR_WARNING_CHARS = 4 * 1024
+"""Characters of the model proxy's first stderr shown in its warning."""
 
 
 @contextlib.asynccontextmanager
@@ -252,6 +258,8 @@ async def sandbox_agent_bridge(
     agent_completed = False
 
     bridge: SandboxAgentBridge | None = None
+    proxy_events: AsyncIterator[ExecOutput] | None = None
+    proxy_stderr = _ProxyStderr()
     try:
         async with anyio.create_task_group() as tg:
             # event to signal startup of model service
@@ -317,7 +325,8 @@ async def sandbox_agent_bridge(
 
             # monitor proxy for unexpected death (and, in a scope, its listening)
             listening = anyio.Event() if scope is not None else None
-            tg.start_soon(_monitor_proxy, proxy, listening)
+            proxy_events = aiter(proxy)
+            tg.start_soon(_monitor_proxy, proxy_events, listening, proxy_stderr)
 
             # monitor for a sample failure requested from the service task
             # (fail_on_refusal, a response filter failure, an invalid approver
@@ -362,6 +371,11 @@ async def sandbox_agent_bridge(
         else:
             # Error occurred before or during agent execution
             raise_unwrapped(ex, inner_exception(ex))
+    finally:
+        if proxy_events is not None:
+            with anyio.CancelScope(shield=True):
+                await _read_remaining_stderr(proxy_events, proxy_stderr)
+            proxy_stderr.warn_at_stop()
     # the agent returned after a failure was requested or a limit was reached
     error = await _error_after_unwind(bridge, None)
     if error is not None:
@@ -468,18 +482,83 @@ async def _monitor_failure(bridge: SandboxAgentBridge) -> None:
     raise bridge._failure
 
 
+class _ProxyStderr:
+    """The model proxy's stderr, as the bridge logs and keeps it.
+
+    The proxy writes to stderr only when something fails, including a request
+    it answers with an error and keeps serving. Every piece is logged at debug
+    level. So that a failure is visible at the default log level without one
+    warning per piece, the first piece is also logged as a warning, cut to its
+    last `_PROXY_STDERR_WARNING_CHARS` characters, and `warn_at_stop` logs the
+    kept tail once more when the bridge stops, if more arrived after the first
+    warning. Only the last `_PROXY_STDERR_TAIL_CHARS` characters are kept.
+    """
+
+    def __init__(self) -> None:
+        self._tail = ""
+        self._truncated = False
+        self._warned = False
+        self._more_since_warning = False
+
+    def add(self, data: str) -> None:
+        """Log a piece of stderr and keep it in the tail."""
+        logger.debug("model_proxy stderr: %s", data.rstrip())
+        if not data.strip():
+            return
+        if self._warned:
+            self._more_since_warning = True
+        else:
+            self._warned = True
+            logger.warning(
+                "Sandbox agent bridge model proxy stderr:\n%s",
+                _last_chars(data.rstrip(), _PROXY_STDERR_WARNING_CHARS),
+            )
+        self._tail += data
+        if len(self._tail) > _PROXY_STDERR_TAIL_CHARS:
+            self._tail = self._tail[-_PROXY_STDERR_TAIL_CHARS:]
+            self._truncated = True
+
+    @property
+    def output(self) -> str:
+        """The kept tail, marked when earlier output was cut."""
+        return (
+            f"[earlier output truncated]\n{self._tail}"
+            if self._truncated
+            else self._tail
+        )
+
+    def warn_at_stop(self) -> None:
+        """Log the kept tail as a warning if stderr arrived after the first warning."""
+        if self._more_since_warning:
+            logger.warning(
+                "Sandbox agent bridge model proxy stderr when the bridge stopped:\n%s",
+                self.output.rstrip(),
+            )
+
+
+def _last_chars(text: str, limit: int) -> str:
+    """The last `limit` characters of `text`, marked when cut."""
+    if len(text) <= limit:
+        return text
+    return f"[earlier output truncated]\n{text[-limit:]}"
+
+
 async def _monitor_proxy(
-    proxy: ExecRemoteProcess, listening: anyio.Event | None = None
+    events: AsyncIterator[ExecOutput],
+    listening: anyio.Event | None = None,
+    stderr: _ProxyStderr | None = None,
 ) -> None:
     """Monitor the proxy process event stream and raise if it dies unexpectedly.
 
     With `listening`, set it when the proxy prints its listening line to stdout,
     which only the proxy process can write; stdout is buffered only until then.
     A proxy that exits before printing it raises, whatever its exit status.
+    Stderr is added to `stderr` (see `_ProxyStderr`), whose kept tail the
+    error messages carry.
     """
-    stderr: list[str] = []
+    stderr = stderr or _ProxyStderr()
     stdout = ""
-    async for event in proxy:
+    while (event := await _next_event(events)) is not None:
         if (
             isinstance(event, ExecStdout)
             and listening is not None
@@ -490,20 +569,44 @@ async def _monitor_proxy(
                 listening.set()
                 stdout = ""
         if isinstance(event, ExecStderr):
-            stderr.append(event.data)
-            logger.debug("model_proxy stderr: %s", event.data.rstrip())
+            stderr.add(event.data)
         if isinstance(event, ExecCompleted):
+            output = stderr.output
             if listening is not None and not listening.is_set():
                 raise RuntimeError(
-                    "Model proxy process exited before it was listening: "
-                    f"{''.join(stderr)}"
+                    f"Model proxy process exited before it was listening: {output}"
                 )
             if not event.success:
                 raise RuntimeError(
-                    f"Model proxy process exited unexpectedly with failure: {''.join(stderr)}."
+                    f"Model proxy process exited unexpectedly with failure: {output}."
                 )
-            if stderr:
-                logger.warning(
-                    "model_proxy stderr output on clean exit:\n%s",
-                    "".join(stderr).rstrip(),
-                )
+
+
+async def _read_remaining_stderr(
+    events: AsyncIterator[ExecOutput], stderr: _ProxyStderr
+) -> None:
+    """Add the proxy stderr `_monitor_proxy` had not read when the bridge stopped.
+
+    The bridge calls this after its task group exits, so the proxy is killed
+    and the monitor has stopped: this is the iterator's only reader. The kill
+    returns the output written since the last poll, such as the traceback of a
+    request that failed just before the agent finished, and the monitor may
+    have stopped before reading it (cancelled, or ended by a poll that answered
+    while the kill was pending). A killed process's iterator yields only that
+    output and makes no further call to the sandbox.
+    """
+    while (event := await _next_event(events)) is not None:
+        if isinstance(event, ExecStderr):
+            stderr.add(event.data)
+
+
+async def _next_event(events: AsyncIterator[ExecOutput]) -> ExecOutput | None:
+    """The next proxy event, or None at the end.
+
+    An `ExecRemoteProcess` can be iterated only once, so the monitor and the
+    bridge's final read share one iterator and step it directly.
+    """
+    try:
+        return await anext(events)
+    except StopAsyncIteration:
+        return None

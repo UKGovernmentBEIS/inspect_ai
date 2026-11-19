@@ -1333,8 +1333,13 @@ async def test_abort_pending_before_error_log_write_keeps_full_log(
 
 def _record_task_display_results(
     monkeypatch: pytest.MonkeyPatch,
+    profiles: dict[str, Any] | None = None,
 ) -> dict[str, list[object]]:
-    """Record each task display's `complete()` results, keyed by task display name."""
+    """Record each task display's `complete()` results, keyed by task display name.
+
+    When `profiles` is given, each task's display profile is stored in it under
+    the same name.
+    """
     import inspect_ai._eval.task.run as task_run_module
     from inspect_ai._display import display as real_display
 
@@ -1361,6 +1366,8 @@ def _record_task_display_results(
 
         @contextmanager
         def task(self, profile: Any) -> Iterator[Any]:
+            if profiles is not None:
+                profiles[profile.name] = profile
             with self.inner.task(profile) as td:
                 yield _RecordingTaskDisplay(td, profile.name)
 
@@ -1807,6 +1814,139 @@ async def test_abort_before_any_log_write_reports_errored_log(
     assert len(displayed["a"]) == 1
     assert isinstance(displayed["a"][0], TaskError)
     assert "cancelled by user (abort)" in str(displayed["a"][0].exc_value)
+
+
+@pytest.mark.anyio
+async def test_unregistered_final_retry_clears_retry_pending(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A final retry that fails before it registers leaves no attempt retry-pending.
+
+    The first attempt registers and errors, so it is flagged retry-pending.
+    The retry's `log_start` fails before `register_eval`, with no retry
+    left. Once the task has ended, the first attempt is no longer flagged,
+    and a task cancel or drain reports the task finished rather than
+    abandoning a retry that will not run.
+    """
+    from inspect_ai import eval_async
+    from inspect_ai._control.cancel import cancel_task, drain_task
+    from inspect_ai._control.eval_state import get_eval_states
+    from inspect_ai._eval.task.log import TaskLogger
+
+    original_log_start = TaskLogger.log_start
+    starts: list[str] = []
+
+    async def log_start(self: TaskLogger, *args: Any, **kwargs: Any) -> None:
+        starts.append(self.eval.eval_id)
+        if len(starts) == 2:
+            raise RuntimeError("retry log_start failed")
+        await original_log_start(self, *args, **kwargs)
+
+    monkeypatch.setattr(TaskLogger, "log_start", log_start)
+
+    runs: list[str] = []
+    observed: dict[str, Any] = {}
+
+    class _CheckAfterTaskSource(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return [_failing_task("a", runs, failures=1)]
+
+        async def next_tasks(self) -> list[Task] | None:
+            states = [s for s in get_eval_states() if s.task == "a"]
+            observed["registered"] = [s.eval_id for s in states]
+            observed["retry_pending"] = [s.retry_pending for s in states]
+            task_id = states[0].task_id
+            observed["cancel"] = cancel_task(task_id)
+            observed["drain"] = drain_task(task_id)
+            return None
+
+    logs = await eval_async(
+        _CheckAfterTaskSource(),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        task_retry_attempts=1,
+    )
+
+    assert runs == ["a"]
+    assert len(starts) == 2
+    assert len(logs) == 1 and logs[0].status == "error"
+    assert logs[0].eval.eval_id == starts[1]
+    # only the first attempt registered; it is no longer retry-pending
+    assert observed["registered"] == [starts[0]]
+    assert observed["retry_pending"] == [False]
+    for result in (observed["cancel"], observed["drain"]):
+        assert result is not None
+        assert "retry_abandoned" not in result
+        assert result.get("changed") is False
+        assert result.get("reason") == "task already finished"
+
+
+@pytest.mark.anyio
+async def test_retry_abandoned_after_row_opens_completes_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A retry abandoned after its display row opened completes that row as cancelled.
+
+    The retry is abandoned during its `log_start`, after the row opened and
+    before `register_eval`. The task ends with the first attempt's error log,
+    and the row's summary does not point at the retry's discarded log.
+    """
+    from io import StringIO
+
+    from rich.console import Console
+
+    from inspect_ai import eval_async
+    from inspect_ai._control.eval_state import abandon_task_retry
+    from inspect_ai._display.core.display import TaskCancelled, TaskWithResult
+    from inspect_ai._display.core.results import tasks_results
+    from inspect_ai._eval.task.log import TaskLogger
+
+    original_log_start = TaskLogger.log_start
+    starts: list[str] = []
+    locations: list[str] = []
+
+    async def log_start(self: TaskLogger, *args: Any, **kwargs: Any) -> None:
+        starts.append(self.eval.eval_id)
+        locations.append(self.location)
+        await original_log_start(self, *args, **kwargs)
+        if len(starts) == 2:
+            abandon_task_retry(self.eval.task_id)
+
+    monkeypatch.setattr(TaskLogger, "log_start", log_start)
+    profiles: dict[str, Any] = {}
+    displayed = _record_task_display_results(monkeypatch, profiles)
+
+    runs: list[str] = []
+    logs = await eval_async(
+        _failing_task("a", runs, failures=1),
+        model="mockllm/model",
+        log_dir=str(tmp_path),
+        task_retry_attempts=1,
+    )
+
+    assert runs == ["a"]
+    assert len(starts) == 2
+    assert len(logs) == 1 and logs[0].status == "error"
+    assert logs[0].eval.eval_id == starts[0]
+    assert sorted(displayed) == ["a", "a (retry 1 of 1)"]
+    assert [type(r) for r in displayed["a"]] == [TaskError]
+    retry_results = displayed["a (retry 1 of 1)"]
+    assert len(retry_results) == 1
+    assert isinstance(retry_results[0], TaskCancelled)
+    assert retry_results[0].samples_completed == 0
+
+    # the retry's log was discarded; its summary names no log
+    assert not Path(locations[1]).exists()
+    retry_profile = profiles["a (retry 1 of 1)"]
+    assert retry_profile.log_location == ""
+    out = StringIO()
+    Console(file=out, width=300).print(
+        tasks_results([TaskWithResult(retry_profile, retry_results[0])])
+    )
+    rendered = out.getvalue()
+    assert "Task interrupted" in rendered
+    assert "Log:" not in rendered
+    assert Path(locations[1]).stem not in rendered
 
 
 @pytest.mark.anyio

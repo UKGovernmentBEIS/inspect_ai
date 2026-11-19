@@ -21,6 +21,8 @@ from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import (
     clear_eval_retry_pending,
+    get_eval_state,
+    latest_eval_for_task,
     mark_eval_retry_pending,
     task_retry_abandoned,
 )
@@ -58,7 +60,6 @@ from inspect_ai._sentinel._config import (
     sentinel_config,
 )
 from inspect_ai._util._async import Wake, unwrap_exception_group
-from inspect_ai._util.environ import environ_vars
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.exception import TaskRetryAbandonedError, TerminateTaskError
 from inspect_ai._util.file import cleanup_s3_sessions
@@ -93,11 +94,13 @@ from inspect_ai.util._sandbox.environment import (
 )
 from inspect_ai.util._sandbox.lifecycle import sandbox_lifecycle_scope
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
+from inspect_ai.util._sandbox.setup import task_init_env
 
 from .loader import (
     as_solver_spec,
     solver_from_spec,
 )
+from .task.enqueue import creator_model_scope
 from .task.log import TaskLogger
 from .task.resolved import ResolvedTask, resolved_task_names
 from .task.run import (
@@ -697,7 +700,10 @@ async def _run_task(options: TaskRunOptions, can_retry: bool = False) -> TaskRun
                     error_after_write = False
                     with task_scope:
                         try:
-                            result = await task_run(options, task_cancel=task_cancel)
+                            with creator_model_scope(options.model):
+                                result = await task_run(
+                                    options, task_cancel=task_cancel
+                                )
                         except TaskRetryAbandonedError:
                             # abandoned at attempt start (a drain/cancel
                             # stamped the retry-abandoned registry between
@@ -1129,8 +1135,17 @@ async def run_task_retry_attempts(
                         # superseded (a retry abandoned before the pre-mark was
                         # never marked, and one abandoned during the log write
                         # was already cleared by the directive; this is a no-op
-                        # then)
-                        clear_eval_retry_pending(result.eval.eval_id)
+                        # then). An attempt that ended before it registered
+                        # (its prior-log seed or log_start failed) has no
+                        # flag of its own: the flag stands on the task's
+                        # latest registered attempt.
+                        registered = get_eval_state(result.eval.eval_id)
+                        if registered is None:
+                            registered = latest_eval_for_task(
+                                options.logger.eval.task_id
+                            )
+                        if registered is not None:
+                            clear_eval_retry_pending(registered.eval_id)
 
                     # Retry source selection needs the recorder's write state.
                     # Once no retry follows, release any unfinished entry even
@@ -1269,7 +1284,7 @@ class SandboxManager:
         self._launch_dir = launch_dir
         self._started: Set[TaskSandboxEnvironment] = set()
         self._cleanups: list[
-            tuple[TaskCleanup, SandboxEnvironmentConfigType | None, str, Context]
+            tuple[TaskCleanup, SandboxEnvironmentConfigType | None, Context]
         ] = []
         self._init_lock = anyio.Lock()
         self._lifecycle: ExitStack | None = None
@@ -1356,7 +1371,12 @@ class SandboxManager:
             sandboxenv: TaskSandboxEnvironment | None = None
             cache_key: tuple[Task, SandboxEnvironmentSpec] | None = None
             if not sample.metadata:
-                spec = await resolve_sandbox(task.sandbox, sample, task.task.name)
+                spec = await resolve_sandbox(
+                    task.sandbox,
+                    sample,
+                    task.task.name,
+                    task_dir=task_run_dir(task.task, self._launch_dir),
+                )
                 if spec is None:
                     continue
                 cache_key = (task.task, spec)
@@ -1414,16 +1434,18 @@ class SandboxManager:
                     task_cleanup = cast(
                         TaskCleanup, getattr(sandboxenv_type, "task_cleanup")
                     )
-                    with chdir(sandboxenv.run_dir), environ_vars(dict(sandboxenv.env)):
-                        await _run_in_context(
-                            self._chain,
-                            functools.partial(
-                                task_init, "startup", sandboxenv.sandbox.config
-                            ),
-                            on_return=functools.partial(
-                                self._register_setup, sandboxenv, task_cleanup
-                            ),
-                        )
+                    await _run_in_context(
+                        self._chain,
+                        functools.partial(
+                            _task_init_startup,
+                            task_init,
+                            sandboxenv.sandbox.config,
+                            dict(sandboxenv.env),
+                        ),
+                        on_return=functools.partial(
+                            self._register_setup, sandboxenv, task_cleanup
+                        ),
+                    )
 
                 # provide some space above task display ("none" has no task
                 # display and must keep stdout machine-readable, e.g. --json)
@@ -1440,9 +1462,7 @@ class SandboxManager:
         self._chain = context
         self.bindings.record(sandboxenv, context)
         self._started.add(sandboxenv)
-        self._cleanups.append(
-            (task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir, context)
-        )
+        self._cleanups.append((task_cleanup, sandboxenv.sandbox.config, context))
 
     async def shutdown(self) -> None:
         """Run every accumulated `task_cleanup`, then release the lifecycle state.
@@ -1455,14 +1475,13 @@ class SandboxManager:
             try:
                 for cleanup_jobs in self._cleanups:
                     try:
-                        cleanup_fn, config, task_run_dir, context = cleanup_jobs
-                        with chdir(task_run_dir):
-                            await _run_in_context(
-                                context,
-                                functools.partial(
-                                    cleanup_fn, "shutdown", config, self._cleanup
-                                ),
-                            )
+                        cleanup_fn, config, context = cleanup_jobs
+                        await _run_in_context(
+                            context,
+                            functools.partial(
+                                cleanup_fn, "shutdown", config, self._cleanup
+                            ),
+                        )
                     except BaseException as ex:
                         log.warning(
                             f"Error occurred shutting down sandbox environments: {exception_message(ex)}"
@@ -1471,6 +1490,21 @@ class SandboxManager:
                 if self._lifecycle is not None:
                     self._lifecycle.close()
                     self._lifecycle = None
+
+
+async def _task_init_startup(
+    task_init: TaskInit,
+    config: SandboxEnvironmentConfigType | None,
+    env: dict[str, str],
+) -> None:
+    """Run a startup `task_init` with its `task_init_environment` values.
+
+    The values are set in the setup state that Docker's `task_init` reads,
+    inside the child task `_run_in_context` starts, and reset before its
+    context is recorded as the setup's bindings.
+    """
+    with task_init_env(env):
+        await task_init("startup", config)
 
 
 async def _run_in_context(
