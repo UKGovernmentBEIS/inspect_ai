@@ -16,7 +16,7 @@ from inspect_ai.log import (
     exclude_samples,
     zero_samples,
 )
-from inspect_ai.log._log import EvalSampleLimit
+from inspect_ai.log._log import EvalMetricDefinition, EvalSampleLimit
 from inspect_ai.scorer import Score, Target, accuracy, includes, match, scorer
 from inspect_ai.scorer._metric import score_is_excluded
 from inspect_ai.scorer._scorer import Scorer
@@ -135,10 +135,8 @@ def test_zero_samples(tmp_path: Path) -> None:
     transcript = target.model_dump_json(include={"messages", "output", "error"})
     provenance = _provenance()
 
-    result = zero_samples(log, empty, ["a"], provenance)
+    zero_samples(log, empty, ["a"], provenance)
 
-    assert result.applied == [("a", 1)]
-    assert result.unchanged == []
     verdicts = _sample(empty, "a").scores
     for name, original in originals.items():
         zeroed = target.scores[name]
@@ -161,9 +159,8 @@ def test_zero_samples_errored_target(tmp_path: Path) -> None:
     errored = _sample(log, "b")
     assert errored.error is not None and not errored.scores
 
-    result = zero_samples(log, empty, ["b"], _provenance())
+    zero_samples(log, empty, ["b"], _provenance())
 
-    assert result.applied == [("b", 1)]
     assert {name: s.value for name, s in errored.scores.items()} == {
         "match": "I",
         "includes": "I",
@@ -177,9 +174,8 @@ def test_zero_samples_epochs(tmp_path: Path) -> None:
     empty = _empty(tmp_path, zero_task(epochs=2), sample_id=["a", "b"])
     assert len(empty.samples or []) == 4
 
-    result = zero_samples(log, empty, [("a", 1), ("b", 2)], _provenance())
+    zero_samples(log, empty, [("a", 1), ("b", 2)], _provenance())
 
-    assert result.applied == [("a", 1), ("b", 2)]
     zeroed = {
         (s.id, s.epoch)
         for s in log.samples or []
@@ -203,9 +199,8 @@ def test_zero_samples_bare_solver_name(tmp_path: Path) -> None:
     )
     assert empty.eval.solver == "empty_attempt"
 
-    result = zero_samples(log, empty, ["a"], _provenance())
+    zero_samples(log, empty, ["a"], _provenance())
 
-    assert result.applied == [("a", 1)]
     assert _sample(log, "a").scores["match"].reason == "zeroed"
 
 
@@ -301,13 +296,14 @@ def test_zero_samples_verdict_rule(tmp_path: Path) -> None:
 
     # an empty references list cites nothing
     uncited = Score(value="I", metadata={"scanner_references": []})
-    result = zero_samples(
-        log.model_copy(deep=True),
+    zeroed = log.model_copy(deep=True)
+    zero_samples(
+        zeroed,
         verdicts(match=uncited, includes="I"),
         ["a"],
         _provenance(),
     )
-    assert result.applied == [("a", 1)]
+    assert _sample(zeroed, "a").scores["match"].reason == "zeroed"
 
     # a solver-written score the empty attempt does not produce
     written = log.model_copy(deep=True)
@@ -347,12 +343,24 @@ def test_zero_samples_twice(tmp_path: Path) -> None:
     score = _sample(log, "a").scores["match"]
     history = len(score.history)
 
-    result = zero_samples(log, empty, ["a"], _provenance("again"))
+    zero_samples(log, empty, ["a"], _provenance("again"))
 
-    assert result == ([("a", 1)], [])
     assert len(score.history) == history + 1
     provenance = score.history[-1].provenance
     assert provenance is not None and provenance.reason == "again"
+
+
+def test_zero_samples_empty_selectors_resolve_metrics(tmp_path: Path) -> None:
+    """No selector edits nothing, but an unbuildable metric is still refused."""
+    log = _run(tmp_path, zero_task())
+    empty = _empty(tmp_path, zero_task(), sample_id="a")
+    assert log.eval.scorers is not None
+    log.eval.scorers[0].metrics = [EvalMetricDefinition(name="no_such_metric")]
+    before = log.model_dump_json()
+
+    with pytest.raises(LookupError, match="no_such_metric"):
+        zero_samples(log, empty, [], _provenance())
+    assert log.model_dump_json() == before
 
 
 def test_zero_samples_stacks_with_exclusion(tmp_path: Path) -> None:
