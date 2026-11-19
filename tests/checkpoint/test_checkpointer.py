@@ -14,7 +14,7 @@ import json
 import logging
 import os
 import tempfile
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -1529,7 +1529,7 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
         resume_checkpoint=None,
     )
     for event in events:
-        cp._track_transcript_event(event)
+        cp._track_transcript_event(event, {})
     await cp._write_host_context(str(work), Store())
 
     assert (work / "events.json").is_file()
@@ -2083,7 +2083,7 @@ async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> No
         store = Store()
         store.set("store_message", msg_sys)
         for event in fire1_events:
-            cp._track_transcript_event(event)
+            cp._track_transcript_event(event, {})
         await cp._write_host_context(str(work), store)
         store_json = json.loads((work / "store.json").read_text())
         agent_state = json.loads((work / "agent_state.json").read_text())
@@ -2101,7 +2101,7 @@ async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> No
         assert len(events_after_1) == 2
 
         for event in fire2_events:
-            cp._track_transcript_event(event)
+            cp._track_transcript_event(event, {})
         await cp._write_host_context(str(work), Store())
         pool_after_2 = json.loads((work / "events_data.json").read_text())["messages"]
         events_after_2 = json.loads((work / "events.json").read_text())
@@ -2266,7 +2266,7 @@ async def test_fire_retains_attachment_from_evicted_event(
         "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
         return_value=transcript,
     ):
-        transcript._subscribe(cp._track_transcript_event)
+        transcript._subscribe_store(cp._track_transcript_event)
         transcript._event(evicted)
         transcript._event(InfoEvent(data="resident"))
 
@@ -2361,11 +2361,11 @@ async def test_checkpointer_setup_reconstruct_preserves_transcript_store(
     ):
         async with setup as first:
             assert isinstance(first, _EnteredCheckpointer)
-            first._track_transcript_event(InfoEvent(data="first"))
+            first._track_transcript_event(InfoEvent(data="first"), {})
 
         async with setup as second:
             assert isinstance(second, _EnteredCheckpointer)
-            second._track_transcript_event(InfoEvent(data="second"))
+            second._track_transcript_event(InfoEvent(data="second"), {})
             work = tmp_path / "snapshot"
             work.mkdir()
             await second._write_host_context(str(work), Store())
@@ -2557,7 +2557,7 @@ async def test_resume_ignores_transcript_store_restored_into_context_dir(
     ):
         cp = await setup.__aenter__()
         assert isinstance(cp, _EnteredCheckpointer)
-        cp._track_transcript_event(InfoEvent(data="new"))
+        cp._track_transcript_event(InfoEvent(data="new"), {})
         snapshot = tmp_path / "snapshot"
         snapshot.mkdir()
         await cp._write_host_context(str(snapshot), Store())
@@ -2603,10 +2603,12 @@ def test_resume_seed_skips_restored_resident_events(
 def test_checkpointer_tracks_event_emitted_during_history_export(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    callbacks: list[Callable[[Event], None]] = []
+    callbacks: list[Callable[[Event, Mapping[str, str]], None]] = []
     emitted = InfoEvent(uuid="during-seed", data="during-seed")
 
-    def subscribe(callback: Callable[[Event], None]) -> Callable[[], None]:
+    def subscribe(
+        callback: Callable[[Event, Mapping[str, str]], None],
+    ) -> Callable[[], None]:
         callbacks.append(callback)
         return lambda: callbacks.remove(callback)
 
@@ -2615,7 +2617,7 @@ def test_checkpointer_tracks_event_emitted_during_history_export(
             self, transcript_store: TranscriptEventStore
         ) -> int:
             for callback in callbacks:
-                callback(emitted)
+                callback(emitted, {})
             return 0
 
     class History:
@@ -2631,7 +2633,9 @@ def test_checkpointer_tracks_event_emitted_during_history_export(
         def __init__(self, provider: Provider) -> None:
             self.history = History(provider)
 
-        def _subscribe(self, callback: Callable[[Event], None]) -> Callable[[], None]:
+        def _subscribe_store(
+            self, callback: Callable[[Event, Mapping[str, str]], None]
+        ) -> Callable[[], None]:
             return subscribe(callback)
 
     provider = Provider()
@@ -2669,7 +2673,7 @@ async def test_resume_seed_preserves_message_pool_positions(tmp_path: Path) -> N
         hydration=_fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "state1")),
         resume_checkpoint=None,
     )
-    first_cp._track_transcript_event(make_model_event([msg_sys, msg_u1, msg_a1]))
+    first_cp._track_transcript_event(make_model_event([msg_sys, msg_u1, msg_a1]), {})
     await first_cp._write_host_context(str(first_work), Store())
 
     from inspect_ai.util._checkpoint._layout import host_context
@@ -2689,7 +2693,7 @@ async def test_resume_seed_preserves_message_pool_positions(tmp_path: Path) -> N
 
     resumed_work = tmp_path / "resumed"
     resumed_work.mkdir()
-    resumed_cp._track_transcript_event(make_model_event([msg_u2]))
+    resumed_cp._track_transcript_event(make_model_event([msg_u2]), {})
     await resumed_cp._write_host_context(str(resumed_work), Store())
 
     resumed_data = json.loads((resumed_work / "events_data.json").read_text())
@@ -2726,7 +2730,7 @@ async def test_materialize_pooled_model_event_expands_seed_payload(
         hydration=_fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "state")),
         resume_checkpoint=None,
     )
-    cp._track_transcript_event(restored)
+    cp._track_transcript_event(restored, {})
     await cp._write_host_context(str(work), Store())
     cp.close()
 
@@ -2811,7 +2815,7 @@ async def test_resume_delivers_restored_events_with_attachments_resolved(
     ]
     writer = _make_cp()
     for event in first_attempt:
-        writer._track_transcript_event(event)
+        writer._track_transcript_event(event, {})
     await writer._write_host_context(str(context_dir), Store())
     writer.close()
     _write_checkpoint_files(sample_root, 1)
@@ -2891,6 +2895,236 @@ async def test_resume_delivers_restored_events_with_attachments_resolved(
     assert "attachment://" not in next_json
     for content in (prompt, answer, command, image, tool_image):
         assert content in next_json
+
+
+async def test_resume_keeps_literal_reference_text(tmp_path: Path) -> None:
+    """Text that names one of the sample's attachments reads back as written after a resume.
+
+    The checkpoint transcript store takes the run's events as the transcript
+    gives them to subscribers that keep their own attachment store. The
+    resume restores them, and the finished sample, the sample buffer and the
+    next checkpoint keep the literal, while the pooled system prompt still
+    resolves.
+    """
+    from types import SimpleNamespace
+
+    from inspect_ai._util.hash import mm3_hash
+    from inspect_ai.event._pool import materialize_pooled_events
+    from inspect_ai.log._condense import (
+        ATTACHMENT_PROTOCOL,
+        condense_sample,
+        mark_attachments_resolved,
+        resolve_events_attachments,
+        resolve_sample_attachments,
+    )
+    from inspect_ai.log._log import EvalSample, EvalSampleSummary
+    from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+    from inspect_ai.log._recorders.types import SampleEvent
+    from inspect_ai.log._recover._reconstruct import reconstruct_events
+    from inspect_ai.log._transcript import _transcript
+    from inspect_ai.model._model import get_model
+    from inspect_ai.util._checkpoint._layout import host_context
+    from inspect_ai.util._checkpoint.hydrate import _load_host_state, _push_host_state
+
+    prompt = "You are a careful assistant who answers in full. " * 4
+    literal = f"{ATTACHMENT_PROTOCOL}{mm3_hash(prompt)}"
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", literal)],
+        memoize=False,
+    )
+
+    def assert_literals(events: list[Event]) -> None:
+        [event] = [e for e in events if isinstance(e, ModelEvent)]
+        assert [message.text for message in event.input] == [prompt, literal]
+        assert event.output.message.text == literal
+        assert event.call is not None
+        request_messages = event.call.request["messages"]
+        assert isinstance(request_messages, list)
+        assert [
+            message["content"]
+            for message in request_messages
+            if isinstance(message, dict)
+        ] == [prompt, literal]
+        assert event.call.response == {"content": literal}
+
+    # the first attempt commits checkpoint 1 holding the model call
+    sample_root = tmp_path / "sample"
+    context_dir = sample_root / "context"
+    context_dir.mkdir(parents=True)
+    live = Transcript(log_model_api=True)
+    writer = _make_cp()
+    live._subscribe_store(writer._track_transcript_event)
+    token = _transcript.set(None)
+    try:
+        init_transcript(live)
+        live._event(
+            SpanBeginEvent(id="checkpoint-1", name="checkpoint 1", type="checkpoint")
+        )
+        await model.generate(
+            [ChatMessageSystem(content=prompt), ChatMessageUser(content=literal)]
+        )
+        live._event(SpanEndEvent(id="checkpoint-1"))
+    finally:
+        _transcript.reset(token)
+    await writer._write_host_context(str(context_dir), Store())
+    writer.close()
+    _write_checkpoint_files(sample_root, 1)
+
+    # the resume restores it into a transcript the sample buffer subscribes to
+    resumed = Transcript(log_model_api=True)
+    buffer = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    buffer.start_sample(EvalSampleSummary(id="s1", epoch=1, input="in", target="t"))
+    resumed._subscribe_store(
+        lambda e, attachments: buffer.log_events(
+            [SampleEvent(id="s1", epoch=1, event=e)], attachments
+        )
+    )
+    token = _transcript.set(None)
+    try:
+        init_transcript(resumed)
+        host = _load_host_state(str(context_dir), str(sample_root), 1, None)
+        with patch(
+            "inspect_ai.util._checkpoint.hydrate.sample_state",
+            return_value=SimpleNamespace(store=Store()),
+        ):
+            _push_host_state(host, str(sample_root), 1)
+
+        # the next checkpoint is seeded from the restored events
+        hydration = _fake_hydration(str(sample_root), str(tmp_path / "resumed-state"))
+        hydration.host = host
+        resumed_cp = _EnteredCheckpointer(
+            config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
+            hydration=hydration,
+            resume_checkpoint=ResumeCheckpoint(attempt="resume"),
+        )
+        snapshot = tmp_path / "snapshot"
+        snapshot.mkdir()
+        await resumed_cp._write_host_context(str(snapshot), Store())
+        resumed_cp.close()
+    finally:
+        _transcript.reset(token)
+
+    # the finished sample
+    sample = mark_attachments_resolved(
+        EvalSample(
+            id="s1",
+            epoch=1,
+            input="in",
+            target="t",
+            events=list(resumed.events),
+            attachments=dict(resumed.attachments),
+        ),
+        "core",
+    )
+    assert_literals(resolve_sample_attachments(condense_sample(sample), "full").events)
+
+    # the sample buffer
+    data = buffer.get_sample_data("s1", 1)
+    assert data is not None
+    buffered = {attachment.hash: attachment.content for attachment in data.attachments}
+    assert_literals(
+        resolve_events_attachments(reconstruct_events(data), buffered, "full")
+    )
+
+    # the next checkpoint
+    next_context = host_context.read(str(snapshot))
+    assert_literals(
+        resolve_events_attachments(
+            materialize_pooled_events(
+                next_context.condensed_events,
+                next_context.msg_pool,
+                next_context.call_pool,
+            ),
+            next_context.attachments,
+            "full",
+        )
+    )
+
+
+@pytest.mark.parametrize("source", ["resident", "buffer"])
+async def test_checkpoint_seed_keeps_literal_reference_text(
+    tmp_path: Path, source: Literal["resident", "buffer"]
+) -> None:
+    """Seeding the checkpoint transcript store keeps literals and genuine references.
+
+    The store is seeded from the transcript's resident events, or from the
+    sample buffer once a bounded transcript has evicted events.
+    """
+    from inspect_ai._util.hash import mm3_hash
+    from inspect_ai.event._pool import materialize_pooled_events
+    from inspect_ai.log._condense import (
+        ATTACHMENT_PROTOCOL,
+        resolve_events_attachments,
+    )
+    from inspect_ai.log._log import EvalSampleSummary
+    from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+    from inspect_ai.log._recorders.buffer.transcript_history_provider import (
+        BufferTranscriptHistoryProvider,
+    )
+    from inspect_ai.log._recorders.types import SampleEvent
+    from inspect_ai.log._transcript import _transcript
+    from inspect_ai.model._model import get_model
+    from inspect_ai.util._checkpoint._layout import host_context
+
+    prompt = "You are a careful assistant who answers in full. " * 4
+    literal = f"{ATTACHMENT_PROTOCOL}{mm3_hash(prompt)}"
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content("mockllm/model", literal)],
+        memoize=False,
+    )
+    buffer = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    buffer.start_sample(EvalSampleSummary(id="s1", epoch=1, input="in", target="t"))
+    live = Transcript(
+        log_model_api=True,
+        bounded=source == "buffer",
+        resident_tail=1,
+        history_provider=BufferTranscriptHistoryProvider(buffer, "s1", 1),
+    )
+    live._subscribe_store(
+        lambda e, attachments: buffer.log_events(
+            [SampleEvent(id="s1", epoch=1, event=e)], attachments
+        )
+    )
+    token = _transcript.set(None)
+    try:
+        init_transcript(live)
+        await model.generate(
+            [ChatMessageSystem(content=prompt), ChatMessageUser(content=literal)]
+        )
+        live._event(InfoEvent(data="later"))
+        assert live.history.resident_events_truncated == (source == "buffer")
+
+        cp = _make_cp()
+        snapshot = tmp_path / "snapshot"
+        snapshot.mkdir()
+        await cp._write_host_context(str(snapshot), Store())
+        cp.close()
+    finally:
+        _transcript.reset(token)
+
+    context = host_context.read(str(snapshot))
+    [event] = [
+        e
+        for e in resolve_events_attachments(
+            materialize_pooled_events(
+                context.condensed_events, context.msg_pool, context.call_pool
+            ),
+            context.attachments,
+            "full",
+        )
+        if isinstance(e, ModelEvent)
+    ]
+    assert [message.text for message in event.input] == [prompt, literal]
+    assert event.output.message.text == literal
+    assert event.call is not None
+    request_messages = event.call.request["messages"]
+    assert isinstance(request_messages, list)
+    assert [
+        message["content"] for message in request_messages if isinstance(message, dict)
+    ] == [prompt, literal]
+    assert event.call.response == {"content": literal}
 
 
 def test_resume_report_defaults_and_coercion() -> None:

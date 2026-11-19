@@ -163,6 +163,7 @@ def test_transcript_event_store_exports_only_referenced_attachments(
     transcript_store.merge_event(
         InfoEvent(data={"blob": "attachment://kept"}),
         attachment_lookup={"kept": "payload", "unused": "ignore me"}.get,
+        condensed=True,
     )
 
     _write_transcript_files(transcript_store, tmp_path)
@@ -182,6 +183,7 @@ def test_transcript_event_store_warns_for_missing_attachment_ref(
         transcript_store.merge_event(
             InfoEvent(data={"blob": "attachment://missing"}),
             attachment_lookup=_no_attachment,
+            condensed=True,
         )
 
     warning.assert_called_once_with(
@@ -206,13 +208,15 @@ def test_transcript_event_store_retains_cumulative_attachments(
     first_event = InfoEvent(data={"blob": "attachment://abc"})
     second_event = InfoEvent(data={"blob": "attachment://def"})
 
-    transcript_store.merge_event(first_event, attachment_lookup={"abc": "payload"}.get)
+    transcript_store.merge_event(
+        first_event, attachment_lookup={"abc": "payload"}.get, condensed=True
+    )
     _write_transcript_files(transcript_store, tmp_path)
 
     assert json.loads((tmp_path / "attachments.json").read_text()) == {"abc": "payload"}
 
     transcript_store.merge_event(
-        second_event, attachment_lookup={"def": "payload2"}.get
+        second_event, attachment_lookup={"def": "payload2"}.get, condensed=True
     )
     _write_transcript_files(transcript_store, tmp_path)
 
@@ -242,9 +246,13 @@ def test_transcript_event_store_retains_attachment_on_event_update(
     transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     event = InfoEvent(data={"blob": "attachment://abc"})
 
-    transcript_store.merge_event(event, attachment_lookup={"abc": "payload"}.get)
+    transcript_store.merge_event(
+        event, attachment_lookup={"abc": "payload"}.get, condensed=True
+    )
     event.data = {"blob": "attachment://abc", "status": "done"}
-    transcript_store.merge_event(event, attachment_lookup=_no_attachment)
+    transcript_store.merge_event(
+        event, attachment_lookup=_no_attachment, condensed=True
+    )
     _write_transcript_files(transcript_store, tmp_path)
 
     assert json.loads((tmp_path / "attachments.json").read_text()) == {"abc": "payload"}

@@ -307,9 +307,12 @@ def _write_sample_streaming(
                 summary, sample_init, attachments
             )
             # Like condense_sample: resolve the buffer's refs, keep text
-            # inline, and pool images as attachments
+            # inline, pool images as attachments, and keep the buffer's
+            # stored literal reference text as an attachment
             messages_fn = existing_attachments_content_fn(
-                attachments, set(), messages_attachment_fn(attachments)
+                attachments.get,
+                set(),
+                messages_attachment_fn(attachments, escape_refs=True),
             )
             walked_input = walk_input(
                 dataset_sample.input, messages_fn, messages_context

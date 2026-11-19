@@ -653,7 +653,9 @@ class _EnteredCheckpointer:
                         continue
                     seeded_event_ids.add(event.uuid)
                     if not self._transcript_store.has_event(event.uuid):
-                        self._transcript_store.merge_event(event, attachment_lookup)
+                        self._transcript_store.merge_event(
+                            event, attachment_lookup, condensed=True
+                        )
             history = ts.history
             if history.resident_events_truncated:
                 history_provider = history.provider
@@ -677,13 +679,15 @@ class _EnteredCheckpointer:
     def _ensure_transcript_subscription(self) -> None:
         if self._transcript_subscription is not None:
             return
-        self._transcript_subscription = transcript()._subscribe(
+        self._transcript_subscription = transcript()._subscribe_store(
             self._track_transcript_event
         )
 
-    def _track_transcript_event(self, event: Event) -> None:
+    def _track_transcript_event(
+        self, event: Event, call_attachments: Mapping[str, str]
+    ) -> None:
         self._transcript_store.merge_event(
-            event, self._attachment_lookup(transcript().attachments)
+            event, self._attachment_lookup(call_attachments)
         )
 
     def _attachment_lookup(

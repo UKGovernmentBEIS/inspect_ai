@@ -454,7 +454,11 @@ async def test_log_sample_streaming_condenses_core_sample_fields_and_merges_hist
 async def test_log_sample_writes_restored_attachment_content_when_events_reduced(
     tmp_path: Path,
 ) -> None:
-    """Preserve attachment content restored outside the buffer when omitting history."""
+    """Preserve attachment content restored outside the buffer when omitting history.
+
+    A model call restored from a checkpoint is condensed, and the buffer keeps
+    a reference in it to an attachment it was not given.
+    """
     attachment_hash = "restoredhash"
     restored_content = _long_content()
     restored_ref = f"attachment://{attachment_hash}"
@@ -488,18 +492,20 @@ async def test_log_sample_writes_restored_attachment_content_when_events_reduced
     )
 
     # Only the transcript holds content for this already-condensed reference.
+    buffered = _model("buffered", "answer")
+    buffered.call = ModelCall(request={}, response={"content": restored_ref})
     _, logged = await _log_sample_with_buffer(
         tmp_path,
         eval_sample,
-        [InfoEvent(uuid="buffered", data={"content": restored_ref})],
+        [buffered],
         log_images=True,
         materialize_full_sample=False,
     )
 
     logged_event = logged.events[0]
-    assert isinstance(logged_event, InfoEvent)
-    assert isinstance(logged_event.data, dict)
-    assert logged_event.data["content"] == restored_ref
+    assert isinstance(logged_event, ModelEvent)
+    assert logged_event.call is not None
+    assert logged_event.call.response == {"content": restored_ref}
 
     assert logged.attachments[attachment_hash] == restored_content
 
