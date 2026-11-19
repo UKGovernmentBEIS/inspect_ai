@@ -6,15 +6,32 @@ the trigger is a solver (the simplest in-run caller); the ergonomic trigger
 surface — hooks, a callback, etc. — is layered on top and tested separately.
 """
 
+import os
+from pathlib import Path
+
+import anyio
 import pytest
 
-from inspect_ai import Task, eval, task
+from inspect_ai import SampleSource, Task, eval, eval_async, eval_retry, task
 from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.enqueue import enqueue_task
+from inspect_ai._eval.task.task import PreviousTask
 from inspect_ai._util.content import ContentImage
+from inspect_ai._util.registry import _registry
 from inspect_ai.dataset import Sample
+from inspect_ai.hooks import Hooks, SampleEnd, TaskEnd, TaskStart, hooks
+from inspect_ai.log import (
+    EnqueueTaskOrigin,
+    EvalLog,
+    EvalSample,
+    list_eval_logs,
+    read_eval_log,
+)
 from inspect_ai.model import ChatMessageUser, get_model
+from inspect_ai.scorer import Score, Target, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
+from inspect_ai.util import throttle
+from inspect_ai.util._display import init_display_type
 
 
 @task
@@ -242,3 +259,469 @@ def test_enqueue_task_does_not_leak_active_model() -> None:
 def test_enqueue_task_outside_run_raises() -> None:
     with pytest.raises(RuntimeError, match="while an eval is running"):
         enqueue_task(child())
+
+
+def _logs_by_task(logs: list[EvalLog]) -> dict[str, EvalLog]:
+    by_task = {log.eval.task: log for log in logs}
+    assert len(by_task) == len(logs), "task names must be unique"
+    return by_task
+
+
+async def test_enqueued_task_records_creating_task() -> None:
+    @solver
+    def enqueue_named_child():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            enqueue_task(
+                Task(
+                    dataset=[Sample(input="hi")],
+                    name=f"child-{state.sample_id}-{state.epoch}",
+                )
+            )
+            return state
+
+        return solve
+
+    parent = Task(
+        dataset=[Sample(id=1, input="hi"), Sample(id="b", input="hi")],
+        solver=[enqueue_named_child()],
+        epochs=2,
+        name="parent",
+    )
+
+    init_display_type("none")
+    logs = _logs_by_task(await eval_async(parent, model="mockllm/model"))
+
+    parent_spec = logs.pop("parent").eval
+    assert parent_spec.origin is None
+    assert {name: log.eval.origin for name, log in logs.items()} == {
+        f"child-{sample_id}-{epoch}": EnqueueTaskOrigin(
+            eval_id=parent_spec.eval_id,
+            task_id=parent_spec.task_id,
+        )
+        for sample_id in (1, "b")
+        for epoch in (1, 2)
+    }
+    assert {
+        log.eval.origin.type for log in logs.values() if log.eval.origin is not None
+    } == {"enqueue_task"}
+
+
+def test_enqueue_task_from_scorer_records_task() -> None:
+    @scorer(metrics=[])
+    def enqueue_from_scorer():
+        async def score(state: TaskState, target: Target) -> Score:
+            enqueue_task(child())
+            return Score(value=1)
+
+        return score
+
+    parent = Task(
+        dataset=[Sample(id="s", input="hi")],
+        scorer=enqueue_from_scorer(),
+        name="parent",
+    )
+
+    logs = _logs_by_task(eval(parent, model="mockllm/model", display="none"))
+    assert logs["child"].eval.origin == EnqueueTaskOrigin(
+        eval_id=logs["parent"].eval.eval_id,
+        task_id=logs["parent"].eval.task_id,
+    )
+
+
+def test_nested_enqueued_tasks_record_their_own_creator() -> None:
+    @solver
+    def spawn_next(depth: int):
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if depth > 0:
+                enqueue_task(
+                    Task(
+                        dataset=[Sample(id="x", input="hi")],
+                        solver=[spawn_next(depth - 1)],
+                        name=f"gen{depth - 1}",
+                    )
+                )
+            return state
+
+        return solve
+
+    parent = Task(
+        dataset=[Sample(id="x", input="hi")],
+        solver=[spawn_next(2)],
+        name="parent",
+    )
+
+    logs = _logs_by_task(eval(parent, model="mockllm/model", display="none"))
+    assert logs["parent"].eval.origin is None
+    for name, creator in (("gen1", "parent"), ("gen0", "gen1")):
+        origin = logs[name].eval.origin
+        assert origin is not None
+        assert origin.eval_id == logs[creator].eval.eval_id
+        assert origin.task_id == logs[creator].eval.task_id
+
+
+def test_enqueue_task_from_sample_source_records_task() -> None:
+    # next_samples() runs in the task outside any sample, sample_complete() in
+    # the completed sample's context; both are the task's own code
+    enqueued = False
+
+    async def next_samples() -> list[Sample] | None:
+        nonlocal enqueued
+        if not enqueued:
+            enqueued = True
+            enqueue_task(Task(dataset=[Sample(input="hi")], name="from-next-samples"))
+        return None
+
+    async def sample_complete(sample: EvalSample) -> list[Sample] | None:
+        enqueue_task(Task(dataset=[Sample(input="hi")], name="from-sample-complete"))
+        return None
+
+    parent = Task(
+        dataset=SampleSource.from_samples(
+            [Sample(id="seed", input="hi")],
+            next_samples=next_samples,
+            sample_complete=sample_complete,
+        ),
+        name="parent",
+    )
+
+    logs = _logs_by_task(eval(parent, model="mockllm/model", display="none"))
+    parent_spec = logs["parent"].eval
+    assert logs["from-next-samples"].eval.origin == EnqueueTaskOrigin(
+        eval_id=parent_spec.eval_id, task_id=parent_spec.task_id
+    )
+    assert logs["from-sample-complete"].eval.origin == EnqueueTaskOrigin(
+        eval_id=parent_spec.eval_id, task_id=parent_spec.task_id
+    )
+
+
+def test_enqueued_task_records_creator_per_model() -> None:
+    parent = Task(
+        dataset=[Sample(id="p", input="hi")],
+        solver=[enqueue_child()],
+        name="parent",
+    )
+
+    logs = eval(parent, model=["mockllm/model", "mockllm/model2"], display="none")
+
+    parents = {log.eval.model: log.eval for log in logs if log.eval.task == "parent"}
+    children = [log.eval for log in logs if log.eval.task == "child"]
+    assert len(parents) == 2
+    # the creating sample adds the child for every model in the run; each
+    # child records the parent eval that added it
+    creators = sorted(
+        (spec.model, spec.origin.eval_id)
+        for spec in children
+        if spec.origin is not None
+    )
+    assert len(creators) == len(children) == 4
+    assert {eval_id for _, eval_id in creators} == {
+        spec.eval_id for spec in parents.values()
+    }
+
+
+class _EnqueueFromHooks(Hooks):
+    """Adds a task from sample and task hooks (of the `parent` task)."""
+
+    async def on_task_start(self, data: TaskStart) -> None:
+        if data.spec.task == "parent":
+            enqueue_task(Task(dataset=[Sample(input="hi")], name="from-on-task-start"))
+
+    async def on_sample_end(self, data: SampleEnd) -> None:
+        if data.sample.id == "parent-sample":
+            enqueue_task(Task(dataset=[Sample(input="hi")], name="from-on-sample-end"))
+
+    async def on_task_end(self, data: TaskEnd) -> None:
+        if data.log.eval.task == "parent":
+            enqueue_task(Task(dataset=[Sample(input="hi")], name="from-on-task-end"))
+
+
+async def test_enqueue_task_from_hooks_records_task() -> None:
+    @hooks("enqueue_from_hooks", description="enqueue_task() from hooks")
+    def enqueue_from_hooks() -> type[_EnqueueFromHooks]:
+        return _EnqueueFromHooks
+
+    parent = Task(
+        dataset=[Sample(id="parent-sample", input="hi")],
+        solver=[enqueue_child()],
+        name="parent",
+    )
+    init_display_type("none")
+    try:
+        logs = _logs_by_task(await eval_async(parent, model="mockllm/model"))
+    finally:
+        del _registry["hooks:enqueue_from_hooks"]
+
+    # hooks Inspect calls within the parent's context record it, as its own
+    # solver does
+    parent_origin = EnqueueTaskOrigin(
+        eval_id=logs["parent"].eval.eval_id, task_id=logs["parent"].eval.task_id
+    )
+    assert logs["from-on-task-start"].eval.origin == parent_origin
+    assert logs["from-on-sample-end"].eval.origin == parent_origin
+    assert logs["from-on-task-end"].eval.origin == parent_origin
+    assert logs["child"].eval.origin == parent_origin
+
+
+@solver
+def fail_first_run() -> Solver:
+    """Fails until the file named by ``FLAKY_CHILD_MARKER`` exists, creating it.
+
+    A file rather than module state, since a retry loads the task's file anew.
+    """
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        marker = Path(os.environ["FLAKY_CHILD_MARKER"])
+        if not marker.exists():
+            marker.touch()
+            raise RuntimeError("first run fails")
+        return state
+
+    return solve
+
+
+@task
+def flaky_child() -> Task:
+    return Task(dataset=[Sample(id="c", input="hi")], solver=[fail_first_run()])
+
+
+def test_retried_creating_task_records_each_attempt(tmp_path: Path) -> None:
+    # each attempt of a task retried within the run is its own eval; a task an
+    # attempt adds records that attempt's eval_id and the shared task_id
+    marker = tmp_path / "failed-once"
+
+    @solver
+    def enqueue_then_fail_first_run() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            attempt = 2 if marker.exists() else 1
+            enqueue_task(
+                Task(dataset=[Sample(input="hi")], name=f"child-of-attempt-{attempt}")
+            )
+            if attempt == 1:
+                marker.touch()
+                raise RuntimeError("first run fails")
+            return state
+
+        return solve
+
+    parent = Task(
+        dataset=[Sample(id="p", input="hi")],
+        solver=[enqueue_then_fail_first_run()],
+        name="parent",
+    )
+    log_dir = tmp_path / "logs"
+    eval(
+        parent,
+        model="mockllm/model",
+        display="none",
+        log_dir=str(log_dir),
+        task_retry_attempts=1,
+    )
+
+    headers = [
+        read_eval_log(info, header_only=True) for info in list_eval_logs(str(log_dir))
+    ]
+    parents = {log.status: log.eval for log in headers if log.eval.task == "parent"}
+    children = {log.eval.task: log.eval for log in headers if log.eval.task != "parent"}
+    assert sorted(parents) == ["error", "success"]
+    assert parents["error"].task_id == parents["success"].task_id
+    assert children["child-of-attempt-1"].origin == EnqueueTaskOrigin(
+        eval_id=parents["error"].eval_id, task_id=parents["error"].task_id
+    )
+    assert children["child-of-attempt-2"].origin == EnqueueTaskOrigin(
+        eval_id=parents["success"].eval_id, task_id=parents["success"].task_id
+    )
+
+
+def test_task_retry_in_run_keeps_origin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("FLAKY_CHILD_MARKER", str(tmp_path / "failed-once"))
+
+    @solver
+    def enqueue_flaky_child() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            enqueue_task(flaky_child())
+            return state
+
+        return solve
+
+    parent = Task(
+        dataset=[Sample(id="p", input="hi")],
+        solver=[enqueue_flaky_child()],
+        name="parent",
+    )
+    log_dir = tmp_path / "logs"
+    logs = _logs_by_task(
+        eval(
+            parent,
+            model="mockllm/model",
+            display="none",
+            log_dir=str(log_dir),
+            task_retry_attempts=1,
+        )
+    )
+
+    expected = EnqueueTaskOrigin(
+        eval_id=logs["parent"].eval.eval_id,
+        task_id=logs["parent"].eval.task_id,
+    )
+    assert logs["flaky_child"].status == "success"
+    assert logs["flaky_child"].eval.origin == expected
+    # the failed attempt's log records the same creator
+    attempts = [
+        read_eval_log(info, header_only=True) for info in list_eval_logs(str(log_dir))
+    ]
+    child_attempts = [log for log in attempts if log.eval.task == "flaky_child"]
+    assert sorted(log.status for log in child_attempts) == ["error", "success"]
+    assert all(log.eval.origin == expected for log in child_attempts)
+
+
+@pytest.mark.parametrize("first_run", ["enqueued", "given"])
+def test_enqueue_previous_task_keeps_origin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, first_run: str
+) -> None:
+    # a retry submitted to enqueue_task() as a PreviousTask keeps the origin
+    # of the log it retries (an EnqueueTaskOrigin, or None for a task the run
+    # was given), not the task that submitted it
+    monkeypatch.setenv("FLAKY_CHILD_MARKER", str(tmp_path / "failed-once"))
+    log_dir = str(tmp_path / "logs")
+
+    @solver
+    def enqueue_flaky_child() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            enqueue_task(flaky_child())
+            return state
+
+        return solve
+
+    first = _logs_by_task(
+        eval(
+            Task(
+                dataset=[Sample(input="hi")],
+                solver=[enqueue_flaky_child()],
+                name="parent",
+            )
+            if first_run == "enqueued"
+            else flaky_child(),
+            model="mockllm/model",
+            display="none",
+            log_dir=log_dir,
+        )
+    )
+    failed = first["flaky_child"]
+    assert failed.status == "error"
+    assert (failed.eval.origin is None) == (first_run == "given")
+
+    @solver
+    def enqueue_retry() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            enqueue_task(
+                PreviousTask(
+                    id=failed.eval.task_id,
+                    task=flaky_child(),
+                    task_args={},
+                    model=None,
+                    model_roles=None,
+                    sandbox=None,
+                    log=failed,
+                    log_info=None,
+                )
+            )
+            return state
+
+        return solve
+
+    second = _logs_by_task(
+        eval(
+            Task(dataset=[Sample(input="hi")], solver=[enqueue_retry()], name="driver"),
+            model="mockllm/model",
+            display="none",
+            log_dir=log_dir,
+        )
+    )
+    retried = second["flaky_child"]
+    assert retried.status == "success", retried.error
+    assert retried.eval.task_id == failed.eval.task_id
+    assert retried.eval.origin == failed.eval.origin
+
+
+async def test_enqueue_task_from_run_level_background_work_records_no_origin() -> None:
+    # a throttled function's trailing call runs in run-level background work,
+    # outside any task, so a task it adds records no origin; the leading call
+    # runs in the calling task
+    @throttle(0.5)
+    def add_follow_up(name: str) -> None:
+        enqueue_task(Task(dataset=[Sample(input="hi")], name=f"follow-up-{name}"))
+
+    a_scheduled = anyio.Event()
+
+    @solver
+    def call_throttled(name: str) -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if name == "a":
+                add_follow_up("a-leading")  # fires at once, in a's context
+                add_follow_up("a")  # deferred: schedules the trailing call
+                a_scheduled.set()
+            else:
+                with anyio.fail_after(10):
+                    await a_scheduled.wait()
+                add_follow_up("b")  # replaces the trailing call's arguments
+            await anyio.sleep(1.0)  # keep both tasks running past the window
+            return state
+
+        return solve
+
+    init_display_type("none")
+    logs = _logs_by_task(
+        await eval_async(
+            [
+                Task(dataset=[Sample(input="hi")], solver=[call_throttled(n)], name=n)
+                for n in ("a", "b")
+            ],
+            model="mockllm/model",
+            max_tasks=2,
+        )
+    )
+    assert logs["follow-up-a-leading"].eval.origin == EnqueueTaskOrigin(
+        eval_id=logs["a"].eval.eval_id, task_id=logs["a"].eval.task_id
+    )
+    assert logs["follow-up-b"].eval.origin is None
+
+
+def test_eval_retry_keeps_origin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("FLAKY_CHILD_MARKER", str(tmp_path / "failed-once"))
+
+    @solver
+    def enqueue_flaky_child() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            enqueue_task(flaky_child())
+            return state
+
+        return solve
+
+    parent = Task(
+        dataset=[Sample(id="p", input="hi")],
+        solver=[enqueue_flaky_child()],
+        name="parent",
+    )
+    logs = _logs_by_task(
+        eval(
+            parent,
+            model="mockllm/model",
+            display="none",
+            log_dir=str(tmp_path / "logs"),
+        )
+    )
+    failed = logs["flaky_child"]
+    assert failed.status == "error"
+    assert failed.eval.origin == EnqueueTaskOrigin(
+        eval_id=logs["parent"].eval.eval_id,
+        task_id=logs["parent"].eval.task_id,
+    )
+
+    retried = eval_retry(failed, display="none", log_dir=str(tmp_path / "logs"))[0]
+    assert retried.status == "success", retried.error
+    assert retried.eval.run_id != failed.eval.run_id
+    assert retried.eval.origin == failed.eval.origin

@@ -48,6 +48,7 @@ from inspect_ai.log._condense import condensed_sample_summary
 from inspect_ai.log._log import (
     EvalLog,
     EvalMetricDefinition,
+    EvalOriginType,
     EvalSampleReductions,
     EvalSampleSummary,
     EvalScorer,
@@ -223,6 +224,7 @@ class TaskLogger:
         eval_config: EvalConfig,
         metadata: dict[str, Any] | None,
         viewer: ViewerConfig | None,
+        origin: EvalOriginType | None,
         recorder: Recorder,
         header_only: bool,
         dynamic_dataset: bool = False,
@@ -324,6 +326,7 @@ class TaskLogger:
             packages=packages,
             metadata=metadata,
             viewer=viewer,
+            origin=origin,
         )
 
         # stack recorder and location
