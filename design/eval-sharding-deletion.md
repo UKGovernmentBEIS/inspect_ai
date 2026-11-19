@@ -453,15 +453,20 @@ No test needs network, Docker or a model provider.
   recursive listing) is refused with nothing deleted.
 - `test_delete_shards_interrupted_then_finished`, parametrized over a
   failure injected while older attempts and other entries are being
-  deleted, at the first current-attempt delete, and after the last one
-  (at the first directory removal or the confirming listing). In every
-  case each surviving shard's current attempt matches its ledger entry
-  and no older attempt has become current; once the older-attempt phase
-  has completed, the only `.eval` files left are recorded current
-  attempts. A merge without the option writes nothing in the first and
-  last cases and refuses with the new message in the second; a merge
-  with the option writes nothing and deletes the rest. In the second
-  case, a finishing merge with a different selection is refused.
+  deleted, part way through the current attempts, and after the last
+  one (at the first directory removal or the confirming listing). The
+  middle case is made deterministic: with at least two shards, the
+  injected delete lets one current-attempt delete complete and fails the
+  next, with no other current-attempt delete in flight, so at least one
+  recorded current attempt is gone and at least one remains (asserted
+  before the merges below). In every case each surviving shard's current
+  attempt matches its ledger entry and no older attempt has become
+  current; once the older-attempt phase has completed, the only `.eval`
+  files left are recorded current attempts. A merge without the option
+  writes nothing in the first and last cases and refuses with the new
+  message in the middle one; a merge with the option writes nothing and
+  deletes the rest. In the middle case, a finishing merge with a
+  different selection is refused.
 - `test_delete_shards_refuses_hand_removal_leaving_older_attempt`: a
   `<k>/` whose recorded current attempt was deleted while an older one
   was kept is refused as an attempt regression, nothing deleted.
@@ -470,6 +475,13 @@ No test needs network, Docker or a model provider.
   left: a sample member removed from the merged log between cleanup
   calls (its `success` header kept) is refused by a merge with the
   option, with nothing deleted.
+- `test_delete_shards_refuses_planned_incomplete_log_after_interruption`,
+  parametrized over a partly deleted companion and one with no attempt
+  left: between cleanup calls the merged log's header is rewritten so
+  that the status planned from it is incomplete (its recorded selection
+  gains an id no shard holds, or a ledger entry's status becomes
+  `error`) while its members, ledger counts and stored `success` stay
+  unchanged; a merge with the option refuses, with nothing deleted.
 - `test_delete_shards_refuses_interrupted_deletion_with_changed_shard`:
   one remaining shard changed; refused, nothing deleted.
 - `test_delete_shards_does_not_follow_symlinks` (local): a link in a
