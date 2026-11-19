@@ -4,37 +4,33 @@
 
 `merge_eval_log_shards()` and `inspect log merge-shards` gain an option,
 `delete_shards=True` (`--delete-shards`), that deletes the merged log's
-`<name>.shards/` directory after a merge that leaves a complete
+`<name>.shards/` directory once the merge has left a complete
 (`success`) merged log. Without the option the merge deletes nothing.
-With it, the merge merges as usual, which already checks that the
-merged log is complete and holds every shard's current attempt; then,
-still holding its lock, it lists the shards directory once, deletes the
-files and objects that listing found, by name, each shard's current
-attempt last, and confirms that nothing is left. A
-deletion that is interrupted is finished by running the same merge with
-the option again. Like removing shards by hand, the option is for a
-finished run that nothing else is touching; the user is responsible for
-that. The typical use is to merge, check the merged log, then run the
-same merge again with the option: it writes nothing and deletes the
-shards.
+With it, the merge takes its lock, lists the shards directory once to
+fix what it will delete, merges as usual, and then deletes what that
+listing found, by name, each shard's current attempt last, and confirms
+that nothing is left. A deletion that is interrupted is finished by
+running the same merge with the option again. Like removing shards by
+hand, the option is for a finished run that nothing else is touching;
+the user is responsible for that. The typical use is to merge, check the
+merged log, then run the same merge again with the option: it writes
+nothing and deletes the shards.
 
 ## Why
 
-The merge reads shards and writes the merged log, and deletes nothing
-(decision: Ransom, 2026-11-03). Today the user removes `<name>.shards/`
-by hand once the merged log is checked, with `rm -r` or `aws s3 rm
---recursive` (the docs' "Merging" section, quoted under "Documentation"
-below). That has three problems:
+The merge reads shards and writes the merged log and deletes nothing
+unless asked (decision: Ransom, 2026-11-03). Today the user removes
+`<name>.shards/` by hand once the merged log is checked, with `rm -r` or
+`aws s3 rm --recursive` (the docs' "Merging" section, quoted under
+"Documentation" below). That has two problems:
 
 - Nothing checks that the merged log holds the shards being deleted: a
   shard that changed after the last merge, or a merge that ended
   incomplete, is deleted all the same.
-- A removal that stops part way (a timeout, a permissions error on one
-  key) leaves some shard directories gone and others present, which every
-  later merge refuses as vanished shards until the user finishes by hand.
 - A launcher that shards a task down to one sample per machine has
   thousands of shard directories per run, and needs a cleanup step it
-  can run unattended and branch on, as `--json` lets it do for the merge.
+  can run unattended, recover from when interrupted, and branch on, as
+  `--json` lets it do for the merge.
 
 The implementation plan reserves this as PR 9: one rule for removing a
 merged log's companion, offered by the merge as an option
@@ -48,10 +44,10 @@ Goals:
   default.
 - One rule, the same for local storage and S3, for when the merge may
   delete: the merged log is `success` and holds every current attempt
-  the shards directory holds.
+  in the shards directory.
 - Deletion confined to what was listed: nothing outside
-  `<name>.shards/`, nothing a symbolic link points to, nothing the
-  listing that fixes the set did not return.
+  `<name>.shards/`, nothing a symbolic link points to, nothing written
+  after the listing that fixes the set.
 - An interrupted deletion that the same call, run again, finishes.
 - What users and launchers see: the command's report and the errors.
 
@@ -59,10 +55,11 @@ Non-goals:
 
 - Protecting a run that something else is writing while the cleanup
   runs (workers, log edits or scoring, other merges). The option
-  requires a quiescent run, as hand removal does ("The quiescence
-  requirement").
+  requires a quiescent run ("The quiescence requirement").
 - Deleting the shards of an incomplete merged log (decision: Ransom,
   2026-11-19). A user abandoning a run removes its shards by hand.
+- Finishing a removal started by hand. A partial `rm -r` or `aws s3 rm
+  --recursive` is finished by hand.
 - Deleting without merging, or without a task. The merge is the one
   entry point ("Alternatives considered").
 - The viewer, whose `/log-delete` keeps deleting only the file requested
@@ -78,49 +75,32 @@ Non-goals:
 ## Current behaviour
 
 This design builds on the merge as the implementation plan specifies it
-and does not restate it. It relies on:
+and does not restate it:
 
-- **Unchanged shards and the ledger.** The merged log's ledger records
-  each shard's current attempt, and the merge decides whether an attempt
-  is unchanged by file name and ETag, or size and mtime where there is
-  no ETag ([implementation plan, "The merge"](eval-sharding-implementation.md#the-merge),
-  step 5).
-- **Vanished shards, attempt regression and no shards.** A ledger
-  entry whose `<k>/` holds no attempt, while another shard still has
-  one, is refused, and so is a shard whose current attempt sorts before
-  the one its ledger records (an older attempt left current); with no
-  attempt left anywhere the merge returns the merged log as recorded
-  ([implementation plan, "Validation"](eval-sharding-implementation.md#validation)
-  and step 10 of "The merge"). Removing the whole companion is therefore
+- What a merge pass checks before it writes or returns (listing every
+  shard, merging changed attempts, refusing stray logs, vanished shards
+  and attempt regressions, the ledger count and the status):
+  [implementation plan, "The merge"](eval-sharding-implementation.md#the-merge)
+  and ["Validation"](eval-sharding-implementation.md#validation). A
+  merge that finds no shard attempt left returns the merged log as
+  recorded (step 10 of "The merge"), so a fully removed companion is
   already a supported state.
-- **The overlap guards.** A local merge holds `<name>.merge.lock` for the
-  whole call; an S3 merge has no lock and publishes conditionally
-  ([implementation plan, "Overlap guards"](eval-sharding-implementation.md#overlap-guards)).
-  Neither excludes writers other than merges: the viewer's log edits and
-  `inspect score` rewrite logs without the lock.
-- **Worker threads.** Every worker thread the merge starts goes through
-  one helper, so the lock is never released while one runs
-  ([implementation plan, "Cancellation and concurrency"](eval-sharding-implementation.md#cancellation-and-concurrency)).
-- **What the pass checks.** Before it writes or returns, a pass lists
-  every shard directory, merges each changed attempt and records the
-  rest as unchanged, refuses stray logs and vanished shards, checks the
-  merged log's members against its ledger, and plans the status
-  ([implementation plan, "The merge"](eval-sharding-implementation.md#the-merge)
-  and "Validation"). So when a pass that read shards returns a
-  `success` merged log, that log holds every current attempt the pass
-  listed. With no attempt left, the pass returns the merged log as
-  recorded: its stored status must be `success` (unless
-  `allow_incomplete`) and a supplied selection must equal the recorded
-  one.
-- **Listing and names.** The merge lists the companion two levels deep
-  (`list_shard_set`) and refuses an S3 name that S3 would read as another
-  key (`check_s3_location`), both in `src/inspect_ai/log/_shards/_walk.py`.
-  `AsyncFilesystem`'s recursive S3 file listing skips keys ending in `/`
-  (directory markers, which the S3 console and sync tools create), and
-  its `delete_file` deletes one local file or S3 key
-  (`src/inspect_ai/_util/asyncfiles.py`).
-- **Docs.** `docs/sharding.qmd` tells users to delete the shards
-  directory by hand, and lists the vanished-shard refusal as a limitation.
+- The local lock and S3's conditional publish:
+  ["Overlap guards"](eval-sharding-implementation.md#overlap-guards).
+  Neither excludes writers other than merges (the viewer's log edits,
+  `inspect score`).
+- Worker threads that the merge waits for before it releases the lock,
+  and cancellation:
+  ["Cancellation and concurrency"](eval-sharding-implementation.md#cancellation-and-concurrency).
+- How S3 names that S3 would read as another key are refused:
+  ["Removing shards"](eval-sharding-implementation.md#removing-shards),
+  "S3 names".
+- The user docs (`docs/sharding.qmd`) tell users to delete the shards
+  directory by hand.
+
+The recursive file listing Inspect has for S3 skips keys ending in `/`
+(directory markers, which the S3 console and sync tools create), so
+deletion needs a listing that includes them.
 
 ## Design
 
@@ -136,175 +116,123 @@ def merge_eval_log_shards(
     allow_incomplete: bool = False,
     delete_shards: bool = False,
 ) -> ShardMergeResult: ...
-
 ```
 
 `merge_eval_log_shards_async` takes the same keyword; the command takes
 `--delete-shards`, a flag read only from the command line, like
 `--allow-incomplete`. The default is `False`: the merge deletes nothing
-unless asked (decision: Ransom, 2026-11-03). `ShardMergeResult` is
-unchanged: every way of not deleting raises, so a call that returns with
-`delete_shards=True` deleted the shards.
+unless asked. `ShardMergeResult` is unchanged: every way of not deleting
+raises, so a call that returns with `delete_shards=True` deleted the
+shards.
 
 `delete_shards=True` with `allow_incomplete=True` raises `ValueError`
 with the other argument checks, before any I/O. With `delete_shards`, an
 incomplete set raises `ShardSetIncomplete` before anything is written or
-deleted, as without `allow_incomplete` today (decision: Ransom,
-2026-11-19). On a deleting call its message says to complete the shard
-set (run the missing or failed shards again and merge) before deleting,
-and does not suggest `allow_incomplete` (`--allow-incomplete`), which
-cannot be combined with deletion; a merge without the option keeps
-today's advice. The exception's `status`, `missing`, `running` and
-`failed` are unchanged.
+deleted (decision: Ransom, 2026-11-19), and a local `<name>.shards` that
+is a symbolic link raises `ShardSetError` before the merge writes
+anything.
 
 ### The quiescence requirement
 
 `delete_shards` is supported only on a finished run that nothing else is
 touching: a `success` merged log, and no workers, log edits or scoring
-of the merged log or shards, and no other merge of the run, while the
-cleanup runs (decision: Ransom, 2026-11-19). This is the user's
-responsibility, the same condition under which the docs tell users to
-remove shards by hand today. The merge does not enforce it beyond its
-own lock and the checks of its pass. In particular, deletion works from
-the pass's own result and does not re-read the merged log or re-check
-each shard: a write between the pass and the deletion is the user's to
-prevent. If the requirement is broken, a concurrent writer's work can be
-lost, as with a hand removal: a shard attempt rewritten after the pass
-read it is deleted, and a merge that publishes in the meantime keeps its
-log while the shards it read are deleted. The run stays untouched from
-the first `--delete-shards` call until a call with the option returns,
-across any interruption and rerun. To finish a partial removal by hand
-with `--delete-shards`, the merged log must be valid and unchanged since
-its last successful merge (decision: Ransom, 2026-11-19): a rerun that
-finds no shard to read keeps that log as recorded and does not recount
-its samples or plan its status again, so an edit made to it after that
-merge is not caught.
+of the merged log or shards, and no other merge of the run, from the
+first deleting call until a call with the option returns, across any
+interruption and rerun (decision: Ransom, 2026-11-19). This is the
+user's responsibility, the same condition under which users remove
+shards by hand today. The merge enforces nothing beyond its own lock and
+the checks of its pass. If the requirement is broken, a concurrent
+writer's work can be lost, as with a hand removal.
 
 Cost check: free. Enforcing it would need every writer of a log (the
 recorder, the viewer, `inspect score`, the merge on S3) to share a lock
-or a conditional protocol with deletion, which no writer has today.
+or a conditional protocol with deletion, which none has.
 
 ### Ownership
 
-The merge owns deletion: a new module, `log/_shards/_delete.py`, called
-by `merge_eval_log_shards_async` after the merge pass returns a
-`success` merged log (its publish succeeded, or it wrote nothing),
-with the pass's listing, inside the same lock and
-`AsyncFilesystem` scope. No other code path deletes a companion. S3
-objects are deleted with plain deletes and local files with an unlink
-that never follows a symbolic link, through the merge's worker-thread
-helper, so the lock is held until every delete has finished.
+The merge owns deletion, in a new module `log/_shards/_delete.py` called
+by `merge_eval_log_shards_async` inside the same lock and filesystem
+scope as the pass. No other code path deletes a companion.
 
 ### The set to delete
 
-One recursive listing of `<name>.shards/`, taken after the pass, is the
-set deleted: every file, and on S3 every object under the companion's
-prefix with its trailing `/`, directory markers included. Before
-anything is deleted, two checks run on that listing in memory, and a
-failure raises `ShardSetError` with nothing deleted:
-
-- every `.eval` file directly in a `<k>/` is an attempt the pass listed
-  (current or older), so an attempt that appeared after the pass is
-  refused rather than deleted unmerged;
-- on S3, every name passes `check_s3_location`, so no key is deleted in
-  place of another.
+At the start of a deleting call, under the merge lock and before the
+pass, one recursive listing of `<name>.shards/` fixes the set to delete:
+every file, and on S3 every object under the companion's prefix with its
+trailing `/`, directory markers included. Every S3 name in it must pass
+the merge's S3 name check, or the call refuses before anything is
+written or deleted. The pass then runs as usual; deletion runs only if
+the pass returns a `success` merged log, and removes only entries of
+that listing. Anything written after the listing is never deleted: a
+new attempt written between the listing and the pass is merged by the
+pass and left in place, the confirming listing reports it, and a rerun
+with the option finishes.
 
 Cost check: one recursive listing (a paginated sweep on S3, a walk that
-does not follow links locally), on top of the pass's own listing; the
-checks are in memory.
+does not follow links locally) on top of the pass's own listing.
 
 ### Deleting
 
-- **By listed name, never by prefix.** Each entry of the set is deleted by its own name, so nothing the listing did not return is
-  deleted. Locally, directories are then removed deepest first, each only
-  if empty, the companion last. A symbolic link is removed as a link and
-  its target is never visited.
+- **By listed name, never by prefix.** Each entry of the set is deleted
+  by its own name; locally, directories are then removed deepest first,
+  each only if empty, the companion last. A symbolic link is removed as
+  a link, and its target is never visited.
 - **Current attempts last.** Every other entry (older attempts,
-  `scans/`, checkpoint directories, a `.buffer/`, directory markers,
-  other files) is deleted before any shard's current attempt. So
-  whenever a deletion stops, each shard still with an attempt holds its
-  recorded current attempt, and an older attempt never becomes current.
-  Cost: none, the same deletes in two groups.
-- **Bounded.** At most 32 deletes in flight. The first failure stops new
-  deletes; those in flight finish; the failure propagates as raised.
-  Deletes are one request per object on S3, which does not charge for
-  deletes; 10,000 objects take seconds.
+  `scans/`, checkpoint directories, a `.buffer/`, directory markers) is
+  deleted before any shard's current attempt. Cost: none, the same
+  deletes in two groups.
+- **Bounded.** At most 32 deletes in flight; the first failure stops new
+  ones, those in flight finish, and the failure propagates. Deletes are
+  one request per object on S3, which does not charge for them.
 - **Confirmed.** After the last delete, one more recursive listing,
-  directory markers included, must find nothing under `<name>.shards/`.
-  Only then does the call return; otherwise it raises `ShardSetError`
-  naming up to ten of the entries left, with the total. Cost: one
-  listing.
+  directory markers included, must find nothing under `<name>.shards/`;
+  otherwise the call raises, naming up to ten entries left and the
+  total. Cost: one listing.
 
 ### Interrupted deletion
 
-A deletion stopped by an error, a cancellation or a crash leaves each
-shard either holding its recorded current attempt or holding no attempt.
-What a later merge without the option does depends on when it stopped,
-and only one case is new:
+Guarantees:
 
-- **Before any current attempt was deleted**, every shard still holds
-  its recorded attempt: an ordinary unchanged merge, which writes
-  nothing.
-- **After every current attempt was deleted** (only empty directories or
-  ancillary entries left): the existing no-shards case, which returns
-  the merged log as recorded.
-- **Part way through the current attempts**, some shards have no
-  attempt while others do: refused as vanished shards, as today. The
-  message of a merge without the option gains "If a deletion of the
-  shards was interrupted, merge again with `delete_shards=True`
-  (`--delete-shards`) to finish it."
+- An interrupted deletion (an error, a cancellation, a crash) leaves
+  every shard holding its recorded current attempt or no attempt, and
+  never makes an older attempt current.
+- A merge with the option, run again on the untouched run, writes
+  nothing and finishes the deletion, whichever point it stopped at.
+- A merge without the option behaves as it does today for the state
+  left: it writes nothing when every shard still holds its attempt or
+  none does, and refuses a state where some shards have lost theirs, as
+  vanished shards. That refusal's message adds that a deletion
+  interrupted part way is finished by merging again with the option.
+- A changed shard or a new shard directory found by a deleting rerun is
+  refused, as today, with the advice to restore the files or delete the
+  rest of the shards directory by hand.
 
-A merge with the option finishes every case. In the third, the deleting
-rerun takes the existing no-shards path, which it also takes when the
-only differences from the ledger are shard directories with no attempt
-left: it writes nothing and keeps the merged log as recorded, the stored
-status must be `success`, a supplied selection must equal the recorded
-one, and every shard that still has an attempt must match the ledger.
-Because the run has stayed untouched since the first `--delete-shards`
-call ("The quiescence requirement"), the merged log it keeps is the one
-that call's pass checked. In all three cases, deletion then deletes what
-remains. Any other difference (a changed shard, a new `<k>/`) is refused
-as today, with the existing vanished-shard advice (restore the files, or
-delete the rest of the shards directory by hand) and without the hint to
-rerun with the option, which the caller has already given and which
-cannot clear that state. A local lock left by a crash is reported,
-as for a crashed merge; the user deletes it and reruns.
-
-The rule needs no marker of a deletion in progress: the ledger and the
-listing identify it. It also finishes a hand removal that stopped part
-way, as long as that left every shard with its recorded current attempt
-or no attempt and the merged log is valid and unchanged since its last
-successful merge ("The quiescence requirement"). A hand removal that
-deleted a current attempt and left an older one (`aws s3 rm --recursive` keeps no order) is refused as an
-attempt regression, as today, and the user finishes it by hand. Cost:
-none beyond the classification the merge already makes.
+The deleting rerun takes the merge's existing path for a companion with
+no attempts left, which it also takes when the only differences from
+the ledger are shard directories with no attempt left: the stored status
+must be `success`, a supplied selection must equal the recorded one, and
+every shard that still has an attempt must match the ledger. No marker
+of a deletion in progress is needed. Cost: none beyond the merge's own
+classification.
 
 ### What users see
 
-- **Python.** A call with `delete_shards=True` that returns has deleted
-  the shards. A failed check on the set to delete or a non-empty
-  confirming listing raises `ShardSetError`, whose message says whether
-  this call wrote the merged log and that the shards were not (or not
-  all) deleted. Messages state what must be corrected before retrying:
-  an S3 name that S3 would read as another key keeps
-  `check_s3_location`'s advice to rename it, a merged log changed
-  outside the merge keeps the existing advice to delete and rebuild it,
-  and a changed or new shard found by a deleting rerun keeps the
-  vanished-shard advice. A storage error during deletion propagates with
-  its type and message unchanged; the deletion module adds a note to it
-  (`BaseException.add_note`) saying the shards may be partly deleted and
-  to run the merge again with the option to finish. A cancellation
-  propagates unchanged; the docs say to rerun after an interruption.
-- **Command failures.** The command's error message includes the notes
-  of the exception it reports, so a failed delete is reported as
-  `storage_error` with the storage error's message and the rerun advice.
+- **Messages say what must be corrected before retrying**: rename an S3
+  name that S3 would read as another key; delete and rebuild a merged log
+  changed outside the merge; restore the files or finish by hand for a
+  changed or new shard; for an incomplete set on a deleting call,
+  restore a complete, mergeable shard set (or, to abandon the run,
+  remove its shards by hand), never `--allow-incomplete`. A storage
+  failure or an interruption during deletion says to run the merge again
+  with the option. Exception types are the merge's existing ones, and a
+  storage error keeps its type.
 - **Command report.** After the status line, `  shards: deleted <shards
   dir>` when `--delete-shards` was given.
 - **`--json`.** The result object is unchanged. Errors use the existing
   kinds: `invalid_arguments` for `--delete-shards` with
   `--allow-incomplete`, `incomplete` for an incomplete set, `refused` for
-  a failed check or a non-empty confirming listing, `conflict` for the
-  lock, `storage_error` for a failed delete.
+  a refused name, a refused shard set or a non-empty confirming listing,
+  `conflict` for the lock, `storage_error` for a failed delete.
 - **The `eval_set()` refusal** names `--delete-shards` beside moving the
   `.shards` directory out.
 
@@ -341,88 +269,79 @@ and gains a "Removing shards" section after "Merging":
 > `--allow-incomplete`.
 >
 > Use it only on a finished run: no workers still running, no edits or
-> scoring of the merged log or shards, and no other merge of the run
-> until it returns. Keep the merged log and its shards unchanged from
-> the first deleting call until cleanup succeeds, including between
-> retries. Something written to the run while the shards are
-> deleted can be lost, as when you delete them by hand. Deletion cannot
-> be undone, except from object versions on a versioned S3 bucket.
+> scoring of the merged log or shards, and no other merge of the run.
+> Keep the merged log and its shards unchanged from the first deleting
+> call until cleanup succeeds, including between retries. Something
+> written to the run while the shards are deleted can be lost, as when
+> you delete them by hand. Deletion cannot be undone, except from object
+> versions on a versioned S3 bucket.
 >
-> If deletion is interrupted, part of the `.shards` directory remains,
-> and if some shard directories still hold logs while others do not,
-> later merges refuse it. Merge again with `--delete-shards` to finish.
+> If deletion is interrupted, part of the `.shards` directory remains and
+> later merges may refuse it. Merge again with `--delete-shards` to
+> finish.
+>
 > You can still delete the `.shards` directory by hand (`rm -r`,
 > `aws s3 rm --recursive`); once all of it is gone, later merges return
-> the merged log as it is. If a removal by hand stops part way and leaves
-> an older log as the newest in a shard directory, merges refuse it;
-> finish deleting the `.shards` directory by hand.
+> the merged log as it is. If a removal by hand stops part way, finish
+> it by hand.
 >
 > When a later unsharded run of the task supersedes a merged log, the
 > merged log and its `.shards` directory stay until you remove them.
 
-The Limitations bullet on deleting one shard directory by hand adds
-"If the merged log has not been changed since it was last merged,
-merging with `--delete-shards` deletes the rest, unless an older log
-was left as the newest in a shard directory." The "Eval sets"
-section's last sentence becomes "Then move the `.shards` directory out
-of the log directory, or delete it with `--delete-shards`, before you run
-an eval set there." The command section lists `--delete-shards` and its
-report line, and the error-kind table's `refused` row mentions deletion.
+The "Eval sets" section's last sentence becomes "Then move the `.shards`
+directory out of the log directory, or delete it with
+`--delete-shards`, before you run an eval set there." The command
+section lists `--delete-shards` and its report line, and the error-kind
+table's `refused` row mentions deletion.
 
 ## Alternatives considered
 
-- **Enforce quiescence.** Conditional S3 deletes (`IfMatch` on each
-  object's listed ETag), a re-check of the merged log's ETag, and local
-  replace detection would narrow the windows for concurrent writers, but
-  not close them: the viewer and `inspect score` rewrite logs outside the
-  merge's lock, and a merge that publishes after the pass still lets
-  every delete succeed. Closing them needs a protocol shared by every
-  log writer. Dropped (decision: Ransom, 2026-11-19) in favour of the
-  stated requirement, the condition hand removal already has.
-- **A separate `delete_eval_log_shards(log)` that needs no task.** Users
-  would not rebuild the task to delete. It lost because a second entry
-  point needs its own lock, its own handling of a merged log that is
-  behind its shards and its own error envelope; the merge has all three,
-  and merging first brings a stale merged log up to date before the
-  shards go.
+- **Enforce quiescence.** Conditional S3 deletes on each object's listed
+  ETag, a re-check of the merged log's ETag and local replace detection
+  would narrow the windows for concurrent writers, but not close them:
+  the viewer and `inspect score` rewrite logs outside the merge's lock,
+  and a merge that publishes in between still lets every delete succeed.
+  Closing them needs a protocol shared by every log writer.
+- **Re-check after the pass** (read the merged log back, list every
+  shard again) or **validate a merged log that a deleting rerun keeps**
+  (recount members, plan its status). Each repeats checks the pass makes
+  or guards only against edits the quiescence requirement already rules
+  out.
+- **Check that every attempt in the set was listed by the pass.** Taking
+  the listing before the pass makes it unnecessary: nothing written
+  after the listing is in the set.
+- **Finish a removal started by hand.** A partial `aws s3 rm
+  --recursive` keeps no order and can leave an older attempt current,
+  and the rerun path cannot check that the merged log is unchanged since
+  its last merge. Users finish a hand removal by hand.
+- **A `shards_deleted` result field and `--json` key.** Every way of not
+  deleting raises, so on any return it would equal the argument.
+- **A separate `delete_eval_log_shards(log)` that needs no task.** A
+  second entry point needs its own lock, its own handling of a merged log
+  that is behind its shards and its own error envelope; the merge has
+  all three, and merging first brings a stale merged log up to date
+  before the shards go.
 - **Deletion of an incomplete merged log.** It would freeze the log: no
   later merge could add the missing samples or change the selection.
-  Refused (decision: Ransom, 2026-11-19).
 - **Unconditional prefix deletion** (`fs.rm(recursive=True)`, `aws s3 rm
-  --recursive`). Simplest, but it deletes entries the pass never saw and
-  gives no ordering, so an interruption can leave an older
-  attempt current.
+  --recursive`). It deletes entries the listing never saw and gives no
+  ordering, so an interruption can leave an older attempt current.
 - **A marker for a deletion in progress** (a file in or beside the
-  companion, or a field in the merged log). Not needed: the ledger and
-  the listing identify an interrupted deletion. A file in the companion
-  would break the rule that it holds only shard files, and a field would
-  mean a publish before every deletion.
-- **Re-check after the pass** (read the merged log back for its status
-  and member count, list every shard directory again). It repeats checks
-  the pass has just made; the only thing it adds is catching a write
-  between the pass and the deletion, which the quiescence requirement
-  already makes the user's responsibility. Dropped (decision: Ransom,
-  2026-11-19).
-- **A `shards_deleted` result field and `--json` key.** Every way of not
-  deleting raises, so on any return it would equal the argument. Dropped
-  (decision: Ransom, 2026-11-19).
-- **Let a merge without the option accept a partly deleted companion**,
-  writing nothing. It changes existing merge behaviour, and a shard
-  directory deleted by hand would no longer be flagged. Declined
-  (decision: Ransom, 2026-11-19).
-- **Validate a merged log that a deleting rerun keeps** (recount its
-  members against the ledger, require a planned `success`). It guards
-  only against an edit between cleanup calls, which the quiescence
-  requirement already rules out. Dropped (decision: Ransom, 2026-11-19).
-- **Leave S3 directory markers.** The recursive file listings skip them,
-  so without deleting them the companion is never empty and the
-  confirming listing could not hold. Kept (decision: Ransom,
-  2026-11-19).
-- **Re-read every sample of the merged log before deleting.** It would
-  roughly double the cost of a deleting merge; the merge already checks
-  each member's CRC as it copies it.
-- **Delete by default.** Refused (decision: Ransom, 2026-11-03):
-  deletion is the one step that cannot be undone after a bad merge.
+  companion, or a field in the merged log). The ledger and the listing
+  identify an interrupted deletion; a file in the companion would break
+  the rule that it holds only shard files, and a field would mean a
+  publish before every deletion.
+- **Leave S3 directory markers.** The recursive file listing skips them,
+  so the companion would never list as empty and the confirming listing
+  could not hold.
+- **Delete S3 objects by their raw listed key** rather than by URL. The
+  name check already refuses every key a URL would misread, as the merge
+  does.
+- **Let a merge without the option accept a partly deleted companion.**
+  It changes existing merge behaviour, and a shard directory deleted by
+  hand would no longer be flagged.
+- **Delete by default.** Deletion is the one step that cannot be undone
+  after a bad merge.
 
 ## Compatibility and migration
 
@@ -430,17 +349,13 @@ No migration required.
 
 - **API.** `delete_shards` is a new keyword, default `False`. Existing
   callers and `ShardMergeResult` are unchanged.
-- **CLI.** `--delete-shards` is new, and the report gains a line when
-  it is given; the `--json` result object is unchanged.
-- **Messages.** The vanished-shard message and the `eval_set()` refusal
-  gain a sentence; tests matching their text change with them.
+- **CLI.** `--delete-shards` is new, and the report gains a line when it
+  is given; the `--json` result object is unchanged.
+- **Messages.** The vanished-shard message, the incomplete-set message on
+  a deleting call and the `eval_set()` refusal change; tests matching
+  their text change with them.
 - **Log format.** None. Deletion writes nothing to the merged log; no
   schema or `ts-mono` change.
-- **Partial states.** A companion partly removed by hand is finished by
-  the same option when every shard holds its recorded current attempt
-  or no attempt and the merged log is unchanged since its last
-  successful merge; one left with an older attempt current is refused as
-  today.
 
 ## Security
 
@@ -448,117 +363,91 @@ Untrusted input that reaches deletion:
 
 - **Names in the shards directory**, chosen by workers or anyone who can
   write the log directory. Deletion stays inside `<name>.shards/`:
-  locally the listing does not follow symbolic links and a link is
-  removed without visiting its target; with `delete_shards`, a local
-  `<name>.shards` that is itself a symbolic link is refused before the
-  merge writes anything, as a merged log that is a link is. On S3 only
-  keys under the companion's prefix with its trailing `/` are listed (so
-  not `<name>.shards-x/`), and every name passes `check_s3_location`
-  before anything is deleted, so no key is deleted in place of another.
+  locally the listing does not follow symbolic links, a link is removed
+  without visiting its target, and a companion that is itself a link is
+  refused. On S3 only keys under the companion's prefix with its
+  trailing `/` are listed (so not `<name>.shards-x/`), and every name
+  passes the S3 name check before anything is written or deleted, so no
+  key is deleted in place of another.
 - **The merged log's ledger** decides whether deletion runs, never what
-  is deleted: the set comes only from listing the companion. A ledger
-  edited outside the merge can make the pass refuse, not widen the set.
+  is deleted: the set comes only from listing the companion.
 - **Credentials.** Deletion uses the caller's storage credentials, like
   the merge, and consults no access policy; the viewer, which has one,
   does not delete companions.
 
 ## Testing
 
-In `tests/log/test_shards.py`, local (plain path and `file://`) and on
-S3 through the `mock_s3` fixture, under asyncio and Trio (`--runtrio`).
-No test needs network, Docker or a model provider.
+In `tests/log/test_shards.py`, on a local path and on S3 (the `mock_s3`
+fixture). The basic removal tests on each storage, the marker test, the
+lock test and the cancellation test also run under Trio (`--runtrio`);
+the rest run under asyncio only. No test needs network, Docker or a
+model provider.
 
 - `test_merge_deletes_nothing_by_default`: a merge without the option
-  leaves every companion entry.
-- `test_delete_shards_removes_companion`: older attempts, `scans/`, a
-  checkpoint directory and a `.buffer/` go too, nothing is left, and a
+  leaves the companion as it was.
+- `test_delete_shards_removes_companion`: everything in the companion,
+  older attempts and ancillary directories included, is deleted, and a
   later merge returns the merged log as recorded.
-- `test_delete_shards_removes_s3_directory_markers`: keys ending in `/`
-  at the companion root and below shard and ancillary directories are
-  deleted and nothing is left.
-- `test_delete_shards_after_unchanged_merge`: `written=False` and the
-  companion is gone.
-- `test_delete_shards_with_allow_incomplete_is_refused`: `ValueError`, no
-  I/O.
-- `test_delete_shards_refuses_incomplete_set`: `ShardSetIncomplete`,
-  nothing written or deleted; the message says to complete the shard set
-  before deleting and does not mention `allow_incomplete`, while the same
-  merge without the option still suggests it.
-- `test_delete_shards_merges_shard_changed_since_merge`: a shard gains a
-  new attempt after a merge; a deleting merge merges it, then deletes.
-- `test_delete_shards_refuses_attempt_after_pass`: an attempt that
-  appears in a `<k>/` after the pass listed it (injected before the
-  recursive listing) is refused with nothing deleted.
-- `test_delete_shards_interrupted_then_finished`, parametrized over a
-  failure injected while older attempts and other entries are being
-  deleted, part way through the current attempts, and after the last
-  one (at the first directory removal or the confirming listing). The
-  middle case is made deterministic: with at least two shards, the
-  injected delete lets one current-attempt delete complete and fails the
-  next, with no other current-attempt delete in flight, so at least one
-  recorded current attempt is gone and at least one remains (asserted
-  before the merges below). In every case each surviving shard's current
-  attempt matches its ledger entry and no older attempt has become
-  current; once the older-attempt phase has completed, the only `.eval`
-  files left are recorded current attempts. A merge without the option
-  writes nothing in the first and last cases and refuses with the new
-  message in the middle one; a merge with the option writes nothing and
-  deletes the rest. In the middle case, a finishing merge with a
-  different selection is refused.
-- `test_delete_shards_refuses_hand_removal_leaving_older_attempt`: a
-  `<k>/` whose recorded current attempt was deleted while an older one
-  was kept is refused as an attempt regression, nothing deleted.
-- `test_delete_shards_refuses_interrupted_deletion_with_changed_shard`,
-  parametrized over a remaining shard that changed and a new `<k>/`
-  that appeared: refused, nothing deleted, and the message gives the
-  vanished-shard advice and not the hint to rerun with the option.
-- `test_delete_shards_does_not_follow_symlinks` (local): a link in a
-  `<k>/` to a directory outside is removed and its target is intact; a
-  linked companion is refused before anything is written.
-- `test_delete_shards_stays_in_prefix` (S3): keys under `<name>.shards-x/`
-  and `<name>.shardsx` survive.
-- `test_delete_shards_refuses_unsafe_s3_name`: a key with `#` deep under
-  `scans/` is refused before anything is deleted, and the message tells
-  the user to rename it.
+- `test_delete_shards_removes_s3_directory_markers`: markers at every
+  level are deleted and the companion lists as empty.
+- `test_delete_shards_after_unchanged_merge`: a deleting merge after a
+  checked merge writes nothing and deletes the shards.
+- `test_delete_shards_merges_shard_changed_since_merge`: a shard changed
+  since the last merge is merged first, then deleted.
+- `test_delete_shards_leaves_attempt_written_after_listing`: an attempt
+  written after the listing is not deleted, the call raises naming it,
+  and a rerun finishes.
+- `test_delete_shards_with_allow_incomplete_is_refused`: `ValueError`
+  before any I/O.
+- `test_delete_shards_refuses_incomplete_set`: nothing is written or
+  deleted, and the message gives the deleting-call advice, not
+  `allow_incomplete`.
+- `test_delete_shards_interrupted_then_finished`: after an interruption
+  at each stage, every shard holds its recorded current attempt or none,
+  a plain merge behaves as today, and a deleting rerun finishes.
+- `test_delete_shards_refuses_changed_shard_after_interruption`: a
+  changed or new shard after an interruption is refused with corrective
+  advice, nothing deleted.
+- `test_delete_shards_does_not_follow_symlinks` (local): link targets
+  survive, and a linked companion is refused before anything is written.
+- `test_delete_shards_stays_in_prefix` (S3): sibling prefixes survive.
+- `test_delete_shards_refuses_unsafe_s3_name`: refused before anything is
+  written or deleted, with the advice to rename.
+- `test_delete_shards_storage_error`: a failed delete keeps its error
+  type and says to rerun with the option; the command reports
+  `storage_error` with that advice.
 - `test_delete_shards_holds_lock` (local): a merge started during
-  deletion raises `WriteConflictError`.
-- `test_delete_shards_cancelled`: cancellation during deletion (cancel
-  scope and direct task cancel) releases the lock only after the deletes
-  in flight finish, and a rerun with the option completes.
-- In `tests/test_eval_set.py`:
-  `test_eval_set_accepts_log_dir_after_delete_shards`.
-- Command tests beside the existing `merge-shards` tests: the report line,
-  an unchanged `--json` result object, `--delete-shards
-  --allow-incomplete` exiting 1 with kind `invalid_arguments`, and a
-  failed delete (an injected storage error) exiting 1 with kind
-  `storage_error` and a message holding the storage error and the rerun
-  advice; the Python test of the same failure checks the exception type
-  is unchanged and carries the note.
+  deletion is refused with `WriteConflictError`.
+- `test_delete_shards_cancelled`: cancellation releases the lock only
+  after deletes in flight finish, and a rerun completes.
+- In `tests/test_eval_set.py`,
+  `test_eval_set_accepts_log_dir_after_delete_shards`: the log directory
+  is accepted once the shards are deleted.
+- Command tests beside the existing `merge-shards` tests: the report
+  line, an unchanged `--json` result, and `--delete-shards
+  --allow-incomplete` as `invalid_arguments`.
 
 ## Implementation plan
 
-One PR: `log/_shards/_delete.py` (the set to delete and its checks,
-deletion, confirming listing); the option, the argument check and the
-interrupted-deletion case in `log/_shards/_api.py`; the vanished message
-in `log/_shards/_plan.py`; a recursive listing that includes S3
-directory markers if `AsyncFilesystem` has none (in
-`src/inspect_ai/_util/asyncfiles.py`, leaving existing listings
-unchanged); `--delete-shards`, the report line and exception notes in
-the command's error message in `src/inspect_ai/_cli/log_merge_shards.py`; the refusal message in
-`src/inspect_ai/_eval/evalset.py`; `docs/sharding.qmd`
-("Documentation"); the tests above.
+One PR:
+
+- `log/_shards/_delete.py`: the listing, the S3 name check, deletion and
+  the confirming listing.
+- `log/_shards/_api.py`: the option, the argument check, the listing
+  before the pass, the deleting rerun's acceptance of shard directories
+  with no attempt left, and the incomplete-set message on a deleting
+  call; `log/_shards/_plan.py`: the vanished-shard message.
+- `src/inspect_ai/_util/asyncfiles.py`: a recursive listing that
+  includes S3 directory markers, if none exists, leaving existing
+  listings unchanged.
+- `src/inspect_ai/_cli/log_merge_shards.py`: `--delete-shards`, the
+  report line and the rerun advice for a failed delete.
+- `src/inspect_ai/_eval/evalset.py`: the refusal message.
+- `docs/sharding.qmd` ("Documentation") and the tests above.
 
 ## Open questions
 
-None. Resolved by Ransom on 2026-11-19: deletion requires a `success`
-merged log and cannot be combined with `allow_incomplete`; the option is
-supported only on a quiescent run, without coordination against other
-writers; deletion works from the pass's result with no re-checks; the
-result gains no `shards_deleted` field; and a deleting rerun keeps the
-merged log through the existing no-shards path, with no extra
-validation, the run staying untouched from the first call to the last
-and, for a partial hand removal, the merged log valid and unchanged
-since its last successful merge.
+None.
 
 ## Not this design
 
