@@ -67,6 +67,8 @@ from checkpoint.resume_kill_harness import (
     SIBLING_CKPT_GLOB_ENV,
     SIGNAL_ENV,
     STRATEGY_ENV,
+    SUBAGENT_ENV,
+    SUBAGENT_SPAN,
     TARGET_ENV,
     TURN_LIMIT_ENV,
     TWO_SAMPLE_ENV,
@@ -79,7 +81,13 @@ from checkpoint.resume_kill_thinking_harness import (
 )
 from inspect_ai import eval_retry
 from inspect_ai._util.file import local_path
-from inspect_ai.event import Event, SpanBeginEvent, SpanEndEvent, ToolEvent
+from inspect_ai.event import (
+    Event,
+    InfoEvent,
+    SpanBeginEvent,
+    SpanEndEvent,
+    ToolEvent,
+)
 from inspect_ai.event._checkpoint import CheckpointEvent
 from inspect_ai.log import list_eval_logs, read_eval_log
 from inspect_ai.scorer import CORRECT
@@ -662,6 +670,87 @@ def test_checkpoint_resume_rehydrated_event_layout(
             p.endswith("workspace/decoded/layer1.txt") for p in ckpt3_details.files
         )
         assert ckpt3_details.additional_files is None
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_checkpoint_resume_keeps_layout_with_span_open_across_checkpoints(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Restore nests by span id when a subagent span stays open across fires.
+
+    The killed attempt opens sub-1 before ckpt-2 fires and closes it after,
+    then opens sub-2, which is still open when ckpt-4 (the latest) fires and
+    the process is killed. In the resumed log, every restored checkpoint span
+    and ``CheckpointEvent`` must be a direct child of "checkpoint restore 1"
+    (not the transcript root, and not the still-open sub-2), and each
+    subagent's events must stay in its own span.
+    """
+    cancel_file = tmp_path / "cancels.txt"
+    monkeypatch.setenv(CANCEL_FILE_ENV, str(cancel_file))
+    monkeypatch.setenv(TARGET_ENV, "1")
+    monkeypatch.setenv(SUBAGENT_ENV, "1")
+    # stateful on disk; reset for flaky-retry re-runs (see the layout test)
+    cancel_file.unlink(missing_ok=True)
+
+    log_dir = str(tmp_path / "logs")
+    tests_dir = Path(__file__).parent.parent
+
+    with checkpoint_docker_projects(tmp_path):
+        _run_interrupted_attempt(log_dir, None, tests_dir)
+        resume = eval_retry(read_eval_log(_latest_log(log_dir)), log_dir=log_dir)[0]
+
+    assert resume.status == "success"
+    completed = read_eval_log(resume.location)
+    assert completed.samples is not None
+    events = completed.samples[0].events
+
+    # the premise: ckpt-2 fired while sub-1 was open, ckpt-4 while sub-2 was
+    order = [
+        e.data if isinstance(e, InfoEvent) else e.checkpoint_id
+        for e in events
+        if isinstance(e, InfoEvent | CheckpointEvent)
+    ]
+    assert order.index("sub-1-open") < order.index(2) < order.index("sub-1-close")
+    assert order.index("sub-2-open") < order.index(4)
+
+    spans = {e.id: e for e in events if isinstance(e, SpanBeginEvent)}
+    [restore] = [s for s in spans.values() if s.type == "prior_run"]
+    assert restore.name == "checkpoint restore 1"
+
+    restored_spans = {
+        s.name: s.parent_id
+        for s in spans.values()
+        if s.type == "checkpoint" and s.name in {f"checkpoint {n}" for n in range(1, 5)}
+    }
+    assert restored_spans == {f"checkpoint {n}": restore.id for n in range(1, 5)}
+    restored_markers = {
+        e.checkpoint_id: e.span_id
+        for e in events
+        if isinstance(e, CheckpointEvent) and e.checkpoint_id <= 4
+    }
+    assert restored_markers == {n: restore.id for n in range(1, 5)}
+
+    def _ancestors(span_id: str | None) -> list[str]:
+        chain: list[str] = []
+        while span_id in spans:
+            chain.append(span_id)
+            span_id = spans[span_id].parent_id
+        return chain
+
+    subs = [s for s in spans.values() if s.name == SUBAGENT_SPAN]
+    assert len(subs) == 2
+    assert all(restore.id in _ancestors(s.id) for s in subs)
+    sub_events = {
+        e.data: e.span_id
+        for e in events
+        if isinstance(e, InfoEvent) and str(e.data).startswith("sub-")
+    }
+    assert sub_events == {
+        "sub-1-open": subs[0].id,
+        "sub-1-close": subs[0].id,
+        "sub-2-open": subs[1].id,
+    }
 
 
 def _run_hydrate_interrupted_resume(
