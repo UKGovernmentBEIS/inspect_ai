@@ -1,4 +1,5 @@
 import base64
+from pathlib import Path
 
 import pytest
 from test_helpers.sandbox import CannedSandbox
@@ -7,7 +8,7 @@ from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
-from inspect_ai.log import resolve_sample_attachments
+from inspect_ai.log import read_eval_log, resolve_sample_attachments
 from inspect_ai.model import ChatMessageTool, ModelOutput, get_model
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
 from inspect_ai.tool import ContentImage, ToolError, view_image
@@ -85,6 +86,36 @@ def test_view_image_unreadable_path_is_a_tool_error(file_path: str) -> None:
     response = _run_view_image("plot.png", PNG_BYTES, file_path)
     assert response.error is not None
     assert file_path in response.error.message
+
+
+def test_view_image_data_not_logged_when_log_images_false(tmp_path: Path) -> None:
+    task = Task(
+        dataset=[Sample(input="View the image")],
+        solver=[
+            _write_file("plot.png", PNG_BYTES),
+            use_tools(view_image()),
+            generate(),
+        ],
+        message_limit=3,
+        sandbox="local",
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="view_image",
+                tool_arguments={"file_path": "plot.png"},
+            ),
+        ],
+    )
+    [log] = eval(task, model=model, log_images=False, log_dir=str(tmp_path))
+    assert log.status == "success"
+    saved = read_eval_log(log.location)
+    assert saved.samples
+    assert base64.b64encode(PNG_BYTES).decode("ascii") not in (
+        saved.samples[0].model_dump_json()
+    )
 
 
 def test_view_image_over_output_limit_is_a_tool_error(

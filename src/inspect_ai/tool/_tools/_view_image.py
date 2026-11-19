@@ -5,6 +5,7 @@ from inspect_ai._util.content import ContentImage
 from inspect_ai._util.images import as_data_uri, sniff_image_mime_type
 from inspect_ai.util import SandboxEnvironmentLimits
 from inspect_ai.util import sandbox as sandbox_env
+from inspect_ai.util._sandbox.events import without_sandbox_events
 from inspect_ai.util._sandbox.identity import (
     sandbox_identity_cwd,
     sandbox_identity_user,
@@ -42,13 +43,17 @@ def view_image(
             file_path: Path to the image file.
         """
         sbox = sandbox_env(sandbox)
-        result = await sbox.exec(
-            cmd=["sh", "-c", 'base64 < "$1"', "sh", file_path],
-            cwd=sandbox_identity_cwd(sbox, None),
-            timeout=timeout,
-            user=sandbox_identity_user(sbox, user, strict=True),
-            env=await sandbox_identity_vars(sbox, timeout),
-        )
+        cwd = sandbox_identity_cwd(sbox, None)
+        exec_user = sandbox_identity_user(sbox, user, strict=True)
+        env = await sandbox_identity_vars(sbox, timeout)
+        with without_sandbox_events(sbox):
+            result = await sbox.exec(
+                cmd=["sh", "-c", 'base64 < "$1"', "sh", file_path],
+                cwd=cwd,
+                timeout=timeout,
+                user=exec_user,
+                env=env,
+            )
         if not result.success:
             raise ToolError(
                 result.stderr.strip()
