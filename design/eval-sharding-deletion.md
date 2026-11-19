@@ -46,8 +46,8 @@ Goals:
   delete: the merged log is `success` and holds every current attempt
   in the shards directory.
 - Deletion confined to what was listed: nothing outside
-  `<name>.shards/`, nothing a symbolic link points to, nothing written
-  after the listing that fixes the set.
+  `<name>.shards/`, nothing a symbolic link points to, no name absent
+  from the listing that fixes the set.
 - An interrupted deletion that the same call, run again, finishes.
 - What users and launchers see: the command's report and the errors.
 
@@ -163,10 +163,11 @@ trailing `/`, directory markers included. Every S3 name in it must pass
 the merge's S3 name check, or the call refuses before anything is
 written or deleted. The pass then runs as usual; deletion runs only if
 the pass returns a `success` merged log, and removes only entries of
-that listing. Anything written after the listing is never deleted: a
-new attempt written between the listing and the pass is merged by the
-pass and left in place, the confirming listing reports it, and a rerun
-with the option finishes.
+that listing. No name absent from the listing is deleted: a new attempt
+written between the listing and the pass is merged by the pass and left
+in place, the confirming listing reports it, and a rerun with the option
+finishes. Content rewritten under a listed name is deleted with it; that
+is a write the quiescence requirement rules out.
 
 Cost check: one recursive listing (a paginated sweep on S3, a walk that
 does not follow links locally) on top of the pass's own listing.
@@ -198,6 +199,10 @@ Guarantees:
   never makes an older attempt current.
 - A merge with the option, run again on the untouched run, writes
   nothing and finishes the deletion, whichever point it stopped at.
+  After a crash of a local merge, its lock file stays, as for any
+  crashed merge ("Overlap guards" in the implementation plan): the user
+  checks that the process it names has stopped, deletes the lock file,
+  then reruns.
 - A merge without the option behaves as it does today for the state
   left: it writes nothing when every shard still holds its attempt or
   none does, and refuses a state where some shards have lost theirs, as
@@ -313,7 +318,7 @@ table's `refused` row mentions deletion.
   or guards only against edits the quiescence requirement already rules
   out.
 - **Check that every attempt in the set was listed by the pass.** Taking
-  the listing before the pass makes it unnecessary: nothing written
+  the listing before the pass makes it unnecessary: no name created
   after the listing is in the set.
 - **Finish a removal started by hand.** A partial `aws s3 rm
   --recursive` keeps no order and can leave an older attempt current,
@@ -400,7 +405,7 @@ model provider.
 - `test_delete_shards_merges_shard_changed_since_merge`: a shard changed
   since the last merge is merged first, then deleted.
 - `test_delete_shards_leaves_attempt_written_after_listing`: an attempt
-  written after the listing is not deleted, the call raises naming it,
+  created under a new name after the listing is not deleted, the call raises naming it,
   and a rerun finishes.
 - `test_delete_shards_with_allow_incomplete_is_refused`: `ValueError`
   before any I/O.
@@ -409,7 +414,8 @@ model provider.
   `allow_incomplete`.
 - `test_delete_shards_interrupted_then_finished`: after an interruption
   at each stage, every shard holds its recorded current attempt or none,
-  a plain merge behaves as today, and a deleting rerun finishes.
+  a plain merge behaves as today, and a deleting rerun finishes (after a
+  simulated crash, once the stale local lock is removed).
 - `test_delete_shards_refuses_changed_shard_after_interruption`: after an
   interruption that left some recorded attempts missing, a changed or new
   shard is refused with corrective advice, nothing deleted.
