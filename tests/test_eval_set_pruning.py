@@ -12,14 +12,16 @@ whole instrument.
 """
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from typing import Any
 
+import anyio
 import pytest
 
-from inspect_ai import Task, eval_set, task
+from inspect_ai import Task, enqueue_task, eval_set, task, task_with
 from inspect_ai._eval.eval_set_manifest import (
     INSPECT_EVAL_SET_CAPTURE,
     EvalSetCapture,
@@ -36,9 +38,11 @@ from inspect_ai._eval.eval_set_selection import (
     EvalSetSelection,
     EvalSetSelectionTask,
 )
+from inspect_ai._util.registry import _registry
 from inspect_ai.dataset import Sample
+from inspect_ai.hooks import Hooks, RunStart, hooks
 from inspect_ai.scorer import exact
-from inspect_ai.solver import generate
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
 MODEL = "mockllm/model"
 
@@ -108,6 +112,85 @@ def prune_threaded(difficulty: str = "hard") -> Task:
         return pool.submit(prune_one, difficulty=difficulty).result()
 
 
+@task
+def prune_rollout(difficulty: str = "easy") -> Task:
+    """The task a creator adds. It names its model because a task added under `eval_set()` gets none from the run."""
+    CONSTRUCTED.append(f"prune_rollout({difficulty})")
+    return Task(
+        dataset=[Sample(input="3+3", target="6")],
+        solver=[generate()],
+        scorer=exact(),
+        model=MODEL,
+    )
+
+
+ADDED: list[Task] = []
+"""Every task a creator added to its run. Reset per test by the autouse fixture."""
+
+PREPARED: list[Task] = []
+"""Tasks built by `BuildRolloutAtRunStart` for a creator to add. Reset per test."""
+
+
+class BuildRolloutAtRunStart(Hooks):
+    """Builds the rollout in `on_run_start`, for the creator to add during the run."""
+
+    async def on_run_start(self, data: RunStart) -> None:
+        PREPARED.append(prune_rollout(difficulty="hard"))
+
+
+@contextmanager
+def build_rollout_at_run_start() -> Iterator[None]:
+    """Register `BuildRolloutAtRunStart` for the duration of the block."""
+
+    @hooks("prune_build_rollout", description="Builds a rollout at run start.")
+    def build() -> type[Hooks]:
+        return BuildRolloutAtRunStart
+
+    try:
+        yield
+    finally:
+        del _registry["hooks:prune_build_rollout"]
+
+
+@solver
+def add_rollout(how: str) -> Solver:
+    """Build an unselected task while the run is in progress and add it to the run.
+
+    `how` is how the task is built: `call` calls the factory, `task_with` also
+    adapts the result, `thread` calls the factory in a worker thread that
+    copies the run's context, and `hook` takes the task built by the
+    `on_run_start` hook.
+    """
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if how == "hook":
+            rollout = PREPARED.pop()
+        elif how == "thread":
+            rollout = await anyio.to_thread.run_sync(
+                lambda: prune_rollout(difficulty="hard")
+            )
+        else:
+            rollout = prune_rollout(difficulty="hard")
+        if how == "task_with":
+            rollout = task_with(rollout, name="adapted_rollout", message_limit=7)
+        ADDED.append(rollout)
+        enqueue_task(rollout)
+        return state
+
+    return solve
+
+
+@task
+def prune_creator(how: str = "call") -> Task:
+    """A selected task whose solver adds another task to the run."""
+    CONSTRUCTED.append(f"prune_creator({how})")
+    return Task(
+        dataset=[Sample(input="go", target="go")],
+        solver=[add_rollout(how)],
+        scorer=exact(),
+    )
+
+
 ALL_TASKS = [prune_one(difficulty="hard"), prune_two(), prune_renamed()]
 """Built at import, when no selection is active — so this list is always three real tasks."""
 
@@ -116,19 +199,31 @@ ALL_TASKS = [prune_one(difficulty="hard"), prune_two(), prune_renamed()]
 def clean_pruning_state() -> Any:
     """The pruner caches the selection per process, and these tests change it per case."""
     CONSTRUCTED.clear()
+    ADDED.clear()
+    PREPARED.clear()
     reset_pruning()
     yield
     CONSTRUCTED.clear()
+    ADDED.clear()
+    PREPARED.clear()
     reset_pruning()
 
 
-def capture(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> EvalSetCapture:
+def default_tasks() -> list[Task]:
+    return [prune_one(difficulty="hard"), prune_two(), prune_renamed()]
+
+
+def capture(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    tasks: Callable[[], list[Task]] = default_tasks,
+) -> EvalSetCapture:
     manifest = tmp_path / "manifest.json"
     monkeypatch.setenv(INSPECT_EVAL_SET_CAPTURE, str(manifest))
     try:
         with pytest.raises(SystemExit):
             eval_set(
-                tasks=[prune_one(difficulty="hard"), prune_two(), prune_renamed()],
+                tasks=tasks(),
                 model=MODEL,
                 log_dir=str(tmp_path / "capture-logs"),
                 display="plain",
@@ -169,6 +264,7 @@ def run(
     selection: EvalSetSelection,
     *,
     name: str = "selection",
+    tasks: Callable[[], list[Task]] = default_tasks,
 ) -> tuple[bool, list[Any]]:
     path = tmp_path / f"{name}.json"
     path.write_text(selection.model_dump_json())
@@ -176,7 +272,7 @@ def run(
     CONSTRUCTED.clear()
     try:
         return eval_set(
-            tasks=[prune_one(difficulty="hard"), prune_two(), prune_renamed()],
+            tasks=tasks(),
             model=MODEL,
             log_dir=str(tmp_path / "logs" / name),
             display="plain",
@@ -337,6 +433,49 @@ def test_a_task_composed_from_another_task_is_not_pruned(
     # the dataset is the composed task's, not the empty one a placeholder carries
     assert [sample.input for sample in composed.dataset] == ["1+1"]
     assert CONSTRUCTED == [outer, "prune_one(hard)"]
+
+
+@pytest.mark.parametrize("how", ["call", "task_with", "thread", "hook"])
+def test_a_task_added_during_the_run_is_not_pruned(
+    how: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A `@task` call made by the running eval builds the real task.
+
+    The selection names only the creator, so `prune_rollout` is not selected. Pruning it would add an empty placeholder to the run. The
+    `task_with` row checks that changes made to the built task survive, the
+    `thread` row that a worker thread with a copy of the run's context sees the
+    run, and the `hook` row that a run-start hook does. The worker still prunes
+    `prune_two` while resolving its own tasks.
+    """
+
+    def tasks() -> list[Task]:
+        return [prune_creator(how=how), prune_two()]
+
+    manifest = capture(monkeypatch, tmp_path, tasks)
+
+    with build_rollout_at_run_start() if how == "hook" else nullcontext():
+        success, logs = run(
+            monkeypatch,
+            tmp_path,
+            selection_naming(manifest, "prune_creator"),
+            tasks=tasks,
+        )
+
+    assert success
+    assert CONSTRUCTED == [f"prune_creator({how})", "prune_rollout(hard)"]
+    assert len(ADDED) == 1
+    assert not is_placeholder(ADDED[0])
+
+    rollout_name = "adapted_rollout" if how == "task_with" else "prune_rollout"
+    assert sorted(log.eval.task for log in logs) == sorted(
+        ["prune_creator", rollout_name]
+    )
+    rollout_log = next(log for log in logs if log.eval.task == rollout_name)
+    assert rollout_log.status == "success"
+    assert rollout_log.results is not None
+    assert rollout_log.results.completed_samples == 1
+    if how == "task_with":
+        assert rollout_log.eval.config.message_limit == 7
 
 
 def test_a_selection_without_facets_prunes_nothing(

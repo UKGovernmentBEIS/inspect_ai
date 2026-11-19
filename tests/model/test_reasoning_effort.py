@@ -224,6 +224,7 @@ def test_google_gemini_2_5_reasoning_tokens_wins_over_effort():
         ("gemini-4-argon", ThinkingLevel.LOW),
         ("gemini-4-carbon", ThinkingLevel.LOW),
         ("gemini-4-hydrogen", ThinkingLevel.LOW),
+        ("gemini-4-neon", ThinkingLevel.LOW),
     ],
 )
 def test_google_gemini_3_minimal_effort(
@@ -272,11 +273,15 @@ def test_google_gemini_3_uses_thinking_level_not_bridge():
         ]
     ]
     + [
-        ("gemini-4-hydrogen", "low", ThinkingLevel.LOW),
-        ("gemini-4-hydrogen", "medium", ThinkingLevel.MEDIUM),
-        ("gemini-4-hydrogen", "high", ThinkingLevel.HIGH),
-        ("gemini-4-hydrogen", "xhigh", ThinkingLevel.XHIGH),
-        ("gemini-4-hydrogen", "max", ThinkingLevel.XHIGH),
+        (model_name, effort, level)
+        for model_name in ["gemini-4-hydrogen", "gemini-4-neon"]
+        for effort, level in [
+            ("low", ThinkingLevel.LOW),
+            ("medium", ThinkingLevel.MEDIUM),
+            ("high", ThinkingLevel.HIGH),
+            ("xhigh", ThinkingLevel.XHIGH),
+            ("max", ThinkingLevel.XHIGH),
+        ]
     ],
 )
 def test_google_gemini_4_thinking_level(
@@ -306,6 +311,11 @@ def test_google_gemini_4_thinking_level(
             "vertex/projects/my-project/locations/us-central1/publishers/google/models/gemini-4-hydrogen",
             True,
         ),
+        ("gemini-4-neon", True),
+        (
+            "vertex/projects/my-project/locations/us-central1/publishers/google/models/gemini-4-neon",
+            True,
+        ),
         ("gemini-3.8-flash", False),
         ("gemini-3.1-pro-preview", True),
         ("gemini-4-pro", True),
@@ -317,7 +327,7 @@ def test_google_reasoning_effort_none(
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`none` disables thinking except on Pro models and Hydrogen, which warn instead."""
+    """`none` disables thinking except on Pro models, Hydrogen and Neon, which warn instead."""
     monkeypatch.setattr("inspect_ai._util.logger._warned", [])
     vertex = model_name.startswith("vertex/")
     api = GoogleGenAIAPI(
