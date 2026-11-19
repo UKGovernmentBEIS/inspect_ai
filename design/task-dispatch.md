@@ -1462,21 +1462,17 @@ depends on it.
 - Runtime pruning in selection workers, a prerequisite for adding tasks
   there. A worker resolving a selection prunes `@task` calls that the
   selection does not name: the `@task` wrapper (`_eval/registry.py`) asks
-  `prune_task_call()` (`_eval/eval_set_pruning.py`) on every call, including
-  one made by a running solver, and returns an empty placeholder `Task`
-  instead of running the factory. So a selected creator's
-  `rollout_task()` comes back with no dataset and no `samples_from_handle()`
-  source, and `enqueue_task()` cannot see that it is fed through a handle,
-  give it its creator's model or attach its channel; an ordinary added task
-  runs the placeholder. Tasks constructed by executing attempts must be
-  real tasks before `enqueue_task()` resolves them. The guarantee belongs to
-  the pruning code, not to this design; its minimal form is that
-  `prune_task_call()` returns `False` while a run queue is bound, so pruning
+  `prune_task_call()` (`_eval/eval_set_pruning.py`) on every call and
+  returns an empty placeholder `Task` instead of running the factory. Tasks
+  constructed by executing attempts, such as a selected creator's
+  `rollout_task()`, must be real tasks before `enqueue_task()` resolves
+  them. The guarantee belongs to the pruning code, not to this design: its
+  minimal form is that `prune_task_call()` returns `False` while a run is
+  in progress (its run queue, or its task enqueuer, is bound), so pruning
   applies only to resolving the eval set's own tasks and every `@task` call
   made by attempt code, including one adapted afterwards with `task_with`,
-  runs the factory. Until it lands, `INSPECT_EVAL_SET_NO_PRUNE=1` works
-  around it. Adding tasks, and task handles, in selection workers depend on
-  it (task-handles.md, "Implementation plan").
+  runs the factory. Adding tasks, and task handles, in selection workers
+  depend on it (task-handles.md, "Implementation plan").
 - The dispatcher rule that an attempt with no log or a `cancelled` log means a
   run-level cancellation applies only to attempts `run_one` ran; a record
   ended before its first attempt never reaches it.
