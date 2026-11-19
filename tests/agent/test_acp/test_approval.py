@@ -1439,7 +1439,7 @@ def test_build_request_shows_the_whole_command_beneath_the_bash_view() -> None:
         view=code_viewer("bash", "command")(call),
         choices=["approve", "reject"],
     )
-    # the bash view can hide lines; the arguments block shows the command whole
+    # the bash view can hide lines; the full tool call block shows the command whole
     arguments = _texts(req.tool_call.content)[-1]
     assert not {"html_block", "html_inline"} & _markdown_token_types(arguments)
     fences = [t for t in MarkdownIt("commonmark").parse(arguments) if t.type == "fence"]
@@ -1460,7 +1460,7 @@ def test_build_request_shows_arguments_beneath_an_edited_inspect_view() -> None:
         session_id="s1", call=call, view=view, choices=["approve", "reject"]
     )
     texts = _texts(req.tool_call.content)
-    assert texts[-1].startswith("**Arguments**")
+    assert texts[-1].startswith("**Full tool call**")
     assert "rm -rf /tmp/data" in texts[-1]
 
 
@@ -1491,7 +1491,7 @@ def test_build_request_shows_arguments_beneath_a_custom_view() -> None:
     # the custom view, a separator, then every argument in a block of its own
     assert texts[0] == f"Notes: {notes}"
     assert texts[1] == "---"
-    assert texts[2].startswith("**Arguments**\n\n```python\n")
+    assert texts[2].startswith("**Full tool call**\n\n```python\n")
     assert f"note(notes={notes!r})" in texts[2]
 
 
@@ -1550,7 +1550,7 @@ def test_build_request_shows_placeholder_text_as_written() -> None:
         view=code_viewer("bash", "command")(call),
         choices=["approve", "reject"],
     )
-    # the bash view fills in the placeholders; the arguments block does not
+    # the bash view fills in the placeholders; the full tool call block does not
     arguments = _texts(req.tool_call.content)[-1]
     assert "command='echo {\\x7bcommand}} {\\x7bpath}}'" in arguments
 
@@ -1610,7 +1610,7 @@ def test_build_request_inserts_separator_between_context_and_call() -> None:
     assert "---" in texts[1]
     assert "call body" in texts[2]
     assert "---" in texts[3]
-    assert texts[4].startswith("**Arguments**")
+    assert texts[4].startswith("**Full tool call**")
 
 
 def test_build_request_omits_separator_when_one_half_missing() -> None:
@@ -1630,7 +1630,7 @@ def test_build_request_omits_separator_when_one_half_missing() -> None:
     assert "call body" in texts[0]
     assert "---" not in texts[0]
     assert texts[1] == "---"
-    assert texts[2].startswith("**Arguments**")
+    assert texts[2].startswith("**Full tool call**")
 
 
 def test_build_request_fences_plain_text_view_content() -> None:
@@ -1681,7 +1681,7 @@ def test_build_request_markdown_snapshot_for_typical_bash_approval() -> None:
     assert texts[0].startswith("**bash**\n\n")
     assert "```bash\nls -la\n```" in texts[0]
     assert texts[1] == "---"
-    assert texts[2] == "**Arguments**\n\n```python\nbash(command='ls -la')\n```\n"
+    assert texts[2] == "**Full tool call**\n\n```python\nbash(command='ls -la')\n```\n"
     # No protocol extension: no `_meta` keys on any block.
     for block in req.tool_call.content or []:
         assert block.field_meta is None, (

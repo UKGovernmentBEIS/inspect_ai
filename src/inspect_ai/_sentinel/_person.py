@@ -721,7 +721,7 @@ def _call_markdown(
     shown = f"{header}\n\n{_contained(content, safe, text_label)}"
     arguments = arguments_view(call, ToolCallView(call=view))
     if arguments is not None:
-        shown = f"{shown}\n\n**Arguments**\n\n{_contained(arguments, safe)}"
+        shown = f"{shown}\n\n**Full tool call**\n\n{_contained(arguments, safe)}"
     return shown
 
 

@@ -41,7 +41,7 @@ def arguments_view(call: ToolCall, view: ToolCallView) -> ToolCallContent | None
         and view.call.content == content.content
     ):
         return None
-    return content.model_copy(update={"title": "Arguments"})
+    return content.model_copy(update={"title": "Full tool call"})
 
 
 def render_tool_approval(

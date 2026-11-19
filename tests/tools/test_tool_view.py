@@ -268,10 +268,10 @@ def _agent_viewer() -> ToolCallViewer:
 def test_approval_of_an_inspect_view_shows_every_argument(
     code: str, viewer: ToolCallViewer, param: str
 ) -> None:
-    # the tool's own view can hide lines; the arguments block shows them all
+    # the tool's own view can hide lines; the full tool call block shows them all
     call = ToolCall(id="1", function="tool", arguments={param: code})
     rendered = _render_approval(viewer(call), call.arguments, call)
-    assert "Arguments" in rendered
+    assert "Full tool call" in rendered
     assert f"tool({param}={code!r})" in rendered
 
 
@@ -342,7 +342,7 @@ def test_approval_shows_arguments_beneath_a_custom_view() -> None:
         call=ToolCallContent(format="markdown", content="Notes: {{notes}}")
     )
     rendered = _render_approval(view, call.arguments, call)
-    assert "Arguments" in rendered
+    assert "Full tool call" in rendered
     assert f"note(notes={notes!r})" in rendered
 
 
@@ -373,7 +373,7 @@ def test_approval_shows_arguments_beneath_an_edited_inspect_view(
     assert view is not None
     edited = _first_line_only(view(call), edit)
     rendered = _render_approval(edited, call.arguments, call)
-    assert "Arguments" in rendered
+    assert "Full tool call" in rendered
     assert "rm -rf /tmp/data" in rendered
 
 
@@ -383,7 +383,7 @@ def test_approval_shows_no_arguments_block_beneath_the_default_view(
 ) -> None:
     call = ToolCall(id="1", function="tool", arguments={"path": "/tmp/x"})
     view = resolve_tool_call_view(call, _raising_viewer if viewer_fails else None)
-    assert "Arguments" not in _render_approval(view, call.arguments, call)
+    assert "Full tool call" not in _render_approval(view, call.arguments, call)
 
 
 def test_default_view_equals_its_round_trip() -> None:

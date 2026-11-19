@@ -1178,7 +1178,7 @@ def bash_call(id: str, cmd: str) -> ToolCall:
 
 
 def bash_arguments(cmd: str) -> str:
-    """The arguments block shown beneath a bash call's own view."""
+    """The full tool call block shown beneath a bash call's own view."""
     return format_function_call("bash", {"cmd": cmd}, literal_strings=True)
 
 
@@ -2031,7 +2031,7 @@ def test_a_turn_shows_the_arguments_a_calls_own_view_omits(
     shown = prompt.view.call.content
     # the custom view's call, then its arguments; none for the default view
     assert "shell(command='ls', cwd='/srv/data')" in shown
-    assert shown.count("**Arguments**") == 1
+    assert shown.count("**Full tool call**") == 1
 
 
 def test_a_request_shows_the_arguments_a_calls_own_view_omits() -> None:
@@ -2043,4 +2043,4 @@ def test_a_request_shows_the_arguments_a_calls_own_view_omits() -> None:
     assert prompt.view.call is not None
     shown = prompt.view.call.content
     assert "shell(command='ls', cwd='/srv/data')" in shown
-    assert shown.count("**Arguments**") == 1
+    assert shown.count("**Full tool call**") == 1
