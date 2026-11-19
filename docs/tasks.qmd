@@ -364,7 +364,7 @@ eval(
     epochs=5,
     limit=100,
     message_limit=50,
-    model_roles={"grader": "google/gemini-2.0-flash"},
+    model_roles={"grader": "google/gemini-3.6-flash"},
 )
 ```
 
@@ -378,7 +378,7 @@ inspect eval inspect_evals/simpleqa \
     --epochs 5 \
     --limit 100 \
     --message-limit 50 \
-    --model-role grader=google/gemini-2.0-flash
+    --model-role grader=google/gemini-3.6-flash
 ```
 
 See [Eval Options](options.qmd) for the full list of CLI flags.
@@ -541,7 +541,7 @@ Model roles assign models to named purposes within a task (for example, a "grade
 
 ``` python
 Task(..., model_roles={"grader": "openai/gpt-6-luna"})
-eval(my_task(), model_roles={"grader": "google/gemini-2.0-flash"})
+eval(my_task(), model_roles={"grader": "google/gemini-3.6-flash"})
 ```
 
 Inside a solver or scorer, resolve the role with `get_model()`:

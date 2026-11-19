@@ -224,6 +224,7 @@ def test_google_gemini_2_5_reasoning_tokens_wins_over_effort():
         ("gemini-4-argon", ThinkingLevel.LOW),
         ("gemini-4-carbon", ThinkingLevel.LOW),
         ("gemini-4-hydrogen", ThinkingLevel.LOW),
+        ("gemini-4-neon", ThinkingLevel.LOW),
     ],
 )
 def test_google_gemini_3_minimal_effort(
@@ -272,11 +273,15 @@ def test_google_gemini_3_uses_thinking_level_not_bridge():
         ]
     ]
     + [
-        ("gemini-4-hydrogen", "low", ThinkingLevel.LOW),
-        ("gemini-4-hydrogen", "medium", ThinkingLevel.MEDIUM),
-        ("gemini-4-hydrogen", "high", ThinkingLevel.HIGH),
-        ("gemini-4-hydrogen", "xhigh", ThinkingLevel.XHIGH),
-        ("gemini-4-hydrogen", "max", ThinkingLevel.XHIGH),
+        (model_name, effort, level)
+        for model_name in ["gemini-4-hydrogen", "gemini-4-neon"]
+        for effort, level in [
+            ("low", ThinkingLevel.LOW),
+            ("medium", ThinkingLevel.MEDIUM),
+            ("high", ThinkingLevel.HIGH),
+            ("xhigh", ThinkingLevel.XHIGH),
+            ("max", ThinkingLevel.XHIGH),
+        ]
     ],
 )
 def test_google_gemini_4_thinking_level(
@@ -306,6 +311,11 @@ def test_google_gemini_4_thinking_level(
             "vertex/projects/my-project/locations/us-central1/publishers/google/models/gemini-4-hydrogen",
             True,
         ),
+        ("gemini-4-neon", True),
+        (
+            "vertex/projects/my-project/locations/us-central1/publishers/google/models/gemini-4-neon",
+            True,
+        ),
         ("gemini-3.8-flash", False),
         ("gemini-3.1-pro-preview", True),
         ("gemini-4-pro", True),
@@ -317,7 +327,7 @@ def test_google_reasoning_effort_none(
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`none` disables thinking except on Pro models and Hydrogen, which warn instead."""
+    """`none` disables thinking except on Pro models, Hydrogen and Neon, which warn instead."""
     monkeypatch.setattr("inspect_ai._util.logger._warned", [])
     vertex = model_name.startswith("vertex/")
     api = GoogleGenAIAPI(
@@ -689,6 +699,8 @@ def _responses_params_for(model_name, config):
         ("gpt-6-luna", "max"),
         ("gpt-6.1-sol", "max"),
         ("gpt-6.1-terra", "max"),
+        ("gpt-6.2-astra", "max"),
+        ("gpt-6.2-sol", "max"),
     ],
 )
 def test_openai_responses_max_effort_by_model(model_name, expected):
@@ -816,6 +828,8 @@ def test_openai_responses_explicit_none_effort_keeps_sampling_params():
         ("gpt-6-luna", True, True),
         ("gpt-6.1-sol", True, True),
         ("gpt-6.1-terra", True, True),
+        ("gpt-6.2-astra", True, True),
+        ("gpt-6.2-sol", True, True),
         ("gpt-5.6-chat", False, False),  # -chat variants don't reason
         ("gpt-4o", False, False),
         ("o3", False, False),
@@ -1105,7 +1119,16 @@ def _assert_sampling_params_sent(params):
 
 @pytest.mark.parametrize(
     "model_name",
-    ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6"],
+    [
+        "gpt-6-astra",
+        "gpt-6-sol",
+        "gpt-6-luna",
+        "gpt-6.1-sol",
+        "gpt-6.1-terra",
+        "gpt-6.2-astra",
+        "gpt-6.2-sol",
+        "gpt-6",
+    ],
 )
 def test_openai_responses_gpt_6_drops_sampling_params_without_effort(model_name):
     params = _responses_params_for(model_name, _SAMPLING_CONFIG)
@@ -1159,7 +1182,7 @@ def test_openai_responses_always_reasoning_models_drop_sampling_params(
     model_name, effort
 ):
     # o-series and gpt-5.0 can't turn reasoning off either; they share the
-    # always_reasons() gate with Astra and GPT-6.1 Sol
+    # always_reasons() gate with Astra, GPT-6.1 Sol, and GPT-6.2
     params = _responses_params_for(
         model_name, _SAMPLING_CONFIG.merge(GenerateConfig(reasoning_effort=effort))
     )
@@ -1175,13 +1198,19 @@ def test_openai_responses_always_reasoning_models_drop_sampling_params(
         "gpt-6.1-sol",
         "openai.gpt-6.1-sol",
         "my-gpt-6.1-sol-deployment",
+        "gpt-6.2-astra",
+        "openai.gpt-6.2-astra",
+        "my-gpt-6.2-astra-deployment",
+        "gpt-6.2-sol",
+        "openai.gpt-6.2-sol",
+        "my-gpt-6.2-sol-deployment",
     ],
 )
 @pytest.mark.parametrize("effort", [None, "none", "low", "max"])
 def test_openai_responses_always_reasoning_gpt_6_drops_sampling_params_regardless_of_effort(
     model_name, effort
 ):
-    # Astra and GPT-6.1 Sol reject sampling params even with `none`, which is
+    # Astra, GPT-6.1 Sol, and GPT-6.2 reject sampling params even with `none`, which is
     # passed through unchanged (the API rejects it)
     params = _responses_params_for(
         model_name, _SAMPLING_CONFIG.merge(GenerateConfig(reasoning_effort=effort))
@@ -1193,7 +1222,15 @@ def test_openai_responses_always_reasoning_gpt_6_drops_sampling_params_regardles
 
 @pytest.mark.parametrize(
     "model_name",
-    ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol", "gpt-6.1-terra"],
+    [
+        "gpt-6-astra",
+        "gpt-6-sol",
+        "gpt-6-luna",
+        "gpt-6.1-sol",
+        "gpt-6.1-terra",
+        "gpt-6.2-astra",
+        "gpt-6.2-sol",
+    ],
 )
 def test_openai_compatible_model_info_gpt_6_is_gpt_5_plus(model_name):
     from inspect_ai.model._providers.openai_compatible import ModelInfo
@@ -1220,6 +1257,12 @@ def test_openai_compatible_model_info_gpt_6_is_gpt_5_plus(model_name):
         ("gpt-6.1-terra", False),
         ("openai.gpt-6.1-terra", False),
         ("my-gpt-6.1-terra-deployment", False),
+        ("gpt-6.2-astra", True),
+        ("openai.gpt-6.2-astra", True),  # bedrock api_model_name prefix
+        ("my-gpt-6.2-astra-deployment", True),  # azure deployment name
+        ("gpt-6.2-sol", True),
+        ("openai.gpt-6.2-sol", True),
+        ("my-gpt-6.2-sol-deployment", True),
         ("gpt-6", False),
         ("gpt-5.6-sol", False),
         ("gpt-5.5", False),

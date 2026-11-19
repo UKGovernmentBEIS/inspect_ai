@@ -1,4 +1,4 @@
-"""Human review of a tool call, asked for by a sentinel in a sidecar.
+"""Human review of a tool call, a model's turn or a model's request, asked for by a sentinel in a sidecar.
 
 A person may take days to answer, so the sidecar holds no connection open
 while it waits. It answers the model request at once with an error, and keeps
@@ -27,17 +27,31 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, cast
 
 import anyio
-from pydantic import TypeAdapter
+from pydantic import BaseModel, TypeAdapter
 
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.http import status_code_of
 from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.approval._human.approver import human_approver
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+)
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
+from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.util._limit import LimitExceededError
 
-from .._person import HUMAN_CHOICES, chosen_decision, escalation_lines, human_view
+from .._person import (
+    HUMAN_CHOICES,
+    approve_with_text_in_view,
+    ask_about_request,
+    ask_about_turn,
+    chosen_decision,
+    escalation_lines,
+    held_call_view,
+    human_view,
+)
 from ._endpoint import (
     QUESTION_ANSWERED,
     UNKNOWN_QUESTION,
@@ -508,9 +522,9 @@ def warn_reviews_unavailable(received: ReceivedCall, records: str) -> None:
         if id in received.reviews_logged or id in received.warned_unknown_answers:
             continue
         received.warned_unknown_answers.add(id)
-        function, _ = received.answer_details.get(id, ("a tool", 0.0))
+        about, _ = received.answer_details.get(id, (_ABOUT_A_CALL, 0.0))
         logger.warning(
-            f"Inspect couldn't learn whether a person's answer ({decision}) to the sentinel sidecar's question about the call to {function} was used: the sidecar's records of the call are {records}."
+            f"Inspect couldn't learn whether a person's answer ({decision}) to the sentinel sidecar's question about {about} was used: the sidecar's records of the call are {records}."
         )
 
 
@@ -528,7 +542,7 @@ def _warn_if_answer_unused(
     resolution = record.get("resolution")
     if resolution == "answered" and record.get("decision") == decision:
         return
-    function, answered_at = received.answer_details.get(id, ("a tool", 0.0))
+    about, answered_at = received.answer_details.get(id, (_ABOUT_A_CALL, 0.0))
     if resolution == "timed_out":
         why = "the question had timed out, where the sidecar's operator set a review timeout, and the sentinel was given the cautious answer"
     elif resolution == "cancelled":
@@ -537,7 +551,7 @@ def _warn_if_answer_unused(
     else:
         why = f"the sentinel was given another answer ({record.get('decision')})"
     logger.warning(
-        f"A person's answer ({decision}) to the sentinel sidecar's question about the call to {function} wasn't used: {why}{_time_before_answer_text(record, answered_at)}. {_call_status_text(result)}"
+        f"A person's answer ({decision}) to the sentinel sidecar's question about {about} wasn't used: {why}{_time_before_answer_text(record, answered_at)}. {_call_status_text(result)}"
     )
 
 
@@ -649,9 +663,7 @@ async def ask_person(received: ReceivedCall) -> None:
                 received.decisions[id] = await _get_decision(received, question)
             finally:
                 received.person_time += time.monotonic() - shown
-            call = question.get("call")
-            function = call.get("function") if isinstance(call, dict) else None
-            received.answer_details[id] = (str(function or "a tool"), time.time())
+            received.answer_details[id] = (_asked_about(question), time.time())
         # If the answer doesn't reach the sidecar, Inspect sends the stored
         # answer again later, and doesn't ask the person again. It waits
         # between sends, and gives up after `LOOKUP_RETRIES` failures in a
@@ -706,6 +718,58 @@ async def _get_decision(
         )
 
 
+_ABOUT_A_CALL = "the call to a tool"
+"""What a question is about, where Inspect didn't keep the call's name."""
+
+
+def _asked_about(question: dict[str, Any]) -> str:
+    # what the question is about, in words for a warning
+    if question.get("stage") == _REQUEST_STAGE:
+        return "the model's request"
+    if question.get("stage") == _TURN_STAGE:
+        return "the model's turn"
+    call = question.get("call")
+    function = call.get("function") if isinstance(call, dict) else None
+    return f"the call to {function}" if function else _ABOUT_A_CALL
+
+
+_TURN_STAGE = "model_output"
+"""The stage of a question about a model's whole turn, asked after a generate."""
+
+_CALL_STAGE = "tool_call"
+"""The stage of a question about a call that has not run. The sidecar holds the reply that makes it."""
+
+_REQUEST_STAGE = "model_input"
+"""The stage of a question about the request a model is about to be sent, asked before a generate."""
+
+
+class _MessageShown(BaseModel):
+    # one message of a request that the model has not been sent before
+    position: int
+    message: ChatMessage
+
+
+class _RequestShown(BaseModel):
+    # the request that a question before a generate is about, as the sidecar
+    # writes it
+    model: str
+    messages: int
+    new: list[_MessageShown]
+    tools: list[str]
+    tool_choice: Literal["auto", "any", "none", "function"]
+    tool_function: str | None = None
+
+    def choice(self) -> ToolChoice:
+        if self.tool_choice != "function":
+            return self.tool_choice
+        if self.tool_function is None:
+            raise ValueError("The request names no function the model must call.")
+        return ToolFunction(name=self.tool_function)
+
+
+_REQUEST = TypeAdapter(_RequestShown)
+
+
 async def _show_question(
     question: dict[str, Any],
     offered: list[ApprovalDecision],
@@ -713,21 +777,72 @@ async def _show_question(
 ) -> tuple[ApprovalDecision, str | None]:
     # Shows the question with Inspect's `human_approver`, the same way a
     # sentinel inside the eval's own process asks one.
-    call = _TOOL_CALL.validate_python(question.get("call"))
-    view = ToolCallView.model_validate(question.get("view") or {})
     escalations = [
         (str(escalation.get("name")), escalation.get("explanation"))
         for escalation in question.get("escalations") or []
         if isinstance(escalation, dict)
     ]
-    result = question.get("result")
     approve = human_approver(choices=offered)
+    if question.get("stage") == _REQUEST_STAGE:
+        request = _REQUEST.validate_python(question.get("request"))
+        approval = await ask_about_request(
+            approve,
+            request.model,
+            request.messages,
+            [(shown.position, shown.message) for shown in request.new],
+            request.tools,
+            request.choice(),
+            escalations,
+            offered,
+            # Inspect's own copy of the conversation, as below
+            history,
+        )
+        return chosen_decision(approval, offered)
+    if question.get("stage") == _TURN_STAGE:
+        turn = question.get("turn")
+        approval = await ask_about_turn(
+            approve,
+            ChatMessageAssistant.model_validate(turn) if turn is not None else None,
+            escalations,
+            offered,
+            # Inspect's own copy of the conversation, as below
+            history,
+            # The sidecar holds the reply, so Inspect has streamed none of the
+            # turn to the person.
+            content_in_view=True,
+        )
+        return chosen_decision(approval, offered)
+    call = _TOOL_CALL.validate_python(question.get("call"))
+    view = ToolCallView.model_validate(question.get("view") or {})
+    result = question.get("result")
+    said = str(question.get("message") or "")
+    escalated = escalation_lines(escalations) if escalations else None
+    if question.get("stage") == _CALL_STAGE:
+        # The sidecar holds the reply here too, so the view shows what the
+        # turn holds besides its calls.
+        turn = question.get("turn")
+        approval = await approve_with_text_in_view(
+            approve,
+            said,
+            call,
+            held_call_view(
+                view,
+                call,
+                escalated,
+                ChatMessageAssistant.model_validate(turn)
+                if turn is not None
+                else ChatMessageAssistant(content=said),
+            ),
+            # Inspect's own copy of the conversation, as below
+            history,
+        )
+        return chosen_decision(approval, offered)
     approval = await approve(
-        str(question.get("message") or ""),
+        said,
         call,
         human_view(
             view,
-            escalation_lines(escalations) if escalations else None,
+            escalated,
             ChatMessageTool.model_validate(result) if result is not None else None,
         ),
         # Inspect's own copy of the conversation, not the sidecar's. Each

@@ -26,12 +26,14 @@ from ..environment import (
     SandboxConnection,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxTimeoutError,
     SandboxUnavailableError,
     SandboxUserUnsupportedError,
     sandbox_prebuilt,
 )
 from ..limits import OutputLimitExceededError, SandboxEnvironmentLimits
 from ..registry import sandboxenv
+from ..setup import current_task_init_env
 from .cleanup import (
     cli_cleanup,
     project_cleanup,
@@ -104,7 +106,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         try:
             # create project
             project = await ComposeProject.create(
-                name=task_project_name(task_name), config=config
+                name=task_project_name(task_name),
+                config=config,
+                env=current_task_init_env(),
             )
 
             # record auto compose
@@ -375,20 +379,25 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         host_timeout = timeout + 10 if timeout is not None else None
 
         start_time = time.monotonic()
-        exec_result = await compose_exec(
-            args + [self._service] + in_container_cmd,
-            project=self._project,
-            timeout=host_timeout,
-            timeout_retry=timeout_retry,
-            input=input,
-            output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
-            concurrency=concurrency,
-        )
+        try:
+            exec_result = await compose_exec(
+                args + [self._service] + in_container_cmd,
+                project=self._project,
+                timeout=host_timeout,
+                timeout_retry=timeout_retry,
+                input=input,
+                output_limit=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
+                concurrency=concurrency,
+            )
+        except TimeoutError as ex:
+            # the host-side timeout expired: the in-container timeout had its
+            # chance to end the command and return cleanly, and did not, so
+            # the daemon or the container stopped answering. whether the
+            # command is still running is unknown.
+            raise SandboxTimeoutError(str(ex), reason="no_response") from ex
 
-        # in-container timeout fired. the docker CLI returned cleanly
-        # — this is NOT a daemon hang — so fail hard with a TimeoutError
-        # rather than returning the exit code. exit codes vary by
-        # implementation:
+        # In-container timeouts return exit codes without triggering host retries.
+        # Timeout exit codes vary by implementation:
         #   124: GNU timeout, command killed by SIGTERM (the normal case)
         #   137: SIGKILL escalation via -k (command ignored SIGTERM)
         #   143: BusyBox timeout, command killed by SIGTERM (128 + 15)
@@ -402,15 +411,12 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         elapsed = time.monotonic() - start_time
         if timeout is not None and exec_result.returncode in (124, 137, 143):
             if elapsed >= timeout:
-                # preserve the partial output captured before the timeout so it can
-                # be surfaced to the caller via SandboxTimeoutError.truncated_output
-                timeout_error = TimeoutError(
-                    f"Command timed out after {timeout} seconds"
-                )
                 partial_output = (exec_result.stdout or "") + (exec_result.stderr or "")
-                if partial_output:
-                    setattr(timeout_error, "truncated_output", partial_output)
-                raise timeout_error
+                raise SandboxTimeoutError(
+                    f"Command timed out after {timeout} seconds",
+                    truncated_output=partial_output or None,
+                    reason="command",
+                )
             # else: the command's own exit code or a signal death that came
             # too fast to be a timeout (e.g. OOM kill) — fall through and
             # return the ExecResult

@@ -109,8 +109,11 @@ from inspect_ai.log import (
 )
 from inspect_ai.log._condense import (
     SampleSerializationError,
+    condense_event_calls,
     condense_sample,
     is_log_serializable,
+    mark_attachments_resolved,
+    resolve_event_calls,
     resolve_events_attachments,
 )
 from inspect_ai.log._file import (
@@ -255,7 +258,13 @@ from .scheduler import (
 )
 from .store import DiskSampleStore, maybe_page_to_disk
 from .task_source import TaskSource
-from .util import sample_id_filter, sample_limit_count, sample_messages, slice_dataset
+from .util import (
+    sample_id_filter,
+    sample_limit_count,
+    sample_messages,
+    slice_dataset,
+    task_run_dir,
+)
 
 py_logger = getLogger(__name__)
 
@@ -819,6 +828,10 @@ class TaskRunOptions:
         default=None
     )
     """Run-level incremental sandbox startup for samples a SampleSource adds."""
+    apply_sandbox_bindings: Callable[[SandboxEnvironmentSpec], None] | None = field(
+        default=None
+    )
+    """Binds the provider state a sample's sandbox configuration's `task_init` bound."""
     input_media_policy: InputMediaPolicy = field(default="inline_only")
     """Authority granted to media references in the sliced seed dataset."""
 
@@ -1438,11 +1451,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # single loop a stamp lands either before this check (caught
             # here) or after registration (the ordinary running-task path).
             # Nothing with an end-side pairing has fired yet (the task-start
-            # hook comes after register_eval); the display row opened above
-            # is left result-less, which is cosmetic and confined to this
-            # window by the earlier check above the disk paging. The finally
-            # below still runs, so the paged sample store's temp file is
-            # unlinked.
+            # hook comes after register_eval); the handler below completes
+            # the display row opened above as cancelled. The finally below
+            # still runs, so the paged sample store's temp file is unlinked.
             if task_retry_abandoned(logger.eval.task_id):
                 raise TaskRetryAbandonedError()
 
@@ -1837,6 +1848,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         resume_checkpoint=resume_checkpoint,
                         max_sandboxes=config.max_sandboxes,
                         sandbox_cleanup=sandbox_cleanup,
+                        apply_sandbox_bindings=options.apply_sandbox_bindings,
+                        task_dir=task_run_dir(task, options.eval_wd),
                         plan=plan,
                         scorers=scorers,
                         scorer_names=scorer_names,
@@ -2409,7 +2422,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # to the dispatcher, which maps it to a side-effect-free finalize
             # and discards this attempt's never-started log entry; writing an
             # error log here would supersede the errored prior attempt's log,
-            # which must remain the task's final state
+            # which must remain the task's final state. The row is completed
+            # as cancelled so the display counts it as finished; no samples
+            # ran in this attempt, and its log location is cleared because
+            # the dispatcher discards that log.
+            profile.log_location = ""
+            collect_eval_data(stats)
+            td.complete(TaskCancelled(0, stats))
             raise
 
         except BaseException as ex:
@@ -2647,6 +2666,8 @@ async def task_run_sample(
     resume_checkpoint: ResumeCheckpoint | None,
     max_sandboxes: int | None,
     sandbox_cleanup: bool,
+    apply_sandbox_bindings: Callable[[SandboxEnvironmentSpec], None] | None,
+    task_dir: str,
     plan: Plan,
     scorers: list[Scorer] | None,
     scorer_names: list[str] | None,
@@ -2702,6 +2723,8 @@ async def task_run_sample(
             resume_checkpoint=resume_checkpoint,
             max_sandboxes=max_sandboxes,
             sandbox_cleanup=sandbox_cleanup,
+            apply_sandbox_bindings=apply_sandbox_bindings,
+            task_dir=task_dir,
             plan=plan,
             scorers=scorers,
             scorer_names=scorer_names,
@@ -2753,6 +2776,8 @@ async def _task_run_sample_attempt(
     resume_checkpoint: ResumeCheckpoint | None,
     max_sandboxes: int | None,
     sandbox_cleanup: bool,
+    apply_sandbox_bindings: Callable[[SandboxEnvironmentSpec], None] | None,
+    task_dir: str,
     plan: Plan,
     scorers: list[Scorer] | None,
     scorer_names: list[str] | None,
@@ -2884,7 +2909,13 @@ async def _task_run_sample_attempt(
         sandboxenv_cm = (
             aexit_shielded_when(
                 sandboxenv_context(
-                    task_name, sandbox, max_sandboxes, sandbox_cleanup, sample
+                    task_name,
+                    sandbox,
+                    max_sandboxes,
+                    sandbox_cleanup,
+                    sample,
+                    task_dir,
+                    apply_setup_bindings=apply_sandbox_bindings,
                 ),
                 lambda: isinstance(failure, _AttemptCancel),
             )
@@ -3891,7 +3922,18 @@ def create_eval_sample(
     end_time = sample_clock()
     total_time = end_time - start_time if start_time is not None else None
 
-    return EvalSample(
+    # retry events arrive with raw calls; a "core" sample holds them condensed
+    attachments = dict(transcript().attachments)
+    error_retries = [
+        retry.model_copy(
+            update={"events": condense_event_calls(retry.events, attachments)}
+        )
+        if retry.events is not None
+        else retry
+        for retry in error_retries
+    ]
+
+    eval_sample = EvalSample(
         id=id,
         epoch=state.epoch,
         input=sample.input,
@@ -3909,7 +3951,7 @@ def create_eval_sample(
         uuid=state.uuid,
         events=list(transcript().events) if include_events else [],
         timelines=list(transcript().timelines) or None,
-        attachments=dict(transcript().attachments),
+        attachments=attachments,
         model_usage=sample_model_usage(),
         role_usage=sample_role_usage(),
         model_fallbacks=sample_model_fallbacks() or None,
@@ -3931,6 +3973,7 @@ def create_eval_sample(
         error_retries=error_retries,
         limit=limit,
     )
+    return mark_attachments_resolved(eval_sample, "core")
 
 
 def _finalization_consumes_events(
@@ -4373,10 +4416,23 @@ def _eval_retry_error(
     sample_id: str | int | None = None,
     epoch: int | None = None,
 ) -> EvalRetryError:
-    """Create retry error with events from the most recent ModelEvent onward."""
+    """Create retry error with events from the most recent ModelEvent onward.
+
+    The events come from the transcript when it still holds them all, and
+    otherwise from the sample buffer, with their attachments resolved, model
+    calls included. The buffer keeps literal reference text in model calls
+    as a reference, so those events can show attachment content in its place.
+    """
     from inspect_ai.event._model import ModelEvent
 
-    if logger is not None and logger.buffer_db is not None and sample_id is not None:
+    sample_transcript = transcript()
+    transcript_history = sample_transcript.history
+    if (
+        transcript_history.resident_events_truncated
+        and logger is not None
+        and logger.buffer_db is not None
+        and sample_id is not None
+    ):
         if epoch is None:
             raise ValueError(
                 "epoch is required when reading retry events from buffer DB"
@@ -4384,10 +4440,11 @@ def _eval_retry_error(
         with logger.buffer_db.open_sample_history(sample_id, epoch) as sample_history:
             return eval_retry_error_from_history(error, sample_history)
 
-    sample_transcript = transcript()
-    transcript_history = sample_transcript.history
     recent_events = (
-        transcript_history.events_since_last(ModelEvent)
+        resolve_event_calls(
+            transcript_history.events_since_last(ModelEvent),
+            sample_transcript.attachments,
+        )
         if transcript_history.full_history_available
         else []
     )
@@ -4439,9 +4496,22 @@ def _seed_error_retries(sample: EvalSample) -> list[EvalRetryError]:
     Carries forward the sample's own `error_retries` (genuine failures from
     earlier attempts) and appends the terminal error — but only when that
     error is a genuine failure. A cancellation (sibling failure tore the
-    task down) is skipped so it doesn't inflate the retry count.
+    task down) is skipped so it doesn't inflate the retry count. Events come
+    back with their attachments resolved, as in the live sample, which is
+    marked "core" for `condense_sample`.
     """
-    seed = list(sample.error_retries or [])
+    seed = [
+        retry.model_copy(
+            update={
+                "events": resolve_events_attachments(
+                    retry.events, sample.attachments, "full"
+                )
+            }
+        )
+        if retry.events is not None
+        else retry
+        for retry in sample.error_retries or []
+    ]
     if sample.error is not None and not _is_cancellation_error(sample.error):
         seed.append(_eval_retry_error_from_sample(sample))
     return seed

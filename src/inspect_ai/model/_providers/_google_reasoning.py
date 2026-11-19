@@ -106,13 +106,13 @@ def gemini_thinking_only(family: str, latest: bool) -> bool:
 
     Pro names newer than those verified (e.g. a future gemini-4-pro) count as
     thinking-only, so disabling thinking warns rather than risking a 400.
-    Gemini 4 Hydrogen accepts thinking_budget=0 but keeps thinking.
+    Gemini 4 Hydrogen and Neon accept thinking_budget=0 but keep thinking.
     Only the final path segment is checked, so a vertex project id such as
     my-project does not make a model thinking-only.
     """
     name = _model_segment(family)
     return gemini_has_thinking_config(family, latest) and (
-        "-pro" in name or _is_gemini_4_hydrogen(family)
+        "-pro" in name or _is_gemini_4_hydrogen_or_neon(family)
     )
 
 
@@ -133,19 +133,21 @@ def gemini_supports_minimal_thinking(family: str) -> bool:
     return low <= version < high
 
 
-def _is_gemini_4_hydrogen(family: str) -> bool:
-    return "gemini-4-hydrogen" in _model_segment(family)
+def _is_gemini_4_hydrogen_or_neon(family: str) -> bool:
+    """Gemini 4 Hydrogen or Neon, which accept XHIGH and keep thinking at budget 0."""
+    name = _model_segment(family)
+    return "gemini-4-hydrogen" in name or "gemini-4-neon" in name
 
 
 def gemini_supports_xhigh_thinking(family: str) -> bool:
     """Whether the model accepts thinking_level=XHIGH.
 
-    True only for Gemini 4 Hydrogen, the first model documented to accept
-    it. Earlier models reject it with a 400, and unverified names get
-    `high` rather than risk one.
+    True only for Gemini 4 Hydrogen and Neon, the models documented to
+    accept it. Argon and Carbon reject it with a 400, and unverified names
+    get `high` rather than risk one.
     https://aistudio.google.com/docs/thinking
     """
-    return _is_gemini_4_hydrogen(family)
+    return _is_gemini_4_hydrogen_or_neon(family)
 
 
 def gemini_thinking_level(

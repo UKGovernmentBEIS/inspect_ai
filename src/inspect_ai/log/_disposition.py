@@ -2,9 +2,9 @@
 
 import math
 from copy import deepcopy
-from typing import NamedTuple, Sequence, TypeAlias
+from typing import Sequence, TypeAlias
 
-from inspect_ai.scorer._metric import UNCHANGED, Score, ScoreEdit, score_is_excluded
+from inspect_ai.scorer._metric import UNCHANGED, Score, ScoreEdit
 
 from ._edit import ProvenanceData
 from ._log import EvalLog, EvalSample
@@ -16,21 +16,11 @@ A string id also matches an integer sample id with the same `str()`.
 """
 
 
-class DispositionResult(NamedTuple):
-    """Samples a disposition edited or left as they were."""
-
-    applied: list[tuple[int | str, int]]
-    """(id, epoch) of each sample edited now."""
-
-    unchanged: list[tuple[int | str, int]]
-    """(id, epoch) of each sample that was already excluded (exclusion only)."""
-
-
 def exclude_samples(
     log: EvalLog,
     samples: Sequence[SampleSelector],
     provenance: ProvenanceData,
-) -> DispositionResult:
+) -> None:
     """Exclude samples from the log's metrics.
 
     Each score the sample holds is edited to an unscored `NaN` with the reason
@@ -54,10 +44,6 @@ def exclude_samples(
        provenance: Author and reason for the exclusion. `reason` is
           required, and is also used as the score's explanation.
 
-    Returns:
-       The (id, epoch) of each sample excluded now, and of each one already
-       excluded (left unchanged).
-
     Raises:
        ValueError: The log has no samples or is still being written, the
           reason is empty, a selector matches no sample, or a sample with no
@@ -69,14 +55,10 @@ def exclude_samples(
     targets = _select_samples(log, samples)
 
     edits: list[tuple[EvalSample, list[str]]] = []
-    unchanged: list[EvalSample] = []
     no_scorer: list[EvalSample] = []
     for sample in targets:
         if sample.scores:
-            if all(score_is_excluded(score) for score in sample.scores.values()):
-                unchanged.append(sample)
-            else:
-                edits.append((sample, list(sample.scores)))
+            edits.append((sample, list(sample.scores)))
         elif log.eval.scorers:
             edits.append((sample, [log.eval.scorers[0].name]))
         else:
@@ -109,11 +91,6 @@ def exclude_samples(
         ],
     )
 
-    return DispositionResult(
-        applied=[(sample.id, sample.epoch) for sample, _ in edits],
-        unchanged=[(sample.id, sample.epoch) for sample in unchanged],
-    )
-
 
 _EMPTY_ATTEMPT_SOLVERS = ("inspect_ai/empty_attempt", "empty_attempt")
 """Names the `empty_attempt()` solver is recorded under.
@@ -129,7 +106,7 @@ def zero_samples(
     empty: EvalLog,
     samples: Sequence[SampleSelector],
     provenance: ProvenanceData,
-) -> DispositionResult:
+) -> None:
     """Score samples as empty attempts, from the log of an empty attempt.
 
     `empty` is the log of an eval of the same task run with the
@@ -160,10 +137,6 @@ def zero_samples(
        samples: Samples to zero. A sample id selects every epoch of the
           sample, and an `(id, epoch)` pair selects one.
        provenance: Author and reason for the zero. `reason` is required.
-
-    Returns:
-       The (id, epoch) of each sample zeroed. `unchanged` is always empty:
-       zeroing a sample again applies the verdicts again.
 
     Raises:
        ValueError: Either log has no samples, `log` is still being written,
@@ -224,11 +197,6 @@ def zero_samples(
         )
 
     _apply_edits(log, edits)
-
-    return DispositionResult(
-        applied=[(sample.id, sample.epoch) for sample, _ in edits],
-        unchanged=[],
-    )
 
 
 def _check_empty_attempt(log: EvalLog, empty: EvalLog) -> None:
@@ -320,8 +288,6 @@ def _apply_edits(
     from ._metric import compute_log_metrics, resolve_log_metrics
     from ._score import edit_score
 
-    if not edits:
-        return
     # before any edit, so a missing metric or reducer leaves the log as is;
     # there is no trust_log option to advise
     resolved = resolve_log_metrics(log, trust_log_advice=False)

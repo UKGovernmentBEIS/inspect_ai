@@ -2,7 +2,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Generator, Literal
+from typing import Any, Generator, Literal, cast
 
 import pytest
 from test_helpers.utils import (
@@ -27,7 +27,14 @@ from inspect_ai.model._model_info import clear_model_info_cache
 from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.scorer import exact
 from inspect_ai.solver import TaskState, generate, solver
-from inspect_ai.util import SandboxEnvironmentSpec
+from inspect_ai.util import (
+    ExecResult,
+    SandboxEnvironment,
+    SandboxEnvironmentConfigType,
+    SandboxEnvironmentSpec,
+    sandboxenv,
+)
+from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 from inspect_ai.viewer import TaskSamplesView, ViewerConfig
 
 
@@ -257,6 +264,98 @@ def my_task():
 
         finally:
             os.chdir(eval_wd)
+
+
+@sandboxenv(name="retry_probe")
+class RetryProbeSandbox(SandboxEnvironment):
+    """Records the config each task_init receives."""
+
+    task_init_configs: list[SandboxEnvironmentConfigType | None] = []
+
+    @classmethod
+    async def task_init(
+        cls, task_name: str, config: SandboxEnvironmentConfigType | None
+    ) -> None:
+        cls.task_init_configs.append(config)
+
+    @classmethod
+    async def sample_init(
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        metadata: dict[str, str],
+    ) -> dict[str, SandboxEnvironment]:
+        return {"default": cls()}
+
+    @classmethod
+    async def sample_cleanup(
+        cls,
+        task_name: str,
+        config: SandboxEnvironmentConfigType | None,
+        environments: dict[str, SandboxEnvironment],
+        interrupted: bool,
+    ) -> None:
+        pass
+
+    async def exec(self, *args: Any, **kwargs: Any) -> ExecResult[str]:
+        raise NotImplementedError
+
+    async def write_file(self, *args: Any, **kwargs: Any) -> None:
+        raise NotImplementedError
+
+    async def read_file(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError
+
+
+@pytest.mark.parametrize("config", ['{"image": "python:3.12"}', "probe.json"])
+def test_eval_retry_sandbox_config_from_another_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, config: str
+) -> None:
+    """A retry from a log gives task_init the config the first run gave it.
+
+    The task file is in its own directory, and the first run and the retry
+    each run from a different working directory. An inline-JSON config
+    reaches both task_init calls unchanged; a relative config file beside the
+    task file reaches both as that file's absolute path.
+    """
+    task_dir = (tmp_path / "task").resolve()
+    task_dir.mkdir()
+    (task_dir / "probe.json").write_text("{}")
+    task_file = task_dir / "probe_task.py"
+    task_file.write_text(
+        f"""from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+
+
+@task
+def probe_task():
+    return Task(dataset=[Sample(input="x")], sandbox=("retry_probe", {config!r}))
+"""
+    )
+    first_wd = tmp_path / "first"
+    retry_wd = tmp_path / "retry"
+    first_wd.mkdir()
+    retry_wd.mkdir()
+    # the provider registered under the name: loading this module again from a
+    # task file (as other tests here do) registers another copy of the class
+    probe = cast(type[RetryProbeSandbox], registry_find_sandboxenv("retry_probe"))
+    probe.task_init_configs = []
+
+    monkeypatch.chdir(first_wd)
+    log = eval(
+        f"{task_file.as_posix()}@probe_task",
+        solver=failing_solver(),
+        model="mockllm/model",
+        log_dir=(tmp_path / "logs").as_posix(),
+    )[0]
+    assert log.status == "error"
+
+    monkeypatch.chdir(retry_wd)
+    retried = eval_retry(log, log_dir=(tmp_path / "logs").as_posix())[0]
+    assert retried.status == "error"
+
+    expected = config if config.startswith("{") else (task_dir / config).as_posix()
+    assert probe.task_init_configs == [expected, expected]
 
 
 def test_invalidation(tmp_path: Path):
