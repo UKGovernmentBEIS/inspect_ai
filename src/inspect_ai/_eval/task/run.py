@@ -109,9 +109,11 @@ from inspect_ai.log import (
 )
 from inspect_ai.log._condense import (
     SampleSerializationError,
+    condense_event_calls,
     condense_sample,
     is_log_serializable,
     mark_attachments_resolved,
+    resolve_event_calls,
     resolve_events_attachments,
 )
 from inspect_ai.log._file import (
@@ -3905,6 +3907,17 @@ def create_eval_sample(
     end_time = sample_clock()
     total_time = end_time - start_time if start_time is not None else None
 
+    # retry events arrive with raw calls; a "core" sample holds them condensed
+    attachments = dict(transcript().attachments)
+    error_retries = [
+        retry.model_copy(
+            update={"events": condense_event_calls(retry.events, attachments)}
+        )
+        if retry.events is not None
+        else retry
+        for retry in error_retries
+    ]
+
     eval_sample = EvalSample(
         id=id,
         epoch=state.epoch,
@@ -3923,7 +3936,7 @@ def create_eval_sample(
         uuid=state.uuid,
         events=list(transcript().events) if include_events else [],
         timelines=list(transcript().timelines) or None,
-        attachments=dict(transcript().attachments),
+        attachments=attachments,
         model_usage=sample_model_usage(),
         role_usage=sample_role_usage(),
         model_fallbacks=sample_model_fallbacks() or None,
@@ -4388,10 +4401,23 @@ def _eval_retry_error(
     sample_id: str | int | None = None,
     epoch: int | None = None,
 ) -> EvalRetryError:
-    """Create retry error with events from the most recent ModelEvent onward."""
+    """Create retry error with events from the most recent ModelEvent onward.
+
+    The events come from the transcript when it still holds them all, and
+    otherwise from the sample buffer, with their attachments resolved, model
+    calls included. The buffer keeps literal reference text in model calls
+    as a reference, so those events can show attachment content in its place.
+    """
     from inspect_ai.event._model import ModelEvent
 
-    if logger is not None and logger.buffer_db is not None and sample_id is not None:
+    sample_transcript = transcript()
+    transcript_history = sample_transcript.history
+    if (
+        transcript_history.resident_events_truncated
+        and logger is not None
+        and logger.buffer_db is not None
+        and sample_id is not None
+    ):
         if epoch is None:
             raise ValueError(
                 "epoch is required when reading retry events from buffer DB"
@@ -4399,10 +4425,11 @@ def _eval_retry_error(
         with logger.buffer_db.open_sample_history(sample_id, epoch) as sample_history:
             return eval_retry_error_from_history(error, sample_history)
 
-    sample_transcript = transcript()
-    transcript_history = sample_transcript.history
     recent_events = (
-        transcript_history.events_since_last(ModelEvent)
+        resolve_event_calls(
+            transcript_history.events_since_last(ModelEvent),
+            sample_transcript.attachments,
+        )
         if transcript_history.full_history_available
         else []
     )
