@@ -1032,33 +1032,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     sample_source = options.sample_source
     kwargs = options.kwargs
 
-    # an attempt cancelled before it started (its abort was requested before
-    # its cancel scope was entered) stops here, before any startup side
-    # effect: the recorders' log_init() need not reach a checkpoint
-    await anyio.lowlevel.checkpoint()
-
-    # a task drain/cancel abandoned this queued retry before it started: bail
-    # before anything that needs unwinding is set up — the log entry, the
-    # paged-to-disk sample store below (its temp file is only unlinked by the
-    # close in the finally, which an abandoned attempt never reaches), the
-    # log_start destination header (a stray `started` log the retry-cleanup
-    # sweep would prefer over the errored attempt's log), and the display
-    # task row (an abandoned row with no result would become the last row for
-    # this task id and read as incomplete in the rich header for the rest of
-    # the run). Best-effort — awaits separate this from register_eval, so the
-    # pre-register check below remains the race-free backstop (and the
-    # dispatcher's discard removes any header a stamp landing in between
-    # still flushed).
-    if task_retry_abandoned(logger.eval.task_id):
-        raise TaskRetryAbandonedError()
-
-    # the attempt's log starts here: a queued task holds no recorder entry,
-    # temporary file or buffer database. A failure escapes task_run, and the
-    # dispatcher reports it as an errored attempt (see unwritten_task_log)
-    await logger.init()
-    location = logger.location
-    assert location is not None
-
     # a SampleSource-driven task generates samples while it runs (`sample_feed`
     # to distinguish it from `sample_source`, the prior-attempt lookup above).
     # A task no `task:id` selector named (sample_id resolved to []) runs no
@@ -1090,6 +1063,35 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         options.task.metadata,
         options.task.description,
     )
+
+    # an attempt cancelled before it started (its abort was requested before
+    # its cancel scope was entered) stops here, before any startup side
+    # effect: the recorders' log_init() need not reach a checkpoint. The task
+    # context above is set first, so the attempt's report to the TaskSource
+    # runs under the task's own model and config whichever way it ends
+    await anyio.lowlevel.checkpoint()
+
+    # a task drain/cancel abandoned this queued retry before it started: bail
+    # before anything that needs unwinding is set up — the log entry, the
+    # paged-to-disk sample store below (its temp file is only unlinked by the
+    # close in the finally, which an abandoned attempt never reaches), the
+    # log_start destination header (a stray `started` log the retry-cleanup
+    # sweep would prefer over the errored attempt's log), and the display
+    # task row (an abandoned row with no result would become the last row for
+    # this task id and read as incomplete in the rich header for the rest of
+    # the run). Best-effort — awaits separate this from register_eval, so the
+    # pre-register check below remains the race-free backstop (and the
+    # dispatcher's discard removes any header a stamp landing in between
+    # still flushed).
+    if task_retry_abandoned(logger.eval.task_id):
+        raise TaskRetryAbandonedError()
+
+    # the attempt's log starts here: a queued task holds no recorder entry,
+    # temporary file or buffer database. A failure escapes task_run, and the
+    # dispatcher reports it as an errored attempt (see unwritten_task_log)
+    await logger.init()
+    location = logger.location
+    assert location is not None
 
     # track stats, results, and log. progress results are keyed by
     # (sample_id, epoch) so a requeued sample's fresh score replaces its

@@ -1178,6 +1178,10 @@ async def dispatch_tasks(
                             )
                         else:
                             queue.add(queue.resolve(more))
+                        # the queue holds what it needs: drop the source's
+                        # batch so its tasks and datasets can be freed once
+                        # they end, while the next call blocks
+                        more = None
                 finally:
                     # synchronous, before the group joins its attempts: nothing
                     # more starts, and every queued record ends

@@ -6,9 +6,11 @@ The source seeds the run with `initial_tasks()`, observes results via
 `None` — all under one run_id.
 """
 
+import gc
 import os
 import subprocess
 import sys
+import weakref
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
@@ -1074,3 +1076,83 @@ def test_sigint_while_next_tasks_blocks_keeps_completed_logs(backend: str) -> No
         f"max_tasks=1: {outcome}; on disk success",
         f"max_tasks=2: {outcome}; on disk success",
     ], result.stdout + result.stderr
+
+
+async def test_next_tasks_batch_is_freed_once_its_tasks_end(tmp_path: Path) -> None:
+    # the dispatcher keeps no reference to a batch next_tasks() returned, so
+    # a finished task and its dataset are freed while the next call blocks
+    task_ref: list[weakref.ref[Task]] = []
+    alive_during_next_pull: list[bool] = []
+
+    class _Src(TaskSource):
+        calls = 0
+
+        def initial_tasks(self) -> list[Task]:
+            return [_task("seed")]
+
+        async def next_tasks(self) -> list[Task] | None:
+            self.calls += 1
+            if self.calls == 1:
+                pulled = _task("pulled")
+                task_ref.append(weakref.ref(pulled))
+                return [pulled]
+            if self.calls == 2:
+                assert _record("pulled").phase == "ended"
+                gc.collect()
+                alive_during_next_pull.append(task_ref[0]() is not None)
+            return None
+
+    init_display_type("none")
+    logs = await eval_async(_Src(), model="mockllm/model", log_dir=str(tmp_path))
+    assert [log.eval.task for log in logs] == ["seed", "pulled"]
+    assert alive_during_next_pull == [False]
+
+
+@pytest.mark.parametrize("early_end", ["log_init_failure", "queued_abort"])
+async def test_attempt_report_runs_under_its_own_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, early_end: str
+) -> None:
+    # an attempt that ends before its log starts is still reported to the
+    # source in its own task context (its model, not the last one resolved)
+    seen: list[tuple[str, str, str]] = []
+    init = TaskLogger.init
+
+    async def failing_init(self: TaskLogger) -> None:
+        if self.eval.task == "B" and self.eval.model == "mockllm/first":
+            raise OSError("cannot start log")
+        await init(self)
+
+    async def cancel_b_first() -> None:
+        queue = get_run_queue()
+        assert queue is not None
+        record = next(
+            r for r in queue.records if r.task == "B" and r.model == "mockllm/first"
+        )
+        queue.cancel(record)
+
+    if early_end == "log_init_failure":
+        monkeypatch.setattr(TaskLogger, "init", failing_init)
+        seed = [_task("B")]
+    else:
+        # A (both models) runs first at max_tasks=1 and cancels B's first-model
+        # record while it is queued
+        seed = [_hook_task("A", cancel_b_first), _task("B")]
+
+    class _Src(TaskSource):
+        def initial_tasks(self) -> list[Task]:
+            return seed
+
+        async def task_complete(self, log: EvalLog) -> list[Task] | None:
+            seen.append((log.eval.task, log.eval.model, str(get_model())))
+            return None
+
+    init_display_type("none")
+    await eval_async(
+        _Src(),
+        model=["mockllm/first", "mockllm/second"],
+        log_dir=str(tmp_path),
+        max_tasks=1,
+    )
+    [(_, model, active)] = [r for r in seen if r[0] == "B" and r[1] == "mockllm/first"]
+    assert active == model
+    assert all(r[1] == r[2] for r in seen), seen
