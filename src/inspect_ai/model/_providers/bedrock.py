@@ -1652,6 +1652,14 @@ async def converse_chat_message(
 
         # process the tool response content
         tool_result_content: list[ConverseToolResultContent] = []
+        if message.error is not None:
+            # Converse marks the result failed with status="error" but does not
+            # carry the reason, so send the message alongside it: otherwise a
+            # model whose tool call failed cannot tell a timeout from a bad path
+            # and cannot recover. message.text falls back to any text content.
+            tool_result_content.append(
+                ConverseToolResultContent(text=message.error.message or message.text)
+            )
         if isinstance(message.content, str):
             tool_result_content.append(ConverseToolResultContent(text=message.content))
         else:
