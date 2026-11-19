@@ -2032,3 +2032,13 @@ async def test_pending_assistant_chip_shows_retry_counter() -> None:
         rendered = str(app.query_one(MessageWidget).query_one(".chip", Static).content)
         assert "(retry 3)" in rendered
         assert "esc to interrupt" not in rendered
+
+
+def test_styled_markdown_shows_html_as_text() -> None:
+    from inspect_ai.agent._acp.tui.widgets.markdown import StyledMarkdown
+
+    buffer = io.StringIO()
+    console = Console(file=buffer, width=80, color_system=None)
+    console.print(StyledMarkdown("ok\n\n<!--\nhidden\n-->\n\n<div>\nmore\n</div>"))
+    for shown in ["<!--", "hidden", "-->", "<div>", "more"]:
+        assert shown in buffer.getvalue()

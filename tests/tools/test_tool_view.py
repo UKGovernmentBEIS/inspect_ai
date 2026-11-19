@@ -1,12 +1,17 @@
+import io
 import logging
+from typing import Any
+from unittest.mock import patch
 
 import pytest
+from rich.console import Console
 from test_helpers.tool_call_utils import get_tool_event
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
 from inspect_ai.approval._apply import apply_tool_approval
 from inspect_ai.approval._approval import Approval
+from inspect_ai.approval._human.util import render_tool_approval
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.model._call_tools import tool_call_view
@@ -16,9 +21,11 @@ from inspect_ai.tool._tool_call import (
     ToolCall,
     ToolCallContent,
     ToolCallView,
+    default_tool_call_viewer,
     resolve_tool_call_view,
 )
-from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tool_def import ToolDef, tool_def_fields
+from inspect_ai.tool._tools._execute import code_viewer
 
 
 @skip_if_no_docker
@@ -97,7 +104,11 @@ def test_tool_call_view_swallows_viewer_error():
     finally:
         logging.getLogger("inspect_ai.model._call_tools").removeHandler(handler)
 
-    assert result is None
+    # the fallback is the default view, titled to say the viewer failed
+    assert result is not None
+    assert result.title is not None and "viewer" in result.title
+    assert "failed" in result.title
+    assert result.content == default_tool_call_viewer(call).call.content
     assert any(
         "viewer_keyerror_tool" in r.getMessage() and "Error in viewer" in r.getMessage()
         for r in handler.records
@@ -129,6 +140,7 @@ def test_resolve_tool_call_view_falls_back_when_viewer_raises() -> None:
     view = resolve_tool_call_view(call, raising_viewer)
     assert view.call is not None
     assert "viewer_fallback_tool" in view.call.content
+    assert view.call.title is not None and "failed" in view.call.title
 
 
 async def test_apply_tool_approval_rejects_when_viewer_raises() -> None:
@@ -195,3 +207,112 @@ async def test_generate_views_the_call_as_the_model_gave_it() -> None:
     view = output.message.tool_calls[0].view
     assert view is not None and view.content == "viewed"
     assert viewed == [{"thought": 5}]
+
+
+# Each closes a three-backtick fence, then opens an HTML comment, an HTML block
+# or a heading, which would hide or relabel the lines after it.
+_HIDING = [
+    "ls\n```\n<!--\nrm -rf /tmp/data\n-->",
+    "ls\n```\n<div>\n\nrm -rf /tmp/data\n</div>",
+    "ls\n```\n# Approved\nrm -rf /tmp/data",
+    "ls\n`````\n<!-- rm -rf /tmp/data",
+]
+
+# Legitimate code with backticks, which should read as written.
+_BACKTICKS = [
+    "echo `date`",
+    "cat <<'EOF' > README.md\n```python\nprint('hi')\n```\nEOF",
+]
+
+
+def _render_approval(view: ToolCallView, arguments: dict[str, Any]) -> str:
+    """The approval panel's text, as the console and Textual approvers show it."""
+    buffer = io.StringIO()
+    console = Console(file=buffer, width=200, color_system=None)
+    with patch("inspect_ai.approval._human.util.display_type", return_value="full"):
+        for renderable in render_tool_approval("", view, arguments):
+            console.print(renderable)
+    return buffer.getvalue()
+
+
+def _assert_shows_every_line(rendered: str, text: str) -> None:
+    for line in text.splitlines():
+        assert line.strip() in rendered, f"{line!r} is not shown"
+
+
+@pytest.mark.parametrize("code", _HIDING + _BACKTICKS)
+@pytest.mark.parametrize("language,param", [("bash", "command"), ("python", "code")])
+def test_code_view_shows_every_line(code: str, language: str, param: str) -> None:
+    call = ToolCall(id="1", function=language, arguments={param: code})
+    view = code_viewer(language, param)(call)
+    rendered = _render_approval(view, call.arguments)
+    _assert_shows_every_line(rendered, code)
+    # the view's own fence is not shown as text
+    assert rendered.count("```") == code.count("```")
+
+
+@pytest.mark.parametrize("value", _HIDING + _BACKTICKS)
+def test_default_view_shows_every_argument(value: str) -> None:
+    call = ToolCall(
+        id="1", function="write_file", arguments={"path": "/tmp/x", "text": value}
+    )
+    view = default_tool_call_viewer(call)
+    rendered = _render_approval(view, call.arguments)
+    assert repr(value) in rendered
+    assert "path='/tmp/x'" in rendered
+
+
+def test_default_view_shows_strings_as_literals() -> None:
+    # a quote in a string cannot make it read as two arguments
+    call = ToolCall(id="1", function="f", arguments={"x": "a', y='b"})
+    view = default_tool_call_viewer(call)
+    rendered = _render_approval(view, call.arguments)
+    assert """f(x="a', y='b")""" in rendered
+
+
+@pytest.mark.parametrize("value", _HIDING + _BACKTICKS)
+def test_agent_view_shows_every_line(value: str) -> None:
+    from inspect_ai.agent._deepagent.agent_tool import agent_tool
+    from inspect_ai.agent._deepagent.subagent import subagent
+
+    viewer = tool_def_fields(
+        agent_tool(
+            subagents=[
+                subagent(name="research", description="Research.", prompt="R."),
+                subagent(name="general", description="General.", prompt="G."),
+            ]
+        )
+    ).viewer
+    assert viewer is not None
+    arguments = {
+        "subagent_type": "research",
+        "task_description": f"Summarize\n{value}",
+        "prompt": f"Read the repo.\n{value}\nThen report.",
+    }
+    view = viewer(ToolCall(id="1", function="agent", arguments=arguments))
+    rendered = _render_approval(view, arguments)
+    _assert_shows_every_line(rendered, arguments["task_description"])
+    _assert_shows_every_line(rendered, arguments["prompt"])
+
+
+def test_approval_shows_html_in_a_markdown_view() -> None:
+    # a tool's own viewer that puts an argument outside any code block
+    view = ToolCallView(
+        call=ToolCallContent(format="markdown", content="Notes: {{notes}}")
+    )
+    arguments = {"notes": "ok\n\n<!--\nrm -rf /tmp/data\n-->\n\n<div>\nmore\n</div>"}
+    rendered = _render_approval(view, arguments)
+    for shown in ["<!--", "rm -rf /tmp/data", "-->", "<div>", "more", "</div>"]:
+        assert shown in rendered
+
+
+@pytest.mark.parametrize("code", _HIDING)
+def test_viewer_failure_view_shows_every_argument(code: str) -> None:
+    def raising_viewer(call: ToolCall) -> ToolCallView:
+        raise ValueError("bad")
+
+    call = ToolCall(id="1", function="bash", arguments={"command": code})
+    view = resolve_tool_call_view(call, raising_viewer)
+    rendered = _render_approval(view, call.arguments)
+    assert repr(code) in rendered
+    assert "failed" in rendered

@@ -1,5 +1,6 @@
 import re
 
+from inspect_ai._util.format import safe_code_fence
 from inspect_ai.approval._approval import Approval, ApprovalDecision
 from inspect_ai.approval._human.approver import human_approver
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
@@ -137,9 +138,5 @@ def escape_placeholders(text: str) -> str:
 
 
 def fenced(text: str) -> str:
-    # Deferred: `inspect_ai.review` is on the `import inspect_ai` path and the
-    # ACP shim imports `acp.schema`, the single largest cost of that import.
-    from inspect_ai.approval._human.acp import _safe_code_fence
-
-    fence = _safe_code_fence(text)
+    fence = safe_code_fence(text)
     return f"{fence}\n{text}\n{fence}"

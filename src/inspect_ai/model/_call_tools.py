@@ -78,7 +78,11 @@ from inspect_ai.tool._tool import (
     ToolSource,
     tool_result_content,
 )
-from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
+from inspect_ai.tool._tool_call import (
+    ToolCallContent,
+    ToolCallError,
+    viewer_failed_view,
+)
 from inspect_ai.tool._tool_canonical import tool_canonical_arguments
 from inspect_ai.tool._tool_def import ToolDef, tool_def_fields, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
@@ -2198,7 +2202,7 @@ def tool_call_view(call: ToolCall, tdefs: list[ToolDef]) -> ToolCallContent | No
                 f"Error in viewer for tool '{call.function}': {ex}. "
                 "Falling back to default rendering.",
             )
-            return None
+            return viewer_failed_view(call).call
     else:
         return None
 

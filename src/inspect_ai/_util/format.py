@@ -6,11 +6,25 @@ from typing import Any, NamedTuple
 
 
 def format_function_call(
-    func_name: str, args_dict: dict[str, Any], indent_spaces: int = 4, width: int = 80
+    func_name: str,
+    args_dict: dict[str, Any],
+    indent_spaces: int = 4,
+    width: int = 80,
+    literal_strings: bool = False,
 ) -> str:
+    """Format a function call for display.
+
+    Args:
+        func_name: The function's name.
+        args_dict: The call's arguments.
+        indent_spaces: Indentation of arguments when the call spans lines.
+        width: Line width to wrap the arguments at.
+        literal_strings: Show strings as Python literals, with quotes and
+            newlines escaped, so a string cannot read as other arguments.
+    """
     formatted_args = []
     for key, value in args_dict.items():
-        formatted_value = format_value(value, width)
+        formatted_value = format_value(value, width, literal_strings)
         formatted_args.append(f"{key}={formatted_value}")
 
     args_str = ", ".join(formatted_args)
@@ -22,12 +36,40 @@ def format_function_call(
         return f"{func_name}(\n{indented_args}\n)"
 
 
-def format_value(value: object, width: int) -> str:
-    if isinstance(value, str):
+def format_value(value: object, width: int, literal_strings: bool = False) -> str:
+    if isinstance(value, str) and not literal_strings:
         return f"'{value}'"
-    elif isinstance(value, list | tuple | dict):
+    elif isinstance(value, str | list | tuple | dict):
         return pprint.pformat(value, width=width)
     return str(value)
+
+
+def safe_code_fence(content: str) -> str:
+    """Return a backtick fence longer than any backtick run in ``content``.
+
+    CommonMark / GFM rule: a fenced code block opened with N
+    backticks closes at the next line whose fence has at least N
+    backticks. Pick ``max_run + 1`` so the close fence we emit
+    can't be matched by anything embedded in the content.
+
+    Minimum length 3 — keeps standard plaintext (no backticks at
+    all) wrapped in the familiar ``` fence.
+    """
+    max_run = 0
+    cur_run = 0
+    for ch in content:
+        if ch == "`":
+            cur_run += 1
+            if cur_run > max_run:
+                max_run = cur_run
+        else:
+            cur_run = 0
+    return "`" * max(3, max_run + 1)
+
+
+def markdown_escaped(text: str) -> str:
+    """Text with markdown punctuation escaped, so it adds no structure."""
+    return re.sub(r"([\\`*_{}\[\]()#+\-.!|<>~&])", r"\\\1", text)
 
 
 class DisplaySafe(NamedTuple):

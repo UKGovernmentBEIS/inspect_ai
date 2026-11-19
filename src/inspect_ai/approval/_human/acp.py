@@ -55,6 +55,7 @@ from acp.schema import (
     ToolCallUpdate,
 )
 
+from inspect_ai._util.format import markdown_escaped, safe_code_fence
 from inspect_ai.agent._acp._guards import acp_guard
 from inspect_ai.tool._tool_call import (
     ToolCall,
@@ -188,7 +189,7 @@ def _format_view_content_as_markdown(
 
     parts: list[str] = []
     if view_content.title:
-        parts.append(f"**{view_content.title}**")
+        parts.append(f"**{markdown_escaped(view_content.title)}**")
         parts.append("")  # blank line between heading and body
     if view_content.format == "markdown":
         parts.append(view_content.content)
@@ -199,7 +200,7 @@ def _format_view_content_as_markdown(
         # text containing literal ``` (e.g. a viewer dumping help
         # output, or a tool printing markdown source) doesn't break
         # out of the fence and render as live markdown.
-        fence = _safe_code_fence(view_content.content)
+        fence = safe_code_fence(view_content.content)
         parts.append(fence)
         parts.append(view_content.content)
         parts.append(fence)
@@ -208,29 +209,6 @@ def _format_view_content_as_markdown(
         format="markdown",
         content="\n".join(parts),
     )
-
-
-def _safe_code_fence(content: str) -> str:
-    """Return a backtick fence longer than any backtick run in ``content``.
-
-    CommonMark / GFM rule: a fenced code block opened with N
-    backticks closes at the next line whose fence has at least N
-    backticks. Pick ``max_run + 1`` so the close fence we emit
-    can't be matched by anything embedded in the content.
-
-    Minimum length 3 — keeps standard plaintext (no backticks at
-    all) wrapped in the familiar ``` fence.
-    """
-    max_run = 0
-    cur_run = 0
-    for ch in content:
-        if ch == "`":
-            cur_run += 1
-            if cur_run > max_run:
-                max_run = cur_run
-        else:
-            cur_run = 0
-    return "`" * max(3, max_run + 1)
 
 
 def _separator_block() -> "ContentToolCallContent":

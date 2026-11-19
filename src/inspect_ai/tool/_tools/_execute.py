@@ -6,7 +6,13 @@ from inspect_ai.util._sandbox.identity import (
 )
 
 from .._tool import Tool, tool
-from .._tool_call import ToolCall, ToolCallContent, ToolCallView, ToolCallViewer
+from .._tool_call import (
+    ToolCall,
+    ToolCallContent,
+    ToolCallView,
+    ToolCallViewer,
+    tool_call_code_block,
+)
 from .._tool_def import ToolDef
 
 
@@ -22,7 +28,7 @@ def code_viewer(
         call = ToolCallContent(
             title=title,
             format="markdown",
-            content=f"```{language}\n" + code + "\n```\n",
+            content=tool_call_code_block(tool_call, code, language),
         )
         return ToolCallView(call=call)
 

@@ -1407,6 +1407,44 @@ def test_format_view_content_fence_grows_for_longer_backtick_runs() -> None:
     assert "`````" in formatted.content
 
 
+def _markdown_token_types(text: str) -> set[str]:
+    from markdown_it import MarkdownIt
+
+    types: set[str] = set()
+    for token in MarkdownIt("commonmark").parse(text):
+        types.add(token.type)
+        types.update(child.type for child in token.children or [])
+    return types
+
+
+def test_format_view_content_escapes_the_title() -> None:
+    # a title is plain text, and can hold an argument (agent_status: <id>)
+    view_content = ToolCallContent(
+        title="agent_status: <!-- x", format="text", content="ok"
+    )
+    formatted = _format_view_content_as_markdown(view_content)
+    assert not {"html_block", "html_inline"} & _markdown_token_types(formatted.content)
+
+
+def test_build_request_keeps_the_command_in_one_code_block() -> None:
+    from markdown_it import MarkdownIt
+
+    from inspect_ai.tool._tools._execute import code_viewer
+
+    command = "ls\n```\n<!--\nrm -rf /tmp/data\n-->"
+    call = _make_call(arguments={"command": command})
+    req = _build_request(
+        session_id="s1",
+        call=call,
+        view=code_viewer("bash", "command")(call),
+        choices=["approve", "reject"],
+    )
+    text = "\n".join(_texts(req.tool_call.content))
+    assert not {"html_block", "html_inline"} & _markdown_token_types(text)
+    fences = [t for t in MarkdownIt("commonmark").parse(text) if t.type == "fence"]
+    assert [fence.content for fence in fences] == [f"{command}\n"]
+
+
 def test_separator_block_is_horizontal_rule_markdown() -> None:
     block = _separator_block()
     assert block.type == "content"

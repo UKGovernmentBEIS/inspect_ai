@@ -16,7 +16,13 @@ from typing import Literal, NamedTuple, cast
 from shortuuid import uuid as shortuuid
 
 from inspect_ai._util.content import ContentReasoning, ContentText, ContentToolUse
-from inspect_ai._util.format import MARKER_CLOSE, MARKER_OPEN, display_safe
+from inspect_ai._util.format import (
+    MARKER_CLOSE,
+    MARKER_OPEN,
+    display_safe,
+    markdown_escaped,
+    safe_code_fence,
+)
 from inspect_ai.approval._approval import Approval, ApprovalDecision
 from inspect_ai.approval._approver import Approver
 from inspect_ai.model._chat_message import (
@@ -576,7 +582,7 @@ class _Section(NamedTuple):
     def markdown(self) -> str:
         head = f"**{self.label}**"
         if self.name:
-            head = f"{head} {_markdown_escaped(self.name)}"
+            head = f"{head} {markdown_escaped(self.name)}"
         return head if self.body is None else f"{head}\n\n{fenced(self.body)}"
 
 
@@ -753,11 +759,7 @@ _SAID = "output"
 
 
 def _code_block(code: str, language: str) -> str:
-    # deferred: the ACP shim imports `acp.schema`, which only matters once a
-    # person is asked
-    from inspect_ai.approval._human.acp import _safe_code_fence
-
-    fence = _safe_code_fence(code)
+    fence = safe_code_fence(code)
     return f"{fence}{language}\n{code}\n{fence}"
 
 
@@ -772,11 +774,7 @@ def _code_span(text: str, safe: _Escaped) -> str:
 def _markdown_text(text: str, safe: _Escaped) -> str:
     # one line of literal text: markdown punctuation escaped, so a function
     # name or viewer title cannot add structure
-    return _markdown_escaped(_one_line(text, safe))
-
-
-def _markdown_escaped(text: str) -> str:
-    return re.sub(r"([\\`*_{}\[\]()#+\-.!|<>~&])", r"\\\1", text)
+    return markdown_escaped(_one_line(text, safe))
 
 
 def _one_line(text: str, safe: _Escaped) -> str:

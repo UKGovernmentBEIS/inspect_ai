@@ -37,6 +37,7 @@ from inspect_ai.tool._tool_call import (
     ToolCallContent,
     ToolCallView,
     ToolCallViewer,
+    tool_call_code_block,
 )
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._tool_state import private_tool_instance
@@ -248,10 +249,10 @@ def _agent_viewer_for(single_name: str | None) -> ToolCallViewer:
     """Build the viewer that renders an agent() dispatch in the transcript.
 
     The rendered content uses ``{{key}}`` placeholders that the framework
-    substitutes with the actual tool arguments at render time. When the
-    model provides a ``task_description``, it renders as a heading above
-    the prompt; when absent, the heading is omitted (otherwise the
-    literal ``{{task_description}}`` would render).
+    substitutes with the actual tool arguments at render time, each in a code
+    block the arguments cannot close. When the model provides a
+    ``task_description``, it is shown above the prompt; when absent, it is
+    omitted (otherwise the literal ``{{task_description}}`` would render).
 
     Args:
         single_name: Name of the sole subagent, or None when there are
@@ -263,11 +264,10 @@ def _agent_viewer_for(single_name: str | None) -> ToolCallViewer:
     def viewer(call: ToolCall) -> ToolCallView:
         subagent_type = call.arguments.get("subagent_type") or single_name
         has_description = bool(call.arguments.get("task_description"))
-        content = (
-            "### {{task_description}}\n\n{{prompt}}"
-            if has_description
-            else "{{prompt}}"
-        )
+        content = tool_call_code_block(call, "{{prompt}}", "markdown")
+        if has_description:
+            description = tool_call_code_block(call, "{{task_description}}")
+            content = f"{description}\n{content}"
         return ToolCallView(
             call=ToolCallContent(
                 title=f"agent: {subagent_type}" if subagent_type else "agent",

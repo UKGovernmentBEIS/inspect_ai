@@ -1,5 +1,11 @@
 from .._tool import Tool, tool
-from .._tool_call import ToolCall, ToolCallContent, ToolCallView, ToolCallViewer
+from .._tool_call import (
+    ToolCall,
+    ToolCallContent,
+    ToolCallView,
+    ToolCallViewer,
+    tool_call_code_block,
+)
 from .._tool_def import ToolDef
 
 
@@ -40,8 +46,10 @@ def think(
 
 def think_tool_viewer() -> ToolCallViewer:
     def viewer(tool_call: ToolCall) -> ToolCallView:
+        thought = str(tool_call.arguments.get("thought", ""))
         call = ToolCallContent(
-            format="markdown", content=tool_call.arguments.get("thought", "")
+            format="markdown",
+            content=tool_call_code_block(tool_call, thought, "markdown"),
         )
         return ToolCallView(call=call)
 

@@ -45,7 +45,9 @@ def render_tool_approval(
                 Text.from_markup(f"[bold]{escape(view_content.title)}[/bold]\n")
             )
         if view_content.format == "markdown":
-            renderables.append(transcript_markdown(view_content.content))
+            renderables.append(
+                transcript_markdown(view_content.content, html_as_text=True)
+            )
         else:
             text_content = text_highlighter(Text(view_content.content))
             renderables.append(text_content)

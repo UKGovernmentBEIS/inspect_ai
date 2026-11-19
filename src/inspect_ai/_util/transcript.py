@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import html
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from rich.align import AlignMethod
 from rich.box import ROUNDED, Box
@@ -23,16 +23,38 @@ def transcript_code_theme() -> str:
     return "github-dark"
 
 
-def transcript_markdown(content: str, *, escape: bool = False) -> Markdown:
+def transcript_markdown(
+    content: str, *, escape: bool = False, html_as_text: bool = False
+) -> Markdown:
     from rich.markdown import Markdown
 
     code_theme = transcript_code_theme()
-    return Markdown(
+    markdown = Markdown(
         html_escape_markdown(content) if escape else content,
         code_theme=code_theme,
         inline_code_lexer="python",
         inline_code_theme=code_theme,
     )
+    return show_html_as_text(markdown) if html_as_text else markdown
+
+
+MarkdownT = TypeVar("MarkdownT", bound="Markdown")
+
+
+def show_html_as_text(markdown: MarkdownT) -> MarkdownT:
+    """Parse `markdown` again so HTML in it renders as literal text.
+
+    Rich renders nothing for HTML blocks and inline HTML, so whatever text an
+    HTML comment or block holds would not be shown at all. This keeps the
+    parser rich uses, with its HTML rules turned off.
+    """
+    from markdown_it import MarkdownIt
+
+    parser = MarkdownIt("commonmark", {"html": False})
+    markdown.parsed = (
+        parser.enable("strikethrough").enable("table").parse(markdown.markup)
+    )
+    return markdown
 
 
 def html_escape_markdown(content: str) -> str:

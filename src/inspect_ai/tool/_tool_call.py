@@ -8,7 +8,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing_extensions import TypedDict
 
 from inspect_ai._util.content import Content
-from inspect_ai._util.format import format_function_call
+from inspect_ai._util.format import format_function_call, safe_code_fence
 from inspect_ai._util.logger import warn_once
 
 
@@ -140,18 +140,44 @@ def resolve_tool_call_view(
                 f"Error in viewer for tool '{call.function}': {ex}. "
                 "Falling back to default rendering.",
             )
+            return viewer_failed_view(call)
     return default_tool_call_viewer(call)
 
 
 def default_tool_call_viewer(call: ToolCall) -> ToolCallView:
+    code = format_function_call(call.function, call.arguments, literal_strings=True)
     return ToolCallView(
         call=ToolCallContent(
-            format="markdown",
-            content="```python\n"
-            + format_function_call(call.function, call.arguments)
-            + "\n```\n",
+            format="markdown", content=tool_call_code_block(call, code, "python")
         )
     )
+
+
+def viewer_failed_view(call: ToolCall) -> ToolCallView:
+    """The default view of `call`, titled to say the tool's own viewer failed."""
+    view = default_tool_call_viewer(call)
+    if view.call is not None:
+        view.call.title = (
+            f"The viewer for '{call.function}' failed; showing the call's arguments"
+        )
+    return view
+
+
+def tool_call_code_block(call: ToolCall, code: str, language: str = "") -> str:
+    """`code` as a fenced code block that `code` and the call's arguments cannot close.
+
+    The approval surfaces fill `{{param}}` placeholders in a view from the
+    call's arguments after the viewer runs, so the fence is also longer than
+    any backtick run in an argument.
+
+    Args:
+        call: The call the view is of.
+        code: The text to show, often an argument or built from them.
+        language: The block's language, for syntax highlighting.
+    """
+    arguments = "\n".join(str(value) for value in call.arguments.values())
+    fence = safe_code_fence(f"{code}\n{arguments}")
+    return f"{fence}{language}\n{code}\n{fence}\n"
 
 
 def substitute_tool_call_content(
