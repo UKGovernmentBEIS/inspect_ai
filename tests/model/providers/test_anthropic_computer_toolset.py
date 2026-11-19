@@ -106,6 +106,11 @@ def first_block(param: MessageParam) -> dict[str, Any]:
         ("claude-mythos-5", TOOLSET),
         ("claude-mythos-5-1", TOOLSET),
         ("vertex/claude-fable-5-1", TOOLSET),
+        # Fable 5.2 rejects the legacy tool everywhere except Bedrock
+        ("claude-fable-5-2", TOOLSET),
+        ("vertex/claude-fable-5-2", TOOLSET),
+        ("azure/claude-fable-5-2", TOOLSET),
+        ("bedrock/anthropic.claude-fable-5-2", LEGACY),
         # forward-compat: an unknown Claude 5 codename gets the toolset
         ("claude-saga-5", TOOLSET),
         # everything else keeps the legacy tool (prior behavior)
@@ -191,6 +196,8 @@ def test_computer_toolset_model_arg_rejected_on_unsupported_model(
         # Fable/Mythos accept the legacy tool (computer-use docs, earlier tool versions)
         ("claude-fable-5-1", LEGACY),
         ("vertex/claude-mythos-5", LEGACY),
+        # Bedrock still accepts the legacy tool on Fable 5.2
+        ("bedrock/anthropic.claude-fable-5-2", LEGACY),
     ],
 )
 def test_computer_toolset_false_keeps_legacy_where_supported(
@@ -208,6 +215,10 @@ def test_computer_toolset_false_keeps_legacy_where_supported(
         "vertex/claude-sonnet-5-5",
         "claude-haiku-5-5",
         "vertex/claude-haiku-5-5",
+        # Fable 5.2 rejects the legacy tool everywhere except Bedrock
+        "claude-fable-5-2",
+        "vertex/claude-fable-5-2",
+        "azure/claude-fable-5-2",
     ],
 )
 def test_computer_toolset_false_rejected_where_legacy_unsupported(
@@ -218,6 +229,8 @@ def test_computer_toolset_false_rejected_where_legacy_unsupported(
     message = str(exc_info.value.message)
     assert "computer_20251124" in message
     assert "computer_toolset=false" in message
+    # the error names the service model (no platform prefix)
+    assert model_name.split("/")[-1] in message
 
 
 @pytest.mark.parametrize(

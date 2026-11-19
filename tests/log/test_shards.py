@@ -1,22 +1,30 @@
 import contextlib
+import contextvars
 import enum
 import functools
 import json
 import os
+import re
 import zipfile
-from collections.abc import Callable, Iterator
+import zlib
+from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
 from typing import Any, BinaryIO, cast
+from unittest import mock
 
 import anyio
 import boto3
+import click.testing
 import pytest
+import zstandard
 
 from inspect_ai import Epochs, Task, eval, eval_retry, task, task_with
+from inspect_ai._eval.task import run as run_module
 from inspect_ai._util.async_zip import AsyncZipReader, ZipCrcError
 from inspect_ai._util.asyncfiles import AsyncFilesystem, DirListing
 from inspect_ai._util.error import WriteConflictError
 from inspect_ai._util.file import FileInfo, local_path
+from inspect_ai._util.zipfile import RawMemberWriter, zipfile_compress_kwargs
 from inspect_ai.dataset import Sample
 from inspect_ai.log import (
     EvalLog,
@@ -1189,6 +1197,10 @@ def shard_mean_keys(
             if str(score.sample_id) not in (excluded_sample_ids or [])
             for key in keys
         ]
+        # the progress display can compute metrics before any non-excluded
+        # sample completes
+        if not values:
+            return float("nan")
         return sum(values) / len(values)
 
     return compute
@@ -1301,6 +1313,25 @@ def test_metrics_with_options_merge_to_the_unsharded_values(
     assert expected[("verdicts", "shard_metric_map")] == 1.75
     assert expected[("labels", "P")] == 0.0
     assert ("ratings", "krippendorff_alpha") in expected
+
+
+def test_metrics_survive_progress_before_a_non_excluded_sample_finishes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    display_fn = run_module.update_metrics_display_fn
+
+    def every_sample(*args: Any, **kwargs: Any) -> Callable[..., None]:
+        # a fresh display function per call computes at once, without the
+        # display's throttling interval
+        return lambda *update: display_fn(*args, **kwargs)(*update)
+
+    monkeypatch.setattr(run_module, "update_metrics_display_fn", every_sample)
+    # one sample at a time, so the progress display computes metrics over
+    # sample 1 alone, which `shard_mean_keys` excludes
+    log = _run(str(tmp_path), "0", _verdict_task(), sample_id=[1, 2], max_samples=1)
+    assert log.status == "success"
+    # sample 2, points 1.0, weighted 2
+    assert _metric_values(log)[("verdicts", "shard_mean_keys")] == 2.0
 
 
 async def _group_score(state: TaskState, target: Target) -> Score:
@@ -1576,7 +1607,7 @@ def _drain(eval_id: str) -> None:
 
     state = get_eval_state(eval_id)
     assert state is not None and state.task_cancel is not None
-    state.task_cancel.cancel_task("drain")
+    state.task_cancel.request("drain")
 
 
 @solver
@@ -1901,15 +1932,16 @@ def test_merge_records_and_reads_back_each_selection_form(tmp_path: Path) -> Non
     merged, shards = _paths(tmp_path)
     _run(shards, "0", sample_id=[1, 2])
     header = merge_eval_log_shards(
-        merged, _task(), sample_ids=["2", 1, 3], allow_incomplete=True
+        merged, _task(), sample_ids=["2", 1, "3"], allow_incomplete=True
     ).log
     assert header.eval.shards is not None
     assert header.eval.shards.selection == "ids"
-    assert header.eval.dataset.sample_ids == ["2", 1, 3]
+    # held ids take the samples' types, in the given order; unheld stay as given
+    assert header.eval.dataset.sample_ids == [2, 1, "3"]
     # a later pass without a selection uses the recorded one
     with pytest.raises(ShardSetIncomplete) as raised:
         merge_eval_log_shards(merged, _task())
-    assert raised.value.missing == [3]
+    assert raised.value.missing == ["3"]
 
     result = merge_eval_log_shards(merged, _task(), sample_count=2)
     assert result.written and result.log.status == "success"
@@ -2306,13 +2338,21 @@ def test_incremental_merge_reads_only_changed_shards(
         opened.append(filename)
         init(self, fs, filename, *a, **k)
 
+    open_member = AsyncZipReader.open_member_raw
+
     async def spy_read(self: AsyncZipReader, member: Any) -> bytes:
         name = member if isinstance(member, str) else member.filename
         member_reads.append((self._filename, name))
         return await read_member(self, member)
 
+    async def spy_open(self: AsyncZipReader, member: Any) -> Any:
+        name = member if isinstance(member, str) else member.filename
+        member_reads.append((self._filename, name))
+        return await open_member(self, member)
+
     monkeypatch.setattr(AsyncZipReader, "__init__", spy_init)
     monkeypatch.setattr(AsyncZipReader, "read_member_fully", spy_read)
+    monkeypatch.setattr(AsyncZipReader, "open_member_raw", spy_open)
 
     # nothing changed: nothing written, no shard opened
     result = merge_eval_log_shards(merged, _task(), allow_incomplete=True)
@@ -2335,9 +2375,12 @@ def test_incremental_merge_reads_only_changed_shards(
     assert result.written
     assert growing.location in opened and steady.location not in opened
     sample_reads = [name for file, name in member_reads if file == growing.location]
+    # sample 2 is unchanged in the shard (the same CRC-32 and size), so it is
+    # copied from the merged log instead
     assert {n for n in sample_reads if n.startswith("samples/")} == {
-        f"samples/{i}_epoch_1.json" for i in (1, 2, 3)
+        f"samples/{i}_epoch_1.json" for i in (1, 3)
     }
+    assert (merged, "samples/2_epoch_1.json") in member_reads
     assert _keys(merged) == {(str(i), 1) for i in range(1, 7)}
     samples = read_eval_log(merged).samples
     assert samples is not None and samples[0].scores is not None
@@ -3092,19 +3135,27 @@ def _crc_failures(
     error: Exception,
     member: str = "samples/",
 ) -> list[str]:
-    """Fail the first `failures` reads of `member` from a shard with `error`."""
+    """Fail the first `failures` reads of `member` from a shard with `error`.
+
+    Whole reads (headers) and streamed reads (samples) are both counted.
+    """
     calls: list[str] = []
-    read_member = AsyncZipReader.read_member_fully
 
-    async def failing(self: AsyncZipReader, member_: Any) -> bytes:
-        name = member_ if isinstance(member_, str) else member_.filename
-        if self._filename.startswith(shards) and name.startswith(member):
-            calls.append(name)
-            if len(calls) <= failures:
-                raise error
-        return await read_member(self, member_)
+    def failing(read: Callable[..., Any]) -> Callable[..., Any]:
+        async def call(self: AsyncZipReader, member_: Any) -> Any:
+            name = member_ if isinstance(member_, str) else member_.filename
+            if self._filename.startswith(shards) and name.startswith(member):
+                calls.append(name)
+                if len(calls) <= failures:
+                    raise error
+            return await read(self, member_)
 
-    monkeypatch.setattr(AsyncZipReader, "read_member_fully", failing)
+        return call
+
+    for method in ["read_member_fully", "open_member_raw"]:
+        monkeypatch.setattr(
+            AsyncZipReader, method, failing(getattr(AsyncZipReader, method))
+        )
     return calls
 
 
@@ -3334,6 +3385,48 @@ def test_merge_on_s3(s3_shards: tuple[str, str], s3_root: str) -> None:
 
     # nothing changed since: nothing is written
     assert not merge_eval_log_shards(merged, _task()).written
+
+
+def test_merge_on_s3_copies_unchanged_members_of_changed_shards_from_the_merged_log(
+    s3_shards: tuple[str, str], s3_root: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    merged, shards = s3_shards
+    assert merge_eval_log_shards(merged, _task()).written
+
+    # rewrite both shards, each with one sample edited: no record is carried,
+    # but the other samples' members match the merged log's
+    for k, edited in (("0", 1), ("1", 4)):
+        [key] = [
+            key
+            for key in _s3_keys(f"{s3_root}/{NAME}.shards/{k}/")
+            if key.endswith(".eval")
+        ]
+        log = read_eval_log(f"s3://test-bucket/{key}")
+        assert log.samples is not None
+        for sample in log.samples:
+            if sample.id == edited:
+                sample.metadata["changed"] = True
+        write_eval_log(log, f"s3://test-bucket/{key}")
+
+    sample_reads: list[tuple[str, str]] = []
+    open_member = AsyncZipReader.open_member_raw
+
+    async def spy_open(self: AsyncZipReader, member: Any) -> Any:
+        if member.filename.startswith("samples/"):
+            sample_reads.append((self._filename, member.filename))
+        return await open_member(self, member)
+
+    monkeypatch.setattr(AsyncZipReader, "open_member_raw", spy_open)
+    assert merge_eval_log_shards(merged, _task()).written
+
+    from_shards = {name for file, name in sample_reads if file.startswith(shards)}
+    assert from_shards == {"samples/1_epoch_1.json", "samples/4_epoch_1.json"}
+    # the rest come from the merged log's local copy
+    from_copy = {name for file, name in sample_reads if not file.startswith("s3://")}
+    assert from_copy == {f"samples/{i}_epoch_1.json" for i in (2, 3, 5, 6)}
+    log = read_eval_log(merged)
+    assert log.samples is not None
+    assert {s.id for s in log.samples if s.metadata.get("changed")} == {1, 4}
 
 
 async def test_concurrent_first_merges_on_s3_publish_once(
@@ -4303,3 +4396,1497 @@ def test_a_declared_score_without_a_sample_init_event_is_refused(
     with pytest.raises(ShardSetError, match="Sample '5' has no sample_init event"):
         merge_eval_log_shards(merged, _task())
     assert not os.path.exists(merged) and _files(shards) == before
+
+
+# `inspect log merge-shards`. Workers run `eval("<tmp>/t.py@<name>", ...)`
+# into `<tmp>/logs/<name>.shards/<k>/`; the command builds the task from the
+# same file.
+
+_CLI_TASKS = """
+import logging
+import os
+from pathlib import Path
+
+from inspect_ai import Epochs, Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.model import get_model
+from inspect_ai.scorer import (
+    Metric,
+    SampleScore,
+    accuracy,
+    includes,
+    match,
+    mean,
+    metric,
+)
+from inspect_ai.solver import generate
+
+Path(__file__).with_name("imported").write_text("yes")
+
+
+def _task(**kwargs):
+    kwargs.setdefault("scorer", match())
+    return Task(
+        dataset=[
+            Sample(
+                id=i,
+                input=f"question {i}",
+                target="Default output from mockllm/model" if i % 2 else "other",
+            )
+            for i in range(1, 5)
+        ],
+        solver=generate(),
+        **kwargs,
+    )
+
+
+@task
+def plain():
+    return _task()
+
+
+@task
+def by_model():
+    name = get_model().name
+    Path(__file__).with_name("model").write_text(name)
+    return _task(metrics=[accuracy()] if name == "model" else [mean()])
+
+
+@task
+def by_role():
+    name = get_model(role="grader").name
+    return _task(metrics=[accuracy()] if name == "model" else [mean()])
+
+
+@task
+def by_arg(kind: str = "match"):
+    return _task(scorer=match() if kind == "match" else includes())
+
+
+@task
+def reduced():
+    return _task(epochs=Epochs(1, "mode"))
+
+
+@metric
+def shard_noisy() -> Metric:
+    def compute(scores: list[SampleScore]) -> float:
+        logging.getLogger("shard_noisy").warning("metric warning")
+        if os.environ.get("SHARD_METRIC_RAISES"):
+            raise RuntimeError("metric failed")
+        return 1.0
+
+    return compute
+
+
+@task
+def noisy():
+    print("factory output")
+    os.system("echo subprocess output")
+    return _task(metrics=[shard_noisy()])
+"""
+
+_CLI_ENV_CLEARED = (
+    "INSPECT_EVAL_MODEL",
+    "INSPECT_EVAL_MODEL_SPEC",
+    "INSPECT_EVAL_RUN_CONFIG",
+    "INSPECT_EVAL_MODEL_BASE_URL",
+    "INSPECT_EVAL_MODEL_ARGS",
+    "INSPECT_EVAL_MODEL_ROLE",
+    "INSPECT_EVAL_TASK_ARGS",
+    "INSPECT_EVAL_EPOCHS",
+    "INSPECT_EVAL_EPOCHS_REDUCER",
+    "INSPECT_EVAL_NO_EPOCHS_REDUCER",
+    "INSPECT_EVAL_SAMPLE_ID",
+    "INSPECT_LOG_DIR",
+)
+
+
+@pytest.fixture
+def task_file(tmp_path: Path) -> Path:
+    path = tmp_path / "t.py"
+    path.write_text(_CLI_TASKS)
+    (tmp_path / "broken.py").write_text(
+        "from inspect_ai import task\n\n\n"
+        "@task\ndef broken():\n    raise RuntimeError('factory failed')\n"
+    )
+    (tmp_path / "empty.py").write_text("X = 1\n")
+    return path
+
+
+def _cli_paths(root: Path, name: str) -> tuple[str, str]:
+    stem = f"{root}/logs/2026-10-16T10-00-00-00-00_{name}_{RUN_ID}"
+    return f"{stem}.eval", f"{stem}.shards"
+
+
+def _cli_workers(
+    task_file: Path, name: str, selections: list[list[int]], **kwargs: Any
+) -> tuple[str, str]:
+    """Run one worker per selection; return the merged log and shards dir."""
+    merged, shards = _cli_paths(task_file.parent, name)
+    for k, ids in enumerate(selections):
+        eval(
+            f"{task_file}@{name}",
+            model="mockllm/model",
+            log_dir=f"{shards}/{k}",
+            sample_id=ids,
+            display="none",
+            **kwargs,
+        )
+    (task_file.parent / "imported").unlink()
+    return merged, shards
+
+
+def _merge_cli(
+    *args: str, env: Mapping[str, str | None] | None = None
+) -> click.testing.Result:
+    from click.testing import CliRunner
+
+    from inspect_ai._cli.main import inspect as inspect_cli
+    from inspect_ai.model._model import _models
+
+    environment: dict[str, str | None] = {name: None for name in _CLI_ENV_CLEARED}
+    environment.update(env or {})
+    # a copied context keeps the active model and roles out of later tests;
+    # an empty model cache, as a new process has, keeps models other tests
+    # memoized under another environment out of this one
+    with mock.patch.dict(_models, clear=True):
+        return contextvars.copy_context().run(
+            CliRunner().invoke,
+            inspect_cli,
+            ["log", "merge-shards", *args],
+            env=environment,
+            auto_envvar_prefix="INSPECT",
+            catch_exceptions=False,
+        )
+
+
+def _merged(result: click.testing.Result) -> dict[str, Any]:
+    """The `--json` object of a command that succeeded."""
+    assert result.exit_code == 0, result.stderr
+    assert len(result.stdout.splitlines()) == 1, result.stdout
+    output = json.loads(result.stdout)
+    assert isinstance(output, dict) and "error" not in output
+    return output
+
+
+def _failed(result: click.testing.Result, kind: str) -> dict[str, Any]:
+    """The `--json` error envelope of a command that failed with `kind`."""
+    assert result.exit_code == 1, result.stdout
+    assert len(result.stdout.splitlines()) == 1, result.stdout
+    error = json.loads(result.stdout)["error"]
+    assert error["kind"] == kind, error
+    assert error["message"] in result.stderr
+    return cast(dict[str, Any], error)
+
+
+def _imported(task_file: Path) -> bool:
+    return (task_file.parent / "imported").exists()
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_merge_shards_command_equals_the_api_and_a_native_run(
+    task_file: Path, monkeypatch: pytest.MonkeyPatch, backend: str
+) -> None:
+    import shutil
+
+    from inspect_ai._eval.loader import load_tasks
+
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    merged, shards = _cli_workers(task_file, "plain", [[1, 2], [3, 4]])
+    native = eval(
+        f"{task_file}@plain",
+        model="mockllm/model",
+        log_dir=str(task_file.parent / "native"),
+        display="none",
+    )[0]
+    api_merged, api_shards = _cli_paths(task_file.parent / "api", "plain")
+    shutil.copytree(shards, api_shards)
+
+    result = _merge_cli(
+        merged, "--task", f"{task_file}@plain", "--sample-id", "1,2,3,4", "--json"
+    )
+    output = _merged(result)
+    header = read_eval_log(merged, header_only=True)
+    assert output == {
+        "location": merged,
+        "status": "success",
+        "written": True,
+        "task": "plain",
+        "task_id": RUN_ID,
+        "eval_id": header.eval.eval_id,
+        "shards": 2,
+    }
+    api = merge_eval_log_shards(
+        api_merged, load_tasks([f"{task_file}@plain"])[0], sample_ids=[1, 2, 3, 4]
+    )
+    assert header.eval.dataset.sample_ids == api.log.eval.dataset.sample_ids
+    assert header.eval.dataset.sample_ids == native.eval.dataset.sample_ids
+    assert header.eval.dataset.sample_ids == [1, 2, 3, 4]
+    assert header.results is not None and native.results is not None
+    assert header.results.scores == native.results.scores
+    assert api.log.results is not None
+    assert header.results.scores == api.log.results.scores
+    reductions = read_eval_log(merged).reductions
+    assert reductions is not None and native.reductions is not None
+    assert reductions[0].samples == native.reductions[0].samples
+
+    again = _merge_cli(merged, "--task", f"{task_file}@plain")
+    assert again.exit_code == 0, again.stderr
+    assert (
+        again.stdout
+        == f"No changes since the last merge: {merged}\n  status: success\n"
+    )
+    assert (
+        _merged(_merge_cli(merged, "--task", f"{task_file}@plain", "--json"))["written"]
+        is False
+    )
+
+
+def test_merge_shards_command_reports_a_merge_in_text(task_file: Path) -> None:
+    merged, _ = _cli_workers(task_file, "plain", [[1, 2], [3, 4]])
+    result = _merge_cli(merged, "--task", f"{task_file}@plain")
+    assert result.exit_code == 0, result.stderr
+    assert result.stdout == f"Merged 2 shards into {merged}\n  status: success\n"
+
+
+def test_merge_shards_command_builds_the_task_in_its_context(
+    task_file: Path,
+) -> None:
+    model_log, _ = _cli_workers(task_file, "by_model", [[1, 2, 3, 4]])
+    spec = f"{task_file}@by_model"
+    _failed(_merge_cli(model_log, "--task", spec, "--json"), "refused")
+    # without --model and INSPECT_EVAL_MODEL the factory sees the none model
+    assert (task_file.parent / "model").read_text() == "none"
+    _merged(_merge_cli(model_log, "--task", spec, "--model", "mockllm/model", "--json"))
+    assert (task_file.parent / "model").read_text() == "model"
+
+    role_log, _ = _cli_workers(
+        task_file, "by_role", [[1, 2, 3, 4]], model_roles={"grader": "mockllm/model"}
+    )
+    spec = f"{task_file}@by_role"
+    _failed(_merge_cli(role_log, "--task", spec, "--json"), "refused")
+    _merged(
+        _merge_cli(
+            role_log, "--task", spec, "--model-role", "grader=mockllm/model", "--json"
+        )
+    )
+
+    arg_log, _ = _cli_workers(
+        task_file, "by_arg", [[1, 2, 3, 4]], task_args={"kind": "includes"}
+    )
+    spec = f"{task_file}@by_arg"
+    _failed(_merge_cli(arg_log, "--task", spec, "--json"), "refused")
+    _merged(_merge_cli(arg_log, "--task", spec, "-T", "kind=includes", "--json"))
+
+
+def test_merge_shards_command_reads_the_shared_options_environment(
+    task_file: Path,
+) -> None:
+    merged, _ = _cli_workers(
+        task_file, "by_arg", [[1, 2, 3, 4]], task_args={"kind": "includes"}, epochs=2
+    )
+    spec = f"{task_file}@by_arg"
+    _failed(_merge_cli(merged, "--task", spec, "--json"), "refused")
+    for env in (
+        {"INSPECT_EVAL_TASK_ARGS": "kind=includes", "INSPECT_EVAL_EPOCHS": "2"},
+        {"INSPECT_LOG_MERGE_SHARDS_T": "kind=includes", "INSPECT_EVAL_EPOCHS": "2"},
+        # --log-dir from the environment is ignored, not refused
+        {
+            "INSPECT_EVAL_TASK_ARGS": "kind=includes",
+            "INSPECT_EVAL_EPOCHS": "2",
+            "INSPECT_LOG_DIR": "elsewhere",
+            "INSPECT_LOG_MERGE_SHARDS_LOG_DIR": "elsewhere",
+        },
+    ):
+        _merged(_merge_cli(merged, "--task", spec, "--json", env=env))
+
+    model_log, _ = _cli_workers(task_file, "by_model", [[1, 2, 3, 4]])
+    spec = f"{task_file}@by_model"
+    fallback = {"INSPECT_LOG_MERGE_SHARDS_MODEL": "mockllm/model"}
+    _merged(_merge_cli(model_log, "--task", spec, "--json", env=fallback))
+    # the named variable wins over the automatic one
+    both = {
+        "INSPECT_EVAL_MODEL": "mockllm/model",
+        "INSPECT_LOG_MERGE_SHARDS_MODEL": "unknown/model",
+    }
+    _merged(_merge_cli(model_log, "--task", spec, "--json", env=both))
+
+
+def test_merge_shards_command_takes_no_task_or_selection_from_the_environment(
+    task_file: Path,
+) -> None:
+    merged, _ = _cli_workers(task_file, "plain", [[1, 2]])
+    spec = f"{task_file}@plain"
+    missing = _merge_cli(
+        merged, env={"INSPECT_LOG_MERGE_SHARDS_TASK": spec, "INSPECT_EVAL_TASK": spec}
+    )
+    assert missing.exit_code == 2 and "--task" in missing.stderr
+    for env in (
+        {"INSPECT_EVAL_SAMPLE_ID": "1,2"},
+        {"INSPECT_LOG_MERGE_SHARDS_SAMPLE_ID": "1,2"},
+        {"INSPECT_LOG_MERGE_SHARDS_SAMPLE_COUNT": "2"},
+        {"INSPECT_LOG_MERGE_SHARDS_ALLOW_INCOMPLETE": "1"},
+    ):
+        error = _failed(
+            _merge_cli(merged, "--task", spec, "--json", env=env), "incomplete"
+        )
+        assert error["incomplete"]["missing"] is None
+    text = _merge_cli(
+        merged,
+        "--task",
+        spec,
+        "--sample-id",
+        "1,2",
+        env={"INSPECT_LOG_MERGE_SHARDS_JSON": "1"},
+    )
+    assert text.exit_code == 0 and text.stdout.startswith("Merged 1 shards")
+
+
+def test_merge_shards_command_binds_the_model_base_url_as_inspect_eval_does(
+    task_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._cli.main import inspect as inspect_cli
+    from inspect_ai.model import get_model
+
+    monkeypatch.setenv("INSPECT_EVAL_MODEL_BASE_URL", "http://inspect.example")
+    monkeypatch.setenv("INSPECT_EVAL_SET_MODEL_BASE_URL", "http://eval-set.example")
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://openai.example")
+    root = click.Context(inspect_cli, info_name="inspect", auto_envvar_prefix="INSPECT")
+    for name, expected in (
+        ("eval", "http://inspect.example"),
+        ("eval-set", "http://eval-set.example"),
+    ):
+        command = inspect_cli.commands[name]
+        ctx = click.Context(command, info_name=name, parent=root)
+        [param] = [p for p in command.params if p.name == "model_base_url"]
+        assert param.value_from_envvar(ctx) == expected
+
+    base_urls: list[str | None] = []
+
+    async def capture(*args: Any, **kwargs: Any) -> ShardMergeResult:
+        base_urls.append(get_model().api.base_url)
+        raise RuntimeError("stop")
+
+    monkeypatch.setattr("inspect_ai.log.merge_eval_log_shards_async", capture)
+    merged, _ = _cli_paths(task_file.parent, "plain")
+    result = _merge_cli(
+        merged,
+        "--task",
+        f"{task_file}@plain",
+        "--model",
+        "openai/gpt-4o",
+        "--json",
+        env={
+            "INSPECT_EVAL_MODEL_BASE_URL": "http://inspect.example",
+            "OPENAI_API_KEY": "dummy",
+        },
+    )
+    _failed(result, "internal")
+    assert base_urls == ["http://inspect.example"]
+
+
+def test_merge_shards_command_refuses_run_configs_and_model_specs(
+    task_file: Path,
+) -> None:
+    merged, _ = _cli_workers(task_file, "plain", [[1, 2, 3, 4]])
+    spec = f"{task_file}@plain"
+    for env in (
+        {"INSPECT_EVAL_RUN_CONFIG": "run.yaml"},
+        {"INSPECT_EVAL_MODEL_SPEC": "{model: mockllm/model}"},
+    ):
+        error = _failed(
+            _merge_cli(merged, "--task", spec, "--json", env=env), "invalid_arguments"
+        )
+        assert next(iter(env)) in error["message"]
+        assert not _imported(task_file)
+    _merged(
+        _merge_cli(
+            merged,
+            "--task",
+            spec,
+            "--model",
+            "mockllm/model",
+            "--json",
+            env={"INSPECT_EVAL_MODEL_SPEC": "{model: mockllm/model}"},
+        )
+    )
+    for option in ("--model-spec", "--run-config", "--generate-config"):
+        result = _merge_cli(merged, "--task", spec, option, "x")
+        assert result.exit_code == 2 and "No such option" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "epochs,flags",
+    [
+        (Epochs(2), ["--epochs", "2"]),
+        (Epochs(2, "max"), ["--epochs", "2", "--epochs-reducer", "max"]),
+        (Epochs(2, []), ["--epochs", "2", "--no-epochs-reducer"]),
+    ],
+)
+def test_merge_shards_command_applies_the_epochs_options(
+    task_file: Path, epochs: Epochs, flags: list[str]
+) -> None:
+    merged, _ = _cli_workers(task_file, "reduced", [[1, 2], [3, 4]], epochs=epochs)
+    native = eval(
+        f"{task_file}@reduced",
+        model="mockllm/model",
+        log_dir=str(task_file.parent / "native"),
+        display="none",
+        epochs=epochs,
+    )[0]
+    spec = f"{task_file}@reduced"
+    others = [
+        ["--epochs", "2"],
+        ["--epochs", "2", "--epochs-reducer", "max"],
+        ["--epochs", "2", "--no-epochs-reducer"],
+    ]
+    for other in others:
+        if other != flags:
+            error = _failed(
+                _merge_cli(merged, "--task", spec, *other, "--json"), "refused"
+            )
+            assert "reducer" in error["message"]
+    _merged(_merge_cli(merged, "--task", spec, *flags, "--json"))
+    header = read_eval_log(merged, header_only=True)
+    assert header.results is not None and native.results is not None
+    assert header.results.scores == native.results.scores
+
+
+def test_merge_shards_command_translates_an_empty_run_config_reducer(
+    task_file: Path,
+) -> None:
+    from inspect_ai._cli.eval import parse_run_config
+
+    config = task_file.parent / "run.yaml"
+    config.write_text("eval_config:\n  epochs: 2\n  epochs_reducer: []\n")
+    epochs = parse_run_config(str(config))["epochs"]
+    merged, _ = _cli_workers(task_file, "reduced", [[1, 2, 3, 4]], epochs=epochs)
+    spec = f"{task_file}@reduced"
+    # an empty reducer name is not how to say "none"
+    for value in ("", "[]"):
+        error = _failed(
+            _merge_cli(
+                merged,
+                "--task",
+                spec,
+                "--epochs",
+                "2",
+                "--epochs-reducer",
+                value,
+                "--json",
+            ),
+            "task",
+        )
+        assert error["exception"] == "inspect_ai.RegistryNameNotFound"
+    _merged(
+        _merge_cli(
+            merged, "--task", spec, "--epochs", "2", "--no-epochs-reducer", "--json"
+        )
+    )
+
+
+def test_merge_shards_command_selections(task_file: Path) -> None:
+    merged, _ = _cli_workers(task_file, "plain", [[1, 2]])
+    spec = f"{task_file}@plain"
+    for args in (
+        ["--sample-id", "1,2", "--sample-count", "2"],
+        ["--sample-count", "0"],
+        ["--sample-id", "1,,2"],
+        ["--sample-id", ""],
+    ):
+        _failed(
+            _merge_cli(merged, "--task", spec, *args, "--json"), "invalid_arguments"
+        )
+        assert not _imported(task_file)
+
+    error = _failed(
+        _merge_cli(merged, "--task", spec, "--sample-id", "1,2,3", "--json"),
+        "incomplete",
+    )
+    assert error["exception"] == "inspect_ai.ShardSetIncomplete"
+    assert "--allow-incomplete" in error["message"]
+    assert error["incomplete"] == {
+        "status": "started",
+        "missing": ["3"],
+        "running": [],
+        "failed": [],
+    }
+    assert not os.path.exists(merged)
+    outside = _failed(
+        _merge_cli(merged, "--task", spec, "--sample-id", "1*", "--json"),
+        "outside_selection",
+    )
+    assert outside["outside"] == ["1", "2"]
+
+    started = _merged(
+        _merge_cli(
+            merged,
+            "--task",
+            spec,
+            "--sample-id",
+            "1,2,3",
+            "--allow-incomplete",
+            "--json",
+        )
+    )
+    assert started["status"] == "started" and started["written"]
+    assert (
+        _merged(_merge_cli(merged, "--task", spec, "--sample-id", "1,2", "--json"))[
+            "status"
+        ]
+        == "success"
+    )
+    assert (
+        _merged(_merge_cli(merged, "--task", spec, "--sample-count", "2", "--json"))[
+            "status"
+        ]
+        == "success"
+    )
+
+
+@pytest.mark.parametrize(
+    "args,message",
+    [
+        (["--task", "t.py"], "several tasks (plain, by_model,"),
+        (["--task", "empty.py"], "No task found"),
+        (["--task", "missing.py"], "No task found"),
+        (["--task", "broken.py@broken"], "factory failed"),
+        (["--task", "t.py@plain", "--model", "mockllm/a,mockllm/b"], "one model"),
+        (["--task", "t.py@plain", "--model", "openai/gpt-4o"], "OpenAI"),
+        (["--task", "t.py@plain", "--task-config", "missing.yaml"], "missing.yaml"),
+    ],
+)
+def test_merge_shards_command_task_errors(
+    task_file: Path, monkeypatch: pytest.MonkeyPatch, args: list[str], message: str
+) -> None:
+    merged, _ = _cli_workers(task_file, "plain", [[1, 2, 3, 4]])
+    before = _files(str(task_file.parent / "logs"))
+    monkeypatch.chdir(task_file.parent)
+    # a live test on the same worker can leave the model memoized with a key
+    monkeypatch.setattr("inspect_ai.model._model._models", {})
+    with monkeypatch.context() as keyed:
+        keyed.setenv("OPENAI_API_KEY", "dummy")
+        get_model("openai/gpt-4o")
+    error = _failed(
+        _merge_cli(merged, *args, "--json", env={"OPENAI_API_KEY": None}), "task"
+    )
+    assert message in error["message"]
+    assert _files(str(task_file.parent / "logs")) == before
+
+
+def test_merge_shards_command_merge_errors(task_file: Path) -> None:
+    merged, _ = _cli_workers(task_file, "plain", [[1, 2, 3, 4]])
+    spec = f"{task_file}@plain"
+
+    recovered = merged.replace(".eval", "-recovered.eval")
+    _failed(_merge_cli(recovered, "--task", spec, "--json"), "invalid_arguments")
+    assert not _imported(task_file)
+    error = _failed(
+        _merge_cli(merged, "--task", spec, "--log-dir", "logs", "--json"),
+        "invalid_arguments",
+    )
+    assert "LOG" in error["message"]
+
+    lock = Path(merged.replace(".eval", ".merge.lock"))
+    lock.write_text('{"pid": 1, "host": "elsewhere"}')
+    error = _failed(_merge_cli(merged, "--task", spec, "--json"), "conflict")
+    assert "elsewhere" in error["message"]
+    lock.unlink()
+
+    nothing, _ = _cli_paths(task_file.parent / "none", "plain")
+    Path(nothing).parent.mkdir(parents=True)
+    error = _failed(_merge_cli(nothing, "--task", spec, "--json"), "not_found")
+    assert error["message"].startswith("Neither")
+
+
+def test_merge_shards_command_reports_an_attempt_removed_while_merging(
+    task_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import shutil
+
+    from inspect_ai.log._shards import _api
+
+    merged, shards = _cli_workers(task_file, "plain", [[1, 2, 3, 4]])
+    [first] = Path(shards, "0").glob("*.eval")
+    replacement = eval(
+        f"{task_file}@plain",
+        model="mockllm/model",
+        log_dir=f"{shards}/0",
+        sample_id=[1, 2, 3, 4],
+        display="none",
+    )[0]
+    staged = task_file.parent / "staged.eval"
+    shutil.move(local_path(replacement.location), staged)
+    read_attempt = _api._read_attempt
+
+    async def removed_first(fs: Any, shard: ShardDir) -> Any:
+        # a retry cleanup removes the listed attempt once its replacement is written
+        shutil.move(staged, local_path(replacement.location))
+        first.unlink()
+        return await read_attempt(fs, shard)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(_api, "_read_attempt", removed_first)
+        error = _failed(
+            _merge_cli(merged, "--task", f"{task_file}@plain", "--json"), "not_found"
+        )
+    assert "removed before it was read" in error["message"]
+    assert not os.path.exists(merged)
+    output = _merged(_merge_cli(merged, "--task", f"{task_file}@plain", "--json"))
+    assert output["written"]
+    ledger = read_eval_log(merged, header_only=True).eval.shards
+    assert ledger is not None
+    assert ledger.ledger[0].log.endswith(Path(replacement.location).name)
+
+
+def test_merge_shards_command_reports_a_failing_metric_with_its_traceback(
+    task_file: Path,
+) -> None:
+    merged, _ = _cli_workers(task_file, "noisy", [[1, 2, 3, 4]])
+    result = _merge_cli(
+        merged,
+        "--task",
+        f"{task_file}@noisy",
+        "--json",
+        env={"SHARD_METRIC_RAISES": "1"},
+    )
+    error = _failed(result, "internal")
+    assert error["message"] == "metric failed"
+    assert "Traceback" in result.stderr
+
+
+@pytest.mark.parametrize("cause", ["platform_init", "hook"])
+def test_merge_shards_command_setup_errors(
+    task_file: Path, monkeypatch: pytest.MonkeyPatch, cause: str
+) -> None:
+    from inspect_ai._util import platform
+    from inspect_ai.hooks import _legacy
+
+    merged, _ = _cli_workers(task_file, "plain", [[1, 2, 3, 4]])
+    if cause == "platform_init":
+
+        def failing_init(hooks: bool = True) -> None:
+            print("setup output")
+            raise RuntimeError("setup failed")
+
+        monkeypatch.setattr(platform, "platform_init", failing_init)
+    else:
+        monkeypatch.setattr(_legacy, "_override_api_key", None)
+        monkeypatch.setenv("INSPECT_API_KEY_OVERRIDE", "no_such_module.override")
+    result = _merge_cli(merged, "--task", f"{task_file}@plain", "--json")
+    error = _failed(result, "setup")
+    if cause == "platform_init":
+        assert error["message"] == "setup failed"
+        assert "setup output" in result.stderr
+    else:
+        assert "INSPECT_API_KEY_OVERRIDE" in error["message"]
+    assert not _imported(task_file)
+
+
+def test_merge_shards_command_json_owns_stdout(task_file: Path) -> None:
+    import subprocess
+    import sys
+
+    merged, _ = _cli_workers(task_file, "noisy", [[1, 2, 3, 4]])
+    hooks = task_file.parent / "hooks"
+    hooks.mkdir()
+    (hooks / "banner_hook.py").write_text(
+        "def override(var, value):\n    return None\n"
+    )
+    env = {k: v for k, v in os.environ.items() if k not in _CLI_ENV_CLEARED}
+    # a hook makes platform_init() print its startup banner
+    env["INSPECT_API_KEY_OVERRIDE"] = "banner_hook.override"
+    env["PYTHONPATH"] = os.pathsep.join(
+        [str(hooks), *filter(None, [env.get("PYTHONPATH")])]
+    )
+
+    def command(*args: str) -> "subprocess.CompletedProcess[str]":
+        # a real process, so the subprocess the factory runs writes to fd 1
+        return subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from inspect_ai._cli.main import main; main()",
+                "log",
+                "merge-shards",
+                merged,
+                "--task",
+                f"{task_file}@noisy",
+                *args,
+            ],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=120,
+        )
+
+    result = command("--json")
+    assert result.returncode == 0, result.stderr
+    assert len(result.stdout.splitlines()) == 1, result.stdout
+    assert json.loads(result.stdout)["written"]
+    for output in (
+        "banner_hook.override",
+        "factory output",
+        "subprocess output",
+        "metric warning",
+    ):
+        assert output in result.stderr
+
+    # without --json the banner is on stdout
+    result = command()
+    assert result.returncode == 0, result.stderr
+    assert "banner_hook.override" in result.stdout
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_merge_shards_command_interrupted_before_publication(
+    task_file: Path, monkeypatch: pytest.MonkeyPatch, backend: str
+) -> None:
+    import _thread
+
+    from inspect_ai.log._shards import _api
+
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    merged, shards = _cli_workers(task_file, "plain", [[1, 2], [3, 4]])
+    _merged(_merge_cli(merged, "--task", f"{task_file}@plain", "--json"))
+    # newer attempts of both shards, so the next merge reads them concurrently
+    for k, ids in enumerate([[1, 2], [3, 4]]):
+        eval(
+            f"{task_file}@plain",
+            model="mockllm/model",
+            log_dir=f"{shards}/{k}",
+            sample_id=ids,
+            display="none",
+        )
+    before = Path(merged).read_bytes()
+    read_attempt = _api._read_attempt
+    sent: list[bool] = []
+
+    async def interrupted(fs: Any, shard: ShardDir) -> Any:
+        # Ctrl-C lands while the attempts are read
+        if not sent:
+            sent.append(True)
+            _thread.interrupt_main()
+        await anyio.sleep(0)
+        return await read_attempt(fs, shard)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(_api, "_read_attempt", interrupted)
+        result = _merge_cli(merged, "--task", f"{task_file}@plain", "--json")
+    assert sent
+    assert result.exit_code == 1 and result.stdout == ""
+    assert result.stderr.strip() == "Aborted!"
+    assert Path(merged).read_bytes() == before
+    assert not os.path.exists(merged.replace(".eval", ".merge.lock"))
+
+
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+def test_merge_shards_command_interrupted_during_publication(
+    task_file: Path, monkeypatch: pytest.MonkeyPatch, backend: str
+) -> None:
+    import _thread
+
+    from inspect_ai.log._shards import _publish
+
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", backend)
+    merged, _ = _cli_workers(task_file, "plain", [[1, 2], [3, 4]])
+    replace = _publish._replace_local
+
+    def interrupted(path: str, source: Any) -> None:
+        # Ctrl-C lands while the owned publication worker runs
+        _thread.interrupt_main()
+        replace(path, source)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(_publish, "_replace_local", interrupted)
+        result = _merge_cli(merged, "--task", f"{task_file}@plain", "--json")
+    assert result.exit_code == 1 and result.stdout == ""
+    assert result.stderr.strip() == "Aborted!"
+    assert not os.path.exists(merged.replace(".eval", ".merge.lock"))
+    again = _merged(_merge_cli(merged, "--task", f"{task_file}@plain", "--json"))
+    assert again["written"] is False
+
+
+def test_merge_shards_command_on_s3(task_file: Path, s3_root: str) -> None:
+    stem = f"s3://test-bucket/{s3_root}/2026-10-16T10-00-00-00-00_plain_{RUN_ID}"
+    for k, ids in enumerate([[1, 2], [3, 4]]):
+        eval(
+            f"{task_file}@plain",
+            model="mockllm/model",
+            log_dir=f"{stem}.shards/{k}",
+            sample_id=ids,
+            display="none",
+        )
+    output = _merged(
+        _merge_cli(f"{stem}.eval", "--task", f"{task_file}@plain", "--json")
+    )
+    assert output["location"] == f"{stem}.eval" and output["status"] == "success"
+
+
+def test_merge_shards_command_exits_only_through_its_failure_report() -> None:
+    import inspect_ai._cli.log_merge_shards as module
+
+    source = Path(module.__file__).read_text().splitlines()
+    report = [i for i, line in enumerate(source) if "def _merge_failures" in line]
+    assert len(report) == 1
+    end = next(
+        i
+        for i in range(report[0] + 1, len(source))
+        if source[i].startswith(("def ", "@", "class "))
+    )
+    offenders = [
+        f"{lineno + 1}: {line.strip()}"
+        for lineno, line in enumerate(source)
+        if not report[0] <= lineno < end
+        and re.search(
+            r"raise .*(Exit|ClickException|SystemExit|UsageError|Abort)\b", line
+        )
+    ]
+    assert not offenders
+
+
+# Streaming recomputation: the merge parses each sample member as it streams
+# past, keeping only its metric inputs, so peak memory does not follow the
+# size of a sample's transcript.
+
+_MiB = 1024 * 1024
+
+
+@solver
+def _chatty(events: int, repeated: bool) -> Solver:
+    """Logs `events` info events of 32 KiB of text each.
+
+    The text is random, or with `repeated` one random block repeated with a
+    different prefix, which compresses far beyond the reads' chunk size.
+    """
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        import base64
+
+        from inspect_ai.log import transcript
+
+        block = base64.b64encode(os.urandom(24 * 1024)).decode()
+        for i in range(events):
+            if not repeated:
+                block = base64.b64encode(os.urandom(24 * 1024)).decode()
+            transcript().info(f"{i}:{block}")
+        return await generate(state)
+
+    return solve
+
+
+def _merge_peak(merged: str, task: Task) -> tuple[ShardMergeResult, int]:
+    """Merge, returning the result and the merge's peak traced memory."""
+    import tracemalloc
+
+    tracemalloc.start()
+    try:
+        result = merge_eval_log_shards(merged, task)
+        return result, tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+
+@pytest.mark.parametrize("data", ["random", "repeated"])
+@pytest.mark.parametrize("write", ["fresh", "incremental"])
+def test_merge_peak_memory_does_not_grow_with_transcript_size(
+    tmp_path: Path, write: str, data: str
+) -> None:
+    peaks = {}
+    for events in [100, 400]:
+        task = _task(samples=2, solver=_chatty(events, data == "repeated"))
+        merged, shards = _paths(tmp_path / str(events))
+        _run(shards, "0", task, sample_id=[1])
+        _run(shards, "1", task, sample_id=[2])
+        if write == "incremental":
+            # sample 1 is carried from the merged log, sample 2 read again
+            merge_eval_log_shards(merged, task)
+            _run(shards, "1", task, sample_id=[2])
+        result, peaks[events] = _merge_peak(merged, task)
+        assert result.written
+        assert result.log.results is not None
+        assert result.log.results.scores[0].metrics["accuracy"].value == 0.5
+        with zipfile.ZipFile(local_path(merged)) as zf:
+            member = zf.getinfo("samples/2_epoch_1.json")
+        assert member.file_size > events * 32 * 1024
+    # sample members of about 3 and 13 MiB; parsing them whole took 4.5 times
+    # their size, and recompressing them held a member's compressed bytes
+    assert peaks[400] - peaks[100] < _MiB, peaks
+
+
+_SEEN_SCORE_METADATA: list[dict[str, Any] | None] = []
+
+
+@metric(name="shard_score_metadata")
+def shard_score_metadata() -> Metric:
+    """Records the score metadata it is given."""
+
+    def compute(scores: list[SampleScore]) -> float:
+        _SEEN_SCORE_METADATA.extend(s.score.metadata for s in scores)
+        return float(len(scores))
+
+    return compute
+
+
+@scorer(metrics=[shard_score_metadata()])
+def blob_scored(size: int) -> Scorer:
+    """Scores with `size` bytes of incompressible text in the score metadata."""
+
+    async def score(state: TaskState, target: Target) -> Score:
+        import base64
+
+        blob = base64.b64encode(os.urandom(size * 3 // 4)).decode()
+        return Score(value=1, metadata={"blob": blob})
+
+    return score
+
+
+def test_merge_peak_memory_grows_with_the_retained_score_metadata(
+    tmp_path: Path,
+) -> None:
+    peaks = {}
+    for size in [1024, 256 * 1024]:
+        task = _task(samples=6)
+        task.scorer = [blob_scored(size)]
+        merged, shards = _paths(tmp_path / str(size))
+        _run(shards, "0", task, sample_id=[1, 2, 3])
+        _run(shards, "1", task, sample_id=[4, 5, 6])
+        _SEEN_SCORE_METADATA.clear()
+        _, peaks[size] = _merge_peak(merged, task)
+        # the metric is given the score metadata as the log stores it
+        samples = read_eval_log(merged).samples
+        assert samples is not None
+        stored = [s.scores["blob_scored"].metadata for s in samples if s.scores]
+        assert _SEEN_SCORE_METADATA == stored
+    # six scores of 256 KiB more each are retained as metric inputs (the
+    # summaries keep thinned score metadata)
+    retained = 6 * (256 - 1) * 1024
+    assert retained <= peaks[256 * 1024] - peaks[1024] < 3 * retained + _MiB, peaks
+
+
+_SEEN_SAMPLE_METADATA: list[dict[str, Any] | None] = []
+
+
+@metric(name="shard_sample_metadata")
+def shard_sample_metadata() -> Metric:
+    """Records the sample metadata it is given."""
+
+    def compute(scores: list[SampleScore]) -> float:
+        _SEEN_SAMPLE_METADATA.extend(s.sample_metadata for s in scores)
+        return float(len(scores))
+
+    return compute
+
+
+@scorer(metrics=[shard_sample_metadata()])
+def big_metadata_scored() -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value=1)
+
+    return score
+
+
+def test_a_sample_the_streaming_parser_refuses_is_parsed_whole(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai.log._shards import _write
+
+    # an integer too large for the streaming parser, in the dataset metadata
+    big = 2**70
+    task = _task(samples=4)
+    task.scorer = [big_metadata_scored()]
+    assert task.dataset[2].metadata is not None
+    task.dataset[2].metadata["big"] = big
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", task, sample_id=[1, 2])
+    _run(shards, "1", task, sample_id=[3, 4])
+    whole: list[int | str] = []
+    parse_whole = _write._parse_whole
+
+    def spy(data: bytes) -> Any:
+        parsed = parse_whole(data)
+        whole.append(parsed.fields["id"])
+        return parsed
+
+    monkeypatch.setattr(_write, "_parse_whole", spy)
+    _SEEN_SAMPLE_METADATA.clear()
+    result = merge_eval_log_shards(merged, task)
+    assert result.written
+    assert whole == [3]
+    assert _SEEN_SAMPLE_METADATA == [{"index": i} for i in (1, 2)] + [
+        {"index": 3, "big": big},
+        {"index": 4},
+    ]
+    samples = read_eval_log(merged).samples
+    assert samples is not None and [s.id for s in samples] == [1, 2, 3, 4]
+
+
+@pytest.mark.parametrize("field", ["score", "transcript"])
+def test_a_sample_member_with_a_deprecated_field_is_refused(
+    tmp_path: Path, field: str
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    log = _run(shards, "1", sample_id=[4, 5, 6])
+    name = "samples/5_epoch_1.json"
+    with zipfile.ZipFile(local_path(log.location)) as zf:
+        sample = json.loads(zf.read(name))
+    # the fields of log files from before `scores` and `events`
+    if field == "score":
+        sample["score"] = sample.pop("scores")["match"]
+    else:
+        sample["transcript"] = {"events": sample.pop("events"), "content": {}}
+    _replace_member(log.location, name, json.dumps(sample).encode())
+    before = _files(shards)
+    with pytest.raises(
+        ShardSetError,
+        match=rf"samples/5_epoch_1.json has the deprecated fields \['{field}'\]",
+    ):
+        merge_eval_log_shards(merged, _task())
+    assert not os.path.exists(merged) and _files(shards) == before
+
+
+@pytest.mark.parametrize("where", ["sample", "event", "sample, parsed whole"])
+def test_a_sample_member_with_a_dotted_key_where_events_are_read_is_refused(
+    tmp_path: Path, where: str
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    log = _run(shards, "1", sample_id=[4, 5, 6])
+    name = "samples/5_epoch_1.json"
+    with zipfile.ZipFile(local_path(log.location)) as zf:
+        sample = json.loads(zf.read(name))
+    # each key's events would read as false initial metadata
+    poison = {"metadata": {"poison": 1}}
+    if where == "event":
+        init = next(e for e in sample["events"] if e["event"] == "sample_init")
+        key = "sample.metadata"
+        init[key] = poison["metadata"]
+    else:
+        key = "events.item"
+        sample[key] = {"event": "sample_init", "sample": poison}
+        if where == "sample, parsed whole":
+            # an integer only a whole parse reads
+            sample["future_optional"] = 2**70
+    _replace_member(log.location, name, json.dumps(sample).encode())
+    before = _files(shards)
+    with pytest.raises(
+        ShardSetError, match=rf"samples/5_epoch_1.json has the keys \['{key}'\]"
+    ):
+        merge_eval_log_shards(merged, _task())
+    assert not os.path.exists(merged) and _files(shards) == before
+
+
+def test_sample_fields_a_later_inspect_adds_are_skipped_and_kept(
+    tmp_path: Path,
+) -> None:
+    merged, shards = _paths(tmp_path)
+    first = _run(shards, "0", sample_id=[1, 2, 3])
+    second = _run(shards, "1", sample_id=[4, 5, 6])
+    # sample 5's field also holds an integer only a whole parse reads
+    added = {2: {"future": [1, 2]}, 5: {"future": 2**70}}
+    for log, sample_id in [(first, 2), (second, 5)]:
+        name = f"samples/{sample_id}_epoch_1.json"
+        with zipfile.ZipFile(local_path(log.location)) as zf:
+            sample = json.loads(zf.read(name))
+        sample["future_optional"] = added[sample_id]
+        _replace_member(log.location, name, json.dumps(sample).encode())
+
+    def merged_fields() -> dict[int, Any]:
+        with zipfile.ZipFile(local_path(merged)) as zf:
+            return {
+                i: json.loads(zf.read(f"samples/{i}_epoch_1.json")).get(
+                    "future_optional"
+                )
+                for i in range(1, 7)
+            }
+
+    expected = {i: added.get(i) for i in range(1, 7)}
+    result = merge_eval_log_shards(merged, _task())
+    assert result.written and merged_fields() == expected
+    assert result.log.results is not None
+    accuracy = result.log.results.scores[0].metrics["accuracy"].value
+    # shard 1 is run again: sample 2 is carried from the merged log
+    _run(shards, "1", sample_id=[4, 5, 6])
+    result = merge_eval_log_shards(merged, _task())
+    assert result.written
+    assert merged_fields() == {**expected, 5: None}
+    assert result.log.results is not None
+    assert result.log.results.scores[0].metrics["accuracy"].value == accuracy
+
+
+@pytest.mark.parametrize("crc", ["matches", "differs"])
+def test_sample_copies_are_released_after_the_merge(
+    two_shards: tuple[str, str], monkeypatch: pytest.MonkeyPatch, crc: str
+) -> None:
+    import gc
+    import weakref
+
+    from inspect_ai.log._shards import _write
+
+    merged, shards = two_shards
+    copies: list[weakref.ref[Any]] = []
+    init = _write._SampleCopy.__init__
+
+    def spy(self: Any, *args: Any) -> None:
+        init(self, *args)
+        copies.append(weakref.ref(self))
+
+    monkeypatch.setattr(_write._SampleCopy, "__init__", spy)
+    if crc == "differs":
+
+        def torn(*args: Any) -> None:
+            raise ZipCrcError("torn")
+
+        monkeypatch.setattr(_write, "_check_crc", torn)
+        with pytest.raises(ZipCrcError):
+            merge_eval_log_shards(merged, _task())
+        gc.collect()
+        assert copies
+        # the error's traceback holds the frame holding a copy for as long as
+        # anything holds the error; the copy has closed its member
+        for ref in copies:
+            copy = ref()
+            assert copy is None or copy._output.closed
+    else:
+        # with no reference cycle, reference counting alone frees each copy,
+        # with or without an explicit close
+        monkeypatch.setattr(_write._SampleCopy, "close", lambda self: None)
+        gc.disable()
+        try:
+            merge_eval_log_shards(merged, _task())
+            freed = [copy() is None for copy in copies]
+        finally:
+            gc.enable()
+        assert freed and all(freed)
+
+
+def test_a_sample_member_with_an_incomplete_deflate_stream_fails_the_merge(
+    tmp_path: Path,
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    log = _run(shards, "1", sample_id=[4, 5, 6])
+    name = "samples/5_epoch_1.json"
+    path = local_path(log.location)
+    # rewrite the shard deflated, then clear the member's final-block bit: its
+    # output and CRC-32 are unchanged, but the stream never ends
+    with zipfile.ZipFile(path) as zf:
+        sample = zf.read(name)
+    _replace_member(log.location, name, sample)
+    with zipfile.ZipFile(path) as zf:
+        info = zf.getinfo(name)
+    content = bytearray(Path(path).read_bytes())
+    header = info.header_offset
+    name_length = int.from_bytes(content[header + 26 : header + 28], "little")
+    extra_length = int.from_bytes(content[header + 28 : header + 30], "little")
+    data = header + 30 + name_length + extra_length
+    assert content[data] & 1
+    content[data] &= 0xFE
+    Path(path).write_bytes(bytes(content))
+    with pytest.raises(zlib.error, match="incomplete or truncated stream"):
+        merge_eval_log_shards(merged, _task())
+    assert not os.path.exists(merged)
+
+
+@pytest.mark.parametrize("incomplete", ["no last block", "no checksum"])
+def test_a_sample_member_with_an_incomplete_zstd_frame_fails_the_merge(
+    tmp_path: Path, incomplete: str
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    log = _run(shards, "1", sample_id=[4, 5, 6])
+    name = "samples/5_epoch_1.json"
+    path = local_path(log.location)
+    with zipfile.ZipFile(path) as zf:
+        sample = zf.read(name)
+    # a frame whose output and CRC-32 are complete, but which never ends
+    if incomplete == "no last block":
+        # descriptor: no checksum or content size; window descriptor: 128 KiB;
+        # one raw block without the last-block flag
+        assert len(sample) < 128 * 1024
+        frame = (
+            b"\x28\xb5\x2f\xfd\x00\x38"
+            + (len(sample) << 3).to_bytes(3, "little")
+            + sample
+        )
+    else:
+        frame = zstandard.ZstdCompressor(write_checksum=True).compress(sample)[:-4]
+    with zipfile.ZipFile(path) as src:
+        members = [(i.filename, src.read(i)) for i in src.infolist()]
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as dst:
+        for member, data in members:
+            if member == name:
+                writer = RawMemberWriter(
+                    dst, name, zipfile_compress_kwargs["compression"]
+                )
+                writer.write(frame)
+                writer.finish(zlib.crc32(sample), len(sample))
+            else:
+                dst.writestr(member, data)
+    with zipfile.ZipFile(path) as zf:
+        assert zf.read(name) == sample
+    with pytest.raises(zstandard.ZstdError, match="incomplete or truncated"):
+        merge_eval_log_shards(merged, _task())
+    assert not os.path.exists(merged)
+
+
+async def test_a_cancelled_read_still_closes_the_sample_input(
+    two_shards: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from inspect_ai._util import asyncfiles
+    from inspect_ai.log import merge_eval_log_shards_async
+
+    merged, shards = two_shards
+    stream_class = asyncfiles._AnyIOFileByteReceiveStream
+    streams: list[Any] = []
+    receive = stream_class.receive
+    cancelled: list[bool] = []
+
+    async def merge() -> None:
+        with anyio.CancelScope() as scope:
+
+            async def cancelled_receive(self: Any, max_bytes: int = 65536) -> bytes:
+                chunk = await receive(self, max_bytes)
+                if self._filename.startswith(local_path(shards)):
+                    # the file is open: cancel the read that opened it
+                    streams.append(self)
+                    scope.cancel()
+                    await anyio.lowlevel.checkpoint()
+                return chunk
+
+            monkeypatch.setattr(stream_class, "receive", cancelled_receive)
+            await merge_eval_log_shards_async(merged, _task())
+        cancelled.append(scope.cancelled_caught)
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(merge)
+    assert cancelled == [True]
+    # the close completed: the stream let go of its file
+    assert streams and all(stream._file is None for stream in streams)
+    assert not os.path.exists(merged)
+
+
+@pytest.mark.parametrize("stop", ["error", "cancelled"])
+async def test_a_sample_copy_whose_input_fails_to_open_is_freed(
+    two_shards: tuple[str, str], monkeypatch: pytest.MonkeyPatch, stop: str
+) -> None:
+    import gc
+    import weakref
+
+    from inspect_ai.log import merge_eval_log_shards_async
+    from inspect_ai.log._shards import _write
+
+    merged, shards = two_shards
+    copies: list[weakref.ref[Any]] = []
+    init = _write._SampleCopy.__init__
+
+    def spy(self: Any, *args: Any) -> None:
+        init(self, *args)
+        copies.append(weakref.ref(self))
+
+    monkeypatch.setattr(_write._SampleCopy, "__init__", spy)
+    # collection must not depend on an explicit close
+    monkeypatch.setattr(_write._SampleCopy, "close", lambda self: None)
+
+    cancelled: list[bool] = []
+
+    async def merge() -> None:
+        # run as a task of its own, which drops the error that stopped the merge
+        with anyio.CancelScope() as scope:
+
+            async def open_member_raw(self: AsyncZipReader, member: Any) -> Any:
+                if stop == "error":
+                    raise OSError("open failed")
+                scope.cancel()
+                await anyio.lowlevel.checkpoint()
+
+            monkeypatch.setattr(AsyncZipReader, "open_member_raw", open_member_raw)
+            if stop == "error":
+                with pytest.raises(OSError, match="open failed"):
+                    await merge_eval_log_shards_async(merged, _task())
+            else:
+                await merge_eval_log_shards_async(merged, _task())
+        cancelled.append(scope.cancelled_caught)
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(merge)
+    assert cancelled == [stop == "cancelled"]
+    gc.collect()
+    assert copies and all(copy() is None for copy in copies)
+    assert not os.path.exists(merged)
+
+
+@pytest.mark.parametrize("stop", ["error", "cancelled"])
+async def test_a_sample_copy_that_stops_closes_its_input_first(
+    two_shards: tuple[str, str], monkeypatch: pytest.MonkeyPatch, stop: str
+) -> None:
+    from inspect_ai.log import merge_eval_log_shards_async
+    from inspect_ai.log._shards import _write
+
+    merged, shards = two_shards
+    inputs: list[dict[str, bool]] = []
+    read_file_bytes = AsyncFilesystem.read_file_bytes
+
+    async def spy(self: AsyncFilesystem, *args: Any, **kwargs: Any) -> Any:
+        stream = await read_file_bytes(self, *args, **kwargs)
+        state = {"closed": False}
+        aclose = stream.aclose
+
+        async def close() -> None:
+            state["closed"] = True
+            await aclose()
+
+        monkeypatch.setattr(stream, "aclose", close)
+        inputs.append(state)
+        return stream
+
+    monkeypatch.setattr(AsyncFilesystem, "read_file_bytes", spy)
+    with anyio.CancelScope() as scope:
+
+        def write(self: Any, data: bytes) -> None:
+            if stop == "error":
+                raise RuntimeError("write failed")
+            anyio.from_thread.run_sync(scope.cancel)
+
+        monkeypatch.setattr(_write._SampleCopy, "write", write)
+        if stop == "error":
+            with pytest.raises(RuntimeError, match="write failed"):
+                await merge_eval_log_shards_async(merged, _task())
+        else:
+            await merge_eval_log_shards_async(merged, _task())
+    assert scope.cancelled_caught == (stop == "cancelled")
+    assert inputs and all(state["closed"] for state in inputs)
+    assert not os.path.exists(merged)
+
+
+@pytest.mark.parametrize("stop", ["error", "cancelled"])
+async def test_a_sample_copy_that_stops_closes_its_output_in_a_worker(
+    two_shards: tuple[str, str], monkeypatch: pytest.MonkeyPatch, stop: str
+) -> None:
+    import threading
+
+    from inspect_ai.log import merge_eval_log_shards_async
+    from inspect_ai.log._shards import _write
+
+    merged, shards = two_shards
+    loop_thread = threading.get_ident()
+    copies: list[Any] = []
+    closes: list[int] = []
+    init = _write._SampleCopy.__init__
+    close = _write._SampleCopy.close
+
+    def init_spy(self: Any, *args: Any) -> None:
+        init(self, *args)
+        copies.append(self)
+
+    def output_open(copy: Any) -> bool:
+        return copy._output is not None and not copy._output.closed
+
+    def close_spy(self: Any) -> None:
+        if output_open(self):
+            closes.append(threading.get_ident())
+        close(self)
+
+    monkeypatch.setattr(_write._SampleCopy, "__init__", init_spy)
+    monkeypatch.setattr(_write._SampleCopy, "close", close_spy)
+    with anyio.CancelScope() as scope:
+        if stop == "error":
+
+            def torn(*args: Any) -> None:
+                raise ZipCrcError("torn")
+
+            monkeypatch.setattr(_write, "_check_crc", torn)
+            with pytest.raises(ZipCrcError):
+                await merge_eval_log_shards_async(merged, _task())
+        else:
+            write = _write._SampleCopy.write
+
+            def cancelling_write(self: Any, data: bytes) -> None:
+                write(self, data)
+                anyio.from_thread.run_sync(scope.cancel)
+
+            monkeypatch.setattr(_write._SampleCopy, "write", cancelling_write)
+            await merge_eval_log_shards_async(merged, _task())
+    assert scope.cancelled_caught == (stop == "cancelled")
+    # the copy that stopped had opened its output member and closed it
+    assert len(copies) == 1 and not output_open(copies[0])
+    assert closes and loop_thread not in closes
+    assert not os.path.exists(merged)
+
+
+def _compressed_samples(log: str) -> dict[str, tuple[int, bytes]]:
+    """Each sample member's compression method and compressed bytes."""
+    path = local_path(log)
+    content = Path(path).read_bytes()
+    members = {}
+    with zipfile.ZipFile(path) as zf:
+        for info in zf.infolist():
+            if info.filename.startswith("samples/"):
+                header = info.header_offset
+                name_length = int.from_bytes(
+                    content[header + 26 : header + 28], "little"
+                )
+                extra_length = int.from_bytes(
+                    content[header + 28 : header + 30], "little"
+                )
+                data = header + 30 + name_length + extra_length
+                members[info.filename] = (
+                    info.compress_type,
+                    content[data : data + info.compress_size],
+                )
+    return members
+
+
+def test_merged_sample_members_are_the_shards_compressed_bytes(
+    tmp_path: Path,
+) -> None:
+    merged, shards = _paths(tmp_path)
+    zstd = _run(shards, "0", sample_id=[1, 2, 3])
+    deflated = _run(shards, "1", sample_id=[4, 5, 6])
+    # rewrite one shard with deflate, as older versions of Inspect wrote logs
+    name = "samples/5_epoch_1.json"
+    with zipfile.ZipFile(local_path(deflated.location)) as zf:
+        sample = zf.read(name)
+    _replace_member(deflated.location, name, sample)
+    result = merge_eval_log_shards(merged, _task())
+
+    expected = _compressed_samples(zstd.location) | _compressed_samples(
+        deflated.location
+    )
+    assert {method for method, _ in expected.values()} == {
+        zipfile_compress_kwargs["compression"],
+        zipfile.ZIP_DEFLATED,
+    }
+    assert _compressed_samples(merged) == expected
+    log = read_eval_log(merged)
+    assert log.samples is not None and len(log.samples) == 6
+    assert result.log.results is not None
+    assert result.log.results.scores[0].metrics["accuracy"].value == 0.5
+
+
+def test_a_sample_member_that_does_not_match_its_crc_fails_the_merge(
+    tmp_path: Path,
+) -> None:
+    merged, shards = _paths(tmp_path)
+    _run(shards, "0", sample_id=[1, 2, 3])
+    log = _run(shards, "1", sample_id=[4, 5, 6])
+    name = "samples/5_epoch_1.json"
+    path = local_path(log.location)
+    with zipfile.ZipFile(path) as zf:
+        sample = json.loads(zf.read(name))
+    sample["future_optional"] = "a" * 64
+    _replace_member(log.location, name, json.dumps(sample).encode())
+    # rewrite it stored, then change its bytes after the CRC was recorded
+    with zipfile.ZipFile(path) as src:
+        members = [(i.filename, src.read(i)) for i in src.infolist()]
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_STORED) as dst:
+        for member, data in members:
+            dst.writestr(member, data)
+    content = Path(path).read_bytes()
+    assert content.count(b"a" * 64) == 1
+    Path(path).write_bytes(content.replace(b"a" * 64, b"b" * 64))
+    with pytest.raises(ZipCrcError, match="samples/5_epoch_1.json"):
+        merge_eval_log_shards(merged, _task())
+    assert not os.path.exists(merged)

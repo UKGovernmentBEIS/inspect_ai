@@ -86,7 +86,7 @@ The arguments are:
 | `view` | The tool's optional human-readable rendering of the call. |
 | `history` | The conversation up to and including the assistant message that made the call. |
 
-Exceptions raised by a reviewer end the sample as an error, as exceptions from approvers do. Model calls made by a reviewer do not count towards the sample's token or turn limits.
+Exceptions raised by a reviewer end the sample as an error, as exceptions from approvers do. Model calls made by a reviewer are recorded in the sample's model usage, but do not count towards any token, turn or cost limit.
 
 Cancelling a tool call while its review is unfinished stops the sample with an operator limit. The completed tool result remains in the transcript, and an information event records that review was cancelled. If the sample stops for another reason, unfinished reviewers are cancelled and their tools' completed results are also preserved. An interrupted review does not record a review decision.
 

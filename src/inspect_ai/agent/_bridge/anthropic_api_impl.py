@@ -44,6 +44,7 @@ from inspect_ai.model._generate_config import (
     ResponseSchema,
 )
 from inspect_ai.model._internal import CONTENT_INTERNAL_TAG, parse_content_with_internal
+from inspect_ai.model._message_ids import shown_text
 from inspect_ai.model._model import Model, ModelName
 from inspect_ai.model._model_output import ModelUsage, StopReason
 from inspect_ai.model._providers._anthropic_citations import to_inspect_citation
@@ -205,9 +206,6 @@ async def inspect_anthropic_api_request_impl(
 
     debug_log("INSPECT OUTPUT", output.message)
 
-    # update state if we have more messages than the last generation
-    await bridge._track_state(messages, output)
-
     # return message (use beta message type if request came from beta endpoint)
     message_class = BetaMessage if beta else Message
     message = message_class.model_construct(
@@ -220,6 +218,24 @@ async def inspect_anthropic_api_request_impl(
         usage=anthropic_usage(output.usage or ModelUsage(), beta=beta),
     )
     debug_log("SCAFFOLD RESPONSE", message)
+    transported = await messages_from_anthropic_input(
+        [
+            cast(
+                MessageParam,
+                {
+                    "role": "assistant",
+                    "content": [
+                        block.model_dump(mode="json", exclude_none=True)
+                        for block in message.content
+                    ],
+                },
+            )
+        ],
+        tools,
+    )
+
+    # update state if we have more messages than the last generation
+    await bridge._track_state(messages, output, [transported])
 
     return message
 
@@ -599,19 +615,16 @@ async def messages_from_anthropic_input(
                             content = [
                                 content_block_to_content(b) for b in content_value
                             ]
-                        messages.append(
-                            ChatMessageTool(
-                                tool_call_id=c["tool_use_id"],
-                                function=tool_names.get(c["tool_use_id"], None),
-                                content=content,
-                                error=ToolCallError(
-                                    type="unknown",
-                                    message=str(content_value) if content_value else "",
-                                )
-                                if c.get("is_error", False) is True
-                                else None,
-                            )
+                        tool_message = ChatMessageTool(
+                            tool_call_id=c["tool_use_id"],
+                            function=tool_names.get(c["tool_use_id"], None),
+                            content=content,
                         )
+                        if c.get("is_error", False) is True:
+                            tool_message.error = ToolCallError(
+                                type="unknown", message=shown_text(content)
+                            )
+                        messages.append(tool_message)
                     elif (
                         c["type"] == "text"
                         or c["type"] == "image"

@@ -18,17 +18,9 @@ from .environment import (
     SandboxConnection,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxTimeoutError,
 )
 from .limits import OutputLimitExceededError, SandboxEnvironmentLimits
-
-
-class SandboxTimeoutError(TimeoutError):
-    """Raised when a sandbox operation times out."""
-
-    def __init__(self, message: str, truncated_output: str | None = None) -> None:
-        super().__init__(message)
-        self.truncated_output = truncated_output
-        """Partial command output captured before the timeout, if available."""
 
 
 class SandboxEnvironmentProxy(SandboxEnvironment):
@@ -51,9 +43,10 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         from inspect_ai.event._sandbox import SandboxEvent
         from inspect_ai.log._transcript import transcript
 
-        from .identity import sandbox_operation_user
+        from .identity import sandbox_operation_cwd, sandbox_operation_user
 
         user = sandbox_operation_user(self, user)
+        cwd = sandbox_operation_cwd(self, cwd)
 
         # started
         timestamp = datetime.now(timezone.utc)
@@ -77,6 +70,8 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         try:
             with sandbox_exec_work():
                 result = await self._sandbox.exec(**params)
+        except SandboxTimeoutError:
+            raise
         except TimeoutError as ex:
             raise SandboxTimeoutError(
                 str(ex), truncated_output=getattr(ex, "truncated_output", None)
@@ -145,10 +140,11 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         from inspect_ai.event._sandbox import SandboxEvent
         from inspect_ai.log._transcript import transcript
 
-        from .identity import sandbox_file_user_params
+        from .identity import sandbox_file_user_params, sandbox_operation_file
 
         timestamp = datetime.now(timezone.utc)
         params = sandbox_file_user_params(self, "write_file", user)
+        file = sandbox_operation_file(self, file)
 
         # make call
         try:
@@ -186,10 +182,11 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         from inspect_ai.event._sandbox import SandboxEvent
         from inspect_ai.log._transcript import transcript
 
-        from .identity import sandbox_file_user_params
+        from .identity import sandbox_file_user_params, sandbox_operation_file
 
         timestamp = datetime.now(timezone.utc)
         params = sandbox_file_user_params(self, "read_file", user)
+        file = sandbox_operation_file(self, file)
 
         # make call
         try:

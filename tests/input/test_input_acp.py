@@ -11,10 +11,12 @@ covered by Phase 5's ``test_elicitation.py``.
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any, Callable
 from unittest.mock import MagicMock
 
 import pytest
+from acp.exceptions import RequestError
 from acp.schema import (
     AcceptElicitationResponse,
     CancelElicitationResponse,
@@ -286,6 +288,30 @@ async def test_fallback_chain_advances_on_per_client_exception() -> None:
     # Both clients drained; both were dispatched-to; ordering pinned.
     assert broken.calls == ["drain", "request"]
     assert survivor.calls == ["drain", "request"]
+
+
+@skip_if_trio
+@pytest.mark.parametrize(
+    ("exc", "level"),
+    [
+        (ConnectionError("disconnected"), logging.DEBUG),
+        (RequestError.invalid_params({"details": "bad schema"}), logging.WARNING),
+    ],
+)
+async def test_fallback_failed_request_log_level(
+    exc: Exception, level: int, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An error reply is logged at WARNING; a disconnect stays at DEBUG."""
+    failing = _StubClient(exc=exc)
+    survivor = _StubClient(response=_accept({"answer": "ok"}))
+
+    with caplog.at_level(logging.DEBUG, logger="inspect_ai.util._input.acp"):
+        await _request_from_driver_with_fallback(
+            _StubSession([failing, survivor]), _elicitation_request()
+        )
+
+    (record,) = [r for r in caplog.records if "request failed" in r.getMessage()]
+    assert record.levelno == level
 
 
 @skip_if_trio

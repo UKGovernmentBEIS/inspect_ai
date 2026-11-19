@@ -147,7 +147,9 @@ class Job:
         This can wait as long as the command does not read its input, and it
         raises ConnectionResetError("Connection lost") if the command closes
         stdin first. asyncio raises BrokenPipeError or ConnectionResetError
-        depending on timing, so both map to the one error.
+        depending on timing, so both map to the one error. If asyncio has
+        already seen stdin close before the write, the write would discard
+        the input without an error, so that case raises the same error.
 
         Args:
             input: Standard input to send to the command, if any.
@@ -158,6 +160,8 @@ class Job:
             return
         try:
             if input is not None:
+                if stdin.is_closing():
+                    raise ConnectionResetError("Connection lost")
                 stdin.write(input.encode("utf-8"))
                 await stdin.drain()
             if not stdin_open:

@@ -4,6 +4,7 @@ from ._basic_agent import basic_agent
 from ._bridge import bridge
 from ._chain import chain
 from ._critique import self_critique
+from ._empty import empty_attempt
 from ._fork import fork
 from ._human_agent import human_agent
 from ._multiple_choice import MultipleChoiceTemplate, multiple_choice
@@ -25,6 +26,7 @@ __all__ = [
     "human_agent",
     "chain",
     "fork",
+    "empty_attempt",
     "generate",
     "prompt_template",
     "chain_of_thought",

@@ -1,5 +1,6 @@
 import hashlib
 import os
+import re
 import tempfile
 from collections.abc import Iterable, Iterator
 from contextlib import AbstractContextManager
@@ -68,6 +69,8 @@ class SampleManifest(BaseModel):
     summary: EvalSampleSummary
     segments: list[SampleSegmentEntry] = Field(default_factory=list)
     metadata_hash: str | None = None
+    store_hash: str | None = None
+    """The final store's hash, once the sample completed (written by newer versions)."""
 
 
 class Manifest(BaseModel):
@@ -181,6 +184,7 @@ class PendingSampleSegments:
 
 MANIFEST = "manifest.json"
 SAMPLE_METADATA_IN_SUMMARY = "summary"
+SAMPLE_STORE_EMPTY = "empty"
 
 
 def _is_s3_tagging_denied(ex: Exception) -> bool:
@@ -286,7 +290,14 @@ class SampleBufferFilestore(SampleBuffer):
         self, id: str | int, epoch: int, metadata_hash: str, metadata: bytes
     ) -> None:
         self._write_bytes(
-            self._sample_metadata_file(id, epoch, metadata_hash), metadata
+            self._sample_sidecar_file("metadata", id, epoch, metadata_hash), metadata
+        )
+
+    def write_sample_store(
+        self, id: str | int, epoch: int, store_hash: str, store: bytes
+    ) -> None:
+        self._write_bytes(
+            self._sample_sidecar_file("store", id, epoch, store_hash), store
         )
 
     def read_manifest(self) -> Manifest | None:
@@ -320,7 +331,8 @@ class SampleBufferFilestore(SampleBuffer):
             return sample.summary.metadata
         try:
             with open_file(
-                self._sample_metadata_file(id, epoch, sample.metadata_hash), "rb"
+                self._sample_sidecar_file("metadata", id, epoch, sample.metadata_hash),
+                "rb",
             ) as f:
                 contents = f.read()
             actual_hash = hashlib.sha256(contents).hexdigest()
@@ -335,6 +347,36 @@ class SampleBufferFilestore(SampleBuffer):
                 id,
                 epoch,
                 ex,
+            )
+            return None
+
+    def read_sample_store(
+        self,
+        id: str | int,
+        epoch: int,
+        manifest: Manifest | None = None,
+    ) -> dict[str, Any] | None:
+        manifest = manifest or self.read_manifest()
+        if manifest is None:
+            return None
+        sample = _find_sample(manifest, id, epoch)
+        if sample is None or sample.store_hash is None:
+            return None
+        if sample.store_hash == SAMPLE_STORE_EMPTY:
+            return {}
+        try:
+            with open_file(
+                self._sample_sidecar_file("store", id, epoch, sample.store_hash), "rb"
+            ) as f:
+                contents = f.read()
+            if hashlib.sha256(contents).hexdigest() != sample.store_hash:
+                raise ValueError(
+                    f"sample store hash mismatch for id={id} epoch={epoch}"
+                )
+            return parse_sample_metadata(contents, id=id, epoch=epoch, field="store")
+        except (FileNotFoundError, ValueError) as ex:
+            logger.warning(
+                "Unable to read sample store for id=%s epoch=%s: %s", id, epoch, ex
             )
             return None
 
@@ -490,6 +532,10 @@ class SampleBufferFilestore(SampleBuffer):
         return self.read_sample_metadata(id, epoch)
 
     @override
+    def get_sample_store(self, id: str | int, epoch: int) -> dict[str, Any] | None:
+        return self.read_sample_store(id, epoch)
+
+    @override
     def sample_event_count(self, id: str | int, epoch: int) -> int:
         raise NotImplementedError("Sample history is only available for buffer DBs")
 
@@ -595,12 +641,19 @@ class SampleBufferFilestore(SampleBuffer):
     def _manifest_file(self) -> str:
         return f"{self._dir}{MANIFEST}"
 
-    def _sample_metadata_file(
-        self, id: str | int, epoch: int, metadata_hash: str
+    def _sample_sidecar_file(
+        self,
+        kind: Literal["metadata", "store"],
+        id: str | int,
+        epoch: int,
+        content_hash: str,
     ) -> str:
+        """Build a sidecar path only from the canonical digests used on disk."""
+        if not re.fullmatch(r"[0-9a-f]{64}", content_hash):
+            raise ValueError(f"Invalid SHA-256 digest for sample {kind}")
         key = to_json_str_safe([str(id), epoch]).encode("utf-8")
         digest = hashlib.sha256(key).hexdigest()
-        return f"{self._dir}metadata.{digest}.{metadata_hash}.json"
+        return f"{self._dir}{kind}.{digest}.{content_hash}.json"
 
 
 async def cleanup_sample_buffer_filestores(log_dir: str) -> None:

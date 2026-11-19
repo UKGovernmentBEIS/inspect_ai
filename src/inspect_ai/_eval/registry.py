@@ -1,8 +1,9 @@
 import inspect
 import logging
+import os
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, TypeVar, cast, overload
+from typing import Any, Callable, NamedTuple, TypeVar, cast, overload
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.package import get_installed_package_name
@@ -59,6 +60,69 @@ def task_register(
         ),
     )
     return task
+
+
+class _TaskDefinition(NamedTuple):
+    file: str
+    file_id: tuple[int, int]
+    qualname: str
+
+
+def _task_definition(factory: object) -> _TaskDefinition | None:
+    """Source file and qualified name of a task function or class.
+
+    Returns None when the definition can't be identified: the source isn't a
+    file on disk (e.g. a notebook cell), or a class's module isn't in
+    `sys.modules`.
+    """
+    obj = inspect.unwrap(cast(Callable[..., Any], factory))
+    qualname = getattr(obj, "__qualname__", "")
+    try:
+        file = inspect.getsourcefile(obj)
+        stat = os.stat(file) if file else None
+    except (TypeError, OSError):
+        return None
+    if not qualname or file is None or stat is None:
+        return None
+    return _TaskDefinition(file, (stat.st_dev, stat.st_ino), qualname)
+
+
+def task_factory_name(factory: object) -> str:
+    """Registry name of a task function or class passed to `eval()`.
+
+    The task is then created by looking this name up, as for a task name
+    passed as a string. That finds the last task registered under the name,
+    so raise when it is a different definition from `factory` rather than
+    silently run another task. A file loaded twice, or a decorator stacked on
+    `@task`, is the same definition.
+
+    Raises:
+        PrerequisiteError: If `factory` is not a task, or if a different
+            definition is registered under its name.
+    """
+    info = registry_info(factory)
+    if info.type != "task":
+        raise PrerequisiteError(
+            f"'{info.name}' is registered as type '{info.type}', not as a task."
+        )
+    registered = registry_lookup("task", info.name)
+    if registered is None or registered is factory:
+        return info.name
+    factory_def = _task_definition(factory)
+    registered_def = _task_definition(registered)
+    if (
+        factory_def is not None
+        and registered_def is not None
+        and (factory_def.file_id, factory_def.qualname)
+        != (registered_def.file_id, registered_def.qualname)
+    ):
+        raise PrerequisiteError(
+            f"Task name '{info.name}' is registered by more than one task "
+            f"({factory_def.file}: {factory_def.qualname} and "
+            f"{registered_def.file}: {registered_def.qualname}). Tasks are "
+            "looked up by name, so give each @task a unique name."
+        )
+    return info.name
 
 
 def _has_var_keyword(factory: object) -> bool:

@@ -46,6 +46,7 @@ from inspect_ai._display.core.active import active_display as active_task_displa
 from inspect_ai._display.core.active import display as task_display
 from inspect_ai._eval.task.scan import Scanners, scan_context
 from inspect_ai._sentinel._config import (
+    SentinelProxy,
     SentinelSpec,
     resolve_sentinel_spec,
     sentinel_config,
@@ -194,6 +195,7 @@ def eval(
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
     sentinel: SentinelSpec | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model.
@@ -302,7 +304,7 @@ def eval(
         model_cost_config: YAML or JSON file with model prices for cost tracking
             or dict of model -> `ModelCost`
         max_samples: Maximum number of samples to run in parallel within each task
-            (default is max_connections)
+            (overrides a task's own `max_samples`; default is max_connections)
         max_dataset_memory: Maximum MB of dataset sample data to hold in
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
@@ -337,6 +339,7 @@ def eval(
         sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
             A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
             Overrides the task's sentinel. Defaults to no sentinel.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, which then judges the agent's model calls. Off unless set: `off` (the default) never looks, `auto` uses a sidecar it finds, and `required` fails a task unless one is found. Only an Anthropic, OpenAI or OpenAI-compatible model whose base URL was set is probed. Experimental: not yet a stable API; may change without notice.
         **kwargs: Model generation options.
 
     Returns:
@@ -371,6 +374,7 @@ def eval(
                 approval=approval,
                 review=review,
                 sentinel=sentinel,
+                sentinel_proxy=sentinel_proxy,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -498,6 +502,7 @@ async def eval_async(
     scan_id: str | None = None,
     task_retry_attempts: int | None = None,
     sentinel: SentinelSpec | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model (async).
@@ -583,7 +588,8 @@ async def eval_async(
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking
             or dict of model -> `ModelCost`
-        max_samples: Maximum number of samples to run in parallel within each task (default is max_connections)
+        max_samples: Maximum number of samples to run in parallel within each task
+            (overrides a task's own `max_samples`; default is max_connections)
         max_dataset_memory: Maximum MB of dataset sample data to hold in
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
@@ -611,6 +617,7 @@ async def eval_async(
         sentinel: Monitors and protocols that watch the agent's steps (requires the `inspect_sentinel` package). Experimental: not yet a stable API; may change without notice.
             A protocol, a list or mapping of monitors and protocols with at least one protocol, a config file path or registered protocol name, or a parsed configuration. Monitors alone are an error: wrap them in `observe_only()` to record without acting.
             Overrides the task's sentinel. Defaults to no sentinel.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, which then judges the agent's model calls. Off unless set: `off` (the default) never looks, `auto` uses a sidecar it finds, and `required` fails a task unless one is found. Only an Anthropic, OpenAI or OpenAI-compatible model whose base URL was set is probed. Experimental: not yet a stable API; may change without notice.
         **kwargs: Model generation options.
 
     Returns:
@@ -658,6 +665,7 @@ async def eval_async(
                 approval=approval,
                 review=review,
                 sentinel=sentinel,
+                sentinel_proxy=sentinel_proxy,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -742,6 +750,7 @@ async def _eval_async_inner(
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     review: str | list[ReviewPolicy] | ReviewPolicyConfig | None = None,
     sentinel: SentinelSpec | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
     notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -1011,6 +1020,26 @@ async def _eval_async_inner(
             (t.task.name for t in resolved_tasks),
             run_max_epochs,
         )
+
+        # Register a task enqueuer so additional tasks can be added to this run
+        # while it's in progress — imperatively via `enqueue_task`, or
+        # declaratively via a `TaskSource`'s `next_tasks()`. Both resolve against
+        # the run's models / config; the eval loop below runs them under this
+        # run_id after each batch. Bound before the run-start hooks so they see
+        # the run as in progress (eval_set_pruning.prune_task_call).
+        resolve_added_tasks = functools.partial(
+            _resolve_enqueued_tasks,
+            models=model,
+            model_roles=model_roles,
+            config=GenerateConfig(**kwargs),
+            sandbox=sandbox,
+            sample_shuffle=sample_shuffle,
+            checkpoint=checkpoint,
+            cost_limit=cost_limit,
+        )
+        enqueuer: TaskEnqueuer = create_task_enqueuer(run_id, resolve_added_tasks)
+        enqueuer_token = register_task_enqueuer(enqueuer)
+
         await emit_run_start(eval_set_id, run_id, resolved_tasks)
 
         # scan_id is whichever the caller passed explicitly (e.g. eval_retry
@@ -1052,24 +1081,6 @@ async def _eval_async_inner(
         # is only ever set here for a standalone eval.
         if ctl.keep_alive:
             request_keep_alive()
-
-        # Register a task enqueuer so additional tasks can be added to this run
-        # while it's in progress — imperatively via `enqueue_task`, or
-        # declaratively via a `TaskSource`'s `next_tasks()`. Both resolve against
-        # the run's models / config; the eval loop below runs them under this
-        # run_id after each batch.
-        resolve_added_tasks = functools.partial(
-            _resolve_enqueued_tasks,
-            models=model,
-            model_roles=model_roles,
-            config=GenerateConfig(**kwargs),
-            sandbox=sandbox,
-            sample_shuffle=sample_shuffle,
-            checkpoint=checkpoint,
-            cost_limit=cost_limit,
-        )
-        enqueuer: TaskEnqueuer = create_task_enqueuer(run_id, resolve_added_tasks)
-        enqueuer_token = register_task_enqueuer(enqueuer)
 
         # Imported here rather than at module level: the ACP server pulls in
         # `acp.schema`, whose pydantic models are the single largest cost of
@@ -1135,6 +1146,7 @@ async def _eval_async_inner(
                         approval=approval,
                         review=review,
                         sentinel=eval_sentinel,
+                        sentinel_proxy=sentinel_proxy,
                         solver=solver,
                         scanner=scanner,
                         scan_id=scan_id,
@@ -1384,6 +1396,8 @@ def eval_retry(
     checkpoint: CheckpointConfig | bool | None = None,
     incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
+    model_cost_config: str | dict[str, ModelCost] | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1486,12 +1500,15 @@ def eval_retry(
             returned without retrying. A finalized log lives at
             `<name>-recovered.eval` alongside the crashed log rather than in
             `log_dir`, so read its location from `EvalLog.location`.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, as `eval()` takes it. The log doesn't record it, so a retry is told again. Experimental: not yet a stable API; may change without notice.
         incomplete_max: Safety threshold for `incomplete_action="error"`
             (count if >= 1, or proportion of expected samples if strictly
             less than 1, so `1.0` means one sample, not 100%): when more
             than this many samples are in progress, fall back to the default
             recover-and-retry behavior. Has no effect (a warning is logged)
             with `incomplete_action="retry"`.
+        model_cost_config: YAML or JSON file with model prices for cost tracking
+            (or dictionary of model names to ModelCost instances).
 
     Returns:
         List of EvalLog (one for each task)
@@ -1541,6 +1558,8 @@ def eval_retry(
             checkpoint=checkpoint,
             incomplete_action=incomplete_action,
             incomplete_max=incomplete_max,
+            model_cost_config=model_cost_config,
+            sentinel_proxy=sentinel_proxy,
         )
 
     result = task_display().run_task_app(with_async_fs(run_task_app))
@@ -1632,6 +1651,8 @@ async def eval_retry_async(
     checkpoint: CheckpointConfig | bool | None = None,
     incomplete_action: IncompleteAction = "retry",
     incomplete_max: int | float | None = None,
+    model_cost_config: str | dict[str, ModelCost] | None = None,
+    sentinel_proxy: SentinelProxy | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1709,12 +1730,15 @@ async def eval_retry_async(
             returned without retrying. A finalized log lives at
             `<name>-recovered.eval` alongside the crashed log rather than in
             `log_dir`, so read its location from `EvalLog.location`.
+        sentinel_proxy: Whether to look for a sentinel sidecar behind each model's proxy, as `eval()` takes it. The log doesn't record it, so a retry is told again. Experimental: not yet a stable API; may change without notice.
         incomplete_max: Safety threshold for `incomplete_action="error"`
             (count if >= 1, or proportion of expected samples if strictly
             less than 1, so `1.0` means one sample, not 100%): when more
             than this many samples are in progress, fall back to the default
             recover-and-retry behavior. Has no effect (a warning is logged)
             with `incomplete_action="retry"`.
+        model_cost_config: YAML or JSON file with model prices for cost tracking
+            (or dictionary of model names to ModelCost instances).
 
     Returns:
         List of EvalLog (one for each task)
@@ -1882,7 +1906,10 @@ async def eval_retry_async(
         turn_limit = eval_log.eval.config.turn_limit
         time_limit = eval_log.eval.config.time_limit
         working_limit = eval_log.eval.config.working_limit
-        max_samples = max_samples or eval_log.eval.config.max_samples
+        cost_limit = eval_log.eval.config.cost_limit
+        max_dataset_memory = eval_log.eval.config.max_dataset_memory
+        # per log: one run's tasks can record different values
+        retry_max_samples = max_samples or eval_log.eval.config.max_samples
         max_tasks = max_tasks or eval_log.eval.config.max_tasks
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
         max_sandboxes = max_sandboxes or eval_log.eval.config.max_sandboxes
@@ -2015,6 +2042,7 @@ async def eval_retry_async(
                 approval=approval,
                 review=review,
                 sentinel=sentinel,
+                sentinel_proxy=sentinel_proxy,
                 notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -2034,7 +2062,10 @@ async def eval_retry_async(
                 turn_limit=turn_limit,
                 time_limit=time_limit,
                 working_limit=working_limit,
-                max_samples=max_samples,
+                cost_limit=cost_limit,
+                model_cost_config=model_cost_config,
+                max_samples=retry_max_samples,
+                max_dataset_memory=max_dataset_memory,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
                 max_sandboxes=max_sandboxes,

@@ -1,3 +1,7 @@
+from typing import Any
+
+from test_helpers.message_ids import edited_id
+
 from inspect_ai._util.content import (
     ContentAudio,
     ContentDocument,
@@ -197,9 +201,41 @@ def execute_and_assert(input_messages: list[ChatMessage], expected: list[ChatMes
 def assert_messages_equal(
     actual: list[ChatMessage], expected: list[ChatMessage]
 ) -> None:
-    assert [message.model_dump(exclude={"id"}) for message in actual] == [
-        message.model_dump(exclude={"id"}) for message in expected
+    assert [_comparable(message) for message in actual] == [
+        _comparable(message) for message in expected
     ]
+
+
+def _comparable(message: ChatMessage) -> dict[str, Any]:
+    """The message without its id, which `test_media_message_ids` checks."""
+    return message.model_dump(exclude={"id"})
+
+
+def test_media_message_ids() -> None:
+    """Edited tool messages and the new user message get ids derived from their sources."""
+    tool_a = ChatMessageTool(
+        tool_call_id="a", content=[ContentDocument(document="a.pdf")]
+    )
+    tool_b = ChatMessageTool(
+        tool_call_id="b", content=[ContentDocument(document="b.pdf")]
+    )
+    user = ChatMessageUser(content="next")
+
+    transformed = tool_result_media_as_user_message(
+        [tool_a, tool_b, user], (ContentDocument,)
+    )
+
+    for edited, source in zip(transformed[:2], [tool_a, tool_b]):
+        assert edited.id == edited_id(source.id, edited) != source.id
+        assert edited.metadata is None
+    again = tool_result_media_as_user_message(
+        [tool_a, tool_b, user], (ContentDocument,)
+    )
+    assert [m.id for m in again] == [m.id for m in transformed]
+    media = transformed[2]
+    assert media.id not in {tool_a.id, tool_b.id, user.id}
+    assert media.metadata is None
+    assert transformed[3] is user
 
 
 def _modified_document_response_message(message: ChatMessageTool) -> ChatMessageTool:
@@ -227,3 +263,23 @@ class _CaptureAPI(ModelAPI):
 
     def tool_result_documents(self) -> bool:
         return self._replay_documents
+
+
+def test_media_message_id_depends_on_what_was_moved() -> None:
+    """Models with different media support move different content: different ids."""
+    source = ChatMessageTool(
+        tool_call_id="a",
+        content=[
+            ContentImage(image="data:image/png;base64,iVBORw0KGgo="),
+            ContentDocument(document="report.pdf"),
+        ],
+    )
+
+    images = tool_result_media_as_user_message([source], (ContentImage,))
+    both = tool_result_media_as_user_message([source], (ContentImage, ContentDocument))
+    again = tool_result_media_as_user_message([source], (ContentImage,))
+
+    assert images[1].content != both[1].content
+    assert images[1].id != both[1].id
+    assert images[0].id != both[0].id
+    assert [m.id for m in again] == [m.id for m in images]

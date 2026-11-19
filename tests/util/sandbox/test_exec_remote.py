@@ -24,16 +24,17 @@ from inspect_ai.tool._sandbox_tools_utils.sandbox import (
     SandboxInjectionError,
     _inject_container_tools_code,
 )
+from inspect_ai.util._sandbox._framework_operation import framework_sandbox_operation
 from inspect_ai.util._sandbox.context import (
     sandbox_default_context_var,
     sandbox_environments_context_var,
 )
 from inspect_ai.util._sandbox.docker.docker import DockerSandboxEnvironment
-from inspect_ai.util._sandbox.environment import SandboxDefaultUser
-from inspect_ai.util._sandbox.events import (
-    SandboxEnvironmentProxy,
+from inspect_ai.util._sandbox.environment import (
+    SandboxDefaultUser,
     SandboxTimeoutError,
 )
+from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 from inspect_ai.util._sandbox.exec_remote import (
     ExecCompleted,
     ExecRemoteAwaitableOptions,
@@ -1006,6 +1007,7 @@ class TestUserParam:
         options: ExecRemoteStreamingOptions,
         identity: tuple[str, str | None] | None = None,
         identity_sandbox: str = "default",
+        framework_operation: bool = False,
     ) -> dict[str, Any]:
         sandbox = _make_sandbox_mock([_start_response()])
         sandbox._tools_default_user = self._DEFAULT_USER
@@ -1019,7 +1021,12 @@ class TestUserParam:
                 if identity is not None
                 else contextlib.nullcontext()
             ):
-                await exec_remote_streaming(sandbox, ["cmd"], 5, options)
+                with (
+                    framework_sandbox_operation()
+                    if framework_operation
+                    else contextlib.nullcontext()
+                ):
+                    await exec_remote_streaming(sandbox, ["cmd"], 5, options)
         finally:
             sandbox_default_context_var.reset(default_token)
             sandbox_environments_context_var.reset(envs_token)
@@ -1050,6 +1057,19 @@ class TestUserParam:
         )
         assert params["user"] == "root"
         assert params["cwd"] == "/srv"
+
+    @pytest.mark.parametrize(
+        "framework_operation, cwd", [(False, "/home/w-1/sub"), (True, "sub")]
+    )
+    async def test_identity_scope_resolves_a_relative_cwd(
+        self, framework_operation: bool, cwd: str
+    ) -> None:
+        params = await self._start_params(
+            ExecRemoteStreamingOptions(user="root", cwd="sub"),
+            identity=("w-1", "/home/w-1"),
+            framework_operation=framework_operation,
+        )
+        assert params["cwd"] == cwd
 
     async def test_identity_scope_for_another_sandbox_is_ignored(self) -> None:
         params = await self._start_params(
@@ -2012,14 +2032,21 @@ async def test_timed_out_start_waits_for_a_job_the_server_is_killing(
 @skip_if_no_docker
 @pytest.mark.slow
 async def test_start_whose_command_closes_stdin_kills_the_job(docker_sandbox) -> None:
-    with pytest.raises(RuntimeError, match="Connection lost"):
-        await exec_remote_streaming(
+    try:
+        proc = await exec_remote_streaming(
             docker_sandbox,
             # exec so that no outer shell keeps stdin open
             ["exec", "sh", "-c", f"exec 0<&-; exec sleep {_ORPHAN_SLEEP}"],
             5,
             ExecRemoteStreamingOptions(input=_BACKPRESSURED_INPUT),
         )
+    except RuntimeError as ex:
+        assert "Connection lost" in str(ex)
+    else:
+        # flaky_retry reruns this test in the same container, where a job left
+        # running would fail every later attempt
+        await proc.kill()
+        pytest.fail("the start succeeded with its input dropped")
 
     assert not await _orphan_running(docker_sandbox)
 
