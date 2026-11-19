@@ -150,7 +150,12 @@ unchanged: every way of not deleting raises, so a call that returns with
 with the other argument checks, before any I/O. With `delete_shards`, an
 incomplete set raises `ShardSetIncomplete` before anything is written or
 deleted, as without `allow_incomplete` today (decision: Ransom,
-2026-11-19).
+2026-11-19). On a deleting call its message says to complete the shard
+set (run the missing or failed shards again and merge) before deleting,
+and does not suggest `allow_incomplete` (`--allow-incomplete`), which
+cannot be combined with deletion; a merge without the option keeps
+today's advice. The exception's `status`, `missing`, `running` and
+`failed` are unchanged.
 
 ### The quiescence requirement
 
@@ -476,7 +481,9 @@ No test needs network, Docker or a model provider.
 - `test_delete_shards_with_allow_incomplete_is_refused`: `ValueError`, no
   I/O.
 - `test_delete_shards_refuses_incomplete_set`: `ShardSetIncomplete`,
-  nothing written or deleted.
+  nothing written or deleted; the message says to complete the shard set
+  before deleting and does not mention `allow_incomplete`, while the same
+  merge without the option still suggests it.
 - `test_delete_shards_merges_shard_changed_since_merge`: a shard gains a
   new attempt after a merge; a deleting merge merges it, then deletes.
 - `test_delete_shards_refuses_attempt_after_pass`: an attempt that
