@@ -356,14 +356,15 @@ recorded snapshot when one exists. They do not establish that a snapshot
 faithfully captures the sandbox or that its contents are recent or truthful.
 
 The restic strategy accepts two residual risks. Each lets a sandbox
-make its own checkpoints fail to capture or restore; their contents
-were already under that sandbox's control:
+make its sample's checkpoints fail to capture or restore. A checkpoint
+captures the host context and every sandbox together, so one sandbox's
+failure fails the whole checkpoint:
 
 - Egress never replaces an accepted repository file, but the sandbox
   can add new, correctly content-addressed files that restic cannot
-  read, such as an index that does not decrypt. Its later checkpoints
-  then fail, and with a local checkpoints location its earlier ones
-  cannot be restored. Recovery is removing the file from
+  read, such as an index that does not decrypt. The sample's later
+  checkpoints then fail, and with a local checkpoints location its
+  earlier ones cannot be restored. Recovery is removing the file from
   `restic/sandboxes/<name>/index/` in the sample dir the retry copies
   from: `restic repair index --read-all-packs` on that repository
   ignores unreadable indexes and rebuilds the index from the pack
@@ -373,10 +374,13 @@ were already under that sandbox's control:
   `keys/*` the host accepts on the first egress are sandbox-authored. It
   already holds the repository password, so this gives it no access it
   lacks, only another way to make restores fail. Not covered by this
-  acceptance: restic derives each key file's key with the file's own
-  KDF parameters before it can reject it, so a sandbox can make host
-  restic do unbounded key-derivation work that shares CPU and memory
-  with other samples.
+  acceptance: restic rejects malformed key files and invalid KDF
+  parameters first, but it derives the key of a well-formed key file
+  with that file's own KDF parameters before it can reject it. Inspect
+  sets no limit on those parameters or on host restic run time, so a
+  sandbox can make host restic do key-derivation work that shares CPU
+  and memory with other samples and delays the sample's checkpoints
+  ([meridianlabs-ai/inspect_ai#654](https://github.com/meridianlabs-ai/inspect_ai/issues/654)).
 
 File-list agreement, newly received snapshot ids, and expected tags enforce
 transfer protocol consistency. A compromised sandbox can satisfy these
