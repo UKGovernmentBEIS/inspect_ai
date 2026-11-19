@@ -304,7 +304,7 @@ def eval(
         model_cost_config: YAML or JSON file with model prices for cost tracking
             or dict of model -> `ModelCost`
         max_samples: Maximum number of samples to run in parallel within each task
-            (default is max_connections)
+            (overrides a task's own `max_samples`; default is max_connections)
         max_dataset_memory: Maximum MB of dataset sample data to hold in
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
@@ -588,7 +588,8 @@ async def eval_async(
             Requires model cost data via set_model_cost() or --model-cost-config.
         model_cost_config: YAML or JSON file with model prices for cost tracking
             or dict of model -> `ModelCost`
-        max_samples: Maximum number of samples to run in parallel within each task (default is max_connections)
+        max_samples: Maximum number of samples to run in parallel within each task
+            (overrides a task's own `max_samples`; default is max_connections)
         max_dataset_memory: Maximum MB of dataset sample data to hold in
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
@@ -1019,6 +1020,26 @@ async def _eval_async_inner(
             (t.task.name for t in resolved_tasks),
             run_max_epochs,
         )
+
+        # Register a task enqueuer so additional tasks can be added to this run
+        # while it's in progress — imperatively via `enqueue_task`, or
+        # declaratively via a `TaskSource`'s `next_tasks()`. Both resolve against
+        # the run's models / config; the eval loop below runs them under this
+        # run_id after each batch. Bound before the run-start hooks so they see
+        # the run as in progress (eval_set_pruning.prune_task_call).
+        resolve_added_tasks = functools.partial(
+            _resolve_enqueued_tasks,
+            models=model,
+            model_roles=model_roles,
+            config=GenerateConfig(**kwargs),
+            sandbox=sandbox,
+            sample_shuffle=sample_shuffle,
+            checkpoint=checkpoint,
+            cost_limit=cost_limit,
+        )
+        enqueuer: TaskEnqueuer = create_task_enqueuer(run_id, resolve_added_tasks)
+        enqueuer_token = register_task_enqueuer(enqueuer)
+
         await emit_run_start(eval_set_id, run_id, resolved_tasks)
 
         # scan_id is whichever the caller passed explicitly (e.g. eval_retry
@@ -1060,24 +1081,6 @@ async def _eval_async_inner(
         # is only ever set here for a standalone eval.
         if ctl.keep_alive:
             request_keep_alive()
-
-        # Register a task enqueuer so additional tasks can be added to this run
-        # while it's in progress — imperatively via `enqueue_task`, or
-        # declaratively via a `TaskSource`'s `next_tasks()`. Both resolve against
-        # the run's models / config; the eval loop below runs them under this
-        # run_id after each batch.
-        resolve_added_tasks = functools.partial(
-            _resolve_enqueued_tasks,
-            models=model,
-            model_roles=model_roles,
-            config=GenerateConfig(**kwargs),
-            sandbox=sandbox,
-            sample_shuffle=sample_shuffle,
-            checkpoint=checkpoint,
-            cost_limit=cost_limit,
-        )
-        enqueuer: TaskEnqueuer = create_task_enqueuer(run_id, resolve_added_tasks)
-        enqueuer_token = register_task_enqueuer(enqueuer)
 
         # Imported here rather than at module level: the ACP server pulls in
         # `acp.schema`, whose pydantic models are the single largest cost of
@@ -1905,7 +1908,8 @@ async def eval_retry_async(
         working_limit = eval_log.eval.config.working_limit
         cost_limit = eval_log.eval.config.cost_limit
         max_dataset_memory = eval_log.eval.config.max_dataset_memory
-        max_samples = max_samples or eval_log.eval.config.max_samples
+        # per log: one run's tasks can record different values
+        retry_max_samples = max_samples or eval_log.eval.config.max_samples
         max_tasks = max_tasks or eval_log.eval.config.max_tasks
         max_subprocesses = max_subprocesses or eval_log.eval.config.max_subprocesses
         max_sandboxes = max_sandboxes or eval_log.eval.config.max_sandboxes
@@ -2060,7 +2064,7 @@ async def eval_retry_async(
                 working_limit=working_limit,
                 cost_limit=cost_limit,
                 model_cost_config=model_cost_config,
-                max_samples=max_samples,
+                max_samples=retry_max_samples,
                 max_dataset_memory=max_dataset_memory,
                 max_tasks=max_tasks,
                 max_subprocesses=max_subprocesses,
