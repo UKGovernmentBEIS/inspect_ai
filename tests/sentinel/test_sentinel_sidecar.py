@@ -1530,6 +1530,93 @@ def test_a_call_that_waited_for_a_connection_acts_on_what_the_sidecar_says_of_th
     assert len(stand_in.model_calls) == 3
 
 
+async def test_a_restart_found_while_monitor_state_is_copied_stops_the_copy() -> None:
+    taken, answered = anyio.Event(), anyio.Event()
+
+    def result(params: dict[str, Any]) -> dict[str, Any]:
+        # the sidecar's answer is slow to arrive
+        taken.set()
+        stand_in.answer_after = answered
+        return _kept({"Tally:lookups": 1})(params)
+
+    stand_in = StandInSidecar(methods={"sample_result": result})
+    sidecars = TaskSidecars("required", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+    sidecars.called_through("sample_a", 1, sidecar)
+    await sidecars.complete_registration(sidecar, _sample(), "sample_a", 1)
+    sidecars.request_sent("sample_a", 1, sidecar)
+    store = Store()
+    failed: list[Exception] = []
+
+    async def copy() -> None:
+        try:
+            await sidecars.copy_monitor_state("sample_a", 1, store)
+        except SentinelProxyError as ex:
+            failed.append(ex)
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(copy)
+        await taken.wait()
+        # the sidecar restarts while the copy waits for its answer, and
+        # another sample registers the task again
+        stand_in.tokens.clear()
+        await sidecars.complete_registration(sidecar, _sample(2), "sample_b", 1)
+        answered.set()
+
+    # the answer may hold what began after the restart, so it isn't copied
+    [error] = failed
+    assert "lost the sample partway" in str(error)
+    assert store.get(MONITOR_STATE_COPY)["copied"] is False
+    assert store.get("Tally:lookups") is None
+
+
+async def test_an_attempt_whose_first_registration_was_still_on_its_way_at_a_restart_lost_nothing() -> (
+    None
+):
+    taken, answered = anyio.Event(), anyio.Event()
+    completions = [0]
+
+    def complete(_: dict[str, Any]) -> dict[str, Any]:
+        completions[0] += 1
+        if completions[0] == 1:
+            # the first sample's completion, whose answer is slow to arrive
+            taken.set()
+            stand_in.answer_after = answered
+        elif completions[0] == 2:
+            # the sidecar has lost the task, which another sample finds
+            return {"error": {"code": -32009, "message": "no registration"}}
+        return {}
+
+    stand_in = StandInSidecar(
+        methods={
+            "complete_registration": complete,
+            "sample_result": _kept({"Tally:lookups": 1}),
+        }
+    )
+    sidecars = TaskSidecars("required", _FACTS)
+    sidecar = await sidecars.sidecar(_model(stand_in).api)
+    assert sidecar is not None
+    sidecars.called_through("sample_a", 1, sidecar)
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(sidecars.complete_registration, sidecar, _sample(), "sample_a", 1)
+        await taken.wait()
+        # another sample registers the task again, and then the sidecar
+        # restarts, before the first sample's completion has returned
+        await sidecars.complete_registration(sidecar, _sample(2), "sample_b", 1)
+        stand_in.tokens.clear()
+        answered.set()
+
+    # the first sample found the restart itself, completing again. None of
+    # its requests had been sent, so the sidecar had judged nothing of it.
+    sidecars.request_sent("sample_a", 1, sidecar)
+    store = Store()
+    await sidecars.copy_monitor_state("sample_a", 1, store)
+    assert store.get(MONITOR_STATE_COPY)["copied"] is True
+    assert store.get("Tally:lookups") == 1
+
+
 async def test_a_sample_is_ended_with_its_task_named() -> None:
     stand_in = StandInSidecar()
     sidecars = TaskSidecars("auto", _FACTS)

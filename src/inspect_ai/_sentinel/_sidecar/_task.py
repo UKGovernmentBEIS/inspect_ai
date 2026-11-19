@@ -286,14 +286,7 @@ class TaskSidecars:
         through = self._attempt_sidecars(sample_uuid, attempt_number)
         if not through:
             return
-        if attempt_number in self._lost.get(sample_uuid, set()):
-            # what the sidecar holds began afresh after it lost the sample,
-            # so it isn't the attempt's monitor state
-            lost = (
-                "the sentinel sidecar lost the sample partway through, as on a restart"
-            )
-            self.skip_monitor_state_copy(sample_uuid, attempt_number, store, lost)
-            raise SentinelProxyError(_not_scored(lost))
+        self._not_copied_if_lost(sample_uuid, attempt_number, store)
         # the keys earlier copies wrote: any other key of the sample store
         # the copy would overwrite is a sentinel's inside Inspect
         copies = _copied_keys(store)
@@ -359,6 +352,10 @@ class TaskSidecars:
                     f"the sentinel sidecar at {sidecar.origin} didn't answer in time"
                 )
                 withheld = False
+        # A restart may have been found while the sidecars were asked, as by
+        # another sample, and the attempt have gone on since: what a sidecar
+        # answered may then have begun afresh.
+        self._not_copied_if_lost(sample_uuid, attempt_number, store)
         for key, value in copied.items():
             store.set(key, value)
         withheld = failed is not None and withheld
@@ -384,6 +381,18 @@ class TaskSidecars:
         # was flagged: a sidecar that lost the sample, never saw it, or didn't
         # answer fails the sample instead, and says why
         raise SentinelProxyError(_not_scored(failed))
+
+    def _not_copied_if_lost(
+        self, sample_uuid: str, attempt_number: int, store: Store
+    ) -> None:
+        if attempt_number in self._lost.get(sample_uuid, set()):
+            # what the sidecar holds began afresh after it lost the sample,
+            # so it isn't the attempt's monitor state
+            lost = (
+                "the sentinel sidecar lost the sample partway through, as on a restart"
+            )
+            self.skip_monitor_state_copy(sample_uuid, attempt_number, store, lost)
+            raise SentinelProxyError(_not_scored(lost))
 
     def skip_monitor_state_copy(
         self, sample_uuid: str, attempt_number: int, store: Store, reason: str
