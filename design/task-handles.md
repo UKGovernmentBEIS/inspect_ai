@@ -980,7 +980,7 @@ buffers the task, now raises `RuntimeError`, and the worker calls
 `anyio.from_thread.run_sync(lambda: enqueue_task(...))` instead
 ([task-dispatch.md](task-dispatch.md#compatibility-and-migration)). New
 `TaskHandle`,
-`TaskEndedError`, `SampleAbandonedError` and `samples_from_handle`. Existing `SampleSource` tasks are unchanged: only a task fed through a handle ignores
+`TaskEndedError`, `SampleAbandonedError` and `samples_from_handle`. Existing `SampleSource` tasks keep today's sample filtering, and the settings change below also applies to them when they are added inside a running attempt. Only a task fed through a handle ignores
 the run's `--limit`, `--sample-id` and `--epochs` (with the run's epoch
 reducer) and the run's `max_samples`, runs once under its
 creator's model, is exempt from `max_tasks` and is left out of
