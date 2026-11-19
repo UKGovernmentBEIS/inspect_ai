@@ -8,7 +8,14 @@ from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai.log._config_update import ConfigUpdate
-from inspect_ai.log._log import EvalPlan, EvalSample, EvalSampleSummary, EvalSpec
+from inspect_ai.log._edit import LogUpdate
+from inspect_ai.log._log import (
+    EvalLog,
+    EvalPlan,
+    EvalSample,
+    EvalSampleSummary,
+    EvalSpec,
+)
 from inspect_ai.log._recorders.eval import (
     HEADER_JSON,
     JOURNAL_DIR,
@@ -47,9 +54,19 @@ class CrashedEvalLog:
     config_updates: list[ConfigUpdate] = field(default_factory=list)
     """Mid-run config changes from journal flushes (see `EvalLog.config_updates`)."""
 
+    log_updates: list[LogUpdate] = field(default_factory=list)
+    """Edits recorded in a `started` header (see `EvalLog.log_updates`)."""
+
+    invalidated: bool = False
+    """Whether a `started` header marks samples invalidated."""
+
 
 async def read_crashed_eval_log(location: str) -> CrashedEvalLog:
     """Read a crashed .eval file and extract its partial contents.
+
+    A crashed log written again before recovery (e.g. edited with
+    `edit_eval_log()`) has a header.json with status "started"; its edits and
+    invalidation are kept.
 
     Args:
         location: Path to the crashed .eval file (local path, file:// URI, or s3://).
@@ -58,16 +75,23 @@ async def read_crashed_eval_log(location: str) -> CrashedEvalLog:
         CrashedEvalLog with extracted start data, summaries, and sample entry names.
 
     Raises:
-        ValueError: If the log is complete (has header.json) or invalid (no start.json).
+        ValueError: If the log has a header.json whose status is not "started"
+            (it completed) or is invalid (no start.json).
     """
     async with AsyncFilesystem() as fs:
         reader = AsyncZipReader(fs, location)
         cd = await reader.entries()
         entry_names = {e.filename for e in cd.entries}
 
-        # Validate: must NOT have header.json (would mean log completed normally)
+        header: EvalLog | None = None
         if HEADER_JSON in entry_names:
-            raise ValueError(f"Log is not crashed (has {HEADER_JSON}): {location}")
+            data = await _read_member_json(reader, HEADER_JSON)
+            if data.get("status") != "started":
+                raise ValueError(
+                    f"Log is not crashed ({HEADER_JSON} has status "
+                    f"'{data.get('status')}'): {location}"
+                )
+            header = EvalLog.model_validate(data, context=get_deserializing_context())
 
         # Validate: must have start.json
         start_path = _journal_path(START_JSON)
@@ -101,6 +125,8 @@ async def read_crashed_eval_log(location: str) -> CrashedEvalLog:
             summaries=summaries,
             sample_entries=sample_entries,
             config_updates=config_updates,
+            log_updates=list(header.log_updates or []) if header else [],
+            invalidated=header.invalidated if header else False,
         )
 
 

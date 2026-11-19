@@ -11,6 +11,7 @@ from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.file import dirname, filesystem
 from inspect_ai._util.registry import DisallowedRegistryArg, RegistryNameNotFound
+from inspect_ai.log._edit import LogUpdate
 from inspect_ai.log._file import (
     EvalLogInfo,
     list_eval_logs_async,
@@ -21,7 +22,11 @@ from inspect_ai.log._metric import LogMetrics, resolve_log_metrics
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.eval import _sample_filename
 
-from ._buffer import BufferRecoveryData, read_buffer_recovery_data
+from ._buffer import (
+    BufferRecoveryData,
+    live_buffer_db_exists,
+    read_buffer_recovery_data,
+)
 from ._read import CrashedEvalLog, read_crashed_eval_log
 from ._reconstruct import IncompleteAction, reconstruct_eval_sample
 from ._write import (
@@ -45,8 +50,9 @@ class RecoveryNotAvailable(Exception):
     """Recovery data is not available for the given log.
 
     Raised when there is nothing to recover — the log is already complete,
-    or no sample buffer database exists. This is a normal condition, not an
-    error. Opportunistic callers should catch this silently.
+    or no sample buffer exists (and `allow_no_buffer` is not set). This is a
+    normal condition, not an error. Opportunistic callers should catch this
+    silently.
     """
 
 
@@ -131,12 +137,21 @@ def recover_eval_log(
     _stats: RecoveryStats | None = None,
     *,
     trust_log: bool = False,
-    _untrusted_metrics: Literal["raise", "warn"] = "raise",
+    untrusted_metrics: Literal["raise", "warn"] = "raise",
+    allow_no_buffer: bool = False,
+    status: Literal["error", "cancelled"] = "error",
+    error_message: str | None = None,
+    completed_at: datetime | None = None,
+    log_update: LogUpdate | None = None,
 ) -> EvalLog:
     """Recover a crashed eval log.
 
     Combines flushed samples from the .eval file with unflushed samples
     from the sample buffer database to produce a recovered log file.
+
+    A log whose header.json still has status "started" (e.g. a crashed log
+    edited with `edit_eval_log()`) is recoverable too; its `log_updates` and
+    `invalidated` carry over to the recovered log.
 
     Args:
         log: Path to the crashed .eval file.
@@ -168,6 +183,26 @@ def recover_eval_log(
             for logs you trust. Metrics that still cannot be rebuilt are
             then skipped with a warning (the log is recovered without
             results).
+        untrusted_metrics: What to do, without `trust_log`, when a metric or
+            epoch reducer is not registered or metric options name a model or
+            other registry object. `"raise"` (default) refuses before
+            anything is written; `"warn"` recovers the log without results,
+            with a warning.
+        allow_no_buffer: When no sample buffer exists for the log, recover it
+            from its flushed samples alone instead of raising
+            `RecoveryNotAvailable`. Pass it only for a log whose run you
+            know has ended: a run on this host is detected by its buffer
+            database, but a run elsewhere leaves no local trace.
+        status: Status of the recovered log unless `incomplete_action="error"`
+            finalizes it with `status="success"`.
+        error_message: Message of the recovered log's `EvalError`. Defaults to
+            "Eval recovered from crash" with `status="error"`; with
+            `status="cancelled"` the log has no error unless a message is
+            given.
+        completed_at: Completion time recorded in `stats.completed_at`
+            (default: now).
+        log_update: Appended to the recovered log's `log_updates`, e.g. to
+            record who recovered it and why.
 
     Returns:
         The recovered EvalLog.
@@ -177,11 +212,13 @@ def recover_eval_log(
         RecoveryThresholdExceeded: More samples were in progress than
             `incomplete_max` allows.
         ValueError: `incomplete_max` is negative.
-        LookupError: Without `trust_log`, a metric or epoch reducer is not
-            registered. Raised before anything is written.
-        DisallowedRegistryArg: Without `trust_log`, metric options name a
-            model or a non-metric registry object (a `ValueError`). Raised
-            before anything is written.
+        LookupError: Without `trust_log` (and with `untrusted_metrics="raise"`),
+            a metric or epoch reducer is not registered. Raised before anything
+            is written.
+        DisallowedRegistryArg: Without `trust_log` (and with
+            `untrusted_metrics="raise"`), metric options name a model or a
+            non-metric registry object (a `ValueError`). Raised before
+            anything is written.
     """
     return run_coroutine(
         recover_eval_log_async(
@@ -194,7 +231,12 @@ def recover_eval_log(
             incomplete_max=incomplete_max,
             trust_log=trust_log,
             _stats=_stats,
-            _untrusted_metrics=_untrusted_metrics,
+            untrusted_metrics=untrusted_metrics,
+            allow_no_buffer=allow_no_buffer,
+            status=status,
+            error_message=error_message,
+            completed_at=completed_at,
+            log_update=log_update,
         )
     )
 
@@ -211,13 +253,14 @@ async def recover_eval_log_async(
     _stats: RecoveryStats | None = None,
     *,
     trust_log: bool = False,
-    _untrusted_metrics: Literal["raise", "warn"] = "raise",
+    untrusted_metrics: Literal["raise", "warn"] = "raise",
+    allow_no_buffer: bool = False,
+    status: Literal["error", "cancelled"] = "error",
+    error_message: str | None = None,
+    completed_at: datetime | None = None,
+    log_update: LogUpdate | None = None,
 ) -> EvalLog:
-    """Async implementation of recover_eval_log.
-
-    `_untrusted_metrics="warn"` (eval-set) recovers without results, with a
-    warning, when untrusted metric resolution fails, instead of raising.
-    """
+    """Async implementation of recover_eval_log."""
     incomplete_max = resolve_incomplete_max(incomplete_action, incomplete_max)
 
     # Step 1: Read the crashed .eval file metadata
@@ -260,7 +303,11 @@ async def recover_eval_log_async(
     # Step 2: Read buffer DB metadata (lightweight — just summaries)
     recovery_data = read_buffer_recovery_data(log, db_dir=_db_dir)
     if recovery_data is None:
-        raise RecoveryNotAvailable(f"No sample buffer database found for {log}")
+        if not allow_no_buffer:
+            raise RecoveryNotAvailable(f"No sample buffer database found for {log}")
+        if live_buffer_db_exists(log, db_dir=_db_dir):
+            raise RecoveryNotAvailable(f"The eval for {log} is still running")
+        recovery_data = BufferRecoveryData()
 
     # Derive flushed sample keys for deduplication against buffer DB: the
     # log's record is authoritative for a key unless the buffer holds a newer
@@ -291,7 +338,7 @@ async def recover_eval_log_async(
 
     # Resolve metrics before anything is written, so a failure leaves the
     # crashed log and buffer intact for a rerun with trust_log=True
-    log_metrics = _resolve_recovery_metrics(crashed, trust_log, _untrusted_metrics)
+    log_metrics = _resolve_recovery_metrics(crashed, trust_log, untrusted_metrics)
 
     # Step 3: Determine recovery path and write
     buffer = recovery_data.buffer
@@ -349,6 +396,10 @@ async def recover_eval_log_async(
         incomplete_action=incomplete_action,
         stats=_stats,
         metrics=log_metrics,
+        status=status,
+        error_message=error_message,
+        completed_at=completed_at,
+        log_update=log_update,
     )
 
     # For overwrite mode, move the temp file over the original and

@@ -5,12 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from logging import getLogger
-from typing import Iterator
+from typing import Iterator, Literal
 
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.error import EvalError
 from inspect_ai.log._condense import condense_sample
+from inspect_ai.log._edit import LogUpdate
 from inspect_ai.log._log import (
     EvalLog,
     EvalResults,
@@ -99,6 +100,10 @@ async def write_recovered_eval_log(
     incomplete_action: IncompleteAction = "retry",
     stats: RecoveryStats | None = None,
     metrics: LogMetrics | None,
+    status: Literal["error", "cancelled"] = "error",
+    error_message: str | None = None,
+    completed_at: datetime | None = None,
+    log_update: LogUpdate | None = None,
 ) -> EvalLog:
     """Write a recovered .eval file with true streaming.
 
@@ -132,6 +137,12 @@ async def write_recovered_eval_log(
         metrics: Reducers and metrics resolved from the crashed log's header
             (`resolve_log_metrics()`), or `None` to write the log without
             results.
+        status: Status of the log when it is not finalized as "success".
+        error_message: Message of the log's `EvalError` (default: "Eval
+            recovered from crash" for status "error", no error for
+            "cancelled").
+        completed_at: `stats.completed_at` of the log (default: now).
+        log_update: Appended to the crashed log's `log_updates`.
 
     Returns:
         The written EvalLog (header only, samples on disk).
@@ -337,17 +348,20 @@ async def write_recovered_eval_log(
                 "recovery."
             )
 
-    status: EvalStatus
+    final_status: EvalStatus
+    error: EvalError | None = None
     if finalized:
-        status = "success"
-        error = None
+        final_status = "success"
     else:
-        status = "error"
-        error = EvalError(
-            message="Eval recovered from crash",
-            traceback="Eval process crashed; log recovered from sample buffer database.\n",
-            traceback_ansi="Eval process crashed; log recovered from sample buffer database.\n",
-        )
+        final_status = status
+        if status == "error" and error_message is None:
+            error_message = "Eval recovered from crash"
+        if error_message is not None:
+            error = EvalError(
+                message=error_message,
+                traceback="Eval process crashed; log recovered from sample buffer database.\n",
+                traceback_ansi="Eval process crashed; log recovered from sample buffer database.\n",
+            )
 
     if stats is not None:
         stats.sample_count = sample_count
@@ -355,13 +369,16 @@ async def write_recovered_eval_log(
         stats.in_progress_count = in_progress_count
         stats.not_finalized_reason = not_finalized_reason
 
+    log_updates = crashed.log_updates + ([log_update] if log_update else [])
     return await recorder.log_finish(
         crashed.eval,
-        status,
-        stats_acc.stats(),
+        final_status,
+        stats_acc.stats(completed_at),
         results,
         reductions,
         error=error,
+        invalidated=crashed.invalidated,
+        log_updates=log_updates or None,
         config_updates=crashed.config_updates or None,
     )
 
@@ -405,10 +422,10 @@ class _StatsAccumulator:
                 self._role_usage[role] = ModelUsage()
             self._role_usage[role] += usage
 
-    def stats(self) -> EvalStats:
+    def stats(self, completed_at: datetime | None = None) -> EvalStats:
         return EvalStats(
             started_at=self._started_at or "",
-            completed_at=datetime.now(timezone.utc).isoformat(),
+            completed_at=(completed_at or datetime.now(timezone.utc)).isoformat(),
             model_usage=self._model_usage,
             role_usage=self._role_usage,
         )
