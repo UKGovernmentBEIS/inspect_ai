@@ -1,4 +1,6 @@
 import base64
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -12,7 +14,7 @@ from inspect_ai.log import read_eval_log, resolve_sample_attachments
 from inspect_ai.model import ChatMessageTool, ModelOutput, get_model
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
 from inspect_ai.tool import ContentImage, ToolError, view_image
-from inspect_ai.util import sandbox
+from inspect_ai.util import OutputLimitExceededError, sandbox
 from inspect_ai.util._sandbox.context import (
     sandbox_default_context_var,
     sandbox_environments_context_var,
@@ -127,16 +129,31 @@ def test_view_image_over_output_limit_is_a_tool_error(
     assert "too large to view" in response.error.message
 
 
-async def test_view_image_undecodable_output_is_a_tool_error() -> None:
-    env = CannedSandbox.returning(ExecResult(True, 0, "not base64!\n", ""))
+@contextmanager
+def _default_sandbox(env: CannedSandbox) -> Iterator[None]:
     environments_token = sandbox_environments_context_var.set({"default": env})
     default_token = sandbox_default_context_var.set("default")
     try:
-        with pytest.raises(ToolError, match="could not be decoded"):
-            await view_image()(file_path="plot.png")
+        yield
     finally:
         sandbox_default_context_var.reset(default_token)
         sandbox_environments_context_var.reset(environments_token)
+
+
+async def test_view_image_undecodable_output_is_a_tool_error() -> None:
+    env = CannedSandbox.returning(ExecResult(True, 0, "not base64!\n", ""))
+    with _default_sandbox(env):
+        with pytest.raises(ToolError, match="could not be decoded"):
+            await view_image()(file_path="plot.png")
+
+
+async def test_view_image_output_limit_exception_is_a_tool_error() -> None:
+    def raise_limit(_cmd: list[str], _user: str | None) -> ExecResult[str]:
+        raise OutputLimitExceededError("64 bytes", "iVBORw0KGgo=")
+
+    with _default_sandbox(CannedSandbox(raise_limit)):
+        with pytest.raises(ToolError, match="too large to view"):
+            await view_image()(file_path="plot.png")
 
 
 @skip_if_no_docker

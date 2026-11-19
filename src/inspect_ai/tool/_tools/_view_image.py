@@ -3,7 +3,7 @@ import binascii
 
 from inspect_ai._util.content import ContentImage
 from inspect_ai._util.images import as_data_uri, sniff_image_mime_type
-from inspect_ai.util import SandboxEnvironmentLimits
+from inspect_ai.util import OutputLimitExceededError, SandboxEnvironmentLimits
 from inspect_ai.util import sandbox as sandbox_env
 from inspect_ai.util._sandbox.events import without_sandbox_events
 from inspect_ai.util._sandbox.identity import (
@@ -15,6 +15,13 @@ from inspect_ai.util._sandbox.identity import (
 from .._tool import Tool, ToolError, tool
 
 _SUPPORTED_MIME_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+
+
+def _too_large_error(file_path: str) -> ToolError:
+    return ToolError(
+        f"{file_path} is too large to view: its base64 encoding reaches the "
+        f"{SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE_STR} sandbox output limit."
+    )
 
 
 @tool(parallel=True)
@@ -47,13 +54,16 @@ def view_image(
         exec_user = sandbox_identity_user(sbox, user, strict=True)
         env = await sandbox_identity_vars(sbox, timeout)
         with without_sandbox_events(sbox):
-            result = await sbox.exec(
-                cmd=["sh", "-c", 'base64 < "$1"', "sh", file_path],
-                cwd=cwd,
-                timeout=timeout,
-                user=exec_user,
-                env=env,
-            )
+            try:
+                result = await sbox.exec(
+                    cmd=["sh", "-c", 'base64 < "$1"', "sh", file_path],
+                    cwd=cwd,
+                    timeout=timeout,
+                    user=exec_user,
+                    env=env,
+                )
+            except OutputLimitExceededError as ex:
+                raise _too_large_error(file_path) from ex
         if not result.success:
             raise ToolError(
                 result.stderr.strip()
@@ -62,11 +72,7 @@ def view_image(
             )
 
         if len(result.stdout) >= SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE:
-            raise ToolError(
-                f"{file_path} is too large to view: its base64 encoding exceeds "
-                f"the {SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE_STR} sandbox "
-                "output limit."
-            )
+            raise _too_large_error(file_path)
         try:
             data = base64.b64decode(result.stdout)
         except binascii.Error as ex:
