@@ -1231,7 +1231,15 @@ order, of which only the limit handling changes:
   comparison, and the rank works the same during the solve and in scorers.
 - `sandbox_agent_bridge()` still raises the kept limit only once the agent
   has unwound or returned, after a pending enclosing cancellation
-  (`bridge.py:336-405`, unchanged). If the agent is cancelled first, the kept
+  (`bridge.py:336-405`). What it raises then combines every limit: when
+  the agent unwound with limit errors of its own (bare or in a group, for
+  example a limit of the host process escaping beside the CLI's exit), they
+  are added to the kept limits and the bridge raises the combined error of
+  all of them, so a kept owned cost limit and an escaping sample token
+  limit both reach the owner. Today `_error_after_unwind()` (`:385-405`)
+  raises the kept limit alone and drops an escaping one. The existing
+  priorities stay: a termination, a requested sample failure and a pending
+  enclosing cancellation decide ahead of the limits, as today. If the agent is cancelled first, the kept
   limits are not raised there. Each token, cost or turn node among them
   raised when it was reached, so it carries the refusal mark. It refuses every later call under it (rule
   3), and when no other limit error reaches its owner, rule 7 raises it
@@ -2323,6 +2331,13 @@ under trio with `--runtrio`.
     and a member token limit kept give the same `generation_limit`
     whichever is added first (primary fields the token limit's, `limits`
     both); the same node reached by two requests is kept once;
+  - limits escaping at unwind: inside `run(limits=[cost_limit(...)])`, a
+    bridged agent whose request reached that cost limit (kept) unwinds
+    with a sample token limit's error, bare and again inside an exception
+    group; `run()` does not return, and the error that leaves it holds
+    both limits, the token limit's primary fields first; a requested
+    sample failure, a termination and a pending enclosing cancellation
+    still decide ahead of the limits, as today;
   - a bridge inside a tool, end to end: an `as_tool()` agent whose body
     sends two bridged requests at once, one whose prompt reaches the
     sample's `message_limit(2)` and one whose priced usage takes a
