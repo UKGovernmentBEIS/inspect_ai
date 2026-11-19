@@ -56,7 +56,7 @@ def view_image(
         with without_sandbox_events(sbox):
             try:
                 result = await sbox.exec(
-                    cmd=["sh", "-c", 'base64 < "$1"', "sh", file_path],
+                    cmd=["sh", "-c", 'exec base64 < "$1"', "sh", file_path],
                     cwd=cwd,
                     timeout=timeout,
                     user=exec_user,

@@ -34,11 +34,19 @@ def _write_file(path: str, data: bytes) -> Solver:
 
 
 def _run_view_image(
-    path: str, data: bytes, file_path: str, sandbox_type: str = "local"
+    path: str,
+    data: bytes,
+    file_path: str,
+    sandbox_type: str = "local",
+    timeout: int | None = None,
 ) -> ChatMessageTool:
     task = Task(
         dataset=[Sample(input="View the image")],
-        solver=[_write_file(path, data), use_tools(view_image()), generate()],
+        solver=[
+            _write_file(path, data),
+            use_tools(view_image(timeout=timeout)),
+            generate(),
+        ],
         message_limit=3,
         sandbox=sandbox_type,
     )
@@ -88,6 +96,13 @@ def test_view_image_unreadable_path_is_a_tool_error(file_path: str) -> None:
     response = _run_view_image("plot.png", PNG_BYTES, file_path)
     assert response.error is not None
     assert file_path in response.error.message
+
+
+@pytest.mark.timeout(30, method="thread")
+def test_view_image_timeout_is_enforced() -> None:
+    response = _run_view_image("plot.png", PNG_BYTES, "/dev/zero", timeout=1)
+    assert response.error is not None
+    assert response.error.type == "timeout"
 
 
 def test_view_image_data_not_logged_when_log_images_false(tmp_path: Path) -> None:
