@@ -30,6 +30,8 @@ from inspect_ai.log._log import EvalLog
         ([-1, "-1", 1], "-1", ["-1"]),
         (["a_advanced", "b_basic"], "*_advanced", ["a_advanced"]),
         ([1, 2, 10, 11, 20], [2, "1*"], [1, 2, 10, 11]),
+        (["q[1]", "q1"], "q[1]", ["q[1]", "q1"]),
+        (["a?b", "axb"], "a?b", ["a?b", "axb"]),
     ],
 )
 def test_sample_id_globs_use_visible_ids(
@@ -53,6 +55,25 @@ def test_sample_id_matching_glob_does_not_warn(monkeypatch: pytest.MonkeyPatch) 
     assert [sample.id for sample in selected] == [1, 10]
     assert len(warnings) == 1
     assert "missing*" in warnings[0]
+
+
+def test_sample_id_warning_reports_the_selector_as_typed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._eval.task import util
+
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        util, "warn_once", lambda logger, message: warnings.append(message)
+    )
+    dataset = MemoryDataset([Sample(id=id, input="hi") for id in (1, 2, 3)])
+
+    with pytest.raises(PrerequisiteError, match="sample_id filter '5'"):
+        slice_dataset(dataset, None, 5)
+
+    assert len(warnings) == 1
+    assert warnings[0].startswith("sample id '5' not found in dataset")
+    assert "00000000000000000005" not in warnings[0]
 
 
 @pytest.mark.parametrize("dynamic", [False, True])
