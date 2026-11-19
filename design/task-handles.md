@@ -1196,7 +1196,9 @@ test touched), with mockllm models; every test that waits is bounded with
 One PR, after step 3a of
 [task-dispatch.md](task-dispatch.md#implementation-plan) (the queue, the
 dispatcher and logs that start with their attempt); it does not need step
-3b, the control channel's queued tasks. Its selection-mode
+3b, the control channel's queued tasks. It requires the task-level
+`max_samples` setting (a `max_samples` parameter on `Task` and
+`task_with()`), which the fed-task rule and its tests read. Its selection-mode
 support relies on runtime pruning leaving tasks constructed by attempt code
 unpruned
 ([task-dispatch.md](task-dispatch.md#interactions-with-related-changes));

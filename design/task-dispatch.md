@@ -856,40 +856,44 @@ from the queue and the queued registry, rings `wake`, and releases `options`
 shallow copy of it, so both references go for a finished task's samples to
 be freed. The record keeps its identity, `log` and `ended`.
 
-**Display rows keep no frames' locals.** Rich keeps each row's result
+**Display rows keep no frames.** Rich keeps each row's result
 (`TaskStatus.result`) and Textual keeps every row (`_app_tasks`) for the
-life of the task screen, which is now the whole run. A failed row's
-`TaskError` (`_display/core/display.py`) holds the exception and its live
-traceback, whose frames hold `task_run`'s locals, so a failed task's
-`options`, `Task` and dataset would outlive its record. `TaskError` stays as
-it is today; the frames' locals are cleared instead (decision: Ransom,
-2026-11-19):
+life of the task screen, which is now the whole run. Today a failed row's
+`TaskError` holds the exception and its live traceback, whose frames hold
+`task_run`'s locals, so a failed task's `options`, `Task` and dataset
+would outlive its record. So `TaskError` holds a snapshot instead:
+`TaskError.from_exception(samples_completed, exc_type, exc_value,
+traceback)` keeps `exc_type`, the rendered traceback
+(`rich_traceback(...)`, Rich's extracted `Trace`, which follows the
+`__cause__` and `__context__` chain and, under
+`INSPECT_TRACEBACK_LOCALS=1`, keeps the locals as reprs) and the text of
+`traceback.format_exception(...)`, and no exception object or frame.
+`task_run` builds it at each `td.complete(TaskError(...))`;
+`task_result_error` (`_display/core/results.py`) renders the snapshot.
+`LogDisplay._log_result` keeps today's status message, "<title> failed
+(<n>/<m> logged)", and passes the snapshot's text instead of `exc_info`, as
+`extra={"exc_snapshot": text}`; the text is exactly what
+`Formatter.formatException` gives for today's `exc_info`, without its
+trailing newline. The logger reads it where it reads `exc_info`
+(`_util/logger.py`):
 
-- `task_run` records the exception it passes to `td.complete(TaskError(...))`
-  on the attempt's options, as `TaskRunOptions.task_error: BaseException |
-  None`, at both sites: the main `except` (`TaskError(logger.samples_completed,
-  type, value, traceback)`) and the cancellation handler during
-  `log_start()` (`TaskError(0, TerminateTaskError, cancel_ex, None)`).
-- `_run_task`, once `task_run` has returned or raised (its frame has
-  finished, so its frames can be cleared) and before it calls
-  `notify_task_source`, calls a new helper, `clear_exception_frames(exc)`
-  in `_util/exception.py`, on `options.task_error`. The helper calls
-  `traceback.clear_frames()` on the exception's `__traceback__` and then
-  does the same for its `__cause__`, its `__context__` and, for a
-  `BaseExceptionGroup`, each member exception, following each exception
-  once (a set of ids guards against cycles). `clear_frames` already skips a
-  frame that is still executing.
-- It is skipped under `debug_errors`, where the exception propagates with
-  its frames, and when `INSPECT_TRACEBACK_LOCALS=1` is set, whose rendering
-  shows the locals; those runs keep today's output and today's memory use.
+- `LogHandler.emit` sets `record.exc_text` from `exc_snapshot` when the
+  record has no `exc_info`, so `Formatter.format`, which appends
+  `exc_text` after the message, gives the plain display, the Rich display
+  (`RichHandler` formats the message the same way, since Inspect does not
+  enable `rich_tracebacks`) and the `INSPECT_PY_LOGGER_FILE` handler the
+  same output as today;
+- `json_log_record` emits `exc_info` from `record.exc_info` as today, and
+  otherwise from `exc_snapshot`, so the JSON record keeps a short `msg` and
+  the separate `exc_info` field;
+- the trace file's `TraceFormatter` records no exception today and copies
+  every unexpected record attribute into its JSON, except a fixed set that
+  includes `exc_info` and `exc_text`; `exc_snapshot` joins that set, so the
+  trace output stays as it is today.
 
-Clearing drops each frame's locals and keeps what rendering reads: file
-names, line numbers and source lines (through `linecache`), and the
-`__cause__` and `__context__` chain. `task_result_error`
-(`_display/core/results.py`) renders the row from the same `TaskError` as
-today, and `LogDisplay._log_result` keeps passing `exc_info`, since it logs
-when `td.complete` runs, while the exception is intact. A run with a
-failing task looks as it does today on every display and logger format.
+Under `debug_errors` the original exception still propagates with its
+traceback. A run with a failing task looks as it does today on every
+display and logger format.
 
 **Terminal identity without registration.** A record that ends before any
 attempt calls `register_eval` (cancelled while queued, which aborts before it registers, a startup failure
@@ -1557,6 +1561,26 @@ here depends on it.
   Python, so the accessor would be API nobody calls.
 - **Exporting the lifecycle scope.** Every provider would have to adopt it;
   captured bindings make the existing pattern correct.
+- **Clearing a failed row's frames instead of snapshotting its error**:
+  keep `TaskError` with the real exception and traceback, and once the
+  attempt ends run `traceback.clear_frames` over the exception, its
+  `__cause__` and `__context__` chain and any exception-group members, so
+  the row keeps file names and line numbers but no locals. Displays and
+  logger formats would need no change. Rejected (decision: Ransom,
+  2026-11-19) because the end of the attempt does not mean every frame in
+  its error chain has finished. On Python 3.11 and 3.12 (Inspect supports
+  3.11 and later), clearing the frame of a suspended coroutine or generator
+  finalizes it; only 3.13 and later refuse. A failed task's error can carry
+  such frames: the shared model `Batcher`
+  (`model/_providers/util/batch.py`) catches one exception and awaits its
+  fan-out to every waiting request, each of which re-raises that same
+  object, so clearing one consumer's error could finalize the publisher
+  while it is still failing the other requests. Making it safe would need
+  a per-frame walk that skips suspended frames on those versions, a
+  regression test that the `Batcher` keeps fanning out and cleans up after
+  a consumer's frames are cleared, and recording the error on every path
+  that completes a failed row, the error-log write timeout included. The
+  snapshot holds no frames at all and needs none of that.
 
 Alternatives for the handles are in
 [task-handles.md](task-handles.md#alternatives-considered).
@@ -1622,6 +1646,11 @@ before it registers ends with the same abort log.
 Code that reads `log.location` from `eval()`'s results gets an empty string
 for it, as it already can for a task whose log could not be written. No eval
 log schema, viewer type or config file changes here.
+
+Displays: `TaskError` (in the private `inspect_ai._display`) holds a
+rendered snapshot of the traceback instead of the exception and its
+traceback; the Rich, Textual and log displays show the same output, and the
+JSON logger keeps its `msg` and separate `exc_info` fields.
 
 Model controllers: an added task's model gets its adaptive controller on
 its first `generate`, not before its sandboxes are built, so an `inspect ctl
@@ -1812,11 +1841,18 @@ test that waits on a run is bounded with `fail_after`.
   sandbox setup failure; a `weakref` to each ended task's `Task` and dataset
   is dead after `gc.collect()` while its failed row is still held, under
   Rich and Textual, and the sandbox configuration they set up is still
-  registered for the run's cleanup; the failed rows, with their frames
-  cleared, still render the same traceback as before clearing (file names,
-  line numbers, source lines and a chained cause), and `LogDisplay` logs
-  the same text as today; under `INSPECT_TRACEBACK_LOCALS=1` the frames are
-  not cleared and the rows render their locals, as today.
+  registered for the run's cleanup; the failed rows still render the
+  traceback, with a chained cause, and `LogDisplay` logs the same text as
+  today.
+- `tests/util/test_logger_format.py`: beside
+  `test_json_logger_format_includes_exc_info`, a record carrying a
+  snapshot's `exc_snapshot` and no `exc_info` gives a JSON line whose `msg`
+  is the status message and whose `exc_info` field holds the traceback text,
+  and the plain and Rich formats give the same text as the `exc_info`
+  record; `TraceFormatter` gives the same JSON for the snapshot record as
+  for the `exc_info` record, with no `exc_snapshot` key, and still copies an
+  unrelated extra field. `tests/test_task_cancel.py`'s two assertions on
+  `TaskError.exc_value` read the snapshot's error text instead.
 - `tests/test_enqueue_task.py` (live fixes): at `max_tasks=1`, a long seed
   task holds the only slot and a task it added waits behind it; `inspect
   ctl config --max-tasks 2` starts the added task while the seed task still
@@ -2029,10 +2065,12 @@ state in the single `eval_run`), so the setup fixes come first.
    "A task finished", says that it is called once per attempt, a failed
    one included, as `docs/task-source.qmd` already does, and drops "they
    run after the current batch"),
-   `_eval/task/run.py` and `_eval/run.py` (`task_run` recording
-   `TaskRunOptions.task_error` where it completes a failed row, and
-   `_run_task` clearing that exception's frames after `task_run` ends),
-   `_util/exception.py` (`clear_exception_frames`),
+   `_display/core/display.py` (`TaskError.from_exception`),
+   `_display/core/results.py` and `_display/log/display.py` (rendering the
+   snapshot; logging its text as `exc_snapshot`), `_util/logger.py`
+   (`LogHandler.emit` setting `exc_text` from it, `json_log_record` reading
+   it), `_util/trace.py` (`TraceFormatter` excluding `exc_snapshot`),
+   `tests/util/test_logger_format.py`,
    `_eval/task/log.py` (`reinit()` without `init()`, `discard()` without an
    entry, a `location` of `None` until
    `log_init()` returns), `_eval/evalset.py` (the no-log rule);
@@ -2116,9 +2154,7 @@ that does not await it), that an attempt cancelled before it registers is stoppe
 by its own abort, not the retry-abandon stamp (replacing that part of the
 2026-11-12 three-phase decision), and that cancels under legacy
 `eval_set()` rounds are not refused (replacing the 2026-11-12 refusal),
-that a failed task's display row does not keep the failed task's frames
-(met by clearing the frames' locals, decision 2026-11-19, in place of the
-frame-free snapshot first planned),
+that a failed task's display row keeps a frame-free snapshot of its error,
 and that each attempt's outcome, a failed `init()` included, reaches the
 `TaskSource` through one rule (with today's two exceptions, narrowed
 2026-11-18 to the preview); and
@@ -2134,16 +2170,11 @@ reported to the `TaskSource`, an attempt whose log storage failed after
 `TaskLogger.initialized` (reversing the 2026-11-16 storage exception), that
 step 3 of the plan is split into 3a (the queue, the dispatcher, logs that
 start with their attempt with the failed-`init()` report, and the display's
-error row's cleared frames) and 3b (queued tasks in the control channel), with task
+error snapshot) and 3b (queued tasks in the control channel), with task
 handles needing 3a only, and that an added task's model controller stays
 lazy (the 2026-11-12 decision kept), with remembered `--max-connections`
 retunes applied when a controller is created as a follow-up rather than an
-eager controller for added tasks; and (2026-11-19) that a failed task's
-display row keeps its `TaskError` with the real exception and traceback,
-with the frames' locals cleared after `_run_task` returns (skipped under
-`debug_errors` and `INSPECT_TRACEBACK_LOCALS=1`), replacing the frame-free
-snapshot and its logger changes, so displays and logs are unchanged and
-the step stays in 3a; and that an ordinary task
+eager controller for added tasks; and (2026-11-19) that an ordinary task
 added from inside a running task keeps today's settings resolution (the
 run's values win), with only a task fed through a handle resolving its own
 first ([task-handles.md](task-handles.md#tasks-fed-through-a-handle)),
@@ -2152,7 +2183,12 @@ running task follows one task-first rule and replacing the 2026-11-19
 answer that such an ordinary task keeps its own `epochs` and reducer as a
 pair, because applying it to ordinary added tasks changed an existing
 feature and brought compatibility work that fed tasks, being new, do not
-need.
+need. The 2026-11-19 decision to keep `TaskError` and clear its frames in
+place of the snapshot is withdrawn (decision: Ransom, 2026-11-19), because
+clearing a suspended frame on Python 3.11 and 3.12 finalizes a coroutine
+that may still be running (see
+[Alternatives considered](#alternatives-considered)); the frame-free
+snapshot stands.
 
 ## Not this design
 
