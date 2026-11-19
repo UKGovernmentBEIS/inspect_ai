@@ -64,6 +64,7 @@ from inspect_ai._sentinel._sidecar._received import (
     ReceivedCall,
     begin_attempt,
     receiving_call,
+    registration_failed,
 )
 from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS,
@@ -2234,6 +2235,10 @@ class Model:
         # stamped qualified name, None when absent (retries then simply
         # go unattributed in the throughput registry)
         model = self.api.qualified_model_name
+        # a send a sentinel sidecar's registration stopped fails on the
+        # registration's error, which a retry would meet again
+        if registration_failed():
+            return False
         if isinstance(ex, Exception):
             # attempt/stream-idle timeouts are always retried (we rely on
             # `timeout` and/or `max_retries` for termination). Classified as

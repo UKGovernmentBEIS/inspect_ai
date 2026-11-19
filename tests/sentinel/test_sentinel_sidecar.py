@@ -1649,6 +1649,45 @@ def test_a_retry_of_a_request_makes_sure_of_the_samples_registration_before_it_i
     assert sent == ["complete_registration", "model", "complete_registration", "model"]
 
 
+def test_a_retry_whose_samples_registration_the_sidecar_wont_take_again_is_never_sent() -> (
+    None
+):
+    full = [False]
+
+    def registered_again() -> None:
+        # the task is registered with the sidecar again while the request's
+        # retry backs off, and other samples fill the registration meanwhile
+        sidecars = task_sidecars(stand_in.calls[0]["params"]["eval_id"])
+        assert sidecars is not None
+        access = sidecars.access("http://proxy.test")
+        assert access is not None
+        access.registration_changes += 1
+        full[0] = True
+
+    def complete(_: dict[str, Any]) -> dict[str, Any]:
+        if full[0]:
+            return {"error": {"code": -32008, "message": "the registrations are full"}}
+        return {}
+
+    stand_in = StandInSidecar(
+        turns=[Turn(status=503, then=registered_again), Turn()],
+        methods={"complete_registration": complete},
+    )
+    task = Task(dataset=[Sample(input="Hi.")], solver=generate())
+
+    [log] = eval(
+        task, model=_model(stand_in), sentinel_proxy="required", display="none"
+    )
+
+    # sent on, the retry could be judged without the sample's facts
+    assert len(stand_in.model_calls) == 1
+    assert log.samples is not None
+    error = log.samples[0].error
+    assert error is not None
+    assert "SentinelProxyError" in error.message
+    assert "the registrations are full" in error.message
+
+
 async def test_a_sample_is_ended_with_its_task_named() -> None:
     stand_in = StandInSidecar()
     sidecars = TaskSidecars("auto", _FACTS)

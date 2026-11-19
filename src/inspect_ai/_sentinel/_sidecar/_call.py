@@ -124,7 +124,10 @@ async def registration_current(request_id: str) -> None:
 
     The call then goes by what the sidecar says now of whether its admin registered the task beforehand: a sidecar that restarted may have the task in its tasks folder since.
 
-    A registration the sidecar can't take is logged and not raised: an error raised as a request is sent reaches the caller as a failed connection, which is retried. The request goes on, and the sidecar judges or refuses it as it finds it.
+    A registration the sidecar can't take stops the send, and every later try of the call: sent on, the request could be judged without the sample's facts. An error raised as a request is sent reaches the provider's caller as a failed connection, so it is kept as the call's `registration_error`, which Inspect raises in its place and doesn't retry.
+
+    Raises:
+        SentinelProxyError: If the sidecar couldn't take the sample, now or at an earlier try of the call.
     """
     from inspect_ai._util.exception import SampleRefusedError
     from inspect_ai.log._samples import sample_active
@@ -140,6 +143,9 @@ async def registration_current(request_id: str) -> None:
         or received.sidecar is None
     ):
         return
+    if received.registration_error is not None:
+        # a retry the provider's SDK makes of a send this stopped
+        raise received.registration_error
     sidecars = task_sidecars()
     active = sample_active()
     state = sample_state()
@@ -150,9 +156,8 @@ async def registration_current(request_id: str) -> None:
             sidecars, received.sidecar, active, state
         )
     except (SentinelProxyError, SampleRefusedError) as ex:
-        logger.warning(
-            f"The sample's registration with the sentinel sidecar couldn't be completed again before a request was sent: {ex}"
-        )
+        received.registration_error = ex
+        raise
 
 
 def sign_context(headers: MutableMapping[str, str], url: str) -> None:

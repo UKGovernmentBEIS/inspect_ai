@@ -114,6 +114,10 @@ async def refused_output(
     # an attempt that failed before any request of it was sent, which the
     # sidecar never saw.
     received = current_receiving()
+    if received is not None and received.registration_error is not None:
+        # the send was stopped, and what the provider made of that isn't the
+        # call's error
+        raise received.registration_error
     if received is None or not received.sent:
         return None
     # `finish_paused_call` has already asked the sidecar about this attempt
@@ -189,7 +193,13 @@ async def refusal_after_error(
     Raises:
         SampleRefusedError: If the sidecar couldn't place the sample.
         SidecarNotJudgedError: If the sidecar couldn't judge the call for another reason, or the task requires a sidecar and the call's judgment is unavailable.
+        SentinelProxyError: If a send of the call was stopped because the sidecar couldn't take the sample's registration again.
     """
+    if received.registration_error is not None:
+        # The sidecar couldn't take the sample's registration again as a try
+        # was sent, which stopped the send. The error that reached here is
+        # what the provider's SDK made of that, a failed connection.
+        raise received.registration_error
     # as in `refused_output`: an attempt that failed unsent is never looked up,
     # though earlier attempts that were sent may still have been judged
     if not received.sent:

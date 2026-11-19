@@ -235,6 +235,11 @@ class ReceivedCall:
         Set once Inspect has asked the sidecar about the attempt's last request
         and has nothing more to fetch or resend.
         """
+        self.registration_error: Exception | None = None
+        """Why the sidecar couldn't take the sample's registration again as a try of the call was sent, which stopped that send.
+
+        The call fails on it, and is not retried: no later try is sent.
+        """
         self.handled_failures: set[int] = set()
         """The numbers of the failed tries that Inspect has handled.
 
@@ -478,6 +483,12 @@ def timeout_left(received: ReceivedCall) -> float | None:
 def current_receiving() -> ReceivedCall | None:
     """What is kept of the current agent call through a sidecar, or None for any other call."""
     return _received.get()
+
+
+def registration_failed() -> bool:
+    """Whether a send of the current agent call was stopped because the sidecar couldn't take its sample's registration again."""
+    received = _received.get()
+    return received is not None and received.registration_error is not None
 
 
 def report_request_id(request_id: str) -> None:
