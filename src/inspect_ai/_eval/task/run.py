@@ -2854,9 +2854,24 @@ async def _task_run_sample_attempt(
         if sample_id is None:
             raise ValueError("sample must have id to run")
 
+        sample_record_writer = (
+            logger.addonly.sample_writer(
+                logger.buffer_db, sample_id, state.epoch, attempt.number
+            )
+            if logger and logger.addonly and logger.buffer_db
+            else None
+        )
+
         def on_sample_event(event: Event) -> None:
             if logger:
-                logger.log_sample_event(sample_id, state.epoch, event)
+                try:
+                    logger.log_sample_event(sample_id, state.epoch, event)
+                except Exception as ex:
+                    # the transcript logs a subscriber's error and goes on;
+                    # with the add-only store on, the sample must stop
+                    if sample_record_writer is not None:
+                        sample_record_writer.insert_failed(ex)
+                    raise
             emit_sample_event(
                 eval_set_id=eval_set_id,
                 run_id=run_id,
@@ -2880,13 +2895,6 @@ async def _task_run_sample_attempt(
         init_transcript(sample_transcript)
         init_subtask_store(state.store)
         sample_transcript._subscribe(on_sample_event)
-        sample_record_writer = (
-            logger.addonly.sample_writer(
-                logger.buffer_db, sample_id, state.epoch, attempt.number
-            )
-            if logger and logger.addonly and logger.buffer_db
-            else None
-        )
         init_sample_record_writer(sample_record_writer)
         if scorers:
             init_scoring_context(scorers, Target(sample.target))

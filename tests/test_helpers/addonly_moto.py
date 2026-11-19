@@ -26,10 +26,13 @@ import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import boto3
 import httpx
+
+from inspect_ai.log._addonly._validate import ValidationReport, validate_store
 
 BUCKET = "addonly-store"
 REGION = "us-east-1"
@@ -97,6 +100,16 @@ class MotoStore:
                 }
             ),
         )
+
+    def validate(self, log_dir: str | Path) -> ValidationReport:
+        """Validate with the bucket policy in place (moto refuses every put under it)."""
+        self.require_if_none_match_policy()
+        try:
+            return validate_store(
+                self.url, str(log_dir), client=self.client(self.validator)
+            )
+        finally:
+            self.client(self.admin).delete_bucket_policy(Bucket=BUCKET)
 
 
 def _free_port() -> int:

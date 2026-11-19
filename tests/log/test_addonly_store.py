@@ -15,6 +15,7 @@ from typing import Any
 
 import anyio
 import pytest
+from botocore.exceptions import EndpointConnectionError, ReadTimeoutError
 from click.testing import CliRunner
 from test_helpers.addonly_agents import (
     agent_task,
@@ -26,19 +27,28 @@ from test_helpers.addonly_moto import BUCKET, MotoStore, moto_addonly_store
 
 from inspect_ai import Task, eval
 from inspect_ai._cli.validate import validate_command
+from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._util.registry import _registry
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
+from inspect_ai.event import Event, InfoEvent
 from inspect_ai.log import write_eval_log
 from inspect_ai.log._addonly import ADDONLY_STORE_ENV
 from inspect_ai.log._addonly._records import SampleAttemptRef, SampleRecord
-from inspect_ai.log._addonly._store import sample_key_part
+from inspect_ai.log._addonly._store import (
+    AddOnlyStore,
+    AddOnlyStoreError,
+    StoreLocation,
+    sample_key_part,
+)
 from inspect_ai.log._addonly._validate import (
     ValidationReport,
     _event_version_problems,
-    validate_store,
 )
+from inspect_ai.log._addonly._writer import EvalRecordWriter
+from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.buffer.types import BufferEventRow, BufferRows
+from inspect_ai.log._transcript import transcript
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -79,14 +89,7 @@ def evalhost_env(moto_store: MotoStore, monkeypatch: pytest.MonkeyPatch) -> Moto
 
 
 def validate(store: MotoStore, log_dir: Path) -> ValidationReport:
-    """Validate with the bucket policy in place (moto refuses every put under it)."""
-    store.require_if_none_match_policy()
-    try:
-        return validate_store(
-            store.url, str(log_dir), client=store.client(store.validator)
-        )
-    finally:
-        store.client(store.admin).delete_bucket_policy(Bucket=BUCKET)
+    return store.validate(log_dir)
 
 
 # --------------------------------------------------------- end-to-end runs
@@ -255,6 +258,21 @@ def test_deleted_eval_file_detected(evalhost_env: MotoStore, tmp_path: Path) -> 
     assert [f.eval_id for f in missing] == [log.eval.eval_id]
 
 
+def test_prefix_per_log_dir_scopes_validation(
+    evalhost_env: MotoStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two log dirs share the bucket, each with its own store prefix."""
+    other = replace(evalhost_env, url=f"{evalhost_env.url}x")
+    run(agent_task(samples=1), tmp_path / "a")
+    monkeypatch.setenv(ADDONLY_STORE_ENV, other.url)
+    run(agent_task(samples=1), tmp_path / "b")
+
+    assert validate(evalhost_env, tmp_path / "a").findings == []
+    assert validate(other, tmp_path / "b").findings == []
+    missing = validate(evalhost_env, tmp_path / "b").findings
+    assert [f.kind for f in missing] == ["missing_eval_file"]
+
+
 def test_sample_key_encoding() -> None:
     assert sample_key_part("a.1", 2) == "a%2E1.2"
     assert sample_key_part("a/1", 2) == "a%2F1.2"
@@ -355,6 +373,168 @@ def test_failed_write_stops_eval(
 
         kinds = [f.kind for f in validate(store, tmp_path).findings]
         assert "missing_closing" in kinds
+
+
+class _FlakyPut:
+    """An S3 client whose first put fails with a network error.
+
+    With ``stored``, the first put reaches the store and only its response is
+    lost.
+    """
+
+    def __init__(self, client: Any, stored: bool) -> None:
+        self._client = client
+        self._stored = stored
+        self.puts = 0
+
+    def put_object(self, **kwargs: Any) -> Any:
+        self.puts += 1
+        if self.puts > 1:
+            return self._client.put_object(**kwargs)
+        if self._stored:
+            self._client.put_object(**kwargs)
+            raise ReadTimeoutError(endpoint_url="moto")
+        raise EndpointConnectionError(endpoint_url="moto")
+
+
+@pytest.mark.parametrize("stored", [False, True], ids=["not_stored", "response_lost"])
+async def test_put_retries_and_412_after_retry(
+    evalhost_env: MotoStore, stored: bool
+) -> None:
+    """A transient error is retried; a 412 after a retried put fails the write."""
+    client = _FlakyPut(evalhost_env.client(evalhost_env.evalhost), stored)
+    store = AddOnlyStore(StoreLocation.parse(evalhost_env.url), client)
+    if stored:
+        with pytest.raises(AddOnlyStoreError, match="PreconditionFailed.*own earlier"):
+            await store.put("record", b"{}")
+    else:
+        await store.put("record", b"{}")
+    assert client.puts == 2
+
+
+def test_put_has_sdk_retries_off(evalhost_env: MotoStore) -> None:
+    store = AddOnlyStore(StoreLocation.parse(evalhost_env.url))
+    assert store._client.meta.config.retries["total_max_attempts"] == 1
+
+
+def test_failed_buffer_insert_stops_sample(
+    evalhost_env: MotoStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An event the buffer cannot insert stops its sample at the next boundary."""
+    log_sample_event = TaskLogger.log_sample_event
+
+    def failing_insert(
+        self: TaskLogger, id: str | int, epoch: int, event: Event
+    ) -> None:
+        if isinstance(event, InfoEvent) and event.data == "fail insert":
+            raise RuntimeError("disk full")
+        log_sample_event(self, id, epoch, event)
+
+    monkeypatch.setattr(TaskLogger, "log_sample_event", failing_insert)
+
+    @tool
+    def unlucky() -> Tool:
+        async def execute() -> str:
+            """Record an event the sample buffer cannot insert."""
+            transcript().info("fail insert")
+            return "done"
+
+        return execute
+
+    requests: list[int] = []
+
+    def outputs(
+        input: list[ChatMessage], tools: list[ToolInfo], *_: Any
+    ) -> ModelOutput:
+        turn = sum(isinstance(m, ChatMessageAssistant) for m in input)
+        requests.append(turn)
+        if turn == 0:
+            return scripted_output("", scripted_call("u1", "unlucky"))
+        return scripted_output("", scripted_call("s1", "submit", answer="42"))
+
+    log = eval(
+        Task(
+            dataset=[Sample(input="go", target="42")],
+            solver=react(tools=[unlucky()]),
+            scorer=includes(),
+        ),
+        model=get_model("mockllm/model", custom_outputs=outputs),
+        log_dir=str(tmp_path),
+        display="none",
+        fail_on_error=False,
+    )[0]
+    # the sample stops; the eval goes on (unlike a failed write)
+    assert log.status == "success", log.error
+    assert log.samples and log.samples[0].error
+    assert "sample buffer" in log.samples[0].error.message
+    # the boundary before the next request stopped it
+    assert requests == [0]
+
+    kinds = [f.kind for f in validate(evalhost_env, tmp_path).findings]
+    assert "missing_closing" in kinds
+
+
+# ------------------------------------------------------------------- writer
+
+
+class _GatedStore(AddOnlyStore):
+    """Records put keys; the put of record 1 waits for ``gate``."""
+
+    def __init__(self, fail: bool) -> None:
+        self.gate = anyio.Event()
+        self.fail = fail
+        self.keys: list[str] = []
+
+    async def put(self, key: str, body: bytes) -> None:
+        self.keys.append(key.rsplit("/", 1)[1])
+        if key.endswith("/1"):
+            await self.gate.wait()
+            if self.fail:
+                raise AddOnlyStoreError("refused")
+
+
+@pytest.mark.parametrize("fail", [False, True], ids=["confirmed", "failed"])
+async def test_writes_overlap_and_wait_for_earlier_numbers(
+    tmp_path: Path, fail: bool
+) -> None:
+    """A boundary puts without waiting for an earlier put, then waits for it."""
+    db = SampleBufferDatabase(location=str(tmp_path / "x.eval"), db_dir=tmp_path)
+    store = _GatedStore(fail)
+    writer = EvalRecordWriter(store, "e", "n").sample_writer(db, "s", 1, 1)
+
+    def record_event(event_id: str) -> None:
+        db.insert_sample_rows(
+            "s", 1, BufferRows(events=[BufferEventRow(event_id=event_id, data="{}")])
+        )
+
+    finished: list[str] = []
+
+    async def boundary(name: str) -> None:
+        try:
+            await writer.write()
+            finished.append(name)
+        except AddOnlyStoreError:
+            finished.append(f"{name} raised")
+
+    async with anyio.create_task_group() as tg:
+        record_event("a")
+        tg.start_soon(boundary, "first")
+        await anyio.wait_all_tasks_blocked()
+        record_event("b")
+        tg.start_soon(boundary, "second")
+        # no new rows: puts nothing, but still waits for record 1
+        tg.start_soon(boundary, "empty")
+        await anyio.wait_all_tasks_blocked()
+        assert store.keys == ["1", "2"]
+        assert finished == []
+        store.gate.set()
+
+    assert sorted(finished) == sorted(
+        ["first raised", "second raised", "empty raised"]
+        if fail
+        else ["first", "second", "empty"]
+    )
+    db.cleanup()
 
 
 # ----------------------------------------------------------------- helpers

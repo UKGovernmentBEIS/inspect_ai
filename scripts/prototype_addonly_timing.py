@@ -20,6 +20,7 @@ import os
 import statistics
 import tempfile
 import time
+from collections import Counter
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
@@ -37,6 +38,10 @@ from inspect_ai.log._addonly._writer import SampleRecordWriter
 write_times: list[float] = []
 put_times: list[float] = []
 put_sizes: list[int] = []
+# sample record puts in flight per sample attempt, and how many started while
+# another put of the same attempt was in flight
+in_flight: Counter[str] = Counter()
+overlapped: list[bool] = []
 
 
 def timed(
@@ -78,7 +83,16 @@ def main() -> None:
 
     async def put(self: AddOnlyStore, key: str, body: bytes) -> None:
         put_sizes.append(len(body))
-        await timed(original_put, put_times)(self, key, body)
+        attempt, _, seq = key.rpartition("/")
+        if not seq.isdigit():
+            await timed(original_put, put_times)(self, key, body)
+            return
+        overlapped.append(in_flight[attempt] > 0)
+        in_flight[attempt] += 1
+        try:
+            await timed(original_put, put_times)(self, key, body)
+        finally:
+            in_flight[attempt] -= 1
 
     with (
         patch.object(SampleRecordWriter, "write", timed(original_write, write_times)),
@@ -136,6 +150,10 @@ def main() -> None:
     print(summary("put only", put_times, 1000, "ms"))
     print(summary("record size", [float(s) for s in put_sizes], 1 / 1024, "KiB"))
     print(
+        f"sample record puts started while another put of the same sample was "
+        f"in flight: {sum(overlapped)} of {len(overlapped)}"
+    )
+    print(
         f"wall time: {plain_seconds:.2f}s without store, "
         f"{store_seconds:.2f}s with store"
     )
@@ -143,6 +161,8 @@ def main() -> None:
         f"validator: {len(report.findings)} finding(s), "
         f"{report.samples_compared} sample(s) compared"
     )
+    for finding in report.findings:
+        print(f"  {finding.kind} {finding.key}: {finding.message}")
     print("\nRecords of sample s0, epoch 1 (each line: one write):")
     for record in layout:
         events = ", ".join(describe(row.data) for row in record.rows.events)

@@ -1,8 +1,11 @@
 # Prototype findings: tamper-evident eval logs, step 1
 
-Spec: the plan "Tamper-evident eval logs" (v80). Branch
-`epatey/tamper-evident-logs-prototype`, from `main` at ec5d110b1. Built by
-Claude Code on Opus 5.5 (`claude-opus-5-5`), session default effort.
+Spec: the plan "Tamper-evident eval logs". Step 1 was built against v80.
+Step 1b changed the prototype to match v81, which took in the step 1
+findings (see [Step 1b: changes for plan v81](#step-1b-changes-for-plan-v81)).
+Branch `epatey/tamper-evident-logs-prototype`, from `main` at ec5d110b1.
+Built by Claude Code on Opus 5.5 (`claude-opus-5-5`), session default
+effort.
 
 All runs use a local S3 emulator: moto server 5.2.2 on 127.0.0.1, in a
 subprocess with IAM enforcement on. No AWS calls were made. No AWS
@@ -16,25 +19,29 @@ ready for review as a feature.
 
 | Question | Answer | Evidence |
 | --- | --- | --- |
-| 1. No legitimate event version is written after the event is complete and a boundary stored it | True for every path run. Two paths that were not run can break it (see below). | `test_agent_eval_validates`, `test_streaming_eval_validates`, timing script (40 samples, 0 findings); rule proven by `test_late_event_version_flagged` |
+| 1. No legitimate event version is written after the event is complete and a boundary stored it | False for bridged host tools called one at a time: the bridge's `message_id` update is a late version (seen in a run). True for every other path run. The sentinel sidecar's updates can also be late when sub-agents run at once (code reading, not run). | `test_host_tools_against_addonly_store[serial]` (2 findings); `test_agent_eval_validates`, `test_streaming_eval_validates`, `test_host_tools_against_addonly_store[parallel]`, timing script (0 findings); rule proven by `test_late_event_version_flagged` |
 | 2. Every buffered event has a uuid | True. The `uuid()` fallback at `buffer/database.py:424` never fires for sample events. | Code path below; validator check `event_without_uuid` found none in any run |
-| 3. A sample rebuilt from buffer rows matches the sample logged from memory | True for every sample run (events compared field by field). | `test_agent_eval_validates` (6 samples), `test_streaming_eval_validates`, timing script (40 samples) |
-| 4. Time per boundary write | Local moto, not S3: median 5.8 ms with 1 sample (put alone 3.7 ms). Median 32 ms, p95 69 ms with 10 samples at once (put alone 23 ms). | `scripts/prototype_addonly_timing.py` |
+| 3. A sample rebuilt from buffer rows matches the sample logged from memory | True for every sample run, once no warning is logged from a worker thread (see [Events lost when a worker thread logs a warning](#events-lost-when-a-worker-thread-logs-a-warning)). | `test_agent_eval_validates` (6 samples), `test_streaming_eval_validates`, bridge test, timing script and probe runs (1,000+ samples) |
+| 4. Time per boundary write | Local moto, not S3: median 4.5 ms with 1 sample (put alone 3.9 ms). Median 34 ms, p95 65 ms with 10 samples at once (put alone 27 ms). | `scripts/prototype_addonly_timing.py` |
 
 ## What was built
 
 - `src/inspect_ai/log/_addonly/`
   - `_store.py`: the store client. Each put sends `If-None-Match: *`. The
-    check before the eval starts writes the start record, writes it again
-    (must get 412), tries to read and delete it (must be denied), and reads
-    the Object Lock settings (must be enabled, COMPLIANCE).
+    client has SDK retries off; `AddOnlyStore.put` retries network errors,
+    throttling and 5xx for up to 60 s, and fails on any 412. The check
+    before the eval starts writes the start record, writes it again (must
+    get 412), tries to read and delete it (must be denied), and reads the
+    Object Lock settings (must be enabled, COMPLIANCE).
   - `_records.py`: record models and keys, as in the plan:
     `<eval-id>/start`, `<eval-id>/closing`,
     `<eval-id>/<sample-id>.<epoch>/<attempt>/<seq>`,
     `<eval-id>/<sample-id>.<epoch>/<attempt>/closing`.
   - `_writer.py`: `EvalRecordWriter` (holds the nonce, in memory only) and
     `SampleRecordWriter` (one sequence per sample attempt). `store_boundary()`
-    writes the current sample's new buffer rows and waits for the store.
+    takes the current sample's new buffer rows and the next sequence number,
+    puts the record, and waits until every record numbered up to its own is
+    confirmed.
   - `_validate.py`: the validator.
 - Buffer: `SampleBufferDatabase.sample_row_marks`, `sample_rows_after` (rows
   after a per-table row id, in insertion order) and `insert_sample_rows`
@@ -43,13 +50,17 @@ ready for review as a feature.
   - before each generate request: `model/_model.py:1909`, inside `send()`,
     so retries and resends also write first;
   - before each stage of tool calls: `model/_call_tools.py:706`;
-  - at sample end, after scoring: `_eval/task/run.py:3666` (last rows, then
+  - before each bridged host tool runs:
+    `agent/_bridge/sandbox/host_tool.py:381`;
+  - at sample end, after scoring: `_eval/task/run.py` (last rows, then
     the sample closing record).
 - `TaskLogger.log_start` writes the start record and runs the check before
   any sample starts. `TaskLogger.log_finish` writes the eval closing record.
 - A failed write stops the eval: `AddOnlyStoreError` turns off retries and
   scoring for the sample (`run.py`), and always fails the eval, whatever
   `fail_on_error` says (`_eval/task/error.py`).
+- A failed insert into the sample buffer stops the sample at its next
+  boundary (`_eval/task/run.py:2873`, `SampleRecordWriter.insert_failed`).
 - `inspect validate LOG_DIR --store s3://bucket/prefix`
   (`_cli/validate.py`). Checks: bucket settings (COMPLIANCE lock,
   versioning, a policy that denies a put without If-None-Match), one version
@@ -58,10 +69,14 @@ ready for review as a feature.
   missing from the eval closing list, late event versions, events without a
   uuid, a .eval file for each eval, and the .eval events against the stored
   events. It exits non-zero on any finding. `--verbose` lists each record
-  with its arrival time.
-- Tests: `tests/log/test_addonly_store.py` (10 tests),
-  `tests/test_helpers/addonly_moto.py` (moto setup),
-  `tests/test_helpers/addonly_agents.py` (scripted agents).
+  with its arrival time. The scope for matching eval ids to .eval files is
+  the `--store` prefix: one prefix per log directory.
+- Tests:
+  - `tests/log/test_addonly_store.py`: 15 tests (17 runs under asyncio).
+  - `tests/agent/test_bridge_approval.py`: `test_host_tool_stores_before_it_runs`
+    and `test_host_tools_against_addonly_store` (parallel and serial).
+  - `tests/test_helpers/addonly_moto.py` (moto setup, `MotoStore.validate`),
+    `tests/test_helpers/addonly_agents.py` (scripted agents).
 - Scripts: `scripts/prototype_addonly_timing.py`,
   `scripts/prototype_addonly_moto_probe.py`.
 
@@ -69,6 +84,7 @@ Run them from the repo root:
 
 ```bash
 pytest tests/log/test_addonly_store.py
+pytest tests/agent/test_bridge_approval.py -k addonly_store
 PYTHONPATH=tests python scripts/prototype_addonly_timing.py
 PYTHONPATH=tests python scripts/prototype_addonly_moto_probe.py
 ```
@@ -76,6 +92,79 @@ PYTHONPATH=tests python scripts/prototype_addonly_moto_probe.py
 The eval writes to the store when `INSPECT_ADDONLY_STORE=s3://bucket/prefix`
 is set. It needs `log_realtime` (the default), and fails at start without
 it.
+
+## Step 1b: changes for plan v81
+
+Plan v81 took in the six plan errors of step 1. Each change below matches
+the prototype to the plan.
+
+1. **412.** The eval host's S3 client has SDK retries off
+   (`_store.py:84`, `retries={"max_attempts": 0}`, as `asyncfiles`
+   does for its final conditional call). `AddOnlyStore.put` (`_store.py:112`)
+   is the eval's own retry loop: it retries network errors, throttling, 5xx
+   and `ConditionalRequestConflict` (`_transient`, `_store.py:93`) for up
+   to 60 s with backoff, and fails the write on any other error. Every 412
+   fails the write, so the eval fails. A 412 after a retried put says that
+   the record may be the eval's own lost put (`_put_error`,
+   `_store.py:195`). Tests: `test_put_retries_and_412_after_retry` (a
+   network error before the put reaches the store is retried; a put that
+   reaches the store and loses its response fails on the retry's 412),
+   `test_put_has_sdk_retries_off`.
+2. **Failed buffer insert.** The transcript still logs a subscriber's error
+   and goes on. The sample's event callback (`_eval/task/run.py:2865`)
+   now tells the sample's writer when the insert fails
+   (`SampleRecordWriter.insert_failed`, `_writer.py:125`). The next
+   boundary raises `SampleBufferInsertError`, which is an ordinary sample
+   error: the sample stops, and `fail_on_error` and `retry_on_error` apply
+   as usual (a failed write, by contrast, always fails the eval). The
+   attempt writes nothing more and has no closing record, so the validator
+   reports it as cut short. Test: `test_failed_buffer_insert_stops_sample`
+   (the sample errors, no generate request follows the failed insert, the
+   eval completes, the validator reports `missing_closing`). Limit: an
+   insert that fails after the sample's last boundary (for example during
+   scoring with no model call) cannot stop the sample before it is logged;
+   the attempt then has no closing record.
+3. **Every path that runs a tool.** Bridged host tools now write before the
+   tool runs (`agent/_bridge/sandbox/host_tool.py:381`), before the tool's
+   span and pending event, as `execute_tools` does for a stage. The other
+   `ToolEvent` producers do not run a tool on the host: `_call_tools.py`
+   is `execute_tools` itself, and `agent/_acp/event_mapping.py` records
+   tool calls that the ACP agent ran in its sandbox. Tests:
+   `test_host_tool_stores_before_it_runs` (the boundary comes before the
+   tool), `test_host_tools_against_addonly_store` (a real eval with bridged
+   host tools, validated). What the runs show about the two open late
+   updates is in [Answers, 1](#1-no-legitimate-late-event-versions). They
+   are not settled here.
+4. **`.` as `%2E`.** Already done in step 1 (`sample_key_part`).
+5. **Sub-agents.** The lock is gone. `SampleRecordWriter.write`
+   (`_writer.py:136`) reads the new rows and takes the next sequence number
+   with no `await` between them, so numbers follow row order. It then puts
+   the record outside that step (`_put`, `_writer.py:154`), and waits until
+   every record numbered up to its own is confirmed (`_writer.py:150`). A
+   boundary with no new rows puts nothing but still waits for the numbers
+   already taken, because a record still in flight can hold rows this
+   sub-agent recorded. A failed put makes every waiting boundary raise.
+   Test: `test_writes_overlap_and_wait_for_earlier_numbers` (record 2's put
+   starts while record 1's put is held; neither boundary, nor an empty one,
+   returns until record 1 is confirmed; when record 1 fails, all three
+   raise). In the timing run, 175 of 600 sample record puts
+   started while another put of the same sample was in flight.
+6. **Validator scope.** The simplest scope: a prefix per log directory. The
+   validator already lists only under its `--store` prefix, so this needs
+   no new code; the `--store` help now says to use one prefix per log
+   directory. The listing matches `prefix/`, so `evals` does not match
+   `evalsx`. Test: `test_prefix_per_log_dir_scopes_validation` (two log
+   directories in one bucket, prefixes `P` and `Px`: each validates clean,
+   and validating one log directory against the other's prefix reports the
+   missing .eval file). A time window or a list of eval ids would need a
+   new option; a list of eval ids would also have to come from somewhere
+   other than the log directory, or deleting a .eval file would hide its
+   eval.
+
+After these changes the writer's guarantees are: each boundary returns only
+after every record numbered up to the last one taken is confirmed; once a
+put or a buffer insert fails, the attempt writes nothing more; every 412
+fails the write. The code has one mechanism per clause.
 
 ## The evals that were run
 
@@ -93,6 +182,11 @@ All use mockllm with a scripted output function
   small mockllm subclass that reports stream deltas through the real
   streaming observer, with `generate(on_stream=...)`. The buffer then gets
   pending versions of the model event with partial output.
+- Bridged host tools: the existing in-process scaffold of
+  `tests/agent/test_bridge_approval.py` (`host_scaffold`, which runs every
+  call it gets as a bridged host tool through `SandboxAgentBridge`), in a
+  real eval: two rounds of two calls, then an answer. Run with the calls in
+  parallel (as the scaffold does) and one at a time.
 
 Note: tools are serial unless they set `parallel=True` (current `main`). A
 first run without it ran every call as its own stage.
@@ -102,15 +196,15 @@ The records of one sample in the timing run (one line per write):
 ```
 1: span_begin:init, sample_init, span_end, span_begin:solvers, span_begin:react, span_begin:react, model pending
 2: model, model
-3: span_begin:add, tool:add pending, span_begin:add, tool:add pending, span_begin:researcher, tool:researcher pending, span_begin:researcher, span_begin:researcher, tool:researcher pending, span_begin:researcher, model pending, model pending
-4: span_end, span_end, tool:add, tool:add
-5: model, model
+3: span_begin:add, tool:add pending, span_begin:add, tool:add pending, span_begin:researcher, tool:researcher pending, span_begin:researcher, span_begin:researcher, tool:researcher pending, span_begin:researcher, model pending
+4: model pending
+5: span_end, span_end, tool:add, tool:add, model, model
 6: model, model
 7: span_begin:lookup, tool:lookup pending, span_begin:lookup, tool:lookup pending, span_end, tool:lookup, model pending
-8: span_end, model, model, tool:lookup
+8: span_end, tool:lookup, model, model
 9: model pending
-10: span_begin:submit, tool:submit pending, span_end, tool:submit, span_end, span_end, model, model
-11: tool:researcher, span_begin:submit, tool:submit pending, span_end, tool:submit, span_end, span_end, tool:researcher, model pending
+10: span_begin:submit, tool:submit pending, span_end, tool:submit, model, model
+11: span_end, span_end, tool:researcher, span_begin:submit, tool:submit pending, span_end, tool:submit, span_end, span_end, tool:researcher, model pending
 12: model, model
 13: span_begin:note, tool:note pending, span_end, tool:note, model pending
 14: model, model
@@ -118,55 +212,79 @@ The records of one sample in the timing run (one line per write):
 ```
 
 Write 2 is the boundary before the parallel stage: it holds the response
-that asked for the tools. The two researcher tool events are stored pending
-in write 3 and complete in write 11, after six writes made by the
-sub-agents. Write 4 is the second sub-agent's boundary; it holds the `add`
-outputs that finished while the first sub-agent's write was waiting.
+that asked for the tools. The researcher tool events are stored pending in
+write 3 and complete in a later write, after writes made by the sub-agents.
+With overlapping puts, the two sub-agents' first boundaries now often make
+two writes where step 1 made one (one sub-agent's write is in flight while
+the other reads its new rows), so the layout differs from step 1 run to
+run.
 
 ## Answers
 
 ### 1. No legitimate late event versions
 
-True for every path run. The validator flags any version of an event that
-comes in a later record than one where the event was stored complete (not
-`pending`). It found none in:
+The validator flags any version of an event that comes in a later record
+than one where the event was stored complete (not `pending`). It found none
+in:
 
 - `test_agent_eval_validates`: 6 samples. The test also asserts that some
   tool events were stored pending and completed in a later record, so the
   legitimate case (an event that spans boundaries) did occur.
 - `test_streaming_eval_validates`: pending model versions with partial
   output, then the complete version.
-- The timing script: 40 samples, 0 findings.
+- `test_host_tools_against_addonly_store[parallel]`: bridged host tools
+  called two at a time.
+- The timing script: 40 samples per run, 0 findings.
 
 `test_late_event_version_flagged` shows the rule flags a late version and
 accepts pending-then-complete and several versions in one record.
 
 The model event's second complete version (timing fields set and the event
-sent again, `model/_model.py:1249`) is always in the same record as the
-first ("model, model" above), as the plan says.
+sent again, `model/_model.py:1249`) was in the same record as the first in
+every run.
 
-Code reading of every `Transcript._event_updated` caller found two paths,
-not run here, that can write a version after the event is complete:
+The two updates the plan leaves open:
 
-- `agent/_bridge/types.py:726` sets `message_id` on a finished bridged
-  ToolEvent when the next request from the agent arrives. Today no boundary
-  falls between the tool finishing and this update, because bridged host
-  tools have no boundary (see Plan errors, item 3). Once that boundary is
-  added, this update becomes a late version.
-- `_sentinel/_sidecar/_judging.py:98` corrects `working_time` and
-  `output.time` of a complete model event after the sentinel sidecar
-  judged the call. I did not confirm that this always runs before the next
-  boundary.
+- **Bridge `message_id`** (`agent/_bridge/types.py:726`). Seen in a run:
+  with the new boundary, the update is a late version when a scaffold calls
+  bridged host tools one at a time. The second call's boundary stores the
+  first call complete (no `message_id`), and the bridge sets `message_id`
+  when the scaffold's next request arrives, in the next record.
+  `test_host_tools_against_addonly_store[serial]` gets 2
+  `late_event_version` findings, one per round. When the scaffold calls them
+  in parallel, both calls finish before the next request, and its boundary
+  stores the completion and the update together: no finding. Records of the
+  serial run:
 
-The other callers (`_call_tools.py`, `_stream.py`, `log/_samples.py:786`,
-`util/_subtask.py`, `agent/_acp/transport_live.py`,
-`agent/_bridge/sandbox/host_tool.py`) update pending events only.
+  ```
+  2 model, model
+  3 span_begin, tool:read_file pending, span_end, tool:read_file (no message_id)
+  4 span_begin, tool:read_file pending, span_end, tool:read_file (no message_id),
+    tool:read_file (message_id set), tool:read_file (message_id set), model pending
+  ```
+
+- **Sentinel sidecar timing** (`_sentinel/_sidecar/_judging.py:98`). Not
+  run. From the code: `count_judging_as_waiting` runs in the `finally` of
+  `Model._generate` (`model/_model.py:1303`), after
+  `await request_result(...)` asks the sidecar what it decided
+  (`model/_model.py:1273`), which can wait while the sidecar judges. The
+  sidecar output update (`model/_model.py:1293`) comes after the same
+  `await`. No boundary of the same agent falls in between. But a boundary
+  of another sub-agent of the same sample can run during that `await`, and
+  it stores the model event complete; both updates would then be late
+  versions. A sample with one agent does not have this problem.
+
+The other callers of `Transcript._event_updated` (`_call_tools.py`,
+`_stream.py`, `log/_samples.py:786`, `util/_subtask.py`,
+`agent/_acp/transport_live.py`, `agent/_bridge/sandbox/host_tool.py`)
+update pending events only.
 
 ### 2. Every buffered event has a uuid
 
 True. The only writer of sample event rows is the transcript subscriber
-(`_eval/task/run.py:2859`, `TaskLogger.log_sample_event`). Each event gets
-its uuid before any subscriber sees it:
+(`_eval/task/run.py`, `on_sample_event`, which calls
+`TaskLogger.log_sample_event`). Each event gets its uuid before any
+subscriber sees it:
 
 - `BaseEvent.model_post_init` sets `uuid` unless the event is being read
   from a log (`event/_base.py:69`).
@@ -181,15 +299,14 @@ the row's `event_id` must equal the `uuid` in the event JSON
 
 ### 3. Rebuilt samples match samples logged from memory
 
-True for every sample run. None of these evals evicted events, so every
-.eval sample was logged from memory. The validator rebuilds each sample from
-its records with the plan's read-back code: it inserts the stored rows into
-a new sample buffer, then calls `open_sample_history` and
-`materialize_streaming_sample` (the code at `_eval/task/run.py` that logs a
-sample whose events were evicted). It reads the .eval sample with
-attachments resolved in full, and compares each event's JSON field by field.
-The 47 samples in these runs compared equal (6 + 1 in tests, 40 in the
-timing script).
+True for every sample run once the fix below was in. None of these evals
+evicted events, so every .eval sample was logged from memory. The validator
+rebuilds each sample from its records with the plan's read-back code: it
+inserts the stored rows into a new sample buffer, then calls
+`open_sample_history` and `materialize_streaming_sample` (the code at
+`_eval/task/run.py` that logs a sample whose events were evicted). It reads
+the .eval sample with attachments resolved in full, and compares each
+event's JSON field by field.
 
 The comparison covers events. The other sample fields come from the .eval
 copy; the store keeps only the scores (in the sample closing record).
@@ -197,27 +314,68 @@ copy; the store keeps only the scores (in the sample closing record).
 `test_edit_eval_file_detected` shows the comparison finds an edit (one tool
 result changed in the .eval file).
 
+#### Events lost when a worker thread logs a warning
+
+Step 1b found a real loss of events, not a validator error. With
+overlapping puts, about one timing run in 17 had one `event_mismatch`: a
+tool event's completion was in the .eval file but not in the store, and the
+store had only its pending version. The sample buffer never got the
+completion row, so no record could hold it.
+
+The cause:
+
+1. With more than 10 puts in flight on one boto3 client (its default pool
+   size), urllib3 logs "Connection pool is full, discarding connection" in
+   the put's worker thread.
+2. `anyio.to_thread.run_sync` copies the context, so `transcript()` in that
+   thread is the sample's transcript, and Inspect's log handler records the
+   warning there as a `LoggerEvent` (`_util/logger.py:274`), from the worker
+   thread.
+3. `Transcript._notify_subscribers` (`log/_transcript.py:845`) skips a
+   subscriber that is already being notified (`_notifying_subscribers`).
+   The set is per transcript, not per thread. While the worker thread is
+   inside the buffer subscriber (inserting its `LoggerEvent`), an event that
+   the event loop thread records at the same time skips the buffer. No
+   error is raised, so the rule for a failed insert (change 2) does not
+   catch it.
+
+Evidence: a probe found the pool warnings as `LoggerEvent`s in 6 of 20
+samples of one timing run; the mismatched sample's records had two such
+`LoggerEvent`s next to the missing completion; and a 15-line script with
+two threads shows the event loop thread's event skipping a subscriber that
+the other thread is inside.
+
+Prototype fix: the store's client has a pool of 50 connections
+(`_store.py:83`, the value `AsyncFilesystem` uses), so its puts no longer
+log the warning at this concurrency. After the fix, 25 more runs of the
+20 x 2 eval (1,000 samples) had no `LoggerEvent` and no finding. The
+underlying problem stays: any warning logged from a worker thread during a
+sample (a bigger eval that fills 50 connections, or any other library
+called through `to_thread`) can make the buffer skip an event of that
+sample. This is in inspect_ai today: the same loss affects the sample
+buffer that live viewing reads.
+
 ### 4. Time per boundary write
 
 Against a local moto server on the same host, not real S3. The numbers show
 the prototype's own cost and moto's, not S3 latency. "Wait" is the time the
-sample waits at a boundary: the lock, reading rows from SQLite, JSON, and
-the put.
+sample waits at a boundary: reading rows from SQLite, JSON, the put, and
+waiting for earlier records of the same sample.
 
 | Run | Writes | Wait median / p95 / max | Put median / p95 | Record size median / max |
 | --- | --- | --- | --- | --- |
-| 1 sample | 15 | 5.8 / 8.5 / 11.1 ms | 3.7 / 5.7 ms | 5.6 / 10.6 KiB |
-| 20 samples x 2 epochs, 10 at once | 600 | 32.0 / 68.8 / 96.1 ms | 23.0 / 35.9 ms | 6.5 / 10.6 KiB |
+| Step 1b, 1 sample | 15 | 4.5 / 15.6 / 16.3 ms | 3.9 / 7.1 ms | 5.8 / 10.6 KiB |
+| Step 1b, 20 samples x 2 epochs, 10 at once | 600 | 34.4 / 65.3 / 90.4 ms | 27.2 / 49.9 ms | 6.5 / 10.6 KiB |
+| Step 1, 1 sample (one lock per sample) | 15 | 5.8 / 8.5 / 11.1 ms | 3.7 / 5.7 ms | 5.6 / 10.6 KiB |
+| Step 1, 20 samples x 2 epochs, 10 at once | 600 | 32.0 / 68.8 / 96.1 ms | 23.0 / 35.9 ms | 6.5 / 10.6 KiB |
 
-Wall time for the larger eval: 1.88 s without the store, 2.98 s with it
-(mockllm answers at once, so this is the whole cost of the writes). The
-host has 8 cores.
+Wall time for the larger eval in step 1b: 1.96 s without the store, 3.23 s with it (step 1: 1.88 s and 2.98 s). mockllm answers at once, so this is the whole cost of the writes. The host has 8 cores. Run-to-run spread is wide on this host: three step 1b runs of the larger eval before the pool change gave wait p95 58 to 63 ms and put median 26 ms.
 
-With one sample, the work outside the put is about 1 to 2 ms. With 10
-samples at once, the moto server becomes slower, and a boundary in one
-sub-agent also waits for a write that another sub-agent of the same sample
-started (one sequence per sample). The plan's estimate of tens of
-milliseconds for a real S3 put is not tested.
+With overlapping puts, the p95 wait is closer to the p95 put than in step 1
+(where the p95 wait was nearly twice the p95 put), because a sub-agent no
+longer waits for the other's put to finish before it starts its own. The
+median put is a little slower, since moto serves more puts at once. The
+plan's estimate of tens of milliseconds for a real S3 put is not tested.
 
 ## What moto does and does not enforce
 
@@ -265,7 +423,9 @@ host: put key with '%' in it                                 allowed            
 - With IAM on, moto's signature check fails for a `/` in a list Prefix and
   for a `%` in a key. The validator lists without the trailing `/` and
   filters. The moto tests use sample ids that need no encoding; a unit test
-  covers the encoding.
+  covers the encoding. The same check fails on a paginated listing once a
+  prefix holds more than 1,000 versions (the next page's key marker has a
+  `/`), so the probes use a new prefix per run.
 - A multipart object's arrival time in moto is when the upload completed.
   The plan (from AWS docs) says S3 uses the time the upload started. Not
   testable on moto.
@@ -275,7 +435,8 @@ policy) can only be checked on real AWS.
 
 ## Decisions made
 
-Eric was away. I made these decisions without him:
+Eric was away for step 1. I made these decisions without him. Step 1b
+changed decisions 2, 3, 5 and 6, and added 14 and 15; each change is marked.
 
 1. Store location: the env var `INSPECT_ADDONLY_STORE` for the eval. The
    validator takes `--store` (or `INSPECT_VALIDATE_STORE`), never the .eval
@@ -283,18 +444,24 @@ Eric was away. I made these decisions without him:
 2. Client: synchronous boto3 in a worker thread (`anyio.to_thread`), from a
    new boto3 session per eval. This works under asyncio and trio, and
    avoids fsspec. A new session is needed because the default session keeps
-   the first credentials it found.
-3. Retries: botocore's own retries, no extra loop, no time limit. The
-   plan's open decision on the time limit stays open. See Plan errors,
-   item 1.
-4. A boundary with no new rows writes nothing.
-5. One lock per sample attempt. The write reads the rows inside the lock,
-   so sequence numbers follow row order even when sub-agents reach
-   boundaries together.
+   the first credentials it found. *Changed in 1b:* the eval host's client
+   has SDK retries off and a pool of 50 connections.
+3. *Changed in 1b (was: botocore's own retries, no time limit).* Retries:
+   the eval's own loop, SDK retries off. It retries network errors,
+   throttling, 5xx and `ConditionalRequestConflict` for up to 60 s, and
+   fails on any other error, including every 412. The 60 s is a placeholder;
+   the plan's open decision on the time limit stays open.
+4. A boundary with no new rows writes nothing. (In 1b it still waits for
+   the records already numbered.)
+5. *Replaced in 1b (was: one lock per sample attempt).* No lock. A write
+   reads the rows and takes the sequence number with no `await` between
+   them, puts outside that step, and waits until every record numbered up to
+   its own is confirmed.
 6. After a failed write, the attempt writes nothing more: later boundaries
    in the same sample raise, and there is no closing record. The validator
    then reports the attempt as cut short (`test_failed_write_stops_eval`,
    which removes the eval host's write permission from inside a tool).
+   *Extended in 1b:* the same holds after a failed buffer insert.
 7. A failed write fails the eval even with `fail_on_error=False` and
    `retry_on_error` set.
 8. The sample closing record is written after scoring and before the .eval
@@ -308,66 +475,87 @@ Eric was away. I made these decisions without him:
 11. Multipart detection: an ETag with a `-`. A real build would use
     GetObjectAttributes.
 12. The sample id in a key is URL-encoded, and `.` is also encoded as
-    `%2E` (see Plan errors, item 4).
+    `%2E` (now in the plan).
 13. This note is in `design/`, the repo's design notes folder. `docs/` is
     the source of the public website.
+14. *New in 1b.* A failed buffer insert is an ordinary sample error
+    (`SampleBufferInsertError`), not an add-only store error: it stops the
+    sample, and `fail_on_error` and `retry_on_error` decide what happens to
+    the eval. The plan says "stops the sample"; a failed write still stops
+    the eval.
+15. *New in 1b.* Validator scope: one store prefix per log directory, given
+    to both the eval and the validator. No new option.
 
-## Plan errors and gaps the prototype found
+## Plan issues the prototype still finds
 
-1. A 412 can be the eval's own record. The plan says a 412 means a bug or
-   an attack, and the eval fails at once. But if a put succeeds and its
-   response is lost, the SDK retries and gets 412 for the eval's own
-   record. The eval host cannot read the store to check. The plan needs a
-   rule for a 412 that follows a retried put. Inspect's `AsyncFilesystem`
-   already turns off SDK retries for the final call of a conditional write
-   (`_util/asyncfiles.py`, `_s3_final_client`).
-2. A failed buffer insert loses events quietly. Writes to the sample buffer
-   go through a transcript subscriber, and `Transcript._notify_subscribers`
-   logs a subscriber's exception and continues (`log/_transcript.py:854`).
-   An event that fails to insert never reaches the store, and the eval goes
-   on. The plan names only the failed 10 s upload. With the store on, a
-   failed insert must stop the sample.
-3. Bridged host tools have no boundary. `agent/_bridge/sandbox/host_tool.py:393`
-   runs the tool directly, not through `execute_tools`, so no write comes
-   before it. Adding one there turns the `message_id` update at
-   `agent/_bridge/types.py:726` into a late version (answer 1).
-4. "URL-encoded" does not cover `.`: `quote` leaves it as is. The plan must
-   say to encode it.
-5. Sub-agents in one sample wait for each other's writes. The plan says
-   each sample waits only at its own boundaries. Inside one sample, one
-   sequence means one write at a time, so a sub-agent's boundary can wait
-   for another sub-agent's write. In the timing run the p95 wait was
-   nearly twice the p95 put.
-6. Matching eval ids to .eval files needs a scope. The validator lists every
-   eval in the store and reports each one with no .eval file in the log
-   dir. When many log dirs share one bucket, every eval from another log
-   dir is reported. The tests give each test its own prefix for this
-   reason. A real build needs a scope: a prefix per log dir, a time window,
-   or a list of eval ids.
+Plan v81 fixed the six plan errors of step 1 (412 after a retried put,
+failed buffer insert, bridged host tools, `.` in keys, sub-agents waiting
+for each other, validator scope). These remain or are new:
+
+1. **Events can skip the sample buffer with no error.** A warning logged
+   from a worker thread during a sample makes the transcript skip the
+   buffer for events recorded at the same time (see
+   [Events lost when a worker thread logs a warning](#events-lost-when-a-worker-thread-logs-a-warning)).
+   The plan's rule "a failed insert stops the sample" assumes the insert is
+   tried; here it is not. The plan needs every event to reach the buffer,
+   which means fixing the transcript's re-entry check across threads (or
+   not recording worker-thread log records in the sample transcript) in
+   core. The prototype only removed its own trigger.
+2. **Sidecar updates with sub-agents.** The plan says the sidecar's output
+   update and timing update happen "inside the generate call or tool call,
+   before the next boundary". That holds for the agent that made the call,
+   but not for the sample: another sub-agent's boundary can run while the
+   generate call waits for the sidecar's decision, and store the model event
+   complete. Both updates are then late versions. From code reading; not
+   run.
+3. **Bridge `message_id`.** Confirmed as a late version, but only when a
+   scaffold calls bridged host tools one at a time; parallel calls do not
+   make one. The open question can be narrowed to that case.
+4. **Empty boundaries must wait too.** The plan says "each boundary waits
+   until every earlier number is confirmed". A boundary with no new rows
+   takes no number, but it must still wait for every number already taken:
+   a record still in flight can hold rows that its own agent recorded.
+5. **A failed insert after the last boundary.** The plan's "a failed insert
+   stops the sample" cannot apply when no boundary follows (scoring with no
+   model call). The sample is logged; the store has no closing record for
+   it, so the validator reports it cut short. The plan could say this is
+   the expected result.
 
 ## What a real build would change
 
 - Use an async S3 client (aiobotocore, as `AsyncFilesystem` does) with
   connection reuse.
-- Define the retry time limit and the rule for a 412 after a retry.
-- Stop the sample when a buffer insert fails and the store is on.
-- Add boundaries to every path that runs a tool outside `execute_tools`
-  (bridged host tools at least), and settle the bridge `message_id` update
-  and the sentinel timing update.
-- Take the sequence number under the lock and put outside it, with each
-  boundary waiting for every earlier number to be confirmed. This keeps one
-  sequence and lets sub-agents' writes overlap.
+- Set the retry time limit (the prototype uses 60 s).
+- Make sure every event of a sample reaches the buffer, also when a worker
+  thread logs during the sample (plan issue 1).
+- Settle the bridge `message_id` update and the sentinel sidecar updates
+  (plan issues 2 and 3).
 - Configure the store through eval options, not an env var.
-- Validator: a scope for eval ids, parallel reads, JSON output, the hash
-  index of Appendix C, and GetObjectAttributes for multipart detection.
+- Validator: parallel reads, JSON output, the hash index of Appendix C, and
+  GetObjectAttributes for multipart detection.
 - Records for retries, re-scores and shard merges (out of scope here).
 - Test compliance mode, the If-None-Match policy and real put latency in a
   sandbox AWS account.
 
+## Validation runs (step 1b)
+
+- `pytest tests/log/test_addonly_store.py`: 17 passed, 4 skipped (trio
+  variants); with `--runtrio`, the 4 trio variants pass.
+- `pytest tests/agent/test_bridge_approval.py -k "stores_before_it_runs or
+  against_addonly"`: 3 passed, 1 skipped (trio variant).
+- `pytest tests/log tests/model tests/agent tests/test_eval.py -n 4`:
+  11,758 passed, 6,763 skipped (gated and trio), 0 failed, with `.venv/bin`
+  on `PATH` (one test runs the `inspect` command; without it on `PATH`
+  that test fails with `FileNotFoundError`).
+- `ruff check`, `ruff format`, `mypy --exclude tests/test_package src tests`
+  (plus the timing script): clean.
+
 ## Not tested
 
 - Real S3 (by instruction).
-- Trio: the code uses only anyio primitives, but no eval ran under trio.
-- The sentinel sidecar, the agent bridge, checkpoint resume, sample retries
-  (only the stop-on-failure path), evicted events (the buffer read-back
-  path at log time), and large model inputs.
+- Trio: the unit tests of the writer and the store run under trio; no eval
+  ran under trio.
+- The sentinel sidecar, sandboxed bridged agents (the bridge runs in
+  process), checkpoint resume, sample retries (only the stop-on-failure
+  path), evicted events (the buffer read-back path at log time), and large
+  model inputs.

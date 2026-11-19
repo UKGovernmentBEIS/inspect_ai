@@ -13,7 +13,8 @@ from inspect_ai._util.error import PrerequisiteError
     required=True,
     envvar="INSPECT_VALIDATE_STORE",
     help="s3://bucket/prefix of the add-only store. Taken from this option, "
-    "never from a .eval file.",
+    "never from a .eval file. Use one prefix per log directory: every eval "
+    "under the prefix with no .eval file in LOG_DIR is reported.",
 )
 @click.option(
     "--verbose",
