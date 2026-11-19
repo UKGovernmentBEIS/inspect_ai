@@ -1407,12 +1407,6 @@
       "undescribed": 4
     }
   },
-  "tests/agent/test_monitor_proxy.py": {
-    "type: ignore[arg-type]": {
-      "count": 2,
-      "undescribed": 2
-    }
-  },
   "tests/analysis/test_validate.py": {
     "type: ignore": {
       "count": 1,

@@ -393,18 +393,18 @@ in this mode (the batch client is long-lived and cannot refresh the token).
 
 ### Gemini on Vertex AI {#gemini-on-vertex-ai}
 
-To use Google Gemini models on Vertex, you can use the standard `google` model provider with the `vertex` qualifier (e.g. `google/vertex/gemini-2.0-flash`). You should also set two environment variables indicating your project ID and region. Here is a complete example:
+To use Google Gemini models on Vertex, you can use the standard `google` model provider with the `vertex` qualifier (e.g. `google/vertex/gemini-3.6-flash`). You should also set two environment variables indicating your project ID and region. Here is a complete example:
 
 ``` bash
 export GOOGLE_CLOUD_PROJECT=project-12345
 export GOOGLE_CLOUD_LOCATION=us-east5
-inspect eval ctf.py --model google/vertex/gemini-2.0-flash
+inspect eval ctf.py --model google/vertex/gemini-3.6-flash
 ```
 
 You can alternatively pass the project and location as custom model args (`-M`). For example:
 
 ``` bash
-inspect eval ctf.py --model google/vertex/gemini-2.0-flash \
+inspect eval ctf.py --model google/vertex/gemini-3.6-flash \
    -M project=project-12345 -M location=us-east5
 ```
 

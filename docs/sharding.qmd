@@ -80,6 +80,10 @@ Merged metrics see samples, scores and metadata exactly as the log stores them, 
 
 The merge computes metrics over the samples in sample ID order (IDs sorted as text), then epoch, and its results equal those of an unsharded run of the same samples in that order. A metric whose results depend on sample order can differ from a particular unsharded run, just as it differs between runs with `shuffle=True`.
 
+### Eval sets
+
+`eval_set()` does not merge shards. It refuses a log directory that holds a `.shards` directory. Merge the shards as above. If samples failed or are missing, retry each incomplete shard in its own numbered directory with the same selection, run samples that no shard selected as new shards, and merge again. Then move the `.shards` directory out of the log directory before you run an eval set there.
+
 ### The merge command
 
 `inspect log merge-shards LOG --task TASK` builds the task as `inspect eval` builds it and merges with it. It takes these options of `inspect eval`, which mean what they mean there and read the same environment variables: `-T`, `--task-config`, `--model`, `--model-base-url`, `-M`, `--model-config`, `--model-role`, `--epochs`, `--epochs-reducer` and `--no-epochs-reducer`. `--task` takes the forms `inspect eval` takes (`mytask.py`, `mytask.py@name`, a registered name or a directory) and must name one task. Other options of `inspect eval` are refused, including the generation options: the task is built with the default generate config.
