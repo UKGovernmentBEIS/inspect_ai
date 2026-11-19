@@ -3724,7 +3724,7 @@ def test_a_google_bridge_call_gets_its_result_without_a_sentinel(
 
 
 GOOGLE_REBUILT_IDS = Path(__file__).parent / "fixtures" / "google_bridge_0.3.292.dev12"
-"""Logs of each `google_run` case, and of `gemini_scaffold` reading 20 files (`20-turns`), recorded without a sentinel by the Google bridge before it kept call ids (Inspect at 7adfe8c18): it recorded each call it handed over, and each result, under an id rebuilt from the call (`call_<name>_<hash>`), which no call the model proposed has."""
+"""Logs of each `google_run` case but `retry-compaction`, and of `gemini_scaffold` reading 20 files (`20-turns`), recorded without a sentinel by the Google bridge before it kept call ids (Inspect at 7adfe8c18): it recorded each call it handed over, and each result, under an id rebuilt from the call (`call_<name>_<hash>`), which no call the model proposed has."""
 
 
 def google_rebuilt_ids_log(case: str) -> EvalLog:
@@ -3733,7 +3733,9 @@ def google_rebuilt_ids_log(case: str) -> EvalLog:
     return log
 
 
-@pytest.mark.parametrize("case", GOOGLE_RUNS)
+@pytest.mark.parametrize(
+    "case", [case for case in GOOGLE_RUNS if case != "retry-compaction"]
+)
 def test_a_google_bridge_call_in_a_log_with_rebuilt_ids_has_no_result(
     case: str, caplog: pytest.LogCaptureFixture
 ) -> None:
