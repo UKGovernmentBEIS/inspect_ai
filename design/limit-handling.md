@@ -2353,14 +2353,26 @@ under trio with `--runtrio`.
     `sandbox_agent_bridge()` does once its agent unwinds. The requests are a
     `_ask_model_request(2)` prompt, which reaches a sample
     `message_limit(2)` at `generate()`'s message check, and a
-    `_ask_model_request(1)` generation whose priced mockllm usage takes a
-    scoped `cost_limit()`, entered above the tool, past its budget after
-    the call. Both are admitted before either limit is reached (a
-    sequential second request would be refused at entry by the kept limit
-    and never reach its own limit). The filter orders them: it lets the
-    request named by `first` (`"message"` or `"cost"`) proceed and holds the
-    other on an `anyio.Event` set once the bridge keeps the first one's
-    limit, then returns `None` so default generation continues. The test
+    `_ask_model_request(1)` generation whose priced usage takes a scoped
+    `cost_limit()`, entered above the tool, past its budget after the call.
+    Its provider is a stub whose `generate()` sets an `entered`
+    `anyio.Event` and then awaits a `release` event before returning the
+    priced output. Both requests are admitted before either limit is
+    reached (a sequential second request would be refused at entry by the
+    kept limit and never reach its own limit). The order is set by which
+    call completes first, not by which leaves the filter first: a request
+    released from the filter after a limit is kept would be refused by its
+    own pre-dispatch check (the bridge guard) and make no provider call.
+    With `first="message"`, the cost request is dispatched first; once its
+    provider sets `entered`, the message request runs (the filter holds it
+    on `entered` and then returns `None`), fails at `generate()`'s message
+    check and is kept; only then does the test set `release`, so the cost
+    call completes, raises the cost limit and replaces the kept message
+    limit. With `first="cost"`, `release` is set from the start, and the
+    filter holds the message request until the bridge has kept the cost
+    limit; the message request, already past its bridge entry, then fails
+    at `generate()`'s message check, which runs before its pre-dispatch
+    check, and the kept cost limit stays. The test
     wraps the agent with `as_tool()` and runs it through `execute_tools()`
     from an assistant message that calls it, once per order. In both, the
     bridge keeps the cost limit (a depth-only rank would keep the shallower
