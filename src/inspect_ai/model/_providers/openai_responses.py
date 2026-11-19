@@ -89,6 +89,34 @@ from .util.hooks import HttpxHooks, polling
 logger = getLogger(__name__)
 
 
+_REASONING_REMOVED_WARNING = (
+    "The Responses API removed replayed reasoning item(s) for model '{model}' "
+    "(reason: {reason}), so the model no longer sees that reasoning and may "
+    "redo it. A prefix_mismatch reason means earlier conversation content "
+    "or the tool list changed after the reasoning was produced (for example, "
+    "CompactionEdit clearing old tool results). Run with --log-model-api "
+    "(log_model_api=True) to record each response's input_transformations."
+)
+
+
+def _warn_reasoning_removed(model: str, response: dict[str, Any]) -> None:
+    """Warn when the API removed replayed reasoning items from the input.
+
+    Reads the dumped response because openai SDKs before 3.50.0 don't declare
+    `input_transformations` and pass its items through as plain dicts.
+
+    Skips `turn_boundary`: models that use only current-turn reasoning drop
+    earlier turns' reasoning on every request, so it isn't a sign of a problem.
+    """
+    reasons = {
+        t.get("reason")
+        for t in response.get("input_transformations") or []
+        if t.get("action") == "removed" and t.get("reason") != "turn_boundary"
+    }
+    for reason in sorted(str(r) for r in reasons):
+        warn_once(logger, _REASONING_REMOVED_WARNING.format(model=model, reason=reason))
+
+
 def _fix_function_tool_parameters(response: Response) -> None:
     """Fix string parameters in FunctionTool objects.
 
@@ -287,15 +315,14 @@ async def generate_responses(
             # Use warnings=False to suppress Pydantic serialization warnings for
             # action types the SDK may not yet support.
             # See: https://github.com/pydantic/pydantic-ai/issues/3653
-            model_call.set_response(
-                model_response.model_dump(warnings=False),
-                http_hooks.end_request(request_id),
-            )
+            response_dump = model_response.model_dump(warnings=False)
+            model_call.set_response(response_dump, http_hooks.end_request(request_id))
             if process_response is not None:
                 model_response = process_response(model_response)
 
             # parse out choices
             choices = openai_responses_chat_choices(model_name, model_response, tools)
+            _warn_reasoning_removed(model_response.model or model_name, response_dump)
 
             # surface response-level `metadata` (echoed request metadata, which
             # some models augment with additional fields) so callers can read it
