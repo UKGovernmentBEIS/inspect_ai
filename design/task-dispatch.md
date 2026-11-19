@@ -64,7 +64,10 @@ API:
 - `enqueue_task()` stays synchronous and returns handles
   ([task-handles.md](task-handles.md#the-handle-api)); a call on the run's
   event loop that ignores the result, as every such call does today, is
-  unchanged.
+  unchanged. It stays synchronous because adding a task awaits nothing and
+  an async version would silently break every existing call that does not
+  await it (the coroutine would never run, so the task would never be
+  added).
 - `enqueue_task()` called from a worker thread that copied the run's context
   (for example through `anyio.to_thread.run_sync`), which today buffers the
   task, raises `RuntimeError` ("Run shapes and what is refused"). The
@@ -88,6 +91,12 @@ hides a problem):
   retried, like a failed `log_start()`, and each failed attempt is reported
   to the run's `TaskSource`; today a seed task's failure raises from
   `eval()`.
+- An attempt whose log storage failed after its log was initialised (a
+  failed prior-log seed, header flush or final write) is reported to the
+  run's `TaskSource` with the unwritten error log that `eval()` already
+  returns for it; today it is not reported, so a source whose
+  `next_tasks()` waits for each task's report waits forever on a task
+  whose final attempt failed this way.
 - An attempt stopped by its own abort or retry request before it wrote a
   final log is reported to the run's `TaskSource` with its unwritten "Task
   cancelled by user" log, a task cancelled while queued included; today
@@ -570,6 +579,15 @@ A rollout task that sets its own `model`, or whose creator is itself an
 added task that has not generated yet, can resolve to a pool with no
 controller, and then has the same cost as any other added task.
 
+Creating an added task's controller eagerly, in the synchronous add, would
+close that gap but move a bad adaptive setting's failure from the added
+task to whoever added it (for a `next_tasks()` return, the whole run), so
+it is not done (decision: Ransom, 2026-11-18). A follow-up closes the gap
+instead, for added tasks and for every controller created after a retune:
+it remembers each `--max-connections` retune and applies it when a
+controller is created, with controllers still created lazily ("Not this
+design").
+
 **The run's task names.** `RunQueue` is created with the names of
 `eval_set_tasks`, which `_eval_async_inner` already receives: the whole eval
 set's tasks, including those outside this run when an `eval_set()` round
@@ -798,35 +816,28 @@ twice is reported three times.
   `_run_task` calls `notify_task_source` once with the log the attempt ends
   with: a written log (success, error, or the `cancelled` log of a
   run-level cancellation), the unwritten "Task cancelled by user" log of an
-  abort or retry request, or the unwritten error log of a failed
-  `logger.init()`, which now runs inside the attempt. Today's early return
-  on `write_failed` becomes the one exception below, on a flag of its own
-  (next bullet).
-- **Two exceptions, both today's.** A preview (`run_samples=False`) is not
-  reported (`notify_task_source`'s own check). An attempt whose log storage
-  failed after `init()` had returned (a failed prior-log seed, header flush
-  or final write that left no finished log) is not reported, as today.
-  `TaskLogger.initialized`, set when `init()` returns and cleared by
-  `reinit()`, separates that case from a failed `init()`, which is reported
-  on every attempt, so a source waiting on a task whose `init()` keeps
-  failing hears each failure and is not left waiting after the last.
-  Today's `write_failed` cannot mark this case, because `_run_task` also
-  sets it where an abort or retry leaves no written log and it builds the
-  unwritten "Task cancelled by user" log. So `write_failed` is replaced by
-  `storage_failed`, set only on the `except Exception` path that builds the
-  unwritten storage-error log, and only when `options.logger.initialized`
-  is true and `pop_finished_log()` returned no finished log; the abort and
-  retry branch never sets it. An abort or retry that interrupts
-  `log_start()` or the prior-log seed after `init()` returned is therefore
-  reported once with its abort or retry log, while a genuine header-storage
-  failure is still skipped.
+  abort or retry request, the unwritten error log of a failed
+  `logger.init()`, which now runs inside the attempt, or the unwritten
+  storage-error log of an attempt whose log storage failed after `init()`
+  had returned (a failed prior-log seed, header flush or final write that
+  left no finished log). That last log is the one `eval()` already returns
+  for the attempt, and a source waiting on a task whose final attempt
+  failed this way is not left waiting (decision: Ransom, 2026-11-18,
+  reversing the 2026-11-16 exception for it). So today's `write_failed`
+  flag and its early return are removed: of the two cases that set it, the
+  abort or retry with no written log and the storage failure, both are now
+  reported. No flag replaces it, and `TaskLogger` gains no `initialized`
+  state: a failed `init()` and a later storage failure are reported alike.
+  `_run_task` keeps today's early return for an attempt abandoned by the
+  retry-abandon stamp, which has no log of its own (below).
+- **One exception, today's.** A preview (`run_samples=False`) is not
+  reported (`notify_task_source`'s own check).
 - **No attempt, no second report.** An attempt that returns no log of its
   own (a pending retry of a registered task abandoned by the stamp, which
   ends the record with its earlier attempt's log) reports nothing; nor does
   an unregistered attempt aborted after `_run_task` returned: in each case
-  the attempt whose log the record keeps was reported when it returned, or
-  falls under the storage exception. A record ended unstarted when dispatch
-  ends is not reported, as today.
+  the attempt whose log the record keeps was reported when it returned. A
+  record ended unstarted when dispatch ends is not reported, as today.
 
 The call keeps `notify_task_source`'s rules, as today: a callback exception
 is logged (propagated under `debug_errors`), and the tasks a callback
@@ -1333,7 +1344,7 @@ restored afterwards. In place of the `chdir`:
   task_init. Put what task_init needs in the sandbox config, and pass
   environment variables to the subprocesses it starts with
   subprocess(env=...); return {} from task_init_environment"). The error
-  raises where setup errors raise: once setup runs in the attempt (step 3),
+  raises where setup errors raise: once setup runs in the attempt (step 3a),
   that task ends with its error log; under step 1 alone, before that, it
   fails the run from `eval()` as a setup error does today. An empty
   mapping, every provider's default, is unaffected.
@@ -1447,8 +1458,11 @@ inspect_sandboxes change is needed.
 [task-handles.md](task-handles.md) returns a `TaskHandle` per added record,
 lets a handle send samples to a task whose dataset is
 `samples_from_handle()`, and starts such a task outside `max_tasks`. It adds
-fields to `TaskRecord` and one start rule to the dispatcher. Nothing here
-depends on it.
+fields to `TaskRecord`, a creator argument to `RunQueue.add`, a
+task-first settings rule in `configure_task()` for a task fed through a
+handle (every other task, an ordinary added one included, keeps the
+resolution described here), and one start rule to the dispatcher. Nothing
+here depends on it.
 
 ### Interactions with related changes
 
@@ -1543,6 +1557,26 @@ depends on it.
   Python, so the accessor would be API nobody calls.
 - **Exporting the lifecycle scope.** Every provider would have to adopt it;
   captured bindings make the existing pattern correct.
+- **Clearing a failed row's frames instead of snapshotting its error**:
+  keep `TaskError` with the real exception and traceback, and once the
+  attempt ends run `traceback.clear_frames` over the exception, its
+  `__cause__` and `__context__` chain and any exception-group members, so
+  the row keeps file names and line numbers but no locals. Displays and
+  logger formats would need no change. Rejected (decision: Ransom,
+  2026-11-19) because the end of the attempt does not mean every frame in
+  its error chain has finished. On Python 3.11 and 3.12 (Inspect supports
+  3.11 and later), clearing the frame of a suspended coroutine or generator
+  finalizes it; only 3.13 and later refuse. A failed task's error can carry
+  such frames: the shared model `Batcher`
+  (`model/_providers/util/batch.py`) catches one exception and awaits its
+  fan-out to every waiting request, each of which re-raises that same
+  object, so clearing one consumer's error could finalize the publisher
+  while it is still failing the other requests. Making it safe would need
+  a per-frame walk that skips suspended frames on those versions, a
+  regression test that the `Batcher` keeps fanning out and cleans up after
+  a consumer's frames are cleared, and recording the error on every path
+  that completes a failed row, the error-log write timeout included. The
+  snapshot holds no frames at all and needs none of that.
 
 Alternatives for the handles are in
 [task-handles.md](task-handles.md#alternatives-considered).
@@ -1617,9 +1651,10 @@ JSON logger keeps its `msg` and separate `exc_info` fields.
 Model controllers: an added task's model gets its adaptive controller on
 its first `generate`, not before its sandboxes are built, so an `inspect ctl
 config --max-connections` retune made earlier is dropped with today's "not
-using adaptive connections" warning when no other task uses that model; a
-bad adaptive setting on an added task ends that task with its error log
-instead of raising from `eval()`.
+using adaptive connections" warning when no other task uses that model,
+until the follow-up that applies remembered retunes to a controller when
+it is created; a bad adaptive setting on an added task ends that task with
+its error log instead of raising from `eval()`.
 
 Control channel: `GET /tasks` gains queued rows (`status: "queued"`); task
 cancel, drain, pause and resume accept queued tasks (`task_queued` in a
@@ -1875,11 +1910,15 @@ test that waits on a run is bounded with `fail_after`.
   `task_complete` has reported A and B's final attempt, with
   `task_retry_attempts` 0 and 2: B is reported once per attempt (once, and
   three times) with its initialization error, that error stays B's result,
-  and the run ends with `next_tasks()` released, on asyncio and trio; a B
-  whose header flush fails after `init()` is not reported, as today, while
-  a B aborted, and in another run asked to retry, while its `log_start()`
-  is held after `init()` returned is reported once with the unwritten
-  "Task cancelled by user" log, on asyncio and trio.
+  and the run ends with `next_tasks()` released, on asyncio and trio; the
+  same source with a B whose header flush always fails after `init()`
+  returned, and in another run a B whose final write fails, with
+  `task_retry_attempts` 0 and 2: B is reported once per attempt with the
+  unwritten storage-error log that `eval_async()` returns for it, and the
+  run ends with `next_tasks()` released; a B aborted, and in another run
+  asked to retry, while its `log_start()` is held after `init()` returned
+  is reported once with the unwritten "Task cancelled by user" log, on
+  asyncio and trio.
 - `tests/test_sample_source.py`: a mid-run configuration through
   `SandboxManager.start_for_samples`; its failure fails only that task, as
   today.
@@ -1969,7 +2008,7 @@ state in the single `eval_run`), so the setup fixes come first.
    `test_sandbox_setup.py` (the directory, environment and
    `resolve_config_paths` cases), `test_retry.py`, the Docker tests.
    `prepare_options` still awaits `logger.init()` inside its own `chdir`
-   after this step; step 3 removes that await from the `chdir`, completing
+   after this step; step 3a removes that await from the `chdir`, completing
    invariant 7.
 2. **Provider state per setup.** `_eval/run.py` (`SandboxManager` runs each
    `task_init` in the chained context and records each configuration's
@@ -1983,16 +2022,22 @@ state in the single `eval_run`), so the setup fixes come first.
    `task_cleanup` for two configurations, the shared k8s-style object, a
    sample's own binding kept, a failed `task_init`'s bindings reaching no
    later setup, and the empty `SampleSource` seed).
-3. **One queue and one dispatcher; logs start with their attempt; queued
-   tasks in the control channel.** `_eval/task/enqueue.py` (`RunQueue`,
-   `TaskRecord`, `enqueue_task()` still returning `None`),
+3. Step 3 is split in two (decision: Ransom, 2026-11-18): 3a is the queue
+   and the dispatcher, which task handles need; 3b is the control channel's
+   view of queued tasks, which they do not.
+
+   **3a. One queue and one dispatcher; logs start with their attempt.**
+   `_eval/task/enqueue.py` (`RunQueue`, `TaskRecord` with `reached`,
+   `RunQueue.cancel` and `RunQueue.end` without the control-channel
+   registration, `enqueue_task()` still returning `None`),
    `_eval/run.py` (`configure_task()` with the `chdir` kept around the
    logger's construction, `ensure_controllers()` for the seed only,
    `dispatch_tasks()` with the inline `next_tasks()` call and its dispatch
    waker, the uncounted start of an `abort_requested` record from the
    pending list, `RunQueue.cancel` setting `abort_requested`,
-   `_run_task`'s single `notify_task_source` call with its two exceptions,
-   `storage_failed` replacing `write_failed` for the storage exception,
+   `_run_task`'s single `notify_task_source` call for every attempt, a
+   failed `init()` and a storage failure included, with `write_failed`
+   and its early return removed,
    the dispatcher's synchronous `start_attempt` removing the entry from
    pending, counting it when counted, moving the record into `attempt` and
    creating the attempt's fresh `TaskCancel` (its `can_retry` from the
@@ -2002,40 +2047,67 @@ state in the single `eval_run`), so the setup fixes come first.
    record, and its closed and abort checks, the
    run's task
    names seeded from `eval_set_tasks`, `startup_sandboxes` and the record's
-   resolution cache for every task; `prepare_options`, `TaskInjection`,
+   resolution cache for every task, the display's task total lowered for a
+   record that ends before its row opens; `prepare_options`, `TaskInjection`,
    `PreparedFeed`, `_empty_feed` removed), `_eval/eval.py` (one `eval_run`;
    the `max_tasks` docstrings, with `_eval/evalset.py`'s and
    `docs/parallelism.qmd`, naming the uncounted abort of a task cancelled
    while queued),
    `_eval/task/run.py` (an explicit checkpoint, then `logger.init()`, at the start of `task_run`; the
    seed's `startup_sandboxes` call after the task-start hooks;
-   `on_row_opened()` and `on_registered()`;
+   `on_row_opened()` and `on_registered()` moving `reached`;
    `unwritten_task_log` with no location),
+   `_eval/task/task_source.py` (the `task_complete` docstring, which says
+   "A task finished", says that it is called once per attempt, a failed
+   one included, as `docs/task-source.qmd` already does, and drops "they
+   run after the current batch"),
    `_display/core/display.py` (`TaskError.from_exception`),
    `_display/core/results.py` and `_display/log/display.py` (rendering the
    snapshot; logging its text as `exc_snapshot`), `_util/logger.py`
    (`LogHandler.emit` setting `exc_text` from it, `json_log_record` reading
    it), `_util/trace.py` (`TraceFormatter` excluding `exc_snapshot`),
    `tests/util/test_logger_format.py`,
-   `_eval/task/log.py` (`reinit()` without `init()`, `initialized`, `discard()` without an
+   `_eval/task/log.py` (`reinit()` without `init()`, `discard()` without an
    entry, a `location` of `None` until
-   `log_init()` returns),
-   `_control/queued_tasks.py` (new; the queued registry), `_control/eval_state.py`, `_control/cancel.py`,
-   `_control/pause.py` (queued pause and resume), `_control/state.py`,
-   `_control/__init__.py`, `_cli/ctl/_task.py`, `_eval/evalset.py` (the
-   no-log rule); `util/_sandbox/environment.py`
+   `log_init()` returns), `_eval/evalset.py` (the no-log rule);
+   `util/_sandbox/environment.py`
    and `docs/extensions-sandboxes.qmd` (the repeat-call rule);
    `design/task-source.md` ("Live
-   injection"), `design/ctl/task-drain.md` ("Out of scope"),
-   `design/sample-source.md`. Tests: `test_enqueue_task.py`,
-   `test_task_source.py`, `test_task_cancel.py`, `_control/test_ctl.py`,
-   `test_eval_set.py`. Needs steps 1 and 2; its selection-mode support, and
-   the faceted-worker test above, also need the runtime-pruning guarantee
-   from the pruning code ("Interactions with related changes"), which
-   stays a separate change.
+   injection"), `design/sample-source.md`. Tests: `test_enqueue_task.py`,
+   `test_task_source.py`, `test_eval_set.py`, and the abort, reporting and
+   display-total cases of `test_task_cancel.py`, each cancelling a queued
+   or unregistered record through `RunQueue.cancel` (found with
+   `RunQueue.find`). Needs steps 1 and 2; its selection-mode support, and
+   the faceted-worker test above, rely on the runtime-pruning guarantee
+   ("Interactions with related changes").
 
-Then, needing step 3 and, for selection workers, the same runtime-pruning
-guarantee: **task handles**, one PR ([task-handles.md](task-handles.md)).
+   The failed-`init()` report to a `TaskSource` cannot be left to a later
+   step: once `logger.init()` runs inside the attempt, a source waiting on a
+   task whose `init()` failed would otherwise wait forever. 3a leaves `main`
+   correct on its own: a queued record, and an attempt that has not reached
+   `register_eval`, are invisible to the control channel, as a task waiting
+   to start is on `main` today (`inspect ctl task cancel` answers 404 "not
+   found"), and a record that ends without registering is not listed
+   afterwards, as a task that never registered is not today. Nothing public
+   calls `RunQueue.cancel` until 3b or task handles.
+
+   **3b. Queued tasks in the control channel** (invariant 3).
+   `_control/queued_tasks.py` (new; the queued registry, which
+   `RunQueue.add` fills and `RunQueue.end` and `on_registered()` empty),
+   `_control/eval_state.py` and `RunQueue.end` (terminal identity through
+   `register_completed_eval` for a record that ends without registering),
+   `_control/cancel.py` (the registry first in `_task_cancel_directive`,
+   and the attempt's `attempt_cancel` answers), `_control/pause.py` (queued
+   pause and resume), `_control/state.py` (queued rows in `GET /tasks`),
+   `_control/__init__.py` (`CONTROL_API_VERSION`), `_cli/ctl/_task.py`;
+   `design/ctl/task-drain.md` ("Out of scope"). Tests:
+   `test_task_cancel.py` and `_control/test_ctl.py` (listing, cancel,
+   drain, pause and resume of queued tasks through `inspect ctl`, repeated
+   directives, finished rows of records that never registered), and 3a's
+   queued and unregistered cancels in `test_task_source.py` and
+   `test_eval_set.py` made again through `inspect ctl`. Needs 3a.
+
+Then, needing step 3a: **task handles**, one PR ([task-handles.md](task-handles.md)).
 
 Follow-ups in provider repositories, none a gate (decision: Ransom,
 2026-11-11, for Podman):
@@ -2072,20 +2144,47 @@ a record has three phases with registration tracked apart, that the `chdir`
 stays around the synchronous construction of a task's logger; and
 (2026-11-16) that `enqueue_task()` stays synchronous and returns handles,
 reversing the 2026-11-09 decision to make it async once adding a task
-awaited nothing, that an attempt cancelled before it registers is stopped
+awaited nothing (its reasons restated 2026-11-18: adding a task awaits
+nothing, and an async version would silently break every existing call
+that does not await it), that an attempt cancelled before it registers is stopped
 by its own abort, not the retry-abandon stamp (replacing that part of the
 2026-11-12 three-phase decision), and that cancels under legacy
 `eval_set()` rounds are not refused (replacing the 2026-11-12 refusal),
 that a failed task's display row keeps a frame-free snapshot of its error,
 and that each attempt's outcome, a failed `init()` included, reaches the
-`TaskSource` through one rule with today's two exceptions; and
+`TaskSource` through one rule (with today's two exceptions, narrowed
+2026-11-18 to the preview); and
 (2026-11-17) that a queued cancel becomes an attempt that aborts before it
 starts, started uncounted on the dispatcher's next pass, so it ends and is
 reported through the abort path (replacing the 2026-11-12 in-memory
 "cancelled before it started" log and the 2026-11-16 report on the
 dispatcher's next pass), and that a record leaves `queued` in the
 dispatcher's pick, so a cancel after the pick aborts a counted attempt that
-keeps its slot until it ends.
+keeps its slot until it ends; and (2026-11-18) that every attempt is
+reported to the `TaskSource`, an attempt whose log storage failed after
+`init()` included, with no `storage_failed` flag and no
+`TaskLogger.initialized` (reversing the 2026-11-16 storage exception), that
+step 3 of the plan is split into 3a (the queue, the dispatcher, logs that
+start with their attempt with the failed-`init()` report, and the display's
+error snapshot) and 3b (queued tasks in the control channel), with task
+handles needing 3a only, and that an added task's model controller stays
+lazy (the 2026-11-12 decision kept), with remembered `--max-connections`
+retunes applied when a controller is created as a follow-up rather than an
+eager controller for added tasks; and (2026-11-19) that an ordinary task
+added from inside a running task keeps today's settings resolution (the
+run's values win), with only a task fed through a handle resolving its own
+first ([task-handles.md](task-handles.md#tasks-fed-through-a-handle)),
+narrowing the 2026-11-18 decision that every task added from inside a
+running task follows one task-first rule and replacing the 2026-11-19
+answer that such an ordinary task keeps its own `epochs` and reducer as a
+pair, because applying it to ordinary added tasks changed an existing
+feature and brought compatibility work that fed tasks, being new, do not
+need. The 2026-11-19 decision to keep `TaskError` and clear its frames in
+place of the snapshot is withdrawn (decision: Ransom, 2026-11-19), because
+clearing a suspended frame on Python 3.11 and 3.12 finalizes a coroutine
+that may still be running (see
+[Alternatives considered](#alternatives-considered)); the frame-free
+snapshot stands.
 
 ## Not this design
 
@@ -2101,6 +2200,22 @@ keeps its slot until it ends.
   other task has created that model's controller. A task fed through a
   handle escapes it only when its pool already has a controller the retune
   reached, as when it shares a seed creator's model ("Adding tasks").
+  The follow-up that fixes it, a PR of its own (decision: Ransom,
+  2026-11-18): the control channel keeps every `--max-connections` retune
+  for the run, with its model filter, including one that reaches no
+  controller when it is made, and controller creation
+  (`ensure_model_controller`, and the lazy creation in a model's first
+  `generate`) replays the kept retunes in the order they were made,
+  applying each whose model filter matches the new controller, so the
+  latest matching retune decides its ceiling, as later retunes overwrite
+  earlier ones on a live controller. Whether one retune's filter matches a
+  controller follows the per-request name rule a live retune uses
+  (`_match_controllers`, `_control/limits.py`: a prefix at the name start
+  or after a `/`, an exact name winning among the controllers one request
+  names); an older exact-name retune does not outrank a newer prefix one.
+  Controllers stay lazy; nothing is created eagerly. The follow-up also
+  specifies what the retune's answer and the logs record when it reaches
+  no controller yet.
 - A provider's own lookups in `sample_init` (a missing config's compose-file
   search) seeing the task directory.
 - A caller's own cancellation of `eval_async()` (for example
